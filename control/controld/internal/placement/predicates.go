@@ -73,10 +73,6 @@ func requiresNodeDataplane(req *placementkernel.Request) bool {
 	return req != nil && req.GetNetwork() != "host"
 }
 
-func requiresPortsCapability(req *placementkernel.Request) bool {
-	return req != nil && (req.GetRequiresHostPort() || len(req.GetPorts()) > 0)
-}
-
 func hasAvailableCPU(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {
 	if requested <= 0 {
 		return true

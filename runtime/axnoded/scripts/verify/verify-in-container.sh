@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
-. "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
+. "${ROOT_DIR}/scripts/lib/external-network-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
 RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
@@ -14,7 +14,6 @@ READY_TIMEOUT="${READY_TIMEOUT:-180}"
 DEFAULT_UPLINK="${DEFAULT_UPLINK:-$(ip route show default | awk '/default/ {print $5; exit}')}"
 AXNODED_IP_RANGE="${AXNODED_IP_RANGE:-172.31.0.1/16}"
 VERIFY_ROOTFS_IMAGE="${VERIFY_ROOTFS_IMAGE:-/var/lib/axnoded/verify-rootfs.ext4}"
-VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-nginx-rootfs.ext4}"
 AXNODED_VERIFY_CGROUP_ENFORCEMENT="${AXNODED_VERIFY_CGROUP_ENFORCEMENT:-disabled_dev}"
 case "${AXNODED_VERIFY_CGROUP_ENFORCEMENT}" in
   required) AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES="${AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES:-1073741824}" ;;
@@ -40,7 +39,7 @@ nat_backend = "${NAT_BACKEND}"
 
 [plugin.network.ebpf]
 pin_path = "/sys/fs/bpf/axern/bpfnet"
-map_size = 16384
+snat_map_size = 262144
 ${BPFNET_UPLINKS_CONFIG}
 [plugin.resource]
 cgroup_cache_size = 4
@@ -93,13 +92,11 @@ cleanup() {
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true
   fi
   umount /opt/sample-rootfs >/dev/null 2>&1 || true
-  umount /opt/nginx-rootfs >/dev/null 2>&1 || true
   if [ -n "${rootfs_staging_dir}" ]; then
     umount "${rootfs_staging_dir}" >/dev/null 2>&1 || true
     rmdir "${rootfs_staging_dir}" >/dev/null 2>&1 || true
   fi
   rm -f "${VERIFY_ROOTFS_IMAGE}"
-  rm -f "${VERIFY_NGINX_ROOTFS_IMAGE}"
   if [ "${VERIFY_KEEP_EXTERNAL_PROBE:-false}" != "true" ]; then
     cleanup_external_probe
   fi
@@ -119,17 +116,6 @@ umount "${rootfs_staging_dir}"
 rmdir "${rootfs_staging_dir}"
 rootfs_staging_dir=""
 mount -o loop,ro "${VERIFY_ROOTFS_IMAGE}" /opt/sample-rootfs
-
-rootfs_staging_dir="$(mktemp -d /tmp/axnoded-nginx-rootfs-staging.XXXXXX)"
-truncate -s 536870912 "${VERIFY_NGINX_ROOTFS_IMAGE}"
-mkfs.ext4 -q -F "${VERIFY_NGINX_ROOTFS_IMAGE}"
-mount -o loop "${VERIFY_NGINX_ROOTFS_IMAGE}" "${rootfs_staging_dir}"
-cp -a /opt/nginx-rootfs/. "${rootfs_staging_dir}/"
-umount "${rootfs_staging_dir}"
-rmdir "${rootfs_staging_dir}"
-rootfs_staging_dir=""
-mount -o loop,ro "${VERIFY_NGINX_ROOTFS_IMAGE}" /opt/nginx-rootfs
-
 
 "${AXNODED_BIN}" \
   -root /var/lib/axnoded \
@@ -231,9 +217,9 @@ ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
   bash "${ROOT_DIR}/scripts/verify/verify-generic-core.sh"
 ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
   NAT_BACKEND="${NAT_BACKEND}" \
-  EBPF_INGRESS_PROBE_NETNS="${EBPF_INGRESS_PROBE_NETNS}" \
-  EBPF_INGRESS_PROBE_ADDR="${EBPF_INGRESS_PROBE_HOST_ADDR}" \
-  EBPF_INGRESS_PROBE_CLIENT_ADDR="${EBPF_INGRESS_PROBE_CLIENT_ADDR}" \
+  EXTERNAL_NETWORK_PROBE_NETNS="${EXTERNAL_NETWORK_PROBE_NETNS}" \
+  EXTERNAL_NETWORK_PROBE_ADDR="${EXTERNAL_NETWORK_PROBE_HOST_ADDR}" \
+  EXTERNAL_NETWORK_PROBE_CLIENT_ADDR="${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}" \
   bash "${ROOT_DIR}/scripts/verify/verify-runsc-profile.sh"
 
 if [ "${VERIFY_BPFNETCTL:-false}" = "true" ]; then

@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
-. "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
+. "${ROOT_DIR}/scripts/lib/external-network-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
 RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
@@ -37,7 +37,7 @@ nat_backend = "${NAT_BACKEND}"
 
 [plugin.network.ebpf]
 pin_path = "/sys/fs/bpf/axern/bpfnet"
-map_size = 16384
+snat_map_size = 262144
 ${BPFNET_UPLINKS_CONFIG}
 [plugin.resource]
 cgroup_cache_size = 4
@@ -97,9 +97,9 @@ egress_args=(
   -stdout "${VERIFY_STDOUT}"
   -stderr "${VERIFY_STDERR}"
   -nat-backend "${NAT_BACKEND}"
-  -external-probe-netns "${EBPF_INGRESS_PROBE_NETNS}"
-  -external-probe-address "${EBPF_INGRESS_PROBE_CLIENT_ADDR}"
-  -expected-source-ip "${EBPF_INGRESS_PROBE_HOST_ADDR}"
+  -external-probe-netns "${EXTERNAL_NETWORK_PROBE_NETNS}"
+  -external-probe-address "${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}"
+  -expected-source-ip "${EXTERNAL_NETWORK_PROBE_HOST_ADDR}"
   -helper-dir "${HELPER_DIR}"
   -tcp-port "${TCP_PORT}"
   -udp-port "${UDP_PORT}"
@@ -117,6 +117,6 @@ printf '%s\n' "example_ok=true"
 printf '%s\n' "example=bpfnet_egress"
 printf '%s\n' "runtime=runsc"
 printf '%s\n' "nat_backend=${NAT_BACKEND}"
-printf '%s\n' "tcp_target=${EBPF_INGRESS_PROBE_CLIENT_ADDR}:${TCP_PORT}"
-printf '%s\n' "udp_target=${EBPF_INGRESS_PROBE_CLIENT_ADDR}:${UDP_PORT}"
+printf '%s\n' "tcp_target=${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}:${TCP_PORT}"
+printf '%s\n' "udp_target=${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}:${UDP_PORT}"
 printf '%s\n' "summary=container TCP/UDP/ICMP egress reached the external namespace responder"

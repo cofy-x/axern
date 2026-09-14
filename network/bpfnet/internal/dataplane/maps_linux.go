@@ -24,13 +24,6 @@ const (
 	maxSNATGCPasses      = 4
 )
 
-func (d *linuxDataplane) syncLocalAddresses(current map[tcprog.DataplaneLocalAddrKey]tcprog.DataplaneLocalAddrValue) error {
-	if err := syncPinnedMap(d.objects.LocalAddrMap, current); err != nil {
-		return fmt.Errorf("sync local address map: %w", err)
-	}
-	return nil
-}
-
 func (d *linuxDataplane) syncUplinkAddresses(current map[tcprog.DataplaneUplinkAddrKey]tcprog.DataplaneUplinkAddrValue) error {
 	if err := syncPinnedMap(d.objects.UplinkAddrMap, current); err != nil {
 		return fmt.Errorf("sync uplink address map: %w", err)
@@ -64,25 +57,6 @@ func (d *linuxDataplane) syncConfig(ipRange string, nativeRouteCount int) error 
 	return nil
 }
 
-func (d *linuxDataplane) syncHostNetnsCookie() error {
-	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, 0)
-	if err != nil {
-		return fmt.Errorf("open host netns probe socket: %w", err)
-	}
-	defer unix.Close(fd)
-
-	cookie, err := unix.GetsockoptUint64(fd, unix.SOL_SOCKET, unix.SO_NETNS_COOKIE)
-	if err != nil {
-		return fmt.Errorf("read host netns cookie: %w", err)
-	}
-
-	key := uint32(0)
-	if err := d.objects.HostNetnsCookieMap.Update(key, cookie, ebpf.UpdateAny); err != nil {
-		return fmt.Errorf("sync host netns cookie map: %w", err)
-	}
-	return nil
-}
-
 func (d *linuxDataplane) syncNativeRoutes(cidrs []string) error {
 	current := make(map[tcprog.DataplaneNativeRouteKey]tcprog.DataplaneNativeRouteValue)
 	for _, cidr := range cidrs {
@@ -104,31 +78,6 @@ func (d *linuxDataplane) syncNativeRoutes(cidrs []string) error {
 		return fmt.Errorf("sync native route map: %w", err)
 	}
 	return nil
-}
-
-func (d *linuxDataplane) syncServices(services []Service) error {
-	current := make(map[tcprog.DataplaneServiceKey]tcprog.DataplaneServiceValue)
-	for _, service := range services {
-		proto, ok := serviceProtocolNumber(service.Protocol)
-		if !ok {
-			continue
-		}
-		current[tcprog.DataplaneServiceKey{
-			Proto:    proto,
-			HostPort: service.HostPort,
-		}] = tcprog.DataplaneServiceValue{
-			TargetIp:   ipv4ToUint32(service.TargetIP),
-			TargetPort: service.TargetPort,
-		}
-	}
-	if err := syncPinnedMap(d.objects.ServiceMap, current); err != nil {
-		return fmt.Errorf("sync service map: %w", err)
-	}
-	return nil
-}
-
-func (d *linuxDataplane) clearRevNatState() error {
-	return clearPinnedMap[tcprog.DataplaneRevNatKey, tcprog.DataplaneRevNatValue](d.objects.RevNatMap)
 }
 
 func (d *linuxDataplane) clearSNATState() error {
@@ -439,10 +388,6 @@ func monotonicNowNanos() (uint64, error) {
 		return 0, err
 	}
 	return uint64(ts.Sec)*1_000_000_000 + uint64(ts.Nsec), nil
-}
-
-func (d *linuxDataplane) clearLocalhostState() error {
-	return clearPinnedMap[tcprog.DataplaneLocalhostSockKey, tcprog.DataplaneLocalhostSockValue](d.objects.LocalhostSockMap)
 }
 
 func (d *linuxDataplane) bumpKernelStat(index uint32) error {

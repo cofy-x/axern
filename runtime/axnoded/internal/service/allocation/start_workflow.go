@@ -19,7 +19,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/protobuf/proto"
@@ -116,9 +115,6 @@ func (h *Controller) cleanupPersistedFailedStart(ctx context.Context, containerI
 }
 
 func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource, persistedRecovery bool) error {
-	if err := h.sandboxNetworking().CleanupDnatRules(containerID); err != nil {
-		return fmt.Errorf("cleanup failed-start DNAT rules: %w", err)
-	}
 	h.sandboxNetworking().CloseHTTPProxyTransports(containerID)
 	var resource container.OccupiedResource
 	resourceKnown := false
@@ -327,20 +323,9 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 	)
 	templateRequest := startplan.BuildBundleTemplateRequest(lrt, request)
 
-	createResponse, containerIP, err := h.createAllocation(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
+	createResponse, _, err := h.createAllocation(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to start: %v", err)), err
-	}
-
-	networkStart := time.Now()
-	if err := h.configureStartPorts(ctx, createResponse.ID, containerIP, request.Ports); err != nil {
-		if len(request.Ports) > 0 {
-			recorder.RecordStartupPhase(contract.StartupPhaseNetworkActivate, time.Since(networkStart))
-		}
-		return startErrorResponse(err.Error()), err
-	}
-	if len(request.Ports) > 0 {
-		recorder.RecordStartupPhase(contract.StartupPhaseNetworkActivate, time.Since(networkStart))
 	}
 
 	succeeded = true
@@ -350,19 +335,6 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 	return resp, nil
 }
 
-func (h *Controller) configureStartPorts(_ context.Context, containerID, containerIP string, ports []*commonv1.PortSpec) error {
-	if len(ports) == 0 {
-		return nil
-	}
-	if containerIP == "" {
-		return errors.New("Failed to get container IP for DNAT")
-	}
-	if err := h.sandboxNetworking().SetupDnatRules(containerID, ports, containerIP); err != nil {
-		return fmt.Errorf("Failed to setup DNAT rules: %v", err)
-	}
-	return nil
-}
-
 func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetID())
 	defer unlockLifecycle()
@@ -370,9 +342,6 @@ func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.Dele
 }
 
 func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
-	if err := h.sandboxNetworking().CleanupDnatRules(request.ID); err != nil {
-		return new(runtime.DeleteResponse), fmt.Errorf("cleanup allocation DNAT rules: %w", err)
-	}
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{
 		ID:      request.ID,
 		Timeout: 0,

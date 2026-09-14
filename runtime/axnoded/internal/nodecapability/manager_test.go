@@ -70,7 +70,7 @@ func networkObservation(key *capabilityv1.CapabilityKey, now time.Time, state ca
 }
 
 func TestManagerRejectsDuplicateOwnership(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) { return nil, nil }}
 	if _, err := NewManager(provider, provider); err == nil {
 		t.Fatal("NewManager accepted duplicate capability ownership")
@@ -78,7 +78,7 @@ func TestManagerRejectsDuplicateOwnership(t *testing.T) {
 }
 
 func TestValidateProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}}
 	if err := ValidateProviderCoverage(provider); err == nil {
 		t.Fatal("partial production provider contract was accepted")
@@ -86,7 +86,7 @@ func TestValidateProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
 }
 
 func TestManagerPublishesAtomicUnknownForProviderError(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return nil, errors.New("probe unavailable")
 	}})
@@ -103,7 +103,7 @@ func TestManagerPublishesAtomicUnknownForProviderError(t *testing.T) {
 }
 
 func TestManagerSerializesOneProviderWithoutBlockingIndependentProviders(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	var active, maximum atomic.Int32
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		current := active.Add(1)
@@ -133,7 +133,7 @@ func TestManagerSerializesOneProviderWithoutBlockingIndependentProviders(t *test
 }
 
 func TestManagerSerializesSnapshotPublicationAndObserverDelivery(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	manager, err := NewManager(testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		keys:     []*capabilityv1.CapabilityKey{key},
@@ -167,7 +167,7 @@ func TestManagerSerializesSnapshotPublicationAndObserverDelivery(t *testing.T) {
 }
 
 func TestSlowTransitionHandlerDoesNotBlockSnapshotPublication(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
 	manager, err := NewManager(testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
@@ -232,7 +232,7 @@ func TestSlowTransitionHandlerDoesNotBlockSnapshotPublication(t *testing.T) {
 }
 
 func TestTransitionHandlerPanicDoesNotSuppressFollowingHandler(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
 	manager, err := NewManager(testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
@@ -338,7 +338,7 @@ func TestRuntimeProvidersShareOneGlobalSerialLane(t *testing.T) {
 
 func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
 	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
-	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	releaseRuntime := make(chan struct{})
 	networkPublished := make(chan struct{}, 1)
 	manager, err := NewManager(
@@ -371,7 +371,7 @@ func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
 		snapshot = manager.Snapshot()
 		time.Sleep(time.Millisecond)
 	}
-	if snapshot == nil || len(snapshot.GetObservations()) != 1 || snapshot.GetObservations()[0].GetKey().GetPlatform() != capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING {
+	if snapshot == nil || len(snapshot.GetObservations()) != 1 || snapshot.GetObservations()[0].GetKey().GetPlatform() != capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE {
 		t.Fatalf("health publication = %#v", snapshot)
 	}
 	if manager.Ready() {
@@ -424,7 +424,7 @@ func TestDerivedCapabilityDoesNotEnterRecoveryDuringInitialWarming(t *testing.T)
 }
 
 func TestManagerRejectsStalePublicationTime(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return []*capabilityv1.CapabilityObservation{networkObservation(key, now, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
 	}})
@@ -441,7 +441,7 @@ func TestManagerRejectsStalePublicationTime(t *testing.T) {
 }
 
 func TestManagerRecoveryRequiresTwoIndependentSamples(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
 	observedAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -527,7 +527,7 @@ func TestDerivedCapabilityRecoversWithConfirmedBaseObservations(t *testing.T) {
 }
 
 func TestManagerErrorRecoveryRequiresTwoIndependentSamples(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	failing := true
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -560,7 +560,7 @@ func TestManagerErrorRecoveryRequiresTwoIndependentSamples(t *testing.T) {
 }
 
 func TestManagerExpiryRecoveryRequiresTwoIndependentSamples(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return []*capabilityv1.CapabilityObservation{networkObservation(key, sampledAt, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil

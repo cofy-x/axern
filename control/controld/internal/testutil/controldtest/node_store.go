@@ -131,7 +131,7 @@ func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 
 func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnapshot {
 	platforms := []capabilityv1.PlatformCapability{
-		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,

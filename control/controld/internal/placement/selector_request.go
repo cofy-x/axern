@@ -2,7 +2,6 @@ package placement
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
@@ -18,7 +17,6 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 	template := env.GetResolvedSpec()
 	requests := config.GetResources().GetRequests()
 	limits := config.GetResources().GetLimits()
-	ports := portSpecsToPlacementPorts(config.GetPorts())
 	normalizedNetwork, err := networkpolicy.Normalize(config.GetNetwork())
 	if err != nil {
 		return nil, fmt.Errorf("normalize placement network policy: %w", err)
@@ -26,7 +24,6 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 	network := networkSpecToPlacementNetwork(normalizedNetwork)
 	policyMode := networkpolicy.Mode(normalizedNetwork)
 	capabilities, err := capabilitycontract.DeriveRequestStaticRequirements(capabilitycontract.RequirementInput{
-		HasPorts:                        len(ports) > 0,
 		NetworkMode:                     network,
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
 		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(normalizedNetwork),
@@ -48,7 +45,6 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 		RequestedCpuMilli:              requests.GetCpuMilli(),
 		RequestedMemoryBytes:           requests.GetMemoryBytes(),
 		RequestedEphemeralStorageBytes: requests.GetEphemeralStorageBytes(),
-		Ports:                          ports,
 		Network:                        network,
 		CapabilityRequirements:         capabilities,
 		ExtensionCapabilityRequirements: cloneExtensionRequirements(
@@ -65,30 +61,6 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
-}
-
-func portSpecsToPlacementPorts(in []*commonv1.PortSpec) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(in))
-	for _, port := range in {
-		if port == nil {
-			continue
-		}
-		protocol := strings.ToLower(strings.TrimPrefix(port.GetProtocol().String(), "PORT_PROTOCOL_"))
-		if protocol == "" || protocol == "unspecified" {
-			protocol = "tcp"
-		}
-		if port.GetHostPort() > 0 {
-			out = append(out, protocol+":"+strconv.Itoa(int(port.GetHostPort()))+":"+strconv.Itoa(int(port.GetContainerPort())))
-			continue
-		}
-		if port.GetContainerPort() > 0 {
-			out = append(out, protocol+":"+strconv.Itoa(int(port.GetContainerPort())))
-		}
-	}
-	return out
 }
 
 func networkSpecToPlacementNetwork(in *commonv1.NetworkSpec) string {

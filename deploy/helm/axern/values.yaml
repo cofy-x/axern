@@ -252,7 +252,6 @@ node:
     natBackend: ebpf
     ebpf:
       pinPath: /sys/fs/bpf/axern/bpfnet
-      mapSize: 16384
       snatMapSize: 262144
       snatGcInterval: 1s
       snatTcpIdleTimeout: 5m

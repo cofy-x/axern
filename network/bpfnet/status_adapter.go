@@ -12,8 +12,6 @@ func defaultCollectKernelStats(cfg Config) KernelStats {
 	stats := internaldataplane.CollectKernelStats(toInternalConfig(cfg))
 	return KernelStats{
 		AttachSuccesses:                    stats.AttachSuccesses,
-		ServiceHits:                        stats.ServiceHits,
-		RevNATHits:                         stats.RevNATHits,
 		SNATHits:                           stats.SNATHits,
 		SNATRevHits:                        stats.SNATRevHits,
 		SNATFwdHits:                        stats.SNATFwdHits,
@@ -43,10 +41,6 @@ func defaultCollectKernelStats(cfg Config) KernelStats {
 		SNATTCPReverseMissACKs:             stats.SNATTCPReverseMissACKs,
 		SNATTCPReverseMissOther:            stats.SNATTCPReverseMissOther,
 		NativeRouteSkips:                   stats.NativeRouteSkips,
-		LocalhostConnectHits:               stats.LocalhostConnectHits,
-		LocalhostGetpeerHits:               stats.LocalhostGetpeerHits,
-		FallbackHits:                       stats.FallbackHits,
-		LocalhostFallbackHits:              stats.LocalhostFallbackHits,
 		AttachErrors:                       stats.AttachErrors,
 	}
 }
@@ -83,15 +77,12 @@ func defaultCollectAttachmentReadiness(cfg Config, state DataplaneState) Attachm
 	attachment := internaldataplane.CollectAttachmentReadiness(
 		toInternalConfig(cfg),
 		state.UplinkDevices,
-		state.LocalAddresses,
 	)
 	return AttachmentReadiness{
-		UplinkDevices:          append([]string(nil), attachment.UplinkDevices...),
-		LocalAddresses:         append([]string(nil), attachment.LocalAddresses...),
-		IngressTCAttached:      attachment.IngressTCAttached,
-		EgressTCAttached:       attachment.EgressTCAttached,
-		LocalhostLinksAttached: attachment.LocalhostLinksAttached,
-		PinnedMapsReady:        attachment.PinnedMapsReady,
-		PinnedProgramsReady:    attachment.PinnedProgramsReady,
+		UplinkDevices:       append([]string(nil), attachment.UplinkDevices...),
+		IngressTCAttached:   attachment.IngressTCAttached,
+		EgressTCAttached:    attachment.EgressTCAttached,
+		PinnedMapsReady:     attachment.PinnedMapsReady,
+		PinnedProgramsReady: attachment.PinnedProgramsReady,
 	}
 }

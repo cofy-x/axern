@@ -402,7 +402,7 @@ func (c ResourceConfig) CgroupRootNameValue() (string, error) {
 type NetworkConfig struct {
 	IPRange string `toml:"ip_range" json:"ipRange"`
 
-	// NatBackend selects the NAT implementation used for SNAT/DNAT rules.
+	// NatBackend selects the sandbox egress NAT implementation.
 	// The generic build supports "iptables" and "ebpf".
 	NatBackend string `toml:"nat_backend" json:"natBackend"`
 
@@ -413,8 +413,6 @@ type BPFNetConfig struct {
 	UplinkDevices []string `toml:"uplink_devices" json:"uplinkDevices"`
 
 	PinPath string `toml:"pin_path" json:"pinPath"`
-
-	MapSize int `toml:"map_size" json:"mapSize"`
 
 	SNATMapSize int `toml:"snat_map_size" json:"snatMapSize"`
 
@@ -455,8 +453,8 @@ func (c NetworkConfig) Normalized() (NetworkConfig, error) {
 		if !filepath.IsAbs(c.BPFNet.PinPath) {
 			return NetworkConfig{}, fmt.Errorf("ebpf pin_path must be absolute: %q", c.BPFNet.PinPath)
 		}
-		if c.BPFNet.MapSize <= 0 || c.BPFNet.SNATMapSize <= 0 {
-			return NetworkConfig{}, fmt.Errorf("ebpf map_size and snat_map_size must be positive")
+		if c.BPFNet.SNATMapSize <= 0 {
+			return NetworkConfig{}, fmt.Errorf("ebpf snat_map_size must be positive")
 		}
 	}
 
@@ -536,7 +534,6 @@ func DefaultConfig() Config {
 				IPRange:    DefaultIPRange,
 				BPFNet: BPFNetConfig{
 					PinPath:                 DefaultBPFNetPinPath,
-					MapSize:                 DefaultBPFNetMapSize,
 					SNATMapSize:             DefaultBPFNetSNATMapSize,
 					SNATGCInterval:          DefaultBPFNetSNATGCInterval,
 					SNATTCPIdleTimeout:      DefaultBPFNetSNATTCPIdleTimeout,

@@ -1,6 +1,5 @@
 ARG GO_IMAGE=golang:1.25.12
 ARG BASE_IMAGE=ubuntu:24.04
-ARG NGINX_IMAGE=nginx:1.15
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
 
@@ -56,11 +55,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-egress ./cmd/verify-egress && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-nginx ./cmd/verify-nginx && \
-    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-udp ./cmd/verify-udp
-
-FROM ${NGINX_IMAGE} AS nginx-rootfs
+	GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke
 
 FROM ${BASE_IMAGE} AS benchmark-base
 COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
@@ -167,10 +162,6 @@ RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/pr
 
 RUN mkdir -p /opt/axern/runtime-selftest && cp -a /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
 
-COPY --from=nginx-rootfs / /opt/nginx-rootfs
-
-RUN mkdir -p /opt/nginx-rootfs/dev /opt/nginx-rootfs/proc /opt/nginx-rootfs/sys /opt/nginx-rootfs/tmp /opt/nginx-rootfs/mnt
-
 WORKDIR /workspace
 
 COPY runtime/axnoded/scripts/ /workspace/scripts/
@@ -181,8 +172,5 @@ COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnod
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/verify-egress /usr/local/bin/verify-egress
 COPY --from=axnoded-builder /out/verify-smoke /usr/local/bin/verify-smoke
-COPY --from=axnoded-builder /out/verify-nginx /usr/local/bin/verify-nginx
-COPY --from=axnoded-builder /out/verify-udp /usr/local/bin/verify-udp
-COPY --from=axnoded-builder /out/verify-udp /usr/local/libexec/axnoded/verify-udp
 
 CMD ["/bin/bash"]

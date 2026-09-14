@@ -8,9 +8,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -130,42 +128,6 @@ func TestDeleteAllocationPreservesRuntimeReferenceOnFailure(t *testing.T) {
 	assert.NotNil(t, resp)
 	_, ok := fixture.controller.runtimeMapping(containerID)
 	assert.True(t, ok)
-}
-
-func TestConfigureStartPortsNoContainerIPLeavesRollbackToLifecycle(t *testing.T) {
-	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationController(t, handler)
-	containerID := "axctl-start-rollback-no-ip"
-	storeTestContainer(t, fixture, containerID, "runsc")
-
-	err := fixture.controller.ConfigureStartPorts(context.Background(), containerID, "", []*commonv1.PortSpec{{Protocol: commonv1.PortProtocol_PORT_PROTOCOL_TCP, HostPort: 8080, ContainerPort: 80}})
-
-	assert.EqualError(t, err, "Failed to get container IP for DNAT")
-	assert.Equal(t, 0, handler.deleteCalls)
-	_, getErr := fixture.manager.Get(containerID)
-	assert.NoError(t, getErr)
-}
-
-func TestConfigureStartPortsDnatFailureLeavesRollbackToLifecycle(t *testing.T) {
-	fake := &fakeNetworkManager{failNext: true}
-	networkmanager.Register(testNetworkType, fake)
-	t.Cleanup(func() {
-		delete(networkmanager.NetworkManagers, testNetworkType)
-	})
-	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationController(t, handler)
-	fixture.controller.config.PluginConfig.NetworkConfig.NatBackend = testNetworkType
-	containerID := "axctl-start-rollback-dnat"
-	storeTestContainer(t, fixture, containerID, "runsc")
-
-	err := fixture.controller.ConfigureStartPorts(context.Background(), containerID, "10.0.0.2", []*commonv1.PortSpec{{Protocol: commonv1.PortProtocol_PORT_PROTOCOL_TCP, HostPort: 8080, ContainerPort: 80}})
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Failed to setup DNAT rules")
-	assert.Equal(t, 0, handler.deleteCalls)
-	assert.Empty(t, fake.removed)
-	_, getErr := fixture.manager.Get(containerID)
-	assert.NoError(t, getErr)
 }
 
 func storeTestContainer(t *testing.T, fixture testAllocationController, containerID string, runtimeName string) {

@@ -24,6 +24,6 @@ axrun task publish .axrun/tasksets/demo \
 
 The token is process configuration, not TaskSet data. `--preheat` is explicit and defaults off. Local development may use `--publisher local` for OCI only.
 
-The Task owns sandbox source, workdir, verifier/oracle, outputs, resources, timeouts, capabilities, and tags. The Rollout owns TaskSet reference, agent/model, runner/placement, attempts, selection, concurrency, and outputs. CPU and memory resources are applied per episode. `resources.disk` is rejected until Axern exposes an enforceable ephemeral workspace disk contract; it is never accepted and silently ignored.
+The Task owns sandbox source, workdir, verifier/oracle, outputs, resources, timeouts, capabilities, and tags. The Rollout owns TaskSet reference, agent/model, runner/placement, attempts, selection, concurrency, and outputs. CPU, memory, and node-local ephemeral-storage requests and limits are applied per episode. Ephemeral storage is disposable with the Allocation and is not a persistent workspace or volume.
 
 Published TaskSets use `repository@sha256:...`; mutable tags and local build paths are development inputs, not reproducible execution contracts. Run them through the local CLI or HTTP rollout surface with either the local backend or the Axern backend. Provider profiles remain local client configuration; Axern's control plane does not own provider accounts, evaluation queues, or rollout state.

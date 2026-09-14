@@ -1,10 +1,8 @@
 ARG GO_IMAGE=golang:1.25.12
 ARG BASE_IMAGE=ubuntu:24.04
-ARG NGINX_IMAGE=nginx:1.15
 ARG NODE_RUNTIME_BASE_IMAGE=axern/local-node-runtime-base:dev
 ARG AXERN_GIT_REVISION=development
 FROM ${GO_IMAGE} AS golang-dist
-FROM ${NGINX_IMAGE} AS nginx-rootfs
 
 FROM ${GO_IMAGE} AS axnoded-verify-builder
 ARG AXERN_GIT_REVISION
@@ -61,8 +59,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-sandboxd-oci ./cmd/verify-sandboxd-oci && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-nginx ./cmd/verify-nginx && \
-    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-udp ./cmd/verify-udp && \
     cd /workspace/runtime/egressd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egressd-qualify ./cmd/egressd-qualify && \
     cd /workspace/network/bpfnet && \
@@ -153,9 +149,6 @@ RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/pr
     ln -sf busybox /opt/sample-rootfs/bin/echo && \
     ln -sf busybox /opt/sample-rootfs/bin/cat
 
-COPY --from=nginx-rootfs / /opt/nginx-rootfs
-RUN mkdir -p /opt/nginx-rootfs/dev /opt/nginx-rootfs/proc /opt/nginx-rootfs/sys /opt/nginx-rootfs/tmp /opt/nginx-rootfs/mnt
-
 FROM ${NODE_RUNTIME_BASE_IMAGE}
 ARG AXERN_GIT_REVISION
 LABEL org.opencontainers.image.revision="${AXERN_GIT_REVISION}"
@@ -175,9 +168,6 @@ COPY runtime/axnoded/scripts/qualification/ /workspace/scripts/qualification/
 COPY --from=axnoded-verify-builder /out/verify-smoke /usr/local/bin/verify-smoke
 COPY --from=axnoded-verify-builder /out/verify-sandboxd-oci /usr/local/bin/verify-sandboxd-oci
 COPY --from=axnoded-verify-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd
-COPY --from=axnoded-verify-builder /out/verify-nginx /usr/local/bin/verify-nginx
-COPY --from=axnoded-verify-builder /out/verify-udp /usr/local/bin/verify-udp
-COPY --from=axnoded-verify-builder /out/verify-udp /usr/local/libexec/axnoded/verify-udp
 COPY --from=axnoded-verify-builder /out/bpfnetctl /usr/local/bin/bpfnetctl
 COPY --from=controld-builder /out/controld /usr/local/bin/controld
 COPY --from=controld-builder /out/controld-migrate /usr/local/bin/controld-migrate
@@ -186,6 +176,4 @@ COPY --from=controld-builder /out/gatewayd /usr/local/bin/gatewayd
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/sample-rootfs
 COPY --from=verify-rootfs /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
 COPY --from=axnoded-verify-builder /out/memory-hog /opt/axern/runtime-selftest/rootfs/bin/memory-hog
-COPY --from=verify-rootfs /opt/nginx-rootfs /opt/nginx-rootfs
-
 CMD ["/bin/bash"]

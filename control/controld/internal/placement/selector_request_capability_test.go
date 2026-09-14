@@ -49,17 +49,17 @@ func TestBuildRequestUsesEphemeralStorageContract(t *testing.T) {
 	}
 }
 
-func TestBuildRequestPersistsNetworkAndPortDependencies(t *testing.T) {
+func TestCandidateRequestPersistsSelectedNetworkBackend(t *testing.T) {
 	selector := &Selector{}
 	request, err := selector.buildRequest(&environmentv1.Environment{ID: "env-a"}, &commonv1.ExecutionConfig{
-		Ports:   []*commonv1.PortSpec{{ContainerPort: 8080}},
 		Network: &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING) {
-		t.Fatalf("capabilities = %#v", request.CapabilityRequirements)
+	if containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE) ||
+		containsPlatform(request.CapabilityRequirements, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET) {
+		t.Fatalf("static capabilities must defer node backend selection: %#v", request.CapabilityRequirements)
 	}
 	now := time.Now().UTC()
 	candidate, err := requestForCandidate(request, record("node-a", []string{"runsc"}, readySummary(now), now), now)

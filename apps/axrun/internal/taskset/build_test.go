@@ -211,9 +211,9 @@ func TestTaskSetRejectsInvalidOrIgnoredExecutionContracts(t *testing.T) {
 			mutate: func(task *TaskTemplate) { task.Resources = &domain.ResourceSpec{RequestCPU: "invalid"} },
 			want:   "task.resources",
 		},
-		"unsupported disk": {
-			mutate: func(task *TaskTemplate) { task.Resources = &domain.ResourceSpec{Disk: "10Gi"} },
-			want:   "ephemeral workspace disk contract",
+		"invalid ephemeral storage limit": {
+			mutate: func(task *TaskTemplate) { task.Resources = &domain.ResourceSpec{LimitEphemeralStorage: "invalid"} },
+			want:   "invalid limit_ephemeral_storage",
 		},
 	}
 	for name, test := range tests {

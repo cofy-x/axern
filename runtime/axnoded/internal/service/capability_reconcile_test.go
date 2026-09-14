@@ -103,7 +103,7 @@ func TestCapabilityReconcileInterruptionRequestsRetryInsteadOfFailStop(t *testin
 
 func TestPeriodicCapabilityAuditCoversOperationalAndFailStopDependencies(t *testing.T) {
 	port := &capabilityv1.CapabilityRequirement{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING),
+		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
 	}
 	memory := &capabilityv1.CapabilityRequirement{

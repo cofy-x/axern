@@ -8,8 +8,10 @@ func TestConfigFromEnvParsesOptionalSettings(t *testing.T) {
 	t.Setenv("AXERN_NAMESPACE", " bench ")
 	t.Setenv("AXERN_REQUEST_CPU", " 100m ")
 	t.Setenv("AXERN_REQUEST_MEMORY", " 512MiB ")
+	t.Setenv("AXERN_REQUEST_EPHEMERAL_STORAGE", " 2GiB ")
 	t.Setenv("AXERN_LIMIT_CPU", " 1 ")
 	t.Setenv("AXERN_LIMIT_MEMORY", " 1GiB ")
+	t.Setenv("AXERN_LIMIT_EPHEMERAL_STORAGE", " 4GiB ")
 	t.Setenv("AXERN_TLS_CA_CERT", " ca.pem ")
 	t.Setenv("AXERN_TLS_CERT", " cert.pem ")
 	t.Setenv("AXERN_TLS_KEY", " key.pem ")
@@ -21,8 +23,10 @@ func TestConfigFromEnvParsesOptionalSettings(t *testing.T) {
 		config.Namespace != "bench" ||
 		config.RequestCPU != "100m" ||
 		config.RequestMemory != "512MiB" ||
+		config.RequestEphemeralStorage != "2GiB" ||
 		config.LimitCPU != "1" ||
 		config.LimitMemory != "1GiB" ||
+		config.LimitEphemeralStorage != "4GiB" ||
 		config.TLSCACert != "ca.pem" ||
 		config.TLSCert != "cert.pem" ||
 		config.TLSKey != "key.pem" ||

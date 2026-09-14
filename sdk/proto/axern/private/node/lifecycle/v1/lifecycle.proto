@@ -54,17 +54,16 @@ message ResolvedExecutionConfig {
   repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 9;
   string locality_key = 10;
   bool rootfs_readonly = 11;
-  repeated axern.control.common.v1.PortSpec ports = 12;
-  axern.control.common.v1.NetworkSpec network = 13;
-  string local_rootfs_path = 14;
-  string stdout_path = 15;
-  string stderr_path = 16;
-  repeated ResolvedSecretEnvVar secret_env = 17;
-  repeated ResolvedSecretFile secret_files = 18;
-  RegistryCredential registry_credential = 19;
-  axern.control.environment.v1.OciExecutionProfile execution_profile = 20;
-  repeated ImageMount image_mounts = 21;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 22;
+  axern.control.common.v1.NetworkSpec network = 12;
+  string local_rootfs_path = 13;
+  string stdout_path = 14;
+  string stderr_path = 15;
+  repeated ResolvedSecretEnvVar secret_env = 16;
+  repeated ResolvedSecretFile secret_files = 17;
+  RegistryCredential registry_credential = 18;
+  axern.control.environment.v1.OciExecutionProfile execution_profile = 19;
+  repeated ImageMount image_mounts = 20;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 21;
 }
 
 message CreateAllocationRequest {

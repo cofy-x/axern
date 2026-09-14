@@ -345,16 +345,15 @@ func validateTaskResources(resources *domain.ResourceSpec) error {
 	if resources == nil {
 		return nil
 	}
-	if strings.TrimSpace(resources.Disk) != "" {
-		return fmt.Errorf("task.resources.disk is not supported until Axern exposes an ephemeral workspace disk contract")
-	}
 	_, err := axernsdk.NewSandbox(axernsdk.SandboxOptions{
-		Client:        &axernsdk.Client{},
-		TemplateID:    "axrun-taskset-resource-validation",
-		RequestCPU:    axernsdk.ResourceQuantity(resources.RequestCPU),
-		RequestMemory: axernsdk.ResourceQuantity(resources.RequestMemory),
-		LimitCPU:      axernsdk.ResourceQuantity(resources.LimitCPU),
-		LimitMemory:   axernsdk.ResourceQuantity(resources.LimitMemory),
+		Client:                  &axernsdk.Client{},
+		TemplateID:              "axrun-taskset-resource-validation",
+		RequestCPU:              axernsdk.ResourceQuantity(resources.RequestCPU),
+		RequestMemory:           axernsdk.ResourceQuantity(resources.RequestMemory),
+		RequestEphemeralStorage: axernsdk.ResourceQuantity(resources.RequestEphemeralStorage),
+		LimitCPU:                axernsdk.ResourceQuantity(resources.LimitCPU),
+		LimitMemory:             axernsdk.ResourceQuantity(resources.LimitMemory),
+		LimitEphemeralStorage:   axernsdk.ResourceQuantity(resources.LimitEphemeralStorage),
 	})
 	if err != nil {
 		return fmt.Errorf("task.resources: %w", err)

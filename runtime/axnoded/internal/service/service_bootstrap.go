@@ -325,7 +325,6 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
 		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
-	h.sandboxNetworking().LoadDnatRules()
 	return nil
 }
 

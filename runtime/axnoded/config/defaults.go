@@ -42,7 +42,6 @@ const (
 	DefaultRuntimeRunnerBinary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
 
 	DefaultBPFNetPinPath                 = "/sys/fs/bpf/axern/bpfnet"
-	DefaultBPFNetMapSize                 = 16384
 	DefaultBPFNetSNATMapSize             = 262144
 	DefaultBPFNetSNATGCInterval          = "1s"
 	DefaultBPFNetSNATTCPIdleTimeout      = "5m"

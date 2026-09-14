@@ -49,7 +49,6 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(cfg.GetExtensionCapabilityRequirements()),
 		LocalityKey:                     firstNonEmpty(params.Environment.GetID(), resolvedSpec.GetImageDescriptor().GetDigest()),
 		RootfsReadonly:                  resolvedSpec.GetRootfsReadonly(),
-		Ports:                           clonePortSpecs(cfg.GetPorts()),
 		Network:                         cloneNetworkSpec(cfg.GetNetwork()),
 		SecretEnv:                       cloneResolvedSecretEnvVars(params.ResolvedSecrets.EnvSecrets),
 		SecretFiles:                     cloneResolvedSecretFiles(params.ResolvedSecrets.FileSecrets),

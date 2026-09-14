@@ -13,7 +13,6 @@ DESCRIPTOR: _descriptor.FileDescriptor
 class PlatformCapability(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     PLATFORM_CAPABILITY_UNSPECIFIED: _ClassVar[PlatformCapability]
-    PLATFORM_CAPABILITY_PORT_FORWARDING: _ClassVar[PlatformCapability]
     PLATFORM_CAPABILITY_NETWORK_BRIDGE: _ClassVar[PlatformCapability]
     PLATFORM_CAPABILITY_NETWORK_BPFNET: _ClassVar[PlatformCapability]
     PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER: _ClassVar[PlatformCapability]
@@ -74,7 +73,6 @@ class CapabilityConditionState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     CAPABILITY_CONDITION_STATE_FAILED: _ClassVar[CapabilityConditionState]
     CAPABILITY_CONDITION_STATE_UNKNOWN: _ClassVar[CapabilityConditionState]
 PLATFORM_CAPABILITY_UNSPECIFIED: PlatformCapability
-PLATFORM_CAPABILITY_PORT_FORWARDING: PlatformCapability
 PLATFORM_CAPABILITY_NETWORK_BRIDGE: PlatformCapability
 PLATFORM_CAPABILITY_NETWORK_BPFNET: PlatformCapability
 PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER: PlatformCapability

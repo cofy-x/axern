@@ -69,7 +69,7 @@ func TestValidateSnapshotAdvanceAllowsOnlyExactReplay(t *testing.T) {
 
 func TestValidateSnapshotAdvanceRejectsOwnershipChangeWithinNodeInstance(t *testing.T) {
 	now := timestamppb.New(time.Now().UTC())
-	firstKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	firstKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	secondKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	previous := &capabilityv1.CapabilitySnapshot{
 		NodeInstanceID: "instance-1", Sequence: 1, CollectedAt: now,

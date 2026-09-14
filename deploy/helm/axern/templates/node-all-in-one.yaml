@@ -101,8 +101,6 @@ spec:
               value: {{ .Values.node.network.natBackend | quote }}
             - name: BPFNET_PIN_PATH
               value: {{ .Values.node.network.ebpf.pinPath | quote }}
-            - name: BPFNET_MAP_SIZE
-              value: {{ .Values.node.network.ebpf.mapSize | quote }}
             - name: BPFNET_SNAT_MAP_SIZE
               value: {{ .Values.node.network.ebpf.snatMapSize | quote }}
             - name: BPFNET_SNAT_GC_INTERVAL

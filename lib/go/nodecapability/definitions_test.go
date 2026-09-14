@@ -134,7 +134,7 @@ func TestResolveRequirementsReturnsOnlyImmutableSpecification(t *testing.T) {
 
 func TestResolveRequirementsRejectsDuplicateInternalAndUnavailable(t *testing.T) {
 	now := time.Now().UTC()
-	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	snapshot := testSnapshot(now, testObservation(key, now))
 	if _, err := ResolveRequirements(snapshot, []*capabilityv1.CapabilityKey{key, key}, now); err == nil {
 		t.Fatal("duplicate requirement was accepted")
@@ -150,7 +150,7 @@ func TestResolveRequirementsRejectsDuplicateInternalAndUnavailable(t *testing.T)
 
 func TestValidateSnapshotRejectsOrderingAndMalformedFacts(t *testing.T) {
 	now := time.Now().UTC()
-	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	wrongOwner := testObservation(key, now)
 	wrongOwner.Provider = capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG
 	if err := ValidateSnapshot(testSnapshot(now, wrongOwner), now); err == nil {
@@ -179,7 +179,7 @@ func TestValidateEvidenceRejectsMalformedHostIdentity(t *testing.T) {
 
 func TestValidateConditionSetUsesOneProjectionTimestamp(t *testing.T) {
 	now := time.Now().UTC()
-	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	valid := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
 		Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_DEGRADED,
 		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED,
@@ -201,7 +201,7 @@ func TestValidateConditionSetUsesOneProjectionTimestamp(t *testing.T) {
 
 func TestDeriveRequirementsUsesExecutionCapabilities(t *testing.T) {
 	keys, err := DeriveRequirements(RequirementInput{
-		HasPorts: true, NetworkMode: "default", NetworkBackend: "ebpf",
+		NetworkMode: "default", NetworkBackend: "ebpf",
 		MemoryLimitBytes: 1, RootfsWritable: true, EROFSBacking: true,
 		ExtensionCapabilityRequests: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: "example.com/gpu", Value: "a100"}}},
 	})
@@ -209,7 +209,6 @@ func TestDeriveRequirementsUsesExecutionCapabilities(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, required := range []capabilityv1.PlatformCapability{
-		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
@@ -226,7 +225,7 @@ func TestDeriveRequirementsUsesExecutionCapabilities(t *testing.T) {
 
 func TestEvaluateObservationTransitionIgnoresRefreshAndDetectsStateChange(t *testing.T) {
 	now := time.Now().UTC()
-	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	previousObservation := testObservation(key, now)
 	currentObservation := testObservation(key, now.Add(5*time.Second))
 	previous := testSnapshot(now, previousObservation)

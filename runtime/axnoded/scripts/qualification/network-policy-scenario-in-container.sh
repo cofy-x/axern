@@ -240,7 +240,7 @@ inventory_ready() {
       | select(
           (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
            .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
-           .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
+           .key.platform == "PLATFORM_CAPABILITY_NETWORK_BRIDGE" or
            .key.platform == $network_capability) and
           .state == "CAPABILITY_STATE_AVAILABLE")
       | .key.platform]
@@ -279,7 +279,7 @@ if ! inventory_ready <<<"${inventory}"; then
   jq --arg network_capability "${network_capability}" '
     [.node.capability_snapshot.observations[]?
      | select(
-         .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
+         .key.platform == "PLATFORM_CAPABILITY_NETWORK_BRIDGE" or
          .key.platform == $network_capability or
          .key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
          .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or

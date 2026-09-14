@@ -19,19 +19,16 @@ func TestListObjectsAgainstMissingPinPath(t *testing.T) {
 }
 
 func TestHighChurnMapGuard(t *testing.T) {
-	if !IsHighChurnMap(MapRevNAT) {
-		t.Fatalf("expected rev_nat_map to be high churn")
-	}
 	if !IsHighChurnMap(MapSNATRevMarker) {
 		t.Fatalf("expected snat_rev_marker_map to be high churn")
 	}
-	if IsHighChurnMap(MapService) {
-		t.Fatalf("expected service_map not to be high churn")
+	if IsHighChurnMap(MapConfig) {
+		t.Fatalf("expected config_map not to be high churn")
 	}
 }
 
 func TestStatsMapNamesMatchKernelIndexes(t *testing.T) {
-	if got, want := len(statNames), int(bpfnet.KernelStatLocalhostFallbackHit)+1; got != want {
+	if got, want := len(statNames), int(bpfnet.KernelStatNativeRouteSkip)+1; got != want {
 		t.Fatalf("expected %d stat names, got %d", want, got)
 	}
 	for index, want := range map[uint32]string{

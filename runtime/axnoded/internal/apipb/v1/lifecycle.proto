@@ -20,11 +20,10 @@ message StartRequest {
   repeated ResolvedSecretFile secret_files = 9;
   axern.control.common.v1.NetworkSpec network = 10;
   string trace_id = 11;
-  repeated axern.control.common.v1.PortSpec ports = 12;
-  string allocation_id = 13;
-  repeated ImageMount image_mounts = 14;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 15;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 16;
+  string allocation_id = 12;
+  repeated ImageMount image_mounts = 13;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 14;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 15;
 }
 
 message RegistryCredential {

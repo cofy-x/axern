@@ -129,8 +129,6 @@ func missingCapabilityRejectionReasons(summary *nodev1.NodeSummary, requirements
 			continue
 		}
 		switch requirement.GetPlatform() {
-		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING:
-			reasons = append(reasons, placementkernel.RejectionReasonPortsUnsupported)
 		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET:
 			reasons = append(reasons, placementkernel.RejectionReasonNetworkUnsupported)

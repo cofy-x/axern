@@ -24,7 +24,6 @@ const (
 	RejectionReasonNodeSelectorMismatch
 	RejectionReasonInsufficientCPU
 	RejectionReasonInsufficientMemory
-	RejectionReasonPortsUnsupported
 	RejectionReasonNetworkUnsupported
 	RejectionReasonCapabilityUnsupported
 	RejectionReasonNodeRetired
@@ -52,7 +51,6 @@ var rejectionReasonNames = [...]string{
 	"node_selector_mismatch",
 	"insufficient_cpu",
 	"insufficient_memory",
-	"ports_unsupported",
 	"network_unsupported",
 	"capability_unsupported",
 	"node_retired",
@@ -69,7 +67,6 @@ type Rank struct {
 	ChunkDBRecentAccessAgeSecs int64
 	PeerHealthyCount           int64
 	PeerHintedCount            int64
-	BPFNetPreferred            bool
 	IdlePoolReady              bool
 	AxnodedUsedMilli           int64
 	AxnodedUsedBytes           int64
@@ -164,8 +161,7 @@ func (r *Rank) GetPeerHintedCount() int64 {
 	}
 	return r.PeerHintedCount
 }
-func (r *Rank) GetBPFNetPreferred() bool { return r != nil && r.BPFNetPreferred }
-func (r *Rank) GetIdlePoolReady() bool   { return r != nil && r.IdlePoolReady }
+func (r *Rank) GetIdlePoolReady() bool { return r != nil && r.IdlePoolReady }
 func (r *Rank) GetAxnodedActiveInstances() int64 {
 	if r == nil {
 		return 0

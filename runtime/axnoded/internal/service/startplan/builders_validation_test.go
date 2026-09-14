@@ -58,9 +58,6 @@ func TestValidateStartRequest(t *testing.T) {
 	invalidSecret := proto.Clone(valid).(*runtime.StartRequest)
 	invalidSecret.SecretFiles = []*runtime.ResolvedSecretFile{{Path: "../secret"}}
 	assert.Error(t, ValidateStartRequest(invalidSecret))
-	invalidPort := proto.Clone(valid).(*runtime.StartRequest)
-	invalidPort.Ports = []*commonv1.PortSpec{{ContainerPort: 70000}}
-	assert.Error(t, ValidateStartRequest(invalidPort))
 	invalidMount := proto.Clone(valid).(*runtime.StartRequest)
 	invalidMount.Mounts = []*runtime.Mount{{Target: "../workspace"}}
 	assert.Error(t, ValidateStartRequest(invalidMount))

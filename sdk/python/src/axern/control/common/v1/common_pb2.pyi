@@ -8,12 +8,6 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class PortProtocol(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    PORT_PROTOCOL_UNSPECIFIED: _ClassVar[PortProtocol]
-    PORT_PROTOCOL_TCP: _ClassVar[PortProtocol]
-    PORT_PROTOCOL_UDP: _ClassVar[PortProtocol]
-
 class NetworkMode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     NETWORK_MODE_UNSPECIFIED: _ClassVar[NetworkMode]
@@ -49,9 +43,6 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: _ClassVar[WorkloadDiagnosticCode]
-PORT_PROTOCOL_UNSPECIFIED: PortProtocol
-PORT_PROTOCOL_TCP: PortProtocol
-PORT_PROTOCOL_UDP: PortProtocol
 NETWORK_MODE_UNSPECIFIED: NetworkMode
 NETWORK_MODE_DEFAULT: NetworkMode
 NETWORK_MODE_ISOLATED: NetworkMode
@@ -94,18 +85,6 @@ class ResourceSpec(_message.Message):
     requests: ResourceQuantity
     limits: ResourceQuantity
     def __init__(self, requests: _Optional[_Union[ResourceQuantity, _Mapping]] = ..., limits: _Optional[_Union[ResourceQuantity, _Mapping]] = ...) -> None: ...
-
-class PortSpec(_message.Message):
-    __slots__ = ("name", "protocol", "container_port", "host_port")
-    NAME_FIELD_NUMBER: _ClassVar[int]
-    PROTOCOL_FIELD_NUMBER: _ClassVar[int]
-    CONTAINER_PORT_FIELD_NUMBER: _ClassVar[int]
-    HOST_PORT_FIELD_NUMBER: _ClassVar[int]
-    name: str
-    protocol: PortProtocol
-    container_port: int
-    host_port: int
-    def __init__(self, name: _Optional[str] = ..., protocol: _Optional[_Union[PortProtocol, str]] = ..., container_port: _Optional[int] = ..., host_port: _Optional[int] = ...) -> None: ...
 
 class NetworkSpec(_message.Message):
     __slots__ = ("mode", "egress_policy")
@@ -205,7 +184,7 @@ class ImageMount(_message.Message):
     def __init__(self, image: _Optional[str] = ..., target: _Optional[str] = ..., readonly: _Optional[bool] = ...) -> None: ...
 
 class ExecutionConfig(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "resources", "ports", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "image_mounts")
+    __slots__ = ("argv", "env", "cwd", "resources", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "image_mounts")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -217,7 +196,6 @@ class ExecutionConfig(_message.Message):
     ENV_FIELD_NUMBER: _ClassVar[int]
     CWD_FIELD_NUMBER: _ClassVar[int]
     RESOURCES_FIELD_NUMBER: _ClassVar[int]
-    PORTS_FIELD_NUMBER: _ClassVar[int]
     NETWORK_FIELD_NUMBER: _ClassVar[int]
     EXTENSION_CAPABILITY_REQUIREMENTS_FIELD_NUMBER: _ClassVar[int]
     PLACEMENT_FIELD_NUMBER: _ClassVar[int]
@@ -228,11 +206,10 @@ class ExecutionConfig(_message.Message):
     env: _containers.ScalarMap[str, str]
     cwd: str
     resources: ResourceSpec
-    ports: _containers.RepeatedCompositeFieldContainer[PortSpec]
     network: NetworkSpec
     extension_capability_requirements: _containers.RepeatedCompositeFieldContainer[_capability_pb2.ExtensionCapabilityRequirement]
     placement: PlacementConstraints
     secret_env: _containers.RepeatedCompositeFieldContainer[SecretEnvVar]
     secret_files: _containers.RepeatedCompositeFieldContainer[SecretFile]
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., ports: _Optional[_Iterable[_Union[PortSpec, _Mapping]]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ...) -> None: ...
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ...) -> None: ...

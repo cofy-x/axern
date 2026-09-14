@@ -16,14 +16,11 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 	fmt.Fprintf(w, "  mode: %s\n", emptyDash(state.Mode))
 	fmt.Fprintf(w, "  pin_path: %s\n", emptyDash(state.PinPath))
 	fmt.Fprintf(w, "  ip_range: %s\n", emptyDash(state.IPRange))
-	fmt.Fprintf(w, "  map_size: %d\n", state.MapSize)
 	fmt.Fprintf(w, "  snat_map_size: %d\n", state.SNATMapSize)
 	fmt.Fprintf(w, "  snat_port_range: %d-%d\n", state.SNATPortMin, state.SNATPortMax)
 	fmt.Fprintf(w, "  snat_port_attempts: %d\n", state.SNATPortAttempts)
 	fmt.Fprintf(w, "  native_routes: %s\n", joinOrDash(state.NativeRoutingCIDRs))
 	fmt.Fprintf(w, "  tc_ready: %s\n", boolWord(state.TCReady))
-	fmt.Fprintf(w, "  localhost_tcp_dnat: %s\n", boolWord(state.LocalhostTCPDNAT))
-	fmt.Fprintf(w, "  localhost_path_ready: %s\n", boolWord(state.LocalhostPathReady))
 	if state.LastAttachError != "" {
 		fmt.Fprintf(w, "  last_attach_error: %s\n", state.LastAttachError)
 	}
@@ -33,41 +30,18 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 	if state.LastReconcileError != "" {
 		fmt.Fprintf(w, "  last_reconcile_error: %s\n", state.LastReconcileError)
 	}
-	if state.LastLocalhostError != "" {
-		fmt.Fprintf(w, "  last_localhost_error: %s\n", state.LastLocalhostError)
-	}
 
 	attachment := status.Attachment
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "attachment")
 	fmt.Fprintf(w, "  uplinks: %s\n", joinOrDash(attachment.UplinkDevices))
-	fmt.Fprintf(w, "  local_addresses: %s\n", joinOrDash(attachment.LocalAddresses))
 	fmt.Fprintf(w, "  ingress_tc: %s\n", boolWord(attachment.IngressTCAttached))
 	fmt.Fprintf(w, "  egress_tc: %s\n", boolWord(attachment.EgressTCAttached))
-	fmt.Fprintf(w, "  localhost_links: %s\n", boolWord(attachment.LocalhostLinksAttached))
 	fmt.Fprintf(w, "  pinned_maps: %s\n", boolWord(attachment.PinnedMapsReady))
 	fmt.Fprintf(w, "  pinned_programs: %s\n", boolWord(attachment.PinnedProgramsReady))
-	if !attachment.PinnedProgramsReady && (attachment.IngressTCAttached || attachment.EgressTCAttached || attachment.LocalhostLinksAttached) {
+	if !attachment.PinnedProgramsReady && (attachment.IngressTCAttached || attachment.EgressTCAttached) {
 		fmt.Fprintln(w, "  note: dataplane links are attached, but pinned program objects are missing")
 	}
-
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "services")
-	if len(status.Services) == 0 {
-		fmt.Fprintln(w, "  none")
-	} else {
-		for _, svc := range status.Services {
-			fmt.Fprintf(w, "  %s host:%d -> %s:%d\n", svc.Protocol, svc.HostPort, svc.TargetIP, svc.TargetPort)
-		}
-	}
-
-	fmt.Fprintln(w)
-	fmt.Fprintln(w, "stats")
-	fmt.Fprintf(w, "  attach_successes: %d\n", status.Stats.AttachSuccesses)
-	fmt.Fprintf(w, "  upserts: %d\n", status.Stats.Upserts)
-	fmt.Fprintf(w, "  deletes: %d\n", status.Stats.Deletes)
-	fmt.Fprintf(w, "  conflicts: %d\n", status.Stats.Conflicts)
-	fmt.Fprintf(w, "  attach_errors: %d\n", status.Stats.AttachErrors)
 
 	snatMaps := status.SNATMaps
 	fmt.Fprintln(w)
@@ -97,8 +71,6 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "kernel")
-	fmt.Fprintf(w, "  service_hits: %d\n", status.Kernel.ServiceHits)
-	fmt.Fprintf(w, "  rev_nat_hits: %d\n", status.Kernel.RevNATHits)
 	fmt.Fprintf(w, "  snat_hits: %d\n", status.Kernel.SNATHits)
 	fmt.Fprintf(w, "  snat_fwd_hits: %d\n", status.Kernel.SNATFwdHits)
 	fmt.Fprintf(w, "  snat_rev_hits: %d\n", status.Kernel.SNATRevHits)
@@ -123,9 +95,6 @@ func writeStatus(w io.Writer, status bpfnet.Status) error {
 	fmt.Fprintf(w, "  snat_tcp_reverse_miss_acks: %d\n", status.Kernel.SNATTCPReverseMissACKs)
 	fmt.Fprintf(w, "  snat_tcp_reverse_miss_other: %d\n", status.Kernel.SNATTCPReverseMissOther)
 	fmt.Fprintf(w, "  snat_fallback_hits: %d\n", status.Kernel.SNATFallbackHits)
-	fmt.Fprintf(w, "  localhost_connect_hits: %d\n", status.Kernel.LocalhostConnectHits)
-	fmt.Fprintf(w, "  localhost_getpeer_hits: %d\n", status.Kernel.LocalhostGetpeerHits)
-	fmt.Fprintf(w, "  fallback_hits: %d\n", status.Kernel.FallbackHits)
 	fmt.Fprintf(w, "  attach_errors: %d\n", status.Kernel.AttachErrors)
 	return nil
 }

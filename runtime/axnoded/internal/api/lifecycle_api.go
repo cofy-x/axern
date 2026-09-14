@@ -238,7 +238,6 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		Environment:            environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		AllocationID:           req.GetAllocationID(),
-		Ports:                  clonePortSpecs(spec.GetPorts()),
 		Network:                cloneNetworkSpec(spec.GetNetwork()),
 		RegistryCredential:     cloneRegistryCredential(spec.GetRegistryCredential()),
 		SecretEnv:              cloneResolvedSecretEnv(spec.GetSecretEnv()),
@@ -279,7 +278,6 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		Environment:            environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		AllocationID:           containerID,
-		Ports:                  clonePortSpecs(spec.GetPorts()),
 		Network:                cloneNetworkSpec(spec.GetNetwork()),
 		RegistryCredential:     cloneRegistryCredential(spec.GetRegistryCredential()),
 		SecretEnv:              cloneResolvedSecretEnv(spec.GetSecretEnv()),
@@ -412,21 +410,6 @@ func toRuntimeLifecycleMounts(in []*nodelifecyclev1.SandboxMount) []*runtimev1.M
 
 func toRuntimeLifecycleMountsFromAllocation(in []*nodelifecyclev1.SandboxMount) []*runtimev1.Mount {
 	return toRuntimeLifecycleMounts(in)
-}
-
-func clonePortSpecs(in []*commonv1.PortSpec) []*commonv1.PortSpec {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*commonv1.PortSpec, 0, len(in))
-	for _, port := range in {
-		if port == nil {
-			out = append(out, nil)
-			continue
-		}
-		out = append(out, proto.Clone(port).(*commonv1.PortSpec))
-	}
-	return out
 }
 
 func cloneNetworkSpec(in *commonv1.NetworkSpec) *commonv1.NetworkSpec {

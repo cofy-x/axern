@@ -55,11 +55,12 @@ type TimeoutPolicy struct {
 }
 
 type ResourceSpec struct {
-	RequestCPU    string `json:"request_cpu,omitempty" yaml:"request_cpu,omitempty"`
-	RequestMemory string `json:"request_memory,omitempty" yaml:"request_memory,omitempty"`
-	LimitCPU      string `json:"limit_cpu,omitempty" yaml:"limit_cpu,omitempty"`
-	LimitMemory   string `json:"limit_memory,omitempty" yaml:"limit_memory,omitempty"`
-	Disk          string `json:"disk,omitempty" yaml:"disk,omitempty"`
+	RequestCPU              string `json:"request_cpu,omitempty" yaml:"request_cpu,omitempty"`
+	RequestMemory           string `json:"request_memory,omitempty" yaml:"request_memory,omitempty"`
+	RequestEphemeralStorage string `json:"request_ephemeral_storage,omitempty" yaml:"request_ephemeral_storage,omitempty"`
+	LimitCPU                string `json:"limit_cpu,omitempty" yaml:"limit_cpu,omitempty"`
+	LimitMemory             string `json:"limit_memory,omitempty" yaml:"limit_memory,omitempty"`
+	LimitEphemeralStorage   string `json:"limit_ephemeral_storage,omitempty" yaml:"limit_ephemeral_storage,omitempty"`
 }
 
 type AgentRuntimeType string

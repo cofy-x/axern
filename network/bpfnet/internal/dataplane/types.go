@@ -2,27 +2,13 @@ package dataplane
 
 type Config struct {
 	PinPath     string
-	MapSize     int
 	SNATMapSize int
 }
 
-type Service struct {
-	Protocol   string
-	HostPort   uint16
-	TargetIP   string
-	TargetPort uint16
-}
-
-type Attachment struct {
-	LocalAddresses       []string
-	LocalhostTCPDNAT     bool
-	LocalhostAttachError string
-}
+type Attachment struct{}
 
 type KernelStats struct {
 	AttachSuccesses                    uint64
-	ServiceHits                        uint64
-	RevNATHits                         uint64
 	SNATHits                           uint64
 	SNATRevHits                        uint64
 	SNATFwdHits                        uint64
@@ -52,10 +38,6 @@ type KernelStats struct {
 	SNATTCPReverseMissACKs             uint64
 	SNATTCPReverseMissOther            uint64
 	NativeRouteSkips                   uint64
-	LocalhostConnectHits               uint64
-	LocalhostGetpeerHits               uint64
-	FallbackHits                       uint64
-	LocalhostFallbackHits              uint64
 	AttachErrors                       uint64
 }
 
@@ -98,18 +80,14 @@ type SNATGCResult struct {
 }
 
 type AttachmentReadiness struct {
-	UplinkDevices          []string
-	LocalAddresses         []string
-	IngressTCAttached      bool
-	EgressTCAttached       bool
-	LocalhostLinksAttached bool
-	PinnedMapsReady        bool
-	PinnedProgramsReady    bool
+	UplinkDevices       []string
+	IngressTCAttached   bool
+	EgressTCAttached    bool
+	PinnedMapsReady     bool
+	PinnedProgramsReady bool
 }
 
 type Interface interface {
-	EnsureAttached(uplinks []string, ipRange string, nativeRoutingCIDRs []string, services []Service) (Attachment, error)
-	UpsertService(service Service) error
-	DeleteService(service Service) error
+	EnsureAttached(uplinks []string, ipRange string, nativeRoutingCIDRs []string) (Attachment, error)
 	CleanupStaleSNATMappings(policy SNATGCPolicy) (SNATGCResult, error)
 }

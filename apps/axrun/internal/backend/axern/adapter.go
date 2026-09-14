@@ -195,13 +195,12 @@ func (a Adapter) runtimeForRequest(request backend.ExecuteRequest) (sandbox.Runt
 func (a Adapter) configForTask(task domain.TaskInstance) (Config, error) {
 	config := a.Config
 	if resources := task.Resources; resources != nil {
-		if strings.TrimSpace(resources.Disk) != "" {
-			return Config{}, fmt.Errorf("task resources disk is not supported by the Axern sandbox API")
-		}
 		config.RequestCPU = strings.TrimSpace(resources.RequestCPU)
 		config.RequestMemory = strings.TrimSpace(resources.RequestMemory)
+		config.RequestEphemeralStorage = strings.TrimSpace(resources.RequestEphemeralStorage)
 		config.LimitCPU = strings.TrimSpace(resources.LimitCPU)
 		config.LimitMemory = strings.TrimSpace(resources.LimitMemory)
+		config.LimitEphemeralStorage = strings.TrimSpace(resources.LimitEphemeralStorage)
 	}
 	if task.Sandbox.RuntimeSource != nil {
 		switch task.Sandbox.RuntimeSource.Type {

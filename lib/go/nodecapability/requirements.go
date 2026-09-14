@@ -13,7 +13,6 @@ import (
 // axnoded. Facts unavailable before image preparation (for example EROFS) are
 // left false during the request-static gate and supplied at the backing gate.
 type RequirementInput struct {
-	HasPorts                        bool
 	NetworkMode                     string
 	NetworkBackend                  string
 	RequiresDNSPolicyEnforcement    bool
@@ -44,10 +43,7 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 	if err := ValidateExtensionRequirements(input.ExtensionCapabilityRequests); err != nil {
 		return nil, err
 	}
-	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+5)
-	if input.HasPorts {
-		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING))
-	}
+	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+4)
 	if input.RequiresDNSPolicyEnforcement && input.RequiresStrictEgressEnforcement {
 		return nil, fmt.Errorf("network policy cannot require both DNS-only and strict enforcement")
 	}

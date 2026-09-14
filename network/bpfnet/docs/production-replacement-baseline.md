@@ -22,7 +22,7 @@ The equivalent axnoded config shape is:
 - `snat_tcp_closing_timeout = "2s"`
 - `snat_datagram_idle_timeout = "10s"`
 
-`iptables` remains a complete, explicitly selected backend. The eBPF backend is accepted only when TC and localhost cgroup paths are all ready; attach or reconciliation failure is fail-closed and never switches a running node to iptables.
+`iptables` remains a complete, explicitly selected egress backend. The eBPF backend is accepted only when both TC directions and all current pinned objects are ready; attach or reconciliation failure is fail-closed and never switches a running node to iptables.
 
 ## Validation Envelope
 
@@ -30,7 +30,7 @@ The baseline applies to:
 
 - real Linux Kubernetes nodes running the `axnoded` `node-all-in-one` DaemonSet;
 - `runsc` workloads launched by the axnoded Kubernetes benchmark harness;
-- bpfnet service ingress, external ingress, sandbox TCP/UDP/ICMP egress, SNAT close-path cleanup, and DaemonSet rollout recovery;
+- sandbox TCP/UDP/ICMP egress, SNAT close-path cleanup, and DaemonSet rollout recovery;
 - benchmark Jobs that use the `axnoded-verify` image, not the production `node-all-in-one` image.
 
 ## Acceptance Gates
@@ -108,14 +108,12 @@ Risk counters must stay quiet across soak:
 | `egress_tcp_reuse`              |                    0 |                                    0 |                           0 |
 | `egress_tcp_pool`               |                    0 |                                    0 |                           0 |
 
-### Ingress And UDP Coverage
+### UDP Coverage
 
 These paths prove the replacement is not only a TCP-short optimization. eBPF should remain broadly comparable to iptables and must keep zero failures.
 
 | Path                   | iptables RPS |  eBPF RPS | RPS Delta | iptables P95 |  eBPF P95 | P95 Delta | Failures |
 | ---------------------- | -----------: | --------: | --------: | -----------: | --------: | --------: | -------: |
-| `external_tcp_ingress` |     3132.024 |  3071.695 |   -1.926% |    33.641 ms | 32.735 ms |   -2.693% |    0 / 0 |
-| `external_udp_ingress` |    21982.432 | 20897.137 |   -4.937% |     5.011 ms |  5.736 ms |  +14.478% |    0 / 0 |
 | `egress_udp`           |     9270.642 |  9093.947 |   -1.906% |    14.283 ms | 14.391 ms |   +0.761% |    0 / 0 |
 | `egress_udp_connected` |    16005.389 | 16318.341 |   +1.955% |     6.888 ms |  6.671 ms |   -3.160% |    0 / 0 |
 

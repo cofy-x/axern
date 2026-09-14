@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
-. "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
+. "${ROOT_DIR}/scripts/lib/external-network-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
 RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
@@ -12,7 +12,6 @@ AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
 DEFAULT_UPLINK="${DEFAULT_UPLINK:-$(ip route show default | awk '/default/ {print $5; exit}')}"
 BPFNET_PIN_PATH="${BPFNET_PIN_PATH:-/sys/fs/bpf/axern/bpfnet}"
-BPFNET_MAP_SIZE="${BPFNET_MAP_SIZE:-16384}"
 BPFNET_SNAT_MAP_SIZE="${BPFNET_SNAT_MAP_SIZE:-262144}"
 BPFNET_SNAT_GC_INTERVAL="${BPFNET_SNAT_GC_INTERVAL:-1s}"
 BPFNET_SNAT_TCP_IDLE_TIMEOUT="${BPFNET_SNAT_TCP_IDLE_TIMEOUT:-5m}"
@@ -38,7 +37,6 @@ nat_backend = "${NAT_BACKEND}"
 
 [plugin.network.ebpf]
 pin_path = "${BPFNET_PIN_PATH}"
-map_size = ${BPFNET_MAP_SIZE}
 snat_map_size = ${BPFNET_SNAT_MAP_SIZE}
 snat_gc_interval = "${BPFNET_SNAT_GC_INTERVAL}"
 snat_tcp_idle_timeout = "${BPFNET_SNAT_TCP_IDLE_TIMEOUT}"
@@ -103,7 +101,7 @@ fi
 ROOT_DIR="${ROOT_DIR}" \
 SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
 NAT_BACKEND="${NAT_BACKEND}" \
-EBPF_INGRESS_PROBE_NETNS="${EBPF_INGRESS_PROBE_NETNS}" \
-EBPF_INGRESS_PROBE_ADDR="${EBPF_INGRESS_PROBE_HOST_ADDR}" \
-EBPF_INGRESS_PROBE_CLIENT_ADDR="${EBPF_INGRESS_PROBE_CLIENT_ADDR}" \
+EXTERNAL_NETWORK_PROBE_NETNS="${EXTERNAL_NETWORK_PROBE_NETNS}" \
+EXTERNAL_NETWORK_PROBE_ADDR="${EXTERNAL_NETWORK_PROBE_HOST_ADDR}" \
+EXTERNAL_NETWORK_PROBE_CLIENT_ADDR="${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}" \
 bash "${ROOT_DIR}/scripts/benchmark/benchmark-runsc-profile.sh"

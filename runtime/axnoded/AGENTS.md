@@ -25,5 +25,5 @@
 ## Validation
 
 - Run `make fmt`, `make vet`, and targeted Go tests for ordinary changes; run `make check-architecture` for package or layering changes.
-- On non-Linux hosts, use `make test-host` plus affected Linux-target compile checks. Validate runtime, cgroup, network, DNAT, and rootfs behavior through the relevant privileged Linux target selected by `make verify-changed`.
+- On non-Linux hosts, use `make test-host` plus affected Linux-target compile checks. Validate runtime, cgroup, egress networking, Tunnel/SSH, and rootfs behavior through the relevant privileged Linux target selected by `make verify-changed`.
 - Use [Verification](docs/verification.md) for the runtime truth matrix.

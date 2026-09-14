@@ -35,6 +35,14 @@ check_equals() {
 
 production_go="-g '*.go' -g '!*_test.go'"
 
+check_empty \
+	"allocation networking must not reintroduce node-global endpoint or DNAT state" \
+	"rg -n 'PortSpec|PORT_FORWARDING|SetupDNAT|CleanupDNAT|DnatRule|DNATRulesBucket' runtime/axnoded sdk/proto/axern/private/node sdk/proto/axern/control/common sdk/proto/axern/control/capability -g '*.go' -g '*.proto' || true"
+
+check_empty \
+	"bpfnet must remain an egress-only dataplane" \
+	"rg -n 'UpsertService|DeleteService|service_map|rev_nat_map|localhost_(connect|getpeername|sock_release)' network/bpfnet -g '*.go' -g '*.c' -g '*.h' || true"
+
 expected_internal_packages='runtime/axnoded/internal/api
 runtime/axnoded/internal/apipb
 runtime/axnoded/internal/app
@@ -95,12 +103,10 @@ runtime/axnoded/cmd/protoc-gen-go-fieldpath
 runtime/axnoded/cmd/verify-cli
 runtime/axnoded/cmd/verify-egress
 runtime/axnoded/cmd/verify-network-policy-qualification
-runtime/axnoded/cmd/verify-nginx
 runtime/axnoded/cmd/verify-sandboxd-oci
 runtime/axnoded/cmd/verify-sandboxd-provider
 runtime/axnoded/cmd/verify-smoke
-runtime/axnoded/cmd/verify-startup
-runtime/axnoded/cmd/verify-udp'
+runtime/axnoded/cmd/verify-startup'
 
 check_equals \
 	"cmd packages must stay explicit executable entrypoints" \

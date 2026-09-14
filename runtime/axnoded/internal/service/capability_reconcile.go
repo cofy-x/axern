@@ -374,7 +374,7 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT {
 		return verifyActiveEgressPolicy(ctx, h.egressClient, allocationID, h.allocationController().ContainerIP(allocationID), allocationNetworkPolicyMode([]*capabilityv1.CapabilityRequirement{dependency}))
 	}
-	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET {
+	if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE || platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET {
 		manager := network.NetworkManagers[h.config.PluginConfig.NetworkConfig.NatBackend]
 		prober, ok := manager.(network.HealthProber)
 		if !ok {
@@ -383,12 +383,6 @@ func (h *sandboxService) verifyAllocationCapability(ctx context.Context, allocat
 		health, err := prober.ProbeHealth(h.config.PluginConfig.NetworkConfig.IPRange)
 		if err != nil {
 			return contract.InconclusiveCapability(fmt.Errorf("probe allocation dataplane: %w", err))
-		}
-		if platform == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING {
-			if !health.PortForwardingReady || len(h.sandboxNetworking().DnatRules(allocationID)) == 0 {
-				return contract.LostCapability(fmt.Errorf("allocation port-forwarding dataplane is not operational"))
-			}
-			return contract.VerifiedCapability()
 		}
 		if !health.NativeDataplaneReady {
 			return contract.LostCapability(fmt.Errorf("allocation network dataplane is not operational"))

@@ -48,16 +48,13 @@ type observedNetworkManager struct{ health networkmanager.Health }
 func (m observedNetworkManager) ProbeHealth(string) (networkmanager.Health, error) {
 	return m.health, nil
 }
-func (observedNetworkManager) SetupSNATRules(string) error                          { return nil }
-func (observedNetworkManager) CleanupSNATRules(string) error                        { return nil }
-func (observedNetworkManager) SetupNetworkRulesForActivating(net.IP, string) error  { return nil }
-func (observedNetworkManager) CleanupNetworkRulesForActivating(net.IP) error        { return nil }
-func (observedNetworkManager) SetupDNATRule(string, uint16, string, uint16) error   { return nil }
-func (observedNetworkManager) CleanupDNATRule(string, uint16, string, uint16) error { return nil }
-
+func (observedNetworkManager) SetupSNATRules(string) error                         { return nil }
+func (observedNetworkManager) CleanupSNATRules(string) error                       { return nil }
+func (observedNetworkManager) SetupNetworkRulesForActivating(net.IP, string) error { return nil }
+func (observedNetworkManager) CleanupNetworkRulesForActivating(net.IP) error       { return nil }
 func TestNetworkCapabilityProviderRequiresObservedDataplaneHealth(t *testing.T) {
 	const backend = "observed-test"
-	networkmanager.NetworkManagers[backend] = observedNetworkManager{health: networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: false}}
+	networkmanager.NetworkManagers[backend] = observedNetworkManager{health: networkmanager.Health{NativeDataplaneReady: true}}
 	t.Cleanup(func() { delete(networkmanager.NetworkManagers, backend) })
 	provider := networkCapabilityProvider(config.Config{PluginConfig: config.PluginConfig{NetworkConfig: config.NetworkConfig{NatBackend: backend, IPRange: "172.17.0.1/16"}}})
 	observations, err := provider.Observe(context.Background(), time.Now().UTC())

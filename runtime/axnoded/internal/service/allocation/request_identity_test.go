@@ -71,7 +71,7 @@ func testDigestStartRequest() *apipb.StartRequest {
 		},
 		Resources: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 64 << 20}},
 		CapabilityRequirements: []*capabilityv1.CapabilityRequirement{{
-			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING}},
+			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE}},
 			LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
 		}},
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{

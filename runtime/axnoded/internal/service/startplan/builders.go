@@ -165,16 +165,6 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 		}
 		seenFiles[cleanPath] = struct{}{}
 	}
-	for _, port := range request.GetPorts() {
-		if port == nil || port.GetContainerPort() < 1 || port.GetContainerPort() > 65535 || port.GetHostPort() < 0 || port.GetHostPort() > 65535 {
-			return fmt.Errorf("port specification is outside 1..65535: %w", errord.ErrInvalidArgument)
-		}
-		switch port.GetProtocol() {
-		case commonv1.PortProtocol_PORT_PROTOCOL_UNSPECIFIED, commonv1.PortProtocol_PORT_PROTOCOL_TCP, commonv1.PortProtocol_PORT_PROTOCOL_UDP:
-		default:
-			return fmt.Errorf("unsupported port protocol %s: %w", port.GetProtocol(), errord.ErrInvalidArgument)
-		}
-	}
 	switch request.GetNetwork().GetMode() {
 	case commonv1.NetworkMode_NETWORK_MODE_UNSPECIFIED, commonv1.NetworkMode_NETWORK_MODE_DEFAULT, commonv1.NetworkMode_NETWORK_MODE_ISOLATED, commonv1.NetworkMode_NETWORK_MODE_HOST:
 	default:

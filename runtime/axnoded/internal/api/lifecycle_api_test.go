@@ -115,11 +115,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 			Argv:            []string{"/bin/sh", "-lc", "sleep 3600"},
 			Cwd:             "/workspace",
 			Env:             map[string]string{"A": "B"},
-			Ports: []*commonv1.PortSpec{{
-				Name:          "http",
-				Protocol:      commonv1.PortProtocol_PORT_PROTOCOL_TCP,
-				ContainerPort: 8080,
-			}},
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 134217728},
 				Limits:   &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 268435456},
@@ -160,9 +155,6 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	if startReq.GetEnvironment().GetEnv()["A"] != "B" {
 		t.Fatalf("runtime env = %#v, want key A", startReq.GetEnvironment().GetEnv())
-	}
-	if got := startReq.GetPorts(); len(got) != 1 || got[0].GetContainerPort() != 8080 {
-		t.Fatalf("ports = %#v, want typed container port 8080", got)
 	}
 	if startReq.GetResources().GetRequests().GetCpuMilli() != 250 {
 		t.Fatalf("resources = %#v, want request CPU 250", startReq.GetResources())

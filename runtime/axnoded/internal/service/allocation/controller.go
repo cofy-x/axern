@@ -206,10 +206,6 @@ func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, requ
 	return c.deleteContainerWithRuntime(ctx, request, handler, traceID, spanID)
 }
 
-func (c *Controller) ConfigureStartPorts(ctx context.Context, containerID, containerIP string, ports []*commonv1.PortSpec) error {
-	return c.configureStartPorts(ctx, containerID, containerIP, ports)
-}
-
 func (c *Controller) ContainerIP(containerID string) string {
 	if c == nil || c.containers() == nil {
 		return ""

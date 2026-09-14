@@ -39,14 +39,8 @@ func dumpEntries(m *ebpf.Map, name string, limit int, raw bool) ([]Entry, bool, 
 	}
 
 	switch name {
-	case MapService:
-		return dumpTyped(m, limit, formatServiceKey, formatServiceValue)
 	case MapConfig:
 		return dumpConfig(m, limit)
-	case MapLocalAddr:
-		return dumpTyped(m, limit, formatLocalAddrKey, func(value tcprog.DataplaneLocalAddrValue) any {
-			return map[string]any{"present": value.Present != 0}
-		})
 	case MapUplinkAddr:
 		return dumpTyped(m, limit, formatUplinkKey, formatUplinkValue)
 	case MapNativeRoute:
@@ -126,30 +120,10 @@ func dumpStats(m *ebpf.Map, limit int) ([]Entry, bool, error) {
 
 func dumpRawEntries(m *ebpf.Map, name string, limit int) ([]Entry, bool, error) {
 	switch name {
-	case MapService:
-		return dumpTyped(m, limit,
-			func(key tcprog.DataplaneServiceKey) any { return rawStruct(key) },
-			func(value tcprog.DataplaneServiceValue) any { return rawStruct(value) },
-		)
-	case MapLocalAddr:
-		return dumpTyped(m, limit,
-			func(key tcprog.DataplaneLocalAddrKey) any { return rawStruct(key) },
-			func(value tcprog.DataplaneLocalAddrValue) any { return rawStruct(value) },
-		)
-	case MapRevNAT:
-		return dumpTyped(m, limit,
-			func(key tcprog.DataplaneRevNatKey) any { return rawStruct(key) },
-			func(value tcprog.DataplaneRevNatValue) any { return rawStruct(value) },
-		)
 	case MapConfig:
 		return dumpTyped(m, limit,
 			func(key uint32) any { return rawStruct(key) },
 			func(value tcprog.DataplaneConfigValue) any { return rawStruct(value) },
-		)
-	case MapHostNetNS:
-		return dumpTyped(m, limit,
-			func(key uint32) any { return rawStruct(key) },
-			func(value uint64) any { return rawStruct(value) },
 		)
 	case MapUplinkAddr:
 		return dumpTyped(m, limit,
@@ -175,11 +149,6 @@ func dumpRawEntries(m *ebpf.Map, name string, limit int) ([]Entry, bool, error) 
 		return dumpTyped(m, limit,
 			func(key tcprog.DataplaneSnatRevKey) any { return rawStruct(key) },
 			func(value tcprog.DataplaneSnatRevMarkerValue) any { return rawStruct(value) },
-		)
-	case MapLocalhostSock:
-		return dumpTyped(m, limit,
-			func(key tcprog.DataplaneLocalhostSockKey) any { return rawStruct(key) },
-			func(value tcprog.DataplaneLocalhostSockValue) any { return rawStruct(value) },
 		)
 	case MapStats:
 		return dumpStats(m, limit)

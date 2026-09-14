@@ -14,12 +14,8 @@ import (
 type fakeController struct {
 	mu          sync.Mutex
 	ensureErr   error
-	upsertErr   error
-	deleteErr   error
 	cleanupErr  error
 	gcErr       error
-	upserts     int
-	deletes     int
 	ensureCalls int
 	gcCalls     int
 	gcPolicy    bpfnet.SNATGCPolicy
@@ -34,16 +30,6 @@ func (f *fakeController) EnsureAttached(string) error {
 
 func (f *fakeController) Cleanup() error {
 	return f.cleanupErr
-}
-
-func (f *fakeController) UpsertService(string, uint16, string, uint16) error {
-	f.upserts++
-	return f.upsertErr
-}
-
-func (f *fakeController) DeleteService(string, uint16, string, uint16) error {
-	f.deletes++
-	return f.deleteErr
 }
 
 func (f *fakeController) CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error) {
@@ -64,18 +50,17 @@ func (f *fakeController) gcSnapshot() (int, bpfnet.SNATGCPolicy) {
 	return f.gcCalls, f.gcPolicy
 }
 
-func TestProbeHealthRejectsMissingLocalhostPath(t *testing.T) {
+func TestProbeHealthDependsOnlyOnTCDataPlane(t *testing.T) {
 	manager := &BPFNetworkManager{controller: &fakeController{status: bpfnet.Status{State: bpfnet.DataplaneState{
-		TCReady:            true,
-		LastLocalhostError: "read host netns cookie: protocol not available",
+		TCReady: true,
 	}}}}
 
 	health, err := manager.ProbeHealth("")
 	if err != nil {
 		t.Fatalf("ProbeHealth() error = %v", err)
 	}
-	if health.PortForwardingReady || health.NativeDataplaneReady {
-		t.Fatalf("ProbeHealth() = %#v, want incomplete dataplane unavailable", health)
+	if !health.NativeDataplaneReady {
+		t.Fatalf("ProbeHealth() = %#v, want TC dataplane available", health)
 	}
 }
 
@@ -89,7 +74,7 @@ func TestProbeHealthReportsFailedAttachAsUnavailable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProbeHealth() error = %v", err)
 	}
-	if health.PortForwardingReady || health.NativeDataplaneReady {
+	if health.NativeDataplaneReady {
 		t.Fatalf("ProbeHealth() = %#v, want unavailable dataplane", health)
 	}
 }
@@ -132,12 +117,6 @@ func TestIPv6FailsClosedWithoutAttachingBPF(t *testing.T) {
 	}
 	if _, err := manager.ProbeHealth("fd31::1/64"); err == nil {
 		t.Fatal("IPv6 health succeeded, want unsupported error")
-	}
-	if err := manager.SetupDNATRule("tcp", 8443, "fd31::2", 443); err == nil {
-		t.Fatal("setup IPv6 DNAT succeeded, want unsupported error")
-	}
-	if ctrl.upserts != 0 {
-		t.Fatalf("IPv6 DNAT mutated BPF dataplane: upserts=%d", ctrl.upserts)
 	}
 }
 
@@ -196,73 +175,5 @@ func TestSNATGCSettingsParsesDurations(t *testing.T) {
 	}
 	if interval != 2*time.Second || policy.TCPIdleTimeout != 3*time.Minute || policy.TCPClosingTimeout != 4*time.Second || policy.DatagramIdleTimeout != 5*time.Second {
 		t.Fatalf("unexpected snat gc settings: interval=%v policy=%#v", interval, policy)
-	}
-}
-
-func TestSetupDNATRuleUsesOnlyBPFDataplane(t *testing.T) {
-	ctrl := &fakeController{}
-	manager := &BPFNetworkManager{controller: ctrl}
-
-	if err := manager.SetupDNATRule("tcp", 18080, "172.17.0.2", 80); err != nil {
-		t.Fatalf("setup dnat rule: %v", err)
-	}
-	if ctrl.upserts != 1 {
-		t.Fatalf("expected one tcp service upsert, got %d", ctrl.upserts)
-	}
-}
-
-func TestSetupDNATRuleSkipsFallbackForUDPWhenDatapathIsReady(t *testing.T) {
-	ctrl := &fakeController{}
-	manager := &BPFNetworkManager{controller: ctrl}
-
-	if err := manager.SetupDNATRule("udp", 15353, "172.17.0.3", 1053); err != nil {
-		t.Fatalf("setup udp dnat rule: %v", err)
-	}
-	if ctrl.upserts != 1 {
-		t.Fatalf("expected one udp service upsert, got %d", ctrl.upserts)
-	}
-}
-
-func TestReconcileDNATRulesRemovesOrphansAndEnsuresDesiredState(t *testing.T) {
-	ctrl := &fakeController{
-		status: bpfnet.Status{Services: []bpfnet.Service{
-			{Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80},
-			{Protocol: "tcp", HostPort: 19090, TargetIP: "172.17.0.9", TargetPort: 90},
-		}},
-	}
-	manager := &BPFNetworkManager{controller: ctrl}
-
-	err := manager.ReconcileDNATRules([]networkmanager.DNATRule{
-		{Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80},
-		{Protocol: "tcp", HostPort: 17070, TargetIP: "172.17.0.7", TargetPort: 70},
-	})
-	if err != nil {
-		t.Fatalf("reconcile dnat rules: %v", err)
-	}
-	if ctrl.deletes != 1 {
-		t.Fatalf("expected one orphan cleanup, deletes=%d", ctrl.deletes)
-	}
-	if ctrl.upserts != 1 {
-		t.Fatalf("expected one desired rule setup, upserts=%d", ctrl.upserts)
-	}
-}
-
-func TestReconcileDNATRulesDoesNotUpsertOverFailedCleanup(t *testing.T) {
-	ctrl := &fakeController{
-		deleteErr: errors.New("delete failed"),
-		status: bpfnet.Status{Services: []bpfnet.Service{{
-			Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80,
-		}}},
-	}
-	manager := &BPFNetworkManager{controller: ctrl}
-
-	err := manager.ReconcileDNATRules([]networkmanager.DNATRule{{
-		Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.9", TargetPort: 80,
-	}})
-	if err == nil {
-		t.Fatal("expected cleanup failure")
-	}
-	if ctrl.upserts != 0 {
-		t.Fatalf("expected conflicting upsert to be skipped, got %d", ctrl.upserts)
 	}
 }

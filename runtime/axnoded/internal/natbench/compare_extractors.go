@@ -258,22 +258,6 @@ func kernelAttachSuccesses(samples []bpfnet.KernelStats) []uint64 {
 	return values
 }
 
-func kernelServiceHits(samples []bpfnet.KernelStats) []uint64 {
-	values := make([]uint64, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.ServiceHits)
-	}
-	return values
-}
-
-func kernelRevNATHits(samples []bpfnet.KernelStats) []uint64 {
-	values := make([]uint64, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.RevNATHits)
-	}
-	return values
-}
-
 func kernelSNATHits(samples []bpfnet.KernelStats) []uint64 {
 	values := make([]uint64, 0, len(samples))
 	for _, sample := range samples {
@@ -502,38 +486,6 @@ func kernelNativeRouteSkips(samples []bpfnet.KernelStats) []uint64 {
 	values := make([]uint64, 0, len(samples))
 	for _, sample := range samples {
 		values = append(values, sample.NativeRouteSkips)
-	}
-	return values
-}
-
-func kernelLocalhostConnectHits(samples []bpfnet.KernelStats) []uint64 {
-	values := make([]uint64, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.LocalhostConnectHits)
-	}
-	return values
-}
-
-func kernelLocalhostGetpeerHits(samples []bpfnet.KernelStats) []uint64 {
-	values := make([]uint64, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.LocalhostGetpeerHits)
-	}
-	return values
-}
-
-func kernelFallbackHits(samples []bpfnet.KernelStats) []uint64 {
-	values := make([]uint64, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.FallbackHits)
-	}
-	return values
-}
-
-func kernelLocalhostFallbackHits(samples []bpfnet.KernelStats) []uint64 {
-	values := make([]uint64, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.LocalhostFallbackHits)
 	}
 	return values
 }
@@ -802,14 +754,6 @@ func attachmentUplinkDevices(samples []bpfnet.AttachmentReadiness) []string {
 	return values
 }
 
-func attachmentLocalAddresses(samples []bpfnet.AttachmentReadiness) []string {
-	values := make([]string, 0)
-	for _, sample := range samples {
-		values = append(values, sample.LocalAddresses...)
-	}
-	return values
-}
-
 func attachmentIngressReady(samples []bpfnet.AttachmentReadiness) []bool {
 	values := make([]bool, 0, len(samples))
 	for _, sample := range samples {
@@ -822,14 +766,6 @@ func attachmentEgressReady(samples []bpfnet.AttachmentReadiness) []bool {
 	values := make([]bool, 0, len(samples))
 	for _, sample := range samples {
 		values = append(values, sample.EgressTCAttached)
-	}
-	return values
-}
-
-func attachmentLocalhostReady(samples []bpfnet.AttachmentReadiness) []bool {
-	values := make([]bool, 0, len(samples))
-	for _, sample := range samples {
-		values = append(values, sample.LocalhostLinksAttached)
 	}
 	return values
 }

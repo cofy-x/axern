@@ -17,8 +17,6 @@ import (
 type dataplaneController interface {
 	EnsureAttached(ipRange string) error
 	Cleanup() error
-	UpsertService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
-	DeleteService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
 	CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error)
 	Status() (bpfnet.Status, error)
 }
@@ -49,8 +47,7 @@ func (m *BPFNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, 
 		return networkmanager.Health{}, fmt.Errorf("read bpfnet dataplane status: %w", err)
 	}
 	return networkmanager.Health{
-		PortForwardingReady:  status.State.TCReady && status.State.LocalhostPathReady,
-		NativeDataplaneReady: status.State.TCReady && status.State.LocalhostPathReady,
+		NativeDataplaneReady: status.State.TCReady,
 	}, nil
 }
 
@@ -58,7 +55,6 @@ func defaultControllerFactory(cfg config.BPFNetConfig) (dataplaneController, err
 	controller := bpfnet.NewController(bpfnet.Config{
 		UplinkDevices:      append([]string(nil), cfg.UplinkDevices...),
 		PinPath:            cfg.PinPath,
-		MapSize:            cfg.MapSize,
 		SNATMapSize:        cfg.SNATMapSize,
 		NativeRoutingCIDRs: append([]string(nil), cfg.NativeRoutingCIDRs...),
 	})
@@ -183,73 +179,6 @@ func (m *BPFNetworkManager) CleanupNetworkRulesForActivating(ip net.IP) error {
 	return nil
 }
 
-func (m *BPFNetworkManager) SetupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error {
-	if isIPv6Address(targetIP) {
-		return ipv6UnsupportedError()
-	}
-	if err := m.controller.EnsureAttached(""); err != nil {
-		return err
-	}
-	if err := m.controller.UpsertService(protocol, dstPort, targetIP, targetPort); err != nil {
-		return fmt.Errorf("bpfnet upsert service: %w", err)
-	}
-	return nil
-}
-
-func (m *BPFNetworkManager) CleanupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error {
-	if isIPv6Address(targetIP) {
-		return ipv6UnsupportedError()
-	}
-	return m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-}
-
-func (m *BPFNetworkManager) ReconcileDNATRules(desired []networkmanager.DNATRule) error {
-	for _, rule := range desired {
-		if isIPv6Address(rule.TargetIP) {
-			return ipv6UnsupportedError()
-		}
-	}
-	status, err := m.controller.Status()
-	if err != nil {
-		return fmt.Errorf("read bpfnet service state: %w", err)
-	}
-
-	desiredByKey := make(map[string]networkmanager.DNATRule, len(desired))
-	for _, rule := range desired {
-		desiredByKey[dnatRuleKey(rule.Protocol, rule.HostPort)] = rule
-	}
-	currentByKey := make(map[string]bpfnet.Service, len(status.Services))
-	blockedKeys := make(map[string]struct{})
-	var errs []error
-	for _, current := range status.Services {
-		key := dnatRuleKey(current.Protocol, current.HostPort)
-		currentByKey[key] = current
-		next, keep := desiredByKey[key]
-		if keep && dnatRulesEqual(current, next) {
-			continue
-		}
-		if err := m.CleanupDNATRule(current.Protocol, current.HostPort, current.TargetIP, current.TargetPort); err != nil {
-			errs = append(errs, fmt.Errorf("remove orphaned bpfnet service %s: %w", key, err))
-			blockedKeys[key] = struct{}{}
-			continue
-		}
-		delete(currentByKey, key)
-	}
-
-	for key, rule := range desiredByKey {
-		if _, blocked := blockedKeys[key]; blocked {
-			continue
-		}
-		if current, ok := currentByKey[key]; ok && dnatRulesEqual(current, rule) {
-			continue
-		}
-		if err := m.SetupDNATRule(rule.Protocol, rule.HostPort, rule.TargetIP, rule.TargetPort); err != nil {
-			errs = append(errs, fmt.Errorf("ensure bpfnet service %s: %w", key, err))
-		}
-	}
-	return errors.Join(errs...)
-}
-
 func isIPv6Range(ipRange string) (bool, error) {
 	ipRange = strings.TrimSpace(ipRange)
 	if ipRange == "" {
@@ -262,24 +191,8 @@ func isIPv6Range(ipRange string) (bool, error) {
 	return prefix.Addr().Is6(), nil
 }
 
-func isIPv6Address(address string) bool {
-	ip := net.ParseIP(strings.TrimSpace(address))
-	return ip != nil && ip.To4() == nil
-}
-
 func ipv6UnsupportedError() error {
 	return errors.New("ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range")
-}
-
-func dnatRuleKey(protocol string, hostPort uint16) string {
-	return fmt.Sprintf("%s:%d", strings.ToLower(protocol), hostPort)
-}
-
-func dnatRulesEqual(current bpfnet.Service, desired networkmanager.DNATRule) bool {
-	return strings.EqualFold(current.Protocol, desired.Protocol) &&
-		current.HostPort == desired.HostPort &&
-		current.TargetIP == desired.TargetIP &&
-		current.TargetPort == desired.TargetPort
 }
 
 func setControllerFactoryForTest(factory controllerFactory) {

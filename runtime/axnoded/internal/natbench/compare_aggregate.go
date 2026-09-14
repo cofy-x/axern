@@ -246,8 +246,6 @@ func aggregateWorkloadSummaries(samples []WorkloadSummary) WorkloadSummary {
 func aggregateKernelStats(samples []bpfnet.KernelStats) bpfnet.KernelStats {
 	return bpfnet.KernelStats{
 		AttachSuccesses:                    medianUint64(kernelAttachSuccesses(samples)),
-		ServiceHits:                        medianUint64(kernelServiceHits(samples)),
-		RevNATHits:                         medianUint64(kernelRevNATHits(samples)),
 		SNATHits:                           medianUint64(kernelSNATHits(samples)),
 		SNATRevHits:                        medianUint64(kernelSNATRevHits(samples)),
 		SNATFwdHits:                        medianUint64(kernelSNATFwdHits(samples)),
@@ -277,10 +275,6 @@ func aggregateKernelStats(samples []bpfnet.KernelStats) bpfnet.KernelStats {
 		SNATTCPReverseMissACKs:             medianUint64(kernelSNATTCPReverseMissACKs(samples)),
 		SNATTCPReverseMissOther:            medianUint64(kernelSNATTCPReverseMissOther(samples)),
 		NativeRouteSkips:                   medianUint64(kernelNativeRouteSkips(samples)),
-		LocalhostConnectHits:               medianUint64(kernelLocalhostConnectHits(samples)),
-		LocalhostGetpeerHits:               medianUint64(kernelLocalhostGetpeerHits(samples)),
-		FallbackHits:                       medianUint64(kernelFallbackHits(samples)),
-		LocalhostFallbackHits:              medianUint64(kernelLocalhostFallbackHits(samples)),
 		AttachErrors:                       medianUint64(kernelAttachErrors(samples)),
 	}
 }
@@ -328,13 +322,11 @@ func aggregateNATProfile(samples []NATProfile) NATProfile {
 
 func aggregateAttachment(samples []bpfnet.AttachmentReadiness) bpfnet.AttachmentReadiness {
 	return bpfnet.AttachmentReadiness{
-		UplinkDevices:          appendUniqueStrings(nil, attachmentUplinkDevices(samples)...),
-		LocalAddresses:         appendUniqueStrings(nil, attachmentLocalAddresses(samples)...),
-		IngressTCAttached:      allTrue(attachmentIngressReady(samples)),
-		EgressTCAttached:       allTrue(attachmentEgressReady(samples)),
-		LocalhostLinksAttached: allTrue(attachmentLocalhostReady(samples)),
-		PinnedMapsReady:        allTrue(attachmentPinnedMapsReady(samples)),
-		PinnedProgramsReady:    allTrue(attachmentPinnedProgramsReady(samples)),
+		UplinkDevices:       appendUniqueStrings(nil, attachmentUplinkDevices(samples)...),
+		IngressTCAttached:   allTrue(attachmentIngressReady(samples)),
+		EgressTCAttached:    allTrue(attachmentEgressReady(samples)),
+		PinnedMapsReady:     allTrue(attachmentPinnedMapsReady(samples)),
+		PinnedProgramsReady: allTrue(attachmentPinnedProgramsReady(samples)),
 	}
 }
 

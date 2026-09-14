@@ -37,9 +37,7 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-docker-runsc \
 	axnoded-verify-docker-runsc-debug \
 	axnoded-verify-docker-conformance \
-	axnoded-benchmark-startup-matrix \
-	axnoded-run-nginx-demo \
-	axnoded-stop-nginx-demo
+	axnoded-benchmark-startup-matrix
 
 axnoded-help: ## Show axnoded targets
 	@$(call run_subsystem_make,$(AXNODED_DIR),help)
@@ -151,9 +149,3 @@ axnoded-verify-docker-conformance: ## Run production cgroup and serialized runti
 
 axnoded-benchmark-startup-matrix: ## Run the axnoded startup quantile matrix benchmark
 	@$(call run_subsystem_make,$(AXNODED_DIR),benchmark-startup-matrix)
-
-axnoded-run-nginx-demo: ## Run the axnoded nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),run-nginx-demo)
-
-axnoded-stop-nginx-demo: ## Stop the axnoded nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),stop-nginx-demo)

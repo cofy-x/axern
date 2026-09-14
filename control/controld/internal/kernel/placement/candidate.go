@@ -73,9 +73,6 @@ func EvaluationLess(left, right *Evaluation) bool {
 	if leftRank.GetPeerHintedCount() != rightRank.GetPeerHintedCount() {
 		return leftRank.GetPeerHintedCount() > rightRank.GetPeerHintedCount()
 	}
-	if leftRank.GetBPFNetPreferred() != rightRank.GetBPFNetPreferred() {
-		return leftRank.GetBPFNetPreferred()
-	}
 	if leftRank.GetIdlePoolReady() != rightRank.GetIdlePoolReady() {
 		return leftRank.GetIdlePoolReady()
 	}

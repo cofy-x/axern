@@ -50,12 +50,12 @@ static __always_inline int rewrite_tcp_dst(struct __sk_buff *skb, struct iphdr *
 
 static __always_inline int rewrite_tcp_src(struct __sk_buff *skb, struct iphdr *iph, struct tcphdr *tcph,
 					   __u64 l3_off, __u64 l4_off,
-					   __u32 host_ip, __u16 host_port)
+					   __u32 source_ip, __u16 source_port)
 {
 	__be32 old_addr = iph->saddr;
-	__be32 new_addr = bpf_htonl(host_ip);
+	__be32 new_addr = bpf_htonl(source_ip);
 	__be16 old_port = tcph->source;
-	__be16 new_port = bpf_htons(host_port);
+	__be16 new_port = bpf_htons(source_port);
 
 	if (update_ipv4_addr(skb, l3_off, l4_off, IPPROTO_TCP, true, old_addr, new_addr,
 			     offsetof(struct tcphdr, check)) < 0)
@@ -98,12 +98,12 @@ static __always_inline int rewrite_udp_dst(struct __sk_buff *skb, struct iphdr *
 
 static __always_inline int rewrite_udp_src(struct __sk_buff *skb, struct iphdr *iph, struct udphdr *udph,
 					   __u64 l3_off, __u64 l4_off,
-					   __u32 host_ip, __u16 host_port)
+					   __u32 source_ip, __u16 source_port)
 {
 	__be32 old_addr = iph->saddr;
-	__be32 new_addr = bpf_htonl(host_ip);
+	__be32 new_addr = bpf_htonl(source_ip);
 	__be16 old_port = udph->source;
-	__be16 new_port = bpf_htons(host_port);
+	__be16 new_port = bpf_htons(source_port);
 	__be16 udp_check = udph->check;
 	__u16 l4_check = udp_check != 0 ? offsetof(struct udphdr, check) : 0;
 

@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 
 	"github.com/cilium/ebpf"
-	"github.com/cilium/ebpf/link"
 	"github.com/cofy-x/axern/network/bpfnet/internal/tcprog"
 	"github.com/vishvananda/netlink"
 	"golang.org/x/sys/unix"
@@ -26,8 +25,6 @@ func CollectKernelStats(cfg Config) KernelStats {
 
 	return KernelStats{
 		AttachSuccesses:                    lookupKernelStat(statsMap, KernelStatAttachSuccess),
-		ServiceHits:                        lookupKernelStat(statsMap, KernelStatServiceHit),
-		RevNATHits:                         lookupKernelStat(statsMap, KernelStatRevNATHit),
 		SNATHits:                           lookupKernelStat(statsMap, KernelStatSNATHit),
 		SNATRevHits:                        lookupKernelStat(statsMap, KernelStatSNATRevHit),
 		SNATFwdHits:                        lookupKernelStat(statsMap, KernelStatSNATFwdHit),
@@ -57,10 +54,6 @@ func CollectKernelStats(cfg Config) KernelStats {
 		SNATTCPReverseMissACKs:             lookupKernelStat(statsMap, KernelStatSNATTCPRevMissACK),
 		SNATTCPReverseMissOther:            lookupKernelStat(statsMap, KernelStatSNATTCPRevMissOther),
 		NativeRouteSkips:                   lookupKernelStat(statsMap, KernelStatNativeRouteSkip),
-		LocalhostConnectHits:               lookupKernelStat(statsMap, KernelStatLocalhostConnectHit),
-		LocalhostGetpeerHits:               lookupKernelStat(statsMap, KernelStatLocalhostGetPeerHit),
-		FallbackHits:                       lookupKernelStat(statsMap, KernelStatFallbackHit),
-		LocalhostFallbackHits:              lookupKernelStat(statsMap, KernelStatLocalhostFallbackHit),
 		AttachErrors:                       lookupKernelStat(statsMap, KernelStatAttachError),
 	}
 }
@@ -156,40 +149,29 @@ func recordSNATFlowState(state uint8, active, closing, origClosing, replyClosing
 	}
 }
 
-func CollectAttachmentReadiness(cfg Config, uplinks []string, localAddresses []string) AttachmentReadiness {
+func CollectAttachmentReadiness(cfg Config, uplinks []string) AttachmentReadiness {
 	attachment := AttachmentReadiness{
 		UplinkDevices:       append([]string(nil), uplinks...),
-		LocalAddresses:      append([]string(nil), localAddresses...),
 		PinnedMapsReady:     pinnedMapsReady(cfg.PinPath),
 		PinnedProgramsReady: pinnedProgramsReady(cfg.PinPath),
 	}
 
 	if len(uplinks) > 0 {
-		if data, err := collectInterfaceData(uplinks); err == nil {
-			attachment.LocalAddresses = data.localAddresses
-		}
 		attachment.IngressTCAttached = tcFiltersAttached(uplinks, netlink.HANDLE_MIN_INGRESS)
 		attachment.EgressTCAttached = tcFiltersAttached(uplinks, netlink.HANDLE_MIN_EGRESS)
 	}
-
-	attachment.LocalhostLinksAttached = localhostLinksAttached(cfg.PinPath)
 
 	return attachment
 }
 
 func pinnedMapsReady(pinPath string) bool {
 	required := []string{
-		serviceMapName,
 		statsMapName,
-		localAddrMapName,
-		revNatMapName,
 		configMapName,
-		hostNetnsCookieMapName,
 		uplinkAddrMapName,
 		nativeRouteMapName,
 		snatFwdMapName,
 		snatRevMapName,
-		localhostSockMapName,
 	}
 	for _, name := range required {
 		loaded, err := ebpf.LoadPinnedMap(filepath.Join(pinPath, name), nil)
@@ -205,9 +187,6 @@ func pinnedProgramsReady(pinPath string) bool {
 	required := []string{
 		filepath.Join(pinPath, "programs", "ingress"),
 		filepath.Join(pinPath, "programs", "egress"),
-		filepath.Join(pinPath, "programs", "localhost-connect4"),
-		filepath.Join(pinPath, "programs", "localhost-getpeer4"),
-		filepath.Join(pinPath, "programs", "localhost-release"),
 	}
 	for _, path := range required {
 		loaded, err := ebpf.LoadPinnedProgram(path, nil)
@@ -254,22 +233,6 @@ func tcFiltersAttached(devices []string, parent uint32) bool {
 		if !found {
 			return false
 		}
-	}
-	return true
-}
-
-func localhostLinksAttached(pinPath string) bool {
-	required := []string{
-		filepath.Join(pinPath, "links", "localhost-connect4"),
-		filepath.Join(pinPath, "links", "localhost-getpeer4"),
-		filepath.Join(pinPath, "links", "localhost-release"),
-	}
-	for _, path := range required {
-		pinned, err := link.LoadPinnedLink(path, nil)
-		if err != nil {
-			return false
-		}
-		_ = pinned.Close()
 	}
 	return true
 }

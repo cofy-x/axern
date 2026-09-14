@@ -37,8 +37,8 @@ var forbiddenCIDRs = []netip.Prefix{
 }
 
 // Normalize validates and returns a deterministic policy representation.
-// NETWORK_MODE_ISOLATED is represented as strict deny-all while retaining the
-// legacy mode so nodes can enforce it without egressd during a rolling upgrade.
+// NETWORK_MODE_ISOLATED is the canonical deny-all representation and requires
+// no egressd policy record.
 func Normalize(in *commonv1.NetworkSpec) (*commonv1.NetworkSpec, error) {
 	if in == nil {
 		return nil, nil
@@ -62,12 +62,7 @@ func Normalize(in *commonv1.NetworkSpec) (*commonv1.NetworkSpec, error) {
 				return nil, fmt.Errorf("isolated network mode permits only strict deny-all")
 			}
 		}
-		return &commonv1.NetworkSpec{
-			Mode: mode,
-			EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{
-				Strict: &commonv1.StrictEgressPolicy{},
-			}},
-		}, nil
+		return &commonv1.NetworkSpec{Mode: mode}, nil
 	}
 
 	out := &commonv1.NetworkSpec{Mode: mode}
@@ -82,7 +77,7 @@ func Normalize(in *commonv1.NetworkSpec) (*commonv1.NetworkSpec, error) {
 			return nil, fmt.Errorf("strict policy: %w", err)
 		}
 		if len(strict.GetAllowedDomains()) == 0 && len(strict.GetAllowedCidrs()) == 0 {
-			out.Mode = commonv1.NetworkMode_NETWORK_MODE_ISOLATED
+			return &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_ISOLATED}, nil
 		}
 		out.EgressPolicy = &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: strict}}
 	case *commonv1.NetworkEgressPolicy_DnsDeny:
@@ -127,6 +122,12 @@ func StrictNeedsEgressd(in *commonv1.NetworkSpec) bool {
 }
 
 func IsStrictDenyAll(in *commonv1.NetworkSpec) bool {
+	if in == nil {
+		return false
+	}
+	if in.GetMode() == commonv1.NetworkMode_NETWORK_MODE_ISOLATED {
+		return true
+	}
 	strict := in.GetEgressPolicy().GetStrict()
 	return strict != nil && len(strict.GetAllowedDomains()) == 0 && len(strict.GetAllowedCidrs()) == 0
 }

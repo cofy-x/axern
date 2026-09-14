@@ -47,20 +47,6 @@ func mergeStringMaps(base, override map[string]string) map[string]string {
 	return out
 }
 
-func clonePortSpecs(in []*commonv1.PortSpec) []*commonv1.PortSpec {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*commonv1.PortSpec, 0, len(in))
-	for _, port := range in {
-		if port == nil {
-			continue
-		}
-		out = append(out, proto.Clone(port).(*commonv1.PortSpec))
-	}
-	return out
-}
-
 func cloneNetworkSpec(in *commonv1.NetworkSpec) *commonv1.NetworkSpec {
 	if in == nil {
 		return nil

@@ -82,7 +82,7 @@ func TestFieldSearchTraversesRepeatedMessages(t *testing.T) {
 	request := &runv1.CreateRunRequest{
 		Namespace: "team-a",
 		Config: &commonv1.ExecutionConfig{
-			Ports: []*commonv1.PortSpec{{}},
+			ImageMounts: []*commonv1.ImageMount{{Image: "example.com/tool:latest", Target: "/opt/tool"}},
 		},
 	}
 	if got := findStringField(request.ProtoReflect(), "namespace"); got != "team-a" {

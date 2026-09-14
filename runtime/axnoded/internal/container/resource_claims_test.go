@@ -28,7 +28,7 @@ func TestRuntimeCgroupPathUsesRuntimeProjection(t *testing.T) {
 
 func TestAllocationCgroupPathUsesTypedLease(t *testing.T) {
 	owner := &releaseTrackingResourceManager{
-		name: resourcemanager.CgroupResourceName,
+		name:   resourcemanager.CgroupResourceName,
 		owners: map[string]string{"allocation-1": "/sandbox/test"},
 	}
 	manager := &Manager{containers: cmap.New[*Container](), resourceManagers: cmap.New[resourcemanager.Manager]()}

@@ -11,7 +11,6 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -130,46 +129,6 @@ func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
 	}
 }
 
-func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
-	engine := NewEngine(Config{})
-	now := time.Date(2026, 4, 21, 14, 0, 0, 0, time.UTC)
-
-	baseline := readySummary(now)
-	baseline.Locality = []*nodev1.LocalitySummary{{
-		Key:                        "image:repo/app:latest",
-		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:                  nodev1.MountType_MOUNT_TYPE_OCI,
-		Mounted:                    true,
-		RetainedRootfsCount:        1,
-		RetainedEnvironmentCount:   1,
-		ChunkdbRecentAccessAgeSecs: 5,
-		PeerHealthyCount:           2,
-		PeerHintedCount:            1,
-	}}
-	needsFallback := proto.Clone(baseline).(*nodev1.NodeSummary)
-	needsFallback.Components.Bpfnet.Ready = false
-
-	snapshot := nodekernel.Snapshot{
-		Records: []*nodekernel.Record{
-			record("node-fallback", []string{"runsc"}, needsFallback, now),
-			record("node-preferred", []string{"runsc"}, baseline, now),
-		},
-	}
-
-	eligible, _ := engine.Plan(snapshot, &placementkernel.Request{
-		RootfsKey:  "image:repo/app:latest",
-		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Ports:      []string{"8080/tcp"},
-	}, now)
-	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-preferred" {
-		t.Fatalf("unexpected eligible candidates: %#v", eligible)
-	}
-	if !eligible[0].GetRank().GetBPFNetPreferred() {
-		t.Fatalf("expected top-ranked node to have preferred bpfnet: %#v", eligible[0])
-	}
-}
-
 func TestPlanSortsByFixedTuple(t *testing.T) {
 	engine := NewEngine(Config{})
 	now := time.Date(2026, 4, 21, 15, 0, 0, 0, time.UTC)
@@ -248,7 +207,6 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		MountType:                       nodev1.MountType_MOUNT_TYPE_OCI,
 		RequestedCpuMilli:               200,
 		RequestedMemoryBytes:            256,
-		Ports:                           []string{"tcp:8080:80"},
 		Network:                         "bridge",
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: "example.com/gpu"}}},
 		NodeSelector:                    map[string]string{"zone": "us-west-1"},
@@ -261,7 +219,6 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		placementkernel.RejectionReasonNodeSelectorMismatch,
 		placementkernel.RejectionReasonInsufficientCPU,
 		placementkernel.RejectionReasonInsufficientMemory,
-		placementkernel.RejectionReasonPortsUnsupported,
 		placementkernel.RejectionReasonNetworkUnsupported,
 		placementkernel.RejectionReasonCapabilityUnsupported,
 	)
@@ -437,7 +394,7 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		CollectedAt: timestamppb.New(collectedAt),
 		NodeState:   nodev1.NodeState_NODE_STATE_READY,
 		CapabilitySnapshot: availableCapabilitySnapshot(collectedAt,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,

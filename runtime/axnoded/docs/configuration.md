@@ -62,14 +62,13 @@ Failure of the configured node resource source is fail-closed. Axnoded retains t
 | `ip_range` | IPv4 or IPv6 CIDR used for `sandbox0`, sandbox IPs, and host veth allocation. | Must provide at least `max_instance_num` addresses and must not collide with host, pod, service, or VPC ranges. |
 | `nat_backend` | NAT implementation. | Valid values are `iptables` and `ebpf`. |
 
-`iptables` is the full bridge SNAT/DNAT backend for IPv4 and IPv6. `ebpf` is an IPv4-only backend that keeps the same bridge/veth/netns shape and requires every supported tc/cgroup dataplane path to be ready. An IPv6 `ip_range` with `nat_backend = "ebpf"` is rejected during configuration; axnoded never changes the selected backend implicitly or mixes iptables rules into an active eBPF dataplane.
+`iptables` provides bridge egress NAT for IPv4 and IPv6. `ebpf` is an IPv4-only egress backend that keeps the same bridge/veth/netns shape and requires both TC directions and all current pinned objects to be ready. An IPv6 `ip_range` with `nat_backend = "ebpf"` is rejected; axnoded never changes the selected backend implicitly or mixes iptables rules into an active eBPF dataplane. Inbound access is provided through Allocation-scoped Tunnel or SSH sessions.
 
 `[plugin.network.ebpf]` is only active when `nat_backend = "ebpf"`.
 
 | Key | Meaning | Notes |
 | --- | --- | --- |
 | `pin_path` | bpffs pin root for bpfnet maps and programs. | Default is `/sys/fs/bpf/axern/bpfnet`. |
-| `map_size` | bpfnet map capacity. | Increase only when service/rule cardinality requires it. |
 | `snat_map_size` | egress SNAT forward/reverse map capacity. | Size for short-connection flow churn; default is `262144`. |
 | `snat_gc_interval` | Background interval for axnoded to remove stale bpfnet SNAT mappings. | Empty or non-positive falls back to `1s`. |
 | `snat_tcp_idle_timeout` | Idle timeout for active TCP SNAT mappings. | Keep long enough for pooled/keep-alive connections; default is `5m`. |
@@ -78,7 +77,7 @@ Failure of the configured node resource source is fail-closed. Axnoded retains t
 | `uplink_devices` | Optional uplink device allowlist. | Leave empty for auto/default behavior. |
 | `native_routing_cidrs` | CIDRs that should use native routing behavior. | Deployment-specific; keep empty unless the dataplane requires it. |
 
-When networking fails, inspect the selected backend, `sandbox0`, host veths, DNAT/SNAT rules, and bpfnet attach logs before changing resource sizing.
+When networking fails, inspect the selected backend, `sandbox0`, host veths, egress SNAT state, and bpfnet attach logs before changing resource sizing.
 
 ## Resource Pool
 
@@ -170,7 +169,7 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | axnoded will not start            | top-level paths, runtime binaries, base specs, filestore | axnoded startup logs, path permissions, `runsc --version`.                     |
 | node never appears in `controld`  | control plane                                            | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs.       |
 | image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
-| sandbox has no egress or hostPort | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |
+| sandbox has no egress             | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |
 | start is slow after burst         | resource pool                                            | idle gauges, `miss_sync_create`, reconcile interval, cache sizes.              |
 | delete leaves resources behind    | resource/runtime paths                                   | typed resource ledgers, storeDir, cleanup logs, GC queue metric.                |
 

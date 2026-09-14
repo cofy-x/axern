@@ -329,10 +329,6 @@ func TestDefaultConfigSetsBPFNetDefaults(t *testing.T) {
 		t.Fatalf("expected default bpfnet pin path %q, got %q",
 			DefaultBPFNetPinPath, cfg.PluginConfig.NetworkConfig.BPFNet.PinPath)
 	}
-	if cfg.PluginConfig.NetworkConfig.BPFNet.MapSize != DefaultBPFNetMapSize {
-		t.Fatalf("expected default bpfnet map size %d, got %d",
-			DefaultBPFNetMapSize, cfg.PluginConfig.NetworkConfig.BPFNet.MapSize)
-	}
 	if cfg.PluginConfig.NetworkConfig.BPFNet.SNATMapSize != DefaultBPFNetSNATMapSize {
 		t.Fatalf("expected default bpfnet snat map size %d, got %d",
 			DefaultBPFNetSNATMapSize, cfg.PluginConfig.NetworkConfig.BPFNet.SNATMapSize)

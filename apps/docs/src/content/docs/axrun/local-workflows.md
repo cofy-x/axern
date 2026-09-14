@@ -15,7 +15,7 @@ axrun task build --file tasks/demo/taskset.yaml --output .axrun/tasksets/demo
 axrun task inspect .axrun/tasksets/demo
 ```
 
-`task init` writes explicit `250m` CPU and `512Mi` memory requests for its starter task. Tune these per-episode requests to the actual agent workload instead of relying on the control-plane fallback. `resources.disk` is rejected until Axern exposes an enforceable ephemeral disk contract.
+`task init` writes explicit `250m` CPU and `512Mi` memory requests for its starter task. Tune these per-episode requests to the actual agent workload instead of relying on control-plane defaults. Use `request_ephemeral_storage` and `limit_ephemeral_storage` for disposable Allocation-local storage; this is not a persistent workspace or volume.
 
 Publish a TaskSet as an immutable `repository@sha256:...` reference through Kova when it must be shared or executed reproducibly across machines:
 

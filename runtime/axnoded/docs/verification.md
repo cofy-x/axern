@@ -119,7 +119,6 @@ make axnoded-verify-node-nydus-e2e
 ## Local Demos
 
 ```bash
-make example-bpfnet-udp-ingress
 make example-bpfnet-egress
 ```
 

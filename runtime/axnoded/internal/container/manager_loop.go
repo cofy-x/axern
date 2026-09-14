@@ -238,11 +238,11 @@ func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *cont
 		if err != nil {
 			if contract.IsExitStatusUnavailable(err) {
 				event := Event{
-					Type:          EventTypeExit,
-					ContainerID:   id,
-					Pid:           -1,
-					ExitedAt:      time.Now(),
-					Reason:        err.Error(),
+					Type:        EventTypeExit,
+					ContainerID: id,
+					Pid:         -1,
+					ExitedAt:    time.Now(),
+					Reason:      err.Error(),
 				}
 				classified, persistErr := m.persistMonitorExitWithRetry(ctx, event)
 				if persistErr != nil {
@@ -271,11 +271,11 @@ func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *cont
 		}
 		exitCode := int32(exit.Status)
 		event := Event{
-			Type:          EventTypeExit,
-			ContainerID:   id,
-			Pid:           -1,
-			ExitCode:      &exitCode,
-			ExitedAt:      exit.Timestamp,
+			Type:        EventTypeExit,
+			ContainerID: id,
+			Pid:         -1,
+			ExitCode:    &exitCode,
+			ExitedAt:    exit.Timestamp,
 		}
 		classified, persistErr := m.persistMonitorExitWithRetry(ctx, event)
 		if persistErr != nil {

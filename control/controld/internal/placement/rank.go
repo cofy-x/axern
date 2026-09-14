@@ -42,9 +42,6 @@ func buildPlacementRank(req *placementkernel.Request, summary *nodev1.NodeSummar
 		AxnodedUsedBytes:           summary.GetResources().GetAxnodedUsedBytes(),
 		AxnodedActiveInstances:     nodekernel.ReportedActiveInstances(summary),
 	}
-	if requiresPortsCapability(req) {
-		rank.BPFNetPreferred = bpfnetPreferred(summary)
-	}
 	return rank
 }
 
@@ -81,12 +78,4 @@ func hasWarmRuntimeSlot(pools *nodev1.PoolsSummary) bool {
 		return false
 	}
 	return pools.GetRuntimeSlots().GetIdle() > 0
-}
-
-func bpfnetPreferred(summary *nodev1.NodeSummary) bool {
-	if summary == nil {
-		return false
-	}
-	component := summary.GetComponents().GetBpfnet()
-	return component.GetReady()
 }

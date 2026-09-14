@@ -213,7 +213,6 @@ func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs b
 	policySpec := request.GetNetwork()
 	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
-		HasPorts:                        len(request.GetPorts()) > 0,
 		NetworkMode:                     startplan.EffectiveNetworkMode(h.config.NatBackend, request),
 		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.NatBackend,
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,

@@ -46,15 +46,17 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		return nil, err
 	}
 	sb, err := axernsdk.NewSandbox(axernsdk.SandboxOptions{
-		Client:        client,
-		TemplateID:    r.Config.TemplateID,
-		Image:         r.Config.Image,
-		Namespace:     r.Config.NamespaceOrDefault(),
-		RequestCPU:    axernsdk.ResourceQuantity(r.Config.RequestCPU),
-		RequestMemory: axernsdk.ResourceQuantity(r.Config.RequestMemory),
-		LimitCPU:      axernsdk.ResourceQuantity(r.Config.LimitCPU),
-		LimitMemory:   axernsdk.ResourceQuantity(r.Config.LimitMemory),
-		ImageMounts:   cloneImageMounts(r.Config.ImageMounts),
+		Client:                  client,
+		TemplateID:              r.Config.TemplateID,
+		Image:                   r.Config.Image,
+		Namespace:               r.Config.NamespaceOrDefault(),
+		RequestCPU:              axernsdk.ResourceQuantity(r.Config.RequestCPU),
+		RequestMemory:           axernsdk.ResourceQuantity(r.Config.RequestMemory),
+		RequestEphemeralStorage: axernsdk.ResourceQuantity(r.Config.RequestEphemeralStorage),
+		LimitCPU:                axernsdk.ResourceQuantity(r.Config.LimitCPU),
+		LimitMemory:             axernsdk.ResourceQuantity(r.Config.LimitMemory),
+		LimitEphemeralStorage:   axernsdk.ResourceQuantity(r.Config.LimitEphemeralStorage),
+		ImageMounts:             cloneImageMounts(r.Config.ImageMounts),
 	})
 	if err != nil {
 		_ = client.Close()

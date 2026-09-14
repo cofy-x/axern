@@ -53,12 +53,12 @@ Required result:
 - `status.attachment.pinnedMapsReady=true`.
 - `status.attachment.pinnedProgramsReady=true`.
 
-`localhost-tcp-iptables-compat` is acceptable when the kernel does not support the localhost cgroup path. Main TC attach or reconciliation failure makes the `ebpf` backend fail closed.
+Any TC attach or reconciliation failure makes the `ebpf` backend fail closed. Switching to `iptables` is an explicit node configuration rollback, never an automatic compatibility mode.
 
-## Ingress Comparison
+## UDP Egress Comparison
 
 ```bash
-out="${OUTPUT_ROOT}/ingress"
+out="${OUTPUT_ROOT}/udp-egress"
 rm -rf "${out}" && mkdir -p "${out}"
 
 $KUBE_ENV \
@@ -69,7 +69,7 @@ $KUBE_ENV \
   BENCHMARK_RUNS=1 \
   BENCHMARK_REQUESTS=50000 \
   BENCHMARK_CONCURRENCY=128 \
-  BENCHMARK_PATHS=external_tcp_ingress,external_udp_ingress \
+  BENCHMARK_PATHS=egress_udp,egress_udp_connected \
   BENCHMARK_SNAT_POST_GC_WAIT=12s \
   OUTPUT_DIR="${out}" \
   runtime/axnoded/scripts/benchmark/benchmark-kubernetes-compare.sh

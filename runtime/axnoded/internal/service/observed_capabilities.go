@@ -141,7 +141,6 @@ func networkCapabilityProvider(cfg config.Config, managers ...egress.Manager) no
 		egressManager = managers[0]
 	}
 	keys := []*capabilityv1.CapabilityKey{
-		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET),
 		capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST),
@@ -154,37 +153,34 @@ func networkCapabilityProvider(cfg config.Config, managers ...egress.Manager) no
 			manager := networkmanager.NetworkManagers[cfg.PluginConfig.NetworkConfig.NatBackend]
 			probe, ok := manager.(networkmanager.HealthProber)
 			var evidence *capabilityv1.CapabilityEvidence
-			activeIndex := 1
-			inactiveIndex := 2
+			activeIndex := 0
+			inactiveIndex := 1
 			if cfg.PluginConfig.NetworkConfig.NatBackend == config.NatBackendEBPF {
-				activeIndex, inactiveIndex = 2, 1
+				activeIndex, inactiveIndex = 1, 0
 			}
 			observations := make([]*capabilityv1.CapabilityObservation, len(keys))
-			observations[3] = failedObservation(keys[3], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd DNS policy enforcement is not configured")
-			observations[4] = failedObservation(keys[4], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd strict egress enforcement is not configured")
+			observations[2] = failedObservation(keys[2], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd DNS policy enforcement is not configured")
+			observations[3] = failedObservation(keys[3], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "egressd strict egress enforcement is not configured")
 			if egressManager != nil {
 				health, healthErr := egressManager.Health(ctx)
 				if healthErr != nil {
+					observations[2] = unknownCapabilityObservation(keys[2], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, healthErr.Error())
 					observations[3] = unknownCapabilityObservation(keys[3], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, healthErr.Error())
-					observations[4] = unknownCapabilityObservation(keys[4], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, healthErr.Error())
 				} else {
-					observations[3] = boolObservation(keys[3], health.GetDnsPolicySelfTestOk(), evidence, "egressd DNS policy self-test failed")
-					observations[4] = boolObservation(keys[4], health.GetStrictEgressSelfTestOk(), evidence, "egressd strict egress self-test failed")
+					observations[2] = boolObservation(keys[2], health.GetDnsPolicySelfTestOk(), evidence, "egressd DNS policy self-test failed")
+					observations[3] = boolObservation(keys[3], health.GetStrictEgressSelfTestOk(), evidence, "egressd strict egress self-test failed")
 				}
 			}
 			observations[inactiveIndex] = failedObservation(keys[inactiveIndex], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "network backend is not selected by node configuration")
 			if !ok {
-				observations[0] = failedObservation(keys[0], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "network backend has no operational health probe")
 				observations[activeIndex] = failedObservation(keys[activeIndex], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "network backend has no operational health probe")
 				return observations, nil
 			}
 			health, err := probe.ProbeHealth(cfg.PluginConfig.NetworkConfig.IPRange)
 			if err != nil {
-				observations[0] = unknownCapabilityObservation(keys[0], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, err.Error())
 				observations[activeIndex] = unknownCapabilityObservation(keys[activeIndex], evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_ERROR, err.Error())
 				return observations, nil
 			}
-			observations[0] = boolObservation(keys[0], health.PortForwardingReady, evidence, "port-forwarding dataplane is unavailable")
 			observations[activeIndex] = boolObservation(keys[activeIndex], health.NativeDataplaneReady, evidence, "network dataplane is unavailable")
 			return observations, nil
 		},

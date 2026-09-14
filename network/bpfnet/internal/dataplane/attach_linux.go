@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
-	"sort"
 
 	"github.com/cilium/ebpf"
 	"github.com/cofy-x/axern/network/bpfnet/internal/tcprog"
@@ -15,19 +14,11 @@ import (
 )
 
 type interfaceData struct {
-	localAddresses []string
-	localAddrs     map[tcprog.DataplaneLocalAddrKey]tcprog.DataplaneLocalAddrValue
-	uplinkAddrs    map[tcprog.DataplaneUplinkAddrKey]tcprog.DataplaneUplinkAddrValue
+	uplinkAddrs map[tcprog.DataplaneUplinkAddrKey]tcprog.DataplaneUplinkAddrValue
 }
 
 func collectInterfaceData(uplinks []string) (interfaceData, error) {
-	localAddrs := make(map[tcprog.DataplaneLocalAddrKey]tcprog.DataplaneLocalAddrValue)
 	uplinkAddrs := make(map[tcprog.DataplaneUplinkAddrKey]tcprog.DataplaneUplinkAddrValue)
-	pretty := make(map[string]struct{})
-
-	loopback := net.IPv4(127, 0, 0, 1)
-	localAddrs[tcprog.DataplaneLocalAddrKey{Addr: binary.BigEndian.Uint32(loopback.To4())}] = tcprog.DataplaneLocalAddrValue{Present: 1}
-	pretty[loopback.String()] = struct{}{}
 
 	for _, uplink := range uplinks {
 		link, err := netlink.LinkByName(uplink)
@@ -52,9 +43,6 @@ func collectInterfaceData(uplinks []string) (interfaceData, error) {
 			if ipv4 == nil {
 				continue
 			}
-			key := tcprog.DataplaneLocalAddrKey{Addr: binary.BigEndian.Uint32(ipv4)}
-			localAddrs[key] = tcprog.DataplaneLocalAddrValue{Present: 1}
-			pretty[ipv4.String()] = struct{}{}
 			if !haveUplinkIPv4 {
 				uplinkAddrs[tcprog.DataplaneUplinkAddrKey{Ifindex: uint32(link.Attrs().Index)}] = tcprog.DataplaneUplinkAddrValue{
 					Addr: binary.BigEndian.Uint32(ipv4),
@@ -67,16 +55,8 @@ func collectInterfaceData(uplinks []string) (interfaceData, error) {
 		}
 	}
 
-	addresses := make([]string, 0, len(pretty))
-	for addr := range pretty {
-		addresses = append(addresses, addr)
-	}
-	sort.Strings(addresses)
-
 	return interfaceData{
-		localAddresses: addresses,
-		localAddrs:     localAddrs,
-		uplinkAddrs:    uplinkAddrs,
+		uplinkAddrs: uplinkAddrs,
 	}, nil
 }
 

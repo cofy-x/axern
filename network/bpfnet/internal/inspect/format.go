@@ -18,29 +18,6 @@ func rawStruct[T any](value T) any {
 	return hex.EncodeToString(buf.Bytes())
 }
 
-func protoName(proto uint8) string {
-	switch proto {
-	case 6:
-		return "tcp"
-	case 17:
-		return "udp"
-	default:
-		return fmt.Sprintf("proto-%d", proto)
-	}
-}
-
-func formatServiceKey(key tcprog.DataplaneServiceKey) any {
-	return map[string]any{"protocol": protoName(key.Proto), "host_port": key.HostPort}
-}
-
-func formatServiceValue(value tcprog.DataplaneServiceValue) any {
-	return map[string]any{"target_ip": ipv4FromUint32(value.TargetIp), "target_port": value.TargetPort}
-}
-
-func formatLocalAddrKey(key tcprog.DataplaneLocalAddrKey) any {
-	return ipv4FromUint32(key.Addr)
-}
-
 func formatUplinkKey(key tcprog.DataplaneUplinkAddrKey) any {
 	return key.Ifindex
 }

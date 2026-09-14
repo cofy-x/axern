@@ -69,7 +69,6 @@ func newTestAllocationControllerWithResources(t *testing.T, runscHandler contrac
 	environmentCache := environmentcache.NewEnvironmentCache()
 	networking := servicenetworking.NewCoordinator(servicenetworking.Options{
 		NatBackend: cfg.NatBackend,
-		Store:      dbStore,
 		CollectResourceByID: func(id string) (container.OccupiedResource, error) {
 			return manager.CollectResourceByID(id)
 		},

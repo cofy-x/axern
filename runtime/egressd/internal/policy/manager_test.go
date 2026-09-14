@@ -64,13 +64,19 @@ func TestPrepareRequiresUpstreamsOnlyForDNSForwardingPolicies(t *testing.T) {
 	if len(m.List("")) != 0 {
 		t.Fatal("rejected DNS forwarding policy changed manager state")
 	}
-	denyAll := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}
-	record, _, err := m.Prepare(context.Background(), "deny-all", "10.0.0.9", denyAll, []string{"invalid"})
+	cidrOnly := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{
+		AllowedCidrs: []*commonv1.CIDREgressRule{{
+			Cidr:     "192.0.2.0/24",
+			Protocol: commonv1.EgressProtocol_EGRESS_PROTOCOL_TCP,
+			Ports:    []*commonv1.PortRange{{Start: 443, End: 443}},
+		}},
+	}}}
+	record, _, err := m.Prepare(context.Background(), "cidr-only", "10.0.0.9", cidrOnly, []string{"invalid"})
 	if err != nil {
-		t.Fatalf("strict deny-all unexpectedly depended on DNS: %v", err)
+		t.Fatalf("CIDR-only strict policy unexpectedly depended on DNS: %v", err)
 	}
 	if len(record.GetUpstreamNameservers()) != 0 {
-		t.Fatalf("strict deny-all persisted unused upstreams: %v", record.GetUpstreamNameservers())
+		t.Fatalf("CIDR-only strict policy persisted unused upstreams: %v", record.GetUpstreamNameservers())
 	}
 }
 

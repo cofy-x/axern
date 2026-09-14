@@ -1,18 +1,13 @@
 package bpfnet
 
 const (
-	ModeAttachFailed                            = "attach-failed"
-	ModeIngressTCPUDPDNATEgressSNAT             = "ingress-tcp-udp-dnat+egress-snat"
-	ModeIngressTCPUDPDNATEgressSNATLocalhostTCP = "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-dnat"
+	ModeAttachFailed = "attach-failed"
+	ModeEgressSNAT   = "egress-snat"
 )
 
 const (
 	KernelStatAttachSuccess uint32 = iota
 	KernelStatAttachError
-	KernelStatServiceHit
-	KernelStatRevNATHit
-	KernelStatFallbackHit
-	KernelStatMapConflict
 	KernelStatSNATHit
 	KernelStatSNATRevHit
 	KernelStatSNATFwdHit
@@ -42,7 +37,4 @@ const (
 	KernelStatSNATTCPRevMissACK
 	KernelStatSNATTCPRevMissOther
 	KernelStatNativeRouteSkip
-	KernelStatLocalhostConnectHit
-	KernelStatLocalhostGetPeerHit
-	KernelStatLocalhostFallbackHit
 )

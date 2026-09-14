@@ -324,7 +324,7 @@ func TestAxernAdapterRuntimeForRequestAppliesTaskResources(t *testing.T) {
 		RequestMemory: "128Mi",
 	}}
 	request := backend.ExecuteRequest{Task: domain.TaskInstance{
-		Resources: &domain.ResourceSpec{RequestCPU: "750m", RequestMemory: "2Gi", LimitCPU: "1", LimitMemory: "4Gi"},
+		Resources: &domain.ResourceSpec{RequestCPU: "750m", RequestMemory: "2Gi", RequestEphemeralStorage: "8Gi", LimitCPU: "1", LimitMemory: "4Gi", LimitEphemeralStorage: "10Gi"},
 		Sandbox: domain.SandboxSpec{RuntimeSource: &domain.SandboxRuntimeSourceSpec{
 			Type: domain.SandboxRuntimeSourceTemplate, TemplateID: "task-template",
 		}},
@@ -334,7 +334,7 @@ func TestAxernAdapterRuntimeForRequestAppliesTaskResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := runtime.(sandboxaxern.Runtime).Config
-	if config.RequestCPU != "750m" || config.RequestMemory != "2Gi" || config.LimitCPU != "1" || config.LimitMemory != "4Gi" {
+	if config.RequestCPU != "750m" || config.RequestMemory != "2Gi" || config.RequestEphemeralStorage != "8Gi" || config.LimitCPU != "1" || config.LimitMemory != "4Gi" || config.LimitEphemeralStorage != "10Gi" {
 		t.Fatalf("task resources were not applied: %#v", config)
 	}
 }

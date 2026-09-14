@@ -10,6 +10,15 @@ GENERATED_PATHS=(
 
 cd "${ROOT_DIR}"
 
+if rg -n 'PortSpec|PortProtocol|PORT_FORWARDING|repeated PortSpec|^[[:space:]]*reserved[[:space:]]' \
+	sdk/proto/axern/control/common/v1/common.proto \
+	sdk/proto/axern/control/capability/v1/capability.proto \
+	sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto \
+	runtime/axnoded/internal/apipb/v1/lifecycle.proto; then
+	echo "execution contracts must not reintroduce host-port publication or transition-only field reservations" >&2
+	exit 1
+fi
+
 if rg -n 'execution_lease_token' sdk/proto/axern/node/sandbox/v1/node.proto; then
 	echo "public NodeSandbox protobuf messages must not expose internal execution lease credentials" >&2
 	exit 1

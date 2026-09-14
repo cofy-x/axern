@@ -14,7 +14,6 @@ import (
 func (h *sandboxService) configureNetworking() {
 	h.networking = servicenetworking.NewCoordinator(servicenetworking.Options{
 		NatBackend: h.config.NatBackend,
-		Store:      h.store,
 		CollectResourceByID: func(id string) (container.OccupiedResource, error) {
 			return h.containerManager.CollectResourceByID(id)
 		},

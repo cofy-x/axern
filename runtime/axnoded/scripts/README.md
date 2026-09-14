@@ -39,7 +39,6 @@ make profile-docker-runsc-external-tcp-ebpf
 Examples and tooling:
 
 ```bash
-make example-bpfnet-udp-ingress
 make example-bpfnet-egress
 make verify-docker-build
 make protos-docker

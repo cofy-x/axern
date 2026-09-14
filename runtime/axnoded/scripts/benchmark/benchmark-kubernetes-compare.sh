@@ -25,11 +25,9 @@ BENCHMARK_CONCURRENCY="${BENCHMARK_CONCURRENCY:-16}"
 BENCHMARK_WARMUP_REQUESTS="${BENCHMARK_WARMUP_REQUESTS:-64}"
 BENCHMARK_MULTI_CLIENT_COUNT="${BENCHMARK_MULTI_CLIENT_COUNT:-4}"
 BENCHMARK_SNAT_POST_GC_WAIT="${BENCHMARK_SNAT_POST_GC_WAIT:-12s}"
-BENCHMARK_PATHS="${BENCHMARK_PATHS:-external_tcp_ingress,external_udp_ingress,egress_udp,egress_udp_connected,egress_tcp_short}"
+BENCHMARK_PATHS="${BENCHMARK_PATHS:-egress_udp,egress_udp_connected,egress_tcp_short}"
 RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
-VERIFY_SKIP_LOCALHOST="${VERIFY_SKIP_LOCALHOST:-false}"
 BPFNET_PIN_PATH="${BPFNET_PIN_PATH:-/sys/fs/bpf/axern/bpfnet}"
-BPFNET_MAP_SIZE="${BPFNET_MAP_SIZE:-16384}"
 BPFNET_SNAT_MAP_SIZE="${BPFNET_SNAT_MAP_SIZE:-262144}"
 BPFNET_SNAT_GC_INTERVAL="${BPFNET_SNAT_GC_INTERVAL:-1s}"
 BPFNET_SNAT_TCP_IDLE_TIMEOUT="${BPFNET_SNAT_TCP_IDLE_TIMEOUT:-5m}"
@@ -235,12 +233,8 @@ $(render_image_pull_secrets "${BENCHMARK_IMAGE_PULL_SECRETS}")
               value: "${BENCHMARK_SNAT_POST_GC_WAIT}"
             - name: BENCHMARK_PATHS
               value: ${BENCHMARK_PATHS}
-            - name: VERIFY_SKIP_LOCALHOST
-              value: "${VERIFY_SKIP_LOCALHOST}"
             - name: BPFNET_PIN_PATH
               value: "${BPFNET_PIN_PATH}"
-            - name: BPFNET_MAP_SIZE
-              value: "${BPFNET_MAP_SIZE}"
             - name: BPFNET_SNAT_MAP_SIZE
               value: "${BPFNET_SNAT_MAP_SIZE}"
             - name: BPFNET_SNAT_GC_INTERVAL

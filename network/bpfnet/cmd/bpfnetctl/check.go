@@ -64,11 +64,6 @@ func evaluateReadiness(status bpfnet.Status, objects []inspect.ObjectInfo) check
 		checkBool("pinned_maps", status.Attachment.PinnedMapsReady, "required pinned maps are not all openable"),
 		checkBool("pinned_programs", status.Attachment.PinnedProgramsReady, "required pinned program objects are not all openable"),
 	}
-	checks = append(checks,
-		checkBool("localhost_path", status.State.LocalhostTCPDNAT && status.State.LocalhostPathReady, "localhost tcp path is not active"),
-		checkBool("localhost_links", status.Attachment.LocalhostLinksAttached, "localhost cgroup links are not all openable"),
-	)
-
 	for _, obj := range objects {
 		switch obj.Kind {
 		case "map":

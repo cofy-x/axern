@@ -13,32 +13,10 @@ func (c *Controller) Status() (Status, error) {
 
 	var status Status
 	_ = readJSONFile(c.stateFile, &status.State)
-	_ = readJSONFile(c.statsFile, &status.Stats)
-	_ = readJSONFile(c.svcFile, &status.Services)
 	status.Kernel = collectKernelStats(c.cfg)
 	status.SNATMaps = collectSNATMapStats(c.cfg)
 	status.Attachment = collectAttachmentReadiness(c.cfg, status.State)
 	return status, nil
-}
-
-func (c *Controller) loadServicesLocked() (map[string]Service, error) {
-	var services []Service
-	if err := readJSONFile(c.svcFile, &services); err != nil {
-		return nil, err
-	}
-	out := make(map[string]Service, len(services))
-	for _, svc := range services {
-		out[serviceKey(svc.Protocol, svc.HostPort)] = svc
-	}
-	return out, nil
-}
-
-func (c *Controller) bumpStats(mutate func(*Stats)) {
-	var stats Stats
-	_ = readJSONFile(c.statsFile, &stats)
-	mutate(&stats)
-	stats.UpdatedAt = time.Now().UTC()
-	_ = writeJSONFile(c.statsFile, stats)
 }
 
 func writeJSONFile(path string, value interface{}) error {
@@ -74,15 +52,12 @@ func (c *Controller) failedState(uplinks []string, attachErr error) DataplaneSta
 		IPRange:            c.ipRange,
 		UplinkDevices:      uplinks,
 		PinPath:            c.cfg.PinPath,
-		MapSize:            c.cfg.MapSize,
 		SNATMapSize:        c.cfg.SNATMapSize,
 		SNATPortMin:        SNATAllocatorPortMin,
 		SNATPortMax:        SNATAllocatorPortMax,
 		SNATPortAttempts:   SNATAllocatorPortAttempts,
 		NativeRoutingCIDRs: append([]string(nil), c.cfg.NativeRoutingCIDRs...),
 		TCReady:            false,
-		LocalhostTCPDNAT:   false,
-		LocalhostPathReady: false,
 		LastAttachError:    attachErr.Error(),
 		LastTCProbeError:   tcProbeErr,
 		LastReconcileError: reconcileErr,
@@ -90,31 +65,19 @@ func (c *Controller) failedState(uplinks []string, attachErr error) DataplaneSta
 	}
 }
 
-func (c *Controller) readyState(uplinks []string, attachment dataplaneAttachment) DataplaneState {
-	mode := ModeIngressTCPUDPDNATEgressSNAT
-	if attachment.LocalhostTCPDNAT {
-		mode = ModeIngressTCPUDPDNATEgressSNATLocalhostTCP
-	}
-
+func (c *Controller) readyState(uplinks []string) DataplaneState {
 	return DataplaneState{
-		Mode:               mode,
+		Mode:               ModeEgressSNAT,
 		IPRange:            c.ipRange,
 		UplinkDevices:      uplinks,
-		LocalAddresses:     append([]string(nil), attachment.LocalAddresses...),
 		PinPath:            c.cfg.PinPath,
-		MapSize:            c.cfg.MapSize,
 		SNATMapSize:        c.cfg.SNATMapSize,
 		SNATPortMin:        SNATAllocatorPortMin,
 		SNATPortMax:        SNATAllocatorPortMax,
 		SNATPortAttempts:   SNATAllocatorPortAttempts,
 		NativeRoutingCIDRs: append([]string(nil), c.cfg.NativeRoutingCIDRs...),
-		IngressTCPDNAT:     true,
-		IngressUDPDNAT:     true,
 		EgressSNAT:         true,
 		TCReady:            true,
-		LocalhostTCPDNAT:   attachment.LocalhostTCPDNAT,
-		LocalhostPathReady: attachment.LocalhostTCPDNAT,
-		LastLocalhostError: attachment.LocalhostAttachError,
 		UpdatedAt:          time.Now().UTC(),
 	}
 }

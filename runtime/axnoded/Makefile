@@ -73,7 +73,7 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/environmentca
 	profile-docker-runsc-external-tcp-iptables profile-docker-runsc-external-tcp-ebpf \
 	verify-ebpf-nat verify-docker-runsc-ebpf \
 	verify-docker-runsc verify-docker-runsc-debug \
-	example-bpfnet-udp-ingress example-bpfnet-egress
+	example-bpfnet-egress
 .DEFAULT_GOAL := all
 
 all: release ## build binaries
@@ -304,18 +304,15 @@ profile-docker-runsc-egress-udp-ebpf: ## profile runsc UDP egress truth-path wit
 		NAT_BACKEND=ebpf RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
 
-profile-docker-runsc-external-tcp-iptables: ## profile runsc external TCP ingress truth-path with the iptables backend (real Linux perf only)
-	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-external_tcp_ingress}" \
+profile-docker-runsc-external-tcp-iptables: ## profile runsc external TCP egress truth-path with the iptables backend (real Linux perf only)
+	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-egress_tcp_short}" \
 		NAT_BACKEND=iptables RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
 
-profile-docker-runsc-external-tcp-ebpf: ## profile runsc external TCP ingress truth-path with the ebpf backend (real Linux perf only)
-	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-external_tcp_ingress}" \
+profile-docker-runsc-external-tcp-ebpf: ## profile runsc external TCP egress truth-path with the ebpf backend (real Linux perf only)
+	@BENCHMARK_PATHS="$${BENCHMARK_PATHS:-egress_tcp_short}" \
 		NAT_BACKEND=ebpf RUNTIME_BINARY=/usr/local/bin/runsc \
 		bash ./scripts/benchmark/profile-docker.sh
-
-example-bpfnet-udp-ingress: ## run a concise bpfnet UDP ingress example in the Docker truth environment
-	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-udp-ingress.sh
 
 example-bpfnet-egress: ## run a concise bpfnet egress example in the Docker truth environment
 	@NAT_BACKEND="$${NAT_BACKEND:-ebpf}" RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/demo/example-bpfnet-egress.sh

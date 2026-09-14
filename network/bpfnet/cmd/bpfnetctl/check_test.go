@@ -34,31 +34,6 @@ func TestEvaluateReadinessRejectsMissingPinnedPrograms(t *testing.T) {
 func TestEvaluateReadinessAcceptsReadyObjects(t *testing.T) {
 	result := evaluateReadiness(bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			TCReady:            true,
-			LocalhostTCPDNAT:   true,
-			LocalhostPathReady: true,
-		},
-		Attachment: bpfnet.AttachmentReadiness{
-			IngressTCAttached:      true,
-			EgressTCAttached:       true,
-			LocalhostLinksAttached: true,
-			PinnedMapsReady:        true,
-			PinnedProgramsReady:    true,
-		},
-	}, []inspect.ObjectInfo{
-		{Kind: "map", Name: "service_map", Present: true, Openable: true},
-		{Kind: "program", Name: "ingress", Present: true, Openable: true},
-		{Kind: "link", Name: "localhost-connect4", Present: true, Openable: true},
-	})
-
-	if !result.OK {
-		t.Fatalf("expected ready status and objects to pass: %#v", result)
-	}
-}
-
-func TestEvaluateReadinessRejectsMissingLocalhostPath(t *testing.T) {
-	result := evaluateReadiness(bpfnet.Status{
-		State: bpfnet.DataplaneState{
 			TCReady: true,
 		},
 		Attachment: bpfnet.AttachmentReadiness{
@@ -68,28 +43,18 @@ func TestEvaluateReadinessRejectsMissingLocalhostPath(t *testing.T) {
 			PinnedProgramsReady: true,
 		},
 	}, []inspect.ObjectInfo{
-		{Kind: "map", Name: "service_map", Present: true, Openable: true},
+		{Kind: "map", Name: "snat_fwd_map", Present: true, Openable: true},
 		{Kind: "program", Name: "ingress", Present: true, Openable: true},
-		{Kind: "link", Name: "localhost-connect4", Present: false, Openable: false},
 	})
 
-	if result.OK {
-		t.Fatalf("expected missing localhost path to fail readiness: %#v", result)
-	}
-	var buf bytes.Buffer
-	writeCheckResult(&buf, result)
-	if !strings.Contains(buf.String(), "fail localhost_path") {
-		t.Fatalf("expected localhost path failure in output:\n%s", buf.String())
+	if !result.OK {
+		t.Fatalf("expected ready status and objects to pass: %#v", result)
 	}
 }
 
 func TestEvaluateReadinessReportsBrokenLinks(t *testing.T) {
 	result := evaluateReadiness(bpfnet.Status{
-		State: bpfnet.DataplaneState{
-			TCReady:            true,
-			LocalhostTCPDNAT:   true,
-			LocalhostPathReady: true,
-		},
+		State: bpfnet.DataplaneState{TCReady: true},
 		Attachment: bpfnet.AttachmentReadiness{
 			IngressTCAttached:   true,
 			EgressTCAttached:    true,
@@ -97,12 +62,12 @@ func TestEvaluateReadinessReportsBrokenLinks(t *testing.T) {
 			PinnedProgramsReady: true,
 		},
 	}, []inspect.ObjectInfo{
-		{Kind: "map", Name: "service_map", Present: true, Openable: true},
+		{Kind: "map", Name: "snat_fwd_map", Present: true, Openable: true},
 		{Kind: "program", Name: "ingress", Present: true, Openable: true},
 		{Kind: "link", Name: "egress", Present: false, Openable: false},
 	})
 
 	if result.OK {
-		t.Fatalf("expected non-localhost link failure to remain visible: %#v", result)
+		t.Fatalf("expected broken link to remain visible: %#v", result)
 	}
 }

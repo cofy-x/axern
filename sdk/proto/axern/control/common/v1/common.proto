@@ -24,19 +24,6 @@ message ResourceSpec {
   ResourceQuantity limits = 2;
 }
 
-enum PortProtocol {
-  PORT_PROTOCOL_UNSPECIFIED = 0;
-  PORT_PROTOCOL_TCP = 1;
-  PORT_PROTOCOL_UDP = 2;
-}
-
-message PortSpec {
-  string name = 1;
-  PortProtocol protocol = 2;
-  int32 container_port = 3;
-  int32 host_port = 4;
-}
-
 enum NetworkMode {
   NETWORK_MODE_UNSPECIFIED = 0;
   NETWORK_MODE_DEFAULT = 1;
@@ -121,13 +108,12 @@ message ExecutionConfig {
   map<string, string> env = 2;
   string cwd = 3;
   ResourceSpec resources = 4;
-  repeated PortSpec ports = 5;
-  NetworkSpec network = 6;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 7;
-  PlacementConstraints placement = 8;
-  repeated SecretEnvVar secret_env = 9;
-  repeated SecretFile secret_files = 10;
-  repeated ImageMount image_mounts = 11;
+  NetworkSpec network = 5;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 6;
+  PlacementConstraints placement = 7;
+  repeated SecretEnvVar secret_env = 8;
+  repeated SecretFile secret_files = 9;
+  repeated ImageMount image_mounts = 10;
 }
 
 // AllocationLifecycleState tracks only placement and infrastructure cleanup.

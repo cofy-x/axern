@@ -119,7 +119,7 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	if err := insertRequirement("platform/1"); err != nil {
 		t.Fatal(err)
 	}
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	conditionAt := now.Add(time.Second)
 	set := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt), Conditions: []*capabilityv1.CapabilityCondition{{
 		Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,

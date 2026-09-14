@@ -56,8 +56,6 @@ const (
 	// cleanup may remove the container checkpoint before that acknowledgement,
 	// so the reporting barrier requires its own durable ownership record.
 	AllocationLifecycleOutboxBucket = "allocation_lifecycle_outbox"
-	// DNATRulesBucket stores the active DNAT rule snapshot.
-	DNATRulesBucket = "dnat_rules"
 )
 
 const (
