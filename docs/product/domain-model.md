@@ -42,7 +42,7 @@ A concept does not become a product object merely because it has a struct, a dat
 | `RoleBinding` | Platform- or namespace-scoped authorization assigned to a Principal | `controld` and PostgreSQL |
 | `Node` | Administrative identity for one unit of execution supply, with an audited active/retired lifecycle | `controld`; observations originate from `axnoded` |
 
-Catalog templates are platform-managed, read-only Environment inputs. Caller-supplied tool or agent images use ordinary read-only image mounts and do not become catalog product objects.
+Built-in templates are deployment-managed, read-only inputs used while resolving an Environment. They have no public identity, lifecycle, API, or database table. Caller-supplied tool or agent images use ordinary read-only image mounts and do not become product objects.
 
 ### Namespace
 
@@ -102,7 +102,7 @@ These records need durable identity and state, but users cannot create them inde
 | `Reservation`          | Allocation              | Committed namespace and node resource usage                          |
 | `ExecutionLease`       | Allocation              | Short-lived internal gateway authority for the selected node         |
 | `TunnelSession`        | Allocation              | Revocable reverse-TCP session and relay convergence state            |
-| `CapabilityRequirement` | Allocation              | Immutable capability key and catalog-owned loss policy               |
+| `CapabilityRequirement` | Allocation              | Immutable capability key and platform-owned loss policy              |
 | `CapabilityCondition`   | Allocation              | Latest rebuildable satisfaction or enforcement diagnosis             |
 | `QuotaPolicy`          | Namespace               | Optional CPU, memory, and ephemeral-storage admission ceilings       |
 | `AuditEvent`           | Administrative mutation | Actor, reason, target, and result for security-sensitive writes      |
@@ -138,7 +138,7 @@ TunnelSession does not accept Service identity, choose a replica, or recreate a 
 
 ### Capability Evidence
 
-Node capability observations are typed, ordered, and time-bounded platform facts. Allocation requirements freeze only the exact key and catalog loss policy for one execution. Conditions are complete projections ordered by `observed_at`; they copy neither requirements nor Node evidence and never own lifecycle.
+Node capability observations are typed, ordered, and time-bounded platform facts. Allocation requirements freeze only the exact key and platform loss policy for one execution. Conditions are complete projections ordered by `observed_at`; they copy neither requirements nor Node evidence and never own lifecycle.
 
 Capability data is security and placement evidence, not a free-form user label. Missing required evidence fails closed. Axern never silently falls back from runsc to a weaker runtime.
 

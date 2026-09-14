@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func RootfsConfigFromEnvironmentTemplate(fr *api.EnvironmentTemplate) (RootfsConfig, error) {
+func RootfsConfigFromResolvedEnvironment(fr *api.ResolvedEnvironment) (RootfsConfig, error) {
 	var cfg RootfsConfig
 	if fr == nil || fr.Rootfs == nil {
 		return cfg, fmt.Errorf("runtime rootfs is nil")
@@ -83,11 +83,11 @@ func rootfsConfigMessageFromRuntime(environment *PreparedEnvironment) *api.Rootf
 	return rootfsConfig
 }
 
-func preparedEnvironmentMatchesTemplate(environment *PreparedEnvironment, fr *api.EnvironmentTemplate) bool {
+func preparedEnvironmentMatchesTemplate(environment *PreparedEnvironment, fr *api.ResolvedEnvironment) bool {
 	if environment == nil || fr == nil {
 		return environment == nil && fr == nil
 	}
-	return proto.Equal(environment.EnvironmentTemplate(), fr)
+	return proto.Equal(environment.ResolvedEnvironment(), fr)
 }
 
 func cloneStringMap(input map[string]string) map[string]string {

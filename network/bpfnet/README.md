@@ -8,7 +8,7 @@
 - Default bpffs pin root: `/sys/fs/bpf/axern/bpfnet`.
 - Axnoded integration point: `plugin.network.nat_backend = "ebpf"`.
 - Main packet paths: external TCP/UDP hostPort ingress, sandbox TCP/UDP/ICMP egress SNAT, and TCP localhost hostPort translation.
-- Native eBPF scope is IPv4. Linux localhost UDP is outside the supported design. When an axnoded node is configured with an IPv6 sandbox range and `nat_backend = "ebpf"`, axnoded deliberately uses the bridge ip6tables path and advertises the effective bridge capability; it does not claim native bpfnet enforcement for that address family.
+- Native eBPF scope is IPv4. Linux localhost UDP is outside the supported design. Axnoded rejects an IPv6 sandbox range paired with `nat_backend = "ebpf"`; operators must select the complete iptables backend explicitly for IPv6.
 
 ## Ownership Contract
 
@@ -29,7 +29,7 @@
 | Host-local TCP hostPort compatibility             | cgroup `connect4`, `getpeername4`, `sock_release` |
 | Native-routing CIDR skip                          | TC egress                                         |
 
-The eBPF backend is ready only when TC ingress/egress and the localhost TCP cgroup path are all attached. Any required attach or reconciliation failure fails closed. The complete iptables backend is used only when explicitly selected, or as the truthful effective backend for an IPv6 pool that bpfnet does not implement.
+The eBPF backend is ready only when TC ingress/egress and the localhost TCP cgroup path are all attached. Any required attach or reconciliation failure fails closed. The complete iptables backend is used only when explicitly selected.
 
 ## Public Go Surface
 

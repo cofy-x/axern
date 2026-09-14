@@ -25,7 +25,7 @@ var errNodeInventoryWarming = errors.New("node capability inventory is warming")
 
 // prepareCapabilityRequirements makes the repository verification clients act
 // like controld: they select a single published node snapshot, derive typed
-// requirements with the shared catalog, and bind every requirement to its
+// requirements with the shared capability contract, and bind every requirement to its
 // proof. The production lifecycle gate remains fail-closed and has no
 // verification-only RPC bypass.
 func prepareCapabilityRequirements(ctx context.Context, clients *NodeClients, spec *privatenodev1.ResolvedExecutionConfig) (*privatenodev1.ResolvedExecutionConfig, error) {

@@ -1,6 +1,6 @@
 ---
 title: Local Axern 参考
-description: Local Axern 的环境要求、生命周期、数据、升级与故障诊断。
+description: Local Axern 的环境要求、生命周期、数据、版本替换与故障诊断。
 ---
 
 `axern local` 管理一个名为 `local` 的机器级实例。部署资源和服务版本来自已安装的 CLI，不读取源码仓库文件。Release 二进制内置经验证的多架构镜像 Digest 锁，因此本地启动不会解析可变的服务 Tag。
@@ -24,7 +24,6 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 | `axern local doctor`           | 只读检查主机、Docker、端口、版本、健康状态和 Node DNS；`--probe` 额外验证 Sandbox DNS |
 | `axern local down`             | 删除容器和网络，保留数据                                                              |
 | `axern local reset`            | 永久删除数据和身份材料                                                                |
-| `axern local upgrade`          | 备份并显式迁移到 CLI 对应版本                                                         |
 | `axern local path`             | 输出实际数据目录                                                                      |
 
 使用 `axern local up --profile observability` 启用本地可观测组件；使用 `axern local up --profile default` 恢复核心 Profile。不传该参数时保留实例当前 Profile。
@@ -38,7 +37,7 @@ description: Local Axern 的环境要求、生命周期、数据、升级与故�
 | macOS | `~/Library/Application Support/Axern/local`    |
 | Linux | `${XDG_DATA_HOME:-~/.local/share}/axern/local` |
 
-`AXERN_HOME` 可覆盖根目录。CLI 在其中保存证书、SSH 密钥、Compose 部署、Secret、数据库/对象数据、元数据和升级备份；敏感文件使用仅所有者可读写权限。
+`AXERN_HOME` 可覆盖根目录。CLI 在其中保存证书、SSH 密钥、Compose 部署、Secret、数据库/对象数据和元数据；敏感文件使用仅所有者可读写权限。
 
 ## 本地端口
 
@@ -81,9 +80,9 @@ AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up
 
 这些值必须是 Docker 工作负载可访问的 IP 地址；loopback、未指定地址、空值和主机名都会被拒绝。运行中的实例修改 DNS 后，执行 `axern local down` 再执行 `axern local up`，即可在保留数据的同时重建 Node 容器。
 
-## 升级与卸载
+## 版本替换与卸载
 
-`local up` 不会静默升级。版本不一致时使用 `axern local upgrade`；`status`、`logs`、`doctor` 和 `down` 仍可使用。升级会停止旧栈并备份数据、身份、元数据与部署清单；不支持降级。没有受支持迁移路径时需显式 reset。
+`local up` 不会静默改变版本，本地状态也没有迁移兼容契约。版本不一致时仍可使用 `status`、`logs`、`doctor` 和 `down`；先导出需要保留的输出，再执行 `axern local reset --force` 和 `axern local up`。
 
 ```bash
 axern local reset

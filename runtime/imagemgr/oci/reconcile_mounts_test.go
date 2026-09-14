@@ -30,7 +30,7 @@ func TestReconcileState_FixesMountAndLayerRefs(t *testing.T) {
 	if err := os.MkdirAll(mountPath, 0755); err != nil {
 		t.Fatalf("mkdir mount path: %v", err)
 	}
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:     "docker.io/library/alpine:latest",
 		MountID:      "mount-1",
 		MountPath:    mountPath,
@@ -102,7 +102,7 @@ func TestReconcileState_FixesChainRefsForRecoveredMount(t *testing.T) {
 	if err := os.MkdirAll(mountPath, 0755); err != nil {
 		t.Fatalf("mkdir mount path: %v", err)
 	}
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:     "docker.io/library/alpine:chain",
 		MountID:      "mount-chain",
 		MountPath:    mountPath,
@@ -168,7 +168,7 @@ func TestReconcileState_DropsPersistedMountWhenMountMissing(t *testing.T) {
 	if err := os.MkdirAll(mountPath, 0755); err != nil {
 		t.Fatalf("mkdir mount path: %v", err)
 	}
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:     "docker.io/library/alpine:stale-mount",
 		MountID:      "stale-mount",
 		MountPath:    mountPath,

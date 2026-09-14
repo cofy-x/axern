@@ -14,7 +14,7 @@ const (
 	testBootID = "11111111-2222-3333-4444-555555555555"
 )
 
-// AvailableCapabilitySnapshot builds catalog-valid typed observations for
+// AvailableCapabilitySnapshot builds contract-valid typed observations for
 // control-plane tests, including every transitive internal proof.
 func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1.PlatformCapability) *capabilityv1.CapabilitySnapshot {
 	byPlatform := make(map[capabilityv1.PlatformCapability]*capabilityv1.CapabilityObservation)

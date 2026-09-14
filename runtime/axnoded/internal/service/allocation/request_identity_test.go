@@ -36,7 +36,7 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*apipb.StartRequest){
-		"command": func(candidate *apipb.StartRequest) { candidate.EnvironmentTemplate.Argv = []string{"/bin/false"} },
+		"command": func(candidate *apipb.StartRequest) { candidate.Environment.Argv = []string{"/bin/false"} },
 		"memory":  func(candidate *apipb.StartRequest) { candidate.Resources.Limits.MemoryBytes++ },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -57,14 +57,14 @@ func TestStartRequestDigestRejectsCatalogPolicyMismatch(t *testing.T) {
 	request := testDigestStartRequest()
 	request.CapabilityRequirements[0].LossPolicy = capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP
 	if _, err := StartRequestDigest(request); err == nil {
-		t.Fatal("StartRequestDigest() accepted a non-catalog loss policy")
+		t.Fatal("StartRequestDigest() accepted a non-contract loss policy")
 	}
 }
 
 func testDigestStartRequest() *apipb.StartRequest {
 	return &apipb.StartRequest{
 		AllocationID: "allocation-digest",
-		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+		Environment: &apipb.ResolvedEnvironment{
 			ID:     "runtime-digest",
 			Rootfs: &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},
 			Argv:   []string{"/bin/true"},

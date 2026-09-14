@@ -3,7 +3,8 @@ package placement
 import (
 	"context"
 
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 const (
@@ -28,5 +29,5 @@ type SelectionObservation struct {
 	RequestedEphemeralStorageBytes int64
 	EligibleCount                  int
 	RejectedCount                  int
-	RejectionReasons               []nodev1.PlacementRejectionReason
+	RejectionReasons               []placementkernel.RejectionReason
 }

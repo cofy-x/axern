@@ -7,7 +7,7 @@ import (
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	"github.com/cofy-x/axern/lib/go/memorybudget"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -17,7 +17,7 @@ type CandidateInput struct {
 	Now     time.Time
 }
 
-func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandidate {
+func (e *Engine) evaluateCandidate(input CandidateInput) *placementkernel.Evaluation {
 	record := input.Record
 	if record == nil {
 		return nil
@@ -30,9 +30,9 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 
 	summary := record.Summary
 	locality := cloneLocality(findMatchingLocality(summary.GetLocality(), input.Request.GetRootfsKey()))
-	candidate := &nodev1.PlacementCandidate{
+	candidate := &placementkernel.Evaluation{
 		NodeID:           record.NodeID,
-		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE,
+		State:            placementkernel.CandidateStateEligible,
 		HeartbeatAgeSecs: nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, input.Now),
 		SummaryAgeSecs:   nodekernel.SummaryAgeSecs(summary, input.Now),
 		Pools:            clonePools(summary.GetPools()),
@@ -41,39 +41,39 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 		Rank:             buildPlacementRank(input.Request, summary, locality),
 	}
 
-	reasons := make([]nodev1.PlacementRejectionReason, 0, 4)
+	reasons := make([]placementkernel.RejectionReason, 0, 4)
 	if !record.Active() {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_RETIRED)
+		reasons = append(reasons, placementkernel.RejectionReasonNodeRetired)
 	}
 	heartbeatFresh := nodekernel.HeartbeatFresh(record.LastHeartbeatAt, input.Now, e.heartbeatFreshnessWindow)
 	summaryFresh := nodekernel.SummaryFresh(summary, input.Now, e.summaryFreshnessWindow)
 	if !heartbeatFresh {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)
+		reasons = append(reasons, placementkernel.RejectionReasonStaleHeartbeat)
 	}
 	if !summaryFresh {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY)
+		reasons = append(reasons, placementkernel.RejectionReasonStaleSummary)
 	}
 	switch effectiveNodeState(summary, heartbeatFresh) {
 	case nodev1.NodeState_NODE_STATE_DRAINING:
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_DRAINING)
+		reasons = append(reasons, placementkernel.RejectionReasonNodeDraining)
 	case nodev1.NodeState_NODE_STATE_DISABLED:
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_DISABLED)
+		reasons = append(reasons, placementkernel.RejectionReasonNodeDisabled)
 	}
 	if !labelsMatch(summary.GetLabels(), input.Request.GetNodeSelector()) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_SELECTOR_MISMATCH)
+		reasons = append(reasons, placementkernel.RejectionReasonNodeSelectorMismatch)
 	}
 	if summary == nil || !summary.GetComponents().GetAxnoded().GetReady() {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY)
+		reasons = append(reasons, placementkernel.RejectionReasonAxnodedNotReady)
 	}
 	if summary.GetMemoryBudget().GetSystemReserveExhausted() {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED)
+		reasons = append(reasons, placementkernel.RejectionReasonNodeMemorySystemReserveExhausted)
 	}
 	// Every sandbox consumes the delegated node memory domain even when the
 	// workload declares a zero request. Missing or stale capacity evidence must
 	// therefore reject all placement instead of allowing an unreserved workload
 	// to bypass the node-local admission boundary.
 	if err := memorybudget.ValidateSummary(summary, input.Now); err != nil {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE)
+		reasons = append(reasons, placementkernel.RejectionReasonNodeMemoryBudgetUnavailable)
 	}
 
 	imagemgrReady := imagemgrUsable(summary)
@@ -86,56 +86,56 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *nodev1.PlacementCandid
 	case nodev1.MountType_MOUNT_TYPE_LOCAL:
 	case nodev1.MountType_MOUNT_TYPE_OCI, nodev1.MountType_MOUNT_TYPE_EROFS:
 		if !imagemgrReady {
-			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
+			reasons = append(reasons, placementkernel.RejectionReasonImagemgrUnavailable)
 		}
 	case nodev1.MountType_MOUNT_TYPE_NYDUS:
 		if !imagemgrReady {
-			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
+			reasons = append(reasons, placementkernel.RejectionReasonImagemgrUnavailable)
 		}
 		if !imagefsdReady {
-			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE)
+			reasons = append(reasons, placementkernel.RejectionReasonImagefsdUnavailable)
 		}
 	default:
 		reasons = append(reasons,
-			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE,
-			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
+			placementkernel.RejectionReasonImagemgrUnavailable,
+			placementkernel.RejectionReasonImagefsdUnavailable,
 		)
 	}
 	if derivationErr != nil && requiresNodeDataplane(input.Request) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED)
+		reasons = append(reasons, placementkernel.RejectionReasonNetworkUnsupported)
 	}
 	reasons = append(reasons, missingCapabilityRejectionReasons(summary, input.Request.GetCapabilityRequirements(), input.Now)...)
 	if !hasAvailableCPU(e.resourcePolicy, summary, input.Request.GetRequestedCpuMilli()) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU)
+		reasons = append(reasons, placementkernel.RejectionReasonInsufficientCPU)
 	}
 	if !hasAvailableMemory(e.resourcePolicy, summary, input.Request.GetRequestedMemoryBytes()) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+		reasons = append(reasons, placementkernel.RejectionReasonInsufficientMemory)
 	}
 	if !hasAvailableEphemeralStorage(e.resourcePolicy, summary, input.Request.GetRequestedEphemeralStorageBytes()) {
-		reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE)
+		reasons = append(reasons, placementkernel.RejectionReasonInsufficientEphemeralStorage)
 	}
 
 	if len(reasons) > 0 {
-		candidate.State = nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED
+		candidate.State = placementkernel.CandidateStateRejected
 		candidate.RejectionReasons = dedupeRejectionReasons(reasons)
 	}
 	return candidate
 }
 
-func missingCapabilityRejectionReasons(summary *nodev1.NodeSummary, requirements []*capabilityv1.CapabilityKey, now time.Time) []nodev1.PlacementRejectionReason {
-	reasons := make([]nodev1.PlacementRejectionReason, 0, 2)
+func missingCapabilityRejectionReasons(summary *nodev1.NodeSummary, requirements []*capabilityv1.CapabilityKey, now time.Time) []placementkernel.RejectionReason {
+	reasons := make([]placementkernel.RejectionReason, 0, 2)
 	for _, requirement := range requirements {
 		if hasCapability(summary, requirement, now) {
 			continue
 		}
 		switch requirement.GetPlatform() {
 		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING:
-			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED)
+			reasons = append(reasons, placementkernel.RejectionReasonPortsUnsupported)
 		case capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BPFNET:
-			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED)
+			reasons = append(reasons, placementkernel.RejectionReasonNetworkUnsupported)
 		default:
-			reasons = append(reasons, nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
+			reasons = append(reasons, placementkernel.RejectionReasonCapabilityUnsupported)
 		}
 	}
 	return dedupeRejectionReasons(reasons)

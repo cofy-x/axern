@@ -4,7 +4,7 @@ func Authorize(actor Actor, action Action, namespace string) bool {
 	if actor.Principal.Status != PrincipalStatusActive {
 		return false
 	}
-	if action == ActionIdentityRead || action == ActionCatalogRead {
+	if action == ActionIdentityRead {
 		return true
 	}
 	for _, binding := range actor.Bindings {

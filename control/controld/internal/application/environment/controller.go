@@ -16,9 +16,9 @@ type Control interface {
 	DeleteEnvironment(ctx context.Context, id string, now time.Time) (*environmentv1.Environment, error)
 }
 
-func NewAuthoritative(catalog environmentkernel.CatalogReader, imageResolver environmentkernel.ImageResolver, secrets environmentkernel.RegistryCredentialResolver, store runkernel.EnvironmentStore) Control {
+func NewAuthoritative(templates environmentkernel.TemplateReader, imageResolver environmentkernel.ImageResolver, secrets environmentkernel.RegistryCredentialResolver, store runkernel.EnvironmentStore) Control {
 	return authoritativeEnvironmentAccess{
-		catalog:       catalog,
+		templates:     templates,
 		imageResolver: imageResolver,
 		secrets:       secrets,
 		store:         store,
@@ -26,14 +26,14 @@ func NewAuthoritative(catalog environmentkernel.CatalogReader, imageResolver env
 }
 
 type authoritativeEnvironmentAccess struct {
-	catalog       environmentkernel.CatalogReader
+	templates     environmentkernel.TemplateReader
 	imageResolver environmentkernel.ImageResolver
 	secrets       environmentkernel.RegistryCredentialResolver
 	store         runkernel.EnvironmentStore
 }
 
 func (p authoritativeEnvironmentAccess) CreateEnvironment(ctx context.Context, spec *environmentv1.EnvironmentSpec, labels map[string]string, now time.Time) (*environmentv1.Environment, error) {
-	normalized, resolvedSpec, err := environmentkernel.ResolveSpec(ctx, spec, p.catalog, p.imageResolver, p.secrets)
+	normalized, resolvedSpec, err := environmentkernel.ResolveSpec(ctx, spec, p.templates, p.imageResolver, p.secrets)
 	if err != nil {
 		return nil, err
 	}

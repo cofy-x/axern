@@ -144,7 +144,7 @@ docker run -d \
   -p "${CONTROLD_GRPC_HOST}:${CONTROLD_GRPC_PORT}:${CONTROLD_GRPC_PORT}" \
   -p "${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}:${CONTROLD_HTTP_PORT}" \
   --volume "${cert_dir}:/shared/certs:ro" \
-  -e "AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE=${PYTHON_RUNTIME_IMAGE_REF}" \
+  -e "AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE=${PYTHON_RUNTIME_IMAGE_REF}" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_PORT}" \
@@ -284,8 +284,7 @@ if ! docker run --rm \
   "${PYTHON_RUNTIME_IMAGE_REF}" \
   python /tmp/python_runtime_e2e.py \
     --endpoint "${GATEWAYD_CONTAINER_NAME}:${GATEWAY_CONTROL_PORT}" \
-    --environment-id python311 \
-    --expected-image-ref "${PYTHON_RUNTIME_IMAGE_REF}"; then
+    --environment-id python311; then
   dump_logs
   exit 1
 fi

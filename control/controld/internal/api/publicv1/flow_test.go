@@ -10,11 +10,12 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) {
@@ -215,6 +216,7 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 			AllocationID: runResp.GetRun().GetAllocationID(),
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
 			ExitCode:     func() *int32 { value := int32(0); return &value }(),
+			ObservedAt:   timestamppb.New(now.Add(time.Second)),
 		}},
 	}); err != nil {
 		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)

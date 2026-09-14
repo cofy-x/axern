@@ -8,6 +8,7 @@ import (
 
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 )
 
@@ -120,6 +121,7 @@ func newEnvironmentTestDB(t *testing.T) *postgres.DB {
 	if dsn == "" {
 		t.Skip("AXERN_TEST_POSTGRES_DSN is not set")
 	}
+	controldtest.ResetPostgresControlTables(t, dsn)
 	db, err := postgres.Open(context.Background(), dsn)
 	if err != nil {
 		t.Fatalf("open postgres: %v", err)
@@ -128,8 +130,11 @@ func newEnvironmentTestDB(t *testing.T) *postgres.DB {
 	if _, err := db.ApplyMigrations(context.Background()); err != nil {
 		t.Fatalf("apply postgres migrations: %v", err)
 	}
-	if _, err := db.Pool().Exec(context.Background(), `TRUNCATE TABLE environments CASCADE`); err != nil {
-		t.Fatalf("truncate environments: %v", err)
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces (namespace, created_at) VALUES
+			('default', now()), ('team-a', now()), ('team-b', now())
+	`); err != nil {
+		t.Fatalf("insert namespace fixtures: %v", err)
 	}
 	return db
 }

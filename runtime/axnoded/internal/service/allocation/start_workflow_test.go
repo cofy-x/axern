@@ -31,7 +31,7 @@ func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.
 	)
 	request := &runtimeapi.StartRequest{
 		AllocationID: "alloc-rejected-before-side-effects",
-		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
+		Environment: &runtimeapi.ResolvedEnvironment{
 			ID:     "runtime-rejected",
 			Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_LOCAL, Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()}},
 		},
@@ -68,7 +68,7 @@ func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
 
 	response, err := fixture.controller.startAllocation(context.Background(), &runtimeapi.StartRequest{
 		AllocationID: containerID,
-		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
+		Environment: &runtimeapi.ResolvedEnvironment{
 			ID: "runtime-fast-exit",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -117,7 +117,7 @@ func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 	request := &runtimeapi.StartRequest{
 		AllocationID: "alloc-duplicate-start",
-		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
+		Environment: &runtimeapi.ResolvedEnvironment{
 			ID: "runtime-duplicate-start",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,

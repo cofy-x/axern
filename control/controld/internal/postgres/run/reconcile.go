@@ -29,7 +29,7 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 		} else if err != nil {
 			return fmt.Errorf("lock allocation release: %w", err)
 		}
-		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, allocationkernel.ReconcileReasonDelete, claimOwner, now); err != nil {
+		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, claimOwner, allocationkernel.ReconcileIntentEnsureAbsent, now); err != nil {
 			return err
 		}
 		state := allocationkernel.ParseLifecycleState(stateText)
@@ -65,7 +65,7 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 
 func (s *Store) CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error {
 	return s.withTx(ctx, func(tx pgx.Tx) error {
-		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, allocationkernel.ReconcileReasonCreate, claimOwner, now); err != nil {
+		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, claimOwner, allocationkernel.ReconcileIntentEnsurePresent, now); err != nil {
 			return err
 		}
 		if conditions != nil {
@@ -75,8 +75,8 @@ func (s *Store) CompleteAllocationStart(ctx context.Context, allocationID, claim
 		}
 		tag, err := tx.Exec(ctx, `
 			DELETE FROM allocation_reconcile_queue
-			WHERE allocation_id = $1 AND reason = $2 AND lease_owner = $3
-		`, strings.TrimSpace(allocationID), allocationkernel.ReconcileReasonCreate, strings.TrimSpace(claimOwner))
+			WHERE allocation_id = $1 AND lease_owner = $2
+		`, strings.TrimSpace(allocationID), strings.TrimSpace(claimOwner))
 		if err != nil {
 			return fmt.Errorf("delete start reconcile item: %w", err)
 		}

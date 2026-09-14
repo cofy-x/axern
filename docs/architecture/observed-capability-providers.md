@@ -14,7 +14,7 @@ There is no durable capability-admission object, capability proof set, snapshot 
 | Value | Owner | Persistence | Purpose |
 | --- | --- | --- | --- |
 | Environment inputs | Environment | control database | User-selectable extension requirements and sandbox configuration |
-| Capability requirements | Allocation | control database and node Allocation record | Immutable keys and catalog-owned loss policy |
+| Capability requirements | Allocation | control database and node Allocation record | Immutable keys and contract-owned loss policy |
 | Node observations | Node | latest `NodeSummary` plus durable `(node_instance_id, sequence)` fence | Current placement and node-create eligibility |
 | Allocation binding | Allocation | control database; node control-plane binding | The unique Allocation ID is bound to one Node |
 | Launch verification | Allocation on axnoded | node Allocation record | Runtime enforcement checked in the create-before-start window |
@@ -35,13 +35,13 @@ Observations contain state, provider, sample/expiry times, reason, and typed hos
 - boot plus mount identity for mount-scoped facts;
 - boot, runsc binary digest, and runsc configuration digest for runtime facts.
 
-Configuration and catalog-derived facts carry no synthetic evidence. Digests identify inspected runtime content; they are not domain identity or ordering. Derived capability availability is evaluated recursively from the catalog and the current base observations. It is not frozen into a dependency proof.
+Configuration and contract-derived facts carry no synthetic evidence. Digests identify inspected runtime content; they are not domain identity or ordering. Derived capability availability is evaluated recursively from the capability definitions and the current base observations. It is not frozen into a dependency proof.
 
 Network and filestore health are refreshed and expire. Expired, absent, degraded, unavailable, and unknown observations fail placement and new node create closed. Recovery of ordinary health requires two distinct successful samples; distinctness is determined by increasing `observed_at`, not by a separate generation. Destructive runsc conformance requires one complete successful rerun after identity change.
 
 ## Admission
 
-The shared catalog derives workload requirements from the resolved sandbox: ports, network backend, egress policy, memory limit, writable rootfs, backing representation, and explicit extension requirements. Internal provider facts cannot be injected as workload requirements. The catalog owns loss policy.
+The shared capability contract derives workload requirements from the resolved sandbox: ports, network backend, egress policy, memory limit, writable rootfs, backing representation, and explicit extension requirements. Internal provider facts cannot be injected as workload requirements. The capability definition owns loss policy.
 
 Controld evaluates the latest Node observation during candidate planning and again inside the reservation transaction after locking the Node record. That transaction creates the Allocation binding, immutable requirements, reservation, and lifecycle create intent. It does not preserve a historical copy of the selected observation or a second admission header: the binding plus requirements and successful transaction are the decision.
 

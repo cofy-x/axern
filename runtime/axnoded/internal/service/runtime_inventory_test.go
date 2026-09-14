@@ -135,12 +135,12 @@ func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 
 func TestInterruptedStartRecoveryAction(t *testing.T) {
 	tests := []struct {
-		name           string
-		live           bool
-		status         contract.ContainerStatus
+		name                string
+		live                bool
+		status              contract.ContainerStatus
 		enforcementVerified bool
-		wantCleanup    bool
-		wantError      bool
+		wantCleanup         bool
+		wantError           bool
 	}{
 		{name: "intent without runtime", wantCleanup: true},
 		{name: "prepared verified runtime", live: true, status: contract.ContainerStatusCreated, enforcementVerified: true, wantCleanup: true},

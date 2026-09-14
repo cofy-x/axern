@@ -20,15 +20,16 @@ curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh \
   | AXERN_VERSION=<version> sh
 ```
 
-## Upgrade Local Axern
+## Replace Local Axern
 
-The CLI never silently changes a running local stack. When `axern local status` reports a version mismatch, migrate explicitly:
+The CLI never silently changes a running local stack and does not carry local database migrations across versions. Export required outputs, then rebuild the local instance explicitly:
 
 ```bash
-axern local upgrade
+axern local reset --force
+axern local up
 ```
 
-The upgrade stops the old stack, creates a timestamped backup of data, identities, metadata, and deployment files, applies the supported migration, and verifies health. Downgrades are rejected; see the [Local Axern reference](/guides/local/) for the full lifecycle.
+This deliberately replaces local data and identity material. See the [Local Axern reference](/guides/local/) for the full lifecycle.
 
 ## Upgrade a Kubernetes install
 

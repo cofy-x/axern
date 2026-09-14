@@ -12,7 +12,7 @@ import (
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 )
 
@@ -29,9 +29,6 @@ func TestNodesHandlerReturnsJSONDebugShape(t *testing.T) {
 		},
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{CPUOvercommitRatio: 2, MemoryOvercommitPolicy: "disabled"}
-		},
-		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -58,9 +55,6 @@ func TestResourceHandlerReturnsJSONPolicyShape(t *testing.T) {
 		DebugNodes: func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{CPUOvercommitRatio: 2.5, MemoryOvercommitPolicy: "disabled"}
-		},
-		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -90,9 +84,6 @@ func TestQuotaHandlerReturnsProtoJSON(t *testing.T) {
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{}
 		},
-		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
-		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{Quotas: []*quotav1.NamespaceQuota{{Namespace: "default"}}}, nil
 		},
@@ -117,9 +108,6 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	handler := New(Config{
 		DebugNodes:     func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot { return ResourcePolicySnapshot{} },
-		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
-		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
 		},
@@ -127,7 +115,7 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 			return []allocationkernel.LifecycleRetryItem{{
 				AllocationID:      "alloc-1",
 				RunID:             "run-1",
-				Reason:            allocationkernel.ReconcileReasonCreate,
+				LifecycleState:    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
 				NodeID:            "node-a",
 				ReconcileAttempts: 2,
 				AgeSeconds:        30,
@@ -143,7 +131,7 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"allocation_id":"alloc-1"`, `"run_id":"run-1"`, `"reason":"create"`, `"reconcile_attempts":2`, `"due":true`} {
+	for _, want := range []string{`"allocation_id":"alloc-1"`, `"run_id":"run-1"`, `"lifecycle_state":"ALLOCATION_LIFECYCLE_STATE_BOUND"`, `"reconcile_attempts":2`, `"due":true`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected allocation reconcile body: %s", recorder.Body.String())
 		}
@@ -155,9 +143,6 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 	handler := New(Config{
 		DebugNodes:     func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot { return ResourcePolicySnapshot{} },
-		ListEnvironmentTemplates: func(context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-			return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
-		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
 		},

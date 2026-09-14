@@ -145,7 +145,7 @@ func Run(args []string) error {
 		return err
 	}
 
-	dbPath := filepath.Join(*rootWorkDir, "mount_records.db")
+	dbPath := filepath.Join(*rootWorkDir, "resource_leases.db")
 	mountStore, err := mountstore.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("open mount store: %w", err)

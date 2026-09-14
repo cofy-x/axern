@@ -4,14 +4,14 @@ import (
 	"context"
 	"strings"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	privateenvironmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-type CatalogReader interface {
-	Get(id, version string) (*catalogv1.EnvironmentTemplate, bool)
+type TemplateReader interface {
+	Get(id, version string) (*privateenvironmentv1.EnvironmentTemplate, bool)
 }
 
 type ImageResolver interface {
@@ -20,7 +20,7 @@ type ImageResolver interface {
 
 type ResolvedImage struct {
 	Ref        string
-	Descriptor *catalogv1.OciImageDescriptor
+	Descriptor *environmentv1.OciImageDescriptor
 }
 
 type ResolveOptions struct {
@@ -31,7 +31,7 @@ type RegistryCredentialResolver interface {
 	ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error)
 }
 
-func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catalog CatalogReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *catalogv1.ResolvedEnvironmentSpec, error) {
+func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, templates TemplateReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	if spec == nil {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "spec is required")
 	}
@@ -44,12 +44,12 @@ func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catal
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "one of template_id or image.ref is required")
 	}
 	if templateID != "" {
-		return resolveTemplateSpec(catalog, spec)
+		return resolveTemplateSpec(templates, spec)
 	}
 	return resolveImageSpec(ctx, images, credentials, spec)
 }
 
-func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.ResolvedEnvironmentSpec, error) {
+func resolveTemplateSpec(templates TemplateReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	templateID := strings.TrimSpace(spec.GetTemplateID())
 	if strings.TrimSpace(spec.GetImage().GetRegistryCredentialID()) != "" {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.registry_credential_id is only valid with image.ref")
@@ -57,7 +57,7 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 	if spec.GetImage().GetRootfsReadonly() {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.rootfs_readonly is only valid with image.ref")
 	}
-	template, ok := catalog.Get(templateID, spec.GetTemplateVersion())
+	template, ok := templates.Get(templateID, spec.GetTemplateVersion())
 	if !ok {
 		return nil, nil, grpcstatus.Errorf(codes.NotFound, "environment template %q not found", templateID)
 	}
@@ -72,7 +72,7 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 	return normalized, template.GetResolvedSpec(), nil
 }
 
-func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.ResolvedEnvironmentSpec, error) {
+func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	if images == nil {
 		return nil, nil, grpcstatus.Error(codes.FailedPrecondition, "image resolution is not configured")
 	}
@@ -116,9 +116,9 @@ func resolveImageSpec(ctx context.Context, images ImageResolver, credentials Reg
 	return normalized, synthesizeImageSpec(normalized, resolved.Descriptor), nil
 }
 
-func synthesizeImageSpec(spec *environmentv1.EnvironmentSpec, descriptor *catalogv1.OciImageDescriptor) *catalogv1.ResolvedEnvironmentSpec {
+func synthesizeImageSpec(spec *environmentv1.EnvironmentSpec, descriptor *environmentv1.OciImageDescriptor) *environmentv1.ResolvedEnvironmentSpec {
 	image := spec.GetImage()
-	return &catalogv1.ResolvedEnvironmentSpec{
+	return &environmentv1.ResolvedEnvironmentSpec{
 		ImageDescriptor: descriptor,
 		RootfsReadonly:  image.GetRootfsReadonly(),
 	}

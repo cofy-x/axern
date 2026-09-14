@@ -11,9 +11,9 @@ import (
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -446,7 +446,7 @@ func setNamespaceQuota(t *testing.T, app *App, namespace string, cpuMilliLimit a
 	t.Helper()
 	if _, err := app.db.Pool().Exec(context.Background(), `
 		UPDATE namespace_resource_quotas
-		SET cpu_milli_limit = $2, memory_bytes_limit = $3, version = version + 1, updated_at = now()
+		SET cpu_milli_limit = $2, memory_bytes_limit = $3, updated_at = now()
 		WHERE namespace = $1
 	`, namespace, cpuMilliLimit, memoryBytesLimit); err != nil {
 		t.Fatalf("set namespace quota: %v", err)

@@ -168,7 +168,7 @@ A practical manual debug startup order is:
 
 `Axnoded: Debug daemon` registers `axern-dev-node` with the standalone `controld` at `127.0.0.1:24000` by default. Product CLI commands use `gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after the five debug services are running.
 
-Catalog-backed workloads need their runtime images imported into standalone `imagemgr`. This mirrors the compose/kind image load flow:
+Template-backed workloads need their runtime images imported into standalone `imagemgr`. This mirrors the compose/kind image load flow:
 
 ```bash
 make dev-runtime-images-load
@@ -217,7 +217,7 @@ IMAGEMGR_SOCKET=$AXERN_DEV_WORKSPACE/.dev/run/imagemgr.sock
 So direct CLI development commands work without extra flags:
 
 ```bash
-go -C apps/cli run . catalog list
+go -C apps/cli run . environment list
 go -C runtime/axnoded run ./axctl node check
 ```
 

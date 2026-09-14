@@ -45,7 +45,6 @@ const sidebar = [
         label: 'Data and Config',
         translations: { 'zh-CN': '数据与配置' },
         items: [
-          { label: 'Catalog', translations: { 'zh-CN': 'Catalog' }, link: '/guides/catalog/' },
           { label: 'Environments and Quota', translations: { 'zh-CN': '环境与配额' }, link: '/guides/environments/' },
           { label: 'Secrets', translations: { 'zh-CN': 'Secret' }, link: '/guides/secrets/' },
         ],

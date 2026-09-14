@@ -4,7 +4,7 @@ package axern.private.node.operator.v1;
 
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1;nodeoperatorv1";
 
-import "axern/control/node/v1/node_control.proto";
+import "axern/private/control/node/v1/node_control.proto";
 import "axern/node/sandbox/v1/node.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -115,7 +115,7 @@ message GetSandboxDiagnosticsResponse {
   SandboxdProviderSummary provider_summary = 11;
   SandboxdProcessSummary process_summary = 12;
   string raw_json = 13;
-  axern.control.node.v1.AllocationMemoryObservation memory = 14;
+  axern.private.control.node.v1.AllocationMemoryObservation memory = 14;
 }
 
 message GetSandboxMemoryRequest {
@@ -123,7 +123,7 @@ message GetSandboxMemoryRequest {
 }
 
 message GetSandboxMemoryResponse {
-  axern.control.node.v1.AllocationMemoryObservation observation = 1;
+  axern.private.control.node.v1.AllocationMemoryObservation observation = 1;
 }
 
 message ExplainSandboxNetworkPolicyRequest {

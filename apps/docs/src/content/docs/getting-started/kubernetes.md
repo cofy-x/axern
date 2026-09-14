@@ -29,7 +29,7 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
   25100:25000 25101:25080
 ```
 
-In a second terminal, import the chart-generated mTLS identity as a local CLI context. The empty SSH endpoint is intentional: SSH is disabled by the chart defaults and is not required for catalog, Run, or SDK workflows.
+In a second terminal, import the chart-generated mTLS identity as a local CLI context. The empty SSH endpoint is intentional: SSH is disabled by the chart defaults and is not required for Environment, Run, or SDK workflows.
 
 ```bash
 axern context import-kubernetes local \
@@ -39,7 +39,7 @@ axern context import-kubernetes local \
   --current
 
 axern doctor --namespace default
-axern catalog list
+axern environment list
 ```
 
 The imported context carries the control endpoint and TLS material. SSH fields remain empty unless you explicitly enable SSH and provide a client identity. Every later control-plane workflow uses the same context model as the local Compose install.

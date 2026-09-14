@@ -476,7 +476,7 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
 	request := &runtimev1.StartRequest{
 		AllocationID: allocationID,
-		EnvironmentTemplate: &runtimev1.EnvironmentTemplate{
+		Environment: &runtimev1.ResolvedEnvironment{
 			ID: environmentID,
 			Rootfs: &runtimev1.RootfsConfig{
 				Type:     runtimev1.RootfsSrcType_LOCAL,
@@ -489,13 +489,13 @@ func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, 
 	}
 	switch kind {
 	case runtimeConformanceKindMemory:
-		request.EnvironmentTemplate.Argv = []string{"/bin/memory-hog"}
+		request.Environment.Argv = []string{"/bin/memory-hog"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 			Limits:   &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 		}
 	case runtimeConformanceKindEphemeral:
-		request.EnvironmentTemplate.Argv = []string{"/bin/sh", "-c", "printf 'pending\\n' > /.axern-quota-result; if /bin/busybox dd if=/dev/zero of=/.axern-quota-probe bs=1M count=96 conv=fsync; then result=not_enforced; else result=enforced; fi; rm -f /.axern-quota-probe; printf '%s\\n' \"$result\" > /.axern-quota-result; exec /bin/busybox sleep 120"}
+		request.Environment.Argv = []string{"/bin/sh", "-c", "printf 'pending\\n' > /.axern-quota-result; if /bin/busybox dd if=/dev/zero of=/.axern-quota-probe bs=1M count=96 conv=fsync; then result=not_enforced; else result=enforced; fi; rm -f /.axern-quota-probe; printf '%s\\n' \"$result\" > /.axern-quota-result; exec /bin/busybox sleep 120"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},
 			Limits:   &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},

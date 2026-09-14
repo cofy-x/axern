@@ -16,7 +16,6 @@ import (
 	"testing"
 	"time"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
@@ -47,7 +46,7 @@ func TestDiagnoseReadOnlyIsHealthyWithoutMutatingResources(t *testing.T) {
 	if environments.createCalls != 0 || environments.deleteCalls != 0 || runs.createCalls != 0 {
 		t.Fatalf("read-only doctor mutated resources: environments=%+v runs=%+v", environments, runs)
 	}
-	for _, name := range []string{"configuration", "tls_material", "tls_expiry", "tls_key_permissions", "gateway", "identity", "authorization", "namespace", "catalog"} {
+	for _, name := range []string{"configuration", "tls_material", "tls_expiry", "tls_key_permissions", "gateway", "identity", "authorization", "namespace"} {
 		if checkByName(t, report, name).Status != CheckPass {
 			t.Fatalf("check %s did not pass: %#v", name, checkByName(t, report, name))
 		}
@@ -90,7 +89,7 @@ func TestDiagnoseGatewayFailureIsSanitizedAndSkipsDependentChecks(t *testing.T) 
 	if gateway.Code != "gateway_unreachable" || strings.Contains(gateway.Message, "sensitive.example") || strings.Contains(gateway.Message, "/private/doctor") {
 		t.Fatalf("gateway failure was not sanitized: %#v", gateway)
 	}
-	if checkByName(t, report, "namespace").Status != CheckSkip || checkByName(t, report, "catalog").Status != CheckSkip {
+	if checkByName(t, report, "namespace").Status != CheckSkip {
 		t.Fatalf("gateway dependents were not skipped: %#v", report.Checks)
 	}
 }
@@ -234,7 +233,6 @@ func successfulOpener(environments *fakeEnvironmentClient, runs *fakeRunClient) 
 			Identity:    &fakeIdentityClient{},
 			Namespace:   &fakeNamespaceClient{},
 			Secret:      &fakeSecretClient{},
-			Catalog:     &fakeCatalogClient{},
 			Environment: environments,
 			Run:         runs,
 			Close:       func() error { return nil },
@@ -353,12 +351,6 @@ func (f *fakeSecretClient) CreateSecret(_ context.Context, request *secretv1.Cre
 func (f *fakeSecretClient) DeleteSecret(context.Context, *secretv1.DeleteSecretRequest, ...grpc.CallOption) (*secretv1.DeleteSecretResponse, error) {
 	f.deleteCalls++
 	return &secretv1.DeleteSecretResponse{Secret: &secretv1.Secret{ID: "secret-probe"}}, nil
-}
-
-type fakeCatalogClient struct{}
-
-func (*fakeCatalogClient) ListEnvironmentTemplates(context.Context, *catalogv1.ListEnvironmentTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-	return &catalogv1.ListEnvironmentTemplatesResponse{}, nil
 }
 
 type fakeEnvironmentClient struct {

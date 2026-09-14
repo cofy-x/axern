@@ -94,7 +94,7 @@ func (r *reconciler) WaitForWork(ctx context.Context) error {
 
 func (r *reconciler) reconcileClaimedAllocation(ctx context.Context, item allocationkernel.ReconcileItem) error {
 	timeout := allocationkernel.LifecycleOperationTimeout
-	if item.Reason == allocationkernel.ReconcileReasonCreate {
+	if allocationkernel.ReconcileIntentForLifecycle(item.LifecycleState) == allocationkernel.ReconcileIntentEnsurePresent {
 		timeout = allocationkernel.CreateExecutionTimeout
 	}
 	itemCtx, cancel := context.WithTimeout(ctx, timeout)
@@ -144,13 +144,13 @@ func (r *reconciler) renewClaim(ctx context.Context, cancelOperation context.Can
 }
 
 func (r *reconciler) reconcileAllocation(ctx context.Context, item allocationkernel.ReconcileItem) error {
-	switch item.Reason {
-	case allocationkernel.ReconcileReasonCreate:
+	switch allocationkernel.ReconcileIntentForLifecycle(item.LifecycleState) {
+	case allocationkernel.ReconcileIntentEnsurePresent:
 		return r.reconcileStart(ctx, item)
-	case allocationkernel.ReconcileReasonDelete:
+	case allocationkernel.ReconcileIntentEnsureAbsent:
 		return r.reconcileDeleteRetry(ctx, item)
 	}
-	return fmt.Errorf("allocation %s has unknown reconcile reason %q", item.AllocationID, item.Reason)
+	return fmt.Errorf("allocation %s has non-reconcilable lifecycle state %s", item.AllocationID, item.LifecycleState)
 }
 
 func (r *reconciler) reconcileStart(ctx context.Context, item allocationkernel.ReconcileItem) error {

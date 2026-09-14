@@ -14,7 +14,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
@@ -28,7 +28,7 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 	}
 	manager := environmentcache.NewEnvironmentCache()
 	manager.ConfigureRetention(time.Minute, 1)
-	fr := &runtimeapi.EnvironmentTemplate{
+	fr := &runtimeapi.ResolvedEnvironment{
 		ID: "inventory-retained",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -37,9 +37,9 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 		Argv: []string{"/bin/sh"},
 	}
 
-	rootfsCfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(fr)
+	rootfsCfg, err := environmentcache.RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
-		t.Fatalf("RootfsConfigFromEnvironmentTemplate() error = %v", err)
+		t.Fatalf("RootfsConfigFromResolvedEnvironment() error = %v", err)
 	}
 	result, err := manager.PrepareEnvironment(t.Context(), fr, rootfsCfg)
 	if err != nil {

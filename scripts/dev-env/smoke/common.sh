@@ -206,28 +206,6 @@ local_smoke_create_secret() {
       "${AXERN_SMOKE_CMD[@]}" secret create -o json --namespace "${namespace}" --type opaque --literal-stdin
 }
 
-local_smoke_assert_default_environment_templates() {
-  local catalog_json="$1"
-  python3 -c '
-import json
-import sys
-
-payload = json.load(sys.stdin)
-required = {"python311", "server-base", "coding-base", "desktop-base"}
-ids = {item.get("id") for item in payload.get("environment_templates", [])}
-missing = sorted(required - ids)
-if missing:
-    print(
-        "environment catalog missing templates: "
-        + ", ".join(missing)
-        + "; got: "
-        + ", ".join(sorted(item for item in ids if item)),
-        file=sys.stderr,
-    )
-    raise SystemExit(1)
-' <<<"${catalog_json}"
-}
-
 local_smoke_wait_for_run_status() {
   local run_id="$1"
   local expected_status="$2"

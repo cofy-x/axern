@@ -62,7 +62,7 @@ Failure of the configured node resource source is fail-closed. Axnoded retains t
 | `ip_range` | IPv4 or IPv6 CIDR used for `sandbox0`, sandbox IPs, and host veth allocation. | Must provide at least `max_instance_num` addresses and must not collide with host, pod, service, or VPC ranges. |
 | `nat_backend` | NAT implementation. | Valid values are `iptables` and `ebpf`. |
 
-`iptables` is the full bridge SNAT/DNAT backend. For IPv4, `ebpf` keeps the same bridge/veth/netns shape and requires every supported tc/cgroup dataplane path to be ready; it never mixes iptables rules into an active eBPF dataplane. Because bpfnet's native programs are IPv4-only, an IPv6 `ip_range` with `nat_backend = "ebpf"` uses the complete ip6tables backend and the node publishes the effective bridge capability.
+`iptables` is the full bridge SNAT/DNAT backend for IPv4 and IPv6. `ebpf` is an IPv4-only backend that keeps the same bridge/veth/netns shape and requires every supported tc/cgroup dataplane path to be ready. An IPv6 `ip_range` with `nat_backend = "ebpf"` is rejected during configuration; axnoded never changes the selected backend implicitly or mixes iptables rules into an active eBPF dataplane.
 
 `[plugin.network.ebpf]` is only active when `nat_backend = "ebpf"`.
 

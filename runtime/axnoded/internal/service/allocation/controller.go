@@ -184,12 +184,12 @@ func (c *Controller) RestoreAllocationState(runtimeInventory map[string]struct{}
 	return nil
 }
 
-func (c *Controller) PrepareEnvironmentTemplate(ctx context.Context, fr *runtime.EnvironmentTemplate) (*environmentcache.PreparedEnvironment, error) {
+func (c *Controller) PrepareResolvedEnvironment(ctx context.Context, fr *runtime.ResolvedEnvironment) (*environmentcache.PreparedEnvironment, error) {
 	lrt, _, err := c.ensurePreparedEnvironment(ctx, fr)
 	return lrt, err
 }
 
-func (c *Controller) PrepareEnvironmentTemplateWithSummary(ctx context.Context, fr *runtime.EnvironmentTemplate) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+func (c *Controller) PrepareResolvedEnvironmentWithSummary(ctx context.Context, fr *runtime.ResolvedEnvironment) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
 	return c.ensurePreparedEnvironment(ctx, fr)
 }
 

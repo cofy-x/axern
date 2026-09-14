@@ -54,7 +54,7 @@ func ValidateEvidence(evidence *capabilityv1.CapabilityEvidence, expected Identi
 		return fmt.Errorf("typed host evidence is required")
 	}
 	if kind := EvidenceIdentityKind(evidence); kind != expected {
-		return fmt.Errorf("evidence kind %d does not match catalog kind %d", kind, expected)
+		return fmt.Errorf("evidence kind %d does not match definition kind %d", kind, expected)
 	}
 	switch identity := evidence.GetIdentity().(type) {
 	case *capabilityv1.CapabilityEvidence_Boot:
@@ -110,7 +110,7 @@ func validateFreshness(key *capabilityv1.CapabilityKey, observedAt, validUntil *
 	}
 	observed, expires := observedAt.AsTime(), validUntil.AsTime()
 	if !expires.After(observed) || expires.After(observed.Add(maxValidity)) {
-		return fmt.Errorf("valid_until is outside the catalog freshness bound")
+		return fmt.Errorf("valid_until is outside the definition freshness bound")
 	}
 	if requireCurrent && !expires.After(now) {
 		return fmt.Errorf("capability observation is expired")

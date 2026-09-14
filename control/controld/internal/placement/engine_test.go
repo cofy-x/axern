@@ -10,7 +10,7 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -52,11 +52,11 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 	if len(rejected) != 2 {
 		t.Fatalf("expected 2 rejected candidates, got %d", len(rejected))
 	}
-	assertRejectedReasons(t, rejected[0], "stale-heartbeat", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)
+	assertRejectedReasons(t, rejected[0], "stale-heartbeat", placementkernel.RejectionReasonStaleHeartbeat)
 	assertRejectedReasons(t, rejected[1], "stale-summary",
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE,
+		placementkernel.RejectionReasonStaleSummary,
+		placementkernel.RejectionReasonNetworkUnsupported,
+		placementkernel.RejectionReasonNodeMemoryBudgetUnavailable,
 	)
 }
 
@@ -85,7 +85,7 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "remote-node" {
 		t.Fatalf("expected only remote node to be eligible for oci: %#v %#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "local-node", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
+	assertRejectedReasons(t, rejected[0], "local-node", placementkernel.RejectionReasonImagemgrUnavailable)
 
 	eligible, rejected = engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:  "image:repo/app:nydus",
@@ -96,8 +96,8 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 		t.Fatalf("expected only remote node to be eligible for nydus: %#v %#v", eligible, rejected)
 	}
 	assertRejectedReasons(t, rejected[0], "local-node",
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
+		placementkernel.RejectionReasonImagemgrUnavailable,
+		placementkernel.RejectionReasonImagefsdUnavailable,
 	)
 }
 
@@ -113,7 +113,7 @@ func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("without EROFS evidence eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-erofs", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
+	assertRejectedReasons(t, rejected[0], "node-erofs", placementkernel.RejectionReasonCapabilityUnsupported)
 
 	erofs := availableCapabilitySnapshot(now, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS).GetObservations()[0]
 	summary.CapabilitySnapshot.Observations = append(summary.CapabilitySnapshot.Observations, erofs)
@@ -165,7 +165,7 @@ func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
 	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-preferred" {
 		t.Fatalf("unexpected eligible candidates: %#v", eligible)
 	}
-	if !eligible[0].GetRank().GetBpfnetPreferred() {
+	if !eligible[0].GetRank().GetBPFNetPreferred() {
 		t.Fatalf("expected top-ranked node to have preferred bpfnet: %#v", eligible[0])
 	}
 }
@@ -216,7 +216,7 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-hot" || eligible[1].GetNodeID() != "node-warm" {
 		t.Fatalf("unexpected candidate order: %#v", eligible)
 	}
-	if eligible[0].GetState() != nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE {
+	if eligible[0].GetState() != placementkernel.CandidateStateEligible {
 		t.Fatalf("expected eligible state, got %#v", eligible[0])
 	}
 }
@@ -257,13 +257,13 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
 	}
 	assertRejectedReasons(t, rejected[0], "node-a",
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_DRAINING,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_SELECTOR_MISMATCH,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED,
+		placementkernel.RejectionReasonNodeDraining,
+		placementkernel.RejectionReasonNodeSelectorMismatch,
+		placementkernel.RejectionReasonInsufficientCPU,
+		placementkernel.RejectionReasonInsufficientMemory,
+		placementkernel.RejectionReasonPortsUnsupported,
+		placementkernel.RejectionReasonNetworkUnsupported,
+		placementkernel.RejectionReasonCapabilityUnsupported,
 	)
 }
 
@@ -293,7 +293,7 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 	if len(eligible) != 0 {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
 	}
-	assertRejectedReasons(t, rejected[0], "node-mem", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+	assertRejectedReasons(t, rejected[0], "node-mem", placementkernel.RejectionReasonInsufficientMemory)
 }
 
 func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testing.T) {
@@ -332,7 +332,7 @@ func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-retiring", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+	assertRejectedReasons(t, rejected[0], "node-retiring", placementkernel.RejectionReasonInsufficientMemory)
 }
 
 func TestPlanCPUOvercommitPolicy(t *testing.T) {
@@ -365,7 +365,7 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("expected node-cpu rejected, got eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-cpu", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU)
+	assertRejectedReasons(t, rejected[0], "node-cpu", placementkernel.RejectionReasonInsufficientCPU)
 }
 
 func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
@@ -389,7 +389,7 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("expected node rejected for memory, got eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-mem-overcommit", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+	assertRejectedReasons(t, rejected[0], "node-mem-overcommit", placementkernel.RejectionReasonInsufficientMemory)
 }
 
 func TestPlanRejectsRetiredNodeAsNonRetryable(t *testing.T) {
@@ -400,7 +400,7 @@ func TestPlanRejectsRetiredNodeAsNonRetryable(t *testing.T) {
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-retired", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_RETIRED)
+	assertRejectedReasons(t, rejected[0], "node-retired", placementkernel.RejectionReasonNodeRetired)
 }
 
 func record(nodeID string, runtimes []string, summary *nodev1.NodeSummary, updatedAt time.Time) *nodekernel.Record {
@@ -413,12 +413,12 @@ func record(nodeID string, runtimes []string, summary *nodev1.NodeSummary, updat
 	}
 }
 
-func assertRejectedReasons(t *testing.T, candidate *nodev1.PlacementCandidate, nodeID string, want ...nodev1.PlacementRejectionReason) {
+func assertRejectedReasons(t *testing.T, candidate *placementkernel.Evaluation, nodeID string, want ...placementkernel.RejectionReason) {
 	t.Helper()
 	if candidate.GetNodeID() != nodeID {
 		t.Fatalf("candidate node_id = %q, want %q", candidate.GetNodeID(), nodeID)
 	}
-	if candidate.GetState() != nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED {
+	if candidate.GetState() != placementkernel.CandidateStateRejected {
 		t.Fatalf("candidate state = %v, want rejected", candidate.GetState())
 	}
 	got := candidate.GetRejectionReasons()

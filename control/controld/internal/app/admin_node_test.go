@@ -7,7 +7,7 @@ import (
 
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -80,6 +80,13 @@ func TestPostgresAdminRetiresNodeWithReleasedAllocation(t *testing.T) {
 
 func insertAdminNodeTestRun(t *testing.T, app *App, runID string, now time.Time) {
 	t.Helper()
+	if _, err := app.db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces (namespace, created_at)
+		VALUES ('default', $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("insert namespace: %v", err)
+	}
 	if _, err := app.db.Pool().Exec(context.Background(), `
 		INSERT INTO runs (run_id, namespace, environment_id, status, config, labels, created_at, updated_at)
 		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, $2, $2)

@@ -8,7 +8,7 @@ import (
 	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type NodeStore interface {

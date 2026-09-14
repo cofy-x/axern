@@ -9,7 +9,7 @@ import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
 
 message StartRequest {
-  EnvironmentTemplate environment_template = 1;
+  ResolvedEnvironment environment = 1;
   repeated Mount mounts = 2;
   axern.control.common.v1.ResourceSpec resources = 3;
   map<string, string> env = 4;

@@ -119,7 +119,7 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
 axern context import-kubernetes local \
   --namespace axern-system \
   --current
-axern catalog list
+axern environment create --template-id python311
 ```
 
 The bundled PostgreSQL and single-node defaults are intended for evaluation. Durable or shared deployments must provide persistent storage, externalized secrets, ingress, and scheduling values described by the Helm chart.

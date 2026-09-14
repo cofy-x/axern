@@ -9,7 +9,7 @@ A Sandbox is the SDK's programmable view of an isolated workload. The same model
 
 Constructing and starting a Sandbox compiles to public control-plane APIs, not a private channel:
 
-1. Resolve or create an **Environment** (image, catalog template, or existing environment ID — exactly one source).
+1. Resolve or create an **Environment** (image, built-in template, or existing environment ID — exactly one source).
 2. Create a detached **Run** and wait for its allocation to start.
 3. Execute, transfer files, and open tunnels through the node data plane.
 
@@ -17,7 +17,7 @@ Because the backing resources are ordinary Axern resources, they remain visible 
 
 ## Sources and connections
 
-Each Sandbox selects exactly one source: a portable OCI `image`, a catalog `template_id`, or an existing `environment_id` to continue prior work.
+Each Sandbox selects exactly one source: a portable OCI `image`, a deployment-provided `template_id`, or an existing `environment_id` to continue prior work.
 
 Connections are explicit. `AxernClient.from_env()` reads `AXERN_ENDPOINT` and `AXERN_TLS_*` variables; `from_context()` reads the same versioned context schema as the CLI. SDK constructors never inspect the user directory implicitly.
 

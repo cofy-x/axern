@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/axctl/client"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/encoding/protojson"

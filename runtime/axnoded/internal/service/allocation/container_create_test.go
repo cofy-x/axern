@@ -42,7 +42,7 @@ func TestCreateRuntimeContainerPreservesFastExitStatus(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:           containerID,
+		ID: containerID,
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)
@@ -90,7 +90,7 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:           "axctl-create-sync",
+		ID: "axctl-create-sync",
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)

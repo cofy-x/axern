@@ -3,7 +3,6 @@ package output
 import (
 	"fmt"
 	"io"
-	"strings"
 	"time"
 
 	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
@@ -15,7 +14,7 @@ func RenderAllocationLifecycleRetry(w io.Writer, retry *privateadminv1.Allocatio
 	}
 	fmt.Fprintf(w, "Allocation: %s\n", retry.GetAllocationID())
 	fmt.Fprintf(w, "Run: %s\n", retry.GetRunID())
-	fmt.Fprintf(w, "Reason: %s\n", allocationLifecycleRetryReasonLabel(retry.GetReason()))
+	fmt.Fprintf(w, "Lifecycle: %s\n", retry.GetLifecycleState().String())
 	fmt.Fprintf(w, "Node: %s\n", retry.GetNodeID())
 	if retry.GetNodeTarget() != "" {
 		fmt.Fprintf(w, "Node Target: %s\n", retry.GetNodeTarget())
@@ -40,7 +39,7 @@ func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*privateadminv1.
 		rows = append(rows, []string{
 			retry.GetAllocationID(),
 			retry.GetRunID(),
-			allocationLifecycleRetryReasonLabel(retry.GetReason()),
+			retry.GetLifecycleState().String(),
 			retry.GetNodeID(),
 			fmt.Sprintf("%d", retry.GetReconcileAttempts()),
 			formatAllocationLifecycleRetryNextRun(retry, now),
@@ -48,7 +47,7 @@ func RenderAllocationLifecycleRetryTable(w io.Writer, retries []*privateadminv1.
 			ShortMessage(retry.GetLastError(), 48),
 		})
 	}
-	RenderTable(w, []string{"ALLOCATION", "RUN", "REASON", "NODE", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
+	RenderTable(w, []string{"ALLOCATION", "RUN", "LIFECYCLE", "NODE", "RETRIES", "NEXT", "DUE", "LAST_ERROR"}, rows)
 }
 
 func formatAllocationLifecycleRetryNextRun(retry *privateadminv1.AllocationLifecycleRetry, now time.Time) string {
@@ -56,8 +55,4 @@ func formatAllocationLifecycleRetryNextRun(retry *privateadminv1.AllocationLifec
 		return "-"
 	}
 	return FormatRelativeAge(retry.GetNextRunAt().AsTime(), now)
-}
-
-func allocationLifecycleRetryReasonLabel(reason privateadminv1.AllocationLifecycleRetryReason) string {
-	return strings.ToLower(trimEnumPrefix(reason.String(), "ALLOCATION_LIFECYCLE_RETRY_REASON_"))
 }

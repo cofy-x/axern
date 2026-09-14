@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib.sh"
 source "${SCRIPT_DIR}/environment.sh"
-source "${SCRIPT_DIR}/catalog_namespace_quota.sh"
+source "${SCRIPT_DIR}/namespace_quota.sh"
 source "${SCRIPT_DIR}/doctor.sh"
 source "${SCRIPT_DIR}/quota_admission.sh"
 source "${SCRIPT_DIR}/base_environment.sh"
@@ -18,7 +18,7 @@ trap 'axern_cli_e2e_failed=1; failed_e2e_step="${current_e2e_step:-unknown}"' ER
 
 run_step setup_e2e_environment setup_e2e_environment
 run_step doctor verify_doctor
-run_step catalog_namespace_quota verify_catalog_namespace_quota
+run_step namespace_quota verify_namespace_quota
 run_step quota_admission verify_quota_admission
 run_step base_environment create_base_environment
 run_step ssh_gateway verify_ssh_gateway

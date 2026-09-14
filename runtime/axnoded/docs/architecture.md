@@ -40,7 +40,7 @@ Layer ownership:
 - `internal/sandboxd` is the sandbox-local daemon implementation.
 - `internal/environmentcache`, `internal/egress`, `internal/resources`, and `internal/container` own rootfs/image coordination, egress enforcement, cgroup/network resources, and persisted container state.
 - `internal/nodestate` owns the process-wide BoltDB handle and low-level record transactions. Allocation orchestration owns the schema and keeps environment template identity plus image/workspace ownership in one record per allocation.
-- `internal/nodecapability` owns provider registration, atomic snapshots, recovery hysteresis, and the node-local admission view. The shared catalog owns derivation and loss policy; providers do not write node summaries directly. Production startup verifies that every catalog key has exactly one registered provider matching the catalog owner.
+- `internal/nodecapability` owns provider registration, atomic snapshots, recovery hysteresis, and the node-local admission view. The shared capability contract owns derivation and loss policy; providers do not write node summaries directly. Production startup verifies that every defined key has exactly one registered provider matching the definition owner.
 
 The cross-system capability contract is documented in [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md). It is distinct from sandboxd operation discovery described later in this document.
 
@@ -156,7 +156,7 @@ Operation invariants:
 | Cross-runtime sockets, storage, imagemgr, bpfnet, or gateway relationships   | [Runtime Stack](../../../.x/runtime-stack.md)                                                |
 | Config fields and local profiles                                             | [Configuration](configuration.md)                                                            |
 | Resource claims, pools, accounting, or network backend behavior              | [Resource Management](resource.md)                                                           |
-| Observed node facts, catalog policy, admission evidence, or enforcement loss | [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) |
+| Observed node facts, capability policy, admission evidence, or enforcement loss | [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md) |
 | Sandboxd injection, PID 1 lifecycle, or daemon API boundary                  | [Sandbox Daemon](sandbox-daemon.md)                                                          |
 | Sandboxd provider state, optional capabilities, or product error shape       | [Sandboxd Capabilities And Providers](sandboxd-capabilities.md)                              |
 | Required validation                                                          | [Verification](verification.md)                                                              |

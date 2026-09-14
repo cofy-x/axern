@@ -321,7 +321,7 @@ func verifyCapabilityWithDelays(ctx context.Context, delays []time.Duration, ver
 // verifyCapabilityBatchWithDelays retries only inconclusive verifications.
 // Every pending capability is sampled once per round. A definitive loss ends
 // the batch immediately after that round instead of waiting behind unrelated
-// inconclusive capabilities, preserving the catalog's fail-stop semantics.
+// inconclusive capabilities, preserving the definition's fail-stop semantics.
 func verifyCapabilityBatchWithDelays(ctx context.Context, delays []time.Duration, count int, verify func(int) contract.CapabilityVerification) ([]contract.CapabilityVerification, error) {
 	if count < 0 || verify == nil || len(delays) == 0 {
 		return nil, fmt.Errorf("capability verification count, verifier, and retry schedule are required")

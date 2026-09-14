@@ -80,7 +80,7 @@ Generate completion with `axern completion bash|zsh|fish`.
 
 ## Platform Doctor
 
-`axern doctor` is read-only by default. It validates local connection settings, mTLS material and certificate lifetime, gateway connectivity, the authenticated Principal, authorization for the selected namespace, and the environment catalog. Messages and JSON output use stable codes and do not include certificate paths, private keys, raw endpoints, or server error text.
+`axern doctor` is read-only by default. It validates local connection settings, mTLS material and certificate lifetime, gateway connectivity, the authenticated Principal, and authorization for the selected namespace. Messages and JSON output use stable codes and do not include certificate paths, private keys, raw endpoints, or server error text.
 
 Use `--probe` when a real data-plane check is required:
 
@@ -88,7 +88,7 @@ Use `--probe` when a real data-plane check is required:
 axern doctor --namespace default --probe
 ```
 
-The probe creates a catalog-backed Environment from the `python311` template, executes a small Run, and deletes the temporary Environment. The Run remains as normal control-plane history. Use `--template-id` and `--probe-timeout` only with `--probe`.
+The probe creates an Environment from the built-in `python311` template, executes a small Run, and deletes the temporary Environment. The Run remains as normal control-plane history. Use `--template-id` and `--probe-timeout` only with `--probe`.
 
 ## Local DNS Doctor
 

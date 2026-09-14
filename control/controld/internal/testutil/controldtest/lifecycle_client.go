@@ -22,6 +22,7 @@ type FakeNodeLifecycleClient struct {
 	StatusErr          error
 	StatusByID         map[string]*privatenodev1.GetAllocationLifecycleResponse
 	KeepDeletedVisible bool
+	Now                func() time.Time
 	deleted            map[string]bool
 }
 
@@ -35,7 +36,11 @@ func (f *FakeNodeLifecycleClient) CreateAllocation(ctx context.Context, target s
 	if err != nil {
 		return nil, err
 	}
-	conditions, observedAt := healthyCapabilityConditions(req.GetConfig().GetCapabilityRequirements())
+	observedAt := time.Now().UTC()
+	if f.Now != nil {
+		observedAt = f.Now().UTC()
+	}
+	conditions := healthyCapabilityConditions(req.GetConfig().GetCapabilityRequirements())
 	return &privatenodev1.CreateAllocationResponse{
 		AllocationID: req.GetAllocationID(),
 		CapabilityVerification: &capabilityv1.CapabilityConditionSet{
@@ -45,9 +50,8 @@ func (f *FakeNodeLifecycleClient) CreateAllocation(ctx context.Context, target s
 	}, nil
 }
 
-func healthyCapabilityConditions(in []*capabilityv1.CapabilityRequirement) ([]*capabilityv1.CapabilityCondition, time.Time) {
+func healthyCapabilityConditions(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityCondition {
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(in))
-	observedAt := time.Now().UTC()
 	for _, requirement := range in {
 		if requirement == nil {
 			continue
@@ -58,7 +62,7 @@ func healthyCapabilityConditions(in []*capabilityv1.CapabilityRequirement) ([]*c
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 		})
 	}
-	return conditions, observedAt
+	return conditions
 }
 
 func (f *FakeNodeLifecycleClient) DeleteAllocation(ctx context.Context, target string, req *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error) {

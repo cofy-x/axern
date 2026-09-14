@@ -25,17 +25,16 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/lib/go/observability/logrusotel"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -150,7 +149,6 @@ func run() error {
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAccessAdminServer(grpcServer, svc.AdminV1Handler())
 	identityv1.RegisterIdentityControlServer(grpcServer, svc.IdentityV1Handler())
-	catalogv1.RegisterEnvironmentCatalogServer(grpcServer, svc.PublicV1Handler())
 	environmentv1.RegisterEnvironmentControlServer(grpcServer, svc.PublicV1Handler())
 	runv1.RegisterRunControlServer(grpcServer, svc.PublicV1Handler())
 	secretv1.RegisterSecretControlServer(grpcServer, svc.PublicV1Handler())

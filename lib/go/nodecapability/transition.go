@@ -40,7 +40,7 @@ func EvaluateObservation(snapshot *capabilityv1.CapabilitySnapshot, observation 
 		return EvaluatedObservation{
 			State:      capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED,
-			Reason:     "capability observation or one of its catalog dependencies is no longer current",
+			Reason:     "capability observation or one of its definition dependencies is no longer current",
 		}
 	}
 	return EvaluatedObservation{

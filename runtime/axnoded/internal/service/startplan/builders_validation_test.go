@@ -40,11 +40,11 @@ func TestValidateStartRequest(t *testing.T) {
 	assert.Error(t, ValidateStartRequest(nil))
 	assert.Error(t, ValidateStartRequest(&runtime.StartRequest{}))
 	assert.Error(t, ValidateStartRequest(&runtime.StartRequest{
-		EnvironmentTemplate: &runtime.EnvironmentTemplate{},
+		Environment: &runtime.ResolvedEnvironment{},
 	}))
 	valid := &runtime.StartRequest{
 		AllocationID: "alloc-valid",
-		EnvironmentTemplate: &runtime.EnvironmentTemplate{
+		Environment: &runtime.ResolvedEnvironment{
 			Rootfs: &runtime.RootfsConfig{},
 		},
 	}

@@ -39,6 +39,6 @@ Install the official packages from their public registries:
 - Go: `go get github.com/cofy-x/axern/sdk/go@<version>` from the [Go module index](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go)
 - TypeScript: `pnpm add @cofy-x/axern-sdk@<version>` from [npm](https://www.npmjs.com/package/@cofy-x/axern-sdk)
 
-Each sandbox selects exactly one source. Use an OCI image as the portable default, a catalog template for a named reusable environment, or an environment ID to continue working with an existing environment. Lifecycle and data-plane operations flow through Axern public APIs; SDKs do not add SSH or shell fallbacks for platform behavior.
+Each sandbox selects exactly one source. Use an OCI image as the portable default, a deployment-provided built-in template for a named reusable environment, or an environment ID to continue working with an existing environment. Templates are inputs to Environment resolution, not a second public lifecycle. Lifecycle and data-plane operations flow through Axern public APIs; SDKs do not add SSH or shell fallbacks for platform behavior.
 
 Axern publishes the CLI, Helm chart, runtime images, and all three SDKs under one repository version. Python and TypeScript use public package registries; Go uses the versioned `sdk/go` module. Treat a pre-1.0 Axern release as one coherent unit, and commit your package-manager lockfile or resolved `go.mod` version for repeatable builds.

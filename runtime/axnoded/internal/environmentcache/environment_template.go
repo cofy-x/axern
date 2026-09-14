@@ -3,7 +3,7 @@ package environmentcache
 import (
 	api "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -53,11 +53,11 @@ func (environment *PreparedEnvironment) ClearBundleTemplate() {
 	environment.templateMu.Unlock()
 }
 
-func (environment *PreparedEnvironment) EnvironmentTemplate() *api.EnvironmentTemplate {
+func (environment *PreparedEnvironment) ResolvedEnvironment() *api.ResolvedEnvironment {
 	if environment == nil || environment.RootFS == nil {
 		return nil
 	}
-	return &api.EnvironmentTemplate{
+	return &api.ResolvedEnvironment{
 		ID:               environment.ID,
 		Rootfs:           rootfsConfigMessageFromRuntime(environment),
 		Argv:             append([]string(nil), environment.Argv...),
@@ -68,13 +68,13 @@ func (environment *PreparedEnvironment) EnvironmentTemplate() *api.EnvironmentTe
 	}
 }
 
-func (environment *PreparedEnvironment) MatchesEnvironmentTemplate(fr *api.EnvironmentTemplate) bool {
+func (environment *PreparedEnvironment) MatchesResolvedEnvironment(fr *api.ResolvedEnvironment) bool {
 	return preparedEnvironmentMatchesTemplate(environment, fr)
 }
 
-func cloneOciExecutionProfile(in *catalogv1.OciExecutionProfile) *catalogv1.OciExecutionProfile {
+func cloneOciExecutionProfile(in *environmentv1.OciExecutionProfile) *environmentv1.OciExecutionProfile {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*catalogv1.OciExecutionProfile)
+	return proto.Clone(in).(*environmentv1.OciExecutionProfile)
 }

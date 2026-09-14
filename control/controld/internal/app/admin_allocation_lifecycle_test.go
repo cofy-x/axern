@@ -19,7 +19,6 @@ func TestPostgresAdminForceAllocationLifecycleRetryRequiresOperatorReason(t *tes
 	defer app.Close()
 	_, err := app.AdminV1Handler().ForceAllocationLifecycleRetry(context.Background(), &adminv1.ForceAllocationLifecycleRetryRequest{
 		AllocationID:   "alloc-missing",
-		Reason:         adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		OperatorReason: " ",
 	})
 	if err == nil {
@@ -56,7 +55,6 @@ func TestPostgresAdminFailRunCreateLifecycleRetry(t *testing.T) {
 
 	failResp, err := admin.FailAllocationLifecycleRetry(context.Background(), &adminv1.FailAllocationLifecycleRetryRequest{
 		AllocationID:   allocationID,
-		Reason:         adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		OperatorReason: "operator confirmed create cannot recover",
 	})
 	if err != nil {
@@ -98,19 +96,18 @@ func TestPostgresAdminFailRunCreateLifecycleRetry(t *testing.T) {
 	assertAllocationRetryCleanup(t, app, allocationID, "fail_allocation_lifecycle_retry")
 }
 
-func TestPostgresAdminFailAllocationLifecycleRetryRejectsDeleteReason(t *testing.T) {
+func TestPostgresAdminFailAllocationLifecycleRetryRejectsMissingRetry(t *testing.T) {
 	app, _ := newPostgresTestService(t)
 	defer app.Close()
 	_, err := app.AdminV1Handler().FailAllocationLifecycleRetry(context.Background(), &adminv1.FailAllocationLifecycleRetryRequest{
 		AllocationID:   "alloc-missing",
-		Reason:         adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE,
 		OperatorReason: "operator requested fail",
 	})
 	if err == nil {
-		t.Fatal("FailAllocationLifecycleRetry(delete) unexpectedly succeeded")
+		t.Fatal("FailAllocationLifecycleRetry(missing) unexpectedly succeeded")
 	}
-	if got := grpcstatus.Code(err); got != codes.InvalidArgument {
-		t.Fatalf("FailAllocationLifecycleRetry(delete) code = %v, want InvalidArgument", got)
+	if got := grpcstatus.Code(err); got != codes.NotFound {
+		t.Fatalf("FailAllocationLifecycleRetry(missing) code = %v, want NotFound", got)
 	}
 }
 
@@ -140,7 +137,6 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 
 	_, err = admin.ClearAllocationLifecycleRetry(context.Background(), &adminv1.ClearAllocationLifecycleRetryRequest{
 		AllocationID:   allocationID,
-		Reason:         adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		OperatorReason: "operator attempted unsafe clear",
 	})
 	if err == nil {
@@ -150,9 +146,7 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 		t.Fatalf("ClearAllocationLifecycleRetry(active allocation) code = %v, want FailedPrecondition", got)
 	}
 	listResp, err := admin.ListAllocationLifecycleRetries(context.Background(), &adminv1.ListAllocationLifecycleRetriesRequest{
-		Filter: &adminv1.AllocationLifecycleRetryFilter{
-			Reason: adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
-		},
+		Filter: &adminv1.AllocationLifecycleRetryFilter{},
 	})
 	if err != nil {
 		t.Fatalf("ListAllocationLifecycleRetries(active clearability) error = %v", err)
@@ -186,9 +180,7 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 		t.Fatalf("release reservation for clear precondition: %v", err)
 	}
 	listResp, err = admin.ListAllocationLifecycleRetries(context.Background(), &adminv1.ListAllocationLifecycleRetriesRequest{
-		Filter: &adminv1.AllocationLifecycleRetryFilter{
-			Reason: adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
-		},
+		Filter: &adminv1.AllocationLifecycleRetryFilter{},
 	})
 	if err != nil {
 		t.Fatalf("ListAllocationLifecycleRetries(clearable) error = %v", err)
@@ -198,7 +190,6 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 	}
 	clearResp, err := admin.ClearAllocationLifecycleRetry(context.Background(), &adminv1.ClearAllocationLifecycleRetryRequest{
 		AllocationID:   allocationID,
-		Reason:         adminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		OperatorReason: "operator removed stale terminal retry",
 	})
 	if err != nil {
@@ -253,8 +244,8 @@ func assertAllocationReleasePending(t *testing.T, app *App, allocationID string)
 	if err := app.db.Pool().QueryRow(context.Background(), `
 		SELECT COUNT(*)
 		FROM allocation_reconcile_queue
-		WHERE allocation_id = $1 AND reason = $2
-	`, allocationID, allocationkernel.ReconcileReasonDelete).Scan(&queueItems); err != nil {
+		WHERE allocation_id = $1
+	`, allocationID).Scan(&queueItems); err != nil {
 		t.Fatalf("count pending allocation delete: %v", err)
 	}
 	if queueItems != 1 {

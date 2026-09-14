@@ -4,17 +4,17 @@ import (
 	"maps"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/protobuf/proto"
 )
 
-func cloneOciExecutionProfile(in *catalogv1.OciExecutionProfile) *catalogv1.OciExecutionProfile {
+func cloneOciExecutionProfile(in *environmentv1.OciExecutionProfile) *environmentv1.OciExecutionProfile {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*catalogv1.OciExecutionProfile)
+	return proto.Clone(in).(*environmentv1.OciExecutionProfile)
 }
 
 func cloneStringSlice(in []string) []string {

@@ -5,7 +5,7 @@ run_local_quota_admission_smoke() {
   local namespace="${prefix}-${env_name}-quota-smoke-$(date +%s)"
 
   local_smoke_init_axern_cmd "${env_name}" "${endpoint}"
-  local catalog_json env_json run_error quota_list quota_unset_json
+  local env_json run_error quota_list quota_unset_json
   local quota_set="false" environment_id=""
   run_error=""
   cleanup_local_quota_admission_smoke() {
@@ -25,9 +25,6 @@ run_local_quota_admission_smoke() {
     return "${rc}"
   }
   trap cleanup_local_quota_admission_smoke RETURN
-
-  catalog_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" catalog list -o json)"
-  local_smoke_assert_default_environment_templates "${catalog_json}"
 
   local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace create "${namespace}" -o json >/dev/null
   local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" quota set --namespace "${namespace}" --cpu 100m --memory 1GiB -o json >/dev/null

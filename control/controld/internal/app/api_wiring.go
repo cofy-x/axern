@@ -57,7 +57,6 @@ func (a *App) buildAPIs() {
 	a.identityAPI = apiidentityv1.New()
 	a.publicAPI = publicv1.New(publicv1.Dependencies{
 		Now:          func() time.Time { return a.now() },
-		Catalog:      a.catalog,
 		Environments: profile.public.environments,
 		Secrets:      profile.public.secrets,
 		Runs:         profile.public.runs,
@@ -122,7 +121,7 @@ func (a *App) newAuthoritativeNodeProfile() nodeProfile {
 
 func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 	runs := apprun.NewAuthoritative(a.runStore, selector)
-	environments := appenvironment.NewAuthoritative(a.catalog, a.imageResolver, a.secretDB, a.runStore)
+	environments := appenvironment.NewAuthoritative(a.templates, a.imageResolver, a.secretDB, a.runStore)
 	profile := apiProfile{
 		admin:      appadmin.NewAllocationLifecycleControl(a.adminPG),
 		adminAudit: appadmin.NewAuditControl(a.adminPG),

@@ -10,8 +10,8 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -128,8 +128,8 @@ func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
 	if err := app.db.Pool().QueryRow(context.Background(), `
 		SELECT reconcile_attempts, last_error, next_run_at
 		FROM allocation_reconcile_queue
-		WHERE allocation_id = $1 AND reason = $2
-	`, allocationID, allocationkernel.ReconcileReasonCreate).Scan(&attempts, &lastError, &nextRunAt); err != nil {
+		WHERE allocation_id = $1
+	`, allocationID).Scan(&attempts, &lastError, &nextRunAt); err != nil {
 		t.Fatalf("load reconcile queue after start failure: %v", err)
 	}
 	if attempts != 1 {
@@ -197,10 +197,8 @@ func TestPostgresRunCreateRetryExhaustionReleasesAllocation(t *testing.T) {
 	if gotResp.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
 		t.Fatalf("run diagnostic_code after create retry exhaustion = %v, want runtime start error", gotResp.GetRun().GetDiagnosticCode())
 	}
-	assertAllocationReleasePending(t, app, allocationID)
-	app.reconcileV1()
 	if len(lifecycle.DeleteRequests) != 1 {
-		t.Fatalf("delete requests after run create retry exhaustion = %d, want 1", len(lifecycle.DeleteRequests))
+		t.Fatalf("delete requests during run create retry exhaustion cleanup = %d, want 1", len(lifecycle.DeleteRequests))
 	}
 	assertAllocationRetryCleanup(t, app, allocationID, "")
 }
@@ -233,17 +231,18 @@ func TestPostgresRunCancelAtomicallyReplacesCreateIntentWithDeleteIntent(t *test
 		t.Fatalf("CancelRun() error = %v", err)
 	}
 
-	var reason, lastError string
+	var lifecycleState, lastError string
 	var attempts int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT reason, reconcile_attempts, last_error
-		FROM allocation_reconcile_queue
-		WHERE allocation_id = $1
-	`, allocationID).Scan(&reason, &attempts, &lastError); err != nil {
+		SELECT a.lifecycle_state, q.reconcile_attempts, q.last_error
+		FROM allocation_reconcile_queue q
+		JOIN allocations a ON a.allocation_id = q.allocation_id
+		WHERE q.allocation_id = $1
+	`, allocationID).Scan(&lifecycleState, &attempts, &lastError); err != nil {
 		t.Fatalf("load reconcile queue after cancel delete failure: %v", err)
 	}
-	if reason != allocationkernel.ReconcileReasonDelete {
-		t.Fatalf("reconcile reason = %q, want %q", reason, allocationkernel.ReconcileReasonDelete)
+	if lifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String() {
+		t.Fatalf("allocation lifecycle = %q, want RELEASING", lifecycleState)
 	}
 	if attempts != 0 {
 		t.Fatalf("delete retry inherited start attempts = %d, want 0", attempts)
@@ -294,7 +293,7 @@ func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) 
 	}
 	updated, err := app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
 		AllocationID: allocationID,
-		Reason:       allocationkernel.ReconcileReasonCreate,
+		Intent:       allocationkernel.ReconcileIntentEnsurePresent,
 		NextRunAt:    afterExpiry,
 	}, "worker-a", afterExpiry)
 	if err != nil {
@@ -315,7 +314,7 @@ func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) 
 	}
 	updated, err = app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
 		AllocationID: allocationID,
-		Reason:       allocationkernel.ReconcileReasonCreate,
+		Intent:       allocationkernel.ReconcileIntentEnsurePresent,
 		NextRunAt:    afterExpiry,
 	}, "worker-a", afterExpiry)
 	if err != nil {

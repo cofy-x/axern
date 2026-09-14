@@ -6,7 +6,7 @@ import (
 
 	api "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,7 +16,7 @@ type PreparedEnvironment struct {
 	Env              map[string]string
 	Cwd              string
 	Mounts           []*api.Mount
-	ExecutionProfile *catalogv1.OciExecutionProfile
+	ExecutionProfile *environmentv1.OciExecutionProfile
 	Readonly         bool
 	RootFS           *RootFS
 	manager          *EnvironmentCache

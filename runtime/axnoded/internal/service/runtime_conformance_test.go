@@ -195,7 +195,7 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 	if err != nil {
 		t.Fatalf("memory request error = %v", err)
 	}
-	if !memory.GetEnvironmentTemplate().GetRootfs().GetReadonly() {
+	if !memory.GetEnvironment().GetRootfs().GetReadonly() {
 		t.Fatal("memory self-test rootfs must be readonly")
 	}
 	if memory.GetResources().GetLimits().GetMemoryBytes() != runtimeConformanceMemoryLimit || memory.GetResources().GetLimits().GetEphemeralStorageBytes() != 0 {
@@ -206,7 +206,7 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 	if err != nil {
 		t.Fatalf("ephemeral request error = %v", err)
 	}
-	if ephemeral.GetEnvironmentTemplate().GetRootfs().GetReadonly() {
+	if ephemeral.GetEnvironment().GetRootfs().GetReadonly() {
 		t.Fatal("ephemeral self-test rootfs must be writable")
 	}
 	if ephemeral.GetResources().GetLimits().GetMemoryBytes() != 0 || ephemeral.GetResources().GetLimits().GetEphemeralStorageBytes() != runtimeConformanceStorage {

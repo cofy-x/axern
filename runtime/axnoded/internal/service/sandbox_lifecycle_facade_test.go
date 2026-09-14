@@ -40,7 +40,7 @@ func TestStart_And_Delete(t *testing.T) {
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
-	fr := &runtime.EnvironmentTemplate{
+	fr := &runtime.ResolvedEnvironment{
 		ID: "test-start-del-rt",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: false,
@@ -50,10 +50,10 @@ func TestStart_And_Delete(t *testing.T) {
 		Argv: []string{"/bin/sleep", "infinity"},
 	}
 	startResp, err := s.Start(context.Background(), &runtime.StartRequest{
-		AllocationID:        "test-start-delete-allocation",
-		EnvironmentTemplate: fr,
-		Stdout:              "/tmp/stdout.log",
-		Stderr:              "/tmp/stderr.log",
+		AllocationID: "test-start-delete-allocation",
+		Environment:  fr,
+		Stdout:       "/tmp/stdout.log",
+		Stderr:       "/tmp/stderr.log",
 	})
 	if err != nil {
 		t.Logf("Start failed (expected in test env): %v", err)
@@ -80,7 +80,7 @@ func TestStartUsesExplicitAllocationIdentity(t *testing.T) {
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0755))
 
-	fr := &runtime.EnvironmentTemplate{
+	fr := &runtime.ResolvedEnvironment{
 		ID: "test-explicit-allocation-id",
 		Rootfs: &runtime.RootfsConfig{
 			Readonly: true,
@@ -91,11 +91,11 @@ func TestStartUsesExplicitAllocationIdentity(t *testing.T) {
 	}
 
 	resp, err := s.Start(context.Background(), &runtime.StartRequest{
-		AllocationID:        "test-explicit-allocation-id",
-		EnvironmentTemplate: fr,
-		Network:             &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_HOST},
-		Stdout:              "/tmp/explicit-allocation-id.stdout",
-		Stderr:              "/tmp/explicit-allocation-id.stderr",
+		AllocationID: "test-explicit-allocation-id",
+		Environment:  fr,
+		Network:      &commonv1.NetworkSpec{Mode: commonv1.NetworkMode_NETWORK_MODE_HOST},
+		Stdout:       "/tmp/explicit-allocation-id.stdout",
+		Stderr:       "/tmp/explicit-allocation-id.stderr",
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "test-explicit-allocation-id", resp.GetAllocationID())
@@ -131,7 +131,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 	request := &runtime.StartRequest{
 		AllocationID: "allocation-retry-contract",
-		EnvironmentTemplate: &runtime.EnvironmentTemplate{
+		Environment: &runtime.ResolvedEnvironment{
 			ID:     "retry-contract",
 			Rootfs: &runtime.RootfsConfig{Readonly: true, Type: runtime.RootfsSrcType_LOCAL, Source: &runtime.RootfsConfig_Path{Path: rootfsDir}},
 			Argv:   []string{"/bin/sh", "-c", "sleep 60"},
@@ -163,7 +163,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	assert.Nil(t, second.GetCapabilityVerification())
 
 	changed := proto.Clone(request).(*runtime.StartRequest)
-	changed.EnvironmentTemplate.Argv = []string{"/bin/false"}
+	changed.Environment.Argv = []string{"/bin/false"}
 	_, err = s.Start(context.Background(), changed)
 	assert.ErrorContains(t, err, "differs from the durable contract")
 	assert.Equal(t, codes.FailedPrecondition, grpcstatus.Code(err))

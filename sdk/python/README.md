@@ -43,7 +43,7 @@ client = AxernClient(
 Create a sandbox from exactly one source:
 
 - `image="docker.io/library/python:3.12-slim"` for an OCI image.
-- `template_id="python311"` for a catalog template.
+- `template_id="python311"` for a deployment-provided template input.
 - `environment_id="..."` for an existing environment.
 
 ```python

@@ -59,6 +59,13 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	allocationID := "allocation-capability-schema-" + suffix
 	nodeID := "node-capability-schema-" + suffix
 	if _, err := db.Pool().Exec(ctx, `
+		INSERT INTO namespaces (namespace, created_at)
+		VALUES ('default', $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
 		VALUES ($1, '127.0.0.1:1', $2, $2, 'active')
 	`, nodeID, now); err != nil {

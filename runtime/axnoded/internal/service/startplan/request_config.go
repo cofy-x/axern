@@ -8,7 +8,7 @@ import (
 )
 
 func RootfsConfigFromStartRequest(request *runtime.StartRequest) (environmentcache.RootfsConfig, error) {
-	cfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(request.GetEnvironmentTemplate())
+	cfg, err := environmentcache.RootfsConfigFromResolvedEnvironment(request.GetEnvironment())
 	if err != nil {
 		return cfg, err
 	}

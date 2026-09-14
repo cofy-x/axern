@@ -80,7 +80,7 @@ setup_e2e_environment() {
     -credential-label cli-e2e-client \
     -certificate "${cert_dir}/client.crt"
 
-  AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
+  AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
     "${AXERN_ROOT}/bin/controld" \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}" \
     -http-address "${CONTROLD_HTTP_ADDRESS}" \

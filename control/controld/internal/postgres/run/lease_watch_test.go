@@ -34,6 +34,13 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	now := time.Now().UTC()
 	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces (namespace, created_at)
+		VALUES ('default', $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("insert lease namespace: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-a', 'node-a:24010', $1, $1, 'active')
 	`, now); err != nil {
@@ -111,6 +118,7 @@ func TestWatchRunWakesAfterCommittedVersionChange(t *testing.T) {
 	`, now); err != nil {
 		t.Fatal(err)
 	}
+	insertRunQueryAllocationFixtures(t, db, now, map[string]string{"alloc-change-watch": "run-change-watch"})
 	store := NewStore(db)
 	defer store.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -145,6 +153,11 @@ func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
 	`, now); err != nil {
 		t.Fatal(err)
 	}
+	insertRunQueryAllocationFixtures(t, db, now, map[string]string{
+		"alloc-page-a": "run-page-a",
+		"alloc-page-b": "run-page-b",
+		"alloc-page-c": "run-page-c",
+	})
 	store := NewStore(db)
 	defer store.Close()
 	filter := &runv1.RunListFilter{Namespace: "team-a", Statuses: []runv1.RunStatus{runv1.RunStatus_RUN_STATUS_RUNNING}, Labels: map[string]string{"suite": "page"}, PageSize: 1}
@@ -162,5 +175,24 @@ func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
 	}
 	if len(second) != 1 || final != "" || second[0].GetID() == first[0].GetID() {
 		t.Fatalf("second page = %#v cursor=%q", second, final)
+	}
+}
+
+func insertRunQueryAllocationFixtures(t *testing.T, db *postgres.DB, now time.Time, allocations map[string]string) {
+	t.Helper()
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-query-test', 'node-query-test:24010', $1, $1, 'active')
+		ON CONFLICT (node_id) DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("insert query node: %v", err)
+	}
+	for allocationID, runID := range allocations {
+		if _, err := db.Pool().Exec(context.Background(), `
+			INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
+			VALUES ($1, $2, 'node-query-test', 'ALLOCATION_LIFECYCLE_STATE_BOUND', $3, $3)
+		`, allocationID, runID, now); err != nil {
+			t.Fatalf("insert query allocation %q: %v", allocationID, err)
+		}
 	}
 }

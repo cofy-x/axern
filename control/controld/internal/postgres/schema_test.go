@@ -32,6 +32,26 @@ func TestLoadMigrations(t *testing.T) {
 	}
 }
 
+func TestTunnelNotificationDerivesNodeFromAllocation(t *testing.T) {
+	migrations, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := migrations[0].SQL
+	if strings.Contains(sql, "pg_notify('axern_tunnel_session_changes', NEW.node_id)") {
+		t.Fatal("tunnel notification must not read removed tunnel_sessions.node_id")
+	}
+	for _, fragment := range []string{
+		"SELECT node_id INTO STRICT target_node_id",
+		"WHERE allocation_id = NEW.allocation_id",
+		"pg_notify('axern_tunnel_session_changes', target_node_id)",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Fatalf("initial schema is missing tunnel notification fragment %q", fragment)
+		}
+	}
+}
+
 func TestParseMigrationFileName(t *testing.T) {
 	version, name, ok := parseMigrationFileName("000123_add_widgets.sql")
 	if !ok {

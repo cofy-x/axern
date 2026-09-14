@@ -9,7 +9,6 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -51,8 +50,8 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	}
 	env := &environmentv1.Environment{
 		ID: "env-a",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest:      "sha256:abc",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "docker.io/library/python@sha256:abc"},
 			},
@@ -82,22 +81,22 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-b",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			ImageDefaultArgv: []string{"/bin/image-default"},
 			DefaultCwd:       "/workspace",
 			RootfsReadonly:   true,
 			DefaultEnv:       map[string]string{"BASE": "true"},
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest: "sha256:def",
 			},
-			Mounts: []*catalogv1.EnvironmentMount{{
+			Mounts: []*environmentv1.EnvironmentMount{{
 				Type:    "bind",
 				Source:  "/data",
 				Target:  "/mnt/data",
 				Options: []string{"ro"},
 			}},
-			ExecutionProfile: &catalogv1.OciExecutionProfile{
-				Baseline: &catalogv1.OciBaselinePolicy{NoFileLimit: 2097152},
+			ExecutionProfile: &environmentv1.OciExecutionProfile{
+				Baseline: &environmentv1.OciBaselinePolicy{NoFileLimit: 2097152},
 			},
 		},
 	}
@@ -126,9 +125,9 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-service-entrypoint",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			ImageDefaultArgv: []string{"/bin/image-default"},
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest: "sha256:entrypoint",
 			},
 		},
@@ -149,9 +148,9 @@ func TestBuildResolvedExecutionConfigLeavesImageArgvEmpty(t *testing.T) {
 func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image-cwd",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			DefaultCwd: "/workspace",
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest: "sha256:cwd",
 			},
 		},
@@ -174,9 +173,9 @@ func TestBuildResolvedExecutionConfigPreservesImageCwdWithExplicitArgv(t *testin
 func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-explicit-cwd",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			DefaultCwd: "/workspace",
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest: "sha256:cwd-explicit",
 			},
 		},
@@ -197,8 +196,8 @@ func TestBuildResolvedExecutionConfigUsesExplicitCwd(t *testing.T) {
 func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image-mount",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest: "sha256:image-mount",
 			},
 		},
@@ -226,9 +225,9 @@ func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image",
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			RootfsReadonly: true,
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest:      "sha256:image",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "index.docker.io/library/nginx:1.27"},
 			},

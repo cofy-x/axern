@@ -11,8 +11,8 @@ import (
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	obsmetrics "github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -220,7 +220,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	if err != nil {
 		return nil, err
 	}
-	environmentTemplate := &runtimev1.EnvironmentTemplate{
+	environmentTemplate := &runtimev1.ResolvedEnvironment{
 		Argv:   append([]string(nil), spec.GetArgv()...),
 		Cwd:    cwd,
 		Env:    cloneStringMap(spec.GetEnv()),
@@ -230,12 +230,12 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 			spec.GetExecutionProfile(),
 		),
 	}
-	environmentTemplate.ID = stableEnvironmentTemplateID(environmentTemplate)
+	environmentTemplate.ID = stableResolvedEnvironmentID(environmentTemplate)
 	if environmentTemplate.ID == "" {
 		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
 	}
 	return &runtimev1.StartRequest{
-		EnvironmentTemplate:    environmentTemplate,
+		Environment:            environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		AllocationID:           req.GetAllocationID(),
 		Ports:                  clonePortSpecs(spec.GetPorts()),
@@ -261,7 +261,7 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		return nil, err
 	}
 
-	environmentTemplate := &runtimev1.EnvironmentTemplate{
+	environmentTemplate := &runtimev1.ResolvedEnvironment{
 		Argv:   append([]string(nil), spec.GetArgv()...),
 		Cwd:    cwd,
 		Env:    cloneStringMap(spec.GetEnv()),
@@ -271,12 +271,12 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 			spec.GetExecutionProfile(),
 		),
 	}
-	environmentTemplate.ID = stableEnvironmentTemplateID(environmentTemplate)
+	environmentTemplate.ID = stableResolvedEnvironmentID(environmentTemplate)
 	if environmentTemplate.ID == "" {
 		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
 	}
 	return &runtimev1.StartRequest{
-		EnvironmentTemplate:    environmentTemplate,
+		Environment:            environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		AllocationID:           containerID,
 		Ports:                  clonePortSpecs(spec.GetPorts()),
@@ -294,11 +294,11 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 	}, nil
 }
 
-func cloneOciExecutionProfile(in *catalogv1.OciExecutionProfile) *catalogv1.OciExecutionProfile {
+func cloneOciExecutionProfile(in *environmentv1.OciExecutionProfile) *environmentv1.OciExecutionProfile {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*catalogv1.OciExecutionProfile)
+	return proto.Clone(in).(*environmentv1.OciExecutionProfile)
 }
 
 func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
@@ -357,11 +357,11 @@ func allocationLifecycleStateFromContainerState(state runtimev1.ContainerState) 
 	}
 }
 
-func stableEnvironmentTemplateID(template *runtimev1.EnvironmentTemplate) string {
+func stableResolvedEnvironmentID(template *runtimev1.ResolvedEnvironment) string {
 	if template == nil {
 		return ""
 	}
-	staticTemplate := proto.Clone(template).(*runtimev1.EnvironmentTemplate)
+	staticTemplate := proto.Clone(template).(*runtimev1.ResolvedEnvironment)
 	staticTemplate.ID = ""
 	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(staticTemplate)
 	if err != nil {

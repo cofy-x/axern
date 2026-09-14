@@ -110,7 +110,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		}
 		if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
 			AllocationID: alloc.AllocationID,
-			Reason:       allocationkernel.ReconcileReasonCreate,
+			Intent:       allocationkernel.ReconcileIntentEnsurePresent,
 			NextRunAt:    now,
 		}, now); err != nil {
 			return err

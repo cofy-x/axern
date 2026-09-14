@@ -11,7 +11,6 @@ import (
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgconsistency "github.com/cofy-x/axern/control/controld/internal/postgres/consistency"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 )
 
@@ -28,9 +27,6 @@ func (a *App) HTTPHandler() http.Handler {
 				CPUOvercommitRatio:     a.resourcePolicy.CPUOvercommitRatio,
 				MemoryOvercommitPolicy: "disabled",
 			}
-		},
-		ListEnvironmentTemplates: func(ctx context.Context) (*catalogv1.ListEnvironmentTemplatesResponse, error) {
-			return a.PublicV1Handler().ListEnvironmentTemplates(ctx, &catalogv1.ListEnvironmentTemplatesRequest{})
 		},
 		ListNamespaceQuotas: func(ctx context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return a.PublicV1Handler().ListNamespaceQuotas(ctx, &quotav1.ListNamespaceQuotasRequest{})

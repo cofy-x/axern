@@ -60,7 +60,7 @@ curl -fsS http://127.0.0.1:24001/allocation-reconcilez
 Important fields:
 
 - `run_id`: the Run that owns the Allocation.
-- `reason`: `create` retries start missing node allocations; `delete` retries clean up node state.
+- `lifecycle_state`: the authoritative Allocation lifecycle that determines the required operation. `BOUND`, `STARTING`, and `ACTIVE` ensure node state exists; `RELEASING` and `RELEASED` ensure it is absent.
 - `reconcile_attempts`: current durable retry count.
 - `last_error`: latest node lifecycle failure.
 - `due`: whether the item is eligible to run now.
@@ -76,7 +76,6 @@ Use `force` when the underlying condition was fixed and the queue item is not ye
 
 ```bash
 axern admin allocation-retry force <allocation_id> \
-  --reason create \
   --operator-reason "node recovered and allocation state was checked"
 ```
 
@@ -91,7 +90,6 @@ Use `clear` only for stale terminal retry rows that the server marks `clearable`
 
 ```bash
 axern admin allocation-retry clear <allocation_id> \
-  --reason delete \
   --operator-reason "allocation is terminal and cleanup state is already gone"
 ```
 
@@ -103,9 +101,9 @@ axern admin audit list --target-type allocation --target-id <allocation_id>
 
 ## Retry Policy
 
-Create retries are bounded. If create continues failing, the Run reconciler marks the Allocation and Run failed, releases the reservation, and removes the queue row.
+Ensure-present retries are bounded. If creation continues failing, the Run reconciler marks the Allocation and Run failed, releases the reservation, and removes the queue row.
 
-Delete retries are intentionally unbounded. They represent cleanup intent and continue until node deletion is confirmed or an operator clears a stale, already-clean terminal row.
+Ensure-absent retries are intentionally unbounded. They represent cleanup intent derived from Allocation lifecycle and continue until node deletion is confirmed or an operator clears a stale, already-clean terminal row.
 
 Do not add generic queue deletion. Removing convergence intent without lifecycle cleanup can strand reservations, leases, or tunnel sessions.
 

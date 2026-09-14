@@ -47,7 +47,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetEnvironmentTemplate() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
+	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -70,20 +70,20 @@ func (h *Controller) AllocationIDs() []string {
 	return ids
 }
 
-// EnvironmentTemplateID returns the template referenced by the admitted Allocation
+// ResolvedEnvironmentID returns the template referenced by the admitted Allocation
 // record. It feeds rebuildable locality observations without consulting OCI
 // metadata or labels.
-func (h *Controller) EnvironmentTemplateID(allocationID string) string {
+func (h *Controller) ResolvedEnvironmentID(allocationID string) string {
 	if h == nil {
 		return ""
 	}
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record == nil || state.record.GetEnvironmentTemplate() == nil {
+	if state == nil || state.record == nil || state.record.GetEnvironment() == nil {
 		return ""
 	}
-	return strings.TrimSpace(state.record.GetEnvironmentTemplate().GetID())
+	return strings.TrimSpace(state.record.GetEnvironment().GetID())
 }
 
 // RecoveryRecords is the validated node-local recovery view. Intents contains
@@ -618,7 +618,7 @@ func (h *Controller) rememberContainerRuntime(allocationID string, runtime *envi
 	if allocationID == "" {
 		return errors.New("allocation id is required")
 	}
-	if runtime == nil || runtime.EnvironmentTemplate() == nil {
+	if runtime == nil || runtime.ResolvedEnvironment() == nil {
 		return errors.New("allocation environment template is required")
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
@@ -636,7 +636,7 @@ func (h *Controller) rememberContainerRuntime(allocationID string, runtime *envi
 		desired = cloneAllocationRecord(current.record)
 	}
 	h.stateMu.RUnlock()
-	desired.EnvironmentTemplate = proto.Clone(runtime.EnvironmentTemplate()).(*apipb.EnvironmentTemplate)
+	desired.Environment = proto.Clone(runtime.ResolvedEnvironment()).(*apipb.ResolvedEnvironment)
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist allocation runtime: %w", err)
 	}
@@ -793,14 +793,14 @@ func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*all
 	if err := validateRecoveredCapabilityState(record, time.Now().UTC()); err != nil {
 		recoveryErr = errors.Join(recoveryErr, err)
 	}
-	if record.GetEnvironmentTemplate() == nil {
+	if record.GetEnvironment() == nil {
 		recoveryErr = errors.Join(recoveryErr, errors.New("active allocation has no environment template"))
 	} else {
-		rootfsConfig, err := environmentcache.RootfsConfigFromEnvironmentTemplate(record.GetEnvironmentTemplate())
+		rootfsConfig, err := environmentcache.RootfsConfigFromResolvedEnvironment(record.GetEnvironment())
 		if err != nil {
 			recoveryErr = errors.Join(recoveryErr, err)
 		} else {
-			result, err := h.environmentCache.PrepareEnvironment(context.Background(), record.GetEnvironmentTemplate(), rootfsConfig)
+			result, err := h.environmentCache.PrepareEnvironment(context.Background(), record.GetEnvironment(), rootfsConfig)
 			if err != nil {
 				recoveryErr = errors.Join(recoveryErr, err)
 			} else {

@@ -37,7 +37,7 @@ axern context import-kubernetes local \
 
 ## 诊断平台
 
-从只读的平台 doctor 开始。它校验所选 Context、mTLS 证书有效期与密钥权限、Gateway 连通性、命名空间访问和运行时 Catalog，不创建任何资源：
+从只读的平台 doctor 开始。它校验所选 Context、mTLS 证书有效期与密钥权限、Gateway 连通性和命名空间访问，不创建任何资源：
 
 ```bash
 axern doctor --namespace default
@@ -49,7 +49,7 @@ axern doctor --namespace default
 axern doctor --namespace default --probe
 ```
 
-探测会用 `python311` 模板创建临时的 Catalog 环境，执行一个小的 `runsc` Run，并在 Run 到达终态后删除该环境；Run 会作为正常的控制面历史保留。JSON 输出暴露稳定的检查码，且不打印证书路径、私钥、原始 endpoint 或服务端错误文本。Doctor 退出码：`0` 健康，`1` 降级，`2` 用法或连接配置无效，`3` 必需的平台健康检查失败。
+探测会用内置 `python311` 模板创建临时 Environment，执行一个小的 `runsc` Run，并在 Run 到达终态后删除该环境；Run 会作为正常的控制面历史保留。JSON 输出暴露稳定的检查码，且不打印证书路径、私钥、原始 endpoint 或服务端错误文本。Doctor 退出码：`0` 健康，`1` 降级，`2` 用法或连接配置无效，`3` 必需的平台健康检查失败。
 
 用 `axern identity whoami` 查看所选 Context 的 Principal、当前证书和生效角色。平台管理员可用 `axern admin principal`、`axern admin credential` 和 `axern admin role-binding` 管理持久 Principal 和命名空间绑定。最小权限工作流见[身份与命名空间访问](/zh-cn/guides/authorization/)。
 
@@ -81,7 +81,7 @@ spec:
 axern run --file run.yaml
 ```
 
-OCI 镜像是新工作负载的便携默认选择。当平台提供带策展工具链或配置的命名环境时，使用 `axern catalog list` 和 `--template`。
+OCI 镜像是新工作负载的便携默认选择。部署也可以在文档中公布内置模板 ID；用 `--template` 选择它，但不会创建第二套模板生命周期。
 
 默认情况下 `run` 挂接 stdout/stderr，并以远端命令的退出码退出。用 `--detach` 异步创建，然后用 `axern run get`、`axern run list` 或 `axern run logs --follow` 查看。完整生命周期、Spec 字段和输出保留说明见 [Run 指南](/zh-cn/guides/run/)。
 

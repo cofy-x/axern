@@ -41,7 +41,7 @@ func (s *Store) ForceAllocationLifecycleRetry(ctx context.Context, req allocatio
 	}
 	var out *allocationkernel.LifecycleRetryItem
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		if _, err := lockLifecycleRetry(ctx, tx, req.AllocationID, req.Reason, now); err != nil {
+		if _, err := lockLifecycleRetry(ctx, tx, req.AllocationID, now); err != nil {
 			return err
 		}
 		if err := insertAdminAuditEvent(ctx, tx, adminAuditEvent{
@@ -56,12 +56,13 @@ func (s *Store) ForceAllocationLifecycleRetry(ctx context.Context, req allocatio
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE allocation_reconcile_queue
-			SET next_run_at = $3, updated_at = $4
-			WHERE allocation_id = $1 AND reason = $2
-		`, req.AllocationID, req.Reason, runAt.UTC(), now.UTC()); err != nil {
+			SET next_run_at = $2, updated_at = $3,
+				lease_owner = '', lease_expires_at = NULL
+			WHERE allocation_id = $1
+		`, req.AllocationID, runAt.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("force allocation lifecycle retry: %w", err)
 		}
-		item, err := loadLifecycleRetry(ctx, tx, req.AllocationID, req.Reason, now)
+		item, err := loadLifecycleRetry(ctx, tx, req.AllocationID, now)
 		if err != nil {
 			return err
 		}
@@ -81,11 +82,11 @@ func (s *Store) FailAllocationLifecycleRetry(ctx context.Context, req allocation
 	}
 	var out *allocationkernel.LifecycleRetryItem
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		locked, err := lockLifecycleRetry(ctx, tx, req.AllocationID, req.Reason, now)
+		locked, err := lockLifecycleRetry(ctx, tx, req.AllocationID, now)
 		if err != nil {
 			return err
 		}
-		if req.Reason != allocationkernel.ReconcileReasonCreate {
+		if allocationkernel.ReconcileIntentForLifecycle(allocationkernel.ParseLifecycleState(locked.AllocationState)) != allocationkernel.ReconcileIntentEnsurePresent {
 			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation delete retries cannot be abandoned before cleanup succeeds")
 		}
 		if allocationkernel.IsCleanupState(allocationkernel.ParseLifecycleState(locked.AllocationState)) {
@@ -104,7 +105,7 @@ func (s *Store) FailAllocationLifecycleRetry(ctx context.Context, req allocation
 		if err := failRunLifecycleRetry(ctx, tx, locked.Item, req.OperatorReason, now); err != nil {
 			return err
 		}
-		item, err := loadLifecycleRetry(ctx, tx, req.AllocationID, allocationkernel.ReconcileReasonDelete, now)
+		item, err := loadLifecycleRetry(ctx, tx, req.AllocationID, now)
 		if err != nil {
 			return err
 		}
@@ -124,7 +125,7 @@ func (s *Store) ClearAllocationLifecycleRetry(ctx context.Context, req allocatio
 	}
 	var out *allocationkernel.LifecycleRetryItem
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
-		locked, err := lockLifecycleRetry(ctx, tx, req.AllocationID, req.Reason, now)
+		locked, err := lockLifecycleRetry(ctx, tx, req.AllocationID, now)
 		if err != nil {
 			return err
 		}
@@ -147,7 +148,7 @@ func (s *Store) ClearAllocationLifecycleRetry(ctx context.Context, req allocatio
 		}); err != nil {
 			return err
 		}
-		if err := deleteLifecycleRetry(ctx, tx, req.AllocationID, req.Reason); err != nil {
+		if err := deleteLifecycleRetry(ctx, tx, req.AllocationID); err != nil {
 			return err
 		}
 		out = &locked.Item

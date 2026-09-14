@@ -21,7 +21,7 @@ func Command(runtime command.Runtime, version string) *cobra.Command {
 	root.AddCommand(
 		upCommand(runtime, version), statusCommand(runtime, version), logsCommand(runtime, version),
 		doctorCommand(runtime, version), downCommand(runtime, version), resetCommand(runtime, version),
-		upgradeCommand(runtime, version), pathCommand(runtime, version),
+		pathCommand(runtime, version),
 		imageCommand(runtime, version),
 	)
 	return root
@@ -272,16 +272,6 @@ func resetCommand(runtime command.Runtime, version string) *cobra.Command {
 func terminal(file *os.File) bool {
 	info, err := file.Stat()
 	return err == nil && info.Mode()&os.ModeCharDevice != 0
-}
-
-func upgradeCommand(runtime command.Runtime, version string) *cobra.Command {
-	return &cobra.Command{Use: "upgrade", Short: "Safely upgrade the local stack", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		service, err := manager(runtime, version, cmd)
-		if err != nil {
-			return err
-		}
-		return service.Upgrade(cmd.Context())
-	}}
 }
 
 func pathCommand(runtime command.Runtime, version string) *cobra.Command {

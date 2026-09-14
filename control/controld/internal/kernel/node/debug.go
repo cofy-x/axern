@@ -3,7 +3,7 @@ package nodekernel
 import (
 	"time"
 
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type DebugNode struct {

@@ -9,7 +9,7 @@ func TestListMountedImageURLs(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()
 
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:     "docker.io/library/z:latest",
 		MountID:      "m1",
 		MountPath:    filepath.Join(mgr.mountsDir, "m1", "merged"),
@@ -17,7 +17,7 @@ func TestListMountedImageURLs(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put mount m1: %v", err)
 	}
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:     "docker.io/library/a:latest",
 		MountID:      "m2",
 		MountPath:    filepath.Join(mgr.mountsDir, "m2", "merged"),
@@ -49,7 +49,7 @@ func TestListMountedDetails(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()
 
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:      "docker.io/library/z:latest",
 		MountID:       "m1",
 		MountPath:     filepath.Join(mgr.mountsDir, "m1", "merged"),
@@ -60,7 +60,7 @@ func TestListMountedDetails(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("put mount m1: %v", err)
 	}
-	if err := mgr.store.putMount(&OciMountRecord{
+	if err := mgr.store.putMount(&OciMountState{
 		ImageURL:      "docker.io/library/a:latest",
 		MountID:       "m2",
 		MountPath:     filepath.Join(mgr.mountsDir, "m2", "merged"),

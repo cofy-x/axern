@@ -119,7 +119,7 @@ func TestEnsureEnvironmentCacheSummaryWarmAndCold(t *testing.T) {
 	manager := environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = manager
 	fixture.environmentCache = manager
-	functionRuntime := &runtimeapi.EnvironmentTemplate{
+	functionRuntime := &runtimeapi.ResolvedEnvironment{
 		ID: "start-metrics-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type: runtimeapi.RootfsSrcType_LOCAL,
@@ -188,7 +188,7 @@ func TestEnsureEnvironmentCacheDriftedSpecReplacesRetainedEnvironment(t *testing
 	fixture := newTestAllocationController(t, nil)
 	fixture.environmentCache.ConfigureRetention(time.Minute, 8)
 
-	firstRuntime := &runtimeapi.EnvironmentTemplate{
+	firstRuntime := &runtimeapi.ResolvedEnvironment{
 		ID: "start-metrics-drift-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -204,7 +204,7 @@ func TestEnsureEnvironmentCacheDriftedSpecReplacesRetainedEnvironment(t *testing
 	lrt.IncRef()
 	lrt.DecRef()
 
-	driftedRuntime := &runtimeapi.EnvironmentTemplate{
+	driftedRuntime := &runtimeapi.ResolvedEnvironment{
 		ID: "start-metrics-drift-runtime",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -231,15 +231,15 @@ func TestEnsureEnvironmentCacheDriftedSpecReplacesRetainedEnvironment(t *testing
 	}
 }
 
-func TestRootfsTypeFromEnvironmentTemplate(t *testing.T) {
+func TestRootfsTypeFromResolvedEnvironment(t *testing.T) {
 	tests := []struct {
 		name string
-		fr   *runtimeapi.EnvironmentTemplate
+		fr   *runtimeapi.ResolvedEnvironment
 		want string
 	}{
 		{
 			name: "local",
-			fr: &runtimeapi.EnvironmentTemplate{
+			fr: &runtimeapi.ResolvedEnvironment{
 				Rootfs: &runtimeapi.RootfsConfig{
 					Type:   runtimeapi.RootfsSrcType_LOCAL,
 					Source: &runtimeapi.RootfsConfig_Path{Path: "/tmp/rootfs"},
@@ -249,7 +249,7 @@ func TestRootfsTypeFromEnvironmentTemplate(t *testing.T) {
 		},
 		{
 			name: "image",
-			fr: &runtimeapi.EnvironmentTemplate{
+			fr: &runtimeapi.ResolvedEnvironment{
 				Rootfs: &runtimeapi.RootfsConfig{
 					Type:   runtimeapi.RootfsSrcType_IMAGE,
 					Source: &runtimeapi.RootfsConfig_ImageUrl{ImageUrl: "docker.io/library/alpine:latest"},
@@ -259,15 +259,15 @@ func TestRootfsTypeFromEnvironmentTemplate(t *testing.T) {
 		},
 		{
 			name: "removed source",
-			fr:   &runtimeapi.EnvironmentTemplate{Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_UNSPECIFIED}},
+			fr:   &runtimeapi.ResolvedEnvironment{Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_UNSPECIFIED}},
 			want: contract.StartupRootfsTypeUnknown,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := RootfsTypeFromEnvironmentTemplate(tt.fr); got != tt.want {
-				t.Fatalf("RootfsTypeFromEnvironmentTemplate() = %q, want %q", got, tt.want)
+			if got := RootfsTypeFromResolvedEnvironment(tt.fr); got != tt.want {
+				t.Fatalf("RootfsTypeFromResolvedEnvironment() = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -390,7 +390,7 @@ func TestStartAllocationRecordsSuccessResult(t *testing.T) {
 
 	rootfsDir := t.TempDir()
 	request := &runtimeapi.StartRequest{
-		EnvironmentTemplate: &runtimeapi.EnvironmentTemplate{
+		Environment: &runtimeapi.ResolvedEnvironment{
 			ID: "start-metrics-allocation-success",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,

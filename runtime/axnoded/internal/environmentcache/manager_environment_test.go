@@ -169,7 +169,7 @@ func TestPrepareEnvironment_ImageCacheKeyDriftSupersedesActiveRuntime(t *testing
 		},
 	}
 	lm := NewEnvironmentCache(mock)
-	fr := &api.EnvironmentTemplate{
+	fr := &api.ResolvedEnvironment{
 		ID: "agent",
 		Rootfs: &api.RootfsConfig{
 			Type:   api.RootfsSrcType_IMAGE,
@@ -214,7 +214,7 @@ func TestFindReusableEnvironmentRequiresResolvedImageGeneration(t *testing.T) {
 			return cfg, nil
 		},
 	})
-	fr := &api.EnvironmentTemplate{
+	fr := &api.ResolvedEnvironment{
 		ID: "agent",
 		Rootfs: &api.RootfsConfig{
 			Type:   api.RootfsSrcType_IMAGE,
@@ -227,9 +227,9 @@ func TestFindReusableEnvironmentRequiresResolvedImageGeneration(t *testing.T) {
 		t.Fatalf("PrepareEnvironment() error = %v", err)
 	}
 
-	requested, err := RootfsConfigFromEnvironmentTemplate(fr)
+	requested, err := RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
-		t.Fatalf("RootfsConfigFromEnvironmentTemplate() error = %v", err)
+		t.Fatalf("RootfsConfigFromResolvedEnvironment() error = %v", err)
 	}
 	if got := lm.FindReusableEnvironment(fr, requested); got != nil {
 		t.Fatal("unresolved mutable image ref must not reuse a mounted runtime")
@@ -242,7 +242,7 @@ func TestFindReusableEnvironmentRequiresResolvedImageGeneration(t *testing.T) {
 		t.Fatal("resolved generation should reuse the mounted runtime")
 	}
 
-	drifted := proto.Clone(fr).(*api.EnvironmentTemplate)
+	drifted := proto.Clone(fr).(*api.ResolvedEnvironment)
 	drifted.Argv = []string{"/bin/bash"}
 	if got := lm.FindReusableEnvironment(drifted, requested); got != nil {
 		t.Fatal("expected static template drift to reject runtime reuse")
@@ -329,7 +329,7 @@ func TestPreparedEnvironmentLoadOrPrepareBundleTemplateReusesPreparedTemplate(t 
 	}
 }
 
-func TestPreparedEnvironmentEnvironmentTemplateRoundTripIncludesCwdAndMounts(t *testing.T) {
+func TestPreparedEnvironmentResolvedEnvironmentRoundTripIncludesCwdAndMounts(t *testing.T) {
 	lm := NewEnvironmentCache(&mockMounter{})
 
 	fr := newTestFR("rt-roundtrip", "/roundtrip")
@@ -344,18 +344,18 @@ func TestPreparedEnvironmentEnvironmentTemplateRoundTripIncludesCwdAndMounts(t *
 		t.Fatalf("PrepareEnvironment() error = %v", err)
 	}
 
-	got := environment.EnvironmentTemplate()
+	got := environment.ResolvedEnvironment()
 	if !proto.Equal(got, fr) {
-		t.Fatalf("EnvironmentTemplate() = %v, want %v", got, fr)
+		t.Fatalf("ResolvedEnvironment() = %v, want %v", got, fr)
 	}
-	if !environment.MatchesEnvironmentTemplate(fr) {
-		t.Fatal("expected PreparedEnvironment to match original EnvironmentTemplate")
+	if !environment.MatchesResolvedEnvironment(fr) {
+		t.Fatal("expected PreparedEnvironment to match original ResolvedEnvironment")
 	}
 
-	drifted := proto.Clone(fr).(*api.EnvironmentTemplate)
+	drifted := proto.Clone(fr).(*api.ResolvedEnvironment)
 	drifted.Cwd = "/workspace-2"
-	if environment.MatchesEnvironmentTemplate(drifted) {
-		t.Fatal("expected drifted EnvironmentTemplate to mismatch")
+	if environment.MatchesResolvedEnvironment(drifted) {
+		t.Fatal("expected drifted ResolvedEnvironment to mismatch")
 	}
 }
 

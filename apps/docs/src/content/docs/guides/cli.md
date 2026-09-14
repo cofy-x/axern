@@ -36,7 +36,7 @@ Use the [Kubernetes install guide](/getting-started/kubernetes/) when an interac
 
 ## Diagnose the platform
 
-Start with the read-only platform doctor. It validates the selected context, mTLS certificate lifetime and key permissions, gateway connectivity, namespace access, and the environment catalog without creating resources:
+Start with the read-only platform doctor. It validates the selected context, mTLS certificate lifetime and key permissions, gateway connectivity, and namespace access without creating resources:
 
 ```bash
 axern doctor --namespace default
@@ -48,7 +48,7 @@ Use an explicit probe when control-plane reachability is not enough:
 axern doctor --namespace default --probe
 ```
 
-The probe creates a temporary catalog-backed Environment from the `python311` template, executes a small `runsc` Run, and deletes the Environment after the Run reaches a terminal state. The Run remains as normal control-plane history. JSON output exposes stable check codes without printing certificate paths, private keys, raw endpoints, or server error text. Doctor exits with `0` for healthy, `1` for degraded, `2` for invalid usage or connection configuration, and `3` when a required platform health check fails.
+The probe creates a temporary Environment from the built-in `python311` template, executes a small `runsc` Run, and deletes the Environment after the Run reaches a terminal state. The Run remains as normal control-plane history. JSON output exposes stable check codes without printing certificate paths, private keys, raw endpoints, or server error text. Doctor exits with `0` for healthy, `1` for degraded, `2` for invalid usage or connection configuration, and `3` when a required platform health check fails.
 
 Use `axern identity whoami` to inspect the Principal, active certificate, and effective roles for the selected context. Platform administrators can manage durable Principals and namespace bindings with `axern admin principal`, `axern admin credential`, and `axern admin role-binding`. See [Identity and namespace access](/guides/authorization/) for the least-privilege workflow.
 
@@ -80,7 +80,7 @@ spec:
 axern run --file run.yaml
 ```
 
-OCI images are the portable default for new workloads. Use `axern catalog list` and `--template` when the platform provides a named, reusable environment with a curated toolchain or configuration.
+OCI images are the portable default for new workloads. A deployment may also document built-in template IDs for curated toolchains; pass one with `--template` without creating a second template lifecycle.
 
 By default, `run` attaches to stdout/stderr and exits with the remote command's exit code. Use `--detach` for asynchronous creation, then inspect it with `axern run get`, `axern run list`, or `axern run logs --follow`. The [Runs guide](/guides/run/) covers the full lifecycle, spec fields, and output retention.
 

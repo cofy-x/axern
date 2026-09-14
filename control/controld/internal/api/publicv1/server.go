@@ -1,7 +1,6 @@
 package publicv1
 
 import (
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
@@ -11,7 +10,6 @@ import (
 )
 
 type Server struct {
-	catalogv1.UnimplementedEnvironmentCatalogServer
 	environmentv1.UnimplementedEnvironmentControlServer
 	runv1.UnimplementedRunControlServer
 	secretv1.UnimplementedSecretControlServer

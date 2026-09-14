@@ -7,7 +7,6 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 )
 
 const (
@@ -42,8 +41,8 @@ func NewEngine(cfg Config) *Engine {
 	}
 }
 
-func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *placementkernel.Request, now time.Time) ([]*nodev1.PlacementCandidate, []*nodev1.PlacementCandidate) {
-	planned := make([]*nodev1.PlacementCandidate, 0, len(snapshot.Records))
+func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *placementkernel.Request, now time.Time) ([]*placementkernel.Evaluation, []*placementkernel.Evaluation) {
+	planned := make([]*placementkernel.Evaluation, 0, len(snapshot.Records))
 	for _, record := range snapshot.Records {
 		candidate := e.evaluateCandidate(CandidateInput{
 			Record:  record,
@@ -55,10 +54,10 @@ func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *placementkernel.Request
 		}
 	}
 
-	eligible := make([]*nodev1.PlacementCandidate, 0, len(planned))
-	rejected := make([]*nodev1.PlacementCandidate, 0, len(planned))
+	eligible := make([]*placementkernel.Evaluation, 0, len(planned))
+	rejected := make([]*placementkernel.Evaluation, 0, len(planned))
 	for _, candidate := range planned {
-		if candidate.GetState() == nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE {
+		if candidate.GetState() == placementkernel.CandidateStateEligible {
 			eligible = append(eligible, candidate)
 			continue
 		}
@@ -74,6 +73,6 @@ func (e *Engine) Plan(snapshot nodekernel.Snapshot, req *placementkernel.Request
 	return eligible, rejected
 }
 
-func (e *Engine) Evaluate(record *nodekernel.Record, req *placementkernel.Request, now time.Time) *nodev1.PlacementCandidate {
+func (e *Engine) Evaluate(record *nodekernel.Record, req *placementkernel.Request, now time.Time) *placementkernel.Evaluation {
 	return e.evaluateCandidate(CandidateInput{Record: record, Request: req, Now: now})
 }

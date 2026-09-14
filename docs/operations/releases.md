@@ -1,6 +1,6 @@
 # Release Operations
 
-Axern releases one coherent version across the CLI, Helm chart, platform images, environment catalog images, Python, Go, and TypeScript SDKs, and source metadata. `VERSION` is the canonical version without a leading `v`.
+Axern releases one coherent version across the CLI, Helm chart, platform images, environment template set images, Python, Go, and TypeScript SDKs, and source metadata. `VERSION` is the canonical version without a leading `v`.
 
 ## Prepare
 

@@ -32,7 +32,7 @@ func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID, cl
 		} else if err != nil {
 			return fmt.Errorf("lock allocation after create failure: %w", err)
 		}
-		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, allocationkernel.ReconcileReasonCreate, claimOwner, now); err != nil {
+		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, claimOwner, allocationkernel.ReconcileIntentEnsurePresent, now); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
@@ -52,7 +52,7 @@ func (s *Store) MarkAllocationCreateFailed(ctx context.Context, allocationID, cl
 		}
 		updated, err := pgallocation.ScheduleClaimedReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
 			AllocationID: allocationID,
-			Reason:       allocationkernel.ReconcileReasonDelete,
+			Intent:       allocationkernel.ReconcileIntentEnsureAbsent,
 			NextRunAt:    now,
 		}, claimOwner, now)
 		if err != nil {

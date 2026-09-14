@@ -7,6 +7,7 @@ import (
 	"time"
 
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -16,13 +17,13 @@ func TestRenderAllocationLifecycleRetryTableHandlesMissingNextRunAt(t *testing.T
 	RenderAllocationLifecycleRetryTable(&out, []*privateadminv1.AllocationLifecycleRetry{{
 		AllocationID:      "alloc-a",
 		RunID:             "run-a",
-		Reason:            privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
+		LifecycleState:    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND,
 		NodeID:            "node-a",
 		ReconcileAttempts: 2,
 		LastError:         "node unavailable",
 	}})
 	got := out.String()
-	for _, want := range []string{"ALLOCATION", "alloc-a", "run", "create", "-"} {
+	for _, want := range []string{"ALLOCATION", "alloc-a", "run", "BOUND", "-"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("rendered table %q does not contain %q", got, want)
 		}
@@ -34,14 +35,14 @@ func TestNewAllocationLifecycleRetryJSON(t *testing.T) {
 	got := NewAllocationLifecycleRetryJSON(&privateadminv1.AllocationLifecycleRetry{
 		AllocationID:      "alloc-a",
 		RunID:             "run-a",
-		Reason:            privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE,
+		LifecycleState:    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
 		NodeID:            "node-a",
 		ReconcileAttempts: 3,
 		NextRunAt:         timestamppb.New(now),
 		Due:               true,
 		Clearable:         true,
 	})
-	if got == nil || got.RunID != "run-a" || got.Reason != "delete" || got.NextRunAt != "2026-05-10T12:00:00Z" || !got.Due || !got.Clearable {
+	if got == nil || got.RunID != "run-a" || got.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String() || got.NextRunAt != "2026-05-10T12:00:00Z" || !got.Due || !got.Clearable {
 		t.Fatalf("NewAllocationLifecycleRetryJSON() = %+v", got)
 	}
 }

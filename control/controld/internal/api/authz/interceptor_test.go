@@ -11,7 +11,6 @@ import (
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
@@ -124,7 +123,7 @@ func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 	services := []*grpc.ServiceDesc{
 		&adminv1.AccessAdmin_ServiceDesc, &adminv1.AdminAudit_ServiceDesc, &adminv1.AdminReliability_ServiceDesc,
 		&adminv1.NodeAdmin_ServiceDesc, &privateadminv1.AllocationLifecycleAdmin_ServiceDesc,
-		&catalogv1.EnvironmentCatalog_ServiceDesc, &environmentv1.EnvironmentControl_ServiceDesc,
+		&environmentv1.EnvironmentControl_ServiceDesc,
 		&identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
 		&quotav1.QuotaControl_ServiceDesc, &runv1.RunControl_ServiceDesc,
 		&secretv1.SecretControl_ServiceDesc, &tunnelv1.TunnelControl_ServiceDesc,
@@ -189,7 +188,7 @@ func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 
 func TestNodeControlRequiresNodeWorkloadIdentity(t *testing.T) {
 	i := &Interceptor{}
-	method := "/axern.control.node.v1.NodeControl/RegisterNode"
+	method := "/axern.private.control.node.v1.NodeControl/RegisterNode"
 	called := false
 	handler := func(context.Context, any) (any, error) {
 		called = true

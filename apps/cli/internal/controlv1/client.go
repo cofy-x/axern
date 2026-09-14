@@ -5,7 +5,6 @@ import (
 	"time"
 
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
@@ -55,7 +54,6 @@ type Clients struct {
 	Environment      environmentv1.EnvironmentControlClient
 	Run              runv1.RunControlClient
 	Secret           secretv1.SecretControlClient
-	Catalog          catalogv1.EnvironmentCatalogClient
 	Tunnel           tunnelv1.TunnelControlClient
 	Namespace        namespacev1.NamespaceControlClient
 	Quota            quotav1.QuotaControlClient

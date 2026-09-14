@@ -47,11 +47,11 @@ erDiagram
   allocations ||--o| allocation_capability_conditions : projects
 ```
 
-### Catalog and namespace state
+### Environment inputs and namespace state
 
 - `namespaces` is the durable scope and optimistic-lock row.
 - `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage admission limits.
-- The environment catalog is embedded, curated metadata and has no orphan database table.
+- Built-in Environment templates are deployment configuration used only during resolution. They have no public API, product identity, or database table.
 - `environments.spec` stores normalized user intent; `resolved_spec` stores the immutable runtime input used by execution paths. `deleted_at` is the only Environment lifecycle marker.
 - `namespace_quota_events` records durable admission decisions independently from operator audit events.
 
@@ -74,7 +74,7 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 Allocation memory usage is live node-local diagnostic data rebuilt from the authoritative cgroup. It is not persisted by controld and does not participate in reservation or lifecycle decisions. The memory budget used during placement is validated inside the reservation transaction.
 
-`allocation_capability_requirements` stores only the immutable typed key and catalog loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, requirement rows, reservation, and create intent commit in one transaction; that transaction is the admission decision.
+`allocation_capability_requirements` stores only the immutable typed key and platform loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, requirement rows, reservation, and create intent commit in one transaction; that transaction is the admission decision.
 
 `allocation_capability_conditions` stores one complete latest diagnostic projection and its `observed_at`. Older reports are ignored, exact equal-time replay is idempotent, and conflicting equal-time data is rejected. Terminal Allocations ignore late reports. Conditions cannot update Run or Allocation lifecycle, readiness, exit information, or the primary message.
 

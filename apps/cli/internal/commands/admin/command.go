@@ -200,21 +200,15 @@ func auditCommand(runtime command.Runtime) *cobra.Command {
 
 func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "allocation-retry", Short: "Inspect and repair lifecycle retries"}
-	var reason string
 	var due bool
 	var limit int
 	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if reason != "" {
-			if err := appadmin.ValidateRetryReason(reason); err != nil {
-				return command.Usage(err)
-			}
-		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err
 		}
 		defer s.Close()
-		resp, err := appadmin.NewAllocationLifecycle(s.Clients.Admin).ListRetries(s.Context, appadmin.LifecycleRetryListOptions{Reason: reason, DueOnly: due, Limit: limit})
+		resp, err := appadmin.NewAllocationLifecycle(s.Clients.Admin).ListRetries(s.Context, appadmin.LifecycleRetryListOptions{DueOnly: due, Limit: limit})
 		if err != nil {
 			return err
 		}
@@ -225,7 +219,6 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	f := list.Flags()
-	f.StringVar(&reason, "reason", "", "create or delete")
 	f.BoolVar(&due, "due", false, "only due retries")
 	f.IntVar(&limit, "limit", 0, "maximum rows")
 	root.AddCommand(list, retryWrite(runtime, "force"), retryWrite(runtime, "fail"), retryWrite(runtime, "clear"))
@@ -233,13 +226,8 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
-	var reason, operatorReason string
+	var operatorReason string
 	cmd := &cobra.Command{Use: operation + " <allocation-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if operation != "fail" {
-			if err := appadmin.ValidateRetryReason(reason); err != nil {
-				return command.Usage(err)
-			}
-		}
 		if err := appadmin.ValidateOperatorReason(operatorReason); err != nil {
 			return command.Usage(err)
 		}
@@ -252,7 +240,7 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 		var value *privateadminv1.AllocationLifecycleRetry
 		switch operation {
 		case "force":
-			resp, err := control.ForceRetry(s.Context, args[0], reason, operatorReason)
+			resp, err := control.ForceRetry(s.Context, args[0], operatorReason)
 			if err != nil {
 				return err
 			}
@@ -264,7 +252,7 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 			}
 			value = resp.GetFailedRetry()
 		case "clear":
-			resp, err := control.ClearRetry(s.Context, args[0], reason, operatorReason)
+			resp, err := control.ClearRetry(s.Context, args[0], operatorReason)
 			if err != nil {
 				return err
 			}
@@ -276,9 +264,6 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 		output.RenderAllocationLifecycleRetry(cmd.OutOrStdout(), value)
 		return nil
 	}}
-	if operation != "fail" {
-		cmd.Flags().StringVar(&reason, "reason", "", "create or delete")
-	}
 	cmd.Flags().StringVar(&operatorReason, "operator-reason", "", "audit reason")
 	return cmd
 }

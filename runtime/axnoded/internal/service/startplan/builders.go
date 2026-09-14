@@ -49,7 +49,7 @@ func ResourcesToLinux(resources *commonv1.ResourceSpec) *runtime.LinuxContainerR
 }
 
 func BuildStaticStartEnv(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) []*runtime.KeyValue {
-	env := make([]*runtime.KeyValue, 0, len(lrt.RootFS.Env())+len(request.EnvironmentTemplate.Env))
+	env := make([]*runtime.KeyValue, 0, len(lrt.RootFS.Env())+len(request.Environment.Env))
 
 	logrus.WithField("image_env_count", len(lrt.RootFS.Env())).Debug("loaded image envs")
 	for _, e := range lrt.RootFS.Env() {
@@ -57,7 +57,7 @@ func BuildStaticStartEnv(lrt *environmentcache.PreparedEnvironment, request *run
 			env = append(env, &runtime.KeyValue{Key: parts[0], Value: parts[1]})
 		}
 	}
-	for k, v := range request.EnvironmentTemplate.Env {
+	for k, v := range request.Environment.Env {
 		env = append(env, &runtime.KeyValue{Key: k, Value: v})
 	}
 	return env
@@ -83,8 +83,8 @@ func BuildStartEnv(lrt *environmentcache.PreparedEnvironment, request *runtime.S
 }
 
 func BuildStartCommand(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) []string {
-	if request != nil && request.EnvironmentTemplate != nil && len(request.EnvironmentTemplate.Argv) > 0 {
-		return append([]string(nil), request.EnvironmentTemplate.Argv...)
+	if request != nil && request.Environment != nil && len(request.Environment.Argv) > 0 {
+		return append([]string(nil), request.Environment.Argv...)
 	}
 	if lrt == nil || lrt.RootFS == nil {
 		return nil
@@ -93,8 +93,8 @@ func BuildStartCommand(lrt *environmentcache.PreparedEnvironment, request *runti
 }
 
 func BuildStartCwd(lrt *environmentcache.PreparedEnvironment, request *runtime.StartRequest) string {
-	if request != nil && request.EnvironmentTemplate != nil && request.EnvironmentTemplate.Cwd != "" {
-		return request.EnvironmentTemplate.Cwd
+	if request != nil && request.Environment != nil && request.Environment.Cwd != "" {
+		return request.Environment.Cwd
 	}
 	if lrt == nil || lrt.RootFS == nil {
 		return ""
@@ -108,9 +108,9 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 		return errord.ErrInvalidArgument
 	case strings.TrimSpace(request.GetAllocationID()) == "":
 		return fmt.Errorf("allocation ID is required: %w", errord.ErrInvalidArgument)
-	case request.EnvironmentTemplate == nil:
+	case request.Environment == nil:
 		return errord.ErrInvalidArgument
-	case request.EnvironmentTemplate.Rootfs == nil:
+	case request.Environment.Rootfs == nil:
 		return errord.ErrInvalidArgument
 	}
 	if credential := strings.TrimSpace(request.GetRegistryCredential().GetDockerConfigJson()); credential != "" {
@@ -119,7 +119,7 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 			return fmt.Errorf("registry credential must be a JSON object: %w", errord.ErrInvalidArgument)
 		}
 	}
-	for _, mounts := range [][]*runtime.Mount{request.GetEnvironmentTemplate().GetMounts(), request.GetMounts()} {
+	for _, mounts := range [][]*runtime.Mount{request.GetEnvironment().GetMounts(), request.GetMounts()} {
 		for _, mount := range mounts {
 			if mount == nil {
 				return fmt.Errorf("sandbox mount is required: %w", errord.ErrInvalidArgument)
@@ -193,8 +193,8 @@ func hasParentPathElement(value string) bool {
 }
 
 func BuildStaticStartMounts(request *runtime.StartRequest) []*runtime.Mount {
-	mounts := make([]*runtime.Mount, 0, len(request.EnvironmentTemplate.Mounts))
-	mounts = append(mounts, request.EnvironmentTemplate.Mounts...)
+	mounts := make([]*runtime.Mount, 0, len(request.Environment.Mounts))
+	mounts = append(mounts, request.Environment.Mounts...)
 	return mounts
 }
 
@@ -205,7 +205,7 @@ func BuildDynamicStartMounts(request *runtime.StartRequest) []*runtime.Mount {
 }
 
 func BuildStartMounts(request *runtime.StartRequest) []*runtime.Mount {
-	mounts := make([]*runtime.Mount, 0, len(request.EnvironmentTemplate.Mounts)+len(request.Mounts))
+	mounts := make([]*runtime.Mount, 0, len(request.Environment.Mounts)+len(request.Mounts))
 	mounts = append(mounts, BuildStaticStartMounts(request)...)
 	mounts = append(mounts, BuildDynamicStartMounts(request)...)
 	return mounts

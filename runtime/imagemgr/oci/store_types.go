@@ -11,7 +11,7 @@ import (
 
 var (
 	layerRecordsBucket   = []byte("layer_records")
-	mountRecordsBucket   = []byte("mount_records")
+	ociMountStateBucket  = []byte("oci_mount_state")
 	mountTxnBucket       = []byte("mount_txn_records")
 	chainRecordsBucket   = []byte("chain_records")
 	importRefsBucket     = []byte("import_refs")
@@ -40,8 +40,9 @@ type ChainRecord struct {
 	LastUsedUnix  int64  `json:"last_used_unix"`
 }
 
-// OciMountRecord stores mounted OCI image metadata.
-type OciMountRecord struct {
+// OciMountState is the OCI backend's recoverable data-plane projection for a
+// mounted cache key. It is not the authority for client ownership or leases.
+type OciMountState struct {
 	CacheKey      string       `json:"cache_key,omitempty"`
 	ImageURL      string       `json:"image_url"`
 	MountID       string       `json:"mount_id"`
@@ -112,7 +113,7 @@ func openMetadataStore(dbPath string) (*metadataStore, error) {
 		if _, err := tx.CreateBucketIfNotExists(chainRecordsBucket); err != nil {
 			return err
 		}
-		if _, err := tx.CreateBucketIfNotExists(mountRecordsBucket); err != nil {
+		if _, err := tx.CreateBucketIfNotExists(ociMountStateBucket); err != nil {
 			return err
 		}
 		if _, err := tx.CreateBucketIfNotExists(mountTxnBucket); err != nil {

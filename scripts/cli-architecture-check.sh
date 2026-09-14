@@ -52,7 +52,6 @@ check_equals \
 	"$expected_internal_packages"
 
 expected_application_packages='apps/cli/internal/application/admin
-apps/cli/internal/application/catalog
 apps/cli/internal/application/doctor
 apps/cli/internal/application/environment
 apps/cli/internal/application/namespace
@@ -67,7 +66,6 @@ check_equals \
 	"$expected_application_packages"
 
 expected_command_packages='apps/cli/internal/commands/admin
-apps/cli/internal/commands/catalog
 apps/cli/internal/commands/context
 apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
@@ -107,7 +105,7 @@ check_empty \
 
 check_empty \
 	"command packages must not import sibling command packages" \
-	"rg -n '\"github\\.com/cofy-x/axern/apps/cli/internal/commands/(catalog|context|environment|run|secret|ssh)(/|\")|\"github\\.com/cofy-x/axern/apps/cli/internal/commands/tunnel\"' apps/cli/internal/commands -g '*.go' || true"
+	"rg -n '\"github\\.com/cofy-x/axern/apps/cli/internal/commands/(context|environment|run|secret|ssh)(/|\")|\"github\\.com/cofy-x/axern/apps/cli/internal/commands/tunnel\"' apps/cli/internal/commands -g '*.go' || true"
 
 check_empty \
 	"command adapters must not own shared product renderers or proto JSON rendering" \
@@ -139,7 +137,7 @@ check_empty \
 
 check_empty \
 	"command domain command.go files should aggregate subcommands, not hold command actions" \
-	"rg -n 'Action:[[:space:]]*func|func .*\\(ctx \\*cli\\.Context\\) error' apps/cli/internal/commands/{admin,catalog,context,environment,namespace,quota,run,secret,tunnel}/command.go -g '*.go' || true"
+	"rg -n 'Action:[[:space:]]*func|func .*\\(ctx \\*cli\\.Context\\) error' apps/cli/internal/commands/{admin,context,environment,namespace,quota,run,secret,tunnel}/command.go -g '*.go' || true"
 
 check_empty \
 	"do not reintroduce transitional type aliases" \

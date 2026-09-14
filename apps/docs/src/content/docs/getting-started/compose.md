@@ -33,15 +33,15 @@ axern local logs gatewayd --follow --tail 100
 
 `doctor` is read-only and reports an executable recommendation for each failed check. Use `--output json` with `status` or `doctor` in automation.
 
-## Stop, upgrade, or delete
+## Stop or rebuild
 
 ```bash
 axern local down
-axern local upgrade
-axern local reset
+axern local reset --force
+axern local up
 ```
 
-`down` removes containers and the network but keeps data. Upgrades are always explicit and create a local backup before migration. `reset` permanently deletes the instance and requires interactive confirmation, or `--force` in CI.
+`down` removes containers and the network but keeps data. Local state is intentionally rebuild-only across versions: export required outputs, then use `reset --force` and `up`. `reset` permanently deletes the instance and requires interactive confirmation without `--force`.
 
 To locate the data without relying on platform-specific paths:
 

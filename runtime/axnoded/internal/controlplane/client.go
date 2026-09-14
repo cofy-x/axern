@@ -11,7 +11,7 @@ import (
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"

@@ -429,18 +429,6 @@ type BPFNetConfig struct {
 	NativeRoutingCIDRs []string `toml:"native_routing_cidrs" json:"nativeRoutingCidrs"`
 }
 
-// CapabilityBackend returns the effective dataplane identity published to
-// workload placement. Native bpfnet is IPv4-only, so an IPv6 pool selected
-// with the ebpf configuration is truthfully represented by its bridge
-// compatibility backend.
-func (c NetworkConfig) CapabilityBackend() string {
-	prefix, err := netip.ParsePrefix(strings.TrimSpace(c.IPRange))
-	if err == nil && prefix.Addr().Is6() && strings.EqualFold(strings.TrimSpace(c.NatBackend), NatBackendEBPF) {
-		return NatBackendIptables
-	}
-	return strings.ToLower(strings.TrimSpace(c.NatBackend))
-}
-
 // Normalized returns the exact network configuration consumed by the runtime
 // and capability evidence. It canonicalizes semantically unordered sets and
 // effective duration values so evidence identity changes only when dataplane
@@ -458,6 +446,9 @@ func (c NetworkConfig) Normalized() (NetworkConfig, error) {
 		return NetworkConfig{}, fmt.Errorf("network ip_range must be a valid IPv4 or IPv6 prefix: %q", c.IPRange)
 	}
 	c.IPRange = ipRange.String()
+	if c.NatBackend == NatBackendEBPF && ipRange.Addr().Is6() {
+		return NetworkConfig{}, fmt.Errorf("ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range")
+	}
 
 	c.BPFNet.PinPath = filepath.Clean(strings.TrimSpace(c.BPFNet.PinPath))
 	if c.NatBackend == NatBackendEBPF {

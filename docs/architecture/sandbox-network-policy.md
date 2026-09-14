@@ -20,7 +20,7 @@ CIDRs are masked to their canonical prefix. Protocol is explicit, and every port
 
 ## Admission and rollout boundary
 
-The shared node-capability catalog derives `DNS_POLICY_ENFORCEMENT` for `dns_deny` and `STRICT_EGRESS_ENFORCEMENT` for a strict policy that requires egressd. Both capabilities use `FAIL_STOP`. Controld includes the derived key in placement and durable admission evidence. Axnoded must independently derive the same requirement before side effects and verify it again before the user process starts.
+The shared node-capability definition registry derives `DNS_POLICY_ENFORCEMENT` for `dns_deny` and `STRICT_EGRESS_ENFORCEMENT` for a strict policy that requires egressd. Both capabilities use `FAIL_STOP`. Controld includes the derived key in placement and durable admission evidence. Axnoded must independently derive the same requirement before side effects and verify it again before the user process starts.
 
 Nodes without egressd publish the corresponding self-test facts as `UNAVAILABLE/DISABLED`; policy workloads therefore remain unschedulable rather than running without enforcement. Changes to this contract deploy matching control-plane and node binaries together.
 

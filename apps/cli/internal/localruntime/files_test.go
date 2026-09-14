@@ -109,34 +109,6 @@ func TestValidCertificateSetAcceptsPKCS8RSAKey(t *testing.T) {
 	}
 }
 
-func TestVersionLess(t *testing.T) {
-	for _, test := range []struct {
-		left, right string
-		want        bool
-	}{{"1.2.3", "1.2.4", true}, {"1.10.0", "1.9.9", false}, {"2.0.0-rc.1", "2.0.0", true}, {"2.0.0", "2.0.0-rc.1", false}, {"2.0.0-rc.2", "2.0.0-rc.10", true}} {
-		if got := versionLess(test.left, test.right); got != test.want {
-			t.Fatalf("versionLess(%q, %q) = %v, want %v", test.left, test.right, got, test.want)
-		}
-	}
-}
-
-func TestSupportedUpgrade(t *testing.T) {
-	for _, test := range []struct {
-		from, to string
-		want     bool
-	}{
-		{"0.2.9", "0.3.0", true},
-		{"0.1.0", "0.3.0", false},
-		{"0.3.0", "0.3.2", true},
-		{"1.4.0", "1.7.0", true},
-		{"1.4.0", "2.0.0", false},
-	} {
-		if got := supportedUpgrade(test.from, test.to); got != test.want {
-			t.Errorf("supportedUpgrade(%q, %q) = %v, want %v", test.from, test.to, got, test.want)
-		}
-	}
-}
-
 func TestContainerProxyOnlyRewritesLoopbackHost(t *testing.T) {
 	tests := map[string]string{
 		"http://localhost:3128":                     "http://host.docker.internal:3128",

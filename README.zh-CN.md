@@ -121,7 +121,7 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
 axern context import-kubernetes local \
   --namespace axern-system \
   --current
-axern catalog list
+axern environment create --template-id python311
 ```
 
 内置的 PostgreSQL 和单节点默认值面向评估用途。持久化或共享部署必须提供 Helm chart 所描述的持久存储、外置密钥、入口（Ingress）和调度配置。

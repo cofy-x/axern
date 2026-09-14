@@ -5,18 +5,13 @@ package axern.private.control.admin.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1;privateadminv1";
 
 import "google/protobuf/timestamp.proto";
-
-enum AllocationLifecycleRetryReason {
-  ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED = 0;
-  ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE = 1;
-  ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE = 2;
-}
+import "axern/control/common/v1/common.proto";
 
 message AllocationLifecycleRetry {
   string allocation_id = 1;
   string run_id = 2;
   string environment_id = 3;
-  AllocationLifecycleRetryReason reason = 4;
+  axern.control.common.v1.AllocationLifecycleState lifecycle_state = 4;
   string node_id = 5;
   string node_target = 6;
   int32 reconcile_attempts = 7;
@@ -31,8 +26,7 @@ message AllocationLifecycleRetry {
 }
 
 message AllocationLifecycleRetryFilter {
-  AllocationLifecycleRetryReason reason = 1;
-  bool due_only = 2;
+  bool due_only = 1;
 }
 
 message ListAllocationLifecycleRetriesRequest {
@@ -46,8 +40,7 @@ message ListAllocationLifecycleRetriesResponse {
 
 message ForceAllocationLifecycleRetryRequest {
   string allocation_id = 1;
-  AllocationLifecycleRetryReason reason = 2;
-  string operator_reason = 3;
+  string operator_reason = 2;
 }
 
 message ForceAllocationLifecycleRetryResponse {
@@ -56,8 +49,7 @@ message ForceAllocationLifecycleRetryResponse {
 
 message FailAllocationLifecycleRetryRequest {
   string allocation_id = 1;
-  AllocationLifecycleRetryReason reason = 2;
-  string operator_reason = 3;
+  string operator_reason = 2;
 }
 
 message FailAllocationLifecycleRetryResponse {
@@ -66,8 +58,7 @@ message FailAllocationLifecycleRetryResponse {
 
 message ClearAllocationLifecycleRetryRequest {
   string allocation_id = 1;
-  AllocationLifecycleRetryReason reason = 2;
-  string operator_reason = 3;
+  string operator_reason = 2;
 }
 
 message ClearAllocationLifecycleRetryResponse {

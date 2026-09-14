@@ -193,8 +193,8 @@ func TestMountLeaseReconcileWaitsForInflightAcquire(t *testing.T) {
 	}
 }
 
-func newTestFR(id, path string) *api.EnvironmentTemplate {
-	return &api.EnvironmentTemplate{
+func newTestFR(id, path string) *api.ResolvedEnvironment {
+	return &api.ResolvedEnvironment{
 		ID: id,
 		Rootfs: &api.RootfsConfig{
 			Type: api.RootfsSrcType_LOCAL,
@@ -206,8 +206,8 @@ func newTestFR(id, path string) *api.EnvironmentTemplate {
 	}
 }
 
-func addTestEnvironmentCache(lm *EnvironmentCache, fr *api.EnvironmentTemplate) (*PreparedEnvironment, error) {
-	cfg, err := RootfsConfigFromEnvironmentTemplate(fr)
+func addTestEnvironmentCache(lm *EnvironmentCache, fr *api.ResolvedEnvironment) (*PreparedEnvironment, error) {
+	cfg, err := RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
 		return nil, err
 	}
@@ -215,8 +215,8 @@ func addTestEnvironmentCache(lm *EnvironmentCache, fr *api.EnvironmentTemplate) 
 	return result.Environment, err
 }
 
-func addTestEnvironmentCacheWithState(lm *EnvironmentCache, fr *api.EnvironmentTemplate) (*PreparedEnvironment, bool, error) {
-	cfg, err := RootfsConfigFromEnvironmentTemplate(fr)
+func addTestEnvironmentCacheWithState(lm *EnvironmentCache, fr *api.ResolvedEnvironment) (*PreparedEnvironment, bool, error) {
+	cfg, err := RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
 		return nil, false, err
 	}

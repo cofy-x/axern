@@ -1,6 +1,6 @@
 ---
 title: Local Axern Reference
-description: Requirements, lifecycle, storage, upgrades, and troubleshooting for Local Axern.
+description: Requirements, lifecycle, storage, version replacement, and troubleshooting for Local Axern.
 ---
 
 `axern local` manages one machine-level instance named `local`. Its deployment assets and service versions come from the installed CLI; source checkout files are never consulted. Release binaries embed a verified multi-architecture image digest lock, so local startup does not resolve mutable service tags.
@@ -24,7 +24,6 @@ Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Wo
 | `axern local doctor`           | Perform read-only host, Docker, port, version, health, and Node DNS checks; `--probe` also verifies sandbox DNS |
 | `axern local down`             | Remove containers and network while preserving data                                                             |
 | `axern local reset`            | Permanently delete data and identity material                                                                   |
-| `axern local upgrade`          | Back up and explicitly migrate to the CLI's stack version                                                       |
 | `axern local path`             | Print the effective local data directory                                                                        |
 
 Use `axern local up --profile observability` to enable local telemetry and `axern local up --profile default` to return to the core profile. Omitting the flag preserves the instance's current profile.
@@ -38,7 +37,7 @@ Image loading is local-only. It saves the immutable host image ID, validates its
 | macOS    | `~/Library/Application Support/Axern/local`    |
 | Linux    | `${XDG_DATA_HOME:-~/.local/share}/axern/local` |
 
-Set `AXERN_HOME` to place all Axern-managed local data under a different root. The CLI stores generated certificates, SSH keys, Compose materialization, secrets, database/object data, metadata, and upgrade backups there. Sensitive files are written with owner-only permissions.
+Set `AXERN_HOME` to place all Axern-managed local data under a different root. The CLI stores generated certificates, SSH keys, Compose materialization, secrets, database/object data, and metadata there. Sensitive files are written with owner-only permissions.
 
 ## Local ports
 
@@ -91,9 +90,7 @@ Values must be IP addresses reachable from Docker workloads. Loopback, unspecifi
 
 ## Version changes
 
-`local up` never silently changes a stack version. A mismatch tells you to run `axern local upgrade`; status, logs, doctor, and down remain available.
-
-Upgrade stops the old stack, creates a timestamped backup of data, identities, metadata, and deployment files, applies the supported migration, then verifies health. Downgrades are rejected. If no supported migration exists, reset the local instance explicitly.
+`local up` never silently changes a stack version. Local state has no migration compatibility contract: a mismatch leaves status, logs, doctor, and down available and instructs you to run `axern local reset --force`, followed by `axern local up`. Export any outputs you need before resetting.
 
 ## Uninstall
 

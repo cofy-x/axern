@@ -79,7 +79,7 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 
 	resp, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
 		AllocationID: "alloc-image-mount",
-		EnvironmentTemplate: &runtime.EnvironmentTemplate{
+		Environment: &runtime.ResolvedEnvironment{
 			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
 				Type:   runtime.RootfsSrcType_LOCAL,
@@ -139,7 +139,7 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 
 	_, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
 		AllocationID: "alloc-image-mount-fail",
-		EnvironmentTemplate: &runtime.EnvironmentTemplate{
+		Environment: &runtime.ResolvedEnvironment{
 			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
 				Type:   runtime.RootfsSrcType_LOCAL,

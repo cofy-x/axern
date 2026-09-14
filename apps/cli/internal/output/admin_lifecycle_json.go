@@ -18,7 +18,7 @@ type AllocationLifecycleRetryJSON struct {
 	AllocationID       string `json:"allocation_id"`
 	RunID              string `json:"run_id"`
 	EnvironmentID      string `json:"environment_id,omitempty"`
-	Reason             string `json:"reason"`
+	LifecycleState     string `json:"lifecycle_state"`
 	NodeID             string `json:"node_id"`
 	NodeTarget         string `json:"node_target,omitempty"`
 	ReconcileAttempts  int32  `json:"reconcile_attempts"`
@@ -52,7 +52,7 @@ func NewAllocationLifecycleRetryJSON(retry *privateadminv1.AllocationLifecycleRe
 		AllocationID:       retry.GetAllocationID(),
 		RunID:              retry.GetRunID(),
 		EnvironmentID:      retry.GetEnvironmentID(),
-		Reason:             allocationLifecycleRetryReasonLabel(retry.GetReason()),
+		LifecycleState:     retry.GetLifecycleState().String(),
 		NodeID:             retry.GetNodeID(),
 		NodeTarget:         retry.GetNodeTarget(),
 		ReconcileAttempts:  retry.GetReconcileAttempts(),

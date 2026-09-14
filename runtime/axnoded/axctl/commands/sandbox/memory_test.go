@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestRenderSandboxMemoryIncludesBoundaryUsageAndEnforcement(t *testing.T) {

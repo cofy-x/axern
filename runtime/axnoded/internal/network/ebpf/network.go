@@ -7,13 +7,11 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cofy-x/axern/network/bpfnet"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/network/bridge"
 )
 
 type dataplaneController interface {
@@ -34,23 +32,17 @@ var (
 
 type BPFNetworkManager struct {
 	controller dataplaneController
-	fallback   networkmanager.NetworkManager
 	gcInterval time.Duration
 	gcPolicy   bpfnet.SNATGCPolicy
 	gcMu       sync.Mutex
 	gcStop     chan struct{}
-	ipv6Compat atomic.Bool
 }
 
 func (m *BPFNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, error) {
 	if ipv6, err := isIPv6Range(ipRange); err != nil {
 		return networkmanager.Health{}, err
 	} else if ipv6 {
-		probe, ok := m.fallback.(networkmanager.HealthProber)
-		if !ok {
-			return networkmanager.Health{}, fmt.Errorf("IPv6 compatibility backend has no health probe")
-		}
-		return probe.ProbeHealth(ipRange)
+		return networkmanager.Health{}, ipv6UnsupportedError()
 	}
 	status, err := m.controller.Status()
 	if err != nil {
@@ -87,7 +79,6 @@ func Configure(cfg config.BPFNetConfig) error {
 	}
 	networkmanager.Register(config.NatBackendEBPF, &BPFNetworkManager{
 		controller: controller,
-		fallback:   &bridge.BridgeNetworkManager{},
 		gcInterval: gcInterval,
 		gcPolicy:   gcPolicy,
 	})
@@ -98,14 +89,8 @@ func (m *BPFNetworkManager) SetupSNATRules(ipRange string) error {
 	if ipv6, err := isIPv6Range(ipRange); err != nil {
 		return err
 	} else if ipv6 {
-		m.stopSNATGC()
-		if err := m.fallback.SetupSNATRules(ipRange); err != nil {
-			return fmt.Errorf("set up IPv6 compatibility SNAT: %w", err)
-		}
-		m.ipv6Compat.Store(true)
-		return nil
+		return ipv6UnsupportedError()
 	}
-	m.ipv6Compat.Store(false)
 	if err := m.controller.EnsureAttached(ipRange); err != nil {
 		return err
 	}
@@ -117,8 +102,7 @@ func (m *BPFNetworkManager) CleanupSNATRules(ipRange string) error {
 	if ipv6, err := isIPv6Range(ipRange); err != nil {
 		return err
 	} else if ipv6 {
-		m.ipv6Compat.Store(false)
-		return m.fallback.CleanupSNATRules(ipRange)
+		return ipv6UnsupportedError()
 	}
 	m.stopSNATGC()
 	return m.controller.Cleanup()
@@ -187,21 +171,21 @@ func (m *BPFNetworkManager) runSNATGC(stop <-chan struct{}) {
 
 func (m *BPFNetworkManager) SetupNetworkRulesForActivating(ip net.IP, envID string) error {
 	if ip != nil && ip.To4() == nil {
-		return m.fallback.SetupNetworkRulesForActivating(ip, envID)
+		return ipv6UnsupportedError()
 	}
 	return nil
 }
 
 func (m *BPFNetworkManager) CleanupNetworkRulesForActivating(ip net.IP) error {
 	if ip != nil && ip.To4() == nil {
-		return m.fallback.CleanupNetworkRulesForActivating(ip)
+		return ipv6UnsupportedError()
 	}
 	return nil
 }
 
 func (m *BPFNetworkManager) SetupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error {
-	if m.ipv6Compat.Load() || isIPv6Address(targetIP) {
-		return m.fallback.SetupDNATRule(protocol, dstPort, targetIP, targetPort)
+	if isIPv6Address(targetIP) {
+		return ipv6UnsupportedError()
 	}
 	if err := m.controller.EnsureAttached(""); err != nil {
 		return err
@@ -213,21 +197,17 @@ func (m *BPFNetworkManager) SetupDNATRule(protocol string, dstPort uint16, targe
 }
 
 func (m *BPFNetworkManager) CleanupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error {
-	if m.ipv6Compat.Load() || isIPv6Address(targetIP) {
-		return m.fallback.CleanupDNATRule(protocol, dstPort, targetIP, targetPort)
+	if isIPv6Address(targetIP) {
+		return ipv6UnsupportedError()
 	}
 	return m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
 }
 
 func (m *BPFNetworkManager) ReconcileDNATRules(desired []networkmanager.DNATRule) error {
-	if m.ipv6Compat.Load() {
-		var errs []error
-		for _, rule := range desired {
-			if err := m.fallback.SetupDNATRule(rule.Protocol, rule.HostPort, rule.TargetIP, rule.TargetPort); err != nil {
-				errs = append(errs, err)
-			}
+	for _, rule := range desired {
+		if isIPv6Address(rule.TargetIP) {
+			return ipv6UnsupportedError()
 		}
-		return errors.Join(errs...)
 	}
 	status, err := m.controller.Status()
 	if err != nil {
@@ -285,6 +265,10 @@ func isIPv6Range(ipRange string) (bool, error) {
 func isIPv6Address(address string) bool {
 	ip := net.ParseIP(strings.TrimSpace(address))
 	return ip != nil && ip.To4() == nil
+}
+
+func ipv6UnsupportedError() error {
+	return errors.New("ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range")
 }
 
 func dnatRuleKey(protocol string, hostPort uint16) string {

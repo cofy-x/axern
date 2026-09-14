@@ -133,7 +133,7 @@ func NewManager(providers ...Provider) (*Manager, error) {
 				return nil, fmt.Errorf("provider %s expected key %q: %w", provider.Provider(), id, err)
 			}
 			if provider.Provider() != expectedProvider {
-				return nil, fmt.Errorf("capability %q is catalog-owned by %s, not %s", id, expectedProvider, provider.Provider())
+				return nil, fmt.Errorf("capability %q is contract-owned by %s, not %s", id, expectedProvider, provider.Provider())
 			}
 			manager.ownerByKey[id] = provider.Provider()
 		}
@@ -146,12 +146,12 @@ func NewManager(providers ...Provider) (*Manager, error) {
 	return manager, nil
 }
 
-// ValidateCatalogProviderCoverage proves that a production provider set owns
-// every catalog-defined platform key exactly once. Manager unit tests may use
+// ValidateProviderCoverage proves that a production provider set owns
+// every contract-defined platform key exactly once. Manager unit tests may use
 // intentionally partial provider sets, but service startup must call this
 // before constructing the live manager so an omitted provider cannot be
 // represented as an ambiguous absent observation.
-func ValidateCatalogProviderCoverage(providers ...Provider) error {
+func ValidateProviderCoverage(providers ...Provider) error {
 	owners := make(map[string]capabilityv1.CapabilityProvider)
 	for _, provider := range providers {
 		if provider == nil {
@@ -179,7 +179,7 @@ func ValidateCatalogProviderCoverage(providers ...Provider) error {
 			return fmt.Errorf("platform capability %q has no registered provider", id)
 		}
 		if owner != definition.Provider {
-			return fmt.Errorf("platform capability %q is catalog-owned by %s, not %s", id, definition.Provider, owner)
+			return fmt.Errorf("platform capability %q is contract-owned by %s, not %s", id, definition.Provider, owner)
 		}
 	}
 	return nil

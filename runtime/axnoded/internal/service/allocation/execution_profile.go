@@ -3,7 +3,7 @@ package allocation
 import (
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 )
 
 func executionProfileFromPreparedEnvironment(lrt *environmentcache.PreparedEnvironment) *runtimeoci.ExecutionProfile {
@@ -13,7 +13,7 @@ func executionProfileFromPreparedEnvironment(lrt *environmentcache.PreparedEnvir
 	return ExecutionProfileFromProto(lrt.ExecutionProfile)
 }
 
-func ExecutionProfileFromProto(in *catalogv1.OciExecutionProfile) *runtimeoci.ExecutionProfile {
+func ExecutionProfileFromProto(in *environmentv1.OciExecutionProfile) *runtimeoci.ExecutionProfile {
 	if in == nil {
 		return nil
 	}

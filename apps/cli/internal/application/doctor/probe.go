@@ -54,7 +54,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 			Argv: []string{"python", "-c", "print('axern-doctor-ok')"},
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 50, MemoryBytes: 64 * 1024 * 1024},
-				// Doctor verifies catalog-backed data-plane reachability. Memory
+				// Doctor verifies template-backed data-plane reachability. Memory
 				// hard-limit conformance is a separate observed capability and node
 				// qualification contract, so this generic probe must remain valid on
 				// explicit disabled_dev nodes.
@@ -82,7 +82,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 	if probeErr != nil {
 		return failedCheck("data_plane", "probe_run_failed", "data-plane probe did not complete successfully", "check node readiness, environment template availability, image access, and namespace quota", started)
 	}
-	return passedCheck("data_plane", "probe_succeeded", "catalog-backed Run completed and its temporary Environment was deleted", started)
+	return passedCheck("data_plane", "probe_succeeded", "template-backed Run completed and its temporary Environment was deleted", started)
 }
 
 func cleanupProbe(parent context.Context, session *Session, runID, environmentID string, timeout time.Duration) error {

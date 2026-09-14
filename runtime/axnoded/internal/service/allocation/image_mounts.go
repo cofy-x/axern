@@ -107,7 +107,7 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 				return fmt.Errorf("image mount target %q overlaps image mount target %q: %w", target, existing, errord.ErrInvalidArgument)
 			}
 		}
-		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetEnvironmentTemplate().GetMounts()); err != nil {
+		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetEnvironment().GetMounts()); err != nil {
 			return err
 		}
 		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetMounts()); err != nil {

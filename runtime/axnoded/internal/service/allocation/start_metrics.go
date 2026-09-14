@@ -123,7 +123,7 @@ func (r *startMetricsRecorder) Finish(result string) {
 	r.sink.RecordStartDuration(r.startClass, r.runtime, r.rootfsType, result, time.Since(r.startedAt))
 }
 
-func RootfsTypeFromEnvironmentTemplate(fr *runtimeapi.EnvironmentTemplate) string {
+func RootfsTypeFromResolvedEnvironment(fr *runtimeapi.ResolvedEnvironment) string {
 	if fr == nil {
 		return contract.StartupRootfsTypeUnknown
 	}

@@ -55,7 +55,6 @@ type Action string
 
 const (
 	ActionIdentityRead    Action = "identity.read"
-	ActionCatalogRead     Action = "catalog.read"
 	ActionNamespaceRead   Action = "namespace.read"
 	ActionNamespaceManage Action = "namespace.manage"
 	ActionQuotaRead       Action = "quota.read"

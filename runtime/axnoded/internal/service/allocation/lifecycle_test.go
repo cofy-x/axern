@@ -27,7 +27,7 @@ func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
 	)
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID:           allocationID,
+		ID: allocationID,
 		Rootfs: &apipb.Rootfs{
 			RootDir:  t.TempDir(),
 			Readonly: false,
@@ -97,7 +97,7 @@ func TestDeleteAllocationRemovesRuntimeReferenceOnSuccess(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 	containerID := "axctl-delete-allocation-success"
 	storeTestContainer(t, fixture, containerID, "runsc")
-	lrt := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "rt-1"))
+	lrt := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "rt-1"))
 	lrt.IncRef()
 	assert.NoError(t, fixture.controller.rememberContainerRuntime(containerID, lrt))
 
@@ -120,7 +120,7 @@ func TestDeleteAllocationPreservesRuntimeReferenceOnFailure(t *testing.T) {
 	fixture := newTestAllocationController(t, handler)
 	containerID := "axctl-delete-allocation-failure"
 	storeTestContainer(t, fixture, containerID, "runsc")
-	lrt := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "rt-1"))
+	lrt := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "rt-1"))
 	lrt.IncRef()
 	assert.NoError(t, fixture.controller.rememberContainerRuntime(containerID, lrt))
 

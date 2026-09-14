@@ -33,15 +33,15 @@ axern local logs gatewayd --follow --tail 100
 
 `doctor` 只读执行，并为每个失败项给出可操作的修复建议。自动化场景可对 `status` 或 `doctor` 使用 `--output json`。
 
-## 停止、升级和删除
+## 停止或重建
 
 ```bash
 axern local down
-axern local upgrade
-axern local reset
+axern local reset --force
+axern local up
 ```
 
-`down` 删除容器和网络但保留数据。升级必须显式执行，并在迁移前创建本地备份。`reset` 永久删除实例，交互模式要求确认，CI 中必须使用 `--force`。
+`down` 删除容器和网络但保留数据。本地状态跨版本只支持重建：先导出需要保留的输出，再执行 `reset --force` 和 `up`。不带 `--force` 的 `reset` 会在永久删除实例前要求交互确认。
 
 ```bash
 axern local path

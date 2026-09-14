@@ -9,6 +9,7 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
@@ -16,10 +17,10 @@ import (
 func TestReconcilerCompletesDeleteRetry(t *testing.T) {
 	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
 	store := &fakeReconcileStore{items: []allocationkernel.ReconcileItem{{
-		AllocationID: "alloc-a",
-		Reason:       allocationkernel.ReconcileReasonDelete,
-		NodeID:       "node-a",
-		NodeTarget:   "node-a:24010",
+		AllocationID:   "alloc-a",
+		LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		NodeID:         "node-a",
+		NodeTarget:     "node-a:24010",
 	}}}
 	lifecycle := &fakeReconcileLifecycle{}
 
@@ -40,10 +41,10 @@ func TestReconcilerCompletesDeleteRetry(t *testing.T) {
 func TestReconcilerReschedulesDeleteRetryFailure(t *testing.T) {
 	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
 	store := &fakeReconcileStore{items: []allocationkernel.ReconcileItem{{
-		AllocationID: "alloc-a",
-		Reason:       allocationkernel.ReconcileReasonDelete,
-		NodeID:       "node-a",
-		NodeTarget:   "node-a:24010",
+		AllocationID:   "alloc-a",
+		LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		NodeID:         "node-a",
+		NodeTarget:     "node-a:24010",
 	}}}
 	lifecycle := &fakeReconcileLifecycle{deleteErr: errors.New("node unavailable")}
 
@@ -56,8 +57,8 @@ func TestReconcilerReschedulesDeleteRetryFailure(t *testing.T) {
 	if store.scheduledAllocationID != "alloc-a" {
 		t.Fatalf("scheduled allocation = %q, want alloc-a", store.scheduledAllocationID)
 	}
-	if store.scheduledReason != allocationkernel.ReconcileReasonDelete {
-		t.Fatalf("scheduled reason = %q, want %q", store.scheduledReason, allocationkernel.ReconcileReasonDelete)
+	if store.scheduledIntent != allocationkernel.ReconcileIntentEnsureAbsent {
+		t.Fatalf("scheduled intent = %q, want %q", store.scheduledIntent, allocationkernel.ReconcileIntentEnsureAbsent)
 	}
 	if want := now.Add(allocationkernel.DeleteRetryDelay); !store.scheduledNextRunAt.Equal(want) {
 		t.Fatalf("scheduled next run = %v, want %v", store.scheduledNextRunAt, want)
@@ -74,10 +75,10 @@ func TestReconcilerReturnsRetryScheduleError(t *testing.T) {
 	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
 	store := &fakeReconcileStore{
 		items: []allocationkernel.ReconcileItem{{
-			AllocationID: "alloc-a",
-			Reason:       allocationkernel.ReconcileReasonDelete,
-			NodeID:       "node-a",
-			NodeTarget:   "node-a:24010",
+			AllocationID:   "alloc-a",
+			LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+			NodeID:         "node-a",
+			NodeTarget:     "node-a:24010",
 		}},
 		scheduleErr: errors.New("database unavailable"),
 	}
@@ -96,10 +97,10 @@ func TestReconcilerStartsQueuedAllocation(t *testing.T) {
 	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
 	store := &fakeReconcileStore{
 		items: []allocationkernel.ReconcileItem{{
-			AllocationID: "alloc-a",
-			Reason:       allocationkernel.ReconcileReasonCreate,
-			NodeID:       "node-a",
-			NodeTarget:   "node-a:24010",
+			AllocationID:   "alloc-a",
+			LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND,
+			NodeID:         "node-a",
+			NodeTarget:     "node-a:24010",
 		}},
 		start: &runkernel.StartAllocation{
 			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a"},
@@ -138,7 +139,7 @@ func TestReconcilerReschedulesStartFailure(t *testing.T) {
 	store := &fakeReconcileStore{
 		items: []allocationkernel.ReconcileItem{{
 			AllocationID:      "alloc-a",
-			Reason:            allocationkernel.ReconcileReasonCreate,
+			LifecycleState:    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND,
 			NodeID:            "node-a",
 			NodeTarget:        "node-a:24010",
 			ReconcileAttempts: 1,
@@ -163,8 +164,8 @@ func TestReconcilerReschedulesStartFailure(t *testing.T) {
 	if store.scheduledAllocationID != "alloc-a" {
 		t.Fatalf("scheduled allocation = %q, want alloc-a", store.scheduledAllocationID)
 	}
-	if store.scheduledReason != allocationkernel.ReconcileReasonCreate {
-		t.Fatalf("scheduled reason = %q, want %q", store.scheduledReason, allocationkernel.ReconcileReasonCreate)
+	if store.scheduledIntent != allocationkernel.ReconcileIntentEnsurePresent {
+		t.Fatalf("scheduled intent = %q, want %q", store.scheduledIntent, allocationkernel.ReconcileIntentEnsurePresent)
 	}
 	if want := now.Add(allocationkernel.CreateRetryDelay(2)); !store.scheduledNextRunAt.Equal(want) {
 		t.Fatalf("scheduled next run = %v, want %v", store.scheduledNextRunAt, want)
@@ -182,7 +183,7 @@ func TestReconcilerMarksStartFailureAfterRetryExhaustion(t *testing.T) {
 	store := &fakeReconcileStore{
 		items: []allocationkernel.ReconcileItem{{
 			AllocationID:      "alloc-a",
-			Reason:            allocationkernel.ReconcileReasonCreate,
+			LifecycleState:    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND,
 			NodeID:            "node-a",
 			NodeTarget:        "node-a:24010",
 			ReconcileAttempts: allocationkernel.CreateRetryMaxAttempts - 1,
@@ -213,10 +214,10 @@ func TestReconcilerCancelsNodeOperationWhenClaimRenewalLosesOwnership(t *testing
 	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
 	store := &fakeReconcileStore{
 		items: []allocationkernel.ReconcileItem{{
-			AllocationID: "alloc-a",
-			Reason:       allocationkernel.ReconcileReasonCreate,
-			NodeID:       "node-a",
-			NodeTarget:   "node-a:24010",
+			AllocationID:   "alloc-a",
+			LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND,
+			NodeID:         "node-a",
+			NodeTarget:     "node-a:24010",
 		}},
 		start: &runkernel.StartAllocation{
 			Run:         &runv1.Run{ID: "run-a", AllocationID: "alloc-a"},
@@ -258,7 +259,7 @@ type fakeReconcileStore struct {
 	failedMessage              string
 	markErr                    error
 	scheduledAllocationID      string
-	scheduledReason            string
+	scheduledIntent            allocationkernel.ReconcileIntent
 	scheduledNextRunAt         time.Time
 	scheduledLastError         string
 	scheduledIncrementAttempts bool
@@ -318,7 +319,7 @@ func (f *fakeReconcileStore) WaitReconcileWork(ctx context.Context) error {
 
 func (f *fakeReconcileStore) recordSchedule(req allocationkernel.ScheduleReconcileRequest) error {
 	f.scheduledAllocationID = req.AllocationID
-	f.scheduledReason = req.Reason
+	f.scheduledIntent = req.Intent
 	f.scheduledNextRunAt = req.NextRunAt
 	f.scheduledLastError = req.LastReconcileError
 	f.scheduledIncrementAttempts = req.IncrementAttempts

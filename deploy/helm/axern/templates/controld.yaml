@@ -94,13 +94,13 @@ spec:
                 secretKeyRef:
                   name: {{ include "axern.postgresSecretName" . }}
                   key: {{ .Values.postgres.dsnKey }}
-            - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE
               value: {{ .Values.runtimeCatalog.python311Image | quote }}
-            - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.serverBaseImage | quote }}
-            - name: AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.codingBaseImage | quote }}
-            - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.desktopBaseImage | quote }}
             - name: CONTROLD_TUNNEL_RELAYS
               value: {{ include "axern.tunnelRelays" . | quote }}

@@ -13,9 +13,9 @@ import (
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -85,7 +85,7 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 				}
 				if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
 					AllocationID: alloc.allocationID,
-					Reason:       allocationkernel.ReconcileReasonDelete,
+					Intent:       allocationkernel.ReconcileIntentEnsureAbsent,
 					NextRunAt:    now,
 				}, now); err != nil {
 					return err

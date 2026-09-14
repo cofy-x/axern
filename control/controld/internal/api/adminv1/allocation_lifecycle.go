@@ -34,7 +34,6 @@ func (s *Server) ForceAllocationLifecycleRetry(ctx context.Context, req *private
 	now := s.now()
 	item, err := s.deps.AllocationLifecycleRetries.ForceAllocationLifecycleRetry(ctx, allocationkernel.ForceLifecycleRetryRequest{
 		AllocationID:   req.GetAllocationID(),
-		Reason:         retryReasonFromProto(req.GetReason()),
 		OperatorReason: req.GetOperatorReason(),
 		RequestedRunAt: now,
 	}, now)
@@ -51,7 +50,6 @@ func (s *Server) FailAllocationLifecycleRetry(ctx context.Context, req *privatea
 	now := s.now()
 	item, err := s.deps.AllocationLifecycleRetries.FailAllocationLifecycleRetry(ctx, allocationkernel.FailLifecycleRetryRequest{
 		AllocationID:   req.GetAllocationID(),
-		Reason:         retryReasonFromProto(req.GetReason()),
 		OperatorReason: req.GetOperatorReason(),
 	}, now)
 	if err != nil {
@@ -67,7 +65,6 @@ func (s *Server) ClearAllocationLifecycleRetry(ctx context.Context, req *private
 	now := s.now()
 	item, err := s.deps.AllocationLifecycleRetries.ClearAllocationLifecycleRetry(ctx, allocationkernel.ClearLifecycleRetryRequest{
 		AllocationID:   req.GetAllocationID(),
-		Reason:         retryReasonFromProto(req.GetReason()),
 		OperatorReason: req.GetOperatorReason(),
 	}, now)
 	if err != nil {
@@ -89,7 +86,6 @@ func lifecycleRetryFilterFromProto(req *privateadminv1.ListAllocationLifecycleRe
 	}
 	filter := req.GetFilter()
 	return allocationkernel.LifecycleRetryFilter{
-		Reason:  retryReasonFromProto(filter.GetReason()),
 		DueOnly: filter.GetDueOnly(),
 		Limit:   int(req.GetLimit()),
 	}
@@ -100,7 +96,7 @@ func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *privateadm
 		AllocationID:       item.AllocationID,
 		RunID:              item.RunID,
 		EnvironmentID:      item.EnvironmentID,
-		Reason:             retryReasonToProto(item.Reason),
+		LifecycleState:     allocationkernel.ParseLifecycleState(item.LifecycleState),
 		NodeID:             item.NodeID,
 		NodeTarget:         item.NodeTarget,
 		ReconcileAttempts:  int32(item.ReconcileAttempts),
@@ -112,27 +108,5 @@ func lifecycleRetryToProto(item allocationkernel.LifecycleRetryItem) *privateadm
 		Due:                item.Due,
 		Clearable:          item.Clearable,
 		ClearBlockedReason: item.ClearBlockedReason,
-	}
-}
-
-func retryReasonFromProto(reason privateadminv1.AllocationLifecycleRetryReason) string {
-	switch reason {
-	case privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE:
-		return allocationkernel.ReconcileReasonCreate
-	case privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE:
-		return allocationkernel.ReconcileReasonDelete
-	default:
-		return ""
-	}
-}
-
-func retryReasonToProto(reason string) privateadminv1.AllocationLifecycleRetryReason {
-	switch reason {
-	case allocationkernel.ReconcileReasonCreate:
-		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE
-	case allocationkernel.ReconcileReasonDelete:
-		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE
-	default:
-		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED
 	}
 }

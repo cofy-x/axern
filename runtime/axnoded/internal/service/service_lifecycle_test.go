@@ -65,7 +65,7 @@ func TestShutdownDrainsRetainedEnvironments(t *testing.T) {
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	require.NoError(t, os.MkdirAll(rootfsDir, 0o755))
 
-	fr := &runtimeapi.EnvironmentTemplate{
+	fr := &runtimeapi.ResolvedEnvironment{
 		ID: "retained-on-close",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
@@ -73,7 +73,7 @@ func TestShutdownDrainsRetainedEnvironments(t *testing.T) {
 		},
 		Argv: []string{"/bin/sh"},
 	}
-	rootfsCfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(fr)
+	rootfsCfg, err := environmentcache.RootfsConfigFromResolvedEnvironment(fr)
 	require.NoError(t, err)
 	result, err := s.environmentCache.PrepareEnvironment(t.Context(), fr, rootfsCfg)
 	require.NoError(t, err)

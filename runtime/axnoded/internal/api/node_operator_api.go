@@ -6,7 +6,7 @@ import (
 
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -246,16 +246,16 @@ func (s *nodeOperatorServer) WaitSandbox(ctx context.Context, req *nodeoperatorv
 	resp, err := s.svc.Wait(ctx, &runtimev1.WaitRequest{ID: req.GetSandboxID()})
 	if err == nil {
 		return &nodeoperatorv1.WaitSandboxResponse{
-			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-			ExitCode:      resp.ExitCode,
-			Message:       resp.GetMessage(),
+			State:    nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
+			ExitCode: resp.ExitCode,
+			Message:  resp.GetMessage(),
 		}, nil
 	}
 
 	if grpcstatus.Code(err) == codes.Unavailable && resp != nil {
 		return &nodeoperatorv1.WaitSandboxResponse{
-			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-			Message:       resp.GetMessage(),
+			State:   nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
+			Message: resp.GetMessage(),
 		}, nil
 	}
 	return nil, err
@@ -372,13 +372,13 @@ func localSandboxFromContainer(container *runtimev1.ContainerStatus) *nodeoperat
 		return nil
 	}
 	return &nodeoperatorv1.LocalSandbox{
-		SandboxID:     container.GetID(),
-		State:         localSandboxStateFromContainer(container.GetState()),
-		ExitCode:      container.ExitCode,
-		Message:       container.GetMessage(),
-		Pid:           container.GetPid(),
-		StartedAt:     timestampFromUnixSeconds(container.GetStartedAt()),
-		FinishedAt:    timestampFromUnixSeconds(container.GetFinishedAt()),
+		SandboxID:  container.GetID(),
+		State:      localSandboxStateFromContainer(container.GetState()),
+		ExitCode:   container.ExitCode,
+		Message:    container.GetMessage(),
+		Pid:        container.GetPid(),
+		StartedAt:  timestampFromUnixSeconds(container.GetStartedAt()),
+		FinishedAt: timestampFromUnixSeconds(container.GetFinishedAt()),
 	}
 }
 

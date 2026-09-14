@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	"github.com/cofy-x/axern/runtime/tunneld/internal/control"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 )
 

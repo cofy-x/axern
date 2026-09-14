@@ -25,10 +25,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func (h *Controller) ensurePreparedEnvironment(ctx context.Context, fr *runtime.EnvironmentTemplate) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
-	rootfsCfg, err := environmentcache.RootfsConfigFromEnvironmentTemplate(fr)
+func (h *Controller) ensurePreparedEnvironment(ctx context.Context, fr *runtime.ResolvedEnvironment) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+	rootfsCfg, err := environmentcache.RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
-		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromEnvironmentTemplate(fr)}, err
+		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromResolvedEnvironment(fr)}, err
 	}
 	return h.prepareEnvironment(ctx, fr, rootfsCfg)
 }
@@ -37,16 +37,16 @@ func (h *Controller) ensurePreparedEnvironmentFromRequest(ctx context.Context, r
 	_, span := sdkobs.Start(ctx, sandboxobs.SpanRootFSPrepare,
 		attribute.String(sdkobs.AttrAllocationID, request.GetAllocationID()),
 		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
-		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromEnvironmentTemplate(request.GetEnvironmentTemplate())),
+		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromResolvedEnvironment(request.GetEnvironment())),
 	)
 	defer span.End()
 	rootfsCfg, err := startplan.RootfsConfigFromStartRequest(request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "rootfs config")
-		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromEnvironmentTemplate(request.GetEnvironmentTemplate())}, err
+		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromResolvedEnvironment(request.GetEnvironment())}, err
 	}
-	fr := request.GetEnvironmentTemplate()
+	fr := request.GetEnvironment()
 	lrt, summary, err := h.prepareEnvironment(ctx, fr, rootfsCfg)
 	if err != nil {
 		span.RecordError(err)
@@ -58,9 +58,9 @@ func (h *Controller) ensurePreparedEnvironmentFromRequest(ctx context.Context, r
 	return lrt, summary, err
 }
 
-func (h *Controller) prepareEnvironment(ctx context.Context, fr *runtime.EnvironmentTemplate, rootfsCfg environmentcache.RootfsConfig) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+func (h *Controller) prepareEnvironment(ctx context.Context, fr *runtime.ResolvedEnvironment, rootfsCfg environmentcache.RootfsConfig) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
 	summary := EnvironmentPrepareSummary{
-		RootfsType: RootfsTypeFromEnvironmentTemplate(fr),
+		RootfsType: RootfsTypeFromResolvedEnvironment(fr),
 	}
 	resolveStart := time.Now()
 	resolvedRootfsCfg, err := h.environmentCache.ResolveRootfsConfig(rootfsCfg)
@@ -211,7 +211,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		return resp, err
 	}
 
-	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromEnvironmentTemplate(request.EnvironmentTemplate))
+	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromResolvedEnvironment(request.Environment))
 	result := contract.StartupResultError
 	succeeded := false
 	stateCommitted := false
@@ -301,7 +301,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		recorder.RecordStartupStep(sample.Phase, sample.Step, sample.Duration)
 	}
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.EnvironmentTemplate)), err
+		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.Environment)), err
 	}
 	if h.rootfsCapabilityGate != nil {
 		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS); err != nil {

@@ -195,6 +195,7 @@ func TestStoreReportsActiveUsageAndNullableLimits(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a", "team-b")
 
 	quota, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(1000),
@@ -247,6 +248,7 @@ func TestStoreUnsetReturnsUnlimitedQuota(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a")
 	if _, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(1000),
 		MemoryBytes: wrapperspb.Int64(1 << 30),
@@ -275,6 +277,7 @@ func TestStoreAllowsLoweringQuotaBelowActiveUsage(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a")
 	if _, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(4000),
 		MemoryBytes: wrapperspb.Int64(4 << 30),
@@ -309,6 +312,7 @@ func TestStoreSetWaitsForNamespaceQuotaLock(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a")
 
 	tx, err := db.Pool().Begin(ctx)
 	if err != nil {
@@ -362,6 +366,15 @@ func truncateNamespaceTestTables(t *testing.T, db *postgres.DB) {
 		CASCADE
 	`); err != nil {
 		t.Fatalf("truncate namespace test tables: %v", err)
+	}
+}
+
+func createNamespaceFixtures(t *testing.T, store *Store, now time.Time, namespaces ...string) {
+	t.Helper()
+	for _, namespace := range namespaces {
+		if _, err := store.CreateNamespace(context.Background(), namespace, now); err != nil {
+			t.Fatalf("create namespace fixture %q: %v", namespace, err)
+		}
 	}
 }
 

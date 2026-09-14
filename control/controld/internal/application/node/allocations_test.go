@@ -8,7 +8,7 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestBatchReportAllocationLifecycleUsesRunStore(t *testing.T) {

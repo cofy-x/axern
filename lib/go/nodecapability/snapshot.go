@@ -208,7 +208,7 @@ func ValidateSnapshot(snapshot *capabilityv1.CapabilitySnapshot, now time.Time) 
 	}
 	for id, observation := range byKey {
 		if observation.GetState() == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE && !availableObservationSet(byKey, id, now, make(map[string]bool)) {
-			return fmt.Errorf("available capability observation %q has an unavailable catalog dependency", id)
+			return fmt.Errorf("available capability observation %q has an unavailable definition dependency", id)
 		}
 	}
 	return nil

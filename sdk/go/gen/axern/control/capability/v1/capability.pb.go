@@ -36,7 +36,7 @@ const (
 	PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER          PlatformCapability = 6
 	PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT PlatformCapability = 7
 	PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS                 PlatformCapability = 8
-	// Provider facts consumed by the catalog's derived workload capabilities.
+	// Provider facts consumed by derived workload capability definitions.
 	// They are not valid workload requirements on their own.
 	PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST    PlatformCapability = 9
 	PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST PlatformCapability = 10

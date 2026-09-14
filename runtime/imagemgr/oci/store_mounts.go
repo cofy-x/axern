@@ -7,25 +7,25 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-func (s *metadataStore) putMount(record *OciMountRecord) error {
+func (s *metadataStore) putMount(record *OciMountState) error {
 	key := record.mountKey()
 	data, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("failed to marshal mount record: %w", err)
 	}
 	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(mountRecordsBucket).Put([]byte(key), data)
+		return tx.Bucket(ociMountStateBucket).Put([]byte(key), data)
 	})
 }
 
-func (s *metadataStore) getMount(cacheKey string) (*OciMountRecord, error) {
-	var record *OciMountRecord
+func (s *metadataStore) getMount(cacheKey string) (*OciMountState, error) {
+	var record *OciMountState
 	err := s.db.View(func(tx *bolt.Tx) error {
-		v := tx.Bucket(mountRecordsBucket).Get([]byte(cacheKey))
+		v := tx.Bucket(ociMountStateBucket).Get([]byte(cacheKey))
 		if v == nil {
 			return nil
 		}
-		record = &OciMountRecord{}
+		record = &OciMountState{}
 		return json.Unmarshal(v, record)
 	})
 	return record, err
@@ -33,15 +33,15 @@ func (s *metadataStore) getMount(cacheKey string) (*OciMountRecord, error) {
 
 func (s *metadataStore) deleteMount(cacheKey string) error {
 	return s.db.Update(func(tx *bolt.Tx) error {
-		return tx.Bucket(mountRecordsBucket).Delete([]byte(cacheKey))
+		return tx.Bucket(ociMountStateBucket).Delete([]byte(cacheKey))
 	})
 }
 
-func (s *metadataStore) listMounts() ([]*OciMountRecord, error) {
-	records := make([]*OciMountRecord, 0, 16)
+func (s *metadataStore) listMounts() ([]*OciMountState, error) {
+	records := make([]*OciMountState, 0, 16)
 	err := s.db.View(func(tx *bolt.Tx) error {
-		return tx.Bucket(mountRecordsBucket).ForEach(func(_, v []byte) error {
-			r := &OciMountRecord{}
+		return tx.Bucket(ociMountStateBucket).ForEach(func(_, v []byte) error {
+			r := &OciMountState{}
 			if err := json.Unmarshal(v, r); err != nil {
 				return err
 			}
@@ -97,7 +97,7 @@ func (s *metadataStore) listMountTxns() ([]*OciMountTxnRecord, error) {
 	return records, err
 }
 
-func (r *OciMountRecord) mountKey() string {
+func (r *OciMountState) mountKey() string {
 	if r != nil && r.CacheKey != "" {
 		return r.CacheKey
 	}

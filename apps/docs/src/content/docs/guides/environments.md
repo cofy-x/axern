@@ -3,7 +3,7 @@ title: Environments, Namespaces, and Quota
 description: Reuse immutable environments, organize workloads by namespace, and inspect quota and admission signals.
 ---
 
-An Environment is an immutable, reusable execution source: a resolved catalog template or OCI image reference that Runs and Sandboxes can share without re-resolving the image. Namespaces group resources, and quota bounds what each namespace may admit.
+An Environment is an immutable, reusable execution source: a resolved built-in template or OCI image reference that Runs and Sandboxes can share without re-resolving the image. Namespaces group resources, and quota bounds what each namespace may admit.
 
 ## Create and reuse an Environment
 
@@ -15,7 +15,7 @@ axern environment get <environment-id>
 axern environment delete <environment-id>
 ```
 
-An environment selects exactly one source: `--template-id` (with optional `--template-version`) from the [catalog](/guides/catalog/), or `--image-ref`. Private registries use a stored credential, referenced by ID:
+An environment selects exactly one source: a deployment-provided `--template-id` (with optional `--template-version`), or `--image-ref`. Templates are resolution inputs rather than independently queryable resources. Private registries use a stored credential, referenced by ID:
 
 ```bash
 axern environment create \

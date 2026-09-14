@@ -137,6 +137,7 @@ describe_step() {
     bpfnet-generate-check) echo "Check committed bpfnet tc artifacts for drift" ;;
     build) echo "Build the root language workspaces" ;;
     test) echo "Run the root workspace test suites" ;;
+    controld-postgres-test) echo "Run controld integration tests against ephemeral PostgreSQL" ;;
     bpfnet-test) echo "Run network/bpfnet Go tests" ;;
     axnoded-test)
       if [ "${host_os}" = "Linux" ]; then
@@ -220,6 +221,9 @@ run_step() {
         run_cmd make -C runtime/axnoded test-host
       fi
       ;;
+    controld-postgres-test)
+      run_cmd make controld-postgres-test
+      ;;
     axern-cli-e2e)
       run_cmd make axern-cli-e2e
       ;;
@@ -300,6 +304,7 @@ fi
 steps+=(
   build
   test
+  controld-postgres-test
   bpfnet-test
   axnoded-test
   axern-cli-e2e

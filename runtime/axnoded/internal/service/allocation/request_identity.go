@@ -14,7 +14,7 @@ import (
 )
 
 // StartRequestDigest identifies the immutable behavioral contract of one
-// allocation. Capability requirements contribute only their key and catalog
+// allocation. Capability requirements contribute only their key and contract
 // loss policy; changing the current Node observation does not change the
 // requested sandbox. Trace IDs
 // are request telemetry and likewise do not define runtime behavior.

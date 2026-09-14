@@ -258,7 +258,7 @@ func (m *Manager) Up(ctx context.Context, options UpOptions) error {
 func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	existing, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && existing.Version != m.Version {
-		return fmt.Errorf("local stack version %s does not match CLI version %s; run `axern local upgrade`", existing.Version, m.Version)
+		return fmt.Errorf("local stack version %s does not match CLI version %s; local state is disposable, run `axern local reset --force` and then `axern local up`", existing.Version, m.Version)
 	} else if metadataErr != nil && !errors.Is(metadataErr, os.ErrNotExist) {
 		return metadataErr
 	}
@@ -385,7 +385,7 @@ func (m *Manager) Reset(ctx context.Context) error {
 		return err
 	}
 	defer release()
-	helperImage := m.backupHelperImage()
+	helperImage := m.cleanupHelperImage()
 	if err := m.down(ctx, true); err != nil {
 		return err
 	}
@@ -483,92 +483,7 @@ func (m *Manager) removeContext() error {
 	return config.Save(m.ConfigPath, cfg)
 }
 
-func (m *Manager) Upgrade(ctx context.Context) error {
-	release, lockErr := m.lock()
-	if lockErr != nil {
-		return lockErr
-	}
-	defer release()
-	existing, err := loadMetadata(m.metadataPath())
-	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("local stack is not initialized; run `axern local up`")
-	}
-	if err != nil {
-		return err
-	}
-	if existing.Version == m.Version {
-		fmt.Fprintf(m.Stdout, "Axern local is already at version %s.\n", m.Version)
-		return nil
-	}
-	if versionLess(m.Version, existing.Version) {
-		return fmt.Errorf("downgrade from %s to %s is not supported", existing.Version, m.Version)
-	}
-	if !supportedUpgrade(existing.Version, m.Version) {
-		return fmt.Errorf("no supported local migration path exists from %s to %s; run `axern local reset`", existing.Version, m.Version)
-	}
-	used, _ := directorySize(m.Dir)
-	free, err := availableDisk(m.Dir)
-	if err != nil {
-		return fmt.Errorf("inspect free disk before upgrade: %w", err)
-	}
-	if free < used+(2<<30) {
-		return fmt.Errorf("upgrade requires at least the current data size plus 2 GiB free; need %d bytes, have %d", used+(2<<30), free)
-	}
-	backup := filepath.Join(m.Dir, "backups", time.Now().UTC().Format("20060102T150405Z")+"-"+existing.Version)
-	if err := m.down(ctx, false); err != nil {
-		return err
-	}
-	if err := m.createBackup(ctx, backup); err != nil {
-		_ = m.composeRun(context.Background(), existing.Profile, "up", "-d")
-		return fmt.Errorf("create upgrade backup: %w", err)
-	}
-	if err := os.Remove(m.metadataPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := m.up(ctx, UpOptions{Profile: existing.Profile}); err != nil {
-		upgradeErr := err
-		_ = m.composeRun(context.Background(), existing.Profile, "down", "--remove-orphans")
-		if restoreErr := m.restoreBackup(backup); restoreErr != nil {
-			return fmt.Errorf("upgrade failed (%v) and automatic restore failed (%v); backup retained at %s", upgradeErr, restoreErr, backup)
-		}
-		if startErr := m.composeRun(context.Background(), existing.Profile, "up", "-d"); startErr != nil {
-			return fmt.Errorf("upgrade failed (%v); old data and deployment were restored at %s but restart failed: %w", upgradeErr, backup, startErr)
-		}
-		return fmt.Errorf("upgrade failed and the previous stack was restored from %s: %w", backup, upgradeErr)
-	}
-	fmt.Fprintf(m.Stdout, "Upgraded Axern local from %s to %s. Backup: %s\n", existing.Version, m.Version, backup)
-	return nil
-}
-
-func (m *Manager) restoreBackup(backup string) error {
-	archive := filepath.Join(backup, "local-snapshot.tar")
-	if _, err := os.Stat(archive); err != nil {
-		return fmt.Errorf("upgrade snapshot is unavailable: %w", err)
-	}
-	image := m.backupHelperImage()
-	script := `set -eu
-for path in /source/* /source/.[!.]* /source/..?*; do
-  [ -e "$path" ] || continue
-  [ "$path" = /source/backups ] || rm -rf "$path"
-done
-tar -xf /backup/local-snapshot.tar -C /source`
-	return m.Runner.Run(context.Background(), m.Stdout, m.Stderr, "docker", "run", "--rm", "--user", "0:0", "--entrypoint", "/bin/sh", "-v", m.Dir+":/source", "-v", backup+":/backup:ro", image, "-c", script)
-}
-
-func (m *Manager) createBackup(ctx context.Context, backup string) error {
-	if err := os.MkdirAll(backup, 0o700); err != nil {
-		return err
-	}
-	image := m.backupHelperImage()
-	owner := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
-	script := `set -eu
-tar --exclude='./backups' -cf /backup/local-snapshot.tar -C /source .
-chown "$1" /backup/local-snapshot.tar
-chmod 0600 /backup/local-snapshot.tar`
-	return m.Runner.Run(ctx, m.Stdout, m.Stderr, "docker", "run", "--rm", "--user", "0:0", "--entrypoint", "/bin/sh", "-v", m.Dir+":/source:ro", "-v", backup+":/backup", image, "-c", script, "backup", owner)
-}
-
-func (m *Manager) backupHelperImage() string {
+func (m *Manager) cleanupHelperImage() string {
 	data, err := os.ReadFile(m.envPath())
 	if err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
@@ -582,77 +497,6 @@ func (m *Manager) backupHelperImage() string {
 		}
 	}
 	return localbundle.ImageReferences(m.Version)["POSTGRES_IMAGE"]
-}
-
-func versionLess(left, right string) bool {
-	type parsedVersion struct {
-		core       [3]int
-		prerelease []string
-	}
-	parse := func(value string) parsedVersion {
-		value = strings.TrimPrefix(strings.SplitN(value, "+", 2)[0], "v")
-		parts := strings.SplitN(value, "-", 2)
-		var result parsedVersion
-		for i, item := range strings.Split(parts[0], ".") {
-			if i >= len(result.core) {
-				break
-			}
-			result.core[i], _ = strconv.Atoi(item)
-		}
-		if len(parts) == 2 {
-			result.prerelease = strings.Split(parts[1], ".")
-		}
-		return result
-	}
-	l, r := parse(left), parse(right)
-	for i := range l.core {
-		if l.core[i] != r.core[i] {
-			return l.core[i] < r.core[i]
-		}
-	}
-	if len(l.prerelease) == 0 || len(r.prerelease) == 0 {
-		return len(l.prerelease) > 0 && len(r.prerelease) == 0
-	}
-	for i := 0; i < len(l.prerelease) && i < len(r.prerelease); i++ {
-		if l.prerelease[i] == r.prerelease[i] {
-			continue
-		}
-		leftNumber, leftErr := strconv.Atoi(l.prerelease[i])
-		rightNumber, rightErr := strconv.Atoi(r.prerelease[i])
-		switch {
-		case leftErr == nil && rightErr == nil:
-			return leftNumber < rightNumber
-		case leftErr == nil:
-			return true
-		case rightErr == nil:
-			return false
-		default:
-			return l.prerelease[i] < r.prerelease[i]
-		}
-	}
-	return len(l.prerelease) < len(r.prerelease)
-}
-
-func supportedUpgrade(from, to string) bool {
-	parseCore := func(value string) [3]int {
-		value = strings.TrimPrefix(strings.SplitN(strings.SplitN(value, "+", 2)[0], "-", 2)[0], "v")
-		var core [3]int
-		for i, item := range strings.Split(value, ".") {
-			if i >= len(core) {
-				break
-			}
-			core[i], _ = strconv.Atoi(item)
-		}
-		return core
-	}
-	current, target := parseCore(from), parseCore(to)
-	if current == target {
-		return true
-	}
-	if target[0] == 0 {
-		return current[0] == 0 && (current[1] == target[1] || current[1]+1 == target[1])
-	}
-	return current[0] == target[0] && current[1] <= target[1]
 }
 
 func (m *Manager) Logs(ctx context.Context, options LogOptions) error {
@@ -821,7 +665,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 	}
 	metadata, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && metadata.Version != m.Version {
-		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local upgrade`")
+		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local reset --force` and then `axern local up`")
 	} else {
 		add("stack_version", true, "stack_version_compatible", "stack_version_incompatible", "local stack version is compatible", "")
 	}

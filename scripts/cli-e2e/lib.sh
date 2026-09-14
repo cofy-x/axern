@@ -35,8 +35,6 @@ controld_log="$(mktemp)"
 gatewayd_log="$(mktemp)"
 cli_config_dir="$(mktemp -d)"
 cli_config_file="${cli_config_dir}/config.json"
-cli_catalog_output="$(mktemp)"
-cli_template_output="$(mktemp)"
 cli_object_output="$(mktemp)"
 cli_wait_output="$(mktemp)"
 cli_error_output="$(mktemp)"
@@ -132,7 +130,7 @@ cleanup() {
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
-  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${gatewayd_log}" "${cli_config_dir}" "${cli_catalog_output}" "${cli_template_output}" "${cli_object_output}" "${cli_wait_output}" "${cli_error_output}" "${docker_secret_file}" "${ssh_dir}"
+  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${gatewayd_log}" "${cli_config_dir}" "${cli_object_output}" "${cli_wait_output}" "${cli_error_output}" "${docker_secret_file}" "${ssh_dir}"
 }
 
 dump_logs() {

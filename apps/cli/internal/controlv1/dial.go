@@ -10,7 +10,6 @@ import (
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
@@ -41,7 +40,6 @@ func dial(ctx context.Context, config Config) (*grpc.ClientConn, Clients, error)
 		Environment:      environmentv1.NewEnvironmentControlClient(conn),
 		Run:              runv1.NewRunControlClient(conn),
 		Secret:           secretv1.NewSecretControlClient(conn),
-		Catalog:          catalogv1.NewEnvironmentCatalogClient(conn),
 		Tunnel:           tunnelv1.NewTunnelControlClient(conn),
 		Namespace:        namespacev1.NewNamespaceControlClient(conn),
 		Quota:            quotav1.NewQuotaControlClient(conn),

@@ -10,7 +10,7 @@ import (
 	pgconsistency "github.com/cofy-x/axern/control/controld/internal/postgres/consistency"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func newPostgresTestService(t *testing.T) (*App, *controldtest.FakeNodeLifecycleClient) {
@@ -37,6 +37,7 @@ func newPostgresTestServiceWithConfig(t *testing.T, cfg Config) (*App, *controld
 	if err != nil {
 		t.Fatalf("New(postgres) error = %v", err)
 	}
+	lifecycle.Now = func() time.Time { return app.now() }
 	app.registry.Replace(nil)
 	return app, lifecycle
 }

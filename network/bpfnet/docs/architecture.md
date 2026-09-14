@@ -23,7 +23,7 @@ The design keeps `bpfnet` as a library owned by the node runtime process. It is 
 - `bpfnet` does not replace axnoded as the owner of service intent.
 - `bpfnet` does not run as a separate long-lived daemon.
 - Linux localhost UDP hostPort support is out of scope.
-- Native IPv6 eBPF dataplane support is out of scope. Axnoded may select its explicit bridge/ip6tables compatibility path for an IPv6 sandbox pool, and must expose that effective backend as bridge rather than bpfnet capability.
+- Native IPv6 eBPF dataplane support is out of scope. Axnoded rejects IPv6 pools configured with the eBPF backend; IPv6 requires an explicit bridge/iptables selection.
 
 ## Ownership Model
 
@@ -245,7 +245,7 @@ The selected dataplane is fail-closed. There is no mixed eBPF/iptables mode.
 | ------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------- |
 | TC and localhost paths attached | All supported IPv4 service and sandbox NAT paths run through bpfnet                | Required                              |
 | Unsupported protocol           | The eBPF backend rejects service intent outside TCP/UDP                            | Fail closed                           |
-| IPv6 bridge backend            | An IPv6 sandbox pool uses axnoded's ip6tables path and publishes bridge capability | Expected; not a native bpfnet result  |
+| IPv6 configuration             | Axnoded rejects an IPv6 pool paired with the eBPF backend                           | Expected; select iptables explicitly  |
 
 Any required attach or reconcile failure is represented by `ready=false` and an attach/reconcile error. A node changes backend only through explicit configuration and restart.
 

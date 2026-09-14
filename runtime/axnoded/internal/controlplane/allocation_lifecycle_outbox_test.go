@@ -6,7 +6,7 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -60,9 +60,9 @@ func TestAllocationLifecycleOutboxKeepsFirstTerminalProofForAllocation(t *testin
 
 func terminalStatusObservation(allocationID string, exitCode int32, observedAt time.Time) *nodev1.AllocationLifecycleObservation {
 	return &nodev1.AllocationLifecycleObservation{
-		AllocationID:  allocationID,
-		State:         commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
-		ExitCode:      &exitCode,
-		ObservedAt:    timestamppb.New(observedAt),
+		AllocationID: allocationID,
+		State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
+		ExitCode:     &exitCode,
+		ObservedAt:   timestamppb.New(observedAt),
 	}
 }

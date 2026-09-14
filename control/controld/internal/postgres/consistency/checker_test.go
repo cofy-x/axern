@@ -111,6 +111,13 @@ func openConsistencyTestDB(t *testing.T) *postgres.DB {
 func insertConsistencyAllocation(t *testing.T, db *postgres.DB, allocationID, runID, status string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces (namespace, created_at)
+		VALUES ('default', $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert namespace: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (node_id, node_target, registered_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-test', '127.0.0.1:24010', $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING

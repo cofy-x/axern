@@ -77,11 +77,11 @@ func TestManagerRejectsDuplicateOwnership(t *testing.T) {
 	}
 }
 
-func TestValidateCatalogProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
+func TestValidateProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}}
-	if err := ValidateCatalogProviderCoverage(provider); err == nil {
-		t.Fatal("partial production provider catalog was accepted")
+	if err := ValidateProviderCoverage(provider); err == nil {
+		t.Fatal("partial production provider contract was accepted")
 	}
 }
 

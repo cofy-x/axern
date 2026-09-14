@@ -9,8 +9,8 @@ import (
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )

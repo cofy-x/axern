@@ -10,6 +10,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -48,7 +49,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	leaseExpiresAt := now.Add(leaseTTL).UTC()
 	rows, err := queryer.Query(ctx, `
 		WITH ranked AS (
-			SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
+			SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 				q.reconcile_attempts, q.last_error, q.next_run_at,
 				`+capabilityDependenciesProjectionSQL+` AS capability_requirements,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.lease_expires_at, '-infinity'::timestamptz)) AS eligible_at,
@@ -60,7 +61,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			WHERE q.next_run_at <= $1
 			  AND (q.lease_expires_at IS NULL OR q.lease_expires_at <= $1)
 		), candidates AS (
-			SELECT r.allocation_id, r.run_id, r.environment_id, r.reason, r.node_id, r.node_target,
+			SELECT r.allocation_id, r.run_id, r.environment_id, r.lifecycle_state, r.node_id, r.node_target,
 				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.eligible_at
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
@@ -75,7 +76,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			  AND (q.lease_expires_at IS NULL OR q.lease_expires_at <= $1)
 			RETURNING q.allocation_id
 		)
-		SELECT c.allocation_id, c.run_id, c.environment_id, c.reason, c.node_id, c.node_target,
+		SELECT c.allocation_id, c.run_id, c.environment_id, c.lifecycle_state, c.node_id, c.node_target,
 			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.eligible_at
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
@@ -89,9 +90,11 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	for rows.Next() {
 		item := allocationkernel.ReconcileItem{ClaimOwner: owner}
 		var dependenciesJSON []byte
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &item.Reason, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
+		var lifecycleState string
+		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
 			return nil, err
 		}
+		item.LifecycleState = allocationkernel.ParseLifecycleState(lifecycleState)
 		if err := decodeCapabilityRequirements(dependenciesJSON, &item); err != nil {
 			return nil, err
 		}
@@ -100,14 +103,23 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	return out, rows.Err()
 }
 
-func RequireReconcileClaim(ctx context.Context, queryer reconcileClaimQueryer, allocationID, reason, owner string, now time.Time) error {
+func RequireReconcileClaim(ctx context.Context, queryer reconcileClaimQueryer, allocationID, owner string, intent allocationkernel.ReconcileIntent, now time.Time) error {
 	var held bool
 	err := queryer.QueryRow(ctx, `
-		SELECT TRUE FROM allocation_reconcile_queue
-		WHERE allocation_id = $1 AND reason = $2 AND lease_owner = $3
-		  AND lease_expires_at > $4
-		FOR UPDATE
-	`, strings.TrimSpace(allocationID), strings.TrimSpace(reason), strings.TrimSpace(owner), now.UTC()).Scan(&held)
+		SELECT TRUE
+		FROM allocation_reconcile_queue q
+		JOIN allocations a ON a.allocation_id = q.allocation_id
+		WHERE q.allocation_id = $1 AND q.lease_owner = $2
+		  AND q.lease_expires_at > $3
+		  AND (($4 = 1 AND a.lifecycle_state IN ($5, $6, $7))
+		    OR ($4 = 2 AND a.lifecycle_state IN ($8, $9)))
+		FOR UPDATE OF q
+	`, strings.TrimSpace(allocationID), strings.TrimSpace(owner), now.UTC(), intent,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&held)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return allocationkernel.ErrReconcileClaimLost
 	}
@@ -158,30 +170,31 @@ func ScheduleReconcile(ctx context.Context, executor reconcileExecutor, req allo
 	if nextRunAt.IsZero() {
 		nextRunAt = now
 	}
-	_, err := executor.Exec(ctx, `
-		INSERT INTO allocation_reconcile_queue(allocation_id, reason, next_run_at, reconcile_attempts, last_error, created_at, updated_at)
-		VALUES ($1, $2, $3, CASE WHEN $4 THEN 1 ELSE 0 END, $5, $6, clock_timestamp())
+	tag, err := executor.Exec(ctx, `
+		INSERT INTO allocation_reconcile_queue(allocation_id, next_run_at, reconcile_attempts, last_error, created_at, updated_at)
+		SELECT a.allocation_id, $2, CASE WHEN $3 THEN 1 ELSE 0 END, $4, $5, $5
+		FROM allocations a
+		WHERE a.allocation_id = $1
+		  AND (($6 = 1 AND a.lifecycle_state IN ($7, $8, $9))
+		    OR ($6 = 2 AND a.lifecycle_state IN ($10, $11)))
 		ON CONFLICT (allocation_id) DO UPDATE SET
-			reason = EXCLUDED.reason,
 			next_run_at = EXCLUDED.next_run_at,
-			reconcile_attempts = CASE
-				WHEN allocation_reconcile_queue.reason <> EXCLUDED.reason THEN EXCLUDED.reconcile_attempts
-				WHEN $4 THEN allocation_reconcile_queue.reconcile_attempts + 1
-				ELSE allocation_reconcile_queue.reconcile_attempts
-			END,
+			reconcile_attempts = CASE WHEN $3 THEN allocation_reconcile_queue.reconcile_attempts + 1 ELSE 0 END,
 			last_error = EXCLUDED.last_error,
-			lease_owner = CASE
-				WHEN allocation_reconcile_queue.reason <> EXCLUDED.reason THEN ''
-				ELSE allocation_reconcile_queue.lease_owner
-			END,
-			lease_expires_at = CASE
-				WHEN allocation_reconcile_queue.reason <> EXCLUDED.reason THEN NULL
-				ELSE allocation_reconcile_queue.lease_expires_at
-			END,
-			updated_at = clock_timestamp()
-	`, strings.TrimSpace(req.AllocationID), strings.TrimSpace(req.Reason), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), now.UTC())
+			lease_owner = '',
+			lease_expires_at = NULL,
+			updated_at = $5
+	`, strings.TrimSpace(req.AllocationID), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), now.UTC(), req.Intent,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String())
 	if err != nil {
 		return fmt.Errorf("schedule allocation reconcile: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return fmt.Errorf("allocation %q lifecycle does not accept reconcile intent %d", req.AllocationID, req.Intent)
 	}
 	return nil
 }
@@ -196,16 +209,26 @@ func ScheduleClaimedReconcile(ctx context.Context, executor reconcileExecutor, r
 	}
 	tag, err := executor.Exec(ctx, `
 		UPDATE allocation_reconcile_queue
-		SET reason = $2,
-			next_run_at = $3,
-			reconcile_attempts = CASE WHEN $4 THEN reconcile_attempts + 1 ELSE reconcile_attempts END,
-			last_error = $5,
+		SET next_run_at = $2,
+			reconcile_attempts = CASE WHEN $3 THEN reconcile_attempts + 1 ELSE reconcile_attempts END,
+			last_error = $4,
 			lease_owner = '',
 			lease_expires_at = NULL,
-			updated_at = clock_timestamp()
-		WHERE allocation_id = $1 AND lease_owner = $6
-		  AND lease_expires_at > $7
-	`, strings.TrimSpace(req.AllocationID), strings.TrimSpace(req.Reason), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), strings.TrimSpace(owner), now.UTC())
+			updated_at = $6
+		WHERE allocation_id = $1 AND lease_owner = $5
+		  AND lease_expires_at > $6
+		  AND EXISTS (
+			SELECT 1 FROM allocations a
+			WHERE a.allocation_id = allocation_reconcile_queue.allocation_id
+			  AND (($7 = 1 AND a.lifecycle_state IN ($8, $9, $10))
+			    OR ($7 = 2 AND a.lifecycle_state IN ($11, $12)))
+		  )
+	`, strings.TrimSpace(req.AllocationID), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), strings.TrimSpace(owner), now.UTC(), req.Intent,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String())
 	if err != nil {
 		return false, fmt.Errorf("schedule claimed allocation reconcile: %w", err)
 	}
@@ -214,11 +237,8 @@ func ScheduleClaimedReconcile(ctx context.Context, executor reconcileExecutor, r
 
 func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter allocationkernel.LifecycleRetryFilter, now time.Time) ([]allocationkernel.LifecycleRetryItem, error) {
 	filter = allocationkernel.NormalizeLifecycleRetryFilter(filter)
-	if err := allocationkernel.ValidateLifecycleRetryFilter(filter); err != nil {
-		return nil, err
-	}
 	rows, err := queryer.Query(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
+		SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at,
 			a.lifecycle_state,
 			EXISTS (
@@ -232,7 +252,7 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
 				WHERE ts.allocation_id = q.allocation_id
-				  AND ts.status IN ($5, $6, $7)
+				  AND ts.status IN ($4, $5, $6)
 			),
 			COALESCE((
 				SELECT r.status FROM runs r
@@ -243,11 +263,10 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
 		JOIN nodes n ON n.node_id = a.node_id
-		WHERE ($2 = '' OR q.reason = $2)
-		  AND (NOT $3 OR q.next_run_at <= $1)
+		WHERE (NOT $2 OR q.next_run_at <= $1)
 		ORDER BY q.created_at ASC, q.allocation_id ASC
-		LIMIT $4
-	`, now.UTC(), filter.Reason, filter.DueOnly, filter.Limit,
+		LIMIT $3
+	`, now.UTC(), filter.DueOnly, filter.Limit,
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String())
@@ -264,9 +283,9 @@ func DebugReconcileItems(ctx context.Context, queryer reconcileQueryer, now time
 	return ListLifecycleRetries(ctx, queryer, allocationkernel.LifecycleRetryFilter{Limit: limit}, now)
 }
 
-func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocationID string, reason string, now time.Time) (*allocationkernel.LifecycleRetryItem, bool, error) {
+func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocationID string, now time.Time) (*allocationkernel.LifecycleRetryItem, bool, error) {
 	rows, err := queryer.Query(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
+		SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at,
 			a.lifecycle_state,
 			EXISTS (
@@ -275,12 +294,12 @@ func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocatio
 			),
 			EXISTS (
 				SELECT 1 FROM execution_leases el
-				WHERE el.allocation_id = q.allocation_id AND el.revoked = FALSE AND el.expires_at > $3
+				WHERE el.allocation_id = q.allocation_id AND el.revoked = FALSE AND el.expires_at > $2
 			),
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
 				WHERE ts.allocation_id = q.allocation_id
-				  AND ts.status IN ($4, $5, $6)
+				  AND ts.status IN ($3, $4, $5)
 			),
 			COALESCE((
 				SELECT r.status FROM runs r
@@ -291,9 +310,9 @@ func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocatio
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
 		JOIN nodes n ON n.node_id = a.node_id
-		WHERE q.allocation_id = $1 AND q.reason = $2
+		WHERE q.allocation_id = $1
 		LIMIT 1
-	`, strings.TrimSpace(allocationID), strings.TrimSpace(reason), now.UTC(),
+	`, strings.TrimSpace(allocationID), now.UTC(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String())
@@ -316,12 +335,13 @@ func scanLifecycleRetryRows(rows pgx.Rows, now time.Time) ([]allocationkernel.Li
 	out := make([]allocationkernel.LifecycleRetryItem, 0)
 	for rows.Next() {
 		var item allocationkernel.LifecycleRetryItem
+		var lifecycleState string
 		clearanceInput := allocationkernel.LifecycleRetryClearanceInput{}
 		if err := rows.Scan(
 			&item.AllocationID,
 			&item.RunID,
 			&item.EnvironmentID,
-			&item.Reason,
+			&lifecycleState,
 			&item.NodeID,
 			&item.NodeTarget,
 			&item.ReconcileAttempts,
@@ -337,6 +357,7 @@ func scanLifecycleRetryRows(rows pgx.Rows, now time.Time) ([]allocationkernel.Li
 		); err != nil {
 			return nil, err
 		}
+		item.LifecycleState = allocationkernel.ParseLifecycleState(lifecycleState).String()
 		item.AgeSeconds = max(int64(now.Sub(item.CreatedAt).Seconds()), 0)
 		item.Due = !item.NextRunAt.After(now)
 		clearanceInput.AllocationID = item.AllocationID

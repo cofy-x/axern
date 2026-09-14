@@ -73,7 +73,7 @@ make local-compose-refresh-verify
 make kind-refresh-verify
 ```
 
-Refresh verification keeps the existing compose project or kind cluster, rebuilds local images, resets the environment database/state, reruns migrations, redeploys core services, reimports catalog runtime images, and runs the core smoke suites.
+Refresh verification keeps the existing compose project or kind cluster, rebuilds local images, resets the environment database/state, reruns migrations, redeploys core services, reimports runtime template images, and runs the core smoke suites.
 
 Use targeted refreshes when you only need one environment:
 

@@ -2,19 +2,6 @@ package admin
 
 import "testing"
 
-func TestValidateRetryReason(t *testing.T) {
-	for _, value := range []string{"create", "delete", " CREATE "} {
-		if err := ValidateRetryReason(value); err != nil {
-			t.Fatalf("ValidateRetryReason(%q) error = %v", value, err)
-		}
-	}
-	for _, value := range []string{"", "start"} {
-		if err := ValidateRetryReason(value); err == nil {
-			t.Fatalf("ValidateRetryReason(%q) unexpectedly succeeded", value)
-		}
-	}
-}
-
 func TestValidateOperatorReason(t *testing.T) {
 	if err := ValidateOperatorReason("operator checked retry"); err != nil {
 		t.Fatalf("ValidateOperatorReason(valid) error = %v", err)

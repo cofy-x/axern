@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestNewReporterReturnsNilWhenControlPlaneDisabled(t *testing.T) {

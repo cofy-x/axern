@@ -13,7 +13,6 @@ import (
 	"github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
@@ -105,7 +104,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	lockedEvaluationTime := req.Now.Add(time.Since(totalStarted))
 	stageStarted = time.Now()
 	diagnostics := newReservationRejectionDiagnostics(maxReservationRejectionDetails)
-	lockedEligibilityRejections := make([]*nodev1.PlacementCandidate, 0)
+	lockedEligibilityRejections := make([]*placementkernel.Evaluation, 0)
 	var lockedRejectionRequest *placementkernel.Request
 	reservationEvaluated := 0
 	var selected *placementkernel.Candidate
@@ -136,7 +135,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			continue
 		}
 		freshEvaluation := a.placement.Evaluate(record, freshRequest, lockedEvaluationTime)
-		if freshEvaluation == nil || freshEvaluation.GetState() != nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE {
+		if freshEvaluation == nil || freshEvaluation.GetState() != placementkernel.CandidateStateEligible {
 			if freshEvaluation != nil {
 				lockedEligibilityRejections = append(lockedEligibilityRejections, freshEvaluation)
 				if lockedRejectionRequest == nil {
@@ -195,7 +194,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	return nil, rejection
 }
 
-func lockedAdmissionEligibilityError(reservationEvaluated int, request *placementkernel.Request, rejected []*nodev1.PlacementCandidate) error {
+func lockedAdmissionEligibilityError(reservationEvaluated int, request *placementkernel.Request, rejected []*placementkernel.Evaluation) error {
 	if reservationEvaluated > 0 || len(rejected) == 0 {
 		return nil
 	}

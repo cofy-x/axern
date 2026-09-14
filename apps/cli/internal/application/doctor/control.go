@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	"google.golang.org/grpc/codes"
@@ -36,7 +35,7 @@ func ConfigurationFailure(contextName, namespace string, probe bool) Report {
 		"select a valid context or provide a complete explicit mTLS connection",
 		time.Now(),
 	))
-	for _, name := range []string{"tls_material", "tls_expiry", "tls_key_permissions", "gateway", "identity", "authorization", "namespace", "catalog"} {
+	for _, name := range []string{"tls_material", "tls_expiry", "tls_key_permissions", "gateway", "identity", "authorization", "namespace"} {
 		report.add(skippedCheck(name, "configuration validation did not pass"))
 	}
 	if probe {
@@ -56,7 +55,7 @@ func (c Control) Diagnose(ctx context.Context) Report {
 		tlsFailed = tlsFailed || check.Status == CheckFail
 	}
 	if tlsFailed {
-		for _, name := range []string{"gateway", "identity", "authorization", "namespace", "catalog"} {
+		for _, name := range []string{"gateway", "identity", "authorization", "namespace"} {
 			report.add(skippedCheck(name, "mTLS validation did not pass"))
 		}
 		if c.options.Probe != nil {
@@ -99,7 +98,6 @@ func (c Control) Diagnose(ctx context.Context) Report {
 	} else {
 		report.add(skippedCheck("authorization", "identity or namespace validation did not pass"))
 	}
-	c.checkCatalog(requestContext, &report, session.Catalog)
 	if c.options.Probe != nil {
 		if !identityOK || !namespaceOK {
 			report.add(skippedCheck("data_plane", "identity or namespace validation did not pass"))
@@ -127,7 +125,7 @@ func newReport(contextName, namespace string, probe bool) Report {
 }
 
 func skipGatewayDependents(report *Report, probe bool) {
-	for _, name := range []string{"identity", "authorization", "namespace", "catalog"} {
+	for _, name := range []string{"identity", "authorization", "namespace"} {
 		report.add(skippedCheck(name, "gateway connection did not pass"))
 	}
 	if probe {
@@ -189,22 +187,6 @@ func (c Control) checkNamespace(ctx context.Context, report *Report, client Name
 	}
 	report.add(passedCheck("namespace", "namespace_reachable", "selected namespace is accessible", started))
 	return true
-}
-
-func (c Control) checkCatalog(ctx context.Context, report *Report, client CatalogClient) {
-	started := time.Now()
-	if client == nil {
-		report.add(failedCheck("environment_catalog", "catalog_client_missing", "environment catalog API is unavailable", "inspect the CLI installation", started))
-		return
-	}
-	checkCtx, cancel := context.WithTimeout(ctx, c.options.CheckTimeout)
-	defer cancel()
-	resp, err := client.ListEnvironmentTemplates(checkCtx, &catalogv1.ListEnvironmentTemplatesRequest{})
-	if err != nil {
-		report.add(failedCheck("catalog", "catalog_unavailable", "environment catalog API request failed", "check gateway authorization and control-plane health", started))
-		return
-	}
-	report.add(passedCheck("catalog", "catalog_reachable", fmt.Sprintf("environment catalog is accessible (%d templates)", len(resp.GetEnvironmentTemplates())), started))
 }
 
 func connectionFailure(err error) (string, string, string) {

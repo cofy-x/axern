@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -66,7 +65,7 @@ func (a *App) observeNodeAllocations(ctx context.Context, observe sdkobs.Int64Ga
 }
 
 type allocationReconcileMetricRow struct {
-	reason           string
+	lifecycleState   string
 	count            int64
 	maxAttempts      int64
 	oldestAgeSeconds int64
@@ -74,27 +73,25 @@ type allocationReconcileMetricRow struct {
 
 func (a *App) allocationReconcileQueueMetrics(ctx context.Context) ([]allocationReconcileMetricRow, error) {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT q.reason, count(*), COALESCE(max(q.reconcile_attempts), 0),
+		SELECT a.lifecycle_state, count(*), COALESCE(max(q.reconcile_attempts), 0),
 			FLOOR(GREATEST(0, EXTRACT(EPOCH FROM ($1::timestamptz - min(q.created_at)))))::bigint
 		FROM allocation_reconcile_queue q
-		GROUP BY q.reason
+		JOIN allocations a ON a.allocation_id = q.allocation_id
+		GROUP BY a.lifecycle_state
 	`, a.now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("query allocation reconcile queue metrics: %w", err)
 	}
 	defer rows.Close()
-	metrics := []allocationReconcileMetricRow{
-		{reason: allocationkernel.ReconcileReasonCreate},
-		{reason: allocationkernel.ReconcileReasonDelete},
-	}
+	metrics := make([]allocationReconcileMetricRow, 0)
 	for rows.Next() {
 		var row allocationReconcileMetricRow
-		if err := rows.Scan(&row.reason, &row.count, &row.maxAttempts, &row.oldestAgeSeconds); err != nil {
+		if err := rows.Scan(&row.lifecycleState, &row.count, &row.maxAttempts, &row.oldestAgeSeconds); err != nil {
 			return nil, err
 		}
 		replaced := false
 		for i := range metrics {
-			if metrics[i].reason == row.reason {
+			if metrics[i].lifecycleState == row.lifecycleState {
 				metrics[i] = row
 				replaced = true
 				break
@@ -113,7 +110,7 @@ func (a *App) observeAllocationReconcileQueue(ctx context.Context, observe sdkob
 		return err
 	}
 	for _, row := range rows {
-		observe(row.count, attribute.String(sdkobs.AttrReason, row.reason))
+		observe(row.count, attribute.String(sdkobs.AttrState, row.lifecycleState))
 	}
 	return nil
 }
@@ -124,7 +121,7 @@ func (a *App) observeAllocationReconcileQueueOldestAge(ctx context.Context, obse
 		return err
 	}
 	for _, row := range rows {
-		observe(row.oldestAgeSeconds, attribute.String(sdkobs.AttrReason, row.reason))
+		observe(row.oldestAgeSeconds, attribute.String(sdkobs.AttrState, row.lifecycleState))
 	}
 	return nil
 }
@@ -135,7 +132,7 @@ func (a *App) observeAllocationReconcileAttempts(ctx context.Context, observe sd
 		return err
 	}
 	for _, row := range rows {
-		observe(row.maxAttempts, attribute.String(sdkobs.AttrReason, row.reason))
+		observe(row.maxAttempts, attribute.String(sdkobs.AttrState, row.lifecycleState))
 	}
 	return nil
 }

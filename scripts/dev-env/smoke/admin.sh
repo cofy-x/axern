@@ -130,6 +130,8 @@ DELETE FROM admin_audit_events
 WHERE target_id IN (:'force_allocation_id', :'fail_allocation_id', :'clear_allocation_id');
 DELETE FROM runs
 WHERE run_id IN (:'force_run_id', :'fail_run_id', :'clear_run_id');
+DELETE FROM namespaces
+WHERE namespace = 'admin-repair-smoke';
 SQL
     return "${rc}"
   }
@@ -145,6 +147,9 @@ SQL
       -v "node_id=${node_id}" \
       -v "namespace=${namespace}" \
       -v "due=${due}" <<'SQL' >/dev/null
+INSERT INTO namespaces (namespace, created_at)
+VALUES (:'namespace', now())
+ON CONFLICT (namespace) DO NOTHING;
 INSERT INTO runs (
   run_id, namespace, environment_id,
   status, config, labels, created_at, updated_at
@@ -160,9 +165,9 @@ INSERT INTO allocations (
   'ALLOCATION_LIFECYCLE_STATE_BOUND', now(), now()
 );
 INSERT INTO allocation_reconcile_queue (
-  allocation_id, reason, next_run_at, reconcile_attempts, last_error, created_at, updated_at
+  allocation_id, next_run_at, reconcile_attempts, last_error, created_at, updated_at
 ) VALUES (
-  :'allocation_id', 'create',
+  :'allocation_id',
   CASE WHEN :'due' = 'true' THEN now() ELSE now() + interval '1 hour' END,
   1, 'admin repair smoke seed', now(), now()
 );
@@ -171,15 +176,15 @@ SQL
 
   local list_json force_json fail_json clear_json audit_json
   seed_local_smoke_admin_repair_retry "${force_allocation_id}" "${force_run_id}" false
-  list_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry list --reason create -o json)"
+  list_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry list -o json)"
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert any(r.get("allocation_id") == sys.argv[1] for r in data.get("retries", [])), data' "${force_allocation_id}" <<<"${list_json}" >/dev/null
 
-  force_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry force "${force_allocation_id}" --reason create --operator-reason "compose smoke force retry" -o json)"
+  force_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry force "${force_allocation_id}" --operator-reason "compose smoke force retry" -o json)"
   python3 -c 'import json,sys; retry=json.load(sys.stdin)["retry"]; assert retry["allocation_id"] == sys.argv[1] and retry["due"] is True, retry' "${force_allocation_id}" <<<"${force_json}" >/dev/null
 
   seed_local_smoke_admin_repair_retry "${fail_allocation_id}" "${fail_run_id}" false
   fail_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry fail "${fail_allocation_id}" --operator-reason "compose smoke fail retry" -o json)"
-  python3 -c 'import json,sys; retry=json.load(sys.stdin)["retry"]; assert retry["allocation_id"] == sys.argv[1] and retry["reason"] == "delete", retry' "${fail_allocation_id}" <<<"${fail_json}" >/dev/null
+	python3 -c 'import json,sys; retry=json.load(sys.stdin)["retry"]; assert retry["allocation_id"] == sys.argv[1] and retry["lifecycle_state"] == "ALLOCATION_LIFECYCLE_STATE_RELEASING", retry' "${fail_allocation_id}" <<<"${fail_json}" >/dev/null
 
   seed_local_smoke_admin_repair_retry "${clear_allocation_id}" "${clear_run_id}" false
   local_smoke_compose_psql \
@@ -192,7 +197,7 @@ UPDATE runs
 SET status = 'RUN_STATUS_FAILED', updated_at = now()
 WHERE run_id = :'run_id';
 SQL
-  clear_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry clear "${clear_allocation_id}" --reason create --operator-reason "compose smoke clear retry" -o json)"
+	clear_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin allocation-retry clear "${clear_allocation_id}" --operator-reason "compose smoke clear retry" -o json)"
   python3 -c 'import json,sys; retry=json.load(sys.stdin)["retry"]; assert retry["allocation_id"] == sys.argv[1] and retry["clearable"] is True, retry' "${clear_allocation_id}" <<<"${clear_json}" >/dev/null
 
   audit_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" admin audit list --target-type allocation -o json)"

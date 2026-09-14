@@ -1,6 +1,5 @@
 """Python SDK for the Axern control plane."""
 
-from axern_sdk.catalog import EnvironmentCatalogClient
 from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.client import AxernClient
 from axern_sdk.context import AxernContext, TLSContext, load_context
@@ -22,17 +21,6 @@ from axern_sdk.errors import (
     SandboxTimeoutError,
     SandboxValidationError,
     sandbox_capability_error_info,
-)
-from axern_sdk.catalog.models import (
-    MountSpec,
-    OciImageDescriptor,
-    OciBaselinePolicy,
-    EnvironmentTemplateCapabilities,
-    OciExecutionProfile,
-    OciNetworkNamespacePolicy,
-    OciResourcePolicy,
-    EnvironmentTemplate,
-    ResolvedEnvironmentSpec,
 )
 from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
@@ -83,7 +71,6 @@ __all__ = [
     "AsyncAxernClient",
     "AxernClient",
     "AxernContext",
-    "EnvironmentCatalogClient",
     "CIDRRule",
     "AsyncNodeSandboxClient",
     "AsyncProcessResult",
@@ -115,15 +102,6 @@ __all__ = [
     "SandboxState",
     "ConnectorConfig",
     "TunnelConnector",
-    "MountSpec",
-    "OciImageDescriptor",
-    "OciBaselinePolicy",
-    "EnvironmentTemplateCapabilities",
-    "OciExecutionProfile",
-    "OciNetworkNamespacePolicy",
-    "OciResourcePolicy",
-    "EnvironmentTemplate",
-    "ResolvedEnvironmentSpec",
     "SecretEnvVar",
     "SecretFile",
     "TLSContext",

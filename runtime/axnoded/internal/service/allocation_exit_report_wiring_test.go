@@ -94,10 +94,10 @@ func TestContainerExitObserverReportsAllocationLifecycleState(t *testing.T) {
 
 	exitCode := int32(0)
 	service.handleContainerExitControlPlaneReport(container.Event{
-		Type:          container.EventTypeExit,
-		ContainerID:   "alloc-123",
-		ExitCode:      &exitCode,
-		ExitedAt:      time.Now().UTC(),
+		Type:        container.EventTypeExit,
+		ContainerID: "alloc-123",
+		ExitCode:    &exitCode,
+		ExitedAt:    time.Now().UTC(),
 	})
 
 	if reporter.lastID != "alloc-123" {

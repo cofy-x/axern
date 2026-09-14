@@ -157,7 +157,7 @@ func TestDefaultMounterDelegatesRemoteSources(t *testing.T) {
 	}
 	lm := NewEnvironmentCache(&defaultMounter{client: client})
 
-	imgRuntime, err := addTestEnvironmentCache(lm, &api.EnvironmentTemplate{
+	imgRuntime, err := addTestEnvironmentCache(lm, &api.ResolvedEnvironment{
 		ID: "img-runtime",
 		Rootfs: &api.RootfsConfig{
 			Type: api.RootfsSrcType_IMAGE,
@@ -188,7 +188,7 @@ func TestDefaultMounterDelegatesRemoteSources(t *testing.T) {
 }
 
 func TestRootfsConfigRejectsUnspecifiedSource(t *testing.T) {
-	_, err := RootfsConfigFromEnvironmentTemplate(&api.EnvironmentTemplate{
+	_, err := RootfsConfigFromResolvedEnvironment(&api.ResolvedEnvironment{
 		Rootfs: &api.RootfsConfig{Type: api.RootfsSrcType_UNSPECIFIED},
 	})
 	if err == nil {

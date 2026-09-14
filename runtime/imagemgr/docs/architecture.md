@@ -30,7 +30,7 @@ flowchart TB
 | `POST /oci_mount`   | `api` + `oci`, optionally `nydus` + `imagefsd` | Imported or pulled OCI image exposed as a readonly overlay, unless Nydus routing succeeds |
 | `POST /oci_import`  | `api` + `oci`                                  | Local Docker archive imported into the node-local OCI cache                               |
 
-`api.HttpWorker` is the routing point. Keep request validation, daemon ID generation, mount record writes, and route selection there instead of moving mount policy into `axnoded` or lower-level packages.
+`api.HttpWorker` is the routing point. Keep request validation, lease/resource writes, daemon ID generation, and route selection there instead of moving mount policy into `axnoded` or lower-level packages.
 
 ## OCI Mount Routing
 
@@ -73,7 +73,11 @@ Important routing rules:
 - If an image is detected as Nydus but the Nydus mount fails, the API returns that error instead of silently falling back to OCI.
 - `POST /oci_umount` releases one durable lease. The final lease routes resource cleanup through `oci.Manager` or `imagefsd.Manager`; failed cleanup remains durable for reconciliation.
 
-## Mount Ownership
+## Persistence And Ownership
+
+`internal/mountstore` is the sole authority for client-visible resource identity, ownership, and leases. Its `resource_leases.db` decides whether a resource may be retained or unmounted. OCI and Nydus implementations cannot create ownership by discovering backend state.
+
+The OCI `metadata.db` contains only backend recovery state: extracted layer and chain refcounts, imported content, in-flight mount intent, and the `oci_mount_state` projection needed to reconstruct or remove an overlay mount. This state is not a second resource lifecycle. On restart, imagemgr reconciles backend state under the resource/lease authority; an OCI projection without an authoritative resource lease is cleanup work, not a live client resource.
 
 OCI and Nydus resources share the mountstore lease contract. Their resource implementations remain owned by `oci` and `imagefsd`. Each owner returns one bounded flat immutable-mount descriptor; axnoded projection consumes that descriptor and must not reverse-engineer these implementations. Source health and identity stay with imagemgr lease reconciliation, while projection owns only its host OverlayFS and writable artifacts. Callers recover ownership by submitting their complete desired lease set to `POST /reconcile_mount_leases`; reconciliation is scoped to that owner.
 
@@ -81,7 +85,7 @@ OCI and Nydus resources share the mountstore lease contract. Their resource impl
 
 `GET /inventory` is the read-only node image summary. It combines:
 
-- mount records from `internal/mountstore`
+- authoritative resources and leases from `internal/mountstore`
 - imported and mounted OCI state from `oci.Manager`
 - live daemon state from `imagefsd.Manager`
 - retained ChunkDB and locality summaries from `imagefsd`

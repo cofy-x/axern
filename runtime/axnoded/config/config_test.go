@@ -28,9 +28,10 @@ func TestNetworkConfigNormalizedCanonicalizesSemanticSetsAndDurations(t *testing
 	}
 }
 
-func TestNetworkConfigNormalizedAcceptsIPv6Range(t *testing.T) {
+func TestNetworkConfigNormalizedAcceptsIPv6WithIptablesAndRejectsEBPF(t *testing.T) {
 	input := DefaultConfig().PluginConfig.NetworkConfig
 	input.IPRange = "fd31:0:0:0::1/64"
+	input.NatBackend = NatBackendIptables
 
 	got, err := input.Normalized()
 	if err != nil {
@@ -39,9 +40,9 @@ func TestNetworkConfigNormalizedAcceptsIPv6Range(t *testing.T) {
 	if got.IPRange != "fd31::1/64" {
 		t.Fatalf("normalized IPv6 range = %q", got.IPRange)
 	}
-	got.NatBackend = NatBackendEBPF
-	if got.CapabilityBackend() != NatBackendIptables {
-		t.Fatalf("IPv6 ebpf capability backend = %q", got.CapabilityBackend())
+	input.NatBackend = NatBackendEBPF
+	if _, err := input.Normalized(); err == nil {
+		t.Fatal("IPv6 ebpf configuration was accepted")
 	}
 }
 

@@ -4,8 +4,50 @@ package axern.control.environment.v1;
 
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1;environmentv1";
 
-import "axern/control/catalog/v1/catalog.proto";
 import "google/protobuf/timestamp.proto";
+
+message EnvironmentMount {
+  string type = 1;
+  string source = 2;
+  string target = 3;
+  repeated string options = 4;
+}
+
+message OciImageDescriptor {
+  string digest = 1;
+  string media_type = 2;
+  int64 size_bytes = 3;
+  map<string, string> annotations = 4;
+}
+
+message OciBaselinePolicy {
+  repeated string capabilities = 1;
+  uint64 no_file_limit = 2;
+}
+
+message OciNetworkNamespacePolicy {
+  string annotation_key = 1;
+}
+
+message OciResourcePolicy {
+  repeated string ignore_annotation_keys = 1;
+}
+
+message OciExecutionProfile {
+  OciBaselinePolicy baseline = 1;
+  OciNetworkNamespacePolicy network_namespace = 2;
+  OciResourcePolicy resources = 3;
+}
+
+message ResolvedEnvironmentSpec {
+  bool rootfs_readonly = 1;
+  repeated string image_default_argv = 2;
+  string default_cwd = 3;
+  map<string, string> default_env = 4;
+  repeated EnvironmentMount mounts = 5;
+  OciImageDescriptor image_descriptor = 6;
+  OciExecutionProfile execution_profile = 7;
+}
 
 message EnvironmentImageSource {
   string ref = 1;
@@ -25,7 +67,7 @@ message Environment {
   string id = 1;
   string namespace = 2;
   EnvironmentSpec spec = 3;
-  axern.control.catalog.v1.ResolvedEnvironmentSpec resolved_spec = 4;
+  ResolvedEnvironmentSpec resolved_spec = 4;
   map<string, string> labels = 5;
   google.protobuf.Timestamp created_at = 6;
   google.protobuf.Timestamp deleted_at = 7;

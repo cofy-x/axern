@@ -13,7 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

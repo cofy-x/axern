@@ -19,7 +19,7 @@ enum PlatformCapability {
   PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER = 6;
   PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT = 7;
   PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS = 8;
-  // Provider facts consumed by the catalog's derived workload capabilities.
+  // Provider facts consumed by derived workload capability definitions.
   // They are not valid workload requirements on their own.
   PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST = 9;
   PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST = 10;

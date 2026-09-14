@@ -17,7 +17,8 @@ It exposes an HTTP-over-Unix-socket API and coordinates two mount families:
 - Default socket: `/var/run/imagemgr.sock`
 - Repo-local dev socket: `.dev/run/imagemgr.sock`
 - Read-only inventory endpoint: `GET /inventory`
-- Persisted mount records: `<root>/mount_records.db`
+- Authoritative resource and lease records: `<root>/resource_leases.db`
+- OCI recovery/refcount projection: `<root>/oci/metadata.db`
 
 The API surface is:
 

@@ -217,7 +217,7 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	}
 	timing.Stage("overlay_mount", time.Since(stageStart))
 
-	record := &OciMountRecord{
+	record := &OciMountState{
 		CacheKey:      cacheKey,
 		ImageURL:      imageURL,
 		MountID:       mountID,

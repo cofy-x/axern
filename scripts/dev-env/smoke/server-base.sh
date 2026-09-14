@@ -4,7 +4,7 @@ run_local_server_base_smoke() {
   local prefix="$3"
   local gateway_target="$4"
   local namespace="${prefix}-${env_name}-server-base-smoke-$(date +%s)"
-  local catalog_json env_json run_json run_get run_id environment_id allocation_id
+  local env_json run_json run_get run_id environment_id allocation_id
   local go_bin
   go_bin="$(axern_go_bin)"
 
@@ -22,9 +22,6 @@ run_local_server_base_smoke() {
     return "${rc}"
   }
   trap cleanup_server_base_run RETURN
-
-  catalog_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" catalog list -o json)"
-  python3 -c 'import json,sys; data=json.load(sys.stdin); server=next(item for item in data["environment_templates"] if item["id"] == "server-base"); assert server["resolved_spec"]["image_default_argv"][0].endswith("supervisord")' <<<"${catalog_json}" >/dev/null
 
   env_json="$(local_smoke_json_once_or_recover_by_namespace environment environments environment "${namespace}" \
     "${AXERN_SMOKE_CMD[@]}" environment create -o json --namespace "${namespace}" --template-id server-base)"

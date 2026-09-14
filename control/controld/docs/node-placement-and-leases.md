@@ -36,7 +36,7 @@ Pending lifecycle recovery runs immediately at process startup and after an in-p
 
 The durable `allocation_reconcile_queue` is the sole dispatcher for Run-owned node lifecycle calls. A claimed worker renews ownership during long operations; completion, retry, and create-to-delete transitions are fenced by that owner. A failed or stale worker therefore cannot acknowledge or rewrite work after another controld instance takes over. The queue is Allocation-scoped; the Run controller applies terminal workload state independently from infrastructure cleanup convergence.
 
-Capability loss is owned entirely by axnoded's Allocation-scoped durable intent. Controld does not maintain a parallel capability queue or issue a competing delete. Provider observation, catalog loss policy, and bounded verification are defined by the canonical [Capability Admission and Observation](../../../docs/architecture/observed-capability-providers.md) contract.
+Capability loss is owned entirely by axnoded's Allocation-scoped durable intent. Controld does not maintain a parallel capability queue or issue a competing delete. Provider observation, platform loss policy, and bounded verification are defined by the canonical [Capability Admission and Observation](../../../docs/architecture/observed-capability-providers.md) contract.
 
 Allocation capability conditions use one complete projection timestamped by `observed_at`. Controld ignores reports for unknown, wrongly bound, or terminal Allocations and ignores older projections. Equal-time conflicting data fails closed. The report cannot mutate allocation lifecycle state, exit code, Run status, or the primary message.
 

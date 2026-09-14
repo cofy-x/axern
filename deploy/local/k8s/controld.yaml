@@ -38,13 +38,13 @@ spec:
             - -tls-key
             - /certs/controld.key
           env:
-            - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE
               value: axern/python311-runtime:dev
-            - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE
               value: axern/server-base-runtime:dev
-            - name: AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE
               value: axern/coding-base-runtime:dev
-            - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE
               value: axern/desktop-base-runtime:dev
             - name: CONTROLD_TUNNEL_RELAYS
               value: default,127.0.0.1:25001,tunneld.axern-local.svc.cluster.local:24100,1,false

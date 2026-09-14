@@ -11,9 +11,9 @@ Axern 的诊断手段是只读的 doctor 家族加上可查询的资源状态。
 axern doctor --namespace default
 ```
 
-平台 doctor 校验所选 Context、mTLS 证书有效期与密钥权限、Gateway 连通性、命名空间访问和运行时 Catalog，不创建任何资源。退出码稳定，可用于自动化：`0` 健康，`1` 降级（如证书即将到期等警告），`2` 用法或连接配置无效，`3` 必需的平台检查失败。
+平台 doctor 校验所选 Context、mTLS 证书有效期与密钥权限、Gateway 连通性和命名空间访问，不创建任何资源。退出码稳定，可用于自动化：`0` 健康，`1` 降级（如证书即将到期等警告），`2` 用法或连接配置无效，`3` 必需的平台检查失败。
 
-仅可达性不够时，运行实时探测——它会创建临时的 Catalog 环境、执行一个小的 `runsc` Run，然后清理：
+仅可达性不够时，运行实时探测——它会从内置模板创建临时 Environment、执行一个小的 `runsc` Run，然后清理：
 
 ```bash
 axern doctor --namespace default --probe

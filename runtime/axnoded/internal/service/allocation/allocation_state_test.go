@@ -98,7 +98,7 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 		AllocationID:            allocationID,
 		NodeID:                  "node-a",
 		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		EnvironmentTemplate:     testEnvironmentTemplate(t, "runtime-"+allocationID),
+		Environment:             testResolvedEnvironment(t, "runtime-"+allocationID),
 		ImageMountUrls:          images,
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
 			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
@@ -322,7 +322,7 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	}
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		AllocationID: allocationIDForTest(t),
-		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+		Environment: &apipb.ResolvedEnvironment{
 			ID:     "persistence-failure-runtime",
 			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 			Argv:   []string{"/bin/sh"},
@@ -354,7 +354,7 @@ func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *tes
 	if err := fixture.controller.StoreAllocationIntent("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "delete-failure-runtime"))
+	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "delete-failure-runtime"))
 	runtime.IncRef()
 	if err := fixture.controller.rememberContainerRuntime("delete-failure", runtime); err != nil {
 		t.Fatal(err)
@@ -395,7 +395,7 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 		if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 			t.Fatal(err)
 		}
-		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "runtime-"+allocationID))
+		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "runtime-"+allocationID))
 		runtime.IncRef()
 		if err := fixture.controller.rememberContainerRuntime(allocationID, runtime); err != nil {
 			t.Fatal(err)
@@ -424,7 +424,7 @@ func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testin
 	}
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		AllocationID: allocationID,
-		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+		Environment: &apipb.ResolvedEnvironment{
 			ID:     "atomic-runtime",
 			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 			Argv:   []string{"/bin/sh"},
@@ -440,7 +440,7 @@ func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testin
 	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.GetEnvironmentTemplate() == nil || len(record.GetImageMountUrls()) != 1 {
+	if record.GetEnvironment() == nil || len(record.GetImageMountUrls()) != 1 {
 		t.Fatalf("persisted aggregate state = %+v", &record)
 	}
 	if _, err := fixture.controller.Delete(context.Background(), &apipb.DeleteRequest{ID: allocationID}); err != nil {
@@ -458,7 +458,7 @@ func TestTransientAllocationStateIsMemoryOnly(t *testing.T) {
 	allocationID := "transient-allocation"
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
 		AllocationID: allocationID,
-		EnvironmentTemplate: &apipb.EnvironmentTemplate{
+		Environment: &apipb.ResolvedEnvironment{
 			ID:     "transient-environment",
 			Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
 			Argv:   []string{"/bin/sh"},

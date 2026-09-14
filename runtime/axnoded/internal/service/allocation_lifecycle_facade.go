@@ -209,13 +209,13 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
 	resources := request.GetResources()
-	template := request.GetEnvironmentTemplate()
+	template := request.GetEnvironment()
 	policySpec := request.GetNetwork()
 	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
 		HasPorts:                        len(request.GetPorts()) > 0,
 		NetworkMode:                     startplan.EffectiveNetworkMode(h.config.NatBackend, request),
-		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.CapabilityBackend(),
+		NetworkBackend:                  h.config.PluginConfig.NetworkConfig.NatBackend,
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
 		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(policySpec),
 		MemoryLimitBytes:                resources.GetLimits().GetMemoryBytes(),
@@ -244,7 +244,7 @@ func dependencyKeys(dependencies []*capabilityv1.CapabilityRequirement, excludeE
 }
 
 func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.StartRequest) error {
-	if request == nil || request.GetEnvironmentTemplate() == nil || request.GetEnvironmentTemplate().GetRootfs() == nil {
+	if request == nil || request.GetEnvironment() == nil || request.GetEnvironment().GetRootfs() == nil {
 		return fmt.Errorf("environment template and rootfs are required")
 	}
 	if strings.TrimSpace(request.GetAllocationID()) == "" {

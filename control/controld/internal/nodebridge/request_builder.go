@@ -5,7 +5,6 @@ import (
 
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
@@ -93,7 +92,7 @@ func configOrEmpty(config *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	return config
 }
 
-func imageDescriptorRef(desc *catalogv1.OciImageDescriptor) string {
+func imageDescriptorRef(desc *environmentv1.OciImageDescriptor) string {
 	if desc == nil {
 		return ""
 	}

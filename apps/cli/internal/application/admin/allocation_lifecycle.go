@@ -21,7 +21,6 @@ type AllocationLifecycleControl struct {
 }
 
 type LifecycleRetryListOptions struct {
-	Reason  string
 	DueOnly bool
 	Limit   int
 }
@@ -33,17 +32,15 @@ func NewAllocationLifecycle(client AllocationLifecycleClient) AllocationLifecycl
 func (c AllocationLifecycleControl) ListRetries(ctx context.Context, options LifecycleRetryListOptions) (*privateadminv1.ListAllocationLifecycleRetriesResponse, error) {
 	return c.client.ListAllocationLifecycleRetries(ctx, &privateadminv1.ListAllocationLifecycleRetriesRequest{
 		Filter: &privateadminv1.AllocationLifecycleRetryFilter{
-			Reason:  ParseRetryReason(options.Reason),
 			DueOnly: options.DueOnly,
 		},
 		Limit: int32(options.Limit),
 	})
 }
 
-func (c AllocationLifecycleControl) ForceRetry(ctx context.Context, allocationID string, reason string, operatorReason string) (*privateadminv1.ForceAllocationLifecycleRetryResponse, error) {
+func (c AllocationLifecycleControl) ForceRetry(ctx context.Context, allocationID string, operatorReason string) (*privateadminv1.ForceAllocationLifecycleRetryResponse, error) {
 	return c.client.ForceAllocationLifecycleRetry(ctx, &privateadminv1.ForceAllocationLifecycleRetryRequest{
 		AllocationID:   strings.TrimSpace(allocationID),
-		Reason:         ParseRetryReason(reason),
 		OperatorReason: strings.TrimSpace(operatorReason),
 	})
 }
@@ -51,35 +48,15 @@ func (c AllocationLifecycleControl) ForceRetry(ctx context.Context, allocationID
 func (c AllocationLifecycleControl) FailCreateRetry(ctx context.Context, allocationID string, operatorReason string) (*privateadminv1.FailAllocationLifecycleRetryResponse, error) {
 	return c.client.FailAllocationLifecycleRetry(ctx, &privateadminv1.FailAllocationLifecycleRetryRequest{
 		AllocationID:   strings.TrimSpace(allocationID),
-		Reason:         privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE,
 		OperatorReason: strings.TrimSpace(operatorReason),
 	})
 }
 
-func (c AllocationLifecycleControl) ClearRetry(ctx context.Context, allocationID string, reason string, operatorReason string) (*privateadminv1.ClearAllocationLifecycleRetryResponse, error) {
+func (c AllocationLifecycleControl) ClearRetry(ctx context.Context, allocationID string, operatorReason string) (*privateadminv1.ClearAllocationLifecycleRetryResponse, error) {
 	return c.client.ClearAllocationLifecycleRetry(ctx, &privateadminv1.ClearAllocationLifecycleRetryRequest{
 		AllocationID:   strings.TrimSpace(allocationID),
-		Reason:         ParseRetryReason(reason),
 		OperatorReason: strings.TrimSpace(operatorReason),
 	})
-}
-
-func ParseRetryReason(value string) privateadminv1.AllocationLifecycleRetryReason {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "create":
-		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_CREATE
-	case "delete":
-		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_DELETE
-	default:
-		return privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED
-	}
-}
-
-func ValidateRetryReason(value string) error {
-	if ParseRetryReason(value) == privateadminv1.AllocationLifecycleRetryReason_ALLOCATION_LIFECYCLE_RETRY_REASON_UNSPECIFIED {
-		return fmt.Errorf("--reason must be create or delete")
-	}
-	return nil
 }
 
 func ValidateOperatorReason(value string) error {

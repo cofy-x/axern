@@ -3,7 +3,7 @@ run_local_run_smoke() {
   local endpoint="$2"
   local prefix="$3"
   local namespace="${prefix}-${env_name}-run-smoke-$(date +%s)"
-  local catalog_json env_json quota_json quota_list run_json run_get run_list cancel_json default_run_json failed_run_json
+  local env_json quota_json quota_list run_json run_get run_list cancel_json default_run_json failed_run_json
   local run_id="" default_run_id="" failed_run_id="" environment_id=""
   local rejected_run_error="" quota_error=""
   local quota_set="false"
@@ -38,9 +38,6 @@ run_local_run_smoke() {
     return "${rc}"
   }
   trap cleanup_local_run_smoke RETURN
-
-  catalog_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" catalog list -o json)"
-  local_smoke_assert_default_environment_templates "${catalog_json}"
 
   env_json="$(local_smoke_create_environment "${namespace}")"
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"

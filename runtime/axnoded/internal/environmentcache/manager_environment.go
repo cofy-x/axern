@@ -26,7 +26,7 @@ type PrepareEnvironmentResult struct {
 	RootfsReport RootfsPrepareReport
 }
 
-func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.EnvironmentTemplate, cfg RootfsConfig) (PrepareEnvironmentResult, error) {
+func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.ResolvedEnvironment, cfg RootfsConfig) (PrepareEnvironmentResult, error) {
 	result := PrepareEnvironmentResult{
 		RootfsReport: RootfsPrepareReport{Steps: make([]RootfsStepSample, 0, 6)},
 	}

@@ -1,6 +1,6 @@
 # controld
 
-`controld` is Axern's durable control-plane authority for catalog, environment, namespace, Run, gateway, tunnel, and secret APIs. External CLI and SDK traffic should enter through `gatewayd`'s control edge; `controld` stays on the private control-plane network. It is backed by Postgres, which is the authoritative state store for control plane and node state.
+`controld` is Axern's durable control-plane authority for Environment, Namespace, Run, gateway, tunnel, and Secret APIs. External CLI and SDK traffic should enter through `gatewayd`'s control edge; `controld` stays on the private control-plane network. It is backed by Postgres, which is the authoritative state store for control plane and node state.
 
 `controld` owns:
 
@@ -11,7 +11,7 @@
 - namespace lifecycle, resource quota policy, quota admission, and quota usage reporting
 - allocation terminal and tunnel relay target resolution
 - controld-managed secret metadata, encryption, and resolution
-- read-only environment catalog and debug HTTP surfaces
+- read-only operational debug HTTP surfaces
 
 `controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here.
 
@@ -50,6 +50,7 @@ From the repository root:
 
 ```bash
 make controld-test
+make controld-postgres-test
 make agent-doc-check
 ```
 
@@ -105,7 +106,6 @@ Admin product APIs:
 
 Public product APIs:
 
-- `sdk/proto/axern/control/catalog/v1/catalog.proto`
 - `sdk/proto/axern/control/environment/v1/environment.proto`
 - `sdk/proto/axern/control/secret/v1/secret.proto`
 - `sdk/proto/axern/control/gateway/v1/gateway.proto`
@@ -116,7 +116,7 @@ Public product APIs:
 
 Control-plane coordination and internal calls:
 
-- `sdk/proto/axern/control/node/v1/node_control.proto`
+- `sdk/proto/axern/private/control/node/v1/node_control.proto`
 - `sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto`
 
 Persistent-volume product APIs are not supported. Allocation-local writable files remain on the execution path and must be exported before Allocation cleanup.
@@ -127,14 +127,13 @@ The HTTP listener exposes diagnostics and internal runtime artifact downloads. D
 - `/nodesz`
 - `/resourcez`
 - `/quotasz`
-- `/catalogz`
 - `/reconcilez` for background reconciler health
 - `/allocation-reconcilez` for allocation lifecycle retry queue state
 - `/consistencyz` for read-only reservation, lease, tunnel, and allocation consistency diagnostics
 
 ## Design Docs
 
-- [Environment and catalog](docs/environment-and-catalog.md)
+- [Environment resolution](docs/environment-resolution.md)
 - [Node placement and leases](docs/node-placement-and-leases.md)
 - [Reconcile operations](docs/reconcile-operations.md)
 - [Observed capability providers](../../docs/architecture/observed-capability-providers.md)
@@ -157,7 +156,7 @@ flowchart LR
   nodebridge["internal/nodebridge\nnode lifecycle bridge"]
   observability["internal/observability\nmetrics + spans"]
   ociimage["internal/ociimage\nOCI resolution"]
-  catalog["internal/catalog\nenvironment templates"]
+  templates["internal/environmenttemplate\ndeployment template inputs"]
   node["axnoded / node APIs"]
   db[("Postgres")]
 
@@ -168,14 +167,14 @@ flowchart LR
   app --> nodebridge
   app --> observability
   app --> ociimage
-  app --> catalog
+  app --> templates
 
   api --> application
   application --> kernel
   application --> placement
   application --> nodebridge
   application --> ociimage
-  application --> catalog
+  application --> templates
 
   postgres --> kernel
   postgres --> db
@@ -192,7 +191,7 @@ flowchart LR
 - `internal/postgres/*` owns SQL-backed stores, row scanners, transaction helpers, migrations, Postgres-specific persistence details, and transactional reservation admission.
 - `internal/placement` owns candidate filtering, eligibility evaluation, candidate-plan construction, and placement request shaping.
 - `internal/nodebridge` owns control-plane-to-node lifecycle request construction and RPC bridging.
-- `internal/observability`, `internal/ociimage`, and `internal/catalog` own metrics/span names, OCI descriptor resolution, and embedded environment templates.
+- `internal/observability`, `internal/ociimage`, and `internal/environmenttemplate` own metrics/span names, OCI descriptor resolution, and embedded environment templates.
 - `internal/testutil/controldtest` owns focused test doubles and Postgres test harness helpers.
 
 Before changing package boundaries or feature placement rules, read [Agent Contract](AGENTS.md). `make -C control/controld check-architecture` enforces the main direction rules: API/application/kernel packages must not import Postgres adapters, Postgres adapters must not reintroduce alias bridges, and catch-all helper files should not return under `internal/postgres`.

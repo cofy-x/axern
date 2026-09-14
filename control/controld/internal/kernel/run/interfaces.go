@@ -8,11 +8,10 @@ import (
 	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type AllocationRecord struct {
@@ -39,7 +38,7 @@ type RunStore interface {
 
 type CreateEnvironmentParams struct {
 	Spec         *environmentv1.EnvironmentSpec
-	ResolvedSpec *catalogv1.ResolvedEnvironmentSpec
+	ResolvedSpec *environmentv1.ResolvedEnvironmentSpec
 	Labels       map[string]string
 }
 

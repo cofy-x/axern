@@ -3,12 +3,12 @@ package allocation
 import (
 	"testing"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 )
 
 func TestExecutionProfileFromProtoPreservesDefaultsForPartialProfile(t *testing.T) {
-	got := ExecutionProfileFromProto(&catalogv1.OciExecutionProfile{
-		Baseline: &catalogv1.OciBaselinePolicy{
+	got := ExecutionProfileFromProto(&environmentv1.OciExecutionProfile{
+		Baseline: &environmentv1.OciBaselinePolicy{
 			Capabilities: []string{"CAP_SYS_PTRACE"},
 			NoFileLimit:  2097152,
 		},

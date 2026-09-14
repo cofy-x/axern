@@ -6,7 +6,7 @@ import (
 
 	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type nodeHealthSource struct {

@@ -10,7 +10,7 @@ import (
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -30,9 +30,9 @@ func TestRefreshPlacementCandidateRanksOnlyUnreportedReservations(t *testing.T) 
 	}
 	candidate := &placementkernel.Candidate{
 		Record: record,
-		Evaluation: &nodev1.PlacementCandidate{
+		Evaluation: &placementkernel.Evaluation{
 			NodeID: "node-a",
-			Rank:   &nodev1.PlacementRank{MountedMatch: true},
+			Rank:   &placementkernel.Rank{MountedMatch: true},
 		},
 	}
 
@@ -58,9 +58,9 @@ func TestPlacementCandidateRankingBalancesInFlightReservationsWithinPreferenceTi
 	candidate := func(record *nodekernel.Record) *placementkernel.Candidate {
 		return &placementkernel.Candidate{
 			Record: record,
-			Evaluation: &nodev1.PlacementCandidate{
+			Evaluation: &placementkernel.Evaluation{
 				NodeID: record.NodeID,
-				Rank:   &nodev1.PlacementRank{IdlePoolReady: true},
+				Rank:   &placementkernel.Rank{IdlePoolReady: true},
 			},
 		}
 	}
@@ -234,10 +234,10 @@ func TestReservationRejectionErrorIncludesStructuredDetails(t *testing.T) {
 }
 
 func TestLockedAdmissionEligibilityFailureIsNotReportedAsCapacity(t *testing.T) {
-	err := lockedAdmissionEligibilityError(0, &placementkernel.Request{}, []*nodev1.PlacementCandidate{{
+	err := lockedAdmissionEligibilityError(0, &placementkernel.Request{}, []*placementkernel.Evaluation{{
 		NodeID:           "node-a",
-		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED,
-		RejectionReasons: []nodev1.PlacementRejectionReason{nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED},
+		State:            placementkernel.CandidateStateRejected,
+		RejectionReasons: []placementkernel.RejectionReason{placementkernel.RejectionReasonCapabilityUnsupported},
 	}})
 	if err == nil {
 		t.Fatal("lockedAdmissionEligibilityError returned nil")
@@ -256,9 +256,9 @@ func TestLockedAdmissionEligibilityFailureIsNotReportedAsCapacity(t *testing.T) 
 }
 
 func TestLockedAdmissionEligibilityFailureDefersToCapacityWhenAnotherCandidateWasEvaluated(t *testing.T) {
-	if err := lockedAdmissionEligibilityError(1, &placementkernel.Request{}, []*nodev1.PlacementCandidate{{
-		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED,
-		RejectionReasons: []nodev1.PlacementRejectionReason{nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED},
+	if err := lockedAdmissionEligibilityError(1, &placementkernel.Request{}, []*placementkernel.Evaluation{{
+		State:            placementkernel.CandidateStateRejected,
+		RejectionReasons: []placementkernel.RejectionReason{placementkernel.RejectionReasonCapabilityUnsupported},
 	}}); err != nil {
 		t.Fatalf("lockedAdmissionEligibilityError = %v, want capacity path to decide", err)
 	}

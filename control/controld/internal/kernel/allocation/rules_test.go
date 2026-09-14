@@ -5,8 +5,8 @@ import (
 	"time"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestAcceptsObservationRejectsEndedAndWrongNode(t *testing.T) {
@@ -167,7 +167,7 @@ func TestScheduleCreateRetryRequest(t *testing.T) {
 	if !ok {
 		t.Fatal("ScheduleCreateRetryRequest returned ok=false for first failure")
 	}
-	if req.AllocationID != "alloc-a" || req.Reason != ReconcileReasonCreate || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
+	if req.AllocationID != "alloc-a" || req.Intent != ReconcileIntentEnsurePresent || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
 		t.Fatalf("request = %#v, want create retry request for alloc-a", req)
 	}
 	if want := now.Add(CreateRetryDelay(1)); !req.NextRunAt.Equal(want) {
@@ -183,7 +183,7 @@ func TestScheduleCreateRetryRequest(t *testing.T) {
 func TestScheduleDeleteRetryRequest(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	req := ScheduleDeleteRetryRequest("alloc-a", "node unavailable", now)
-	if req.AllocationID != "alloc-a" || req.Reason != ReconcileReasonDelete || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
+	if req.AllocationID != "alloc-a" || req.Intent != ReconcileIntentEnsureAbsent || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
 		t.Fatalf("request = %#v, want delete retry request for alloc-a", req)
 	}
 	if want := now.Add(DeleteRetryDelay); !req.NextRunAt.Equal(want) {
@@ -191,7 +191,7 @@ func TestScheduleDeleteRetryRequest(t *testing.T) {
 	}
 
 	immediate := ScheduleDeleteRequest("alloc-a", now)
-	if immediate.AllocationID != "alloc-a" || immediate.Reason != ReconcileReasonDelete || immediate.LastReconcileError != "" || immediate.IncrementAttempts {
+	if immediate.AllocationID != "alloc-a" || immediate.Intent != ReconcileIntentEnsureAbsent || immediate.LastReconcileError != "" || immediate.IncrementAttempts {
 		t.Fatalf("immediate request = %#v, want fresh delete intent for alloc-a", immediate)
 	}
 }

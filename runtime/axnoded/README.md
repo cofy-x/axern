@@ -8,7 +8,7 @@ Rootfs sources are local directories or registry images (OCI/Nydus). Node locali
 
 Axnoded owns the aggregate `runtime_slots` capacity contract reported to controld. It derives the aggregate from `max_instance_num`, active containers, and enabled resource-pool constraints. Disabled pools do not block inventory, but startup fails when a loaded runtime requires a disabled pool. Controld does not accept reports from older nodes that omit this contract, so such releases require a coordinated rebuild rather than mixed-version operation.
 
-Axnoded also owns node capability observation. Providers publish complete typed facts through one snapshot manager; the shared catalog derives workload-facing platform capabilities, while controld admits against the reported evidence and axnoded revalidates it for each allocation. Platform capabilities cannot be configured as strings or inferred from successful user sandboxes. See [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md).
+Axnoded also owns node capability observation. Providers publish complete typed facts through one snapshot manager; the shared capability contract derives workload-facing platform capabilities, while controld admits against the reported evidence and axnoded revalidates it for each allocation. Platform capabilities cannot be configured as strings or inferred from successful user sandboxes. See [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md).
 
 Network-policy capability keys are owned by the network-health and derived providers. Until egressd is configured and its self-tests pass, the DNS-policy and strict-egress facts are explicitly unavailable, so controld cannot place a policy workload on that node.
 
@@ -21,7 +21,7 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 - `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded `exec`, `exec_stream`, `process`, `exec_image`, `process_image`, `wait`, archive transfer, and allocation HTTP proxy. Streaming operations acknowledge a validated execution lease before consuming request data or producing sandbox output.
 - `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status.
 - `axern.private.node.operator.v1.NodeOperator`: local Unix-socket operator workflows for `axctl`.
-- `axern.control.node.v1.NodeControl`: outbound registration, node reports, coalesced allocation lifecycle batches, and execution lease replication with `controld`.
+- `axern.private.control.node.v1.NodeControl`: outbound registration, node reports, coalesced allocation lifecycle batches, and execution lease replication with `controld`.
 
 The reporter uses a durable node identity. If an operator retires that identity, `controld` rejects registration, reports, status batches, and watches; the host must be removed and any replacement must use a new node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
 

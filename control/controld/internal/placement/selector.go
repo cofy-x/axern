@@ -9,7 +9,6 @@ import (
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -58,7 +57,7 @@ func (p *Selector) SelectCandidates(ctx context.Context, env *environmentv1.Envi
 	return candidates, nil
 }
 
-func (p *Selector) planEligibleCandidates(req *placementkernel.Request, now time.Time) ([]*placementkernel.Candidate, []*nodev1.PlacementCandidate, nodekernel.Snapshot, error) {
+func (p *Selector) planEligibleCandidates(req *placementkernel.Request, now time.Time) ([]*placementkernel.Candidate, []*placementkernel.Evaluation, nodekernel.Snapshot, error) {
 	snapshot := p.registry.Snapshot()
 	eligible, rejected := p.engine.Plan(snapshot, req, now)
 	if len(eligible) == 0 {
@@ -86,7 +85,7 @@ func (p *Selector) planEligibleCandidates(req *placementkernel.Request, now time
 	return out, rejected, snapshot, nil
 }
 
-func (p *Selector) observeSelection(ctx context.Context, req *placementkernel.Request, mode, result string, eligibleCount int, rejected []*nodev1.PlacementCandidate) {
+func (p *Selector) observeSelection(ctx context.Context, req *placementkernel.Request, mode, result string, eligibleCount int, rejected []*placementkernel.Evaluation) {
 	if p.observer == nil {
 		return
 	}
@@ -103,7 +102,7 @@ func (p *Selector) observeSelection(ctx context.Context, req *placementkernel.Re
 	})
 }
 
-func retryableCandidatesFromRejected(snapshot nodekernel.Snapshot, rejected []*nodev1.PlacementCandidate, req *placementkernel.Request, now time.Time) []*placementkernel.Candidate {
+func retryableCandidatesFromRejected(snapshot nodekernel.Snapshot, rejected []*placementkernel.Evaluation, req *placementkernel.Request, now time.Time) []*placementkernel.Candidate {
 	if len(rejected) == 0 || len(snapshot.Records) == 0 {
 		return nil
 	}
@@ -137,7 +136,7 @@ func requestForCandidate(request *placementkernel.Request, record *nodekernel.Re
 	return placementkernel.ResolveRequestForNode(request, record.Summary, now)
 }
 
-func retryableRejection(reasons []nodev1.PlacementRejectionReason) bool {
+func retryableRejection(reasons []placementkernel.RejectionReason) bool {
 	if len(reasons) == 0 {
 		return false
 	}
@@ -149,17 +148,17 @@ func retryableRejection(reasons []nodev1.PlacementRejectionReason) bool {
 	return true
 }
 
-func retryableRejectionReason(reason nodev1.PlacementRejectionReason) bool {
+func retryableRejectionReason(reason placementkernel.RejectionReason) bool {
 	switch reason {
-	case nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_AXNODED_NOT_READY,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_SYSTEM_RESERVE_EXHAUSTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE:
+	case placementkernel.RejectionReasonStaleHeartbeat,
+		placementkernel.RejectionReasonStaleSummary,
+		placementkernel.RejectionReasonAxnodedNotReady,
+		placementkernel.RejectionReasonImagemgrUnavailable,
+		placementkernel.RejectionReasonImagefsdUnavailable,
+		placementkernel.RejectionReasonNodeMemorySystemReserveExhausted,
+		placementkernel.RejectionReasonNodeMemoryBudgetUnavailable:
 		return true
-	case nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_UNSPECIFIED:
+	case placementkernel.RejectionReasonUnspecified:
 		return true
 	default:
 		return false

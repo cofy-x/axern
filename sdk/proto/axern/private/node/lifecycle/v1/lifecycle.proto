@@ -5,7 +5,7 @@ package axern.private.node.lifecycle.v1;
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1;nodelifecyclev1";
 
 import "axern/control/common/v1/common.proto";
-import "axern/control/catalog/v1/catalog.proto";
+import "axern/control/environment/v1/environment.proto";
 import "axern/control/capability/v1/capability.proto";
 
 message SandboxMount {
@@ -62,7 +62,7 @@ message ResolvedExecutionConfig {
   repeated ResolvedSecretEnvVar secret_env = 17;
   repeated ResolvedSecretFile secret_files = 18;
   RegistryCredential registry_credential = 19;
-  axern.control.catalog.v1.OciExecutionProfile execution_profile = 20;
+  axern.control.environment.v1.OciExecutionProfile execution_profile = 20;
   repeated ImageMount image_mounts = 21;
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 22;
 }

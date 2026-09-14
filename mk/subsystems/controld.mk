@@ -4,6 +4,7 @@ CONTROLD_DIR := control/controld
 	controld-help \
 	controld-build \
 	controld-test \
+	controld-postgres-test \
 	controld-fmt \
 	controld-vet
 
@@ -15,6 +16,9 @@ controld-build: ## Build the controld daemon
 
 controld-test: ## Run controld tests
 	@$(call run_subsystem_make,$(CONTROLD_DIR),test)
+
+controld-postgres-test: ## Run controld tests against an ephemeral PostgreSQL
+	bash $(ROOTDIR)/scripts/controld-postgres-test.sh
 
 controld-fmt: ## Format controld Go code
 	@$(call run_subsystem_make,$(CONTROLD_DIR),fmt)

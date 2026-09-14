@@ -4,7 +4,7 @@ package axnoded.internal.apipb.v1;
 
 option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
 
-import "axern/control/catalog/v1/catalog.proto";
+import "axern/control/environment/v1/environment.proto";
 import "axern/control/capability/v1/capability.proto";
 import "axern/control/common/v1/common.proto";
 import "google/protobuf/timestamp.proto";
@@ -81,14 +81,14 @@ message ImageMount {
   bool readonly = 3;
 }
 
-message EnvironmentTemplate {
+message ResolvedEnvironment {
   string id = 1;
   RootfsConfig rootfs = 2;
   repeated string argv = 3;
   map<string, string> env = 4;
   string cwd = 5;
   repeated Mount mounts = 6;
-  axern.control.catalog.v1.OciExecutionProfile execution_profile = 7;
+  axern.control.environment.v1.OciExecutionProfile execution_profile = 7;
 }
 
 // AllocationState is the sole node-local authority and recovery record for a
@@ -97,7 +97,7 @@ message EnvironmentTemplate {
 message AllocationState {
   string allocation_id = 1;
   string node_id = 2;
-  EnvironmentTemplate environment_template = 3;
+  ResolvedEnvironment environment = 3;
   axern.control.common.v1.ResourceSpec resources = 4;
   repeated string image_mount_urls = 5;
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 6;

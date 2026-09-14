@@ -23,11 +23,11 @@ type lockedLifecycleRetry struct {
 	AllocationState string
 }
 
-func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, reason string, now time.Time) (*lockedLifecycleRetry, error) {
+func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, now time.Time) (*lockedLifecycleRetry, error) {
 	var out lockedLifecycleRetry
 	clearanceInput := allocationkernel.LifecycleRetryClearanceInput{}
 	err := tx.QueryRow(ctx, `
-		SELECT q.allocation_id, a.run_id, r.environment_id, q.reason, a.node_id, n.node_target,
+		SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at, a.lifecycle_state,
 			EXISTS (
 				SELECT 1 FROM reservations res
@@ -35,12 +35,12 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 			),
 			EXISTS (
 				SELECT 1 FROM execution_leases el
-				WHERE el.allocation_id = q.allocation_id AND el.revoked = FALSE AND el.expires_at > $3
+				WHERE el.allocation_id = q.allocation_id AND el.revoked = FALSE AND el.expires_at > $2
 			),
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
 				WHERE ts.allocation_id = q.allocation_id
-				  AND ts.status IN ($4, $5, $6)
+				  AND ts.status IN ($3, $4, $5)
 			),
 			COALESCE((
 				SELECT r.status FROM runs r
@@ -51,16 +51,16 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
 		JOIN nodes n ON n.node_id = a.node_id
-		WHERE q.allocation_id = $1 AND q.reason = $2
+		WHERE q.allocation_id = $1
 		FOR UPDATE OF q, a
-	`, strings.TrimSpace(allocationID), strings.TrimSpace(reason), now.UTC(),
+	`, strings.TrimSpace(allocationID), now.UTC(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String()).Scan(
 		&out.Item.AllocationID,
 		&out.Item.RunID,
 		&out.Item.EnvironmentID,
-		&out.Item.Reason,
+		&out.AllocationState,
 		&out.Item.NodeID,
 		&out.Item.NodeTarget,
 		&out.Item.ReconcileAttempts,
@@ -68,14 +68,14 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		&out.Item.NextRunAt,
 		&out.Item.CreatedAt,
 		&out.Item.UpdatedAt,
-		&out.AllocationState,
+		&clearanceInput.AllocationState,
 		&clearanceInput.HasActiveReservation,
 		&clearanceInput.HasActiveLease,
 		&clearanceInput.HasActiveTunnelSession,
 		&clearanceInput.RunStatus,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q with reason %q not found", allocationID, reason)
+		return nil, grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q not found", allocationID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("lock allocation lifecycle retry: %w", err)
@@ -84,6 +84,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q not found", allocationID)
 	}
 	now = now.UTC()
+	out.Item.LifecycleState = allocationkernel.ParseLifecycleState(out.AllocationState).String()
 	out.Item.AgeSeconds = int64(now.Sub(out.Item.CreatedAt).Seconds())
 	out.Item.Due = !out.Item.NextRunAt.After(now)
 	clearanceInput.AllocationID = out.Item.AllocationID
@@ -104,8 +105,8 @@ type adminAuditEvent struct {
 	CreatedAt        time.Time
 }
 
-func loadLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, reason string, now time.Time) (*allocationkernel.LifecycleRetryItem, error) {
-	item, ok, err := pgallocation.LoadLifecycleRetry(ctx, tx, allocationID, reason, now)
+func loadLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, now time.Time) (*allocationkernel.LifecycleRetryItem, error) {
+	item, ok, err := pgallocation.LoadLifecycleRetry(ctx, tx, allocationID, now)
 	if err != nil {
 		return nil, err
 	}
@@ -147,10 +148,10 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE allocation_reconcile_queue
-		SET reason = $2, reconcile_attempts = 0, next_run_at = $3,
-			last_error = '', lease_owner = '', lease_expires_at = NULL, updated_at = $3
+		SET reconcile_attempts = 0, next_run_at = $2,
+			last_error = '', lease_owner = '', lease_expires_at = NULL, updated_at = $2
 		WHERE allocation_id = $1
-	`, item.AllocationID, allocationkernel.ReconcileReasonDelete, now.UTC()); err != nil {
+	`, item.AllocationID, now.UTC()); err != nil {
 		return fmt.Errorf("schedule cleanup after failed allocation create: %w", err)
 	}
 	return nil
@@ -207,16 +208,16 @@ func nextLeaseRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
 	return revision, nil
 }
 
-func deleteLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, reason string) error {
+func deleteLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string) error {
 	tag, err := tx.Exec(ctx, `
 		DELETE FROM allocation_reconcile_queue
-		WHERE allocation_id = $1 AND reason = $2
-	`, strings.TrimSpace(allocationID), strings.TrimSpace(reason))
+		WHERE allocation_id = $1
+	`, strings.TrimSpace(allocationID))
 	if err != nil {
 		return fmt.Errorf("delete allocation lifecycle retry: %w", err)
 	}
 	if tag.RowsAffected() == 0 {
-		return grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q with reason %q not found", allocationID, reason)
+		return grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q not found", allocationID)
 	}
 	return nil
 }

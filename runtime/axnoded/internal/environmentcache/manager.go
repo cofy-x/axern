@@ -36,7 +36,7 @@ func (lm *EnvironmentCache) GetPreparedEnvironment(id string) *PreparedEnvironme
 
 // FindReusableEnvironment returns the current runtime only when its static
 // template and already-resolved immutable rootfs generation match.
-func (lm *EnvironmentCache) FindReusableEnvironment(fr *api.EnvironmentTemplate, cfg RootfsConfig) *PreparedEnvironment {
+func (lm *EnvironmentCache) FindReusableEnvironment(fr *api.ResolvedEnvironment, cfg RootfsConfig) *PreparedEnvironment {
 	if fr == nil {
 		return nil
 	}

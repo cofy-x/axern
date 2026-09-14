@@ -11,10 +11,9 @@ import (
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 )
 
 func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementkernel.Candidate) (map[string]*nodekernel.Record, error) {
@@ -136,14 +135,11 @@ func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[
 }
 
 func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nodekernel.Record, reserved resourcekernel.Claim, reservedAllocationIDs []string, now time.Time) *placementkernel.Candidate {
-	evaluation := &nodev1.PlacementCandidate{}
-	if candidate.Evaluation != nil {
-		evaluation = proto.Clone(candidate.Evaluation).(*nodev1.PlacementCandidate)
-	}
+	evaluation := placementkernel.CloneEvaluation(candidate.Evaluation)
 	evaluation.NodeID = record.NodeID
 	evaluation.HeartbeatAgeSecs = nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, now)
 	if evaluation.Rank == nil {
-		evaluation.Rank = &nodev1.PlacementRank{}
+		evaluation.Rank = &placementkernel.Rank{}
 	}
 	resources := record.Summary.GetResources()
 	evaluation.Rank.AxnodedActiveInstances = nodekernel.CalculateRuntimeSlotOccupancy(record.Summary, reservedAllocationIDs).Occupied

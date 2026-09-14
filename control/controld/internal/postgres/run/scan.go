@@ -7,7 +7,6 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -46,7 +45,7 @@ func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 	if err := protojson.Unmarshal(specJSON, env.Spec); err != nil {
 		return nil, fmt.Errorf("unmarshal environment spec: %w", err)
 	}
-	env.ResolvedSpec = &catalogv1.ResolvedEnvironmentSpec{}
+	env.ResolvedSpec = &environmentv1.ResolvedEnvironmentSpec{}
 	if err := protojson.Unmarshal(resolvedSpecJSON, env.ResolvedSpec); err != nil {
 		return nil, fmt.Errorf("unmarshal resolved environment spec: %w", err)
 	}

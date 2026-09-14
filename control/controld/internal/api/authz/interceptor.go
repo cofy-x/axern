@@ -144,7 +144,7 @@ func isGatewayControlMethod(method string) bool {
 }
 
 func isNodeControlMethod(method string) bool {
-	return strings.HasPrefix(method, "/axern.control.node.v1.NodeControl/")
+	return strings.HasPrefix(method, "/axern.private.control.node.v1.NodeControl/")
 }
 
 func isUnclassifiedControlMethod(method string) bool {
@@ -153,7 +153,7 @@ func isUnclassifiedControlMethod(method string) bool {
 	}
 	for _, internalService := range []string{
 		"/axern.control.gateway.v1.GatewayControl/",
-		"/axern.control.node.v1.NodeControl/",
+		"/axern.private.control.node.v1.NodeControl/",
 	} {
 		if strings.HasPrefix(method, internalService) {
 			return false
@@ -284,8 +284,6 @@ func publicPolicy(method string) (methodPolicy, bool) {
 	switch service {
 	case "axern.control.identity.v1.IdentityControl":
 		return exactPolicy(methodName, accesskernel.ActionIdentityRead, "", "WhoAmI")
-	case "axern.control.catalog.v1.EnvironmentCatalog":
-		return exactPolicy(methodName, accesskernel.ActionCatalogRead, "", "ListEnvironmentTemplates", "GetEnvironmentTemplate")
 	case "axern.control.admin.v1.AccessAdmin":
 		return exactPolicy(methodName, accesskernel.ActionIdentityRead, "",
 			"CreatePrincipal", "ListPrincipals", "DisablePrincipal", "AddPrincipalCredential", "ListPrincipalCredentials",
@@ -348,7 +346,7 @@ func resourcePolicy(methodName, resourceType string, reads, writes []string) (me
 }
 
 func (i *Interceptor) namespace(ctx context.Context, policy methodPolicy, req any) (string, error) {
-	if policy.action == accesskernel.ActionIdentityRead || policy.action == accesskernel.ActionCatalogRead || policy.action == accesskernel.ActionPlatformAdmin || policy.action == accesskernel.ActionNamespaceManage {
+	if policy.action == accesskernel.ActionIdentityRead || policy.action == accesskernel.ActionPlatformAdmin || policy.action == accesskernel.ActionNamespaceManage {
 		return "", nil
 	}
 	message, ok := req.(proto.Message)

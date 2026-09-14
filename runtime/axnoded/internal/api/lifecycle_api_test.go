@@ -7,8 +7,8 @@ import (
 
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -134,8 +134,8 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 				Path: "/run/secrets/key", Content: []byte("secret-content"), Mode: 0o400,
 			}},
 			RegistryCredential: &nodelifecyclev1.RegistryCredential{DockerConfigJson: `{"auths":{}}`},
-			ExecutionProfile: &catalogv1.OciExecutionProfile{
-				Baseline: &catalogv1.OciBaselinePolicy{NoFileLimit: 2097152},
+			ExecutionProfile: &environmentv1.OciExecutionProfile{
+				Baseline: &environmentv1.OciBaselinePolicy{NoFileLimit: 2097152},
 			},
 		},
 	})
@@ -155,11 +155,11 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if got := startReq.GetNetwork().GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "github.com" {
 		t.Fatalf("egress policy was not preserved: %#v", startReq.GetNetwork().GetEgressPolicy())
 	}
-	if startReq.GetEnvironmentTemplate().GetRootfs().GetImageUrl() != imageRef {
-		t.Fatalf("image_ref = %q", startReq.GetEnvironmentTemplate().GetRootfs().GetImageUrl())
+	if startReq.GetEnvironment().GetRootfs().GetImageUrl() != imageRef {
+		t.Fatalf("image_ref = %q", startReq.GetEnvironment().GetRootfs().GetImageUrl())
 	}
-	if startReq.GetEnvironmentTemplate().GetEnv()["A"] != "B" {
-		t.Fatalf("runtime env = %#v, want key A", startReq.GetEnvironmentTemplate().GetEnv())
+	if startReq.GetEnvironment().GetEnv()["A"] != "B" {
+		t.Fatalf("runtime env = %#v, want key A", startReq.GetEnvironment().GetEnv())
 	}
 	if got := startReq.GetPorts(); len(got) != 1 || got[0].GetContainerPort() != 8080 {
 		t.Fatalf("ports = %#v, want typed container port 8080", got)
@@ -182,8 +182,8 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if got := startReq.GetRegistryCredential().GetDockerConfigJson(); got != `{"auths":{}}` {
 		t.Fatalf("registry credential was not preserved")
 	}
-	if startReq.GetEnvironmentTemplate().GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
-		t.Fatalf("execution profile nofile = %d, want 2097152", startReq.GetEnvironmentTemplate().GetExecutionProfile().GetBaseline().GetNoFileLimit())
+	if startReq.GetEnvironment().GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
+		t.Fatalf("execution profile nofile = %d, want 2097152", startReq.GetEnvironment().GetExecutionProfile().GetBaseline().GetNoFileLimit())
 	}
 }
 
@@ -207,7 +207,7 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 	if len(fakeService.startRequests) != 1 {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))
 	}
-	if got := fakeService.startRequests[0].GetEnvironmentTemplate().GetArgv(); len(got) != 0 {
+	if got := fakeService.startRequests[0].GetEnvironment().GetArgv(); len(got) != 0 {
 		t.Fatalf("command = %#v, want empty so OCI image default command is preserved", got)
 	}
 }
@@ -359,7 +359,7 @@ func TestAllocationEnvironmentIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("allocationStartRequest(other) error = %v", err)
 	}
-	if baseStart.GetEnvironmentTemplate().GetID() != otherStart.GetEnvironmentTemplate().GetID() {
+	if baseStart.GetEnvironment().GetID() != otherStart.GetEnvironment().GetID() {
 		t.Fatal("request identity must not partition the environment template cache")
 	}
 
@@ -368,13 +368,13 @@ func TestAllocationEnvironmentIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("allocationStartRequest(other static config) error = %v", err)
 	}
-	if baseStart.GetEnvironmentTemplate().GetID() == otherStart.GetEnvironmentTemplate().GetID() {
+	if baseStart.GetEnvironment().GetID() == otherStart.GetEnvironment().GetID() {
 		t.Fatal("static execution config must partition the environment template cache")
 	}
 }
 
-func TestStableEnvironmentTemplateIDFingerprintsStaticTemplate(t *testing.T) {
-	base := &runtimev1.EnvironmentTemplate{
+func TestStableResolvedEnvironmentIDFingerprintsStaticTemplate(t *testing.T) {
+	base := &runtimev1.ResolvedEnvironment{
 		ID:   "ignored",
 		Argv: []string{"/bin/app"},
 		Cwd:  "/workspace",
@@ -385,34 +385,34 @@ func TestStableEnvironmentTemplateIDFingerprintsStaticTemplate(t *testing.T) {
 			Readonly: true,
 		},
 	}
-	baseID := stableEnvironmentTemplateID(base)
+	baseID := stableResolvedEnvironmentID(base)
 	if baseID == "" {
 		t.Fatal("stable environment template id must not be empty")
 	}
 
-	reordered := proto.Clone(base).(*runtimev1.EnvironmentTemplate)
+	reordered := proto.Clone(base).(*runtimev1.ResolvedEnvironment)
 	reordered.ID = "another-id"
 	reordered.Env = map[string]string{"A": "1", "B": "2"}
-	if got := stableEnvironmentTemplateID(reordered); got != baseID {
+	if got := stableResolvedEnvironmentID(reordered); got != baseID {
 		t.Fatalf("map order and existing id must not affect fingerprint: got %q, want %q", got, baseID)
 	}
 
-	tests := map[string]func(*runtimev1.EnvironmentTemplate){
-		"command": func(template *runtimev1.EnvironmentTemplate) { template.Argv = []string{"/bin/other"} },
-		"cwd":     func(template *runtimev1.EnvironmentTemplate) { template.Cwd = "/app" },
-		"environment": func(template *runtimev1.EnvironmentTemplate) {
+	tests := map[string]func(*runtimev1.ResolvedEnvironment){
+		"command": func(template *runtimev1.ResolvedEnvironment) { template.Argv = []string{"/bin/other"} },
+		"cwd":     func(template *runtimev1.ResolvedEnvironment) { template.Cwd = "/app" },
+		"environment": func(template *runtimev1.ResolvedEnvironment) {
 			template.Env["A"] = "changed"
 		},
-		"rootfs": func(template *runtimev1.EnvironmentTemplate) {
+		"rootfs": func(template *runtimev1.ResolvedEnvironment) {
 			template.Rootfs.Source = &runtimev1.RootfsConfig_ImageUrl{ImageUrl: "registry/app@sha256:def"}
 		},
-		"rootfs readonly": func(template *runtimev1.EnvironmentTemplate) { template.Rootfs.Readonly = false },
+		"rootfs readonly": func(template *runtimev1.ResolvedEnvironment) { template.Rootfs.Readonly = false },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
-			candidate := proto.Clone(base).(*runtimev1.EnvironmentTemplate)
+			candidate := proto.Clone(base).(*runtimev1.ResolvedEnvironment)
 			mutate(candidate)
-			if got := stableEnvironmentTemplateID(candidate); got == baseID {
+			if got := stableResolvedEnvironmentID(candidate); got == baseID {
 				t.Fatalf("static template change must alter fingerprint: %q", got)
 			}
 		})

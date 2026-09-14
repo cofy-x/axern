@@ -7,7 +7,6 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -24,7 +23,7 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 		CreatedAt: timestamppb.New(time.Date(
 			2026, time.April, 29, 12, 0, 0, 0, time.UTC,
 		)),
-		ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{ImageDefaultArgv: []string{"python3"}},
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDefaultArgv: []string{"python3"}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -104,42 +103,6 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	}
 	if failedRun.Run.DiagnosticCode != "admission-blocked" {
 		t.Fatalf("failed run JSON = %#v, want typed admission diagnostic", failedRun.Run)
-	}
-}
-
-func TestCatalogJSONUsesStableShape(t *testing.T) {
-	var b strings.Builder
-	err := PrintEnvironmentTemplateListJSON(&b, &catalogv1.ListEnvironmentTemplatesResponse{
-		EnvironmentTemplates: []*catalogv1.EnvironmentTemplate{{
-			ID: "python311",
-			ResolvedSpec: &catalogv1.ResolvedEnvironmentSpec{
-				ImageDefaultArgv: []string{"python3"},
-				ImageDescriptor:  &catalogv1.OciImageDescriptor{MediaType: "application/vnd.oci.image.manifest.v1+json"},
-			},
-			Capabilities: &catalogv1.EnvironmentTemplateCapabilities{
-				SupportsExecStream: true,
-			},
-		}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var got struct {
-		EnvironmentTemplates []struct {
-			ID           string `json:"id"`
-			ResolvedSpec struct {
-				ImageDefaultArgv []string `json:"image_default_argv"`
-			} `json:"resolved_spec"`
-			Capabilities struct {
-				SupportsExecStream bool `json:"supports_exec_stream"`
-			} `json:"capabilities"`
-		} `json:"environment_templates"`
-	}
-	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
-		t.Fatal(err)
-	}
-	if got.EnvironmentTemplates[0].ID != "python311" || got.EnvironmentTemplates[0].ResolvedSpec.ImageDefaultArgv[0] != "python3" || !got.EnvironmentTemplates[0].Capabilities.SupportsExecStream {
-		t.Fatalf("catalog JSON = %#v, want stable DTO", got.EnvironmentTemplates[0])
 	}
 }
 

@@ -14,7 +14,6 @@ const (
 
 func NormalizeLifecycleRetryFilter(in LifecycleRetryFilter) LifecycleRetryFilter {
 	out := LifecycleRetryFilter{
-		Reason:  strings.TrimSpace(in.Reason),
 		DueOnly: in.DueOnly,
 		Limit:   in.Limit,
 	}
@@ -27,19 +26,9 @@ func NormalizeLifecycleRetryFilter(in LifecycleRetryFilter) LifecycleRetryFilter
 	return out
 }
 
-func ValidateLifecycleRetryFilter(filter LifecycleRetryFilter) error {
-	switch filter.Reason {
-	case "", ReconcileReasonCreate, ReconcileReasonDelete:
-	default:
-		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported lifecycle retry reason %q", filter.Reason)
-	}
-	return nil
-}
-
 func NormalizeForceLifecycleRetryRequest(in ForceLifecycleRetryRequest) ForceLifecycleRetryRequest {
 	return ForceLifecycleRetryRequest{
 		AllocationID:   strings.TrimSpace(in.AllocationID),
-		Reason:         strings.TrimSpace(in.Reason),
 		OperatorReason: strings.TrimSpace(in.OperatorReason),
 		RequestedRunAt: in.RequestedRunAt,
 	}
@@ -48,11 +37,6 @@ func NormalizeForceLifecycleRetryRequest(in ForceLifecycleRetryRequest) ForceLif
 func ValidateForceLifecycleRetryRequest(req ForceLifecycleRetryRequest) error {
 	if req.AllocationID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
-	}
-	switch req.Reason {
-	case ReconcileReasonCreate, ReconcileReasonDelete:
-	default:
-		return grpcstatus.Error(codes.InvalidArgument, "reason must be create or delete")
 	}
 	if req.OperatorReason == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "operator_reason is required")
@@ -63,7 +47,6 @@ func ValidateForceLifecycleRetryRequest(req ForceLifecycleRetryRequest) error {
 func NormalizeFailLifecycleRetryRequest(in FailLifecycleRetryRequest) FailLifecycleRetryRequest {
 	return FailLifecycleRetryRequest{
 		AllocationID:   strings.TrimSpace(in.AllocationID),
-		Reason:         strings.TrimSpace(in.Reason),
 		OperatorReason: strings.TrimSpace(in.OperatorReason),
 	}
 }
@@ -71,9 +54,6 @@ func NormalizeFailLifecycleRetryRequest(in FailLifecycleRetryRequest) FailLifecy
 func ValidateFailLifecycleRetryRequest(req FailLifecycleRetryRequest) error {
 	if req.AllocationID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
-	}
-	if req.Reason != ReconcileReasonCreate {
-		return grpcstatus.Error(codes.InvalidArgument, "reason must be create")
 	}
 	if req.OperatorReason == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "operator_reason is required")
@@ -84,7 +64,6 @@ func ValidateFailLifecycleRetryRequest(req FailLifecycleRetryRequest) error {
 func NormalizeClearLifecycleRetryRequest(in ClearLifecycleRetryRequest) ClearLifecycleRetryRequest {
 	return ClearLifecycleRetryRequest{
 		AllocationID:   strings.TrimSpace(in.AllocationID),
-		Reason:         strings.TrimSpace(in.Reason),
 		OperatorReason: strings.TrimSpace(in.OperatorReason),
 	}
 }
@@ -92,11 +71,6 @@ func NormalizeClearLifecycleRetryRequest(in ClearLifecycleRetryRequest) ClearLif
 func ValidateClearLifecycleRetryRequest(req ClearLifecycleRetryRequest) error {
 	if req.AllocationID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
-	}
-	switch req.Reason {
-	case ReconcileReasonCreate, ReconcileReasonDelete:
-	default:
-		return grpcstatus.Error(codes.InvalidArgument, "reason must be create or delete")
 	}
 	if req.OperatorReason == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "operator_reason is required")

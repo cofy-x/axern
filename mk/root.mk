@@ -1,6 +1,6 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check cli-e2e-environment-contract \
 		grafana-assets-check \
 		build-go test-go lint-go fmt-go \

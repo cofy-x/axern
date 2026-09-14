@@ -87,7 +87,7 @@ if [ "${build_full_environment_catalog}" = "true" ]; then
   phase_started_at="$(date +%s)"
   IMAGE_REF="${DESKTOP_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-desktop-base-runtime-image.sh" >/dev/null
   push_image_after_build "${DESKTOP_BASE_RUNTIME_IMAGE}"
-  report_image_build_phase "environment-catalog" "${phase_started_at}"
+  report_image_build_phase "environment-templates" "${phase_started_at}"
 fi
 
 if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then

@@ -111,8 +111,8 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT),
 		}},
 	)
-	if err := nodecapabilitymanager.ValidateCatalogProviderCoverage(providers...); err != nil {
-		return nil, fmt.Errorf("validate capability provider catalog coverage: %w", err)
+	if err := nodecapabilitymanager.ValidateProviderCoverage(providers...); err != nil {
+		return nil, fmt.Errorf("validate capability provider contract coverage: %w", err)
 	}
 	return nodecapabilitymanager.NewManager(providers...)
 }
@@ -156,7 +156,7 @@ func networkCapabilityProvider(cfg config.Config, managers ...egress.Manager) no
 			var evidence *capabilityv1.CapabilityEvidence
 			activeIndex := 1
 			inactiveIndex := 2
-			if cfg.PluginConfig.NetworkConfig.CapabilityBackend() == config.NatBackendEBPF {
+			if cfg.PluginConfig.NetworkConfig.NatBackend == config.NatBackendEBPF {
 				activeIndex, inactiveIndex = 2, 1
 			}
 			observations := make([]*capabilityv1.CapabilityObservation, len(keys))

@@ -225,7 +225,6 @@ CREATE TABLE execution_leases (
 
 CREATE TABLE allocation_reconcile_queue (
 	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
-	reason TEXT NOT NULL,
 	next_run_at TIMESTAMPTZ NOT NULL,
 	reconcile_attempts INTEGER NOT NULL DEFAULT 0,
 	last_error TEXT NOT NULL DEFAULT '',
@@ -233,7 +232,6 @@ CREATE TABLE allocation_reconcile_queue (
 	lease_expires_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
-	CHECK (reason IN ('create', 'delete')),
 	CHECK (
 		(lease_owner = '' AND lease_expires_at IS NULL) OR
 		(length(btrim(lease_owner)) > 0 AND lease_expires_at IS NOT NULL)
@@ -375,8 +373,13 @@ FOR EACH ROW EXECUTE FUNCTION notify_run_change();
 
 CREATE FUNCTION notify_tunnel_session_change()
 RETURNS TRIGGER AS $$
+DECLARE
+	target_node_id TEXT;
 BEGIN
-	PERFORM pg_notify('axern_tunnel_session_changes', NEW.node_id);
+	SELECT node_id INTO STRICT target_node_id
+	FROM allocations
+	WHERE allocation_id = NEW.allocation_id;
+	PERFORM pg_notify('axern_tunnel_session_changes', target_node_id);
 	RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

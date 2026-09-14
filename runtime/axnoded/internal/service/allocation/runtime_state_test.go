@@ -14,20 +14,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func testEnvironmentTemplate(t *testing.T, id string) *apipb.EnvironmentTemplate {
+func testResolvedEnvironment(t *testing.T, id string) *apipb.ResolvedEnvironment {
 	t.Helper()
 	rootfsDir := filepath.Join(t.TempDir(), "rootfs")
 	assert.NoError(t, os.MkdirAll(rootfsDir, 0o755))
-	return &apipb.EnvironmentTemplate{
+	return &apipb.ResolvedEnvironment{
 		ID:     id,
 		Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: rootfsDir}},
 		Argv:   []string{"/bin/sh"},
 	}
 }
 
-func addTestRuntimeMappingRuntime(t *testing.T, manager *environmentcache.EnvironmentCache, template *apipb.EnvironmentTemplate) *environmentcache.PreparedEnvironment {
+func addTestRuntimeMappingRuntime(t *testing.T, manager *environmentcache.EnvironmentCache, template *apipb.ResolvedEnvironment) *environmentcache.PreparedEnvironment {
 	t.Helper()
-	config, err := environmentcache.RootfsConfigFromEnvironmentTemplate(template)
+	config, err := environmentcache.RootfsConfigFromResolvedEnvironment(template)
 	assert.NoError(t, err)
 	result, err := manager.PrepareEnvironment(t.Context(), template, config)
 	assert.NoError(t, err)
@@ -37,7 +37,7 @@ func addTestRuntimeMappingRuntime(t *testing.T, manager *environmentcache.Enviro
 func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	store := storetest.NewMockStore()
 	first := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
-	template := testEnvironmentTemplate(t, "allocation-runtime")
+	template := testResolvedEnvironment(t, "allocation-runtime")
 	runtime := addTestRuntimeMappingRuntime(t, first.environmentCache, template)
 	allocationID := "allocation-runtime-round-trip"
 	err := first.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil)
@@ -51,7 +51,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	}, nil, now))
 	var persisted apipb.AllocationState
 	assert.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
-	assert.Equal(t, template.GetID(), persisted.GetEnvironmentTemplate().GetID())
+	assert.Equal(t, template.GetID(), persisted.GetEnvironment().GetID())
 
 	second := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
 	second.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
@@ -66,7 +66,7 @@ func TestLoadAllocationStatesSkipsOrphanContainers(t *testing.T) {
 	store := storetest.NewMockStore()
 	allocationID := "orphan-allocation"
 	assert.NoError(t, store.PutRecord(config.AllocationStateBucket, allocationID, &apipb.AllocationState{
-		AllocationID: allocationID, EnvironmentTemplate: testEnvironmentTemplate(t, "orphan-runtime"),
+		AllocationID: allocationID, Environment: testResolvedEnvironment(t, "orphan-runtime"),
 	}))
 	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
 	assert.NoError(t, fixture.controller.loadAllocationStates(map[string]struct{}{}))

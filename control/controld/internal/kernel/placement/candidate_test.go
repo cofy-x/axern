@@ -1,16 +1,12 @@
 package placementkernel
 
-import (
-	"testing"
-
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-)
+import "testing"
 
 func TestEvaluationLessPrefersFewerActiveInstances(t *testing.T) {
-	candidate := func(nodeID string, active int64) *nodev1.PlacementCandidate {
-		return &nodev1.PlacementCandidate{
+	candidate := func(nodeID string, active int64) *Evaluation {
+		return &Evaluation{
 			NodeID: nodeID,
-			Rank:   &nodev1.PlacementRank{IdlePoolReady: true, AxnodedActiveInstances: active},
+			Rank:   &Rank{IdlePoolReady: true, AxnodedActiveInstances: active},
 		}
 	}
 
