@@ -8,7 +8,6 @@ import (
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	gatewaypb "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
-	tunnelpb "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -33,13 +32,13 @@ type accessAuthorizerStub struct {
 
 type tunnelResolverStub struct {
 	sessionID string
-	session   *tunnelpb.TunnelSession
+	target    string
 	err       error
 }
 
-func (r *tunnelResolverStub) Get(_ context.Context, sessionID string, _ time.Time) (*tunnelpb.TunnelSession, error) {
+func (r *tunnelResolverStub) ResolveRelayTarget(_ context.Context, sessionID string, _ time.Time) (string, error) {
 	r.sessionID = sessionID
-	return r.session, r.err
+	return r.target, r.err
 }
 
 func (a *accessAuthorizerStub) AuthorizeFingerprintResource(_ context.Context, fingerprint string, action accesskernel.Action, resource, resourceID string) error {
@@ -124,7 +123,7 @@ func TestResolveAllocationTerminalAuthorizationErrors(t *testing.T) {
 }
 
 func TestResolveTunnelRelayTargetUsesPrivateSessionState(t *testing.T) {
-	tunnels := &tunnelResolverStub{session: &tunnelpb.TunnelSession{NodeEdgeTarget: "tunneld:24100"}}
+	tunnels := &tunnelResolverStub{target: "tunneld:24100"}
 	server := New(Dependencies{Resolver: &resolverStub{}, Tunnels: tunnels})
 
 	response, err := server.ResolveTunnelRelayTarget(context.Background(), &gatewaypb.ResolveTunnelRelayTargetRequest{SessionID: "tun-1"})

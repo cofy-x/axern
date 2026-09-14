@@ -26,14 +26,14 @@ func (s *Store) reportNodeStatus(ctx context.Context, nodeID, sessionID string, 
 		return nil, err
 	}
 	row := tx.QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1 AND node_id = $2 FOR UPDATE`, strings.TrimSpace(sessionID), strings.TrimSpace(nodeID))
-	current, _, _, _, err := scanSession(row)
+	current, _, err := scanSession(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.NotFound, "tunnel session not found")
 	}
 	if err != nil {
 		return nil, err
 	}
-	if current.GetRevoked() || terminal(current.GetStatus()) {
+	if terminal(current.GetStatus()) {
 		if err := tx.Commit(ctx); err != nil {
 			return nil, err
 		}
@@ -60,7 +60,7 @@ func (s *Store) reportNodeStatus(ctx context.Context, nodeID, sessionID string, 
 			WHERE session_id = $1 AND node_id = $6
 			RETURNING `+sessionSelectColumns(), strings.TrimSpace(sessionID), status.String(), strings.TrimSpace(reason), strings.TrimSpace(boundAddr), now, strings.TrimSpace(nodeID))
 	}
-	session, _, _, _, err := scanSession(row)
+	session, _, err := scanSession(row)
 	if err != nil {
 		return nil, err
 	}

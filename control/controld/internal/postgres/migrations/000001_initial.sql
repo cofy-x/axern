@@ -295,17 +295,13 @@ CREATE TABLE tunnel_sessions (
 	namespace TEXT NOT NULL,
 	creator_principal_id TEXT NOT NULL REFERENCES principals(principal_id) ON DELETE RESTRICT,
 	node_id TEXT NOT NULL,
-	node_target TEXT NOT NULL DEFAULT '',
 	remote_port INTEGER NOT NULL,
-	local_target TEXT NOT NULL DEFAULT '',
-	edge_target TEXT NOT NULL DEFAULT '',
 	node_edge_target TEXT NOT NULL DEFAULT '',
 	relay_id TEXT NOT NULL DEFAULT '',
 	client_edge_target TEXT NOT NULL DEFAULT '',
 	status TEXT NOT NULL,
 	reason TEXT NOT NULL DEFAULT '',
 	bound_addr TEXT NOT NULL DEFAULT '',
-	revoked BOOLEAN NOT NULL DEFAULT FALSE,
 	client_token_hash TEXT NOT NULL,
 	node_token_encrypted BYTEA NOT NULL,
 	node_token_hash TEXT NOT NULL,
@@ -365,17 +361,17 @@ CREATE INDEX idx_allocation_reconcile_queue_claimable
 	ON allocation_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
 CREATE UNIQUE INDEX idx_tunnel_sessions_active_remote_port
 	ON tunnel_sessions(allocation_id, remote_port)
-	WHERE revoked = FALSE AND status IN (
+	WHERE status IN (
 		'TUNNEL_SESSION_STATUS_PENDING',
 		'TUNNEL_SESSION_STATUS_RUNNING',
 		'TUNNEL_SESSION_STATUS_DEGRADED'
 	);
 CREATE INDEX idx_tunnel_sessions_node_revision ON tunnel_sessions(node_id, revision);
 CREATE INDEX idx_tunnel_sessions_namespace_created ON tunnel_sessions(namespace, created_at DESC);
-CREATE INDEX idx_tunnel_sessions_expiry ON tunnel_sessions(expires_at, revoked);
+CREATE INDEX idx_tunnel_sessions_expiry ON tunnel_sessions(expires_at, status);
 CREATE INDEX idx_tunnel_sessions_active_created
 	ON tunnel_sessions(created_at, allocation_id)
-	WHERE revoked = FALSE AND status IN (
+	WHERE status IN (
 		'TUNNEL_SESSION_STATUS_PENDING',
 		'TUNNEL_SESSION_STATUS_RUNNING',
 		'TUNNEL_SESSION_STATUS_DEGRADED'

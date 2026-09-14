@@ -232,7 +232,6 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
 				WHERE ts.allocation_id = q.allocation_id
-				  AND ts.revoked = FALSE
 				  AND ts.status IN ($5, $6, $7)
 			),
 			COALESCE((
@@ -281,7 +280,6 @@ func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocatio
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
 				WHERE ts.allocation_id = q.allocation_id
-				  AND ts.revoked = FALSE
 				  AND ts.status IN ($4, $5, $6)
 			),
 			COALESCE((

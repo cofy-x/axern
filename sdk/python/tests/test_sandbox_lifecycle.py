@@ -62,7 +62,6 @@ class SandboxTest(unittest.TestCase):
             self.assertEqual(client.created_run["limit_memory"], "8GiB")
             self.assertEqual(client.created_run["limit_ephemeral_storage"], "10GiB")
             self.assertEqual(client.created_tunnel["allocation_id"], "alloc-1")
-            self.assertEqual(client.created_tunnel["local_target"], "127.0.0.1:8080")
             self.assertEqual(client.created_tunnel["remote_port"], 8786)
             self.assertTrue(connectors[0].started)
             deadline = time.monotonic() + 1

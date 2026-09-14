@@ -17,7 +17,6 @@ func TestDoctorAllocationSelectsActiveSessionAndReportsPeers(t *testing.T) {
 			Status:           tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 			RelayID:          "relay-a",
 			ClientEdgeTarget: "127.0.0.1:24317",
-			NodeEdgeTarget:   "tunneld-a.axern-local.svc.cluster.local:24100",
 			BoundAddr:        "127.0.0.1:41000",
 		}}},
 		eventsResp: &tunnelv1.ListTunnelSessionEventsResponse{Events: []*tunnelv1.TunnelSessionEvent{

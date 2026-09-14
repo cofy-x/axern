@@ -41,7 +41,7 @@ export class TunnelConnector {
   constructor(private readonly config: TunnelConnectorConfig) {}
 
   async start(): Promise<void> {
-    const target = this.config.session.client_edge_target || this.config.session.edge_target;
+    const target = this.config.session.client_edge_target;
     if (target === undefined || target === "") {
       throw new Error(`tunnel session ${this.config.session.session_id ?? ""} has no relay target`);
     }

@@ -40,7 +40,6 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, rea
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
 				WHERE ts.allocation_id = q.allocation_id
-				  AND ts.revoked = FALSE
 				  AND ts.status IN ($4, $5, $6)
 			),
 			COALESCE((
@@ -250,7 +249,6 @@ func requireNoActiveAllocationCleanupState(ctx context.Context, tx pgx.Tx, alloc
 		SELECT COUNT(*)
 		FROM tunnel_sessions
 		WHERE allocation_id = $1
-		  AND revoked = FALSE
 		  AND status IN ($2, $3, $4)
 	`, strings.TrimSpace(allocationID),
 		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(),

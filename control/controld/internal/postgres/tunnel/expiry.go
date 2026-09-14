@@ -15,8 +15,7 @@ func (s *Store) expireDue(ctx context.Context, now time.Time) error {
 	_, err := s.db.Pool().Exec(ctx, `
 		WITH due AS MATERIALIZED (
 			SELECT session_id FROM tunnel_sessions
-			WHERE revoked = FALSE AND expires_at <= $2
-			  AND status IN (
+			WHERE expires_at <= $2 AND status IN (
 				'TUNNEL_SESSION_STATUS_PENDING',
 				'TUNNEL_SESSION_STATUS_RUNNING',
 				'TUNNEL_SESSION_STATUS_DEGRADED'
@@ -30,7 +29,7 @@ func (s *Store) expireDue(ctx context.Context, now time.Time) error {
 			RETURNING revision
 		), updated AS (
 		UPDATE tunnel_sessions
-		SET status = $1, revoked = TRUE, reason = 'expired', updated_at = $2, revision = (SELECT revision FROM rev)
+		SET status = $1, reason = 'expired', updated_at = $2, revision = (SELECT revision FROM rev)
 		WHERE session_id IN (SELECT session_id FROM due) AND EXISTS (SELECT 1 FROM rev)
 			RETURNING session_id, status, reason, bound_addr
 		)
@@ -48,8 +47,7 @@ func expireDueTx(ctx context.Context, tx pgx.Tx, now time.Time) error {
 	_, err := tx.Exec(ctx, `
 		WITH due AS MATERIALIZED (
 			SELECT session_id FROM tunnel_sessions
-			WHERE revoked = FALSE AND expires_at <= $2
-			  AND status IN (
+			WHERE expires_at <= $2 AND status IN (
 				'TUNNEL_SESSION_STATUS_PENDING',
 				'TUNNEL_SESSION_STATUS_RUNNING',
 				'TUNNEL_SESSION_STATUS_DEGRADED'
@@ -63,7 +61,7 @@ func expireDueTx(ctx context.Context, tx pgx.Tx, now time.Time) error {
 			RETURNING revision
 		), updated AS (
 		UPDATE tunnel_sessions
-		SET status = $1, revoked = TRUE, reason = 'expired', updated_at = $2, revision = (SELECT revision FROM rev)
+		SET status = $1, reason = 'expired', updated_at = $2, revision = (SELECT revision FROM rev)
 		WHERE session_id IN (SELECT session_id FROM due) AND EXISTS (SELECT 1 FROM rev)
 			RETURNING session_id, status, reason, bound_addr
 		)

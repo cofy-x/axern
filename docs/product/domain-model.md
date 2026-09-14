@@ -132,6 +132,8 @@ Public SDKs do not persist or replay ExecutionLeases. Gateway retries may refres
 
 TunnelSession is a durable, subordinate session because relay pairing, renewal, revocation, expiry, restart convergence, and traffic accounting outlive one connection. It is always bound to one Allocation.
 
+The public session exposes the selected client relay endpoint and observable lifecycle only. The control plane persists the selected node relay endpoint as private recovery intent and delivers it through the node control stream; the caller's local upstream remains connector-local and is never part of control-plane state.
+
 TunnelSession does not accept Service identity, choose a replica, or recreate a `/svc` route. Allocation termination, authorization revocation, or TTL expiry invalidates the session.
 
 ### Capability Evidence

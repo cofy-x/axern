@@ -11,7 +11,7 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (d *daemon) serveSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token string) error {
+func (d *daemon) serveSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string) error {
 	network, err := d.operator.ResolveSandboxNetwork(ctx, &nodeoperatorv1.ResolveSandboxNetworkRequest{SandboxID: session.GetAllocationID()})
 	if err != nil {
 		switch grpcstatus.Code(err) {
@@ -20,7 +20,7 @@ func (d *daemon) serveSession(ctx context.Context, session *tunnelcontrolv1.Tunn
 		}
 		return err
 	}
-	return d.serveRunscSession(ctx, session, token, network)
+	return d.serveRunscSession(ctx, session, token, nodeEdgeTarget, network)
 }
 
 func resolveSandboxReachableTarget(target string) (string, error) {

@@ -85,7 +85,7 @@ func renderDoctor(cmd *cobra.Command, runtime command.Runtime, report apptunnel.
 	fmt.Fprintf(w, "control: reachable=%t\n", report.ControlReachable)
 	fmt.Fprintf(w, "session: id=%s allocation=%s status=%s bound=%s\n", displayValue(report.SessionID), displayValue(report.AllocationID), displayValue(report.Status), displayValue(report.BoundAddr))
 	fmt.Fprintf(w, "relay: id=%s target=%s reachable=%t\n", displayValue(report.RelayID), displayValue(report.ClientTarget), report.RelayReachable)
-	fmt.Fprintf(w, "node peer: target=%s state=%s\n", displayValue(report.NodeTarget), displayValue(report.NodePeer))
+	fmt.Fprintf(w, "node peer: state=%s\n", displayValue(report.NodePeer))
 	fmt.Fprintf(w, "client peer: state=%s\n", displayValue(report.ClientPeer))
 	if report.LocalReachable || strings.TrimSpace(localTarget) != "" {
 		fmt.Fprintf(w, "local upstream: target=%s reachable=%t\n", displayValue(localTarget), report.LocalReachable)

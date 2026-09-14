@@ -327,6 +327,7 @@ message WatchTunnelSessionsRequest {
 message NodeTunnelSession {
   axern.control.tunnel.v1.TunnelSession session = 1;
   string node_token = 2;
+  string node_edge_target = 3;
 }
 
 message WatchTunnelSessionsResponse {

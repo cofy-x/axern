@@ -57,8 +57,6 @@ type Config struct {
 	SecretsMasterKey         string
 	ReconcileInterval        time.Duration
 	ReconcileTimeout         time.Duration
-	TunnelEdgeTarget         string
-	TunnelNodeEdgeTarget     string
 	TunnelRelays             string
 	ResourcePolicy           resourcekernel.AdmissionPolicy
 
@@ -226,7 +224,7 @@ func (a *App) configureDependencies(cfg Config) error {
 	if err != nil {
 		return err
 	}
-	a.tunnelPG = pgtunnel.NewStore(db, cfg.TunnelEdgeTarget, cfg.TunnelNodeEdgeTarget, pgtunnel.WithRelays(relays), pgtunnel.WithMasterKey(masterKey))
+	a.tunnelPG = pgtunnel.NewStore(db, pgtunnel.WithRelays(relays), pgtunnel.WithMasterKey(masterKey))
 	a.nodeBridge = nodebridge.New(a.nodeLifecycle, nodebridge.Config{
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,

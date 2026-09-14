@@ -42,7 +42,6 @@ func (c Control) Forward(ctx context.Context, params ForwardParams) error {
 	resp, err := c.Create(createCtx, CreateParams{
 		AllocationID: params.AllocationID,
 		RemotePort:   params.RemotePort,
-		LocalTarget:  params.LocalTarget,
 		TTL:          params.TTL,
 		WaitReady:    params.WaitReady,
 		ReadyTimeout: params.ReadyTimeout,

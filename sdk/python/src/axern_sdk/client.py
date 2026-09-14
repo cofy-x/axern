@@ -354,7 +354,6 @@ class AxernClient:
         self,
         *,
         allocation_id: str,
-        local_target: str,
         remote_port: int | None = None,
         ttl_seconds: float = 300.0,
         wait_ready: bool = True,
@@ -363,7 +362,6 @@ class AxernClient:
     ) -> tunnel_pb2.CreateTunnelSessionResponse:
         request = tunnel_pb2.CreateTunnelSessionRequest(
             allocation_id=allocation_id,
-            local_target=local_target,
             ttl=duration_pb2.Duration(seconds=int(ttl_seconds)),
             wait_ready=wait_ready,
             ready_timeout=duration_pb2.Duration(seconds=int(ready_timeout_seconds)),

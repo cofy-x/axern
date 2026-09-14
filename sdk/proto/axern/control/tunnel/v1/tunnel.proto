@@ -67,26 +67,21 @@ message TunnelSession {
   string session_id = 1;
   string allocation_id = 2;
   string node_id = 3;
-  string node_target = 4;
-  int32 remote_port = 5;
-  string local_target = 6;
-  string edge_target = 7;
-  TunnelSessionStatus status = 8;
-  string reason = 9;
-  string bound_addr = 10;
-  bool revoked = 11;
-  google.protobuf.Timestamp created_at = 12;
-  google.protobuf.Timestamp updated_at = 13;
-  google.protobuf.Timestamp expires_at = 14;
-  string node_edge_target = 15;
-  string relay_id = 16;
-  string client_edge_target = 17;
-  google.protobuf.Timestamp ready_at = 18;
-  google.protobuf.Timestamp last_peer_event_at = 19;
-  int64 bytes_in = 20;
-  int64 bytes_out = 21;
-  string namespace = 22;
-  string creator_principal_id = 23;
+  int32 remote_port = 4;
+  string client_edge_target = 5;
+  TunnelSessionStatus status = 6;
+  string reason = 7;
+  string bound_addr = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  google.protobuf.Timestamp expires_at = 11;
+  string relay_id = 12;
+  google.protobuf.Timestamp ready_at = 13;
+  google.protobuf.Timestamp last_peer_event_at = 14;
+  int64 bytes_in = 15;
+  int64 bytes_out = 16;
+  string namespace = 17;
+  string creator_principal_id = 18;
 }
 
 message TunnelSessionEvent {
@@ -107,10 +102,9 @@ message TunnelSessionEvent {
 message CreateTunnelSessionRequest {
   string allocation_id = 1;
   optional int32 remote_port = 2;
-  string local_target = 3;
-  google.protobuf.Duration ttl = 4;
-  bool wait_ready = 5;
-  google.protobuf.Duration ready_timeout = 6;
+  google.protobuf.Duration ttl = 3;
+  bool wait_ready = 4;
+  google.protobuf.Duration ready_timeout = 5;
 }
 
 message CreateTunnelSessionResponse {

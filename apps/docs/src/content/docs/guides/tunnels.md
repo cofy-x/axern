@@ -60,6 +60,6 @@ axern tunnel doctor --allocation-id <allocation-id> --local 127.0.0.1:8080
 axern tunnel revoke <session-id> --reason manual-cleanup
 ```
 
-Doctor checks control-plane state, gateway relay reachability, recent peer events, and the local upstream probe. Its JSON output intentionally excludes tunnel tokens. Relay connections use the gateway control edge mTLS path, so development and production contexts use the same public entry model.
+Doctor checks control-plane state, gateway relay reachability, recent peer events, and the local upstream probe. Its JSON output intentionally excludes tunnel tokens. Relay connections use the gateway control edge mTLS path, so development and production contexts use the same public entry model. The local upstream is connector configuration on the caller and is never sent to or persisted by the control plane.
 
 For the full session lifecycle and relay path, see the repository's [tunnel document](https://github.com/cofy-x/axern/blob/main/apps/cli/docs/tunnel.md).

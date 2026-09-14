@@ -29,7 +29,6 @@ func (s *Server) CreateTunnelSession(ctx context.Context, req *tunnelv1.CreateTu
 	result, err := s.deps.Tunnels.Create(ctx, tunnelkernel.CreateParams{
 		AllocationID: allocationID,
 		RemotePort:   req.RemotePort,
-		LocalTarget:  req.GetLocalTarget(),
 		TTL:          ttl,
 		Now:          s.deps.Now(),
 	})
@@ -79,7 +78,7 @@ func (s *Server) waitTunnelReady(ctx context.Context, sessionID string, timeout 
 		if session.GetStatus() == tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING && strings.TrimSpace(session.GetBoundAddr()) != "" {
 			return session, nil
 		}
-		if session.GetRevoked() || terminalTunnelStatus(session.GetStatus()) {
+		if terminalTunnelStatus(session.GetStatus()) {
 			return nil, grpcstatus.Errorf(codes.FailedPrecondition, "tunnel session became terminal while waiting for ready: %s %s", session.GetStatus().String(), session.GetReason())
 		}
 		select {

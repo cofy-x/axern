@@ -15,8 +15,22 @@ import (
 )
 
 func (s *Store) Get(ctx context.Context, sessionID string, now time.Time) (*tunnelv1.TunnelSession, error) {
-	session, _, _, err := s.getWithTokens(ctx, strings.TrimSpace(sessionID), now)
+	session, _, err := s.getWithTokens(ctx, strings.TrimSpace(sessionID), now)
 	return session, err
+}
+
+func (s *Store) ResolveRelayTarget(ctx context.Context, sessionID string, now time.Time) (string, error) {
+	session, internal, err := s.getWithTokens(ctx, strings.TrimSpace(sessionID), now)
+	if err != nil {
+		return "", err
+	}
+	if terminal(session.GetStatus()) {
+		return "", grpcstatus.Error(codes.FailedPrecondition, "tunnel session is terminal")
+	}
+	if strings.TrimSpace(internal.nodeEdgeTarget) == "" {
+		return "", grpcstatus.Error(codes.Unavailable, "tunnel relay target is not ready")
+	}
+	return internal.nodeEdgeTarget, nil
 }
 
 func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error) {
@@ -41,7 +55,6 @@ func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string
 		conds = append(conds, fmt.Sprintf("node_id = $%d", len(args)))
 	}
 	if !includeTerminal {
-		conds = append(conds, "revoked = FALSE")
 		conds = append(conds, "status NOT IN ('TUNNEL_SESSION_STATUS_REVOKED','TUNNEL_SESSION_STATUS_EXPIRED','TUNNEL_SESSION_STATUS_FAILED')")
 	}
 	rows, err := s.db.Pool().Query(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE `+strings.Join(conds, " AND ")+` ORDER BY created_at DESC`, args...)
@@ -51,7 +64,7 @@ func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string
 	defer rows.Close()
 	var out []*tunnelv1.TunnelSession
 	for rows.Next() {
-		session, _, _, _, err := scanSession(rows)
+		session, _, err := scanSession(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -108,7 +121,6 @@ func (s *Store) nextNodeExpiry(ctx context.Context, nodeID string) (time.Time, b
 		SELECT expires_at
 		FROM tunnel_sessions
 		WHERE node_id = $1
-		  AND revoked = FALSE
 		  AND status IN (
 			'TUNNEL_SESSION_STATUS_PENDING',
 			'TUNNEL_SESSION_STATUS_RUNNING',
@@ -147,32 +159,32 @@ func (s *Store) loadNodeSessions(ctx context.Context, nodeID string, afterRevisi
 	defer rows.Close()
 	var out []*nodev1.NodeTunnelSession
 	for rows.Next() {
-		session, _, nodeCipher, _, err := scanSession(rows)
+		session, internal, err := scanSession(rows)
 		if err != nil {
 			return nil, 0, err
 		}
-		nodeToken, err := s.decryptNodeToken(nodeCipher)
+		nodeToken, err := s.decryptNodeToken(internal.nodeTokenCipher)
 		if err != nil {
 			return nil, 0, err
 		}
-		out = append(out, &nodev1.NodeTunnelSession{Session: session, NodeToken: nodeToken})
+		out = append(out, &nodev1.NodeTunnelSession{Session: session, NodeToken: nodeToken, NodeEdgeTarget: internal.nodeEdgeTarget})
 	}
 	return out, revision, rows.Err()
 }
 
-func (s *Store) getWithTokens(ctx context.Context, sessionID string, now time.Time) (*tunnelv1.TunnelSession, string, string, error) {
+func (s *Store) getWithTokens(ctx context.Context, sessionID string, now time.Time) (*tunnelv1.TunnelSession, sessionInternal, error) {
 	if s == nil || s.db == nil || s.db.Pool() == nil {
-		return nil, "", "", grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
+		return nil, sessionInternal{}, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
 	}
 	if sessionID == "" {
-		return nil, "", "", grpcstatus.Error(codes.InvalidArgument, "session_id is required")
+		return nil, sessionInternal{}, grpcstatus.Error(codes.InvalidArgument, "session_id is required")
 	}
 	if err := s.expireDue(ctx, now.UTC()); err != nil {
-		return nil, "", "", fmt.Errorf("expire tunnel sessions before get: %w", err)
+		return nil, sessionInternal{}, fmt.Errorf("expire tunnel sessions before get: %w", err)
 	}
-	session, clientHash, _, nodeHash, err := scanSession(s.db.Pool().QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1`, sessionID))
+	session, internal, err := scanSession(s.db.Pool().QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1`, sessionID))
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, "", "", grpcstatus.Error(codes.NotFound, "tunnel session not found")
+		return nil, sessionInternal{}, grpcstatus.Error(codes.NotFound, "tunnel session not found")
 	}
-	return session, clientHash, nodeHash, err
+	return session, internal, err
 }

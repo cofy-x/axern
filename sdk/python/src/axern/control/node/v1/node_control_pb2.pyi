@@ -561,12 +561,14 @@ class WatchTunnelSessionsRequest(_message.Message):
     def __init__(self, node_id: _Optional[str] = ..., after_revision: _Optional[int] = ..., node_auth_token: _Optional[str] = ...) -> None: ...
 
 class NodeTunnelSession(_message.Message):
-    __slots__ = ("session", "node_token")
+    __slots__ = ("session", "node_token", "node_edge_target")
     SESSION_FIELD_NUMBER: _ClassVar[int]
     NODE_TOKEN_FIELD_NUMBER: _ClassVar[int]
+    NODE_EDGE_TARGET_FIELD_NUMBER: _ClassVar[int]
     session: _tunnel_pb2.TunnelSession
     node_token: str
-    def __init__(self, session: _Optional[_Union[_tunnel_pb2.TunnelSession, _Mapping]] = ..., node_token: _Optional[str] = ...) -> None: ...
+    node_edge_target: str
+    def __init__(self, session: _Optional[_Union[_tunnel_pb2.TunnelSession, _Mapping]] = ..., node_token: _Optional[str] = ..., node_edge_target: _Optional[str] = ...) -> None: ...
 
 class WatchTunnelSessionsResponse(_message.Message):
     __slots__ = ("sessions", "current_revision")

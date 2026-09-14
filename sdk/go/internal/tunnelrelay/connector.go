@@ -21,7 +21,6 @@ import (
 
 type ConnectorConfig struct {
 	SessionID        string
-	EdgeTarget       string
 	ClientEdgeTarget string
 	ClientToken      string
 	LocalTarget      string
@@ -41,9 +40,6 @@ func RunConnector(ctx context.Context, config ConnectorConfig) error {
 		return err
 	}
 	target := config.ClientEdgeTarget
-	if target == "" {
-		target = config.EdgeTarget
-	}
 	if target == "" {
 		return fmt.Errorf("tunnel session %s has no relay target", config.SessionID)
 	}

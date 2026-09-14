@@ -258,7 +258,6 @@ func buildResourceSpec(requestCPUValue, requestMemoryValue, requestEphemeralStor
 // CreateTunnelSessionOptions configures a control-plane tunnel session.
 type CreateTunnelSessionOptions struct {
 	AllocationID string
-	LocalTarget  string
 	RemotePort   int32
 	TTL          time.Duration
 	WaitReady    bool
@@ -276,9 +275,6 @@ func (c *Client) CreateTunnelSession(ctx context.Context, options CreateTunnelSe
 	if options.AllocationID == "" {
 		return CreateTunnelSessionResult{}, requiredError("allocation_id")
 	}
-	if isBlank(options.LocalTarget) {
-		return CreateTunnelSessionResult{}, requiredError("local_target")
-	}
 	if options.RemotePort < 0 {
 		return CreateTunnelSessionResult{}, positiveIntError("remote_port")
 	}
@@ -290,7 +286,6 @@ func (c *Client) CreateTunnelSession(ctx context.Context, options CreateTunnelSe
 	}
 	request := &tunnelcontrolv1.CreateTunnelSessionRequest{
 		AllocationID: options.AllocationID,
-		LocalTarget:  options.LocalTarget,
 		WaitReady:    options.WaitReady,
 		Ttl:          durationpb.New(options.TTL),
 		ReadyTimeout: durationpb.New(options.ReadyTimeout),

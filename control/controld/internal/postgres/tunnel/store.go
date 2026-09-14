@@ -3,7 +3,6 @@ package pgtunnel
 import (
 	"crypto/aes"
 	"crypto/cipher"
-	"strings"
 	"time"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
@@ -18,12 +17,10 @@ const (
 )
 
 type Store struct {
-	db             *postgres.DB
-	edgeTarget     string
-	nodeEdgeTarget string
-	relays         []Relay
-	aead           cipher.AEAD
-	watches        *watchHub
+	db      *postgres.DB
+	relays  []Relay
+	aead    cipher.AEAD
+	watches *watchHub
 }
 
 type Option func(*Store)
@@ -51,8 +48,8 @@ func WithMasterKey(masterKey []byte) Option {
 	}
 }
 
-func NewStore(db *postgres.DB, edgeTarget, nodeEdgeTarget string, options ...Option) *Store {
-	s := &Store{db: db, edgeTarget: strings.TrimSpace(edgeTarget), nodeEdgeTarget: strings.TrimSpace(nodeEdgeTarget)}
+func NewStore(db *postgres.DB, options ...Option) *Store {
+	s := &Store{db: db}
 	if db != nil && db.Pool() != nil {
 		s.watches = newWatchHub(db.Pool())
 	}

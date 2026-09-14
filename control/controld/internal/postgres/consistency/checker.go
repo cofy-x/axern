@@ -68,7 +68,7 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 		SELECT
 			(SELECT COUNT(*) FROM reservations WHERE released_at IS NULL),
 			(SELECT COUNT(*) FROM execution_leases WHERE revoked = FALSE AND expires_at > $1),
-			(SELECT COUNT(*) FROM tunnel_sessions WHERE revoked = FALSE AND status IN (
+			(SELECT COUNT(*) FROM tunnel_sessions WHERE status IN (
 				'TUNNEL_SESSION_STATUS_PENDING',
 				'TUNNEL_SESSION_STATUS_RUNNING',
 				'TUNNEL_SESSION_STATUS_DEGRADED'
@@ -146,8 +146,7 @@ func loadActiveTunnelIssues(ctx context.Context, q queryer, _ time.Time, limit i
 		SELECT ts.session_id, a.allocation_id, a.node_id, a.lifecycle_state, a.run_id
 		FROM tunnel_sessions ts
 		JOIN allocations a ON a.allocation_id = ts.allocation_id
-		WHERE ts.revoked = FALSE
-		  AND ts.status IN (
+		WHERE ts.status IN (
 			'TUNNEL_SESSION_STATUS_PENDING',
 			'TUNNEL_SESSION_STATUS_RUNNING',
 			'TUNNEL_SESSION_STATUS_DEGRADED'

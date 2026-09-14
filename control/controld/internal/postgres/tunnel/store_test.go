@@ -17,7 +17,7 @@ import (
 
 func newTestStore(t *testing.T, db *postgres.DB) *Store {
 	t.Helper()
-	store := NewStore(db, "", "", WithRelays([]Relay{{
+	store := NewStore(db, WithRelays([]Relay{{
 		ID:           "test",
 		ClientTarget: "127.0.0.1:24210",
 		NodeTarget:   "tunneld:24210",
@@ -35,7 +35,6 @@ func TestCreateAllocatesRemotePort(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-auto",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -55,7 +54,6 @@ func TestCreateUsesExplicitRemotePort(t *testing.T) {
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-explicit",
 		RemotePort:   int32Ptr(8786),
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -63,6 +61,42 @@ func TestCreateUsesExplicitRemotePort(t *testing.T) {
 	}
 	if got := result.Session.GetRemotePort(); got != 8786 {
 		t.Fatalf("remote port = %d, want 8786", got)
+	}
+}
+
+func TestRelayBindingIsPrivateAndRecoverable(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-private-relay", now)
+
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-private-relay",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	target, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now)
+	if err != nil {
+		t.Fatalf("ResolveRelayTarget() error = %v", err)
+	}
+	if target != "tunneld:24210" {
+		t.Fatalf("relay target = %q, want tunneld:24210", target)
+	}
+	sessions, _, err := store.loadNodeSessions(context.Background(), "node-test", 0)
+	if err != nil {
+		t.Fatalf("loadNodeSessions() error = %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].GetNodeEdgeTarget() != target {
+		t.Fatalf("node desired sessions = %+v, want private relay target %q", sessions, target)
+	}
+
+	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "test revoke", now.Add(time.Second)); err != nil {
+		t.Fatalf("Revoke() error = %v", err)
+	}
+	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Second)); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ResolveRelayTarget(terminal) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.FailedPrecondition, err)
 	}
 }
 
@@ -75,7 +109,6 @@ func TestCreateRejectsExplicitZeroRemotePort(t *testing.T) {
 	_, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-zero",
 		RemotePort:   int32Ptr(0),
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err == nil {
@@ -91,7 +124,6 @@ func TestRenewExtendsActiveSession(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -116,7 +148,6 @@ func TestRenewRejectsExpiredSession(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-expired",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -137,7 +168,6 @@ func TestRenewRejectsRevokedSession(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-revoked",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -152,6 +182,35 @@ func TestRenewRejectsRevokedSession(t *testing.T) {
 	}
 }
 
+func TestRevokeIsIdempotentWithoutRevisionChurn(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-revoke-idempotent", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{AllocationID: "alloc-revoke-idempotent", Now: now})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "first", now.Add(time.Second)); err != nil {
+		t.Fatalf("Revoke(first) error = %v", err)
+	}
+	revision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision() error = %v", err)
+	}
+	second, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "second", now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("Revoke(second) error = %v", err)
+	}
+	after, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(after) error = %v", err)
+	}
+	if after != revision || second.GetReason() != "first" {
+		t.Fatalf("idempotent revoke = revision %d reason %q, want revision %d reason first", after, second.GetReason(), revision)
+	}
+}
+
 func TestRenewRequiresClientToken(t *testing.T) {
 	db := newTunnelTestDB(t)
 	store := newTestStore(t, db)
@@ -160,7 +219,6 @@ func TestRenewRequiresClientToken(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-token",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -185,7 +243,6 @@ func TestNodeDesiredRevisionIgnoresOperationalUpdates(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-revision",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -256,7 +313,6 @@ func TestWatchNodeBlocksUntilDesiredStateChanges(t *testing.T) {
 	insertTunnelTestAllocation(t, db, "alloc-watch", now)
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-watch",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -311,7 +367,6 @@ func TestWatchNodeExpiresSessionAtDeadlineWithoutAnotherWrite(t *testing.T) {
 	insertTunnelTestAllocation(t, db, "alloc-watch-expiry", now)
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-watch-expiry",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -349,7 +404,6 @@ func TestListEventsTracksTunnelLifecycle(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-events",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -401,7 +455,6 @@ func TestListEventsRecordsExpiry(t *testing.T) {
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-events-expire",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})

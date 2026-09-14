@@ -56,7 +56,7 @@ The event stream is owned by `controld` and records durable lifecycle changes su
 
 ## Operational Model
 
-`tunneld` is an internal relay data-plane process, not the tunnel control-plane owner and not the public ingress. It validates peers through `controld`, keeps only in-memory peer pairing state, and can be restarted without changing tunnel session ownership. Each session is bound to a relay id; gatewayd routes the foreground client peer to that relay target, while `node-tunneld` reconnects to the internal node target after relay loss. Connected peers are also revalidated periodically, so revoked or expired sessions converge by closing both relay peers even when their gRPC streams are otherwise healthy.
+`tunneld` is an internal relay data-plane process, not the tunnel control-plane owner and not the public ingress. It validates peers through `controld`, keeps only in-memory peer pairing state, and can be restarted without changing tunnel session ownership. Each session is bound to a relay id; the public TunnelSession exposes only the client relay target, while controld keeps the frozen node relay target in private recovery state for gateway resolution and the node desired-state stream. The caller's local upstream remains connector-local and is never persisted by controld. Connected peers are also revalidated periodically, so revoked or expired sessions converge by closing both relay peers even when their gRPC streams are otherwise healthy.
 
 Relay data-plane safeguards include protocol ping/pong, pair wait timeout, maximum stream frame size, bounded peer send queues, drain mode, and active session caps. Draining relays reject new peers but do not own control-plane session state.
 

@@ -37,17 +37,17 @@ func (s *Store) Renew(ctx context.Context, sessionID, clientToken string, ttl ti
 	}
 
 	row := tx.QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1 FOR UPDATE`, sessionID)
-	current, clientHash, _, _, err := scanSession(row)
+	current, internal, err := scanSession(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.NotFound, "tunnel session not found")
 	}
 	if err != nil {
 		return nil, err
 	}
-	if current.GetRevoked() || terminal(current.GetStatus()) {
+	if terminal(current.GetStatus()) {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel session is terminal")
 	}
-	if hashToken(clientToken) != clientHash {
+	if hashToken(clientToken) != internal.clientTokenHash {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "invalid tunnel client token")
 	}
 
@@ -56,7 +56,7 @@ func (s *Store) Renew(ctx context.Context, sessionID, clientToken string, ttl ti
 		SET expires_at = $2, updated_at = $3
 		WHERE session_id = $1
 		RETURNING `+sessionSelectColumns(), sessionID, expiresAt, now)
-	session, _, _, _, err := scanSession(row)
+	session, _, err := scanSession(row)
 	if err != nil {
 		return nil, err
 	}

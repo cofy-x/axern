@@ -9,7 +9,6 @@ import (
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
-	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -20,7 +19,7 @@ type Resolver interface {
 }
 
 type TunnelResolver interface {
-	Get(context.Context, string, time.Time) (*tunnelv1.TunnelSession, error)
+	ResolveRelayTarget(context.Context, string, time.Time) (string, error)
 }
 
 type Dependencies struct {
@@ -35,14 +34,11 @@ func (s *Server) ResolveTunnelRelayTarget(ctx context.Context, req *gatewayv1.Re
 	if s.deps.Tunnels == nil {
 		return nil, status.Error(codes.Unavailable, "tunnel resolver is not configured")
 	}
-	session, err := s.deps.Tunnels.Get(ctx, req.GetSessionID(), s.now())
+	target, err := s.deps.Tunnels.ResolveRelayTarget(ctx, req.GetSessionID(), s.now())
 	if err != nil {
 		return nil, err
 	}
-	if session.GetNodeEdgeTarget() == "" {
-		return nil, status.Error(codes.Unavailable, "tunnel relay target is not ready")
-	}
-	return &gatewayv1.ResolveTunnelRelayTargetResponse{NodeEdgeTarget: session.GetNodeEdgeTarget()}, nil
+	return &gatewayv1.ResolveTunnelRelayTargetResponse{NodeEdgeTarget: target}, nil
 }
 
 type AccessAuthorizer interface {

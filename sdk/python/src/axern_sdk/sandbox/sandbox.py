@@ -183,7 +183,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             if self._upstream:
                 tunnel = self._client.create_tunnel_session(
                     allocation_id=run.allocation_id,
-                    local_target=self._upstream,
                     remote_port=self._remote_port,
                     ttl_seconds=self._tunnel_ttl_seconds,
                     wait_ready=True,

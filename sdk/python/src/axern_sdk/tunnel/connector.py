@@ -77,7 +77,7 @@ class TunnelConnector:
                 return
 
     def _run_once(self) -> None:
-        target = self._session.client_edge_target or self._session.edge_target
+        target = self._session.client_edge_target
         if not target:
             raise ValueError("tunnel session does not include a relay target")
         channel = relay_channel(

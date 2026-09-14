@@ -9,7 +9,6 @@ import (
 type CreateParams struct {
 	AllocationID string
 	RemotePort   *int32
-	LocalTarget  string
 	TTL          time.Duration
 	Now          time.Time
 }
@@ -17,5 +16,4 @@ type CreateParams struct {
 type CreateResult struct {
 	Session     *tunnelv1.TunnelSession
 	ClientToken string
-	NodeToken   string
 }

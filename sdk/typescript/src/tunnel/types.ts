@@ -7,7 +7,6 @@
 export interface TunnelSession {
   session_id?: string;
   allocation_id?: string;
-  edge_target?: string;
   client_edge_target?: string;
   bound_addr?: string;
   remote_port?: number;

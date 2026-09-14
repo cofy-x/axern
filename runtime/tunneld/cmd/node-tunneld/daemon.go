@@ -94,7 +94,7 @@ func (d *daemon) watch(ctx context.Context, revision int64) (int64, error) {
 		}
 		for _, item := range resp.GetSessions() {
 			if item.GetSession() != nil {
-				if terminal(item.GetSession().GetStatus()) || item.GetSession().GetRevoked() {
+				if terminal(item.GetSession().GetStatus()) {
 					d.stopSession(item.GetSession().GetSessionID())
 					continue
 				}
@@ -133,14 +133,14 @@ func (d *daemon) ensure(parent context.Context, item *nodev1.NodeTunnelSession) 
 			delete(d.running, session.GetSessionID())
 			d.mu.Unlock()
 		}()
-		d.runSession(ctx, session, item.GetNodeToken())
+		d.runSession(ctx, session, item.GetNodeToken(), item.GetNodeEdgeTarget())
 	}()
 }
 
-func (d *daemon) runSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token string) {
+func (d *daemon) runSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string) {
 	delay := sessionRetryMinDelay
 	for {
-		err := d.serveSession(ctx, session, token)
+		err := d.serveSession(ctx, session, token, nodeEdgeTarget)
 		if err == nil || ctx.Err() != nil {
 			return
 		}

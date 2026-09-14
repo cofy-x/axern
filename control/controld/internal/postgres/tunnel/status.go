@@ -13,7 +13,7 @@ import (
 )
 
 func (s *Store) Revoke(ctx context.Context, sessionID, reason string, now time.Time) (*tunnelv1.TunnelSession, error) {
-	return s.updateStatus(ctx, sessionID, tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED, reason, "", true, now.UTC())
+	return s.updateStatus(ctx, sessionID, tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED, reason, "", now.UTC())
 }
 
 func (s *Store) ReportStatus(ctx context.Context, nodeID, sessionID string, status tunnelv1.TunnelSessionStatus, reason, boundAddr string, now time.Time) (*tunnelv1.TunnelSession, error) {
@@ -30,24 +30,36 @@ func (s *Store) ReportStatus(ctx context.Context, nodeID, sessionID string, stat
 	return s.reportNodeStatus(ctx, nodeID, sessionID, status, reason, boundAddr, now.UTC())
 }
 
-func (s *Store) updateStatus(ctx context.Context, sessionID string, status tunnelv1.TunnelSessionStatus, reason, boundAddr string, revoked bool, now time.Time) (*tunnelv1.TunnelSession, error) {
+func (s *Store) updateStatus(ctx context.Context, sessionID string, status tunnelv1.TunnelSessionStatus, reason, boundAddr string, now time.Time) (*tunnelv1.TunnelSession, error) {
 	if s == nil || s.db == nil || s.db.Pool() == nil {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
 	}
 	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "session_id is required")
+	}
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err := expireDueTx(ctx, tx, now); err != nil {
+		return nil, err
+	}
 
 	row := tx.QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1 FOR UPDATE`, sessionID)
-	current, _, _, _, err := scanSession(row)
+	current, _, err := scanSession(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.NotFound, "tunnel session not found")
 	}
 	if err != nil {
 		return nil, err
+	}
+	if terminal(current.GetStatus()) {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, err
+		}
+		return current, nil
 	}
 
 	revision, err := nextRevision(ctx, tx)
@@ -57,10 +69,10 @@ func (s *Store) updateStatus(ctx context.Context, sessionID string, status tunne
 	row = tx.QueryRow(ctx, `
 		UPDATE tunnel_sessions
 		SET status = $2, reason = $3, bound_addr = COALESCE(NULLIF($4, ''), bound_addr),
-		    revoked = revoked OR $5, updated_at = $6, revision = $7
+		    updated_at = $5, revision = $6
 		WHERE session_id = $1
-		RETURNING `+sessionSelectColumns(), current.GetSessionID(), status.String(), strings.TrimSpace(reason), strings.TrimSpace(boundAddr), revoked, now, revision)
-	session, _, _, _, err := scanSession(row)
+		RETURNING `+sessionSelectColumns(), current.GetSessionID(), status.String(), strings.TrimSpace(reason), strings.TrimSpace(boundAddr), now, revision)
+	session, _, err := scanSession(row)
 	if err != nil {
 		return nil, err
 	}

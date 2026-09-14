@@ -8,27 +8,32 @@ import (
 )
 
 func sessionSelectColumns() string {
-	return `session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, remote_port, local_target, edge_target, node_edge_target, relay_id, client_edge_target, status, reason, bound_addr, revoked, client_token_hash, node_token_encrypted, node_token_hash, created_at, updated_at, expires_at, ready_at, last_peer_event_at, bytes_in, bytes_out`
+	return `session_id, allocation_id, namespace, creator_principal_id, node_id, remote_port, relay_id, client_edge_target, status, reason, bound_addr, client_token_hash, node_token_encrypted, node_token_hash, node_edge_target, created_at, updated_at, expires_at, ready_at, last_peer_event_at, bytes_in, bytes_out`
+}
+
+type sessionInternal struct {
+	clientTokenHash string
+	nodeTokenCipher []byte
+	nodeTokenHash   string
+	nodeEdgeTarget  string
 }
 
 type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanSession(row rowScanner) (*tunnelv1.TunnelSession, string, []byte, string, error) {
+func scanSession(row rowScanner) (*tunnelv1.TunnelSession, sessionInternal, error) {
 	var (
 		session                  tunnelv1.TunnelSession
 		statusText               string
-		clientHash               string
-		nodeTokenEncrypted       []byte
-		nodeHash                 string
+		internal                 sessionInternal
 		createdAt, updatedAt     time.Time
 		expiresAt                time.Time
 		readyAt, lastPeerEventAt *time.Time
 	)
-	err := row.Scan(&session.SessionID, &session.AllocationID, &session.Namespace, &session.CreatorPrincipalID, &session.NodeID, &session.NodeTarget, &session.RemotePort, &session.LocalTarget, &session.EdgeTarget, &session.NodeEdgeTarget, &session.RelayID, &session.ClientEdgeTarget, &statusText, &session.Reason, &session.BoundAddr, &session.Revoked, &clientHash, &nodeTokenEncrypted, &nodeHash, &createdAt, &updatedAt, &expiresAt, &readyAt, &lastPeerEventAt, &session.BytesIn, &session.BytesOut)
+	err := row.Scan(&session.SessionID, &session.AllocationID, &session.Namespace, &session.CreatorPrincipalID, &session.NodeID, &session.RemotePort, &session.RelayID, &session.ClientEdgeTarget, &statusText, &session.Reason, &session.BoundAddr, &internal.clientTokenHash, &internal.nodeTokenCipher, &internal.nodeTokenHash, &internal.nodeEdgeTarget, &createdAt, &updatedAt, &expiresAt, &readyAt, &lastPeerEventAt, &session.BytesIn, &session.BytesOut)
 	if err != nil {
-		return nil, "", nil, "", err
+		return nil, sessionInternal{}, err
 	}
 	session.Status = parseStatus(statusText)
 	session.CreatedAt = timestamppb.New(createdAt)
@@ -40,7 +45,7 @@ func scanSession(row rowScanner) (*tunnelv1.TunnelSession, string, []byte, strin
 	if lastPeerEventAt != nil {
 		session.LastPeerEventAt = timestamppb.New(*lastPeerEventAt)
 	}
-	return &session, clientHash, nodeTokenEncrypted, nodeHash, nil
+	return &session, internal, nil
 }
 
 func parseStatus(value string) tunnelv1.TunnelSessionStatus {

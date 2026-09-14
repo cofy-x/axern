@@ -596,7 +596,6 @@ type fakeAxernServer struct {
 	cancelledRun           bool
 	deletedEnvironment     bool
 	tunnelAllocationID     string
-	tunnelLocalTarget      string
 	tunnelRemotePort       int32
 	revokedTunnelSessionID string
 	revokedTunnelReason    string
@@ -681,7 +680,6 @@ func (f *fakeAxernServer) ResolveAllocationTerminal(context.Context, *gatewayv1.
 
 func (f *fakeAxernServer) CreateTunnelSession(_ context.Context, request *tunnelcontrolv1.CreateTunnelSessionRequest) (*tunnelcontrolv1.CreateTunnelSessionResponse, error) {
 	f.tunnelAllocationID = request.GetAllocationID()
-	f.tunnelLocalTarget = request.GetLocalTarget()
 	f.tunnelRemotePort = request.GetRemotePort()
 	return &tunnelcontrolv1.CreateTunnelSessionResponse{
 		Session:     fakeTunnelSession(),
@@ -720,8 +718,6 @@ func fakeTunnelSession() *tunnelcontrolv1.TunnelSession {
 		AllocationID:     "alloc-1",
 		NodeID:           "node-1",
 		RemotePort:       9000,
-		LocalTarget:      "127.0.0.1:8080",
-		EdgeTarget:       "gateway.example:25000",
 		ClientEdgeTarget: "gateway.example:25000",
 		BoundAddr:        "127.0.0.1:9000",
 		Status:           tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,

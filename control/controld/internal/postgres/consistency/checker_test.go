@@ -60,7 +60,7 @@ func TestSnapshotReportsOKForReleasedDependents(t *testing.T) {
 	insertConsistencyAllocation(t, db, "alloc-ok", "run-ok", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(), now)
 	insertReleasedConsistencyReservation(t, db, "alloc-ok", now)
 	insertConsistencyLeaseRevoked(t, db, "lease-ok", "alloc-ok", now, now.Add(time.Hour))
-	insertConsistencyTunnelRevoked(t, db, "tun-ok", "alloc-ok", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), now, now.Add(time.Hour))
+	insertConsistencyTunnel(t, db, "tun-ok", "alloc-ok", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED.String(), now, now.Add(time.Hour))
 
 	snapshot, err := Snapshot(context.Background(), db.Pool(), now)
 	if err != nil {
@@ -182,26 +182,15 @@ func insertConsistencyLeaseRevoked(t *testing.T, db *postgres.DB, leaseID, alloc
 
 func insertConsistencyTunnel(t *testing.T, db *postgres.DB, sessionID, allocationID, status string, createdAt, expiresAt time.Time) {
 	t.Helper()
-	insertConsistencyTunnelWithRevoked(t, db, sessionID, allocationID, status, false, createdAt, expiresAt)
-}
-
-func insertConsistencyTunnelRevoked(t *testing.T, db *postgres.DB, sessionID, allocationID, status string, createdAt, expiresAt time.Time) {
-	t.Helper()
-	insertConsistencyTunnelWithRevoked(t, db, sessionID, allocationID, status, true, createdAt, expiresAt)
-}
-
-func insertConsistencyTunnelWithRevoked(t *testing.T, db *postgres.DB, sessionID, allocationID, status string, revoked bool, createdAt, expiresAt time.Time) {
-	t.Helper()
 	ensureConsistencyTunnelIdentity(t, db, createdAt)
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO tunnel_sessions (
-			session_id, allocation_id, namespace, creator_principal_id, node_id, node_target, remote_port,
-			local_target, edge_target, node_edge_target, status, reason, bound_addr, revoked,
+			session_id, allocation_id, namespace, creator_principal_id, node_id, remote_port,
+			node_edge_target, status, reason, bound_addr,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
-		) VALUES ($1, $2, 'default', 'prn-consistency-test', 'node-test', '127.0.0.1:24010', 30001,
-			'127.0.0.1:8080', '127.0.0.1:24210', '127.0.0.1:24210', $3, '', '', $4,
-			'client-hash', $5, 'node-hash', 0, $6, $6, $7)
-	`, sessionID, allocationID, status, revoked, []byte("node-token"), createdAt.UTC(), expiresAt.UTC()); err != nil {
+		) VALUES ($1, $2, 'default', 'prn-consistency-test', 'node-test', 30001,
+			'127.0.0.1:24210', $3, '', '', 'client-hash', $4, 'node-hash', 0, $5, $5, $6)
+	`, sessionID, allocationID, status, []byte("node-token"), createdAt.UTC(), expiresAt.UTC()); err != nil {
 		t.Fatalf("insert tunnel session: %v", err)
 	}
 }

@@ -24,7 +24,6 @@ type DoctorReport struct {
 	Status           string   `json:"status,omitempty"`
 	RelayID          string   `json:"relay_id,omitempty"`
 	ClientTarget     string   `json:"client_edge_target,omitempty"`
-	NodeTarget       string   `json:"node_edge_target,omitempty"`
 	BoundAddr        string   `json:"bound_addr,omitempty"`
 	ClientPeer       string   `json:"client_peer,omitempty"`
 	NodePeer         string   `json:"node_peer,omitempty"`
@@ -68,8 +67,7 @@ func (c Control) Doctor(ctx context.Context, params DoctorParams) (DoctorReport,
 		report.AllocationID = session.GetAllocationID()
 		report.Status = session.GetStatus().String()
 		report.RelayID = session.GetRelayID()
-		report.ClientTarget = firstNonEmpty(session.GetClientEdgeTarget(), session.GetEdgeTarget())
-		report.NodeTarget = session.GetNodeEdgeTarget()
+		report.ClientTarget = session.GetClientEdgeTarget()
 		report.BoundAddr = session.GetBoundAddr()
 		if session.GetStatus() == tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING && strings.TrimSpace(session.GetBoundAddr()) != "" {
 			report.Checks = append(report.Checks, "session is running and node bind is reported")
