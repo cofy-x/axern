@@ -13,8 +13,9 @@ import (
 )
 
 func TestAllocationDiagnosticRedactsRawReasons(t *testing.T) {
+	exitCode := int32(137)
 	response := &privatenodev1.GetAllocationLifecycleResponse{
-		ExitCode: 137, ExitCodeKnown: true, Message: "private-destination",
+		ExitCode: &exitCode, Message: "private-destination",
 		CapabilityVerification: &capabilityv1.CapabilityConditionSet{
 			Conditions: []*capabilityv1.CapabilityCondition{{
 				State:   capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_FAILED,

@@ -59,10 +59,10 @@ def main() -> int:
                 raise SystemExit(f"run {run.id} did not finish within 30 seconds")
             time.sleep(0.2)
             run = client.runs.GetRun(run_pb2.GetRunRequest(run_id=run.id)).run
-        if run.status != run_pb2.RUN_STATUS_SUCCEEDED or not run.exit_code_known or run.exit_code != 0:
+        if run.status != run_pb2.RUN_STATUS_SUCCEEDED or not run.HasField("exit_code") or run.exit_code != 0:
             raise SystemExit(
                 f"run {run.id} failed: status={run.status} "
-                f"exit_code_known={run.exit_code_known} exit_code={run.exit_code}"
+                f"exit_code_present={run.HasField('exit_code')} exit_code={run.exit_code}"
             )
 
         with Sandbox(client=client, environment_id=environment.id) as sandbox:

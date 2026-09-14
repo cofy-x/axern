@@ -12,8 +12,6 @@ func TestRunAllocationObservationMatches(t *testing.T) {
 	allocation := &reportedAllocation{
 		lifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 		runStatus:      runv1.RunStatus_RUN_STATUS_RUNNING,
-		exitCode:       0,
-		exitCodeKnown:  false,
 		diagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED,
 		message:        "running",
 	}

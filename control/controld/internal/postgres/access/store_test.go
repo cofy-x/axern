@@ -61,7 +61,7 @@ func TestGrantNamespaceBindingRequiresExistingNamespace(t *testing.T) {
 	if _, err := store.GrantBinding(ctx, admin.Principal.ID, principal.ID, accesskernel.ScopeNamespace, "missing", accesskernel.RoleNamespaceViewer, now); !errors.Is(err, accesskernel.ErrNotFound) {
 		t.Fatalf("GrantBinding(missing namespace)=%v, want not found", err)
 	}
-	if _, err := db.Pool().Exec(ctx, `INSERT INTO namespaces(namespace,version,created_at,updated_at) VALUES('team-a',1,$1,$1)`, now); err != nil {
+	if _, err := db.Pool().Exec(ctx, `INSERT INTO namespaces(namespace,created_at) VALUES('team-a',$1)`, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.GrantBinding(ctx, admin.Principal.ID, principal.ID, accesskernel.ScopeNamespace, "team-a", accesskernel.RoleNamespaceViewer, now); err != nil {

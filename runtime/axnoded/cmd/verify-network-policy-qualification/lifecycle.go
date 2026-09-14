@@ -31,9 +31,13 @@ func allocationDiagnostic(sample int, response *privatenodev1.GetAllocationLifec
 			"reason_code": condition.GetReasonCode().String(),
 		})
 	}
+	var exitCode *int32
+	if response != nil {
+		exitCode = response.ExitCode
+	}
 	return map[string]any{
 		"kind": "allocation_failure", "sample": sample,
-		"status": response.GetState().String(), "exit_code": response.GetExitCode(),
-		"exit_code_known": response.GetExitCodeKnown(), "conditions": conditions,
+		"status": response.GetState().String(), "exit_code": exitCode,
+		"conditions": conditions,
 	}
 }

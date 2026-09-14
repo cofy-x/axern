@@ -180,16 +180,14 @@ class WaitSandboxRequest(_message.Message):
     def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
 
 class WaitSandboxResponse(_message.Message):
-    __slots__ = ("state", "exit_code", "exit_code_known", "message")
+    __slots__ = ("state", "exit_code", "message")
     STATE_FIELD_NUMBER: _ClassVar[int]
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
-    EXIT_CODE_KNOWN_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     state: SandboxProcessState
     exit_code: int
-    exit_code_known: bool
     message: str
-    def __init__(self, state: _Optional[_Union[SandboxProcessState, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ...) -> None: ...
+    def __init__(self, state: _Optional[_Union[SandboxProcessState, str]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ...) -> None: ...
 
 class ReadOutputRequest(_message.Message):
     __slots__ = ("allocation_id", "execution_lease_token", "cursor", "follow")

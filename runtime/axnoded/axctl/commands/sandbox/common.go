@@ -23,7 +23,7 @@ func renderSandboxTable(w io.Writer, sandboxes []*nodeoperatorv1.LocalSandbox) {
 			"%s\t%s\t%s\t%s\t%s\t%s\n",
 			sandbox.GetSandboxID(),
 			localStateString(sandbox.GetState()),
-			localExitCodeString(sandbox.GetState(), sandbox.GetExitCode(), sandbox.GetExitCodeKnown()),
+			localExitCodeString(sandbox.GetState(), sandbox.ExitCode),
 			formatPID(sandbox.GetPid()),
 			formatTimestamp(sandbox.GetStartedAt()),
 			formatTimestamp(sandbox.GetFinishedAt()),
@@ -38,7 +38,7 @@ func renderSandboxInspect(w io.Writer, sandbox *nodeoperatorv1.LocalSandbox) {
 	}
 	fmt.Fprintf(w, "Sandbox: %s\n", sandbox.GetSandboxID())
 	fmt.Fprintf(w, "State: %s\n", localStateString(sandbox.GetState()))
-	fmt.Fprintf(w, "Exit Code: %s\n", localExitCodeString(sandbox.GetState(), sandbox.GetExitCode(), sandbox.GetExitCodeKnown()))
+	fmt.Fprintf(w, "Exit Code: %s\n", localExitCodeString(sandbox.GetState(), sandbox.ExitCode))
 	fmt.Fprintf(w, "PID: %s\n", formatPID(sandbox.GetPid()))
 	if message := strings.TrimSpace(sandbox.GetMessage()); message != "" {
 		fmt.Fprintf(w, "Message: %s\n", message)
@@ -58,14 +58,14 @@ func localStateString(state nodeoperatorv1.LocalSandboxState) string {
 	}
 }
 
-func localExitCodeString(state nodeoperatorv1.LocalSandboxState, exitCode int32, known bool) string {
+func localExitCodeString(state nodeoperatorv1.LocalSandboxState, exitCode *int32) string {
 	if state == nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING {
 		return "-"
 	}
-	if !known {
+	if exitCode == nil {
 		return "unknown"
 	}
-	return fmt.Sprintf("%d", exitCode)
+	return fmt.Sprintf("%d", *exitCode)
 }
 
 func formatTimestamp(ts *timestamppb.Timestamp) string {

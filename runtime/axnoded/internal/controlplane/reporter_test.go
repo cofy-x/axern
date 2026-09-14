@@ -219,17 +219,15 @@ func TestReporterAllocationLifecycleStatePreservesObservedSemantics(t *testing.T
 	r.ReportAllocationLifecycle(AllocationLifecycleReport{
 		AllocationID:     " alloc-1 ",
 		State:            commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
-		ExitCode:         0,
-		ExitCodeKnown:    false,
 		Ready:            false,
 		ReadinessMessage: "warming up",
 		ObservedAt:       observedAt,
 	})
+	exitCode := int32(17)
 	r.ReportAllocationLifecycle(AllocationLifecycleReport{
 		AllocationID:   "alloc-2",
 		State:          commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
-		ExitCode:       17,
-		ExitCodeKnown:  true,
+		ExitCode:       &exitCode,
 		Message:        "process exited",
 		DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
 		ObservedAt:     observedAt,

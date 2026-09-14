@@ -26,7 +26,7 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	if mounts := run.GetConfig().GetImageMounts(); len(mounts) > 0 {
 		fmt.Fprintf(w, "Image Mounts: %s\n", formatImageMounts(mounts))
 	}
-	if run.GetExitCodeKnown() {
+	if run.ExitCode != nil {
 		fmt.Fprintf(w, "Exit Code: %d\n", run.GetExitCode())
 	}
 	if message := run.GetMessage(); message != "" {

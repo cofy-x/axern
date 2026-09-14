@@ -276,10 +276,6 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.containerManager.ValidateRuntimeInventory(inventory.allIDs()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
 	}
-	boundAllocations, err := h.allocationController().RestoreControlPlaneBindings()
-	if err != nil {
-		return fmt.Errorf("validate persisted control-plane allocation bindings: %w", err)
-	}
 	recoveryRecords, err := h.allocationController().InspectRecoveryRecords()
 	if err != nil {
 		return fmt.Errorf("validate persisted allocation authority: %w", err)
@@ -288,14 +284,14 @@ func (h *sandboxService) restorePersistentState() error {
 		return err
 	}
 	persistedAllocations := recoveryRecords.Intents
-	durableInventory, discardInventory, err := h.partitionRuntimeInventory(inventory, persistedAllocations, boundAllocations)
+	durableInventory, discardInventory, err := h.partitionRuntimeInventory(inventory, persistedAllocations)
 	if err != nil {
 		return err
 	}
 	if err := h.recoverTerminalRuntimeCheckpoints(context.Background(), durableInventory); err != nil {
 		return err
 	}
-	if err := h.seedTerminalAllocationLifecycleOutbox(boundAllocations); err != nil {
+	if err := h.seedTerminalAllocationLifecycleOutbox(persistedAllocations); err != nil {
 		return err
 	}
 	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
@@ -340,7 +336,7 @@ func (h *sandboxService) restorePersistentState() error {
 //
 // An unverified running or unknown container violates the create-before-start
 // ordering and is retained fail-closed for operator inspection. Terminal
-// containers are retained only when their launch verification makes their exit
+// containers are retained only when verified enforcement makes their exit
 // evidence reportable to controld.
 func (h *sandboxService) cleanupInterruptedAllocationStarts(ctx context.Context, inventory runtimeInventory, records allocation.RecoveryRecords) error {
 	ids := make([]string, 0, len(records.Intents))
@@ -354,8 +350,8 @@ func (h *sandboxService) cleanupInterruptedAllocationStarts(ctx context.Context,
 		if state != nil {
 			status = state.Status
 		}
-		_, launchVerified := records.LaunchVerified[id]
-		cleanup, err := interruptedStartRecoveryAction(live, status, launchVerified)
+		_, enforcementVerified := records.EnforcementVerified[id]
+		cleanup, err := interruptedStartRecoveryAction(live, status, enforcementVerified)
 		if err != nil {
 			return fmt.Errorf("recover allocation %s: %w", id, err)
 		}
@@ -367,16 +363,16 @@ func (h *sandboxService) cleanupInterruptedAllocationStarts(ctx context.Context,
 		}
 		delete(inventory, id)
 		delete(records.Intents, id)
-		delete(records.LaunchVerified, id)
+		delete(records.EnforcementVerified, id)
 	}
 	return nil
 }
 
-func interruptedStartRecoveryAction(live bool, status contract.ContainerStatus, launchVerified bool) (bool, error) {
+func interruptedStartRecoveryAction(live bool, status contract.ContainerStatus, enforcementVerified bool) (bool, error) {
 	if !live || status == contract.ContainerStatusCreated {
 		return true, nil
 	}
-	if launchVerified {
+	if enforcementVerified {
 		return false, nil
 	}
 	if status == contract.ContainerStatusExited {
@@ -385,33 +381,17 @@ func interruptedStartRecoveryAction(live bool, status contract.ContainerStatus, 
 	return false, fmt.Errorf("unverified runtime container has uncertain execution state %q", status)
 }
 
-// partitionRuntimeInventory applies the explicit checkpoint recovery contract
-// before any destructive action. Durable containers require both AllocationState
-// and the independent controld admission binding. Session/self-test containers
-// must be explicitly discardable and may never carry a control-plane binding.
-func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, persistedAllocations, boundAllocations map[string]struct{}) (runtimeInventory, runtimeInventory, error) {
+// partitionRuntimeInventory derives recovery ownership from the admitted
+// Allocation record. Runtime metadata is never an ownership authority.
+func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, persistedAllocations map[string]struct{}) (runtimeInventory, runtimeInventory, error) {
 	durable := make(runtimeInventory, len(inventory))
 	discard := make(runtimeInventory, len(inventory))
 	for id, state := range inventory {
-		item, err := h.containerManager.Get(id)
-		if err != nil || item == nil || item.Metadata == nil {
-			return nil, nil, fmt.Errorf("read recovery contract for runsc container %s", id)
-		}
 		_, hasState := persistedAllocations[id]
-		_, bound := boundAllocations[id]
-		switch item.Metadata.GetRecoveryMode() {
-		case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE:
-			if !hasState || !bound {
-				return nil, nil, fmt.Errorf("durable runtime container %s is missing AllocationState or control-plane admission binding", id)
-			}
+		if hasState {
 			durable[id] = state
-		case runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART:
-			if bound {
-				return nil, nil, fmt.Errorf("discard-on-restart container %s has a control-plane admission binding", id)
-			}
+		} else {
 			discard[id] = state
-		default:
-			return nil, nil, fmt.Errorf("runtime container %s has no explicit recovery mode", id)
 		}
 	}
 	return durable, discard, nil
@@ -483,8 +463,9 @@ func (h *sandboxService) recoverTerminalRuntimeCheckpoints(ctx context.Context, 
 		if err != nil {
 			return fmt.Errorf("recover exact runtime exit for %s: %w", id, err)
 		}
+		exitCode := int32(exit.Status)
 		if _, err := h.containerManager.CheckpointRuntimeExit(container.Event{
-			Type: container.EventTypeExit, ContainerID: id, ExitCode: int32(exit.Status), ExitCodeKnown: true, ExitedAt: exit.Timestamp,
+			Type: container.EventTypeExit, ContainerID: id, ExitCode: &exitCode, ExitedAt: exit.Timestamp,
 		}); err != nil {
 			return fmt.Errorf("checkpoint recovered runtime exit for %s: %w", id, err)
 		}

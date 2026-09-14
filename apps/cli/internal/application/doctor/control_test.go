@@ -190,7 +190,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 			t.Run(name, func(t *testing.T) {
 				check := DNSProbe(context.Background(), &Session{
 					Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
-					Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCodeKnown: true, exitCode: exitCode},
+					Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCode: testExitCode(exitCode)},
 				}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
 				if check.Code != "runtime_dns_sandbox_query_failed" {
 					t.Fatalf("DNSProbe() = %#v", check)
@@ -201,7 +201,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 	t.Run("unexpected workload exit", func(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
-			Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCodeKnown: true, exitCode: 2},
+			Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCode: testExitCode(2)},
 		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_probe_failed" {
 			t.Fatalf("DNSProbe() = %#v", check)
@@ -383,8 +383,7 @@ type fakeRunClient struct {
 	cancelCalls   int
 	createRequest *runv1.CreateRunRequest
 	runStatus     runv1.RunStatus
-	exitCodeKnown bool
-	exitCode      int32
+	exitCode      *int32
 }
 
 func (f *fakeRunClient) CreateRun(_ context.Context, request *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
@@ -398,8 +397,15 @@ func (f *fakeRunClient) GetRun(context.Context, *runv1.GetRunRequest, ...grpc.Ca
 	if status == runv1.RunStatus_RUN_STATUS_UNSPECIFIED {
 		status = runv1.RunStatus_RUN_STATUS_SUCCEEDED
 	}
-	exitCodeKnown := f.exitCodeKnown || status == runv1.RunStatus_RUN_STATUS_SUCCEEDED
-	return &runv1.GetRunResponse{Run: &runv1.Run{ID: "run-probe", Status: status, ExitCodeKnown: exitCodeKnown, ExitCode: f.exitCode}}, nil
+	exitCode := f.exitCode
+	if exitCode == nil && status == runv1.RunStatus_RUN_STATUS_SUCCEEDED {
+		exitCode = testExitCode(0)
+	}
+	return &runv1.GetRunResponse{Run: &runv1.Run{ID: "run-probe", Status: status, ExitCode: exitCode}}, nil
+}
+
+func testExitCode(value int32) *int32 {
+	return &value
 }
 
 func (*fakeRunClient) ListRuns(context.Context, *runv1.ListRunsRequest, ...grpc.CallOption) (*runv1.ListRunsResponse, error) {

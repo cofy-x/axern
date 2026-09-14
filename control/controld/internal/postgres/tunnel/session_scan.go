@@ -8,7 +8,11 @@ import (
 )
 
 func sessionSelectColumns() string {
-	return `session_id, allocation_id, namespace, creator_principal_id, node_id, remote_port, relay_id, client_edge_target, status, reason, bound_addr, client_token_hash, node_token_encrypted, node_token_hash, node_edge_target, created_at, updated_at, expires_at, ready_at, last_peer_event_at, bytes_in, bytes_out`
+	return `session_id, allocation_id,
+		(SELECT r.namespace FROM allocations a JOIN runs r ON r.run_id = a.run_id WHERE a.allocation_id = tunnel_sessions.allocation_id),
+		creator_principal_id,
+		(SELECT a.node_id FROM allocations a WHERE a.allocation_id = tunnel_sessions.allocation_id),
+		remote_port, relay_id, client_edge_target, status, reason, bound_addr, client_token_hash, node_token_encrypted, node_token_hash, node_edge_target, created_at, updated_at, expires_at, ready_at, last_peer_event_at, bytes_in, bytes_out`
 }
 
 type sessionInternal struct {

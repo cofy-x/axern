@@ -98,14 +98,16 @@ func (f *fakeNodeSandboxService) Kill(context.Context, *runtimev1.KillRequest) (
 func (f *fakeNodeSandboxService) Version(context.Context, *runtimev1.VersionRequest) (*runtimev1.VersionResponse, error) {
 	return nil, nil
 }
-func (f *fakeNodeSandboxService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
+func (f *fakeNodeSandboxService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time) {
 	_ = observedAt
 	_ = ready
 	_ = readinessMessage
 	f.reportedAllocationID = allocationID
 	f.reportedStatus = status
-	f.reportedExitCode = exitCode
-	f.reportedKnown = exitCodeKnown
+	if exitCode != nil {
+		f.reportedExitCode = *exitCode
+		f.reportedKnown = true
+	}
 	f.reportedMessage = message
 }
 
@@ -313,7 +315,7 @@ func (f *fakeNodeSandboxService) DownloadArchive(ctx context.Context, req *runti
 func (f *fakeNodeSandboxService) Wait(ctx context.Context, req *runtimev1.WaitRequest) (*runtimev1.WaitResponse, error) {
 	_ = ctx
 	f.waitRequests = append(f.waitRequests, req)
-	return &runtimev1.WaitResponse{Status: 0, ExitCode: 17, Message: "done"}, nil
+	return &runtimev1.WaitResponse{ExitCode: func() *int32 { value := int32(17); return &value }(), Message: "done"}, nil
 }
 
 type fakeNodeSandboxExecStream struct {
@@ -655,7 +657,7 @@ func TestNodeSandboxWaitReportsExit(t *testing.T) {
 	if resp.GetState() != nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED {
 		t.Fatalf("wait state = %v, want EXITED", resp.GetState())
 	}
-	if !resp.GetExitCodeKnown() || resp.GetExitCode() != 17 {
+	if resp.ExitCode == nil || resp.GetExitCode() != 17 {
 		t.Fatalf("wait response = %#v, want exit_code=17 known=true", resp)
 	}
 	if fakeService.reportedAllocationID != "alloc-123" || fakeService.reportedExitCode != 17 || !fakeService.reportedKnown {

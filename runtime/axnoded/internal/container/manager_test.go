@@ -135,8 +135,7 @@ func TestSyncRuntimeIdentityFromStateDoesNotReviveTerminalProcessIdentity(t *tes
 	finishedAt := time.Now().UTC()
 	require.NoError(t, m.SetExit(
 		id,
-		42,
-		true,
+		testExitCode(42),
 		finishedAt,
 		"exact runtime exit",
 		commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
@@ -155,8 +154,7 @@ func TestSyncRuntimeIdentityFromStateDoesNotReviveTerminalProcessIdentity(t *tes
 	assert.Equal(t, -1, status.Pid)
 	assert.Equal(t, originalStartedAt, status.StartedAt)
 	assert.Equal(t, finishedAt.Format(time.RFC3339Nano), status.FinishedAt)
-	assert.Equal(t, int32(42), status.ExitCode)
-	assert.True(t, status.ExitCodeKnown)
+	assert.Equal(t, int32(42), *status.ExitCode)
 	assert.Equal(t, "exact runtime exit", status.Message)
 	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, status.DiagnosticCode)
 }
@@ -196,8 +194,7 @@ func TestSyncRuntimeIdentityDoesNotReviveExitedCheckpointWithoutTimestamp(t *tes
 	require.NoError(t, err)
 	require.NoError(t, container.Status.UpdateSync(func(status Status) (Status, error) {
 		status.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
-		status.ExitCode = 17
-		status.ExitCodeKnown = true
+		status.ExitCode = testExitCode(17)
 		return status, nil
 	}))
 
@@ -213,8 +210,7 @@ func TestSyncRuntimeIdentityDoesNotReviveExitedCheckpointWithoutTimestamp(t *tes
 	assert.Zero(t, status.Pid)
 	assert.Empty(t, status.StartedAt)
 	assert.Empty(t, status.FinishedAt)
-	assert.Equal(t, int32(17), status.ExitCode)
-	assert.True(t, status.ExitCodeKnown)
+	assert.Equal(t, int32(17), *status.ExitCode)
 }
 
 func TestPersistMonitorExitClassifiesBeforeCheckpoint(t *testing.T) {
@@ -231,7 +227,7 @@ func TestPersistMonitorExitClassifiesBeforeCheckpoint(t *testing.T) {
 	})
 
 	classified, err := m.persistMonitorExit(Event{
-		Type: EventTypeExit, ContainerID: id, ExitCode: 137, ExitCodeKnown: true, ExitedAt: time.Now().UTC(),
+		Type: EventTypeExit, ContainerID: id, ExitCode: testExitCode(137), ExitedAt: time.Now().UTC(),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, classified.DiagnosticCode)
@@ -241,8 +237,7 @@ func TestPersistMonitorExitClassifiesBeforeCheckpoint(t *testing.T) {
 	status := stored.Status.Get()
 	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, status.DiagnosticCode)
 	assert.Equal(t, "sandbox memory limit exceeded", status.Message)
-	assert.Equal(t, int32(137), status.ExitCode)
-	assert.True(t, status.ExitCodeKnown)
+	assert.Equal(t, int32(137), *status.ExitCode)
 
 	reloaded, err := LoadStatus(filepath.Join(m.root, id))
 	require.NoError(t, err)
@@ -258,7 +253,7 @@ func TestPersistMonitorExitNormalizesMissingRuntimeTimestamp(t *testing.T) {
 	const id = "test-zero-exit-time-111111"
 	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{}))
 
-	classified, err := m.persistMonitorExit(Event{Type: EventTypeExit, ContainerID: id, ExitCodeKnown: true})
+	classified, err := m.persistMonitorExit(Event{Type: EventTypeExit, ContainerID: id, ExitCode: testExitCode(0)})
 	require.NoError(t, err)
 	assert.False(t, classified.ExitedAt.IsZero())
 	stored, err := m.Get(id)
@@ -276,7 +271,7 @@ func TestSetExitPropagatesCheckpointFailure(t *testing.T) {
 		Status:   &failingStatusStorage{err: wantErr},
 	})
 
-	err := m.SetExit(id, 137, true, time.Now().UTC(), "oom", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED)
+	err := m.SetExit(id, testExitCode(137), time.Now().UTC(), "oom", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED)
 	require.ErrorIs(t, err, wantErr)
 }
 
@@ -293,12 +288,11 @@ func TestPersistMonitorExitRetriesTransientCheckpointFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	classified, err := m.persistMonitorExitWithRetry(ctx, Event{
-		Type: EventTypeExit, ContainerID: id, ExitCode: 0, ExitCodeKnown: true, ExitedAt: time.Now().UTC(),
+		Type: EventTypeExit, ContainerID: id, ExitCode: testExitCode(0), ExitedAt: time.Now().UTC(),
 	})
 	require.NoError(t, err)
 	assert.Equal(t, id, classified.ContainerID)
-	assert.Equal(t, int32(0), storage.Get().ExitCode)
-	assert.True(t, storage.Get().ExitCodeKnown)
+	assert.Equal(t, int32(0), *storage.Get().ExitCode)
 }
 
 func TestLoadContainer(t *testing.T) {
@@ -409,7 +403,7 @@ func TestMonitorExitBarrierRequiresMonitorOrDurableTerminalCheckpoint(t *testing
 	}
 	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{}))
 	require.ErrorContains(t, m.waitMonitorExitBarrier(id, time.Second), "neither an active monitor nor a durable terminal exit checkpoint")
-	require.NoError(t, m.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
+	require.NoError(t, m.SetExit(id, testExitCode(0), time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 	require.NoError(t, m.waitMonitorExitBarrier(id, time.Second))
 }
 

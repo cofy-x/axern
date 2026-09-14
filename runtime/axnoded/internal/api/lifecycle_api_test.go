@@ -37,9 +37,7 @@ func (f *fakeNodeLifecycleService) StartControlPlaneAllocation(ctx context.Conte
 	if f.startResponseID != "" {
 		responseID = f.startResponseID
 	}
-	return &runtimev1.StartResponse{
-		Code: 0, ID: responseID, Message: "ok",
-	}, nil
+	return &runtimev1.StartResponse{AllocationID: responseID}, nil
 }
 
 func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testing.T) {
@@ -88,7 +86,7 @@ func (f *fakeNodeLifecycleService) List(ctx context.Context, req *runtimev1.List
 			{
 				ID:             req.GetID(),
 				State:          runtimev1.ContainerState_CONTAINER_EXITED,
-				ExitCode:       23,
+				ExitCode:       func() *int32 { value := int32(23); return &value }(),
 				Message:        "done",
 				DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
 			},
@@ -434,7 +432,7 @@ func TestNodeLifecycleGetAllocationLifecycleMapsState(t *testing.T) {
 	if resp.GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 		t.Fatalf("status = %v, want EXITED", resp.GetState())
 	}
-	if !resp.GetExitCodeKnown() || resp.GetExitCode() != 23 {
+	if resp.ExitCode == nil || resp.GetExitCode() != 23 {
 		t.Fatalf("response = %#v", resp)
 	}
 	if resp.GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {

@@ -28,8 +28,7 @@ const (
 type AllocationLifecycleReport struct {
 	AllocationID     string
 	State            commonv1.AllocationLifecycleState
-	ExitCode         int32
-	ExitCodeKnown    bool
+	ExitCode         *int32
 	Ready            bool
 	ReadinessMessage string
 	Message          string
@@ -327,7 +326,6 @@ func AllocationLifecycleObservationFromReport(report AllocationLifecycleReport) 
 		AllocationID:     allocationID,
 		State:            report.State,
 		ExitCode:         report.ExitCode,
-		ExitCodeKnown:    report.ExitCodeKnown,
 		Ready:            ready,
 		ReadinessMessage: readinessMessage,
 		Message:          validProtocolString(report.Message),

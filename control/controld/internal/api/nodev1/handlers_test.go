@@ -168,10 +168,10 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 		NodeID:        "node-a",
 		NodeAuthToken: "token-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{{
-			AllocationID:  "alloc-1",
-			State:         commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
-			ObservedAt:    timestamppb.New(now),
-			ExitCodeKnown: true,
+			AllocationID: "alloc-1",
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+			ObservedAt:   timestamppb.New(now),
+			ExitCode:     func() *int32 { value := int32(0); return &value }(),
 		}},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {

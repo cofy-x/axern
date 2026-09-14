@@ -28,7 +28,6 @@ type RunJSON struct {
 	CreatedAt            string                      `json:"created_at,omitempty"`
 	UpdatedAt            string                      `json:"updated_at,omitempty"`
 	ExitCode             *int32                      `json:"exit_code,omitempty"`
-	ExitCodeKnown        bool                        `json:"exit_code_known,omitempty"`
 	DiagnosticCode       string                      `json:"diagnostic_code,omitempty"`
 	Message              string                      `json:"message,omitempty"`
 	CapabilityConditions *CapabilityConditionSetJSON `json:"capability_conditions,omitempty"`
@@ -54,7 +53,6 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 	if run == nil {
 		return nil
 	}
-	exitCode := knownExitCode(run.GetExitCode(), run.GetExitCodeKnown())
 	diagnosticCode := ""
 	if code := run.GetDiagnosticCode(); code != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		diagnosticCode = WorkloadDiagnosticCodeLabel(code)
@@ -70,17 +68,9 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 		Version:              run.GetVersion(),
 		CreatedAt:            FormatProtoTimestamp(run.GetCreatedAt()),
 		UpdatedAt:            FormatProtoTimestamp(run.GetUpdatedAt()),
-		ExitCode:             exitCode,
-		ExitCodeKnown:        run.GetExitCodeKnown(),
+		ExitCode:             run.ExitCode,
 		DiagnosticCode:       diagnosticCode,
 		Message:              run.GetMessage(),
 		CapabilityConditions: newCapabilityConditionSetJSON(run.GetCapabilityConditions()),
 	}
-}
-
-func knownExitCode(exitCode int32, known bool) *int32 {
-	if !known {
-		return nil
-	}
-	return &exitCode
 }

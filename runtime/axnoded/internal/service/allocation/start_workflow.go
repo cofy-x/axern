@@ -173,11 +173,11 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 }
 
 func startErrorResponse(message string) *runtime.StartResponse {
-	return &runtime.StartResponse{Code: -1, Message: message, ID: ""}
+	return &runtime.StartResponse{}
 }
 
 func startSuccessResponse(containerID string) *runtime.StartResponse {
-	return &runtime.StartResponse{Code: 0, Message: "Succeed", ID: containerID}
+	return &runtime.StartResponse{AllocationID: containerID}
 }
 
 func (h *Controller) existingActiveStartResponse(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
@@ -325,12 +325,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		runtimeRequest,
 		startplan.BuildStartEnv(lrt, runtimeRequest),
 	)
-	createRequest.RecoveryMode = runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART
-	if h.HasControlPlaneBinding(request.GetAllocationID()) {
-		createRequest.RecoveryMode = runtime.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE
-	}
 	templateRequest := startplan.BuildBundleTemplateRequest(lrt, request)
-	templateRequest.RecoveryMode = createRequest.GetRecoveryMode()
 
 	createResponse, containerIP, err := h.createAllocation(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
 	if err != nil {

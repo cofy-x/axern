@@ -82,7 +82,7 @@ message ImageMount {
 }
 
 message EnvironmentTemplate {
-  string ID = 1;
+  string id = 1;
   RootfsConfig rootfs = 2;
   repeated string argv = 3;
   map<string, string> env = 4;
@@ -91,41 +91,21 @@ message EnvironmentTemplate {
   axern.control.catalog.v1.OciExecutionProfile execution_profile = 7;
 }
 
-// AllocationState is the single recovery record for a control-plane-bound
-// Allocation. The request digest and requirements form a valid create intent
-// before launch verification exists. DISCARD_ON_RESTART executions never
-// persist this message.
+// AllocationState is the sole node-local authority and recovery record for a
+// control-plane-bound Allocation. Its node and request digest fence retries;
+// runtime and kernel state are rebuildable projections of this record.
 message AllocationState {
-  string allocationID = 1;
-  EnvironmentTemplate environment_template = 2;
-  axern.control.common.v1.ResourceSpec resources = 3;
-  repeated string image_mount_urls = 4;
-  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 5;
-  AllocationEnforcementManifest enforcement_manifest = 6;
-  AllocationCapabilityReconcileState capability_reconcile = 7;
-  AllocationLaunchVerification launch_verification = 8;
+  string allocation_id = 1;
+  string node_id = 2;
+  EnvironmentTemplate environment_template = 3;
+  axern.control.common.v1.ResourceSpec resources = 4;
+  repeated string image_mount_urls = 5;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 6;
+  AllocationEnforcementManifest enforcement_manifest = 7;
+  AllocationCapabilityReconcileState capability_reconcile = 8;
   // Canonical digest of the behaviorally relevant StartRequest. It fences
   // idempotent retries from mutating a running allocation's contract.
   string allocation_request_digest = 9;
-}
-
-// ControlPlaneAllocationBinding is the sole authoritative node-local record
-// that controld admitted an Allocation to this node. Runtime state, OCI metadata, cgroup
-// ownership, and AllocationState existence never substitute for this relation.
-message ControlPlaneAllocationBinding {
-  string allocation_id = 1;
-  string node_id = 2;
-  string request_digest = 3;
-}
-
-// AllocationLaunchVerification is the durable create-time record that the
-// runtime-specific hard-enforcement contract was inspected while the OCI
-// container was created but before the workload process was started. The
-// immutable enforcement_manifest records what was launched; this record
-// separately records which allocation requirements were actually verified.
-message AllocationLaunchVerification {
-  repeated axern.control.capability.v1.CapabilityKey verified_capabilities = 1;
-  int64 verified_at_unix_nano = 2;
 }
 
 // AllocationCapabilityReconcileState is the durable node-local intent to
@@ -201,10 +181,9 @@ message RuntimeCheckpoint {
   int32 init_process_pid = 2;
   google.protobuf.Timestamp started_at = 3;
   google.protobuf.Timestamp finished_at = 4;
-  int32 exit_code = 5;
-  bool exit_code_known = 6;
-  string message = 7;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 8;
+  optional int32 exit_code = 5;
+  string message = 6;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 7;
 }
 
 message HugepageLimit {
@@ -233,20 +212,9 @@ message ImmutableRootfsMount {
   string effective_root = 7;
 }
 
-enum ContainerRecoveryMode {
-  CONTAINER_RECOVERY_MODE_UNSPECIFIED = 0;
-  // The runtime container may survive axnoded restart, but only an independent
-  // admitted owner is allowed to restore it.
-  CONTAINER_RECOVERY_MODE_DURABLE = 1;
-  // The runtime container belongs to an in-process session or self-test and
-  // must be removed after a process restart because its owner no longer exists.
-  CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART = 2;
-}
-
 message ContainerMetadata {
   string stdout = 1;
   string stderr = 2;
-  ContainerRecoveryMode recovery_mode = 3;
 }
 
 message DnatRuleBinding {

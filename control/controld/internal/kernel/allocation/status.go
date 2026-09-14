@@ -17,7 +17,7 @@ func IsCleanupState(state commonv1.AllocationLifecycleState) bool {
 		state == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED
 }
 
-func RunStatusFromObservation(state commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, diagnosticCode commonv1.WorkloadDiagnosticCode) runv1.RunStatus {
+func RunStatusFromObservation(state commonv1.AllocationLifecycleState, exitCode *int32, diagnosticCode commonv1.WorkloadDiagnosticCode) runv1.RunStatus {
 	switch state {
 	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND:
 		return runv1.RunStatus_RUN_STATUS_PLACED
@@ -26,7 +26,7 @@ func RunStatusFromObservation(state commonv1.AllocationLifecycleState, exitCode 
 	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE:
 		return runv1.RunStatus_RUN_STATUS_RUNNING
 	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED:
-		if diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && exitCodeKnown && exitCode == 0 {
+		if diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && exitCode != nil && *exitCode == 0 {
 			return runv1.RunStatus_RUN_STATUS_SUCCEEDED
 		}
 		return runv1.RunStatus_RUN_STATUS_FAILED

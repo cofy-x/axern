@@ -95,8 +95,8 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	if resp.GetID() != "alloc-image-mount" {
-		t.Fatalf("response id = %q, want alloc-image-mount", resp.GetID())
+	if resp.GetAllocationID() != "alloc-image-mount" {
+		t.Fatalf("response id = %q, want alloc-image-mount", resp.GetAllocationID())
 	}
 	mounts := handler.lastRequest.GetMounts()
 	if len(mounts) != 1 {

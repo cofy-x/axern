@@ -74,7 +74,6 @@ type Principal struct {
 	DisplayName string
 	Kind        PrincipalKind
 	Status      PrincipalStatus
-	Version     int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

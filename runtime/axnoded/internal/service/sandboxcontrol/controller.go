@@ -112,7 +112,7 @@ func (c *Controller) Wait(ctx context.Context, request *runtime.WaitRequest) (*r
 	}
 
 	status := target.Container.Status.Get()
-	if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCodeKnown {
+	if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCode != nil {
 		response.Message = status.Message
 		response.ExitCode = status.ExitCode
 		return response, nil
@@ -132,7 +132,7 @@ func (c *Controller) Wait(ctx context.Context, request *runtime.WaitRequest) (*r
 
 	for {
 		status = target.Container.Status.Get()
-		if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCodeKnown {
+		if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCode != nil {
 			response.Message = status.Message
 			response.ExitCode = status.ExitCode
 			return response, nil
@@ -141,7 +141,8 @@ func (c *Controller) Wait(ctx context.Context, request *runtime.WaitRequest) (*r
 		select {
 		case result := <-waitCh:
 			if result.err == nil {
-				response.ExitCode = int32(result.exit.Status)
+				exitCode := int32(result.exit.Status)
+				response.ExitCode = &exitCode
 				response.Message = ""
 				return response, nil
 			}

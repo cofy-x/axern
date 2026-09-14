@@ -210,7 +210,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Message: "available",
 		})
 	}
-	if err := service.allocationController().StoreAllocationIntent(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, dependencies); err != nil {
+	if err := service.allocationController().StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, dependencies); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
@@ -220,7 +220,7 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 		FilestoreMountIdentity:        "42:/dev/loop0:/var/lib/axnoded/filestore",
 		BundlePath:                    "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: now.UnixNano(),
 	}
-	if err := service.allocationController().StoreLaunchVerification(allocationID, manifest, []*capabilityv1.CapabilityKey{hardLimit}, now); err != nil {
+	if err := service.allocationController().StoreVerifiedEnforcementManifest(allocationID, manifest, []*capabilityv1.CapabilityKey{hardLimit}, now); err != nil {
 		t.Fatal(err)
 	}
 	admitted, conditions, err := service.verifyPostCreateCapabilityRequirements(context.Background(), allocationID, dependencies, now)

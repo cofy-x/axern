@@ -1,6 +1,7 @@
 package pgrun
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -20,7 +21,7 @@ func environmentSelectSQL() string {
 
 func runSelectSQL() string {
 	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
-		r.config, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.exit_code_known, r.diagnostic_code, r.message,
+		r.config, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message,
 		a.node_id,
 		COALESCE((SELECT conditions FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id), '{}'::jsonb)
 		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
@@ -64,11 +65,16 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		diagnosticCodeText                               string
 		configJSON, labelsJSON, capabilityConditionsJSON []byte
 		createdAt, updatedAt                             time.Time
+		exitCode                                         sql.NullInt32
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
+	if exitCode.Valid {
+		value := exitCode.Int32
+		run.ExitCode = &value
+	}
 	run.DiagnosticCode = parseWorkloadDiagnosticCode(diagnosticCodeText)
 	run.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, run.Config); err != nil {

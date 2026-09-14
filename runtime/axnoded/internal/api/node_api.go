@@ -45,8 +45,7 @@ type directAuthTarget struct {
 
 type allocationExitReport struct {
 	allocationID  string
-	exitCode      int32
-	exitCodeKnown bool
+	exitCode      *int32
 	message       string
 }
 
@@ -102,7 +101,6 @@ func (s *nodeSandboxServer) reportExit(report allocationExitReport) {
 		report.allocationID,
 		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
 		report.exitCode,
-		report.exitCodeKnown,
 		false,
 		"",
 		report.message,

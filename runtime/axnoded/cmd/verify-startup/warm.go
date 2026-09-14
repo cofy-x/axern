@@ -129,7 +129,7 @@ func startAndDelete(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.Ro
 		if err != nil {
 			return fmt.Errorf("wait sandbox: %w", err)
 		}
-		if waitResp.GetExitCode() != int32(expectedExit) {
+		if waitResp.ExitCode == nil || waitResp.GetExitCode() != int32(expectedExit) {
 			return fmt.Errorf("unexpected exit code: %d", waitResp.GetExitCode())
 		}
 	}

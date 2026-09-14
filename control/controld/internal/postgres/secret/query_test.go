@@ -27,11 +27,14 @@ func TestListFiltersAndPaginatesInDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
+	if _, err := db.Pool().Exec(context.Background(), `INSERT INTO namespaces(namespace, created_at) VALUES ('team-a',$1),('team-b',$1) ON CONFLICT DO NOTHING`, now); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO secrets (secret_id, namespace, type, data_keys, encrypted_payload, labels, version, created_at, updated_at) VALUES
-		('sec-page-a', 'team-a', 'SECRET_TYPE_OPAQUE', '[]'::jsonb, ''::bytea, '{"suite":"page"}'::jsonb, 1, $1, $1),
-		('sec-page-b', 'team-a', 'SECRET_TYPE_OPAQUE', '[]'::jsonb, ''::bytea, '{"suite":"page"}'::jsonb, 1, $1, $1),
-		('sec-page-c', 'team-b', 'SECRET_TYPE_OPAQUE', '[]'::jsonb, ''::bytea, '{"suite":"page"}'::jsonb, 1, $1, $1)
+		INSERT INTO secrets (secret_id, namespace, type, data_keys, encrypted_payload, labels, created_at) VALUES
+		('sec-page-a', 'team-a', 'SECRET_TYPE_OPAQUE', '[]'::jsonb, ''::bytea, '{"suite":"page"}'::jsonb, $1),
+		('sec-page-b', 'team-a', 'SECRET_TYPE_OPAQUE', '[]'::jsonb, ''::bytea, '{"suite":"page"}'::jsonb, $1),
+		('sec-page-c', 'team-b', 'SECRET_TYPE_OPAQUE', '[]'::jsonb, ''::bytea, '{"suite":"page"}'::jsonb, $1)
 	`, now); err != nil {
 		t.Fatal(err)
 	}

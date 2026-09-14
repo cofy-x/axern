@@ -80,8 +80,8 @@ func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("startAllocation() error = %v", err)
 	}
-	if response.GetID() != containerID {
-		t.Fatalf("container id = %q, want %q", response.GetID(), containerID)
+	if response.GetAllocationID() != containerID {
+		t.Fatalf("container id = %q, want %q", response.GetAllocationID(), containerID)
 	}
 	assertExactContainerExit(t, fixture, containerID, 42)
 }
@@ -167,7 +167,7 @@ func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	if secondResult.err != nil {
 		t.Fatalf("duplicate start error = %v", secondResult.err)
 	}
-	if got := secondResult.resp.GetID(); got != request.GetAllocationID() {
+	if got := secondResult.resp.GetAllocationID(); got != request.GetAllocationID() {
 		t.Fatalf("duplicate start allocation id = %q, want %q", got, request.GetAllocationID())
 	}
 	if handler.createCalls != 1 {

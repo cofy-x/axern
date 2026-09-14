@@ -100,12 +100,12 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO tunnel_sessions (
-			session_id, allocation_id, namespace, creator_principal_id, node_id, remote_port,
+			session_id, allocation_id, creator_principal_id, remote_port,
 			node_edge_target, relay_id, client_edge_target, status, reason, bound_addr,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
 		)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'','',$11,$12,$13,$14,$15,$16,$17)
-	`, session.GetSessionID(), session.GetAllocationID(), session.GetNamespace(), session.GetCreatorPrincipalID(), session.GetNodeID(), session.GetRemotePort(), relay.NodeTarget, session.GetRelayID(), session.GetClientEdgeTarget(), session.GetStatus().String(), hashToken(clientToken), nodeTokenEncrypted, hashToken(nodeToken), revision, now, now, expiresAt); err != nil {
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'','',$9,$10,$11,$12,$13,$14,$15)
+	`, session.GetSessionID(), session.GetAllocationID(), session.GetCreatorPrincipalID(), session.GetRemotePort(), relay.NodeTarget, session.GetRelayID(), session.GetClientEdgeTarget(), session.GetStatus().String(), hashToken(clientToken), nodeTokenEncrypted, hashToken(nodeToken), revision, now, now, expiresAt); err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
 			return nil, grpcstatus.Error(codes.AlreadyExists, "active tunnel session already binds this allocation remote_port")

@@ -183,10 +183,10 @@ func insertConsistencyTunnel(t *testing.T, db *postgres.DB, sessionID, allocatio
 	ensureConsistencyTunnelIdentity(t, db, createdAt)
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO tunnel_sessions (
-			session_id, allocation_id, namespace, creator_principal_id, node_id, remote_port,
+			session_id, allocation_id, creator_principal_id, remote_port,
 			node_edge_target, status, reason, bound_addr,
 			client_token_hash, node_token_encrypted, node_token_hash, revision, created_at, updated_at, expires_at
-		) VALUES ($1, $2, 'default', 'prn-consistency-test', 'node-test', 30001,
+		) VALUES ($1, $2, 'prn-consistency-test', 30001,
 			'127.0.0.1:24210', $3, '', '', 'client-hash', $4, 'node-hash', 0, $5, $5, $6)
 	`, sessionID, allocationID, status, []byte("node-token"), createdAt.UTC(), expiresAt.UTC()); err != nil {
 		t.Fatalf("insert tunnel session: %v", err)
@@ -196,15 +196,15 @@ func insertConsistencyTunnel(t *testing.T, db *postgres.DB, sessionID, allocatio
 func ensureConsistencyTunnelIdentity(t *testing.T, db *postgres.DB, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO namespaces(namespace, version, created_at, updated_at)
-		VALUES ('default', 1, $1, $1)
+		INSERT INTO namespaces(namespace, created_at)
+		VALUES ('default', $1)
 		ON CONFLICT (namespace) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel namespace fixture: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO principals(principal_id, name, display_name, kind, status, version, created_at, updated_at)
-		VALUES ('prn-consistency-test', 'consistency-test', 'Consistency Test', 'human', 'active', 1, $1, $1)
+		INSERT INTO principals(principal_id, name, display_name, kind, status, created_at, updated_at)
+		VALUES ('prn-consistency-test', 'consistency-test', 'Consistency Test', 'human', 'active', $1, $1)
 		ON CONFLICT (principal_id) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel principal fixture: %v", err)

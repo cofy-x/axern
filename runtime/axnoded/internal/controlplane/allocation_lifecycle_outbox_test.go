@@ -62,8 +62,7 @@ func terminalStatusObservation(allocationID string, exitCode int32, observedAt t
 	return &nodev1.AllocationLifecycleObservation{
 		AllocationID:  allocationID,
 		State:         commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
-		ExitCode:      exitCode,
-		ExitCodeKnown: true,
+		ExitCode:      &exitCode,
 		ObservedAt:    timestamppb.New(observedAt),
 	}
 }

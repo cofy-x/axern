@@ -15,32 +15,31 @@ message CreateContainerRequest {
   string stdout = 6;
   string stderr = 7;
   string cwd = 8;
-  string ID = 9;
+  string id = 9;
   int64 ephemeral_storage_request_bytes = 10;
   int64 ephemeral_storage_limit_bytes = 11;
-  ContainerRecoveryMode recovery_mode = 12;
 }
 
 message CreateContainerResponse {
-  string ID = 1;
+  string id = 1;
 }
 
 message DeleteContainerRequest {
-  string ID = 1;
+  string id = 1;
   int64 timeout = 2;
 }
 
 message DeleteContainerResponse {}
 
 message SignalContainerRequest {
-  string ID = 1;
+  string id = 1;
   string signal = 2;
 }
 
 message SignalContainerResponse {}
 
 message ExecContainerRequest {
-  string ID = 1;
+  string id = 1;
   repeated string command = 2;
   bool tty = 3;
   repeated KeyValue envs = 4;
@@ -57,7 +56,7 @@ message ExecContainerResponse {
 }
 
 message ExecSessionOpen {
-  string ID = 1;
+  string id = 1;
   repeated string command = 2;
   bool tty = 3;
   repeated KeyValue envs = 4;
@@ -67,7 +66,7 @@ message ExecSessionOpen {
 }
 
 message StartContainerRequest {
-  string ID = 1;
+  string id = 1;
 }
 
 message StartContainerResponse {}

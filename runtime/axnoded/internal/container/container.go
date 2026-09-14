@@ -38,8 +38,7 @@ type Event struct {
 	// lifecycle information
 	Pid            int32                           `json:"pid"`
 	ExitedAt       time.Time                       `json:"exited_at"`
-	ExitCode       int32                           `json:"exit_code"`
-	ExitCodeKnown  bool                            `json:"exit_code_known"`
+	ExitCode       *int32                          `json:"exit_code,omitempty"`
 	Reason         string                          `json:"reason"`
 	DiagnosticCode commonv1.WorkloadDiagnosticCode `json:"diagnostic_code"`
 }

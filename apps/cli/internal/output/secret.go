@@ -18,7 +18,7 @@ func RenderSecret(w io.Writer, secret *secretv1.Secret) {
 	if len(secret.GetDataKeys()) > 0 {
 		fmt.Fprintf(w, "Data Keys: %s\n", strings.Join(secret.GetDataKeys(), ", "))
 	}
-	fmt.Fprintf(w, "Version: %d\n", secret.GetVersion())
+	fmt.Fprintf(w, "Created At: %s\n", FormatProtoTimestamp(secret.GetCreatedAt()))
 }
 
 func RenderSecretTable(w io.Writer, secrets []*secretv1.Secret) {
@@ -32,8 +32,8 @@ func RenderSecretTable(w io.Writer, secrets []*secretv1.Secret) {
 			secret.GetNamespace(),
 			SecretTypeLabel(secret.GetType()),
 			strings.Join(secret.GetDataKeys(), ","),
-			fmt.Sprintf("%d", secret.GetVersion()),
+			FormatProtoTimestamp(secret.GetCreatedAt()),
 		})
 	}
-	RenderTable(w, []string{"ID", "NAMESPACE", "TYPE", "DATA_KEYS", "VERSION"}, rows)
+	RenderTable(w, []string{"ID", "NAMESPACE", "TYPE", "DATA_KEYS", "CREATED AT"}, rows)
 }

@@ -67,8 +67,7 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 			State:      capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 		}}},
-		ExitCode:      0,
-		ExitCodeKnown: true,
+		ExitCode: func() *int32 { value := int32(0); return &value }(),
 	}
 	var runJSON strings.Builder
 	if err := PrintRunResponseJSON(&runJSON, run); err != nil {

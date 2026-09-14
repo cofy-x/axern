@@ -79,10 +79,12 @@ func TestMissingFromNodeInventory(t *testing.T) {
 }
 
 func TestRunStatusFromObservation(t *testing.T) {
-	if got := RunStatusFromObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, 0, true, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); got != runv1.RunStatus_RUN_STATUS_SUCCEEDED {
+	exitZero := int32(0)
+	if got := RunStatusFromObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, &exitZero, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); got != runv1.RunStatus_RUN_STATUS_SUCCEEDED {
 		t.Fatalf("exit 0 mapped to %s", got)
 	}
-	if got := RunStatusFromObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, 1, true, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); got != runv1.RunStatus_RUN_STATUS_FAILED {
+	exitOne := int32(1)
+	if got := RunStatusFromObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, &exitOne, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); got != runv1.RunStatus_RUN_STATUS_FAILED {
 		t.Fatalf("exit 1 mapped to %s", got)
 	}
 }

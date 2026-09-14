@@ -38,7 +38,6 @@ type NamespaceQuotaEventJSON struct {
 	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
 	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
 	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
-	Message                        string `json:"message,omitempty"`
 	CreatedAt                      string `json:"created_at,omitempty"`
 }
 
@@ -53,7 +52,6 @@ type NamespaceQuotaJSON struct {
 	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
 	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
 	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
-	Version                        int64  `json:"version"`
 	CreatedAt                      string `json:"created_at,omitempty"`
 	UpdatedAt                      string `json:"updated_at,omitempty"`
 }
@@ -107,7 +105,6 @@ func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQu
 		ReservedEphemeralStorageBytes:  event.GetReservedEphemeralStorageBytes(),
 		EphemeralStorageBytesLimit:     optionalWrapperInt64(event.GetEphemeralStorageBytesLimit()),
 		AvailableEphemeralStorageBytes: optionalWrapperInt64(event.GetAvailableEphemeralStorageBytes()),
-		Message:                        event.GetMessage(),
 		CreatedAt:                      FormatProtoTimestamp(event.GetCreatedAt()),
 	}
 }
@@ -127,7 +124,6 @@ func NewNamespaceQuotaJSON(quota *quotav1.NamespaceQuota) *NamespaceQuotaJSON {
 		EphemeralStorageBytesLimit:     optionalWrapperInt64(quota.GetEphemeralStorageBytesLimit()),
 		ReservedEphemeralStorageBytes:  quota.GetReservedEphemeralStorageBytes(),
 		AvailableEphemeralStorageBytes: optionalWrapperInt64(quota.GetAvailableEphemeralStorageBytes()),
-		Version:                        quota.GetVersion(),
 		CreatedAt:                      FormatProtoTimestamp(quota.GetCreatedAt()),
 		UpdatedAt:                      FormatProtoTimestamp(quota.GetUpdatedAt()),
 	}

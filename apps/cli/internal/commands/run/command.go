@@ -165,7 +165,7 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 		}
 		return command.ExitError{Code: 130, Err: waitErr}
 	}
-	if value.GetExitCodeKnown() && value.GetExitCode() != 0 {
+	if value.ExitCode != nil && value.GetExitCode() != 0 {
 		return command.ExitError{Code: int(value.GetExitCode())}
 	}
 	return waitErr

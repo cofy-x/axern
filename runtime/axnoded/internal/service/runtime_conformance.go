@@ -344,11 +344,8 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	}()
 	startAttempted = true
 	response, err := h.allocationController().StartInternalConformance(operationCtx, request)
-	if err != nil || response == nil || response.GetCode() != 0 {
+	if err != nil || response == nil || response.GetAllocationID() == "" {
 		message := "empty response"
-		if response != nil {
-			message = response.GetMessage()
-		}
 		return fmt.Errorf("start runtime conformance sandbox: %w", firstRuntimeConformanceError(err, message))
 	}
 	if kind == runtimeConformanceKindEphemeral {
@@ -551,7 +548,7 @@ func (h *sandboxService) verifyRuntimeConformanceMemoryOOM(ctx context.Context, 
 	if manifest == nil || manifest.GetMemoryLimitBytes() != runtimeConformanceMemoryLimit {
 		return fmt.Errorf("runtime conformance memory enforcement manifest is unavailable or inconsistent")
 	}
-	if h.allocationController().LaunchVerification(allocationID) == nil {
+	if h.allocationController().VerifiedEnforcementManifest(allocationID) == nil {
 		return fmt.Errorf("runtime conformance create-time memory verification is unavailable")
 	}
 	ticker := time.NewTicker(100 * time.Millisecond)

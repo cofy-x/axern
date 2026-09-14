@@ -4,7 +4,6 @@ CREATE TABLE principals (
 	display_name TEXT NOT NULL,
 	kind TEXT NOT NULL CHECK (kind IN ('human', 'service')),
 	status TEXT NOT NULL CHECK (status IN ('active', 'disabled')),
-	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	CHECK (length(btrim(name)) > 0),
@@ -49,9 +48,8 @@ CREATE INDEX idx_nodes_lifecycle ON nodes(lifecycle_status, node_id);
 
 CREATE TABLE namespaces (
 	namespace TEXT PRIMARY KEY,
-	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
+	deleted_at TIMESTAMPTZ
 );
 
 CREATE TABLE namespace_resource_quotas (
@@ -59,7 +57,6 @@ CREATE TABLE namespace_resource_quotas (
 	cpu_milli_limit BIGINT,
 	memory_bytes_limit BIGINT,
 	ephemeral_storage_bytes_limit BIGINT,
-	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	CHECK (cpu_milli_limit IS NULL OR cpu_milli_limit >= 0),
@@ -71,7 +68,7 @@ CREATE TABLE role_bindings (
 	binding_id TEXT PRIMARY KEY,
 	principal_id TEXT NOT NULL REFERENCES principals(principal_id),
 	scope_type TEXT NOT NULL CHECK (scope_type IN ('platform', 'namespace')),
-	namespace TEXT,
+	namespace TEXT REFERENCES namespaces(namespace),
 	role TEXT NOT NULL CHECK (role IN ('platform_admin', 'namespace_admin', 'namespace_editor', 'namespace_viewer')),
 	created_by_principal_id TEXT REFERENCES principals(principal_id),
 	created_at TIMESTAMPTZ NOT NULL,
@@ -86,7 +83,7 @@ CREATE TABLE role_bindings (
 
 CREATE TABLE environments (
 	environment_id TEXT PRIMARY KEY,
-	namespace TEXT NOT NULL,
+	namespace TEXT NOT NULL REFERENCES namespaces(namespace),
 	spec JSONB NOT NULL,
 	resolved_spec JSONB NOT NULL,
 	labels JSONB NOT NULL,
@@ -96,19 +93,17 @@ CREATE TABLE environments (
 
 CREATE TABLE secrets (
 	secret_id TEXT PRIMARY KEY,
-	namespace TEXT NOT NULL,
+	namespace TEXT NOT NULL REFERENCES namespaces(namespace),
 	type TEXT NOT NULL,
 	data_keys JSONB NOT NULL,
 	encrypted_payload BYTEA NOT NULL,
 	labels JSONB NOT NULL,
-	version BIGINT NOT NULL DEFAULT 1,
-	created_at TIMESTAMPTZ NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
+	created_at TIMESTAMPTZ NOT NULL
 );
 
 CREATE TABLE runs (
 	run_id TEXT PRIMARY KEY,
-	namespace TEXT NOT NULL,
+	namespace TEXT NOT NULL REFERENCES namespaces(namespace),
 	environment_id TEXT NOT NULL,
 	status TEXT NOT NULL,
 	config JSONB NOT NULL,
@@ -116,8 +111,7 @@ CREATE TABLE runs (
 	version BIGINT NOT NULL DEFAULT 1,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
-	exit_code INTEGER NOT NULL DEFAULT 0,
-	exit_code_known BOOLEAN NOT NULL DEFAULT FALSE,
+	exit_code INTEGER,
 	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
 	message TEXT NOT NULL DEFAULT ''
 );
@@ -152,8 +146,7 @@ CREATE TABLE allocation_capability_requirements (
 CREATE TABLE allocation_capability_conditions (
 	allocation_id TEXT PRIMARY KEY REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	observed_at TIMESTAMPTZ NOT NULL,
-	conditions JSONB NOT NULL,
-	updated_at TIMESTAMPTZ NOT NULL
+	conditions JSONB NOT NULL
 );
 
 -- Durable ordering fence for capability observations from a concrete node
@@ -164,8 +157,6 @@ CREATE TABLE node_capability_instances (
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
 	node_instance_id TEXT NOT NULL,
 	last_sequence BIGINT NOT NULL,
-	first_seen_at TIMESTAMPTZ NOT NULL,
-	last_seen_at TIMESTAMPTZ NOT NULL,
 	PRIMARY KEY (node_id, node_instance_id),
 	CHECK (last_sequence > 0)
 );
@@ -187,7 +178,7 @@ CREATE TABLE reservations (
 
 CREATE TABLE namespace_quota_events (
 	event_id TEXT PRIMARY KEY,
-	namespace TEXT NOT NULL,
+	namespace TEXT NOT NULL REFERENCES namespaces(namespace),
 	event_type TEXT NOT NULL,
 	run_id TEXT NOT NULL DEFAULT '',
 	environment_id TEXT NOT NULL DEFAULT '',
@@ -204,7 +195,6 @@ CREATE TABLE namespace_quota_events (
 	reserved_ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
 	ephemeral_storage_bytes_limit BIGINT,
 	available_ephemeral_storage_bytes BIGINT,
-	message TEXT NOT NULL DEFAULT '',
 	created_at TIMESTAMPTZ NOT NULL,
 	CHECK (requested_cpu_milli >= 0),
 	CHECK (reserved_cpu_milli >= 0),
@@ -270,10 +260,8 @@ VALUES ('execution_leases', 0), ('tunnel_sessions', 0);
 
 CREATE TABLE tunnel_sessions (
 	session_id TEXT PRIMARY KEY,
-	allocation_id TEXT NOT NULL,
-	namespace TEXT NOT NULL,
+	allocation_id TEXT NOT NULL REFERENCES allocations(allocation_id) ON DELETE CASCADE,
 	creator_principal_id TEXT NOT NULL REFERENCES principals(principal_id) ON DELETE RESTRICT,
-	node_id TEXT NOT NULL,
 	remote_port INTEGER NOT NULL,
 	node_edge_target TEXT NOT NULL DEFAULT '',
 	relay_id TEXT NOT NULL DEFAULT '',
@@ -292,8 +280,7 @@ CREATE TABLE tunnel_sessions (
 	last_peer_event_at TIMESTAMPTZ,
 	bytes_in BIGINT NOT NULL DEFAULT 0,
 	bytes_out BIGINT NOT NULL DEFAULT 0,
-	FOREIGN KEY (allocation_id, node_id)
-		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
+	CHECK (remote_port > 0 AND remote_port <= 65535)
 );
 
 CREATE TABLE tunnel_session_events (
@@ -348,8 +335,6 @@ CREATE UNIQUE INDEX idx_tunnel_sessions_active_remote_port
 		'TUNNEL_SESSION_STATUS_RUNNING',
 		'TUNNEL_SESSION_STATUS_DEGRADED'
 	);
-CREATE INDEX idx_tunnel_sessions_node_revision ON tunnel_sessions(node_id, revision);
-CREATE INDEX idx_tunnel_sessions_namespace_created ON tunnel_sessions(namespace, created_at DESC);
 CREATE INDEX idx_tunnel_sessions_expiry ON tunnel_sessions(expires_at, status);
 CREATE INDEX idx_tunnel_sessions_active_created
 	ON tunnel_sessions(created_at, allocation_id)

@@ -25,7 +25,7 @@ func (s *Store) ListEvents(ctx context.Context, namespace string, limit int) ([]
 		       requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
 		       requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
 		       requested_ephemeral_storage_bytes, reserved_ephemeral_storage_bytes, ephemeral_storage_bytes_limit, available_ephemeral_storage_bytes,
-		       message, created_at
+		       created_at
 		FROM namespace_quota_events
 		WHERE namespace = $1
 		ORDER BY created_at DESC, event_id DESC
@@ -87,7 +87,6 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 		&event.ReservedEphemeralStorageBytes,
 		&ephemeralStorageLimit,
 		&ephemeralStorageAvailable,
-		&event.Message,
 		&createdAt,
 	); err != nil {
 		return nil, err

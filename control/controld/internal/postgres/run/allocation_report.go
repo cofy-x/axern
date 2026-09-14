@@ -2,6 +2,7 @@ package pgrun
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sort"
 	"strings"
@@ -42,7 +43,7 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 			observedState := obs.GetState()
 			message := strings.TrimSpace(obs.GetMessage())
 			diagnosticCode := obs.GetDiagnosticCode()
-			runStatus := allocationkernel.RunStatusFromObservation(observedState, obs.GetExitCode(), obs.GetExitCodeKnown(), diagnosticCode)
+			runStatus := allocationkernel.RunStatusFromObservation(observedState, obs.ExitCode, diagnosticCode)
 			persistedState := observedState
 			if observedState == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 				persistedState = commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING
@@ -64,10 +65,10 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 			}
 			if _, err := tx.Exec(ctx, `
 			UPDATE runs
-			SET status = $2, exit_code = $3, exit_code_known = $4, diagnostic_code = $5, message = $6,
-				version = version + 1, updated_at = $7
-			WHERE run_id = $1 AND status NOT IN ($8, $9, $10)
-			`, alloc.runID, runStatus.String(), obs.GetExitCode(), obs.GetExitCodeKnown(), diagnosticCode.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
+			SET status = $2, exit_code = $3, diagnostic_code = $4, message = $5,
+				version = version + 1, updated_at = $6
+			WHERE run_id = $1 AND status NOT IN ($7, $8, $9)
+			`, alloc.runID, runStatus.String(), obs.ExitCode, diagnosticCode.String(), message, now.UTC(), runv1.RunStatus_RUN_STATUS_SUCCEEDED.String(), runv1.RunStatus_RUN_STATUS_FAILED.String(), runv1.RunStatus_RUN_STATUS_CANCELLED.String()); err != nil {
 				return fmt.Errorf("update run status: %w", err)
 			}
 			if runkernel.IsTerminal(runStatus) {
@@ -114,8 +115,7 @@ type reportedAllocation struct {
 	nodeID         string
 	lifecycleState commonv1.AllocationLifecycleState
 	runStatus      runv1.RunStatus
-	exitCode       int32
-	exitCodeKnown  bool
+	exitCode       *int32
 	diagnosticCode commonv1.WorkloadDiagnosticCode
 	message        string
 }
@@ -123,8 +123,7 @@ type reportedAllocation struct {
 func runAllocationObservationMatches(allocation *reportedAllocation, lifecycleState commonv1.AllocationLifecycleState, runStatus runv1.RunStatus, observation *nodev1.AllocationLifecycleObservation, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) bool {
 	return allocation != nil && observation != nil &&
 		allocation.lifecycleState == lifecycleState && allocation.runStatus == runStatus &&
-		allocation.exitCode == observation.GetExitCode() &&
-		allocation.exitCodeKnown == observation.GetExitCodeKnown() &&
+		equalOptionalInt32(allocation.exitCode, observation.ExitCode) &&
 		allocation.diagnosticCode == diagnosticCode && strings.TrimSpace(allocation.message) == message
 }
 
@@ -135,7 +134,7 @@ func lockReportedAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []str
 	}
 	rows, err := tx.Query(ctx, `
 		SELECT a.allocation_id, a.run_id, a.node_id, a.lifecycle_state,
-			r.status, r.exit_code, r.exit_code_known, r.diagnostic_code, r.message
+			r.status, r.exit_code, r.diagnostic_code, r.message
 		FROM allocations a
 		JOIN runs r ON r.run_id = a.run_id
 		WHERE a.allocation_id = ANY($1::text[])
@@ -150,8 +149,13 @@ func lockReportedAllocations(ctx context.Context, tx pgx.Tx, allocationIDs []str
 		allocation := &reportedAllocation{}
 		var lifecycleStateText, runStatusText string
 		var diagnosticCodeText string
-		if err := rows.Scan(&allocation.allocationID, &allocation.runID, &allocation.nodeID, &lifecycleStateText, &runStatusText, &allocation.exitCode, &allocation.exitCodeKnown, &diagnosticCodeText, &allocation.message); err != nil {
+		var exitCode sql.NullInt32
+		if err := rows.Scan(&allocation.allocationID, &allocation.runID, &allocation.nodeID, &lifecycleStateText, &runStatusText, &exitCode, &diagnosticCodeText, &allocation.message); err != nil {
 			return nil, fmt.Errorf("scan run allocation for lifecycle batch: %w", err)
+		}
+		if exitCode.Valid {
+			value := exitCode.Int32
+			allocation.exitCode = &value
 		}
 		allocation.lifecycleState = allocationkernel.ParseLifecycleState(lifecycleStateText)
 		allocation.runStatus = parseRunStatus(runStatusText)
@@ -198,7 +202,6 @@ func (s *Store) ReconcileNodeInventory(ctx context.Context, snapshot allocationk
 			Message:        allocationkernel.MissingFromNodeInventoryMessage,
 			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR,
 			ObservedAt:     timestamppb.New(now.UTC()),
-			ExitCodeKnown:  false,
 		}}, now); err != nil {
 			return err
 		}
@@ -222,10 +225,16 @@ func (s *Store) ReconcileNodeUnavailable(ctx context.Context, nodeID string, now
 			Message:        allocationkernel.NodeUnavailableMessage,
 			DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR,
 			ObservedAt:     timestamppb.New(now.UTC()),
-			ExitCodeKnown:  false,
 		}}, now); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func equalOptionalInt32(left, right *int32) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }

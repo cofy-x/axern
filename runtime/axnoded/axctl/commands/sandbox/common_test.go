@@ -14,10 +14,9 @@ func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 	var out bytes.Buffer
 	renderSandboxTable(&out, []*nodeoperatorv1.LocalSandbox{
 		{
-			SandboxID:     "demo",
-			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
-			ExitCodeKnown: false,
-			Pid:           0,
+			SandboxID: "demo",
+			State:     nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
+			Pid:       0,
 		},
 	})
 
@@ -46,9 +45,8 @@ func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 func TestRenderSandboxInspectKeepsUnknownExitCodeForExitedSandbox(t *testing.T) {
 	var out bytes.Buffer
 	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
-		SandboxID:     "demo",
-		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-		ExitCodeKnown: false,
+		SandboxID: "demo",
+		State:     nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
 	})
 
 	got := out.String()
@@ -59,11 +57,11 @@ func TestRenderSandboxInspectKeepsUnknownExitCodeForExitedSandbox(t *testing.T) 
 
 func TestRenderSandboxInspectFormatsMissingValues(t *testing.T) {
 	var out bytes.Buffer
+	exitCode := int32(0)
 	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
-		SandboxID:     "demo",
-		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-		ExitCodeKnown: true,
-		ExitCode:      0,
+		SandboxID: "demo",
+		State:     nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
+		ExitCode:  &exitCode,
 	})
 
 	got := out.String()

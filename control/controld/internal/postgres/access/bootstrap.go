@@ -42,7 +42,7 @@ func (s *Store) BootstrapPlatformAdmin(ctx context.Context, name, displayName, l
 	credentialID := "cred-" + uuid.NewString()
 	bindingID := "rb-" + uuid.NewString()
 	now = now.UTC()
-	if _, err := tx.Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at) VALUES($1,$2,$3,'human','active',1,$4,$4)`, principalID, name, displayName, now); err != nil {
+	if _, err := tx.Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,created_at,updated_at) VALUES($1,$2,$3,'human','active',$4,$4)`, principalID, name, displayName, now); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `INSERT INTO principal_credentials(credential_id,principal_id,kind,fingerprint,certificate_not_after,label,created_at) VALUES($1,$2,'x509_sha256',$3,$4,$5,$6)`, credentialID, principalID, fingerprint[:], notAfter.UTC(), label, now); err != nil {

@@ -54,8 +54,7 @@ func TestKillRejectsExitedContainer(t *testing.T) {
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
 		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
-		st.ExitCode = 0
-		st.ExitCodeKnown = true
+		st.ExitCode = func() *int32 { value := int32(0); return &value }()
 		return st, nil
 	})
 	assert.NoError(t, err)

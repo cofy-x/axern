@@ -57,9 +57,7 @@ func (s *Store) Create(ctx context.Context, params secretkernel.CreateParams, no
 		Type:      params.SecretType,
 		DataKeys:  sortedKeys(data),
 		Labels:    cloneMap(params.Labels),
-		Version:   1,
 		CreatedAt: timestamppb.New(now),
-		UpdatedAt: timestamppb.New(now),
 	}
 	dataKeysJSON, err := json.Marshal(secret.GetDataKeys())
 	if err != nil {
@@ -69,15 +67,23 @@ func (s *Store) Create(ctx context.Context, params secretkernel.CreateParams, no
 	if err != nil {
 		return nil, fmt.Errorf("marshal labels: %w", err)
 	}
-	if _, err := pgnamespace.Ensure(ctx, s.db.Pool(), secret.GetNamespace()); err != nil {
+	tx, err := s.db.Pool().Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin create secret tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := pgnamespace.EnsureAt(ctx, tx, secret.GetNamespace(), now.UTC()); err != nil {
 		return nil, err
 	}
-	if _, err := s.db.Pool().Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO secrets (
-			secret_id, namespace, type, data_keys, encrypted_payload, labels, version, created_at, updated_at
-		) VALUES ($1, $2, $3, $4::jsonb, $5, $6::jsonb, $7, $8, $9)
-	`, secret.GetID(), secret.GetNamespace(), secret.GetType().String(), dataKeysJSON, ciphertext, labelsJSON, secret.GetVersion(), now.UTC(), now.UTC()); err != nil {
+			secret_id, namespace, type, data_keys, encrypted_payload, labels, created_at
+		) VALUES ($1, $2, $3, $4::jsonb, $5, $6::jsonb, $7)
+	`, secret.GetID(), secret.GetNamespace(), secret.GetType().String(), dataKeysJSON, ciphertext, labelsJSON, now.UTC()); err != nil {
 		return nil, fmt.Errorf("insert secret: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit create secret tx: %w", err)
 	}
 	return secret, nil
 }

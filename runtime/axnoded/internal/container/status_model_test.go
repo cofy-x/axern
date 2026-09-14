@@ -6,6 +6,8 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 )
 
+func testExitCode(value int32) *int32 { return &value }
+
 func TestEmptyStatusIsUnknown(t *testing.T) {
 	if got := (Status{}).State(); got != apipb.ContainerState_CONTAINER_UNKNOWN {
 		t.Fatalf("empty status state = %s, want UNKNOWN", got)
@@ -23,7 +25,7 @@ func TestRuntimeCheckpointRoundTrip(t *testing.T) {
 	want := Status{
 		RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
 		Pid:          42, StartedAt: "2026-09-13T12:00:00.123456789Z", FinishedAt: "2026-09-13T12:00:01.987654321Z",
-		ExitCode: 23, ExitCodeKnown: true, Message: "exited",
+		ExitCode: testExitCode(23), Message: "exited",
 	}
 	data, err := want.encode()
 	if err != nil {

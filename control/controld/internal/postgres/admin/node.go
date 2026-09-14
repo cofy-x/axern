@@ -111,7 +111,7 @@ func requireNodeRetirementClear(ctx context.Context, tx pgx.Tx, req adminkernel.
 		{"unreleased allocation(s)", `SELECT COUNT(*) FROM allocations WHERE node_id = $1 AND lifecycle_state <> $2`, []any{req.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()}},
 		{"active reservation(s)", `SELECT COUNT(*) FROM reservations WHERE node_id = $1 AND released_at IS NULL`, []any{req.NodeID}},
 		{"active execution lease(s)", `SELECT COUNT(*) FROM execution_leases WHERE node_id = $1 AND revoked = FALSE AND expires_at > $2`, []any{req.NodeID, req.Now}},
-		{"active tunnel session(s)", `SELECT COUNT(*) FROM tunnel_sessions WHERE node_id = $1 AND status IN ($2, $3, $4)`, []any{req.NodeID, tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String()}},
+		{"active tunnel session(s)", `SELECT COUNT(*) FROM tunnel_sessions t JOIN allocations a ON a.allocation_id = t.allocation_id WHERE a.node_id = $1 AND t.status IN ($2, $3, $4)`, []any{req.NodeID, tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String()}},
 		{"allocation lifecycle retry item(s)", `SELECT COUNT(*) FROM allocation_reconcile_queue q JOIN allocations a ON a.allocation_id = q.allocation_id WHERE a.node_id = $1`, []any{req.NodeID}},
 	}
 	for _, check := range checks {

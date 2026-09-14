@@ -196,7 +196,7 @@ Run and Allocation deliberately do not share facts:
 
 | Fact | Sole durable owner |
 | --- | --- |
-| immutable execution config, labels, public lifecycle, cancellation, exit code, diagnostic, message, version, user timestamps | Run |
+| immutable execution config, labels, public lifecycle, cancellation, optional exit code, diagnostic, message, optimistic concurrency version, user timestamps | Run |
 | Allocation ID, Run ownership, Node binding, infrastructure lifecycle, node-active and cleanup timestamps | Allocation |
 | runtime/container existence, mount/network/cgroup cleanup progress | axnoded node-local state, converged into Allocation lifecycle |
 

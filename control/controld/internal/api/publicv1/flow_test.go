@@ -212,10 +212,9 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 		NodeID:        "node-a",
 		NodeAuthToken: "test-node-token",
 		Observations: []*nodev1.AllocationLifecycleObservation{{
-			AllocationID:  runResp.GetRun().GetAllocationID(),
-			State:         commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
-			ExitCode:      0,
-			ExitCodeKnown: true,
+			AllocationID: runResp.GetRun().GetAllocationID(),
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
+			ExitCode:     func() *int32 { value := int32(0); return &value }(),
 		}},
 	}); err != nil {
 		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)

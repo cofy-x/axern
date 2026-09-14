@@ -45,11 +45,8 @@ type Status struct {
 	StartedAt string
 	// FinishedAt is the finished timestamp.
 	FinishedAt string
-	// ExitCode is the container exit code.
-	ExitCode int32
-	// ExitCodeKnown reports whether ExitCode came from the runtime and is
-	// trustworthy for an exited container.
-	ExitCodeKnown bool
+	// ExitCode is present only when the runtime supplied a trustworthy result.
+	ExitCode *int32
 	// Message carries lifecycle details such as missing runtime exit status.
 	Message string
 	// DiagnosticCode is the structured terminal reason proven before the exit
@@ -60,8 +57,7 @@ type Status struct {
 // Equal compares two Status values for equality without reflection.
 func (s Status) Equal(other Status) bool {
 	if s.RuntimeState != other.RuntimeState || s.Pid != other.Pid || s.StartedAt != other.StartedAt ||
-		s.FinishedAt != other.FinishedAt || s.ExitCode != other.ExitCode ||
-		s.ExitCodeKnown != other.ExitCodeKnown || s.Message != other.Message ||
+		s.FinishedAt != other.FinishedAt || !equalExitCode(s.ExitCode, other.ExitCode) || s.Message != other.Message ||
 		s.DiagnosticCode != other.DiagnosticCode {
 		return false
 	}
@@ -97,7 +93,6 @@ func (s *Status) encode() ([]byte, error) {
 		StartedAt:      startedAt,
 		FinishedAt:     finishedAt,
 		ExitCode:       s.ExitCode,
-		ExitCodeKnown:  s.ExitCodeKnown,
 		Message:        s.Message,
 		DiagnosticCode: s.DiagnosticCode,
 	})
@@ -124,12 +119,18 @@ func (s *Status) decode(data []byte) error {
 		Pid:            int(checkpoint.GetInitProcessPid()),
 		StartedAt:      checkpointTimestampString(checkpoint.GetStartedAt()),
 		FinishedAt:     checkpointTimestampString(checkpoint.GetFinishedAt()),
-		ExitCode:       checkpoint.GetExitCode(),
-		ExitCodeKnown:  checkpoint.GetExitCodeKnown(),
+		ExitCode:       checkpoint.ExitCode,
 		Message:        checkpoint.GetMessage(),
 		DiagnosticCode: checkpoint.GetDiagnosticCode(),
 	}
 	return nil
+}
+
+func equalExitCode(left, right *int32) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func checkpointTimestamp(value string) (*timestamppb.Timestamp, error) {

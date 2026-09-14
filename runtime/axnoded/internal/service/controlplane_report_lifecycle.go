@@ -42,7 +42,7 @@ func (h *sandboxService) configureControlPlaneReports() {
 			}
 			return h.containerManager.Get(id)
 		},
-		HasAllocation: h.allocationController().HasControlPlaneBinding,
+		HasAllocation: h.allocationController().HasAdmittedAllocation,
 	})
 }
 
@@ -98,7 +98,6 @@ func (h *sandboxService) seedTerminalAllocationLifecycleOutbox(admittedAllocatio
 			Type:           container.EventTypeExit,
 			ContainerID:    item.ID,
 			ExitCode:       status.ExitCode,
-			ExitCodeKnown:  status.ExitCodeKnown,
 			ExitedAt:       exitedAt,
 			Reason:         status.Message,
 			DiagnosticCode: status.DiagnosticCode,
@@ -151,11 +150,11 @@ func memoryObservationIndicatesOOM(manifest *apipb.AllocationEnforcementManifest
 		observation.Events["oom_group_kill"] > manifest.GetInitialMemoryEventOomGroupKill()
 }
 
-func (h *sandboxService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
+func (h *sandboxService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time) {
 	if h == nil || h.controlPlaneReports == nil {
 		return
 	}
-	h.controlPlaneReports.ReportAllocationLifecycle(allocationID, status, exitCode, exitCodeKnown, ready, readinessMessage, message, observedAt)
+	h.controlPlaneReports.ReportAllocationLifecycle(allocationID, status, exitCode, ready, readinessMessage, message, observedAt)
 }
 
 func (h *sandboxService) ControlPlaneReporterHealth() ControlPlaneReporterHealth {

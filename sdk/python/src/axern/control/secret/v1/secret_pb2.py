@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$axern/control/secret/v1/secret.proto\x12\x17\x61xern.control.secret.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\xca\x02\n\x06Secret\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12\x31\n\x04type\x18\x03 \x01(\x0e\x32#.axern.control.secret.v1.SecretType\x12\x11\n\tdata_keys\x18\x04 \x03(\t\x12;\n\x06labels\x18\x05 \x03(\x0b\x32+.axern.control.secret.v1.Secret.LabelsEntry\x12\x0f\n\x07version\x18\x06 \x01(\x03\x12.\n\ncreated_at\x18\x07 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x08 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xf1\x01\n\x10SecretListFilter\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x31\n\x04type\x18\x02 \x01(\x0e\x32#.axern.control.secret.v1.SecretType\x12\x45\n\x06labels\x18\x03 \x03(\x0b\x32\x35.axern.control.secret.v1.SecretListFilter.LabelsEntry\x12\x0e\n\x06\x63ursor\x18\x04 \x01(\t\x12\x11\n\tpage_size\x18\x05 \x01(\x05\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xda\x02\n\x13\x43reateSecretRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x31\n\x04type\x18\x02 \x01(\x0e\x32#.axern.control.secret.v1.SecretType\x12Q\n\x0bstring_data\x18\x03 \x03(\x0b\x32<.axern.control.secret.v1.CreateSecretRequest.StringDataEntry\x12H\n\x06labels\x18\x04 \x03(\x0b\x32\x38.axern.control.secret.v1.CreateSecretRequest.LabelsEntry\x1a\x31\n\x0fStringDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"G\n\x14\x43reateSecretResponse\x12/\n\x06secret\x18\x01 \x01(\x0b\x32\x1f.axern.control.secret.v1.Secret\"%\n\x10GetSecretRequest\x12\x11\n\tsecret_id\x18\x01 \x01(\t\"D\n\x11GetSecretResponse\x12/\n\x06secret\x18\x01 \x01(\x0b\x32\x1f.axern.control.secret.v1.Secret\"O\n\x12ListSecretsRequest\x12\x39\n\x06\x66ilter\x18\x01 \x01(\x0b\x32).axern.control.secret.v1.SecretListFilter\"\\\n\x13ListSecretsResponse\x12\x30\n\x07secrets\x18\x01 \x03(\x0b\x32\x1f.axern.control.secret.v1.Secret\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"(\n\x13\x44\x65leteSecretRequest\x12\x11\n\tsecret_id\x18\x01 \x01(\t\"G\n\x14\x44\x65leteSecretResponse\x12/\n\x06secret\x18\x01 \x01(\x0b\x32\x1f.axern.control.secret.v1.Secret*e\n\nSecretType\x12\x1b\n\x17SECRET_TYPE_UNSPECIFIED\x10\x00\x12\x16\n\x12SECRET_TYPE_OPAQUE\x10\x01\x12\"\n\x1eSECRET_TYPE_DOCKER_CONFIG_JSON\x10\x02\x32\xbf\x03\n\rSecretControl\x12m\n\x0c\x43reateSecret\x12,.axern.control.secret.v1.CreateSecretRequest\x1a-.axern.control.secret.v1.CreateSecretResponse\"\x00\x12\x64\n\tGetSecret\x12).axern.control.secret.v1.GetSecretRequest\x1a*.axern.control.secret.v1.GetSecretResponse\"\x00\x12j\n\x0bListSecrets\x12+.axern.control.secret.v1.ListSecretsRequest\x1a,.axern.control.secret.v1.ListSecretsResponse\"\x00\x12m\n\x0c\x44\x65leteSecret\x12,.axern.control.secret.v1.DeleteSecretRequest\x1a-.axern.control.secret.v1.DeleteSecretResponse\"\x00\x42\x45ZCgithub.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1;secretv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n$axern/control/secret/v1/secret.proto\x12\x17\x61xern.control.secret.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x89\x02\n\x06Secret\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tnamespace\x18\x02 \x01(\t\x12\x31\n\x04type\x18\x03 \x01(\x0e\x32#.axern.control.secret.v1.SecretType\x12\x11\n\tdata_keys\x18\x04 \x03(\t\x12;\n\x06labels\x18\x05 \x03(\x0b\x32+.axern.control.secret.v1.Secret.LabelsEntry\x12.\n\ncreated_at\x18\x06 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xf1\x01\n\x10SecretListFilter\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x31\n\x04type\x18\x02 \x01(\x0e\x32#.axern.control.secret.v1.SecretType\x12\x45\n\x06labels\x18\x03 \x03(\x0b\x32\x35.axern.control.secret.v1.SecretListFilter.LabelsEntry\x12\x0e\n\x06\x63ursor\x18\x04 \x01(\t\x12\x11\n\tpage_size\x18\x05 \x01(\x05\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\xda\x02\n\x13\x43reateSecretRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x31\n\x04type\x18\x02 \x01(\x0e\x32#.axern.control.secret.v1.SecretType\x12Q\n\x0bstring_data\x18\x03 \x03(\x0b\x32<.axern.control.secret.v1.CreateSecretRequest.StringDataEntry\x12H\n\x06labels\x18\x04 \x03(\x0b\x32\x38.axern.control.secret.v1.CreateSecretRequest.LabelsEntry\x1a\x31\n\x0fStringDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a-\n\x0bLabelsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"G\n\x14\x43reateSecretResponse\x12/\n\x06secret\x18\x01 \x01(\x0b\x32\x1f.axern.control.secret.v1.Secret\"%\n\x10GetSecretRequest\x12\x11\n\tsecret_id\x18\x01 \x01(\t\"D\n\x11GetSecretResponse\x12/\n\x06secret\x18\x01 \x01(\x0b\x32\x1f.axern.control.secret.v1.Secret\"O\n\x12ListSecretsRequest\x12\x39\n\x06\x66ilter\x18\x01 \x01(\x0b\x32).axern.control.secret.v1.SecretListFilter\"\\\n\x13ListSecretsResponse\x12\x30\n\x07secrets\x18\x01 \x03(\x0b\x32\x1f.axern.control.secret.v1.Secret\x12\x13\n\x0bnext_cursor\x18\x02 \x01(\t\"(\n\x13\x44\x65leteSecretRequest\x12\x11\n\tsecret_id\x18\x01 \x01(\t\"G\n\x14\x44\x65leteSecretResponse\x12/\n\x06secret\x18\x01 \x01(\x0b\x32\x1f.axern.control.secret.v1.Secret*e\n\nSecretType\x12\x1b\n\x17SECRET_TYPE_UNSPECIFIED\x10\x00\x12\x16\n\x12SECRET_TYPE_OPAQUE\x10\x01\x12\"\n\x1eSECRET_TYPE_DOCKER_CONFIG_JSON\x10\x02\x32\xbf\x03\n\rSecretControl\x12m\n\x0c\x43reateSecret\x12,.axern.control.secret.v1.CreateSecretRequest\x1a-.axern.control.secret.v1.CreateSecretResponse\"\x00\x12\x64\n\tGetSecret\x12).axern.control.secret.v1.GetSecretRequest\x1a*.axern.control.secret.v1.GetSecretResponse\"\x00\x12j\n\x0bListSecrets\x12+.axern.control.secret.v1.ListSecretsRequest\x1a,.axern.control.secret.v1.ListSecretsResponse\"\x00\x12m\n\x0c\x44\x65leteSecret\x12,.axern.control.secret.v1.DeleteSecretRequest\x1a-.axern.control.secret.v1.DeleteSecretResponse\"\x00\x42\x45ZCgithub.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1;secretv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -41,36 +41,36 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['_CREATESECRETREQUEST_STRINGDATAENTRY']._serialized_options = b'8\001'
   _globals['_CREATESECRETREQUEST_LABELSENTRY']._loaded_options = None
   _globals['_CREATESECRETREQUEST_LABELSENTRY']._serialized_options = b'8\001'
-  _globals['_SECRETTYPE']._serialized_start=1496
-  _globals['_SECRETTYPE']._serialized_end=1597
+  _globals['_SECRETTYPE']._serialized_start=1431
+  _globals['_SECRETTYPE']._serialized_end=1532
   _globals['_SECRET']._serialized_start=99
-  _globals['_SECRET']._serialized_end=429
-  _globals['_SECRET_LABELSENTRY']._serialized_start=384
-  _globals['_SECRET_LABELSENTRY']._serialized_end=429
-  _globals['_SECRETLISTFILTER']._serialized_start=432
-  _globals['_SECRETLISTFILTER']._serialized_end=673
-  _globals['_SECRETLISTFILTER_LABELSENTRY']._serialized_start=384
-  _globals['_SECRETLISTFILTER_LABELSENTRY']._serialized_end=429
-  _globals['_CREATESECRETREQUEST']._serialized_start=676
-  _globals['_CREATESECRETREQUEST']._serialized_end=1022
-  _globals['_CREATESECRETREQUEST_STRINGDATAENTRY']._serialized_start=926
-  _globals['_CREATESECRETREQUEST_STRINGDATAENTRY']._serialized_end=975
-  _globals['_CREATESECRETREQUEST_LABELSENTRY']._serialized_start=384
-  _globals['_CREATESECRETREQUEST_LABELSENTRY']._serialized_end=429
-  _globals['_CREATESECRETRESPONSE']._serialized_start=1024
-  _globals['_CREATESECRETRESPONSE']._serialized_end=1095
-  _globals['_GETSECRETREQUEST']._serialized_start=1097
-  _globals['_GETSECRETREQUEST']._serialized_end=1134
-  _globals['_GETSECRETRESPONSE']._serialized_start=1136
-  _globals['_GETSECRETRESPONSE']._serialized_end=1204
-  _globals['_LISTSECRETSREQUEST']._serialized_start=1206
-  _globals['_LISTSECRETSREQUEST']._serialized_end=1285
-  _globals['_LISTSECRETSRESPONSE']._serialized_start=1287
-  _globals['_LISTSECRETSRESPONSE']._serialized_end=1379
-  _globals['_DELETESECRETREQUEST']._serialized_start=1381
-  _globals['_DELETESECRETREQUEST']._serialized_end=1421
-  _globals['_DELETESECRETRESPONSE']._serialized_start=1423
-  _globals['_DELETESECRETRESPONSE']._serialized_end=1494
-  _globals['_SECRETCONTROL']._serialized_start=1600
-  _globals['_SECRETCONTROL']._serialized_end=2047
+  _globals['_SECRET']._serialized_end=364
+  _globals['_SECRET_LABELSENTRY']._serialized_start=319
+  _globals['_SECRET_LABELSENTRY']._serialized_end=364
+  _globals['_SECRETLISTFILTER']._serialized_start=367
+  _globals['_SECRETLISTFILTER']._serialized_end=608
+  _globals['_SECRETLISTFILTER_LABELSENTRY']._serialized_start=319
+  _globals['_SECRETLISTFILTER_LABELSENTRY']._serialized_end=364
+  _globals['_CREATESECRETREQUEST']._serialized_start=611
+  _globals['_CREATESECRETREQUEST']._serialized_end=957
+  _globals['_CREATESECRETREQUEST_STRINGDATAENTRY']._serialized_start=861
+  _globals['_CREATESECRETREQUEST_STRINGDATAENTRY']._serialized_end=910
+  _globals['_CREATESECRETREQUEST_LABELSENTRY']._serialized_start=319
+  _globals['_CREATESECRETREQUEST_LABELSENTRY']._serialized_end=364
+  _globals['_CREATESECRETRESPONSE']._serialized_start=959
+  _globals['_CREATESECRETRESPONSE']._serialized_end=1030
+  _globals['_GETSECRETREQUEST']._serialized_start=1032
+  _globals['_GETSECRETREQUEST']._serialized_end=1069
+  _globals['_GETSECRETRESPONSE']._serialized_start=1071
+  _globals['_GETSECRETRESPONSE']._serialized_end=1139
+  _globals['_LISTSECRETSREQUEST']._serialized_start=1141
+  _globals['_LISTSECRETSREQUEST']._serialized_end=1220
+  _globals['_LISTSECRETSRESPONSE']._serialized_start=1222
+  _globals['_LISTSECRETSRESPONSE']._serialized_end=1314
+  _globals['_DELETESECRETREQUEST']._serialized_start=1316
+  _globals['_DELETESECRETREQUEST']._serialized_end=1356
+  _globals['_DELETESECRETRESPONSE']._serialized_start=1358
+  _globals['_DELETESECRETRESPONSE']._serialized_end=1429
+  _globals['_SECRETCONTROL']._serialized_start=1535
+  _globals['_SECRETCONTROL']._serialized_end=1982
 # @@protoc_insertion_point(module_scope)

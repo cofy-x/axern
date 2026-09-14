@@ -220,16 +220,15 @@ message ReportNodeResponse {}
 message AllocationLifecycleObservation {
   string allocation_id = 1;
   axern.control.common.v1.AllocationLifecycleState state = 2;
-  int32 exit_code = 3;
-  bool exit_code_known = 4;
-  string message = 5;
-  google.protobuf.Timestamp observed_at = 6;
-  bool ready = 7;
-  string readiness_message = 8;
+  optional int32 exit_code = 3;
+  string message = 4;
+  google.protobuf.Timestamp observed_at = 5;
+  bool ready = 6;
+  string readiness_message = 7;
   // diagnostic_code is the bounded, machine-readable terminal or degraded
   // cause observed by the node. The message remains operator context and is
   // never parsed to recover this code.
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 9;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 8;
 }
 
 message BatchReportAllocationLifecycleRequest {

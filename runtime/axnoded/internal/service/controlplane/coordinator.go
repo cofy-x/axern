@@ -119,7 +119,7 @@ func (c *Coordinator) NotifyInventoryChanged() {
 	c.reporter.NotifyInventoryChanged()
 }
 
-func (c *Coordinator) ReportAllocationLifecycle(allocationID string, state commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
+func (c *Coordinator) ReportAllocationLifecycle(allocationID string, state commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time) {
 	if c == nil || c.reporter == nil || c.hasAllocation == nil {
 		return
 	}
@@ -136,7 +136,6 @@ func (c *Coordinator) ReportAllocationLifecycle(allocationID string, state commo
 		AllocationID:     allocationID,
 		State:            state,
 		ExitCode:         exitCode,
-		ExitCodeKnown:    exitCodeKnown,
 		Ready:            ready,
 		ReadinessMessage: strings.TrimSpace(readinessMessage),
 		Message:          message,
@@ -199,13 +198,12 @@ func ContainerExitReportFromContainer(ct *container.Container, event container.E
 	logrus.WithFields(logrus.Fields{
 		"allocation_id": allocationID,
 		"exit_code":     event.ExitCode,
-		"known":         event.ExitCodeKnown,
+		"known":         event.ExitCode != nil,
 	}).Debug("reporting exited allocation lifecycle to control plane")
 	return nodecontrol.AllocationLifecycleReport{
 		AllocationID:   allocationID,
 		State:          commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
 		ExitCode:       event.ExitCode,
-		ExitCodeKnown:  event.ExitCodeKnown,
 		Message:        message,
 		DiagnosticCode: diagnosticCode,
 		ObservedAt:     observedAt,

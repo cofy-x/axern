@@ -70,7 +70,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 		final, waitErr := apprun.New(session.Run).Wait(probeCtx, runID, apprun.WaitTargetTerminal, options.Timeout, nil)
 		if waitErr != nil {
 			probeErr = waitErr
-		} else if final == nil || !final.GetExitCodeKnown() || final.GetExitCode() != 0 {
+		} else if final == nil || final.ExitCode == nil || final.GetExitCode() != 0 {
 			probeErr = fmt.Errorf("probe run did not report a successful exit")
 		}
 	}

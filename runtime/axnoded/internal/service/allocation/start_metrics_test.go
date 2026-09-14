@@ -407,7 +407,7 @@ func TestStartAllocationRecordsSuccessResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("startAllocation() error = %v", err)
 	}
-	if resp.GetCode() != 0 || resp.GetID() == "" {
+	if resp.GetAllocationID() == "" {
 		t.Fatalf("startAllocation() response = %+v, want successful container id", resp)
 	}
 	if len(sink.results) != 1 {

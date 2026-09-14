@@ -43,38 +43,35 @@ message ResolvedSecretFile {
 }
 
 message StartResponse {
-  int32 code = 1;
-  string message = 2;
-  string ID = 3;
-  axern.control.capability.v1.CapabilityConditionSet capability_verification = 4;
+  string allocation_id = 1;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 2;
 }
 
 message DeleteRequest {
-  string ID = 1;
+  string id = 1;
   int64 timeout = 2;
 }
 
 message DeleteResponse {}
 
 message KillRequest {
-  string ID = 1;
+  string id = 1;
   string signal = 2;
 }
 
 message KillResponse {}
 
 message WaitRequest {
-  string ID = 1;
+  string id = 1;
 }
 
 message WaitResponse {
-  int32 status = 1;
-  int32 exit_code = 2;
-  string message = 3;
+  optional int32 exit_code = 1;
+  string message = 2;
 }
 
 message ListContainersRequest {
-  string ID = 1;
+  string id = 1;
 }
 
 message ListContainersResponse {
@@ -82,17 +79,17 @@ message ListContainersResponse {
 }
 
 enum ContainerState {
-  CONTAINER_RUNNING = 0;
-  CONTAINER_EXITED = 1;
-  CONTAINER_UNKNOWN = 2;
+  CONTAINER_UNKNOWN = 0;
+  CONTAINER_RUNNING = 1;
+  CONTAINER_EXITED = 2;
 }
 
 message ContainerStatus {
-  string ID = 1;
+  string id = 1;
   ContainerState state = 2;
   int64 started_at = 3;
   int64 finished_at = 4;
-  int32 exit_code = 5;
+  optional int32 exit_code = 5;
   string message = 6;
   string stdout = 7;
   string stderr = 8;
@@ -114,7 +111,7 @@ message RuntimeVersion {
 }
 
 message StatsRequest {
-  string ID = 1;
+  string id = 1;
 }
 
 message StatsResponse {

@@ -38,7 +38,7 @@ type SandboxService interface {
 	Run(context.Context) error
 	Shutdown(context.Context) error
 	Ready() bool
-	ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time)
 	NodeInventory() (nodeinventory.NodeInventorySnapshot, bool)
 }
 

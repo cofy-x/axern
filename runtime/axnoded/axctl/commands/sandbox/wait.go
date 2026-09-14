@@ -30,7 +30,7 @@ var WaitCmd = cli.Command{
 
 		fmt.Printf("Sandbox: %s\n", sandboxID)
 		fmt.Printf("State: %s\n", localStateString(resp.GetState()))
-		fmt.Printf("Exit Code: %s\n", localExitCodeString(resp.GetState(), resp.GetExitCode(), resp.GetExitCodeKnown()))
+		fmt.Printf("Exit Code: %s\n", localExitCodeString(resp.GetState(), resp.ExitCode))
 		if resp.GetMessage() != "" {
 			fmt.Printf("Message: %s\n", resp.GetMessage())
 		}

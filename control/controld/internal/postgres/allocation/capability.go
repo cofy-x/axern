@@ -126,10 +126,10 @@ func ReplaceCapabilityConditions(ctx context.Context, executor pgx.Tx, allocatio
 		return fmt.Errorf("load capability conditions: %w", err)
 	}
 	if _, err := executor.Exec(ctx, `
-		INSERT INTO allocation_capability_conditions (allocation_id, observed_at, conditions, updated_at)
-		VALUES ($1, $2, $3::jsonb, $4)
-		ON CONFLICT (allocation_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, conditions = EXCLUDED.conditions, updated_at = EXCLUDED.updated_at
-	`, strings.TrimSpace(allocationID), canonical.GetObservedAt().AsTime().UTC(), string(payload), now.UTC()); err != nil {
+		INSERT INTO allocation_capability_conditions (allocation_id, observed_at, conditions)
+		VALUES ($1, $2, $3::jsonb)
+		ON CONFLICT (allocation_id) DO UPDATE SET observed_at = EXCLUDED.observed_at, conditions = EXCLUDED.conditions
+	`, strings.TrimSpace(allocationID), canonical.GetObservedAt().AsTime().UTC(), string(payload)); err != nil {
 		return fmt.Errorf("persist capability conditions: %w", err)
 	}
 	return nil

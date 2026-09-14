@@ -43,7 +43,6 @@ func TestCreateRuntimeContainerPreservesFastExitStatus(t *testing.T) {
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           containerID,
-		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)
@@ -56,7 +55,7 @@ func TestCreateRuntimeContainerPreservesFastExitStatus(t *testing.T) {
 		t.Fatalf("Get(%q) before exact exit: %v", containerID, err)
 	}
 	createdStatus := created.Status.Get()
-	if createdStatus.FinishedAt != "" || createdStatus.Message != "" || createdStatus.ExitCodeKnown {
+	if createdStatus.FinishedAt != "" || createdStatus.Message != "" || createdStatus.ExitCode != nil {
 		t.Fatalf("lossy runtime list published a terminal status before Wait proof: %+v", createdStatus)
 	}
 	if createdStatus.Pid != 0 || createdStatus.StartedAt == "2026-08-11T15:59:37Z" {
@@ -92,7 +91,6 @@ func TestCreateRuntimeContainerSyncsRuntimeStateIntoStatus(t *testing.T) {
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           "axctl-create-sync",
-		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("CreateRuntimeContainer() error = %v", err)
@@ -137,7 +135,7 @@ func assertExactContainerExit(t *testing.T, fixture testAllocationController, co
 		c, err := fixture.manager.Get(containerID)
 		if err == nil {
 			status := c.Status.Get()
-			if status.ExitCodeKnown && status.ExitCode == exitCode {
+			if status.ExitCode != nil && *status.ExitCode == exitCode {
 				if status.Message != "" {
 					t.Fatalf("container exit message = %q, want empty for exact runtime exit", status.Message)
 				}

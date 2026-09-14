@@ -59,15 +59,14 @@ func TestStart_And_Delete(t *testing.T) {
 		t.Logf("Start failed (expected in test env): %v", err)
 		return
 	}
-	assert.Equal(t, int32(0), startResp.Code)
-	assert.NotEmpty(t, startResp.ID)
+	assert.NotEmpty(t, startResp.AllocationID)
 
-	containerDir := filepath.Join(s.config.RootDir, "containers", startResp.ID)
+	containerDir := filepath.Join(s.config.RootDir, "containers", startResp.AllocationID)
 	assert.NoError(t, os.MkdirAll(containerDir, 0755))
 	assert.NoError(t, os.WriteFile(filepath.Join(containerDir, config.ContainerSpecFile), []byte(`{"ociVersion":"1.0.0","annotations":{},"linux":{"cgroupsPath":""}}`), 0644))
 
 	_, err = s.Delete(context.Background(), &runtime.DeleteRequest{
-		ID: startResp.ID,
+		ID: startResp.AllocationID,
 	})
 	assert.NoError(t, err)
 }
@@ -99,7 +98,7 @@ func TestStartUsesExplicitAllocationIdentity(t *testing.T) {
 		Stderr:              "/tmp/explicit-allocation-id.stderr",
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), resp.GetCode())
+	assert.Equal(t, "test-explicit-allocation-id", resp.GetAllocationID())
 	if handler.lastRequest == nil {
 		t.Fatalf("expected create request to be captured")
 	}
@@ -150,7 +149,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 
 	first, err := s.Start(context.Background(), request)
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), first.GetCode())
+	assert.Equal(t, request.GetAllocationID(), first.GetAllocationID())
 	assert.Equal(t, 1, handler.createCalls)
 	assert.Empty(t, request.GetEnv())
 	assert.Empty(t, request.GetMounts())
@@ -159,7 +158,7 @@ func TestStartRetryRequiresExactDurableRequestContract(t *testing.T) {
 	s.capabilityManager = nil
 	second, err := s.Start(context.Background(), request)
 	assert.NoError(t, err)
-	assert.Equal(t, int32(0), second.GetCode())
+	assert.Equal(t, request.GetAllocationID(), second.GetAllocationID())
 	assert.Equal(t, 1, handler.createCalls)
 	assert.Nil(t, second.GetCapabilityVerification())
 

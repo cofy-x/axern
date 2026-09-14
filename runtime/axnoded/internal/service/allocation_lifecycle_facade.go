@@ -51,12 +51,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 	controller := h.allocationController()
 	unlockLifecycle := controller.LockAllocationLifecycle(request.GetAllocationID())
 	defer unlockLifecycle()
-	if controlPlaneNodeID != "" {
-		if err = controller.BindControlPlaneAllocation(request.GetAllocationID(), controlPlaneNodeID, requestDigest); err != nil {
-			return nil, err
-		}
-	}
-	if controller.LaunchVerification(request.GetAllocationID()) != nil {
+	if controller.VerifiedEnforcementManifest(request.GetAllocationID()) != nil {
 		if controller.AllocationRequestDigest(request.GetAllocationID()) != requestDigest {
 			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))
 		}
@@ -71,7 +66,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		return resp, nil
 	}
 	// A live replay is defined by the immutable request digest and
-	// durable launch verification above. Current node policy may legitimately differ
+	// verified enforcement manifest above. Current node policy may legitimately differ
 	// after a config or runtime identity change; applying it retroactively would
 	// break idempotency. New creates still derive and verify the complete current
 	// requirement contract before any allocation side effect.
@@ -87,18 +82,18 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	err = controller.StoreAllocationIntent(request.GetAllocationID(), requestDigest, request.GetResources(), admitted)
+	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, request.GetResources(), admitted)
 	if err != nil {
 		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err
 	}
 	resp, err := controller.StartWithLifecycleHeld(ctx, request)
-	if err != nil || resp == nil || resp.GetCode() != 0 {
+	if err != nil || resp == nil || resp.GetAllocationID() == "" {
 		if err == nil {
 			if resp == nil {
 				err = fmt.Errorf("allocation start returned no response")
 			} else {
-				err = fmt.Errorf("allocation start failed: %s", resp.GetMessage())
+				err = fmt.Errorf("allocation start returned no allocation identity")
 			}
 		}
 		op.SetErrorStatus("allocation start failed")
@@ -209,7 +204,7 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 		}
 		verifiedKeys = append(verifiedKeys, capabilitycontract.CloneKey(dependency.GetKey()))
 	}
-	return h.allocationController().StoreLaunchVerification(containerID, manifest, verifiedKeys, time.Now().UTC())
+	return h.allocationController().StoreVerifiedEnforcementManifest(containerID, manifest, verifiedKeys, time.Now().UTC())
 }
 
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
@@ -317,18 +312,22 @@ func (h *sandboxService) verifyPostCreateCapabilityRequirements(ctx context.Cont
 		}
 		byKey[id] = condition
 	}
-	launchVerification := h.allocationController().LaunchVerification(containerID)
-	verifiedAtLaunch := make(map[string]struct{})
-	if launchVerification != nil {
-		for _, key := range launchVerification.GetVerifiedCapabilities() {
+	verifiedManifest := h.allocationController().VerifiedEnforcementManifest(containerID)
+	verifiedByManifest := make(map[string]struct{})
+	if verifiedManifest != nil {
+		verifiedKeys, keyErr := allocation.RequiredEnforcementKeys(verifiedManifest, h.allocationController().CapabilityRequirements(containerID))
+		if keyErr != nil {
+			return nil, nil, fmt.Errorf("derive persisted enforcement verification: %w", keyErr)
+		}
+		for _, key := range verifiedKeys {
 			id, keyErr := capabilitycontract.KeyID(key)
 			if keyErr != nil {
-				return nil, nil, fmt.Errorf("validate persisted launch verification: %w", keyErr)
+				return nil, nil, fmt.Errorf("validate persisted enforcement verification: %w", keyErr)
 			}
-			if _, duplicate := verifiedAtLaunch[id]; duplicate {
-				return nil, nil, fmt.Errorf("persisted launch verification contains duplicate capability %q", id)
+			if _, duplicate := verifiedByManifest[id]; duplicate {
+				return nil, nil, fmt.Errorf("persisted enforcement verification contains duplicate capability %q", id)
 			}
-			verifiedAtLaunch[id] = struct{}{}
+			verifiedByManifest[id] = struct{}{}
 		}
 	}
 	for _, dependency := range admitted {
@@ -339,16 +338,16 @@ func (h *sandboxService) verifyPostCreateCapabilityRequirements(ctx context.Cont
 		if keyErr != nil {
 			return nil, nil, keyErr
 		}
-		if _, ok := verifiedAtLaunch[id]; !ok {
+		if _, ok := verifiedByManifest[id]; !ok {
 			return nil, nil, fmt.Errorf("capability %q has no durable create-before-start verification", id)
 		}
-		delete(verifiedAtLaunch, id)
+		delete(verifiedByManifest, id)
 		if condition := byKey[id]; condition != nil {
 			condition.Message = "runtime-specific enforcement verified before workload start"
 		}
 	}
-	if len(verifiedAtLaunch) != 0 {
-		return nil, nil, fmt.Errorf("launch verification contains capabilities outside the immutable requirement set")
+	if len(verifiedByManifest) != 0 {
+		return nil, nil, fmt.Errorf("enforcement verification contains capabilities outside the immutable requirement set")
 	}
 	return admitted, conditions, nil
 }

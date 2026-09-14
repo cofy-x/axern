@@ -40,13 +40,12 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	template := testEnvironmentTemplate(t, "allocation-runtime")
 	runtime := addTestRuntimeMappingRuntime(t, first.environmentCache, template)
 	allocationID := "allocation-runtime-round-trip"
-	assert.NoError(t, first.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
-	err := first.controller.StoreAllocationIntent(allocationID, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil)
+	err := first.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil)
 	assert.NoError(t, err)
 	runtime.IncRef()
 	assert.NoError(t, first.controller.rememberContainerRuntime(allocationID, runtime))
 	now := time.Now().UTC()
-	assert.NoError(t, first.controller.StoreLaunchVerification(allocationID, &apipb.AllocationEnforcementManifest{
+	assert.NoError(t, first.controller.StoreVerifiedEnforcementManifest(allocationID, &apipb.AllocationEnforcementManifest{
 		BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
 		CreatedAtUnixNano: now.UnixNano(),
 	}, nil, now))

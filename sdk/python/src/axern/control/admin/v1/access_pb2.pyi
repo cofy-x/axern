@@ -51,13 +51,12 @@ ACCESS_ROLE_NAMESPACE_EDITOR: AccessRole
 ACCESS_ROLE_NAMESPACE_VIEWER: AccessRole
 
 class Principal(_message.Message):
-    __slots__ = ("principal_id", "name", "display_name", "kind", "status", "version", "created_at", "updated_at")
+    __slots__ = ("principal_id", "name", "display_name", "kind", "status", "created_at", "updated_at")
     PRINCIPAL_ID_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
     principal_id: str
@@ -65,10 +64,9 @@ class Principal(_message.Message):
     display_name: str
     kind: PrincipalKind
     status: PrincipalStatus
-    version: int
     created_at: _timestamp_pb2.Timestamp
     updated_at: _timestamp_pb2.Timestamp
-    def __init__(self, principal_id: _Optional[str] = ..., name: _Optional[str] = ..., display_name: _Optional[str] = ..., kind: _Optional[_Union[PrincipalKind, str]] = ..., status: _Optional[_Union[PrincipalStatus, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, principal_id: _Optional[str] = ..., name: _Optional[str] = ..., display_name: _Optional[str] = ..., kind: _Optional[_Union[PrincipalKind, str]] = ..., status: _Optional[_Union[PrincipalStatus, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class PrincipalCredential(_message.Message):
     __slots__ = ("credential_id", "principal_id", "fingerprint", "certificate_not_after", "label", "created_at", "revoked_at")

@@ -87,7 +87,7 @@ func TestReportAllocationLifecycleShapesReport(t *testing.T) {
 	})
 	observedAt := time.Date(2026, 5, 1, 2, 3, 4, 0, time.UTC)
 
-	coordinator.ReportAllocationLifecycle(" alloc-123 ", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, 0, false, true, " ready ", "ok", observedAt)
+	coordinator.ReportAllocationLifecycle(" alloc-123 ", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, nil, true, " ready ", "ok", observedAt)
 
 	if reporter.report.AllocationID != "alloc-123" {
 		t.Fatalf("allocation id = %q, want trimmed alloc-123", reporter.report.AllocationID)
@@ -117,10 +117,10 @@ func TestReportContainerExitUsesAllocationIdentity(t *testing.T) {
 		},
 	})
 
+	exitCode := int32(42)
 	coordinator.ReportContainerExit(container.Event{
 		ContainerID:    "alloc-123",
-		ExitCode:       42,
-		ExitCodeKnown:  true,
+		ExitCode:       &exitCode,
 		DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
 		ExitedAt:       time.Date(2026, 5, 1, 2, 3, 4, 0, time.UTC),
 	})
@@ -131,8 +131,8 @@ func TestReportContainerExitUsesAllocationIdentity(t *testing.T) {
 	if reporter.report.State != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
 		t.Fatalf("state = %v, want STOPPED", reporter.report.State)
 	}
-	if reporter.report.ExitCode != 42 || !reporter.report.ExitCodeKnown {
-		t.Fatalf("exit = %d/%v, want 42/true", reporter.report.ExitCode, reporter.report.ExitCodeKnown)
+	if reporter.report.ExitCode == nil || *reporter.report.ExitCode != 42 {
+		t.Fatalf("exit = %v, want 42", reporter.report.ExitCode)
 	}
 	if reporter.report.DiagnosticCode != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {
 		t.Fatalf("diagnostic code = %v, want MEMORY_LIMIT_EXCEEDED", reporter.report.DiagnosticCode)

@@ -84,8 +84,8 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO runs (
 				run_id, namespace, environment_id, status,
-				config, labels, version, created_at, updated_at, exit_code, exit_code_known, message
-			) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, 0, false, '')
+				config, labels, version, created_at, updated_at, message
+			) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7, $8, $9, '')
 		`, run.GetID(), run.GetNamespace(), run.GetEnvironmentID(), run.GetStatus().String(), cfgJSON, labelsJSON, run.GetVersion(), now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert run: %w", err)
 		}

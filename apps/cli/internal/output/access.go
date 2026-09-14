@@ -14,7 +14,6 @@ type PrincipalJSON struct {
 	DisplayName string `json:"display_name"`
 	Kind        string `json:"kind"`
 	Status      string `json:"status"`
-	Version     int64  `json:"version"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
 }
@@ -122,7 +121,7 @@ func principalJSON(principal *adminv1.Principal) *PrincipalJSON {
 	if principal == nil {
 		return nil
 	}
-	return &PrincipalJSON{PrincipalID: principal.GetPrincipalID(), Name: principal.GetName(), DisplayName: principal.GetDisplayName(), Kind: accessEnumLabel(principal.GetKind().String()), Status: accessEnumLabel(principal.GetStatus().String()), Version: principal.GetVersion(), CreatedAt: FormatProtoTimestamp(principal.GetCreatedAt()), UpdatedAt: FormatProtoTimestamp(principal.GetUpdatedAt())}
+	return &PrincipalJSON{PrincipalID: principal.GetPrincipalID(), Name: principal.GetName(), DisplayName: principal.GetDisplayName(), Kind: accessEnumLabel(principal.GetKind().String()), Status: accessEnumLabel(principal.GetStatus().String()), CreatedAt: FormatProtoTimestamp(principal.GetCreatedAt()), UpdatedAt: FormatProtoTimestamp(principal.GetUpdatedAt())}
 }
 
 func credentialJSON(credential *adminv1.PrincipalCredential) *PrincipalCredentialJSON {

@@ -28,8 +28,10 @@ type fakeAllocationLifecycleReporter struct {
 func (f *fakeAllocationLifecycleReporter) ReportAllocationLifecycle(report controlplane.AllocationLifecycleReport) error {
 	f.lastID = report.AllocationID
 	f.status = report.State
-	f.exitCode = report.ExitCode
-	f.known = report.ExitCodeKnown
+	if report.ExitCode != nil {
+		f.exitCode = *report.ExitCode
+		f.known = true
+	}
 	f.ready = report.Ready
 	f.readinessMessage = report.ReadinessMessage
 	f.message = report.Message
@@ -90,11 +92,11 @@ func TestContainerExitObserverReportsAllocationLifecycleState(t *testing.T) {
 		}),
 	}
 
+	exitCode := int32(0)
 	service.handleContainerExitControlPlaneReport(container.Event{
 		Type:          container.EventTypeExit,
 		ContainerID:   "alloc-123",
-		ExitCode:      0,
-		ExitCodeKnown: true,
+		ExitCode:      &exitCode,
 		ExitedAt:      time.Now().UTC(),
 	})
 
@@ -121,8 +123,7 @@ func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T
 	finishedAt := time.Date(2026, 8, 11, 12, 34, 56, 0, time.UTC)
 	if err := manager.SetExit(
 		"alloc-recovered",
-		42,
-		true,
+		func() *int32 { value := int32(42); return &value }(),
 		finishedAt,
 		"sandbox exited",
 		commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED,
@@ -133,7 +134,7 @@ func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T
 	stateStore := storetest.NewMockStore()
 	outbox := controlplane.NewAllocationLifecycleOutbox(stateStore)
 	allocationController := allocation.NewController(allocation.Options{Store: stateStore})
-	if err := allocationController.StoreAllocationIntent("alloc-recovered", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+	if err := allocationController.StoreAllocationIntent("alloc-recovered", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 		t.Fatalf("StoreAllocationIntent() error = %v", err)
 	}
 	service := &sandboxService{
@@ -160,8 +161,8 @@ func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T
 	if replayed.GetAllocationID() != "alloc-recovered" {
 		t.Fatalf("replayed allocation = %q, want alloc-recovered", replayed.GetAllocationID())
 	}
-	if replayed.GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED || replayed.GetExitCode() != 42 || !replayed.GetExitCodeKnown() {
-		t.Fatalf("replayed lifecycle = status %v exit %d known %v", replayed.GetState(), replayed.GetExitCode(), replayed.GetExitCodeKnown())
+	if replayed.GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED || replayed.ExitCode == nil || replayed.GetExitCode() != 42 {
+		t.Fatalf("replayed lifecycle = status %v exit %v", replayed.GetState(), replayed.ExitCode)
 	}
 	if replayed.GetMessage() != "sandbox exited" || replayed.GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED {
 		t.Fatalf("replayed diagnostics = message %q code %v", replayed.GetMessage(), replayed.GetDiagnosticCode())

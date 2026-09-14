@@ -36,7 +36,7 @@ type Options struct {
 	EnvironmentCache            *environmentcache.EnvironmentCache
 	Networking                  *servicenetworking.Coordinator
 	StartMetricSink             StartMetricSink
-	ReportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	ReportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time)
 	InventoryChanged            func()
 	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *environmentcache.RootFS) error
 	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
@@ -52,15 +52,14 @@ type Controller struct {
 	environmentCache            *environmentcache.EnvironmentCache
 	networking                  *servicenetworking.Coordinator
 	startMetricSink             StartMetricSink
-	reportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time)
+	reportStatus                func(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time)
 	inventoryChanged            func()
 	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *environmentcache.RootFS) error
 	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	egress                      egress.Manager
 
-	stateMu              sync.RWMutex
-	allocationStates     map[string]*allocationState
-	controlPlaneBindings map[string]*runtime.ControlPlaneAllocationBinding
+	stateMu          sync.RWMutex
+	allocationStates map[string]*allocationState
 
 	allocationLifecycleLocks allocationKeyedLocks
 	recordMutationLocks      allocationKeyedLocks
@@ -96,7 +95,6 @@ func NewController(options Options) *Controller {
 		preActivationCapabilityGate: options.PreActivationCapabilityGate,
 		egress:                      options.Egress,
 		allocationStates:            make(map[string]*allocationState),
-		controlPlaneBindings:        make(map[string]*runtime.ControlPlaneAllocationBinding),
 	}
 	if c.startMetricSink == nil {
 		c.startMetricSink = DefaultStartMetricSink{}
@@ -152,17 +150,14 @@ func (c *Controller) Delete(ctx context.Context, request *runtime.DeleteRequest)
 func (c *Controller) DeleteControlPlane(ctx context.Context, request *runtime.DeleteRequest, nodeID string) (*runtime.DeleteResponse, error) {
 	unlockLifecycle := c.allocationLifecycleLocks.Lock(request.GetID())
 	defer unlockLifecycle()
-	if c.HasAllocation(request.GetID()) && !c.HasControlPlaneBinding(request.GetID()) {
-		return nil, fmt.Errorf("allocation %q has no control-plane binding", request.GetID())
+	if c.HasAllocation(request.GetID()) && !c.HasAdmittedAllocation(request.GetID()) {
+		return nil, fmt.Errorf("allocation %q has no admitted allocation record", request.GetID())
 	}
-	if c.HasControlPlaneBinding(request.GetID()) && !c.ControlPlaneBindingMatches(request.GetID(), nodeID) {
+	if c.HasAdmittedAllocation(request.GetID()) && !c.AdmittedAllocationMatches(request.GetID(), nodeID) {
 		return nil, fmt.Errorf("allocation %q is not bound to node %q", request.GetID(), strings.TrimSpace(nodeID))
 	}
 	response, err := c.deleteAllocationWithLifecycleHeld(ctx, request)
 	if err != nil {
-		return response, err
-	}
-	if err := c.ReleaseControlPlaneAllocation(request.GetID(), nodeID); err != nil {
 		return response, err
 	}
 	return response, nil
@@ -288,5 +283,5 @@ func (c *Controller) reportStartRunningStatus(containerID string, observedAt tim
 	if c == nil || c.reportStatus == nil || strings.TrimSpace(containerID) == "" {
 		return
 	}
-	c.reportStatus(containerID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, 0, false, true, "", "", observedAt)
+	c.reportStatus(containerID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, nil, true, "", "", observedAt)
 }

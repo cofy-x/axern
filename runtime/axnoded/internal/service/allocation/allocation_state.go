@@ -47,7 +47,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetAllocationRequestDigest() == "" && record.GetEnvironmentTemplate() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil && record.GetLaunchVerification() == nil)
+	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetEnvironmentTemplate() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -87,22 +87,22 @@ func (h *Controller) EnvironmentTemplateID(allocationID string) string {
 }
 
 // RecoveryRecords is the validated node-local recovery view. Intents contains
-// every durable create intent. LaunchVerified is the subset that crossed the
-// OCI create-before-start verification barrier and may therefore recover a
-// running or terminal runtime container.
+// every durable create intent. EnforcementVerified is the subset whose
+// runtime enforcement manifest crossed the create-before-start barrier and may
+// therefore recover a running or terminal runtime container.
 type RecoveryRecords struct {
-	Intents        map[string]struct{}
-	LaunchVerified map[string]struct{}
+	Intents             map[string]struct{}
+	EnforcementVerified map[string]struct{}
 }
 
 // InspectRecoveryRecords validates durable create intents without acquiring
-// runtime or image ownership. An intent without launch verification is not
+// runtime or image ownership. An intent without verified enforcement is not
 // corrupt: axnoded may have stopped after admission but before OCI activation.
 // Startup reconciles those records against the authoritative runsc inventory.
 func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 	result := RecoveryRecords{
-		Intents:        make(map[string]struct{}),
-		LaunchVerified: make(map[string]struct{}),
+		Intents:             make(map[string]struct{}),
+		EnforcementVerified: make(map[string]struct{}),
 	}
 	if h == nil || h.store == nil {
 		return result, nil
@@ -116,19 +116,16 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 		if record.GetAllocationID() == "" || record.GetAllocationID() != key {
 			return fmt.Errorf("allocation state key %s does not match record id %s", key, record.GetAllocationID())
 		}
-		launchVerified, err := classifyRecoveryRecord(&record, now)
+		enforcementVerified, err := classifyRecoveryRecord(&record, now)
 		if err != nil {
 			return fmt.Errorf("validate allocation state %s: %w", key, err)
 		}
-		h.stateMu.RLock()
-		binding := h.controlPlaneBindings[key]
-		h.stateMu.RUnlock()
-		if binding != nil && binding.GetRequestDigest() != record.GetAllocationRequestDigest() {
-			return fmt.Errorf("allocation state %s request digest differs from its control-plane binding", key)
+		if strings.TrimSpace(record.GetNodeID()) == "" {
+			return fmt.Errorf("allocation state %s has no admitted node", key)
 		}
 		result.Intents[key] = struct{}{}
-		if launchVerified {
-			result.LaunchVerified[key] = struct{}{}
+		if enforcementVerified {
+			result.EnforcementVerified[key] = struct{}{}
 		}
 		return nil
 	})
@@ -138,8 +135,9 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 // StoreAllocationIntent persists the immutable node execution contract as the
 // first create side effect. Node observations, effective runtime projection,
 // and conditions are rebuildable and are never copied into this record.
-func (h *Controller) StoreAllocationIntent(allocationID string, requestDigest string, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement) error {
+func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement) error {
 	allocationID = strings.TrimSpace(allocationID)
+	nodeID = strings.TrimSpace(nodeID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
 		return errors.New("allocation id and canonical request digest are required")
 	}
@@ -157,6 +155,10 @@ func (h *Controller) StoreAllocationIntent(allocationID string, requestDigest st
 	if currentDigest := desired.GetAllocationRequestDigest(); currentDigest != "" && currentDigest != requestDigest {
 		return fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
+	if currentNodeID := desired.GetNodeID(); currentNodeID != "" && currentNodeID != nodeID {
+		return fmt.Errorf("allocation node binding conflicts with durable contract")
+	}
+	desired.NodeID = nodeID
 	desired.CapabilityRequirements = cloneCapabilityRequirements(requirements)
 	if resourceSpec != nil {
 		desired.Resources = proto.Clone(resourceSpec).(*commonv1.ResourceSpec)
@@ -379,10 +381,9 @@ func (h *Controller) BeginCapabilityTermination(allocationID string, cause error
 	return nil
 }
 
-// StoreLaunchVerification atomically persists the immutable runtime launch
-// manifest and the exact fail-stop requirements verified in the OCI
-// create-before-start window. A manifest by itself is never treated as proof.
-func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, observedAt time.Time) error {
+// StoreVerifiedEnforcementManifest persists the immutable runtime contract
+// only after every fail-stop requirement has passed the create-before-start gate.
+func (h *Controller) StoreVerifiedEnforcementManifest(allocationID string, manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, observedAt time.Time) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" {
 		return errors.New("allocation ID is required")
@@ -398,7 +399,7 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	}
 	desired := cloneAllocationRecord(current.record)
 	h.stateMu.RUnlock()
-	verification, err := newLaunchVerification(
+	verifiedManifest, err := verifiedEnforcementManifest(
 		manifest,
 		verified,
 		desired.GetCapabilityRequirements(),
@@ -408,16 +409,12 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	if err != nil {
 		return err
 	}
-	if existing := desired.GetEnforcementManifest(); existing != nil && !proto.Equal(existing, manifest) {
+	if existing := desired.GetEnforcementManifest(); existing != nil && !proto.Equal(existing, verifiedManifest) {
 		return fmt.Errorf("allocation %q enforcement manifest is immutable", allocationID)
 	}
-	if existing := desired.GetLaunchVerification(); existing != nil && !proto.Equal(existing, verification) {
-		return fmt.Errorf("allocation %q launch verification is immutable", allocationID)
-	}
-	desired.EnforcementManifest = proto.Clone(manifest).(*apipb.AllocationEnforcementManifest)
-	desired.LaunchVerification = verification
+	desired.EnforcementManifest = verifiedManifest
 	if err := h.persistAllocationRecord(desired); err != nil {
-		return fmt.Errorf("persist allocation launch verification: %w", err)
+		return fmt.Errorf("persist verified allocation enforcement manifest: %w", err)
 	}
 	h.stateMu.Lock()
 	h.stateLocked(allocationID).record = desired
@@ -425,22 +422,22 @@ func (h *Controller) StoreLaunchVerification(allocationID string, manifest *apip
 	return nil
 }
 
-func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityRequirement, observedAt, now time.Time) (*apipb.AllocationLaunchVerification, error) {
+func verifiedEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityRequirement, observedAt, now time.Time) (*apipb.AllocationEnforcementManifest, error) {
 	if err := runtimecontract.ValidateEnforcementManifest(manifest, ""); err != nil {
 		return nil, err
 	}
 	if observedAt.IsZero() || observedAt.After(now.Add(time.Second)) {
-		return nil, errors.New("launch verification observed time is invalid")
+		return nil, errors.New("enforcement verification observed time is invalid")
 	}
 	canonical := make([]*capabilityv1.CapabilityKey, 0, len(verified))
 	seen := make(map[string]struct{}, len(verified))
 	for _, key := range verified {
 		id, err := capabilitycontract.KeyID(key)
 		if err != nil {
-			return nil, fmt.Errorf("validate launch verification key: %w", err)
+			return nil, fmt.Errorf("validate enforcement verification key: %w", err)
 		}
 		if _, duplicate := seen[id]; duplicate {
-			return nil, fmt.Errorf("duplicate launch verification key %q", id)
+			return nil, fmt.Errorf("duplicate enforcement verification key %q", id)
 		}
 		definition, ok := capabilitycontract.PlatformDefinition(key.GetPlatform())
 		if key.GetExtension() != nil || !ok || definition.Audience != capabilitycontract.AudienceWorkloadRequirement || definition.LossPolicy != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP || definition.Verifier == capabilitycontract.VerifierNone {
@@ -454,17 +451,17 @@ func newLaunchVerification(manifest *apipb.AllocationEnforcementManifest, verifi
 		right, _ := capabilitycontract.KeyID(canonical[j])
 		return left < right
 	})
-	expected, err := launchVerificationRequirements(manifest, dependencies)
+	expected, err := RequiredEnforcementKeys(manifest, dependencies)
 	if err != nil {
 		return nil, err
 	}
 	if !capabilitycontract.RequirementKeysEqual(canonical, expected) {
-		return nil, fmt.Errorf("launch verification keys do not exactly match immutable enforcement contract")
+		return nil, fmt.Errorf("verified capabilities do not exactly match immutable enforcement contract")
 	}
-	return &apipb.AllocationLaunchVerification{VerifiedCapabilities: canonical, VerifiedAtUnixNano: observedAt.UTC().UnixNano()}, nil
+	return proto.Clone(manifest).(*apipb.AllocationEnforcementManifest), nil
 }
 
-func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityRequirement) ([]*capabilityv1.CapabilityKey, error) {
+func RequiredEnforcementKeys(manifest *apipb.AllocationEnforcementManifest, dependencies []*capabilityv1.CapabilityRequirement) ([]*capabilityv1.CapabilityKey, error) {
 	required := make([]*capabilityv1.CapabilityKey, 0, len(dependencies))
 	for _, dependency := range dependencies {
 		if dependency == nil || dependency.GetLossPolicy() != capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP {
@@ -501,14 +498,14 @@ func launchVerificationRequirements(manifest *apipb.AllocationEnforcementManifes
 	return required, nil
 }
 
-func (h *Controller) LaunchVerification(allocationID string) *apipb.AllocationLaunchVerification {
+func (h *Controller) VerifiedEnforcementManifest(allocationID string) *apipb.AllocationEnforcementManifest {
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record.GetLaunchVerification() == nil {
+	if state == nil || state.record.GetEnforcementManifest() == nil {
 		return nil
 	}
-	return proto.Clone(state.record.GetLaunchVerification()).(*apipb.AllocationLaunchVerification)
+	return proto.Clone(state.record.GetEnforcementManifest()).(*apipb.AllocationEnforcementManifest)
 }
 
 func (h *Controller) EnforcementManifest(allocationID string) *apipb.AllocationEnforcementManifest {
@@ -605,10 +602,9 @@ func (h *Controller) persistAllocationRecord(record *apipb.AllocationState) erro
 	if record == nil || strings.TrimSpace(record.GetAllocationID()) == "" {
 		return errors.New("allocation state requires an allocation id")
 	}
-	// Only a control-plane binding gives this record crash-recovery meaning.
-	// Node-local sessions and conformance probes are explicit
-	// DISCARD_ON_RESTART executions and keep this aggregate in memory only.
-	if !h.HasControlPlaneBinding(record.GetAllocationID()) {
+	// Node-local sessions and conformance probes have no admitted node and keep
+	// this aggregate in memory only.
+	if strings.TrimSpace(record.GetNodeID()) == "" {
 		return nil
 	}
 	if allocationRecordEmpty(record) {
@@ -719,13 +715,16 @@ func (h *Controller) releaseAllocationState(allocationID string, persistedRecove
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
-	if persistedRecovery || h.HasControlPlaneBinding(allocationID) {
+	h.stateMu.RLock()
+	state := h.allocationStates[allocationID]
+	h.stateMu.RUnlock()
+	if persistedRecovery || (state != nil && strings.TrimSpace(state.record.GetNodeID()) != "") {
 		if err := h.store.DeleteRecord(config.AllocationStateBucket, allocationID); err != nil {
 			return fmt.Errorf("delete allocation state: %w", err)
 		}
 	}
 	h.stateMu.Lock()
-	state := h.allocationStates[allocationID]
+	state = h.allocationStates[allocationID]
 	delete(h.allocationStates, allocationID)
 	h.stateMu.Unlock()
 	if state == nil {
@@ -817,12 +816,12 @@ func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*all
 }
 
 func validateRecoveredCapabilityState(record *apipb.AllocationState, now time.Time) error {
-	launchVerified, err := classifyRecoveryRecord(record, now)
+	enforcementVerified, err := classifyRecoveryRecord(record, now)
 	if err != nil {
 		return err
 	}
-	if !launchVerified {
-		return errors.New("active allocation is missing its atomic launch verification")
+	if !enforcementVerified {
+		return errors.New("active allocation is missing its verified enforcement manifest")
 	}
 	return nil
 }
@@ -839,26 +838,17 @@ func classifyRecoveryRecord(record *apipb.AllocationState, now time.Time) (bool,
 		return false, errors.New("allocation create intent is missing its canonical request digest")
 	}
 	manifest := record.GetEnforcementManifest()
-	verification := record.GetLaunchVerification()
-	if manifest == nil && verification == nil {
+	if manifest == nil {
 		if record.GetCapabilityReconcile() != nil {
 			return false, errors.New("unverified allocation create intent contains capability reconcile state")
 		}
 		return false, nil
 	}
-	if manifest == nil || verification == nil {
-		return false, errors.New("allocation launch verification is only partially persisted")
+	if err := runtimecontract.ValidateEnforcementManifest(manifest, ""); err != nil {
+		return false, fmt.Errorf("validate recovered enforcement manifest: %w", err)
 	}
-	if verification.GetVerifiedAtUnixNano() <= 0 {
-		return false, errors.New("recovered launch verification has no verified time")
-	}
-	verifiedAt := time.Unix(0, verification.GetVerifiedAtUnixNano()).UTC()
-	expected, err := newLaunchVerification(manifest, verification.GetVerifiedCapabilities(), record.GetCapabilityRequirements(), verifiedAt, now)
-	if err != nil {
-		return false, fmt.Errorf("validate recovered launch verification: %w", err)
-	}
-	if !proto.Equal(expected, verification) {
-		return false, errors.New("recovered launch verification is not canonical")
+	if _, err := RequiredEnforcementKeys(manifest, dependencies); err != nil {
+		return false, fmt.Errorf("validate recovered enforcement requirements: %w", err)
 	}
 	if err := validateCapabilityReconcileState(record.GetCapabilityReconcile(), dependencies, now); err != nil {
 		return false, fmt.Errorf("validate recovered capability reconcile state: %w", err)

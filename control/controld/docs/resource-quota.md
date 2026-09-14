@@ -28,15 +28,13 @@ V1 quota is namespace scoped:
 ```text
 namespaces
   namespace
-  version
   created_at
-  updated_at
+  deleted_at
 
 namespace_resource_quotas
   namespace
   cpu_milli_limit
   memory_bytes_limit
-  version
   created_at
   updated_at
 ```
@@ -149,7 +147,7 @@ used_memory_bytes + requested_memory_bytes <= memory_bytes_limit
 
 If a quota field is unset, that resource is unlimited for the namespace.
 
-Quota updates are admission-time policy changes. Lowering quota below current usage does not evict admitted workloads; it blocks new admissions until active usage falls below the new limit. Clearing both limits returns the namespace to unlimited quota while preserving the namespace lock target and version history.
+Quota updates are admission-time policy changes. Lowering quota below current usage does not evict admitted workloads; it blocks new admissions until active usage falls below the new limit. Clearing both limits returns the namespace to unlimited quota while preserving the namespace lock target.
 
 Quota evaluation must return structured results instead of formatted strings:
 
@@ -198,17 +196,16 @@ namespace_quota_events
   reserved_memory_bytes
   memory_bytes_limit
   available_memory_bytes
-  message
   created_at
 ```
 
 The event ledger is not operator audit. Admin audit records human repair actions, while quota events record system admission decisions. V1 records `admission_rejected` events only. A rejected admission is still a committed admission decision transaction: the workload/allocation/reservation writes are not created, but the event row is committed before the API returns `ResourceExhausted`. The public quota API owns this read model through `ListNamespaceQuotaEvents`; debug HTTP and logs must not become the durable event interface.
 
-Events are append-only operational history with retention. They do not affect quota usage, placement, or retry behavior. They are used by CLI and future alert workflows to explain recent namespace pressure without parsing gRPC error text. Event queries require an explicit namespace string but do not require the namespace row to still exist, so recently deleted namespaces remain diagnosable until retention removes their event history.
+Events are append-only operational history with retention. They do not affect quota usage, placement, or retry behavior. Their typed resource and reason fields explain recent namespace pressure without parsing gRPC error text. Event queries require an explicit active namespace; tombstoned namespace identity is retained so historical foreign keys are never rebound to a new owner.
 
 ## Namespace Lifecycle
 
-Namespace deletion removes the durable namespace row and cascades the quota policy row only after the namespace has no live operational state.
+Namespace deletion is an irreversible tombstone transition after the namespace has no live operational state. The durable row and its foreign-key relationships remain, and the same namespace identity can never be recreated or rebound.
 
 Deletion is intentionally conservative. The namespace row remains the stable quota lock target until the delete transaction verifies that these blockers are gone:
 
@@ -218,7 +215,7 @@ Deletion is intentionally conservative. The namespace row remains the stable quo
 - active allocations
 - secrets
 
-Historical rows do not block namespace deletion. Completed, failed, and cancelled runs keep their namespace string for auditability.
+Historical rows do not block the tombstone transition. Completed, failed, and cancelled Runs retain their foreign-key identity for auditability.
 
 Clients may surface known blockers from public quota and workload data, but namespace delete remains authoritative because some blockers, such as secrets and environments, are not inferred from quota state.
 

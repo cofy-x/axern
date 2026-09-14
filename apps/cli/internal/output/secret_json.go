@@ -21,9 +21,7 @@ type SecretJSON struct {
 	Type      string            `json:"type"`
 	DataKeys  []string          `json:"data_keys,omitempty"`
 	Labels    map[string]string `json:"labels,omitempty"`
-	Version   int64             `json:"version"`
 	CreatedAt string            `json:"created_at,omitempty"`
-	UpdatedAt string            `json:"updated_at,omitempty"`
 }
 
 func PrintSecretListJSON(w io.Writer, resp *secretv1.ListSecretsResponse) error {
@@ -52,8 +50,6 @@ func NewSecretJSON(secret *secretv1.Secret) *SecretJSON {
 		Type:      SecretTypeLabel(secret.GetType()),
 		DataKeys:  append([]string(nil), secret.GetDataKeys()...),
 		Labels:    cloneStringMap(secret.GetLabels()),
-		Version:   secret.GetVersion(),
 		CreatedAt: FormatProtoTimestamp(secret.GetCreatedAt()),
-		UpdatedAt: FormatProtoTimestamp(secret.GetUpdatedAt()),
 	}
 }

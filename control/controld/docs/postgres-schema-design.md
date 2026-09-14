@@ -114,11 +114,10 @@ Gateway and node protocols deliberately use different messages. `AllocationAcces
 ```mermaid
 erDiagram
   allocations ||--o{ tunnel_sessions : opens
-  nodes ||--o{ tunnel_sessions : serves
   tunnel_sessions ||--o{ tunnel_session_events : records
 ```
 
-`tunnel_sessions` stores the selected Allocation ID, remote port, edge and relay targets, encrypted node token, token hashes, node-desired-state revision, traffic counters, expiry, and terminal state. A partial unique index prevents two active sessions from claiming the same allocation port.
+`tunnel_sessions` stores the selected Allocation ID, remote port, edge and relay targets, encrypted node token, token hashes, node-desired-state revision, traffic counters, expiry, and terminal state. Namespace ownership and Node routing are derived through the immutable Allocation-to-Run and Allocation-to-Node relationships rather than copied into the session. A partial unique index prevents two active sessions from claiming the same allocation port.
 
 `tunnel_session_events` is append-only peer and lifecycle history. The `tunnel_sessions` revision is only the ordered node desired-state feed: create and terminalization advance it, while renewal, non-terminal node status, relay peer events, and traffic counters do not. PostgreSQL notifications wake node-specific watchers; fixed high-water reads make reconnects and concurrent commits lossless. Each watcher also sleeps until its node's nearest active TTL deadline, so expiry does not depend on unrelated writes or polling. Terminal session rows are retained as recovery tombstones, while event retention may prune older diagnostic history.
 
@@ -136,6 +135,6 @@ New indexes require a concrete query, reconciliation, retention, or uniqueness c
 
 ## Storage Rules
 
-Typed columns own identity, state-machine status, foreign keys, optimistic versions, timestamps, budgets, usage totals, and fields used for ordering or selection. JSONB owns versioned intent and snapshots that are read and written as a whole.
+Typed columns own identity, state-machine status, foreign keys, required concurrency versions, timestamps, budgets, usage totals, and fields used for ordering or selection. JSONB owns versioned intent and snapshots that are read and written as a whole.
 
 Retention may delete completed history only after checking domain references. It must not delete current workloads or active leases.

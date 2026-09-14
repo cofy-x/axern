@@ -101,8 +101,8 @@ func TestRecoverTerminalRuntimeCheckpointBeforeCleanup(t *testing.T) {
 	require.NoError(t, err)
 	status := item.Status.Get()
 	assert.Equal(t, runtimeapi.ContainerState_CONTAINER_EXITED, status.State())
-	assert.Equal(t, int32(23), status.ExitCode)
-	assert.True(t, status.ExitCodeKnown)
+	assert.NotNil(t, status.ExitCode)
+	assert.Equal(t, int32(23), *status.ExitCode)
 	assert.Equal(t, exitedAt, container.ParseTimestampTime(status.FinishedAt))
 }
 
@@ -138,22 +138,22 @@ func TestInterruptedStartRecoveryAction(t *testing.T) {
 		name           string
 		live           bool
 		status         contract.ContainerStatus
-		launchVerified bool
+		enforcementVerified bool
 		wantCleanup    bool
 		wantError      bool
 	}{
 		{name: "intent without runtime", wantCleanup: true},
-		{name: "prepared verified runtime", live: true, status: contract.ContainerStatusCreated, launchVerified: true, wantCleanup: true},
+		{name: "prepared verified runtime", live: true, status: contract.ContainerStatusCreated, enforcementVerified: true, wantCleanup: true},
 		{name: "prepared unverified runtime", live: true, status: contract.ContainerStatusCreated, wantCleanup: true},
-		{name: "verified running runtime", live: true, status: contract.ContainerStatusRunning, launchVerified: true},
-		{name: "verified terminal runtime", live: true, status: contract.ContainerStatusExited, launchVerified: true},
+		{name: "verified running runtime", live: true, status: contract.ContainerStatusRunning, enforcementVerified: true},
+		{name: "verified terminal runtime", live: true, status: contract.ContainerStatusExited, enforcementVerified: true},
 		{name: "unverified terminal runtime", live: true, status: contract.ContainerStatusExited, wantCleanup: true},
 		{name: "unverified running runtime", live: true, status: contract.ContainerStatusRunning, wantError: true},
 		{name: "unverified unknown runtime", live: true, status: contract.ContainerStatusUnknown, wantError: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cleanup, err := interruptedStartRecoveryAction(tt.live, tt.status, tt.launchVerified)
+			cleanup, err := interruptedStartRecoveryAction(tt.live, tt.status, tt.enforcementVerified)
 			assert.Equal(t, tt.wantCleanup, cleanup)
 			if tt.wantError {
 				require.Error(t, err)
@@ -170,8 +170,7 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	controller := service.allocationController()
 	const allocationID = "interrupted-before-oci-create"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, controller.BindControlPlaneAllocation(allocationID, "node-a", digest))
-	require.NoError(t, controller.StoreAllocationIntent(allocationID, digest, nil, nil))
+	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, nil, nil))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 
@@ -179,9 +178,9 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	require.NoError(t, service.cleanupInterruptedAllocationStarts(context.Background(), inventory, recovery))
 	assert.Empty(t, inventory)
 	assert.Empty(t, recovery.Intents)
-	assert.Empty(t, recovery.LaunchVerified)
+	assert.Empty(t, recovery.EnforcementVerified)
 	assert.False(t, controller.HasAllocation(allocationID))
-	assert.True(t, controller.HasControlPlaneBinding(allocationID), "control-plane admission must survive a retryable node start interruption")
+	assert.False(t, controller.HasAdmittedAllocation(allocationID))
 	after, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 	assert.Empty(t, after.Intents)
@@ -193,7 +192,7 @@ func TestCleanupInterruptedAllocationStartDeletesOrphanedRecoveryRecord(t *testi
 	controller := service.allocationController()
 	const allocationID = "orphaned-create-intent"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	record := &runtimeapi.AllocationState{AllocationID: allocationID, AllocationRequestDigest: digest}
+	record := &runtimeapi.AllocationState{AllocationID: allocationID, NodeID: "node-a", AllocationRequestDigest: digest}
 	require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, allocationID, record))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
@@ -202,19 +201,15 @@ func TestCleanupInterruptedAllocationStartDeletesOrphanedRecoveryRecord(t *testi
 	after, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 	assert.Empty(t, after.Intents)
-	assert.False(t, controller.HasControlPlaneBinding(allocationID))
+	assert.False(t, controller.HasAdmittedAllocation(allocationID))
 }
 
 func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
 	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, runsc)
-	require.NoError(t, service.containerManager.StoreMetadata("durable", &runtimeapi.ContainerMetadata{
-		RecoveryMode: runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE,
-	}))
-	require.NoError(t, service.containerManager.StoreMetadata("session", &runtimeapi.ContainerMetadata{
-		RecoveryMode: runtimeapi.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
-	}))
+	require.NoError(t, service.containerManager.StoreMetadata("durable", &runtimeapi.ContainerMetadata{}))
+	require.NoError(t, service.containerManager.StoreMetadata("session", &runtimeapi.ContainerMetadata{}))
 	inventory := runtimeInventory{
 		"durable": {ID: "durable", Status: contract.ContainerStatusRunning},
 		"session": {ID: "session", Status: contract.ContainerStatusRunning},
@@ -223,28 +218,8 @@ func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t 
 	durable, discard, err := service.partitionRuntimeInventory(
 		inventory,
 		map[string]struct{}{"durable": {}},
-		map[string]struct{}{"durable": {}},
 	)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]struct{}{"durable": {}}, durable.allIDs())
 	assert.Equal(t, map[string]struct{}{"session": {}}, discard.allIDs())
-
-	_, _, err = service.partitionRuntimeInventory(inventory, map[string]struct{}{"durable": {}}, nil)
-	require.ErrorContains(t, err, "missing AllocationState or control-plane admission binding")
-	_, _, err = service.partitionRuntimeInventory(inventory, map[string]struct{}{"durable": {}}, map[string]struct{}{"durable": {}, "session": {}})
-	require.ErrorContains(t, err, "discard-on-restart container session has a control-plane admission binding")
-}
-
-func TestPartitionRuntimeInventoryRejectsImplicitRecoveryMode(t *testing.T) {
-	runsc := runtimetest.NewFakeSandboxRuntime()
-	runsc.RuntimeName = "runsc"
-	service := runtimeInventoryTestService(t, runsc)
-	require.NoError(t, service.containerManager.StoreMetadata("ambiguous", &runtimeapi.ContainerMetadata{}))
-
-	_, _, err := service.partitionRuntimeInventory(
-		runtimeInventory{"ambiguous": {ID: "ambiguous", Status: contract.ContainerStatusRunning}},
-		map[string]struct{}{"ambiguous": {}},
-		map[string]struct{}{"ambiguous": {}},
-	)
-	require.ErrorContains(t, err, "no explicit recovery mode")
 }

@@ -27,7 +27,7 @@ func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, prev
 		return nil, fmt.Errorf("validate capability snapshot: %w", err)
 	}
 	previousSnapshot := previous.GetCapabilitySnapshot()
-	if err := persistCapabilityInstance(ctx, tx, nodeID, previousSnapshot, nextSnapshot, reportedAt); err != nil {
+	if err := persistCapabilityInstance(ctx, tx, nodeID, previousSnapshot, nextSnapshot); err != nil {
 		return nil, err
 	}
 	idempotent, err := validateSnapshotAdvance(previousSnapshot, nextSnapshot)
@@ -44,7 +44,7 @@ func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, prev
 	return transitions, nil
 }
 
-func persistCapabilityInstance(ctx context.Context, tx pgx.Tx, nodeID string, previous, next *capabilityv1.CapabilitySnapshot, reportedAt time.Time) error {
+func persistCapabilityInstance(ctx context.Context, tx pgx.Tx, nodeID string, previous, next *capabilityv1.CapabilitySnapshot) error {
 	var lastSequence int64
 	err := tx.QueryRow(ctx, `
 		SELECT last_sequence
@@ -68,18 +68,18 @@ func persistCapabilityInstance(ctx context.Context, tx pgx.Tx, nodeID string, pr
 	if !instanceKnown {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO node_capability_instances (
-				node_id, node_instance_id, last_sequence, first_seen_at, last_seen_at
-			) VALUES ($1, $2, $3, $4, $4)
-		`, nodeID, next.GetNodeInstanceID(), next.GetSequence(), reportedAt.UTC()); err != nil {
+				node_id, node_instance_id, last_sequence
+			) VALUES ($1, $2, $3)
+		`, nodeID, next.GetNodeInstanceID(), next.GetSequence()); err != nil {
 			return fmt.Errorf("insert node capability instance: %w", err)
 		}
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE node_capability_instances
-		SET last_sequence = $3, last_seen_at = $4
+		SET last_sequence = $3
 		WHERE node_id = $1 AND node_instance_id = $2
-	`, nodeID, next.GetNodeInstanceID(), next.GetSequence(), reportedAt.UTC()); err != nil {
+	`, nodeID, next.GetNodeInstanceID(), next.GetSequence()); err != nil {
 		return fmt.Errorf("update node capability instance: %w", err)
 	}
 	return nil

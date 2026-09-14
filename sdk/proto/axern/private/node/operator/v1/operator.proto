@@ -42,12 +42,11 @@ enum SandboxNetworkPolicyCapabilityState {
 message LocalSandbox {
   string sandbox_id = 1;
   LocalSandboxState state = 2;
-  int32 exit_code = 3;
-  bool exit_code_known = 4;
-  string message = 5;
-  int32 pid = 6;
-  google.protobuf.Timestamp started_at = 7;
-  google.protobuf.Timestamp finished_at = 8;
+  optional int32 exit_code = 3;
+  string message = 4;
+  int32 pid = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp finished_at = 7;
 }
 
 message ListSandboxesRequest {}
@@ -211,9 +210,8 @@ message WaitSandboxRequest {
 
 message WaitSandboxResponse {
   LocalSandboxState state = 1;
-  int32 exit_code = 2;
-  bool exit_code_known = 3;
-  string message = 4;
+  optional int32 exit_code = 2;
+  string message = 3;
 }
 
 message ResolveSandboxNetworkRequest {

@@ -51,10 +51,6 @@ const (
 	BridgeIPBucket = "network_interfaces"
 	// AllocationStateBucket stores one durable record per active allocation.
 	AllocationStateBucket = "allocations"
-	// ControlPlaneAllocationBindingBucket stores the single node-local admission
-	// relation authorizing an Allocation to participate in controld reporting.
-	// It is deliberately separate from runtime/container recovery state.
-	ControlPlaneAllocationBindingBucket = "control_plane_allocation_bindings"
 	// AllocationLifecycleOutboxBucket stores terminal allocation observations until
 	// controld has acknowledged the corresponding status-report RPC. Resource
 	// cleanup may remove the container checkpoint before that acknowledgement,

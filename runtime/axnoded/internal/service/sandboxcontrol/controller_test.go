@@ -59,7 +59,6 @@ func testContainer(id string) *container.Container {
 		Status: fixedStatus{status: container.Status{
 			RuntimeState:  runtime.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
 			StartedAt:     time.Now().Format(time.RFC3339Nano),
-			ExitCodeKnown: true,
 		}},
 	}
 }

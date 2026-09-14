@@ -247,8 +247,7 @@ func (s *nodeOperatorServer) WaitSandbox(ctx context.Context, req *nodeoperatorv
 	if err == nil {
 		return &nodeoperatorv1.WaitSandboxResponse{
 			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-			ExitCode:      resp.GetExitCode(),
-			ExitCodeKnown: true,
+			ExitCode:      resp.ExitCode,
 			Message:       resp.GetMessage(),
 		}, nil
 	}
@@ -256,8 +255,6 @@ func (s *nodeOperatorServer) WaitSandbox(ctx context.Context, req *nodeoperatorv
 	if grpcstatus.Code(err) == codes.Unavailable && resp != nil {
 		return &nodeoperatorv1.WaitSandboxResponse{
 			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-			ExitCode:      resp.GetExitCode(),
-			ExitCodeKnown: false,
 			Message:       resp.GetMessage(),
 		}, nil
 	}
@@ -377,8 +374,7 @@ func localSandboxFromContainer(container *runtimev1.ContainerStatus) *nodeoperat
 	return &nodeoperatorv1.LocalSandbox{
 		SandboxID:     container.GetID(),
 		State:         localSandboxStateFromContainer(container.GetState()),
-		ExitCode:      container.GetExitCode(),
-		ExitCodeKnown: container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
+		ExitCode:      container.ExitCode,
 		Message:       container.GetMessage(),
 		Pid:           container.GetPid(),
 		StartedAt:     timestampFromUnixSeconds(container.GetStartedAt()),

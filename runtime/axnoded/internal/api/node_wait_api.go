@@ -19,14 +19,12 @@ func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.
 	if err == nil {
 		s.reportExit(allocationExitReport{
 			allocationID:  target.allocationID,
-			exitCode:      int32(resp.GetExitCode()),
-			exitCodeKnown: true,
+			exitCode:      resp.ExitCode,
 			message:       resp.GetMessage(),
 		})
 		return &nodesandboxv1.WaitSandboxResponse{
 			State:         nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED,
-			ExitCode:      resp.GetExitCode(),
-			ExitCodeKnown: true,
+			ExitCode:      resp.ExitCode,
 			Message:       resp.GetMessage(),
 		}, nil
 	}
@@ -34,14 +32,10 @@ func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.
 	if grpcstatus.Code(err) == codes.Unavailable && resp != nil {
 		s.reportExit(allocationExitReport{
 			allocationID:  target.allocationID,
-			exitCode:      resp.GetExitCode(),
-			exitCodeKnown: false,
 			message:       resp.GetMessage(),
 		})
 		return &nodesandboxv1.WaitSandboxResponse{
 			State:         nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED,
-			ExitCode:      resp.GetExitCode(),
-			ExitCodeKnown: false,
 			Message:       resp.GetMessage(),
 		}, nil
 	}

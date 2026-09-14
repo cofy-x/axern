@@ -29,14 +29,13 @@ message Run {
   int64 version = 8;
   google.protobuf.Timestamp created_at = 9;
   google.protobuf.Timestamp updated_at = 10;
-  int32 exit_code = 11;
-  bool exit_code_known = 12;
-  string message = 13;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 14;
+  optional int32 exit_code = 11;
+  string message = 12;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 13;
   // Latest allocation capability condition projection. It is independent
   // from Run lifecycle status and message.
-  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 15;
-  string node_id = 16;
+  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 14;
+  string node_id = 15;
 }
 
 message RunListFilter {

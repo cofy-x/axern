@@ -27,9 +27,6 @@ func TestStoreCreatesGetsAndListsNamespaces(t *testing.T) {
 	if created.GetNamespace() != "team-a" {
 		t.Fatalf("namespace = %q, want team-a", created.GetNamespace())
 	}
-	if created.GetVersion() != 1 {
-		t.Fatalf("version = %d, want 1", created.GetVersion())
-	}
 
 	got, err := store.GetNamespace(ctx, "team-a")
 	if err != nil {
@@ -71,6 +68,9 @@ func TestStoreDeletesNamespaceWhenInactive(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
 
+	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
+		t.Fatalf("CreateNamespace() error = %v", err)
+	}
 	if _, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli: wrapperspb.Int64(1000),
 	}, now); err != nil {
@@ -88,6 +88,9 @@ func TestStoreDeletesNamespaceWhenInactive(t *testing.T) {
 	}
 	if _, err := store.Get(ctx, "team-a"); grpcstatus.Code(err) != codes.NotFound {
 		t.Fatalf("Get quota code = %v, want NotFound err=%v", grpcstatus.Code(err), err)
+	}
+	if _, err := store.CreateNamespace(ctx, "team-a", now.Add(time.Second)); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("recreate deleted namespace code = %v, want FailedPrecondition err=%v", grpcstatus.Code(err), err)
 	}
 }
 
@@ -115,7 +118,7 @@ func TestStoreDeleteNamespaceRejectsActiveRoleBinding(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	if _, err := db.Pool().Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at) VALUES('prn-viewer','viewer','Viewer','human','active',1,$1,$1)`, now); err != nil {
+	if _, err := db.Pool().Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,created_at,updated_at) VALUES('prn-viewer','viewer','Viewer','human','active',$1,$1)`, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `INSERT INTO role_bindings(binding_id,principal_id,scope_type,namespace,role,created_at) VALUES('rb-viewer','prn-viewer','namespace','team-a','namespace_viewer',$1)`, now); err != nil {

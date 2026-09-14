@@ -93,9 +93,8 @@ message GetAllocationLifecycleRequest {
 
 message GetAllocationLifecycleResponse {
   axern.control.common.v1.AllocationLifecycleState state = 1;
-  int32 exit_code = 2;
-  bool exit_code_known = 3;
-  string message = 4;
-  axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 6;
+  optional int32 exit_code = 2;
+  string message = 3;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 4;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 5;
 }

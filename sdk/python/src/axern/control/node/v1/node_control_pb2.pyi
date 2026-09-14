@@ -413,11 +413,10 @@ class ReportNodeResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class AllocationLifecycleObservation(_message.Message):
-    __slots__ = ("allocation_id", "state", "exit_code", "exit_code_known", "message", "observed_at", "ready", "readiness_message", "diagnostic_code")
+    __slots__ = ("allocation_id", "state", "exit_code", "message", "observed_at", "ready", "readiness_message", "diagnostic_code")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     STATE_FIELD_NUMBER: _ClassVar[int]
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
-    EXIT_CODE_KNOWN_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     OBSERVED_AT_FIELD_NUMBER: _ClassVar[int]
     READY_FIELD_NUMBER: _ClassVar[int]
@@ -426,13 +425,12 @@ class AllocationLifecycleObservation(_message.Message):
     allocation_id: str
     state: _common_pb2.AllocationLifecycleState
     exit_code: int
-    exit_code_known: bool
     message: str
     observed_at: _timestamp_pb2.Timestamp
     ready: bool
     readiness_message: str
     diagnostic_code: _common_pb2.WorkloadDiagnosticCode
-    def __init__(self, allocation_id: _Optional[str] = ..., state: _Optional[_Union[_common_pb2.AllocationLifecycleState, str]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., state: _Optional[_Union[_common_pb2.AllocationLifecycleState, str]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., ready: _Optional[bool] = ..., readiness_message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ...) -> None: ...
 
 class BatchReportAllocationLifecycleRequest(_message.Message):
     __slots__ = ("node_id", "node_auth_token", "observations")

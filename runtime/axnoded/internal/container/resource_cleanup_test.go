@@ -148,7 +148,7 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 		Status: &statusStorage{status: Status{
 			RuntimeState:  apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
 			FinishedAt:    time.Now().UTC().Format(time.RFC3339Nano),
-			ExitCodeKnown: true,
+			ExitCode:      testExitCode(0),
 		}},
 		Spec: spec,
 		PATH: containerDir,

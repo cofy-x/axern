@@ -112,9 +112,8 @@ message WaitSandboxRequest {
 
 message WaitSandboxResponse {
   SandboxProcessState state = 1;
-  int32 exit_code = 2;
-  bool exit_code_known = 3;
-  string message = 4;
+  optional int32 exit_code = 2;
+  string message = 3;
 }
 
 enum OutputStream {

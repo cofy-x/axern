@@ -4,21 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
-
-type execer interface {
-	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
-}
-
-func Ensure(ctx context.Context, q execer, namespace string) (string, error) {
-	return ensureAt(ctx, q, namespace, time.Time{})
-}
 
 func normalizeNamespace(namespace string) string {
 	return environmentkernel.NormalizeNamespace(namespace)
@@ -47,17 +39,17 @@ func LockQuotaPolicy(ctx context.Context, tx pgx.Tx, namespace string) (resource
 }
 
 func LockQuotaRows(ctx context.Context, tx pgx.Tx, namespace string) (string, error) {
-	normalized, err := Ensure(ctx, tx, namespace)
-	if err != nil {
-		return "", err
-	}
+	normalized := normalizeNamespace(namespace)
 	if err := tx.QueryRow(ctx, `
 		SELECT n.namespace
 		FROM namespaces n
 		JOIN namespace_resource_quotas q ON q.namespace = n.namespace
-		WHERE n.namespace = $1
+		WHERE n.namespace = $1 AND n.deleted_at IS NULL
 		FOR UPDATE OF n, q
 	`, normalized).Scan(&normalized); err != nil {
+		if err == pgx.ErrNoRows {
+			return "", grpcstatus.Errorf(codes.NotFound, "namespace %q not found", normalized)
+		}
 		return "", fmt.Errorf("lock namespace quota: %w", err)
 	}
 	return normalized, nil

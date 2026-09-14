@@ -28,7 +28,6 @@ func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
 
 	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
 		ID:           allocationID,
-		RecoveryMode: apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART,
 		Rootfs: &apipb.Rootfs{
 			RootDir:  t.TempDir(),
 			Readonly: false,

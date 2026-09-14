@@ -86,14 +86,9 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, err)
 		return nil, err
 	}
-	if resp.GetCode() != 0 {
-		resultErr = grpcstatus.Errorf(codes.Internal, "node start failed: %s", resp.GetMessage())
-		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, resultErr)
-		return nil, resultErr
-	}
 	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, nil)
-	if resp.GetID() != req.GetAllocationID() {
-		resultErr = grpcstatus.Errorf(codes.Internal, "node start returned execution id %q for allocation %q", resp.GetID(), req.GetAllocationID())
+	if resp.GetAllocationID() != req.GetAllocationID() {
+		resultErr = grpcstatus.Errorf(codes.Internal, "node start returned execution id %q for allocation %q", resp.GetAllocationID(), req.GetAllocationID())
 		return nil, resultErr
 	}
 	return &nodelifecyclev1.CreateAllocationResponse{
@@ -208,8 +203,7 @@ func (s *nodeLifecycleServer) GetAllocationLifecycle(ctx context.Context, req *n
 	}
 	return &nodelifecyclev1.GetAllocationLifecycleResponse{
 		State:                  allocationLifecycleStateFromContainerState(container.GetState()),
-		ExitCode:               container.GetExitCode(),
-		ExitCodeKnown:          container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
+		ExitCode:               container.ExitCode,
 		Message:                container.GetMessage(),
 		DiagnosticCode:         container.GetDiagnosticCode(),
 		CapabilityVerification: cloneCapabilityConditionSet(capabilityVerification),

@@ -241,8 +241,6 @@ func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *cont
 					Type:          EventTypeExit,
 					ContainerID:   id,
 					Pid:           -1,
-					ExitCode:      -1,
-					ExitCodeKnown: false,
 					ExitedAt:      time.Now(),
 					Reason:        err.Error(),
 				}
@@ -271,12 +269,12 @@ func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *cont
 				continue
 			}
 		}
+		exitCode := int32(exit.Status)
 		event := Event{
 			Type:          EventTypeExit,
 			ContainerID:   id,
 			Pid:           -1,
-			ExitCode:      int32(exit.Status),
-			ExitCodeKnown: true,
+			ExitCode:      &exitCode,
 			ExitedAt:      exit.Timestamp,
 		}
 		classified, persistErr := m.persistMonitorExitWithRetry(ctx, event)
@@ -326,7 +324,7 @@ func (m *Manager) persistMonitorExit(event Event) (Event, error) {
 	} else {
 		event.ExitedAt = event.ExitedAt.UTC()
 	}
-	if err := m.SetExit(event.ContainerID, event.ExitCode, event.ExitCodeKnown, event.ExitedAt, event.Reason, event.DiagnosticCode); err != nil {
+	if err := m.SetExit(event.ContainerID, event.ExitCode, event.ExitedAt, event.Reason, event.DiagnosticCode); err != nil {
 		return event, fmt.Errorf("persist container %s exit: %w", event.ContainerID, err)
 	}
 	return event, nil
@@ -477,7 +475,7 @@ func (m *Manager) classifyExit(event Event) Event {
 	return event
 }
 
-func (m *Manager) SetExit(id string, exitCode int32, exitCodeKnown bool, finishedAt time.Time, message string, diagnosticCode commonv1.WorkloadDiagnosticCode) error {
+func (m *Manager) SetExit(id string, exitCode *int32, finishedAt time.Time, message string, diagnosticCode commonv1.WorkloadDiagnosticCode) error {
 	container, ok := m.containers.Get(id)
 	if !ok {
 		return errord.ErrNotFound
@@ -490,7 +488,6 @@ func (m *Manager) SetExit(id string, exitCode int32, exitCodeKnown bool, finishe
 		status.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		status.Pid = -1
 		status.ExitCode = exitCode
-		status.ExitCodeKnown = exitCodeKnown
 		status.Message = message
 		status.DiagnosticCode = diagnosticCode
 		if finishedAt.IsZero() {

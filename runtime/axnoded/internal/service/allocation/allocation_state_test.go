@@ -21,16 +21,19 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-type failingAllocationStateStore struct{ testStateStore }
+type failingAllocationStateStore struct {
+	testStateStore
+	putsBeforeFailure int64
+	puts              atomic.Int64
+}
 
 func TestStoreAllocationIntentOwnsImmutableResourceSpec(t *testing.T) {
 	store := storetest.NewMockStore()
 	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
 	const allocationID = "allocation-resource-intent"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", digest))
 	resources := &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 << 20}, Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, digest, resources, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, resources, nil))
 
 	resources.Requests.MemoryBytes = 1
 	got := fixture.controller.ResourceSpec(allocationID)
@@ -41,8 +44,8 @@ func TestStoreAllocationIntentOwnsImmutableResourceSpec(t *testing.T) {
 	assert.True(t, proto.Equal(got, persisted.GetResources()))
 }
 
-func (s failingAllocationStateStore) PutRecord(bucket, key string, value proto.Message) error {
-	if bucket == config.AllocationStateBucket {
+func (s *failingAllocationStateStore) PutRecord(bucket, key string, value proto.Message) error {
+	if bucket == config.AllocationStateBucket && s.puts.Add(1) > s.putsBeforeFailure {
 		return errors.New("allocation state store unavailable")
 	}
 	return s.testStateStore.PutRecord(bucket, key, value)
@@ -93,6 +96,7 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 	now := time.Now().UTC()
 	record := &apipb.AllocationState{
 		AllocationID:            allocationID,
+		NodeID:                  "node-a",
 		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		EnvironmentTemplate:     testEnvironmentTemplate(t, "runtime-"+allocationID),
 		ImageMountUrls:          images,
@@ -100,33 +104,9 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: now.UnixNano(),
 		},
-		LaunchVerification: &apipb.AllocationLaunchVerification{VerifiedAtUnixNano: now.UnixNano()},
 	}
 	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
 		t.Fatal(err)
-	}
-}
-
-func TestLoadAllocationStatesRejectsMissingAtomicLaunchProof(t *testing.T) {
-	store := storetest.NewMockStore()
-	const allocationID = "missing-launch-proof"
-	record := &apipb.AllocationState{
-		AllocationID: allocationID, EnvironmentTemplate: testEnvironmentTemplate(t, "runtime-"+allocationID),
-		EnforcementManifest: &apipb.AllocationEnforcementManifest{
-			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
-			CreatedAtUnixNano: time.Now().UnixNano(),
-		},
-	}
-	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
-		t.Fatal(err)
-	}
-	fixture := newTestAllocationControllerWithStore(t,
-		runtimetest.NewFakeSandboxRuntime(),
-		store)
-	fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
-	time.Sleep(100 * time.Millisecond)
-	if err := fixture.controller.loadAllocationStates(map[string]struct{}{allocationID: {}}); err == nil {
-		t.Fatal("loadAllocationStates() accepted a live allocation without atomic launch verification")
 	}
 }
 
@@ -135,6 +115,7 @@ func TestInspectRecoveryRecordsClassifiesInterruptedCreateIntent(t *testing.T) {
 	const allocationID = "interrupted-create"
 	record := &apipb.AllocationState{
 		AllocationID:            allocationID,
+		NodeID:                  "node-a",
 		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
 	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
@@ -149,35 +130,14 @@ func TestInspectRecoveryRecordsClassifiesInterruptedCreateIntent(t *testing.T) {
 	if _, ok := recovery.Intents[allocationID]; !ok {
 		t.Fatal("interrupted create intent was not returned for ordered cleanup")
 	}
-	if _, ok := recovery.LaunchVerified[allocationID]; ok {
-		t.Fatal("interrupted create intent was classified as launch verified")
+	if _, ok := recovery.EnforcementVerified[allocationID]; ok {
+		t.Fatal("interrupted create intent was classified as enforcement verified")
 	}
 }
 
-func TestInspectRecoveryRecordsRejectsPartiallyPersistedLaunchVerification(t *testing.T) {
+func TestInspectRecoveryRecordsRejectsMissingNodeAdmission(t *testing.T) {
 	store := storetest.NewMockStore()
-	const allocationID = "partial-launch-verification"
-	record := &apipb.AllocationState{
-		AllocationID:            allocationID,
-		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		EnforcementManifest: &apipb.AllocationEnforcementManifest{
-			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
-			CreatedAtUnixNano: time.Now().UnixNano(),
-		},
-	}
-	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
-		t.Fatal(err)
-	}
-	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
-
-	if _, err := fixture.controller.InspectRecoveryRecords(); err == nil {
-		t.Fatal("partially persisted launch verification was accepted")
-	}
-}
-
-func TestInspectRecoveryRecordsRejectsBindingRequestMismatch(t *testing.T) {
-	store := storetest.NewMockStore()
-	const allocationID = "mismatched-binding"
+	const allocationID = "missing-node-admission"
 	record := &apipb.AllocationState{
 		AllocationID:            allocationID,
 		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -186,12 +146,8 @@ func TestInspectRecoveryRecordsRejectsBindingRequestMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	fixture := newTestAllocationControllerWithStore(t, runtimetest.NewFakeSandboxRuntime(), store)
-	if err := fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"); err != nil {
-		t.Fatal(err)
-	}
-
 	if _, err := fixture.controller.InspectRecoveryRecords(); err == nil {
-		t.Fatal("allocation state with a mismatched control-plane binding was accepted")
+		t.Fatal("allocation state without a node admission was accepted")
 	}
 }
 
@@ -201,14 +157,15 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 		BundlePath:        "/var/lib/axnoded/root/containers/condition-recovery",
 		CreatedAtUnixNano: now.UnixNano(),
 	}
-	verification, err := newLaunchVerification(manifest, nil, nil, now, now)
+	verifiedManifest, err := verifiedEnforcementManifest(manifest, nil, nil, now, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	record := &apipb.AllocationState{
 		AllocationID:            "condition-recovery",
+		NodeID:                  "node-a",
 		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		EnforcementManifest:     manifest, LaunchVerification: verification,
+		EnforcementManifest:     verifiedManifest,
 	}
 	if err := validateRecoveredCapabilityState(record, now); err != nil {
 		t.Fatalf("validateRecoveredCapabilityState() rejected rebuildable conditions: %v", err)
@@ -219,7 +176,7 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	}
 }
 
-func TestNewLaunchVerificationBindsVerifiedEgressCapability(t *testing.T) {
+func TestVerifiedEnforcementManifestBindsRequiredEgressCapability(t *testing.T) {
 	now := time.Now().UTC()
 	manifest := &apipb.AllocationEnforcementManifest{
 		BundlePath:        "/var/lib/axnoded/root/containers/network-policy",
@@ -229,8 +186,8 @@ func TestNewLaunchVerificationBindsVerifiedEgressCapability(t *testing.T) {
 	dependencies := []*capabilityv1.CapabilityRequirement{{
 		Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}}
-	if _, err := newLaunchVerification(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, now, now); err != nil {
-		t.Fatalf("newLaunchVerification() rejected verified strict egress capability: %v", err)
+	if _, err := verifiedEnforcementManifest(manifest, []*capabilityv1.CapabilityKey{key}, dependencies, now, now); err != nil {
+		t.Fatalf("verifiedEnforcementManifest() rejected verified strict egress capability: %v", err)
 	}
 }
 
@@ -352,13 +309,15 @@ func TestLoadAllocationStatesRetainsPartialRecoveryForLiveContainer(t *testing.T
 func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	imageURL := "example.local/tools@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	handler := &runtimeSpyHandler{name: "runsc"}
-	fixture := newTestAllocationControllerWithStore(t,
-		handler,
-		failingAllocationStateStore{testStateStore: storetest.NewMockStore()})
+	store := &failingAllocationStateStore{
+		testStateStore:    storetest.NewMockStore(),
+		putsBeforeFailure: 1,
+	}
+	fixture := newTestAllocationControllerWithStore(t, handler, store)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
-	if err := fixture.controller.BindControlPlaneAllocation(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+	if err := fixture.controller.StoreAllocationIntent(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
@@ -392,7 +351,7 @@ func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *tes
 	fixture := newTestAllocationControllerWithStore(t,
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
-	if err := fixture.controller.BindControlPlaneAllocation("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+	if err := fixture.controller.StoreAllocationIntent("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "delete-failure-runtime"))
@@ -433,7 +392,7 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	for _, allocationID := range []string{"allocation-a", "allocation-b"} {
-		if err := fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+		if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testEnvironmentTemplate(t, "runtime-"+allocationID))
@@ -451,7 +410,7 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 	}
 }
 
-func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
+func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testing.T) {
 	store := &countingAllocationStateStore{testStateStore: storetest.NewMockStore()}
 	handler := &runtimeSpyHandler{name: "runsc"}
 	fixture := newTestAllocationControllerWithStore(t, handler, store)
@@ -460,7 +419,7 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
 	allocationID := "atomic-allocation-state"
-	if err := fixture.controller.BindControlPlaneAllocation(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"); err != nil {
+	if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
@@ -474,8 +433,8 @@ func TestStartAndDeleteUseOneAllocationTransactionEach(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.puts.Load(); got != 1 {
-		t.Fatalf("allocation writes after start = %d, want 1", got)
+	if got := store.puts.Load(); got != 2 {
+		t.Fatalf("allocation writes after start = %d, want admission and runtime crash barriers", got)
 	}
 	var record apipb.AllocationState
 	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &record); err != nil {

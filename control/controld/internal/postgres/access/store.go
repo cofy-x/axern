@@ -21,7 +21,7 @@ func NewStore(db *postgres.DB) *Store { return &Store{db: db} }
 func (s *Store) ResolveActor(ctx context.Context, fingerprint [32]byte, now time.Time) (accesskernel.Actor, error) {
 	var actor accesskernel.Actor
 	row := s.db.Pool().QueryRow(ctx, `
-		SELECT p.principal_id, p.name, p.display_name, p.kind, p.status, p.version, p.created_at, p.updated_at,
+		SELECT p.principal_id, p.name, p.display_name, p.kind, p.status, p.created_at, p.updated_at,
 		       c.credential_id, c.certificate_not_after, c.label, c.created_at
 		FROM principal_credentials c
 		JOIN principals p ON p.principal_id = c.principal_id
@@ -29,7 +29,7 @@ func (s *Store) ResolveActor(ctx context.Context, fingerprint [32]byte, now time
 	`, fingerprint[:], now.UTC())
 	if err := row.Scan(
 		&actor.Principal.ID, &actor.Principal.Name, &actor.Principal.DisplayName, &actor.Principal.Kind,
-		&actor.Principal.Status, &actor.Principal.Version, &actor.Principal.CreatedAt, &actor.Principal.UpdatedAt,
+		&actor.Principal.Status, &actor.Principal.CreatedAt, &actor.Principal.UpdatedAt,
 		&actor.Credential.ID, &actor.Credential.CertificateNotAfter, &actor.Credential.Label, &actor.Credential.CreatedAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -88,7 +88,7 @@ func (s *Store) HasActivePlatformAdmin(ctx context.Context, now time.Time) (bool
 }
 
 func (s *Store) CreatePrincipal(ctx context.Context, actorID, name, displayName string, kind accesskernel.PrincipalKind, now time.Time) (accesskernel.Principal, error) {
-	principal := accesskernel.Principal{ID: "prn-" + uuid.NewString(), Name: strings.TrimSpace(name), DisplayName: strings.TrimSpace(displayName), Kind: kind, Status: accesskernel.PrincipalStatusActive, Version: 1, CreatedAt: now.UTC(), UpdatedAt: now.UTC()}
+	principal := accesskernel.Principal{ID: "prn-" + uuid.NewString(), Name: strings.TrimSpace(name), DisplayName: strings.TrimSpace(displayName), Kind: kind, Status: accesskernel.PrincipalStatusActive, CreatedAt: now.UTC(), UpdatedAt: now.UTC()}
 	if err := accesskernel.ValidatePrincipalName(principal.Name); err != nil {
 		return accesskernel.Principal{}, err
 	}
@@ -99,7 +99,7 @@ func (s *Store) CreatePrincipal(ctx context.Context, actorID, name, displayName 
 		return accesskernel.Principal{}, fmt.Errorf("%w: valid principal kind is required", accesskernel.ErrInvalidArgument)
 	}
 	err := s.withAudit(ctx, actorID, "principal.create", "principal", principal.ID, now, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `INSERT INTO principals (principal_id, name, display_name, kind, status, version, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,1,$6,$6)`, principal.ID, principal.Name, principal.DisplayName, principal.Kind, principal.Status, principal.CreatedAt)
+		_, err := tx.Exec(ctx, `INSERT INTO principals (principal_id, name, display_name, kind, status, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$6)`, principal.ID, principal.Name, principal.DisplayName, principal.Kind, principal.Status, principal.CreatedAt)
 		return err
 	})
 	if uniqueViolation(err) {
@@ -109,7 +109,7 @@ func (s *Store) CreatePrincipal(ctx context.Context, actorID, name, displayName 
 }
 
 func (s *Store) ListPrincipals(ctx context.Context) ([]accesskernel.Principal, error) {
-	rows, err := s.db.Pool().Query(ctx, `SELECT principal_id, name, display_name, kind, status, version, created_at, updated_at FROM principals ORDER BY name`)
+	rows, err := s.db.Pool().Query(ctx, `SELECT principal_id, name, display_name, kind, status, created_at, updated_at FROM principals ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (s *Store) ListPrincipals(ctx context.Context) ([]accesskernel.Principal, e
 	out := make([]accesskernel.Principal, 0)
 	for rows.Next() {
 		var p accesskernel.Principal
-		if err := rows.Scan(&p.ID, &p.Name, &p.DisplayName, &p.Kind, &p.Status, &p.Version, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.DisplayName, &p.Kind, &p.Status, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -127,7 +127,7 @@ func (s *Store) ListPrincipals(ctx context.Context) ([]accesskernel.Principal, e
 
 func (s *Store) DisablePrincipal(ctx context.Context, actorID, principalID string, now time.Time) (accesskernel.Principal, error) {
 	err := s.withAudit(ctx, actorID, "principal.disable", "principal", principalID, now, func(tx pgx.Tx) error {
-		tag, err := tx.Exec(ctx, `UPDATE principals SET status='disabled', version=version+1, updated_at=$2 WHERE principal_id=$1 AND status='active'`, principalID, now.UTC())
+		tag, err := tx.Exec(ctx, `UPDATE principals SET status='disabled', updated_at=$2 WHERE principal_id=$1 AND status='active'`, principalID, now.UTC())
 		if err == nil && tag.RowsAffected() == 0 {
 			return accesskernel.ErrNotFound
 		}
@@ -144,7 +144,7 @@ func (s *Store) DisablePrincipal(ctx context.Context, actorID, principalID strin
 
 func (s *Store) getPrincipal(ctx context.Context, id string) (accesskernel.Principal, error) {
 	var p accesskernel.Principal
-	err := s.db.Pool().QueryRow(ctx, `SELECT principal_id,name,display_name,kind,status,version,created_at,updated_at FROM principals WHERE principal_id=$1`, id).Scan(&p.ID, &p.Name, &p.DisplayName, &p.Kind, &p.Status, &p.Version, &p.CreatedAt, &p.UpdatedAt)
+	err := s.db.Pool().QueryRow(ctx, `SELECT principal_id,name,display_name,kind,status,created_at,updated_at FROM principals WHERE principal_id=$1`, id).Scan(&p.ID, &p.Name, &p.DisplayName, &p.Kind, &p.Status, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		err = accesskernel.ErrNotFound
 	}

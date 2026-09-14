@@ -32,9 +32,6 @@ func (h *Controller) createContainer(
 	resourceSpec *commonv1.ResourceSpec,
 	phaseRecorder contract.StartupPhaseRecorder,
 ) (*apipb.CreateContainerResponse, string, error) {
-	if !validContainerRecoveryMode(request.GetRecoveryMode()) {
-		return nil, "", errors.New("container recovery mode is required")
-	}
 	traceID, spanID := trace.GetContextID(ctx)
 	response := new(apipb.CreateContainerResponse)
 	start := time.Now()
@@ -85,8 +82,6 @@ func (h *Controller) createContainer(
 	if metaData == nil {
 		return response, "", h.cleanupCreatedRuntime(handler, resource, errors.New("runtime returned no container metadata"))
 	}
-	metaData.RecoveryMode = request.GetRecoveryMode()
-
 	response.ID = resource.ID
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container metadata: %w", err))
@@ -139,7 +134,6 @@ func (h *Controller) createAllocation(
 	if prepared == nil || prepared.Metadata == nil || prepared.ContainerID != resource.ID {
 		return response, "", cleanupPrepared(errors.New("runtime returned an invalid prepared container"))
 	}
-	prepared.Metadata.RecoveryMode = request.GetRecoveryMode()
 	// Persist ownership before running the gate. A crash or failed cleanup in
 	// the create-before-start window must remain discoverable by normal runtime
 	// inventory and the ordered Delete path.
@@ -160,7 +154,6 @@ func (h *Controller) createAllocation(
 	if metaData == nil {
 		return response, "", cleanupPrepared(errors.New("runtime returned no activated container metadata"))
 	}
-	metaData.RecoveryMode = request.GetRecoveryMode()
 	response.ID = resource.ID
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container metadata: %w", err))
@@ -169,11 +162,6 @@ func (h *Controller) createAllocation(
 		return response, "", cleanupPrepared(fmt.Errorf("register activated container monitor: %w", err))
 	}
 	return response, containerIPFromResource(resource), nil
-}
-
-func validContainerRecoveryMode(mode apipb.ContainerRecoveryMode) bool {
-	return mode == apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DURABLE ||
-		mode == apipb.ContainerRecoveryMode_CONTAINER_RECOVERY_MODE_DISCARD_ON_RESTART
 }
 
 // registerCreatedContainerLifecycle establishes the runtime Wait observer before

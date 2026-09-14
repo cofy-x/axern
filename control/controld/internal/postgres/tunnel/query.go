@@ -44,7 +44,7 @@ func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string
 	args := []any{}
 	if v := strings.TrimSpace(namespace); v != "" {
 		args = append(args, v)
-		conds = append(conds, fmt.Sprintf("namespace = $%d", len(args)))
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM allocations a JOIN runs r ON r.run_id = a.run_id WHERE a.allocation_id = tunnel_sessions.allocation_id AND r.namespace = $%d)", len(args)))
 	}
 	if v := strings.TrimSpace(allocationID); v != "" {
 		args = append(args, v)
@@ -52,7 +52,7 @@ func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string
 	}
 	if v := strings.TrimSpace(nodeID); v != "" {
 		args = append(args, v)
-		conds = append(conds, fmt.Sprintf("node_id = $%d", len(args)))
+		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM allocations a WHERE a.allocation_id = tunnel_sessions.allocation_id AND a.node_id = $%d)", len(args)))
 	}
 	if !includeTerminal {
 		conds = append(conds, "status NOT IN ('TUNNEL_SESSION_STATUS_REVOKED','TUNNEL_SESSION_STATUS_EXPIRED','TUNNEL_SESSION_STATUS_FAILED')")
@@ -120,7 +120,7 @@ func (s *Store) nextNodeExpiry(ctx context.Context, nodeID string) (time.Time, b
 	err := s.db.Pool().QueryRow(ctx, `
 		SELECT expires_at
 		FROM tunnel_sessions
-		WHERE node_id = $1
+		WHERE EXISTS (SELECT 1 FROM allocations a WHERE a.allocation_id = tunnel_sessions.allocation_id AND a.node_id = $1)
 		  AND status IN (
 			'TUNNEL_SESSION_STATUS_PENDING',
 			'TUNNEL_SESSION_STATUS_RUNNING',
@@ -148,7 +148,7 @@ func (s *Store) loadNodeSessions(ctx context.Context, nodeID string, afterRevisi
 	rows, err := s.db.Pool().Query(ctx, `
 		SELECT `+sessionSelectColumns()+`
 		FROM tunnel_sessions
-		WHERE node_id = $1
+		WHERE EXISTS (SELECT 1 FROM allocations a WHERE a.allocation_id = tunnel_sessions.allocation_id AND a.node_id = $1)
 		  AND revision > $2
 		  AND revision <= $3
 		ORDER BY revision ASC

@@ -117,15 +117,17 @@ func (f *fakeNodeOperatorService) Kill(ctx context.Context, req *runtimev1.KillR
 func (f *fakeNodeOperatorService) Version(context.Context, *runtimev1.VersionRequest) (*runtimev1.VersionResponse, error) {
 	return nil, nil
 }
-func (f *fakeNodeOperatorService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
+func (f *fakeNodeOperatorService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time) {
 	_ = status
 	_ = ready
 	_ = readinessMessage
 	_ = message
 	_ = observedAt
 	f.reportedAllocationID = allocationID
-	f.reportedExitCode = exitCode
-	f.reportedKnown = exitCodeKnown
+	if exitCode != nil {
+		f.reportedExitCode = *exitCode
+		f.reportedKnown = true
+	}
 }
 
 func (f *fakeNodeOperatorService) Exec(ctx context.Context, req *runtimev1.ExecRequest) (*runtimev1.ExecResponse, error) {
@@ -251,7 +253,7 @@ func (f *fakeNodeOperatorService) DownloadArchive(context.Context, *runtimev1.Do
 func (f *fakeNodeOperatorService) Wait(ctx context.Context, req *runtimev1.WaitRequest) (*runtimev1.WaitResponse, error) {
 	_ = ctx
 	f.waitRequests = append(f.waitRequests, req)
-	return &runtimev1.WaitResponse{Status: 0, ExitCode: 23, Message: "done"}, nil
+	return &runtimev1.WaitResponse{ExitCode: func() *int32 { value := int32(23); return &value }(), Message: "done"}, nil
 }
 
 func (f *fakeNodeOperatorService) List(ctx context.Context, req *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error) {
@@ -262,7 +264,7 @@ func (f *fakeNodeOperatorService) List(ctx context.Context, req *runtimev1.ListC
 			{
 				ID:         req.GetID(),
 				State:      runtimev1.ContainerState_CONTAINER_EXITED,
-				ExitCode:   23,
+				ExitCode:   func() *int32 { value := int32(23); return &value }(),
 				Message:    "done",
 				Pid:        321,
 				StartedAt:  1710000000,
@@ -357,7 +359,7 @@ func TestNodeOperatorWaitReturnsExit(t *testing.T) {
 	if resp.GetState() != nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED {
 		t.Fatalf("state = %v, want EXITED", resp.GetState())
 	}
-	if !resp.GetExitCodeKnown() || resp.GetExitCode() != 23 {
+	if resp.ExitCode == nil || resp.GetExitCode() != 23 {
 		t.Fatalf("wait response = %#v, want exit=23 known=true", resp)
 	}
 }

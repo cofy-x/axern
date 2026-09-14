@@ -7,7 +7,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 import "internal/apipb/v1/axnoded_internal.proto";
 
 message ExecRequest {
-  string ID = 1;
+  string id = 1;
   repeated string command = 2;
   int64 timeout = 3;
   map<string, string> env = 4;
@@ -24,7 +24,7 @@ message ExecResponse {
 }
 
 message ExecStreamOpen {
-  string ID = 1;
+  string id = 1;
   repeated string command = 2;
   bool tty = 3;
   int64 timeout = 4;
@@ -57,7 +57,7 @@ message ExecStreamResponse {
 }
 
 message ProcessOpen {
-  string ID = 1;
+  string id = 1;
   repeated string command = 2;
   bool tty = 3;
   int64 timeout = 4;

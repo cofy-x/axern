@@ -63,7 +63,7 @@ func (h *probeContainerHandle) wait(timeout time.Duration) ([]byte, []byte, erro
 
 	stdoutData, stdoutErr := os.ReadFile(h.stdoutPath)
 	stderrData, stderrErr := os.ReadFile(h.stderrPath)
-	if waitResp.GetExitCode() != 0 {
+	if waitResp.ExitCode == nil || waitResp.GetExitCode() != 0 {
 		return stdoutData, stderrData, fmt.Errorf(
 			"unexpected egress probe exit code %d for %s (stdout=%q stderr=%q)",
 			waitResp.GetExitCode(),

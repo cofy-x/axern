@@ -169,11 +169,11 @@ func validateAllocationLifecycleBatch(observations []*controlnodev1.AllocationLi
 		}
 		switch observation.GetState() {
 		case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING:
-			if observation.GetExitCodeKnown() || observation.GetExitCode() != 0 || observation.GetReady() {
+			if observation.ExitCode != nil || observation.GetReady() {
 				return grpcstatus.Errorf(codes.InvalidArgument, "starting allocation %q carries terminal or readiness facts", allocationID)
 			}
 		case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE:
-			if observation.GetExitCodeKnown() || observation.GetExitCode() != 0 {
+			if observation.ExitCode != nil {
 				return grpcstatus.Errorf(codes.InvalidArgument, "active allocation %q carries terminal exit facts", allocationID)
 			}
 		case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED:

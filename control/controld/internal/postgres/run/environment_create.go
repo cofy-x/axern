@@ -25,7 +25,7 @@ func (s *Store) CreateEnvironment(ctx context.Context, params runkernel.CreateEn
 		return nil, fmt.Errorf("begin create environment tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err := pgnamespace.Ensure(ctx, tx, normalized.GetNamespace()); err != nil {
+	if _, err := pgnamespace.EnsureAt(ctx, tx, normalized.GetNamespace(), now.UTC()); err != nil {
 		return nil, err
 	}
 

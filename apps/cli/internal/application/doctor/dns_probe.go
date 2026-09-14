@@ -114,9 +114,9 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 			runID = response.GetRun().GetID()
 			final, waitErr := apprun.New(session.Run).Wait(probeCtx, runID, apprun.WaitTargetTerminal, options.Timeout, nil)
 			switch {
-			case final != nil && final.GetExitCodeKnown() && (final.GetExitCode() == 20 || final.GetExitCode() == 21):
+			case final != nil && final.ExitCode != nil && (final.GetExitCode() == 20 || final.GetExitCode() == 21):
 				probeCode, probeMessage = "runtime_dns_sandbox_query_failed", "isolated sandbox could not resolve the configured DNS query"
-			case waitErr != nil || final == nil || !final.GetExitCodeKnown():
+			case waitErr != nil || final == nil || final.ExitCode == nil:
 				probeCode, probeMessage = "runtime_dns_sandbox_probe_failed", "sandbox DNS probe did not complete"
 			case final.GetExitCode() != 0:
 				probeCode, probeMessage = "runtime_dns_sandbox_probe_failed", "sandbox DNS probe exited unexpectedly"

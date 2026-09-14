@@ -31,7 +31,7 @@ type statusReportRecorder struct {
 	readinessMessage string
 }
 
-func (r *statusReportRecorder) Report(allocationID string, status commonv1.AllocationLifecycleState, _ int32, _ bool, ready bool, readinessMessage string, _ string, _ time.Time) {
+func (r *statusReportRecorder) Report(allocationID string, status commonv1.AllocationLifecycleState, _ *int32, ready bool, readinessMessage string, _ string, _ time.Time) {
 	r.lastID = allocationID
 	r.status = status
 	r.ready = ready

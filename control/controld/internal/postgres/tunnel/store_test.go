@@ -514,15 +514,15 @@ func newTunnelTestDB(t *testing.T) *postgres.DB {
 func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at)
-		VALUES ('prn-tunnel-test','tunnel-test','Tunnel Test','human','active',1,$1,$1)
+		INSERT INTO principals(principal_id,name,display_name,kind,status,created_at,updated_at)
+		VALUES ('prn-tunnel-test','tunnel-test','Tunnel Test','human','active',$1,$1)
 		ON CONFLICT (principal_id) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel principal fixture: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO namespaces(namespace,version,created_at,updated_at)
-		VALUES ('default',1,$1,$1)
+		INSERT INTO namespaces(namespace,created_at)
+		VALUES ('default',$1)
 		ON CONFLICT (namespace) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel namespace fixture: %v", err)

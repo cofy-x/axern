@@ -20,7 +20,7 @@ func (s *Store) CreateNamespace(ctx context.Context, namespace string, now time.
 		return nil, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	normalized, err := ensureAt(ctx, tx, namespace, now)
+	normalized, err := EnsureAt(ctx, tx, namespace, now)
 	if err != nil {
 		return nil, err
 	}
@@ -45,8 +45,9 @@ func (s *Store) GetNamespace(ctx context.Context, namespace string) (*namespacev
 
 func (s *Store) ListNamespaces(ctx context.Context) ([]*namespacev1.Namespace, error) {
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT namespace, version, created_at, updated_at
+		SELECT namespace, created_at, deleted_at
 		FROM namespaces
+		WHERE deleted_at IS NULL
 		ORDER BY namespace
 	`)
 	if err != nil {
@@ -68,7 +69,6 @@ func (s *Store) ListNamespaces(ctx context.Context) ([]*namespacev1.Namespace, e
 }
 
 func (s *Store) DeleteNamespace(ctx context.Context, namespace string, now time.Time) (*namespacev1.Namespace, error) {
-	_ = now
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -82,26 +82,34 @@ func (s *Store) DeleteNamespace(ctx context.Context, namespace string, now time.
 	if err := ensureNamespaceDeletable(ctx, tx, normalized); err != nil {
 		return nil, err
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM namespaces WHERE namespace = $1`, normalized); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE namespaces SET deleted_at = $2 WHERE namespace = $1`, normalized, now.UTC()); err != nil {
 		return nil, fmt.Errorf("delete namespace: %w", err)
 	}
+	record.DeletedAt = timestamppb.New(now.UTC())
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return record, nil
 }
 
-func ensureAt(ctx context.Context, q execer, namespace string, now time.Time) (string, error) {
+func EnsureAt(ctx context.Context, q pgx.Tx, namespace string, now time.Time) (string, error) {
 	if now.IsZero() {
 		now = time.Now().UTC()
 	}
 	normalized := normalizeNamespace(namespace)
 	if _, err := q.Exec(ctx, `
-		INSERT INTO namespaces(namespace, created_at, updated_at)
-		VALUES ($1, $2, $2)
+		INSERT INTO namespaces(namespace, created_at)
+		VALUES ($1, $2)
 		ON CONFLICT (namespace) DO NOTHING
 	`, normalized, now); err != nil {
 		return "", fmt.Errorf("ensure namespace: %w", err)
+	}
+	var deletedAt *time.Time
+	if err := q.QueryRow(ctx, `SELECT deleted_at FROM namespaces WHERE namespace = $1 FOR UPDATE`, normalized).Scan(&deletedAt); err != nil {
+		return "", fmt.Errorf("verify namespace: %w", err)
+	}
+	if deletedAt != nil {
+		return "", grpcstatus.Errorf(codes.FailedPrecondition, "namespace %q was deleted and cannot be reused", normalized)
 	}
 	if _, err := q.Exec(ctx, `
 		INSERT INTO namespace_resource_quotas(namespace, created_at, updated_at)
@@ -115,9 +123,9 @@ func ensureAt(ctx context.Context, q execer, namespace string, now time.Time) (s
 
 func queryNamespace(ctx context.Context, q queryer, namespace string) (*namespacev1.Namespace, error) {
 	row := q.QueryRow(ctx, `
-		SELECT namespace, version, created_at, updated_at
+		SELECT namespace, created_at, deleted_at
 		FROM namespaces
-		WHERE namespace = $1
+		WHERE namespace = $1 AND deleted_at IS NULL
 	`, namespace)
 	record, err := scanNamespace(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -131,9 +139,9 @@ func queryNamespace(ctx context.Context, q queryer, namespace string) (*namespac
 
 func queryNamespaceForUpdate(ctx context.Context, q queryer, namespace string) (*namespacev1.Namespace, error) {
 	row := q.QueryRow(ctx, `
-		SELECT namespace, version, created_at, updated_at
+		SELECT namespace, created_at, deleted_at
 		FROM namespaces
-		WHERE namespace = $1
+		WHERE namespace = $1 AND deleted_at IS NULL
 		FOR UPDATE
 	`, namespace)
 	record, err := scanNamespace(row)
@@ -217,17 +225,19 @@ type namespaceScanner interface {
 
 func scanNamespace(row namespaceScanner) (*namespacev1.Namespace, error) {
 	var (
-		namespace            string
-		version              int64
-		createdAt, updatedAt time.Time
+		namespace string
+		createdAt time.Time
+		deletedAt *time.Time
 	)
-	if err := row.Scan(&namespace, &version, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&namespace, &createdAt, &deletedAt); err != nil {
 		return nil, err
 	}
-	return &namespacev1.Namespace{
+	record := &namespacev1.Namespace{
 		Namespace: namespace,
-		Version:   version,
 		CreatedAt: timestamppb.New(createdAt),
-		UpdatedAt: timestamppb.New(updatedAt),
-	}, nil
+	}
+	if deletedAt != nil {
+		record.DeletedAt = timestamppb.New(*deletedAt)
+	}
+	return record, nil
 }

@@ -63,7 +63,8 @@ func storeRunningExecContainer(t *testing.T, s *sandboxService, runtimeName stri
 func storeExitedExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	storeRunningExecContainer(t, s, runtimeName, id)
-	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
+	exitCode := int32(0)
+	assert.NoError(t, s.containerManager.SetExit(id, &exitCode, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 }
 
 func TestExecRejectsInvalidArgument(t *testing.T) {

@@ -31,7 +31,7 @@ func (s *Store) List(ctx context.Context, filter *secretv1.SecretListFilter) ([]
 		return nil, "", err
 	}
 	query := `
-		SELECT secret_id, namespace, type, data_keys, labels, version, created_at, updated_at
+		SELECT secret_id, namespace, type, data_keys, labels, created_at
 		FROM secrets
 		WHERE TRUE`
 	args := make([]any, 0, 6)
