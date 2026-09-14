@@ -28,9 +28,6 @@ func RenderEnvironment(w io.Writer, env *environmentv1.Environment) {
 		case spec.GetImage() != nil && strings.TrimSpace(spec.GetImage().GetRef()) != "":
 			fmt.Fprintln(w, "Source: image")
 			fmt.Fprintf(w, "Image Ref: %s\n", spec.GetImage().GetRef())
-			if spec.GetImage().GetDigest() != "" {
-				fmt.Fprintf(w, "Resolved Digest: %s\n", spec.GetImage().GetDigest())
-			}
 			if spec.GetImage().GetRegistryCredentialID() != "" {
 				fmt.Fprintf(w, "Registry Credential ID: %s\n", spec.GetImage().GetRegistryCredentialID())
 			}
@@ -39,7 +36,7 @@ func RenderEnvironment(w io.Writer, env *environmentv1.Environment) {
 	}
 	if resolved := env.GetResolvedSpec(); resolved != nil {
 		if digest := resolved.GetImageDescriptor().GetDigest(); digest != "" {
-			fmt.Fprintf(w, "Runtime Digest: %s\n", digest)
+			fmt.Fprintf(w, "Resolved Digest: %s\n", digest)
 		}
 		if ref := resolved.GetImageDescriptor().GetAnnotations()["org.opencontainers.image.ref.name"]; ref != "" {
 			fmt.Fprintf(w, "Normalized Image Ref: %s\n", ref)
@@ -74,7 +71,7 @@ func environmentSummary(env *environmentv1.Environment) (source, ref, digest str
 	case strings.TrimSpace(spec.GetTemplateID()) != "":
 		return "template", spec.GetTemplateID(), spec.GetTemplateVersion()
 	case spec.GetImage() != nil && strings.TrimSpace(spec.GetImage().GetRef()) != "":
-		return "image", spec.GetImage().GetRef(), spec.GetImage().GetDigest()
+		return "image", spec.GetImage().GetRef(), env.GetResolvedSpec().GetImageDescriptor().GetDigest()
 	default:
 		return "unknown", "", ""
 	}

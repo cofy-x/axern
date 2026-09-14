@@ -20,7 +20,6 @@ message ExecSpec {
 message ExecRequest {
   ExecSpec spec = 1;
   string allocation_id = 2;
-  string execution_lease_token = 3;
 }
 
 message ExecResponse {
@@ -34,8 +33,7 @@ message ExecResponse {
 message ExecStreamOpen {
   ExecSpec spec = 1;
   string allocation_id = 2;
-  string execution_lease_token = 3;
-  TerminalResize initial_size = 4;
+  TerminalResize initial_size = 3;
 }
 
 message TerminalResize {
@@ -68,7 +66,6 @@ message ExecStreamResponse {
 message ProcessOpen {
   ExecSpec spec = 1;
   string allocation_id = 2;
-  string execution_lease_token = 3;
 }
 
 message ProcessSignal {
@@ -107,7 +104,6 @@ enum SandboxProcessState {
 
 message WaitSandboxRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
 }
 
 message WaitSandboxResponse {
@@ -124,9 +120,8 @@ enum OutputStream {
 
 message ReadOutputRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string cursor = 3;
-  bool follow = 4;
+  string cursor = 2;
+  bool follow = 3;
 }
 
 message ReadOutputResponse {
@@ -142,7 +137,6 @@ message ReadOutputResponse {
 
 message CapabilityStatusRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
 }
 
 message CapabilityProviderDependencyStatus {
@@ -184,14 +178,13 @@ message ProxyHTTPHeader {
 
 message ProxyHTTPOpen {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  int32 port = 3;
-  string method = 4;
-  string path = 5;
-  string query = 6;
-  repeated ProxyHTTPHeader headers = 7;
-  bool has_body = 8;
-  int64 content_length = 9;
+  int32 port = 2;
+  string method = 3;
+  string path = 4;
+  string query = 5;
+  repeated ProxyHTTPHeader headers = 6;
+  bool has_body = 7;
+  int64 content_length = 8;
 }
 
 message ProxyHTTPResponseHead {
@@ -224,8 +217,7 @@ message ProxyHTTPResponse {
 
 message StatFileRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
+  string path = 2;
 }
 
 message StatFileResponse {
@@ -234,8 +226,7 @@ message StatFileResponse {
 
 message ListDirRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
+  string path = 2;
 }
 
 message ListDirResponse {
@@ -244,8 +235,7 @@ message ListDirResponse {
 
 message ReadFileRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
+  string path = 2;
 }
 
 message ReadFileResponse {
@@ -254,37 +244,33 @@ message ReadFileResponse {
 
 message WriteFileRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  bytes data = 4;
-  bool create_parents = 5;
+  string path = 2;
+  bytes data = 3;
+  bool create_parents = 4;
 }
 
 message WriteFileResponse {}
 
 message MkdirRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  bool parents = 4;
+  string path = 2;
+  bool parents = 3;
 }
 
 message MkdirResponse {}
 
 message RemoveRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  bool recursive = 4;
-  bool force = 5;
+  string path = 2;
+  bool recursive = 3;
+  bool force = 4;
 }
 
 message RemoveResponse {}
 
 message ExistsRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
+  string path = 2;
 }
 
 message ExistsResponse {
@@ -293,53 +279,48 @@ message ExistsResponse {
 
 message CopyRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string src_path = 3;
-  string dst_path = 4;
-  bool recursive = 5;
-  bool overwrite = 6;
+  string src_path = 2;
+  string dst_path = 3;
+  bool recursive = 4;
+  bool overwrite = 5;
 }
 
 message CopyResponse {}
 
 message MoveRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string src_path = 3;
-  string dst_path = 4;
-  bool overwrite = 5;
+  string src_path = 2;
+  string dst_path = 3;
+  bool overwrite = 4;
 }
 
 message MoveResponse {}
 
 message ChmodRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  uint32 mode = 4;
-  bool recursive = 5;
+  string path = 2;
+  uint32 mode = 3;
+  bool recursive = 4;
 }
 
 message ChmodResponse {}
 
 message TouchRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  bool create = 4;
-  int64 mtime_ns = 5;
+  string path = 2;
+  bool create = 3;
+  int64 mtime_ns = 4;
 }
 
 message TouchResponse {}
 
 message UploadArchiveOpen {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  axern.common.file.v1.SandboxArchiveFormat format = 4;
-  bool create_parents = 5;
-  bool overwrite = 6;
-  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 7;
+  string path = 2;
+  axern.common.file.v1.SandboxArchiveFormat format = 3;
+  bool create_parents = 4;
+  bool overwrite = 5;
+  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 6;
 }
 
 message UploadArchiveRequest {
@@ -353,10 +334,9 @@ message UploadArchiveResponse {}
 
 message DownloadArchiveRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string path = 3;
-  axern.common.file.v1.SandboxArchiveFormat format = 4;
-  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 5;
+  string path = 2;
+  axern.common.file.v1.SandboxArchiveFormat format = 3;
+  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 4;
 }
 
 message DownloadArchiveResponse {
@@ -367,7 +347,6 @@ message DownloadArchiveResponse {
 
 message ComputerUseStatusRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
 }
 
 message ComputerUseStatusResponse {
@@ -393,12 +372,11 @@ message ComputerUseRegion {
 
 message ComputerUseScreenshotRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  bool show_cursor = 3;
-  ComputerUseRegion region = 4;
-  string format = 5;
-  int32 quality = 6;
-  double scale = 7;
+  bool show_cursor = 2;
+  ComputerUseRegion region = 3;
+  string format = 4;
+  int32 quality = 5;
+  double scale = 6;
 }
 
 message ComputerUseScreenshotResponse {
@@ -408,7 +386,6 @@ message ComputerUseScreenshotResponse {
 
 message ComputerUseDisplayRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
 }
 
 message ComputerUseDisplayResponse {
@@ -420,26 +397,24 @@ message ComputerUseDisplayResponse {
 
 message ComputerUseMouseRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string action = 3;
-  int32 x = 4;
-  int32 y = 5;
-  int32 to_x = 6;
-  int32 to_y = 7;
-  string button = 8;
-  string direction = 9;
-  int32 amount = 10;
+  string action = 2;
+  int32 x = 3;
+  int32 y = 4;
+  int32 to_x = 5;
+  int32 to_y = 6;
+  string button = 7;
+  string direction = 8;
+  int32 amount = 9;
 }
 
 message ComputerUseMouseResponse {}
 
 message ComputerUseKeyboardRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string text = 3;
-  string key = 4;
-  repeated string keys = 5;
-  int32 delay_ms = 6;
+  string text = 2;
+  string key = 3;
+  repeated string keys = 4;
+  int32 delay_ms = 5;
 }
 
 message ComputerUseKeyboardResponse {}
@@ -448,7 +423,6 @@ message ComputerUseKeyboardResponse {}
 
 message BrowserStatusRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
 }
 
 message BrowserStatusResponse {
@@ -462,47 +436,40 @@ message BrowserStatusResponse {
 
 message BrowserOpenRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string url = 3;
+  string url = 2;
 }
 
 message BrowserCloseRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
 }
 
 message BrowserNavigateRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string url = 3;
+  string url = 2;
 }
 
 message BrowserResizeRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  int32 width = 3;
-  int32 height = 4;
+  int32 width = 2;
+  int32 height = 3;
 }
 
 message BrowserClickRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  int32 x = 3;
-  int32 y = 4;
-  string button = 5;
+  int32 x = 2;
+  int32 y = 3;
+  string button = 4;
 }
 
 message BrowserTypeRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  string text = 3;
-  int32 delay_ms = 4;
+  string text = 2;
+  int32 delay_ms = 3;
 }
 
 message BrowserWaitRequest {
   string allocation_id = 1;
-  string execution_lease_token = 2;
-  int32 timeout_ms = 3;
+  int32 timeout_ms = 2;
 }
 
 service NodeSandbox {

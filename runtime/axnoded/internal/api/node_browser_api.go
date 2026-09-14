@@ -8,7 +8,7 @@ import (
 )
 
 func (s *nodeSandboxServer) BrowserStatus(ctx context.Context, req *nodesandboxv1.BrowserStatusRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -20,7 +20,7 @@ func (s *nodeSandboxServer) BrowserStatus(ctx context.Context, req *nodesandboxv
 }
 
 func (s *nodeSandboxServer) BrowserOpen(ctx context.Context, req *nodesandboxv1.BrowserOpenRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (s *nodeSandboxServer) BrowserOpen(ctx context.Context, req *nodesandboxv1.
 }
 
 func (s *nodeSandboxServer) BrowserClose(ctx context.Context, req *nodesandboxv1.BrowserCloseRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *nodeSandboxServer) BrowserClose(ctx context.Context, req *nodesandboxv1
 }
 
 func (s *nodeSandboxServer) BrowserNavigate(ctx context.Context, req *nodesandboxv1.BrowserNavigateRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func (s *nodeSandboxServer) BrowserNavigate(ctx context.Context, req *nodesandbo
 }
 
 func (s *nodeSandboxServer) BrowserResize(ctx context.Context, req *nodesandboxv1.BrowserResizeRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +68,7 @@ func (s *nodeSandboxServer) BrowserResize(ctx context.Context, req *nodesandboxv
 }
 
 func (s *nodeSandboxServer) BrowserClick(ctx context.Context, req *nodesandboxv1.BrowserClickRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (s *nodeSandboxServer) BrowserClick(ctx context.Context, req *nodesandboxv1
 }
 
 func (s *nodeSandboxServer) BrowserType(ctx context.Context, req *nodesandboxv1.BrowserTypeRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (s *nodeSandboxServer) BrowserType(ctx context.Context, req *nodesandboxv1.
 }
 
 func (s *nodeSandboxServer) BrowserWait(ctx context.Context, req *nodesandboxv1.BrowserWaitRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ func (s *nodeSandboxServer) Process(stream nodesandboxv1.NodeSandbox_ProcessServ
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID())
 	if err != nil {
 		return err
 	}

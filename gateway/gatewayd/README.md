@@ -2,7 +2,7 @@
 
 `gatewayd` is Axern's unified external gateway for public control API traffic, Allocation-bound browser terminal and SSH-compatible sessions, process, file and archive operations, and foreground tunnel client peers.
 
-It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped execution leases without creating a second control plane.
+It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped execution leases without creating a second control plane. Public `NodeSandbox` messages contain only the Allocation identity and operation input; gatewayd replaces any caller-supplied internal lease metadata and sends the controld-issued token only on the private gateway-to-node gRPC hop.
 
 External CLI and SDK control-plane gRPC traffic should terminate at `gatewayd`'s control edge listener, which is enabled by default. `controld` stays private inside the cluster; `gatewayd` verifies external client mTLS and forwards public control RPCs to the internal `controld` target with the dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is discarded; gatewayd injects only the fingerprint of the leaf certificate it verified. Controld resolves that fingerprint to a durable Principal and applies platform or namespace role bindings on every RPC.
 

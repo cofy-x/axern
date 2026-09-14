@@ -22,6 +22,7 @@ func (d *Dialer) ProxyHTTP(ctx context.Context, spec nodekernel.HTTPProxySpec) (
 		return nil, err
 	}
 	streamCtx, cancel := proxyHTTPStreamContext(ctx, spec.Timeout)
+	streamCtx = nodekernel.WithExecutionLease(streamCtx, spec.Token)
 	stream, err := client.ProxyHTTP(streamCtx)
 	if err != nil {
 		cancel()
@@ -29,15 +30,14 @@ func (d *Dialer) ProxyHTTP(ctx context.Context, spec nodekernel.HTTPProxySpec) (
 	}
 	if err := stream.Send(&nodesandboxv1.ProxyHTTPRequest{
 		Payload: &nodesandboxv1.ProxyHTTPRequest_Open{Open: &nodesandboxv1.ProxyHTTPOpen{
-			AllocationID:        spec.AllocationID,
-			ExecutionLeaseToken: spec.Token,
-			Port:                spec.Port,
-			Method:              spec.Method,
-			Path:                spec.Path,
-			Query:               spec.Query,
-			Headers:             proxyHeadersFromHTTP(spec.Header),
-			HasBody:             spec.HasBody,
-			ContentLength:       spec.ContentLength,
+			AllocationID:  spec.AllocationID,
+			Port:          spec.Port,
+			Method:        spec.Method,
+			Path:          spec.Path,
+			Query:         spec.Query,
+			Headers:       proxyHeadersFromHTTP(spec.Header),
+			HasBody:       spec.HasBody,
+			ContentLength: spec.ContentLength,
 		}},
 	}); err != nil {
 		cancel()

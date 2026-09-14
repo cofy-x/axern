@@ -113,7 +113,7 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual([name for name, _, _ in calls], ["read", "write", "browser_open", "computer_screenshot", "capability_status"])
         for _, request, timeout in calls:
             self.assertEqual(request.allocation_id, "alloc-1")
-            self.assertEqual(getattr(request, "execution_lease_token", ""), "")
+            self.assertFalse(hasattr(request, "execution_lease_token"))
             self.assertEqual(timeout, 3)
 
     def test_sync_process_and_exec_use_gateway_process_rpc(self) -> None:
@@ -147,7 +147,7 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(result.stdout, b"hello")
         self.assertEqual(result.stderr, b"warn")
         self.assertEqual(open_requests[0].allocation_id, "alloc-1")
-        self.assertEqual(open_requests[0].execution_lease_token, "")
+        self.assertFalse(hasattr(open_requests[0], "execution_lease_token"))
         self.assertEqual(list(open_requests[0].spec.argv), ["/bin/echo", "hello"])
 
     def test_sync_archive_methods_use_gateway_streams(self) -> None:
@@ -178,10 +178,10 @@ class SandboxTest(unittest.TestCase):
             client.download_archive("/workspace", out.extend)
 
         self.assertEqual(upload_requests[0].open.allocation_id, "alloc-1")
-        self.assertEqual(upload_requests[0].open.execution_lease_token, "")
+        self.assertFalse(hasattr(upload_requests[0].open, "execution_lease_token"))
         self.assertEqual(upload_requests[1].chunk, b"tar")
         self.assertEqual(download_requests[0].allocation_id, "alloc-1")
-        self.assertEqual(download_requests[0].execution_lease_token, "")
+        self.assertFalse(hasattr(download_requests[0], "execution_lease_token"))
         self.assertEqual(bytes(out), b"ab")
 
     def test_sync_process_replays_prefetched_output_before_exit(self) -> None:
@@ -309,7 +309,7 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(capability.ready)
         for _, request, timeout in calls:
             self.assertEqual(request.allocation_id, "alloc-1")
-            self.assertEqual(getattr(request, "execution_lease_token", ""), "")
+            self.assertFalse(hasattr(request, "execution_lease_token"))
             self.assertEqual(timeout, 3)
 
     async def test_async_process_and_exec_use_gateway_process_rpc(self) -> None:
@@ -342,7 +342,7 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.stderr, b"warn")
         open_request = calls[0].writes[0].open
         self.assertEqual(open_request.allocation_id, "alloc-1")
-        self.assertEqual(open_request.execution_lease_token, "")
+        self.assertFalse(hasattr(open_request, "execution_lease_token"))
         self.assertEqual(list(open_request.spec.argv), ["/bin/echo", "hello"])
         self.assertTrue(calls[0].done)
 
@@ -379,10 +379,10 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
             await client.download_archive("/workspace", out.extend)
 
         self.assertEqual(upload_requests[0].open.allocation_id, "alloc-1")
-        self.assertEqual(upload_requests[0].open.execution_lease_token, "")
+        self.assertFalse(hasattr(upload_requests[0].open, "execution_lease_token"))
         self.assertEqual(upload_requests[1].chunk, b"tar")
         self.assertEqual(download_requests[0].allocation_id, "alloc-1")
-        self.assertEqual(download_requests[0].execution_lease_token, "")
+        self.assertFalse(hasattr(download_requests[0], "execution_lease_token"))
         self.assertEqual(bytes(out), b"ab")
 
     async def test_async_process_replays_prefetched_output_before_exit(self) -> None:

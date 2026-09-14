@@ -91,11 +91,8 @@ func TestCreateImageEnvironmentResolvesDigestForOwnedResources(t *testing.T) {
 	if !proto.Equal(first.GetEnvironment().GetResolvedSpec(), second.GetEnvironment().GetResolvedSpec()) {
 		t.Fatal("equivalent image sources produced different resolved specifications")
 	}
-	if got := first.GetEnvironment().GetSpec().GetImage().GetDigest(); got == "" {
-		t.Fatal("resolved image digest = empty, want resolved digest persisted")
-	}
-	if got := first.GetEnvironment().GetResolvedSpec().GetImageDescriptor().GetDigest(); got != first.GetEnvironment().GetSpec().GetImage().GetDigest() {
-		t.Fatalf("resolved template digest = %q, want %q", got, first.GetEnvironment().GetSpec().GetImage().GetDigest())
+	if got := first.GetEnvironment().GetResolvedSpec().GetImageDescriptor().GetDigest(); got == "" {
+		t.Fatal("resolved image descriptor digest = empty, want immutable digest persisted")
 	}
 }
 
@@ -134,18 +131,6 @@ func TestCreateEnvironmentRejectsInvalidImageSourceCombinations(t *testing.T) {
 		t.Fatalf("image template_version code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
 	}
 
-	_, err = public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{
-			Namespace: "default",
-			Image: &environmentv1.EnvironmentImageSource{
-				Ref:    "docker.io/library/nginx:1.27",
-				Digest: "sha256:user-supplied",
-			},
-		},
-	})
-	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("client digest code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
-	}
 }
 
 func TestCreateImageEnvironmentMutableTagCreatesNewEnvironmentWhenDigestChanges(t *testing.T) {

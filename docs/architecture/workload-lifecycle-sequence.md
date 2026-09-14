@@ -1,6 +1,6 @@
 # Axern Workload Lifecycle
 
-Public clients connect to gatewayd. Gatewayd exposes product APIs, resolves allocation routing, obtains internal execution authorization from controld, and forwards sandbox traffic to axnoded. Clients never receive node targets or execution lease tokens.
+Public clients connect to gatewayd. Gatewayd exposes product APIs, resolves allocation routing, obtains internal execution authorization from controld, and forwards sandbox traffic to axnoded. Clients never receive node targets or execution lease tokens. Public sandbox messages therefore contain no lease field; gatewayd carries the token as private outgoing gRPC metadata that axnoded validates before acknowledging the operation.
 
 `Run` is the single public workload model: one execution owns one allocation and eventually records a terminal exit status. SDK Sandboxes use a detached Run while their client-managed session is active.
 

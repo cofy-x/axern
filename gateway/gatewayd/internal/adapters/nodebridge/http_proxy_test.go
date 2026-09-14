@@ -82,11 +82,15 @@ type leaseHandshakeBackend struct {
 }
 
 func (b *leaseHandshakeBackend) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer) error {
-	first, err := stream.Recv()
+	_, err := stream.Recv()
 	if err != nil {
 		return err
 	}
-	if first.GetOpen().GetExecutionLeaseToken() == "stale-token" {
+	values := metadata.ValueFromIncomingContext(stream.Context(), nodekernel.ExecutionLeaseTokenMetadata)
+	if len(values) != 1 {
+		return status.Error(codes.Unauthenticated, "execution lease metadata is missing")
+	}
+	if values[0] == "stale-token" {
 		return status.Error(codes.Unauthenticated, "execution lease is invalid")
 	}
 	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {

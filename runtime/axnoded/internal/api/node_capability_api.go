@@ -8,7 +8,7 @@ import (
 )
 
 func (s *nodeSandboxServer) CapabilityStatus(ctx context.Context, req *nodesandboxv1.CapabilityStatusRequest) (*nodesandboxv1.CapabilityStatusResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}

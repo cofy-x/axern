@@ -12,7 +12,7 @@ Axern separates durable product intent from node-local execution:
 
 ## External And Internal Flows
 
-Public clients send Allocation identities to `gatewayd`, never node targets or internal lease tokens. Gatewayd forwards control RPCs to `controld`; for process, file, archive, terminal, and SSH operations it resolves the target and authority bound to that exact Allocation ID before forwarding to `axnoded`. Internal lifecycle and status paths remain direct.
+Public clients send Allocation identities to `gatewayd`, never node targets or internal lease tokens. Gatewayd forwards control RPCs to `controld`; for process, file, archive, terminal, and SSH operations it resolves the target and authority bound to that exact Allocation ID before forwarding to `axnoded`. The public request remains credential-free; gatewayd overwrites the private execution-lease metadata on every backend attempt, and axnoded accepts exactly one non-empty value. Internal lifecycle and status paths remain direct.
 
 | Flow | Path | Authority |
 | --- | --- | --- |

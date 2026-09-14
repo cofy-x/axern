@@ -22,7 +22,7 @@ func (s *nodeSandboxServer) UploadArchive(stream nodesandboxv1.NodeSandbox_Uploa
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID())
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func (s *nodeSandboxServer) UploadArchive(stream nodesandboxv1.NodeSandbox_Uploa
 }
 
 func (s *nodeSandboxServer) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stream nodesandboxv1.NodeSandbox_DownloadArchiveServer) error {
-	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID())
 	if err != nil {
 		return err
 	}

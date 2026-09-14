@@ -79,9 +79,6 @@ func resolveImageSpec(ctx context.Context, images ImageResolver, credentials Reg
 	if strings.TrimSpace(spec.GetTemplateVersion()) != "" {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "template_version is only valid with template_id")
 	}
-	if strings.TrimSpace(spec.GetImage().GetDigest()) != "" {
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.digest is output-only")
-	}
 	registryCredentialID := strings.TrimSpace(spec.GetImage().GetRegistryCredentialID())
 	opts := ResolveOptions{}
 	if registryCredentialID != "" {
@@ -108,7 +105,6 @@ func resolveImageSpec(ctx context.Context, images ImageResolver, credentials Reg
 		Namespace: NormalizeNamespace(spec.GetNamespace()),
 		Image: &environmentv1.EnvironmentImageSource{
 			Ref:                  strings.TrimSpace(resolved.Ref),
-			Digest:               strings.TrimSpace(resolved.Descriptor.GetDigest()),
 			RootfsReadonly:       spec.GetImage().GetRootfsReadonly(),
 			RegistryCredentialID: registryCredentialID,
 		},

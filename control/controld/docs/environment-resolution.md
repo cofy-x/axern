@@ -20,7 +20,7 @@ Environments support two execution-source modes:
 - template-backed via `template_id` / `template_version`
 - image-backed via public OCI `image.ref`, resolved by `controld` to a digest
 
-Image-backed environments can optionally reference a controld-managed registry credential secret via `image.registry_credential_id`. The referenced secret must be type `DOCKER_CONFIG_JSON`.
+Image-backed environments can optionally reference a controld-managed registry credential secret via `image.registry_credential_id`. The referenced secret must be type `DOCKER_CONFIG_JSON`. `EnvironmentSpec.image` records normalized source intent only: the reference, read-only policy, and credential reference. Resolved OCI digest, media type, size, and canonical reference annotations belong exclusively to `resolved_spec.image_descriptor`; they are not copied back into the source.
 
 `resolved_spec` is the normalized immutable runtime input for both modes, so Run admission and node lifecycle paths consume one execution shape. Template ID and version remain private resolution inputs; image, mounts, defaults, and execution profile live in the Environment's resolved specification. An Environment is immutable except for its deletion tombstone; changing the source creates another Environment and a new Run.
 

@@ -18,7 +18,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 )
 
-func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
+func TestExecResolvesLeaseMetadataAndForwards(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
 
@@ -42,8 +42,22 @@ func TestExecResolvesInjectsLeaseAndForwards(t *testing.T) {
 		t.Fatalf("dial target = %q", got)
 	}
 	req := h.backend.exec
-	if req.GetAllocationID() != "alloc-public" || req.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("backend exec auth fields = allocation %q token %q", req.GetAllocationID(), req.GetExecutionLeaseToken())
+	if req.GetAllocationID() != "alloc-public" || h.backend.execLeaseToken != "lease-token" {
+		t.Fatalf("backend exec auth = allocation %q metadata token %q", req.GetAllocationID(), h.backend.execLeaseToken)
+	}
+}
+
+func TestExecDoesNotForwardCallerLeaseMetadata(t *testing.T) {
+	h := newHarness(t)
+	defer h.Close()
+
+	ctx := metadata.AppendToOutgoingContext(context.Background(), nodekernel.ExecutionLeaseTokenMetadata, "caller-token")
+	_, err := h.client.Exec(ctx, &nodesandboxv1.ExecRequest{AllocationID: "alloc-public", Spec: &nodesandboxv1.ExecSpec{Argv: []string{"true"}}})
+	if err != nil {
+		t.Fatalf("Exec returned error: %v", err)
+	}
+	if got := h.backend.execLeaseToken; got != "lease-token" {
+		t.Fatalf("backend execution lease metadata = %q, want gateway-issued token", got)
 	}
 }
 
@@ -67,7 +81,7 @@ func TestReadOutputUsesRunOutputAccessPurpose(t *testing.T) {
 	}
 }
 
-func TestProcessBridgesFirstOpenWithInjectedLease(t *testing.T) {
+func TestProcessBridgesFirstOpenWithLeaseMetadata(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
 
@@ -103,8 +117,8 @@ func TestProcessBridgesFirstOpenWithInjectedLease(t *testing.T) {
 		t.Fatal("process stream did not relay stdout")
 	}
 	open := h.backend.processOpen
-	if open.GetAllocationID() != "alloc-public" || open.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("backend process auth fields = allocation %q token %q", open.GetAllocationID(), open.GetExecutionLeaseToken())
+	if open.GetAllocationID() != "alloc-public" || h.backend.processLeaseToken != "lease-token" {
+		t.Fatalf("backend process auth = allocation %q metadata token %q", open.GetAllocationID(), h.backend.processLeaseToken)
 	}
 }
 
@@ -183,10 +197,10 @@ func TestExecStreamRefreshesLeaseBeforeBridgingClientInput(t *testing.T) {
 	if got := len(h.backend.execStreamOpens); got != 2 {
 		t.Fatalf("backend opens = %d, want 2", got)
 	}
-	if got := h.backend.execStreamOpens[0].GetExecutionLeaseToken(); got != "stale-token" {
+	if got := h.backend.execStreamLeaseTokens[0]; got != "stale-token" {
 		t.Fatalf("first token = %q, want stale-token", got)
 	}
-	if got := h.backend.execStreamOpens[1].GetExecutionLeaseToken(); got != "fresh-token" {
+	if got := h.backend.execStreamLeaseTokens[1]; got != "fresh-token" {
 		t.Fatalf("second token = %q, want fresh-token", got)
 	}
 }
@@ -282,10 +296,10 @@ func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
 	if got := len(h.backend.uploadArchiveOpens); got != 2 {
 		t.Fatalf("backend opens = %d, want 2", got)
 	}
-	if got := h.backend.uploadArchiveOpens[0].GetExecutionLeaseToken(); got != "stale-token" {
+	if got := h.backend.uploadArchiveLeaseTokens[0]; got != "stale-token" {
 		t.Fatalf("first token = %q, want stale-token", got)
 	}
-	if got := h.backend.uploadArchiveOpens[1].GetExecutionLeaseToken(); got != "fresh-token" {
+	if got := h.backend.uploadArchiveLeaseTokens[1]; got != "fresh-token" {
 		t.Fatalf("second token = %q, want fresh-token", got)
 	}
 	if got := string(h.backend.uploadArchiveData); got != "archive-data" {
@@ -374,10 +388,10 @@ func TestDownloadArchiveRefreshesLeaseBeforeSendingBytes(t *testing.T) {
 	if got := len(h.backend.downloadArchiveRequests); got != 2 {
 		t.Fatalf("backend requests = %d, want 2", got)
 	}
-	if got := h.backend.downloadArchiveRequests[0].GetExecutionLeaseToken(); got != "stale-token" {
+	if got := h.backend.downloadArchiveLeaseTokens[0]; got != "stale-token" {
 		t.Fatalf("first token = %q, want stale-token", got)
 	}
-	if got := h.backend.downloadArchiveRequests[1].GetExecutionLeaseToken(); got != "fresh-token" {
+	if got := h.backend.downloadArchiveLeaseTokens[1]; got != "fresh-token" {
 		t.Fatalf("second token = %q, want fresh-token", got)
 	}
 }
@@ -541,7 +555,9 @@ type fakeBackend struct {
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
 	exec                           *nodesandboxv1.ExecRequest
+	execLeaseToken                 string
 	processOpen                    *nodesandboxv1.ProcessOpen
+	processLeaseToken              string
 	failProcessReadyOnce           bool
 	failExecStreamLeaseOnce        bool
 	failUploadArchiveLeaseOnce     bool
@@ -550,15 +566,28 @@ type fakeBackend struct {
 	failDownloadArchiveAfterChunk  bool
 	omitDownloadArchiveLeaseHeader bool
 	execStreamOpens                []*nodesandboxv1.ExecStreamOpen
+	execStreamLeaseTokens          []string
 	uploadArchiveOpens             []*nodesandboxv1.UploadArchiveOpen
+	uploadArchiveLeaseTokens       []string
 	uploadArchiveData              []byte
 	proxyHTTPOpens                 []*nodesandboxv1.ProxyHTTPOpen
+	proxyHTTPLeaseTokens           []string
 	proxyHTTPData                  []byte
 	downloadArchiveRequests        []*nodesandboxv1.DownloadArchiveRequest
+	downloadArchiveLeaseTokens     []string
 }
 
-func (b *fakeBackend) Exec(_ context.Context, req *nodesandboxv1.ExecRequest) (*nodesandboxv1.ExecResponse, error) {
+func backendLeaseToken(ctx context.Context) string {
+	values := metadata.ValueFromIncomingContext(ctx, nodekernel.ExecutionLeaseTokenMetadata)
+	if len(values) != 1 {
+		return ""
+	}
+	return values[0]
+}
+
+func (b *fakeBackend) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nodesandboxv1.ExecResponse, error) {
 	b.exec = req
+	b.execLeaseToken = backendLeaseToken(ctx)
 	return &nodesandboxv1.ExecResponse{ExitCode: 0, Stdout: []byte("ok")}, nil
 }
 
@@ -580,6 +609,7 @@ func (b *fakeBackend) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServ
 		return err
 	}
 	b.execStreamOpens = append(b.execStreamOpens, req.GetOpen())
+	b.execStreamLeaseTokens = append(b.execStreamLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failExecStreamLeaseOnce {
 		b.failExecStreamLeaseOnce = false
 		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
@@ -603,6 +633,7 @@ func (b *fakeBackend) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) er
 		return err
 	}
 	b.processOpen = req.GetOpen()
+	b.processLeaseToken = backendLeaseToken(stream.Context())
 	if b.failProcessReadyOnce {
 		b.failProcessReadyOnce = false
 		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
@@ -642,6 +673,7 @@ func (b *fakeBackend) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchi
 		return err
 	}
 	b.uploadArchiveOpens = append(b.uploadArchiveOpens, first.GetOpen())
+	b.uploadArchiveLeaseTokens = append(b.uploadArchiveLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failUploadArchiveLeaseOnce {
 		b.failUploadArchiveLeaseOnce = false
 		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
@@ -668,6 +700,7 @@ func (b *fakeBackend) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer
 		return err
 	}
 	b.proxyHTTPOpens = append(b.proxyHTTPOpens, first.GetOpen())
+	b.proxyHTTPLeaseTokens = append(b.proxyHTTPLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failProxyHTTPLeaseOnce {
 		b.failProxyHTTPLeaseOnce = false
 		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
@@ -696,6 +729,7 @@ func (b *fakeBackend) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer
 
 func (b *fakeBackend) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stream nodesandboxv1.NodeSandbox_DownloadArchiveServer) error {
 	b.downloadArchiveRequests = append(b.downloadArchiveRequests, req)
+	b.downloadArchiveLeaseTokens = append(b.downloadArchiveLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failDownloadArchiveLeaseOnce {
 		b.failDownloadArchiveLeaseOnce = false
 		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")

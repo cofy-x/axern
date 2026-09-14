@@ -45,11 +45,11 @@ func TestResolveSpecImageSource(t *testing.T) {
 	if spec.GetTemplateID() != "" || spec.GetTemplateVersion() != "" {
 		t.Fatalf("normalized image spec unexpectedly had template fields: %+v", spec)
 	}
-	if spec.GetImage().GetDigest() == "" {
-		t.Fatal("normalized image spec digest = empty, want resolved digest")
+	if spec.GetImage().GetRef() != "index.docker.io/library/nginx:1.27" {
+		t.Fatalf("normalized image ref = %q", spec.GetImage().GetRef())
 	}
-	if template.GetImageDescriptor().GetDigest() != spec.GetImage().GetDigest() {
-		t.Fatalf("template digest = %q, want %q", template.GetImageDescriptor().GetDigest(), spec.GetImage().GetDigest())
+	if template.GetImageDescriptor().GetDigest() == "" {
+		t.Fatal("resolved image descriptor digest is empty")
 	}
 	if !template.GetRootfsReadonly() {
 		t.Fatalf("synthesized image template = %+v, want rootfs readonly propagated", template)
@@ -65,15 +65,6 @@ func TestResolveSpecRejectsInvalidImageCombinations(t *testing.T) {
 		t.Fatalf("mixed source code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
 	}
 
-	_, _, err = ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{
-		Image: &environmentv1.EnvironmentImageSource{
-			Ref:    "docker.io/library/nginx:1.27",
-			Digest: "sha256:client-supplied",
-		},
-	}, environmenttemplate.NewStore(nil), fakeImageResolver{}, nil)
-	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("client digest code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
-	}
 }
 
 type fakeImageResolver struct{}

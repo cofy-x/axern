@@ -44,10 +44,10 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 	if len(resolver.requests) != 1 || resolver.requests[0].GetAllocationID() != "alloc-1" {
 		t.Fatalf("resolve requests = %#v, want one alloc-1 refresh", resolver.requests)
 	}
-	if got := stale.sent[0].GetOpen().GetExecutionLeaseToken(); got != "stale-token" {
+	if got := nodes.tokens[0]; got != "stale-token" {
 		t.Fatalf("stale lease token = %q", got)
 	}
-	if got := fresh.sent[0].GetOpen().GetExecutionLeaseToken(); got != "fresh-token" {
+	if got := nodes.tokens[1]; got != "fresh-token" {
 		t.Fatalf("fresh lease token = %q", got)
 	}
 	if stale.closeCalls != 1 {
@@ -76,7 +76,7 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestExecStreamOpenRequestUsesShellTTYAndLease(t *testing.T) {
+func TestExecStreamOpenRequestUsesShellTTYAndAllocation(t *testing.T) {
 	t.Parallel()
 	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
@@ -85,8 +85,8 @@ func TestExecStreamOpenRequestUsesShellTTYAndLease(t *testing.T) {
 		},
 	}, OpenOptions{})
 	open := req.GetOpen()
-	if open.GetAllocationID() != "alloc-1" || open.GetExecutionLeaseToken() != "lease-token" {
-		t.Fatalf("open auth = %#v", open)
+	if open.GetAllocationID() != "alloc-1" {
+		t.Fatalf("open allocation = %#v", open)
 	}
 	if got := open.GetSpec().GetArgv(); len(got) != 1 || got[0] != "/bin/sh" || !open.GetSpec().GetTty() {
 		t.Fatalf("open spec = %#v", open.GetSpec())
@@ -229,10 +229,18 @@ func (f *fakeExecStream) RecvMsg(any) error        { return nil }
 type fakeExecStreamer struct {
 	streams []*fakeExecStream
 	targets []string
+	tokens  []string
 }
 
-func (f *fakeExecStreamer) ExecStream(_ context.Context, target string) (nodesandboxv1.NodeSandbox_ExecStreamClient, error) {
+func (f *fakeExecStreamer) ExecStream(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ExecStreamClient, error) {
 	f.targets = append(f.targets, target)
+	md, _ := metadata.FromOutgoingContext(ctx)
+	values := md.Get(nodekernel.ExecutionLeaseTokenMetadata)
+	if len(values) == 1 {
+		f.tokens = append(f.tokens, values[0])
+	} else {
+		f.tokens = append(f.tokens, "")
+	}
 	if len(f.streams) == 0 {
 		return nil, errors.New("unexpected exec stream")
 	}

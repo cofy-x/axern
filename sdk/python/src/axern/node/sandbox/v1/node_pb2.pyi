@@ -52,14 +52,12 @@ class ExecSpec(_message.Message):
     def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., timeout_seconds: _Optional[int] = ..., tty: _Optional[bool] = ..., user: _Optional[str] = ...) -> None: ...
 
 class ExecRequest(_message.Message):
-    __slots__ = ("spec", "allocation_id", "execution_lease_token")
+    __slots__ = ("spec", "allocation_id")
     SPEC_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     spec: ExecSpec
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ...) -> None: ...
 
 class ExecResponse(_message.Message):
     __slots__ = ("exit_code", "stdout", "stderr", "stdout_truncated", "stderr_truncated")
@@ -76,16 +74,14 @@ class ExecResponse(_message.Message):
     def __init__(self, exit_code: _Optional[int] = ..., stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., stdout_truncated: _Optional[bool] = ..., stderr_truncated: _Optional[bool] = ...) -> None: ...
 
 class ExecStreamOpen(_message.Message):
-    __slots__ = ("spec", "allocation_id", "execution_lease_token", "initial_size")
+    __slots__ = ("spec", "allocation_id", "initial_size")
     SPEC_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     INITIAL_SIZE_FIELD_NUMBER: _ClassVar[int]
     spec: ExecSpec
     allocation_id: str
-    execution_lease_token: str
     initial_size: TerminalResize
-    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., initial_size: _Optional[_Union[TerminalResize, _Mapping]] = ...) -> None: ...
+    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., initial_size: _Optional[_Union[TerminalResize, _Mapping]] = ...) -> None: ...
 
 class TerminalResize(_message.Message):
     __slots__ = ("cols", "rows")
@@ -126,14 +122,12 @@ class ExecStreamResponse(_message.Message):
     def __init__(self, stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., exit: _Optional[_Union[ExecExit, _Mapping]] = ...) -> None: ...
 
 class ProcessOpen(_message.Message):
-    __slots__ = ("spec", "allocation_id", "execution_lease_token")
+    __slots__ = ("spec", "allocation_id")
     SPEC_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     spec: ExecSpec
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ...) -> None: ...
 
 class ProcessSignal(_message.Message):
     __slots__ = ("signal",)
@@ -172,12 +166,10 @@ class ProcessResponse(_message.Message):
     def __init__(self, stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., exit: _Optional[_Union[ExecExit, _Mapping]] = ..., ready: _Optional[_Union[ProcessReady, _Mapping]] = ...) -> None: ...
 
 class WaitSandboxRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token")
+    __slots__ = ("allocation_id",)
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class WaitSandboxResponse(_message.Message):
     __slots__ = ("state", "exit_code", "message")
@@ -190,16 +182,14 @@ class WaitSandboxResponse(_message.Message):
     def __init__(self, state: _Optional[_Union[SandboxProcessState, str]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ...) -> None: ...
 
 class ReadOutputRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "cursor", "follow")
+    __slots__ = ("allocation_id", "cursor", "follow")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     CURSOR_FIELD_NUMBER: _ClassVar[int]
     FOLLOW_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     cursor: str
     follow: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., cursor: _Optional[str] = ..., follow: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., cursor: _Optional[str] = ..., follow: _Optional[bool] = ...) -> None: ...
 
 class ReadOutputResponse(_message.Message):
     __slots__ = ("stream", "data", "next_cursor", "terminal", "truncated", "observed_at_unix_milli")
@@ -218,12 +208,10 @@ class ReadOutputResponse(_message.Message):
     def __init__(self, stream: _Optional[_Union[OutputStream, str]] = ..., data: _Optional[bytes] = ..., next_cursor: _Optional[str] = ..., terminal: _Optional[bool] = ..., truncated: _Optional[bool] = ..., observed_at_unix_milli: _Optional[int] = ...) -> None: ...
 
 class CapabilityStatusRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token")
+    __slots__ = ("allocation_id",)
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class CapabilityProviderDependencyStatus(_message.Message):
     __slots__ = ("name", "available", "reason")
@@ -286,9 +274,8 @@ class ProxyHTTPHeader(_message.Message):
     def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
 
 class ProxyHTTPOpen(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "port", "method", "path", "query", "headers", "has_body", "content_length")
+    __slots__ = ("allocation_id", "port", "method", "path", "query", "headers", "has_body", "content_length")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PORT_FIELD_NUMBER: _ClassVar[int]
     METHOD_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
@@ -297,7 +284,6 @@ class ProxyHTTPOpen(_message.Message):
     HAS_BODY_FIELD_NUMBER: _ClassVar[int]
     CONTENT_LENGTH_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     port: int
     method: str
     path: str
@@ -305,7 +291,7 @@ class ProxyHTTPOpen(_message.Message):
     headers: _containers.RepeatedCompositeFieldContainer[ProxyHTTPHeader]
     has_body: bool
     content_length: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., port: _Optional[int] = ..., method: _Optional[str] = ..., path: _Optional[str] = ..., query: _Optional[str] = ..., headers: _Optional[_Iterable[_Union[ProxyHTTPHeader, _Mapping]]] = ..., has_body: _Optional[bool] = ..., content_length: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., port: _Optional[int] = ..., method: _Optional[str] = ..., path: _Optional[str] = ..., query: _Optional[str] = ..., headers: _Optional[_Iterable[_Union[ProxyHTTPHeader, _Mapping]]] = ..., has_body: _Optional[bool] = ..., content_length: _Optional[int] = ...) -> None: ...
 
 class ProxyHTTPResponseHead(_message.Message):
     __slots__ = ("status_code", "headers")
@@ -344,14 +330,12 @@ class ProxyHTTPResponse(_message.Message):
     def __init__(self, head: _Optional[_Union[ProxyHTTPResponseHead, _Mapping]] = ..., body: _Optional[bytes] = ..., trailers: _Optional[_Union[ProxyHTTPTrailers, _Mapping]] = ..., error: _Optional[str] = ...) -> None: ...
 
 class StatFileRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path")
+    __slots__ = ("allocation_id", "path")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
 
 class StatFileResponse(_message.Message):
     __slots__ = ("info",)
@@ -360,14 +344,12 @@ class StatFileResponse(_message.Message):
     def __init__(self, info: _Optional[_Union[_file_pb2.SandboxFileInfo, _Mapping]] = ...) -> None: ...
 
 class ListDirRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path")
+    __slots__ = ("allocation_id", "path")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
 
 class ListDirResponse(_message.Message):
     __slots__ = ("entries",)
@@ -376,14 +358,12 @@ class ListDirResponse(_message.Message):
     def __init__(self, entries: _Optional[_Iterable[_Union[_file_pb2.SandboxFileInfo, _Mapping]]] = ...) -> None: ...
 
 class ReadFileRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path")
+    __slots__ = ("allocation_id", "path")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
 
 class ReadFileResponse(_message.Message):
     __slots__ = ("data",)
@@ -392,66 +372,58 @@ class ReadFileResponse(_message.Message):
     def __init__(self, data: _Optional[bytes] = ...) -> None: ...
 
 class WriteFileRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "data", "create_parents")
+    __slots__ = ("allocation_id", "path", "data", "create_parents")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     DATA_FIELD_NUMBER: _ClassVar[int]
     CREATE_PARENTS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     data: bytes
     create_parents: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., data: _Optional[bytes] = ..., create_parents: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., data: _Optional[bytes] = ..., create_parents: _Optional[bool] = ...) -> None: ...
 
 class WriteFileResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class MkdirRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "parents")
+    __slots__ = ("allocation_id", "path", "parents")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     PARENTS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     parents: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., parents: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., parents: _Optional[bool] = ...) -> None: ...
 
 class MkdirResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class RemoveRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "recursive", "force")
+    __slots__ = ("allocation_id", "path", "recursive", "force")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     RECURSIVE_FIELD_NUMBER: _ClassVar[int]
     FORCE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     recursive: bool
     force: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., recursive: _Optional[bool] = ..., force: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., recursive: _Optional[bool] = ..., force: _Optional[bool] = ...) -> None: ...
 
 class RemoveResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class ExistsRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path")
+    __slots__ = ("allocation_id", "path")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ...) -> None: ...
 
 class ExistsResponse(_message.Message):
     __slots__ = ("exists",)
@@ -460,96 +432,86 @@ class ExistsResponse(_message.Message):
     def __init__(self, exists: _Optional[bool] = ...) -> None: ...
 
 class CopyRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "src_path", "dst_path", "recursive", "overwrite")
+    __slots__ = ("allocation_id", "src_path", "dst_path", "recursive", "overwrite")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     SRC_PATH_FIELD_NUMBER: _ClassVar[int]
     DST_PATH_FIELD_NUMBER: _ClassVar[int]
     RECURSIVE_FIELD_NUMBER: _ClassVar[int]
     OVERWRITE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     src_path: str
     dst_path: str
     recursive: bool
     overwrite: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., src_path: _Optional[str] = ..., dst_path: _Optional[str] = ..., recursive: _Optional[bool] = ..., overwrite: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., src_path: _Optional[str] = ..., dst_path: _Optional[str] = ..., recursive: _Optional[bool] = ..., overwrite: _Optional[bool] = ...) -> None: ...
 
 class CopyResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class MoveRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "src_path", "dst_path", "overwrite")
+    __slots__ = ("allocation_id", "src_path", "dst_path", "overwrite")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     SRC_PATH_FIELD_NUMBER: _ClassVar[int]
     DST_PATH_FIELD_NUMBER: _ClassVar[int]
     OVERWRITE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     src_path: str
     dst_path: str
     overwrite: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., src_path: _Optional[str] = ..., dst_path: _Optional[str] = ..., overwrite: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., src_path: _Optional[str] = ..., dst_path: _Optional[str] = ..., overwrite: _Optional[bool] = ...) -> None: ...
 
 class MoveResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class ChmodRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "mode", "recursive")
+    __slots__ = ("allocation_id", "path", "mode", "recursive")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     MODE_FIELD_NUMBER: _ClassVar[int]
     RECURSIVE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     mode: int
     recursive: bool
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., mode: _Optional[int] = ..., recursive: _Optional[bool] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., mode: _Optional[int] = ..., recursive: _Optional[bool] = ...) -> None: ...
 
 class ChmodResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class TouchRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "create", "mtime_ns")
+    __slots__ = ("allocation_id", "path", "create", "mtime_ns")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     CREATE_FIELD_NUMBER: _ClassVar[int]
     MTIME_NS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     create: bool
     mtime_ns: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., create: _Optional[bool] = ..., mtime_ns: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., create: _Optional[bool] = ..., mtime_ns: _Optional[int] = ...) -> None: ...
 
 class TouchResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class UploadArchiveOpen(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "format", "create_parents", "overwrite", "symlink_policy")
+    __slots__ = ("allocation_id", "path", "format", "create_parents", "overwrite", "symlink_policy")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     CREATE_PARENTS_FIELD_NUMBER: _ClassVar[int]
     OVERWRITE_FIELD_NUMBER: _ClassVar[int]
     SYMLINK_POLICY_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     format: _file_pb2.SandboxArchiveFormat
     create_parents: bool
     overwrite: bool
     symlink_policy: _file_pb2.SandboxArchiveSymlinkPolicy
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., format: _Optional[_Union[_file_pb2.SandboxArchiveFormat, str]] = ..., create_parents: _Optional[bool] = ..., overwrite: _Optional[bool] = ..., symlink_policy: _Optional[_Union[_file_pb2.SandboxArchiveSymlinkPolicy, str]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., format: _Optional[_Union[_file_pb2.SandboxArchiveFormat, str]] = ..., create_parents: _Optional[bool] = ..., overwrite: _Optional[bool] = ..., symlink_policy: _Optional[_Union[_file_pb2.SandboxArchiveSymlinkPolicy, str]] = ...) -> None: ...
 
 class UploadArchiveRequest(_message.Message):
     __slots__ = ("open", "chunk")
@@ -564,18 +526,16 @@ class UploadArchiveResponse(_message.Message):
     def __init__(self) -> None: ...
 
 class DownloadArchiveRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "path", "format", "symlink_policy")
+    __slots__ = ("allocation_id", "path", "format", "symlink_policy")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     PATH_FIELD_NUMBER: _ClassVar[int]
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     SYMLINK_POLICY_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     path: str
     format: _file_pb2.SandboxArchiveFormat
     symlink_policy: _file_pb2.SandboxArchiveSymlinkPolicy
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., path: _Optional[str] = ..., format: _Optional[_Union[_file_pb2.SandboxArchiveFormat, str]] = ..., symlink_policy: _Optional[_Union[_file_pb2.SandboxArchiveSymlinkPolicy, str]] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., path: _Optional[str] = ..., format: _Optional[_Union[_file_pb2.SandboxArchiveFormat, str]] = ..., symlink_policy: _Optional[_Union[_file_pb2.SandboxArchiveSymlinkPolicy, str]] = ...) -> None: ...
 
 class DownloadArchiveResponse(_message.Message):
     __slots__ = ("chunk",)
@@ -584,12 +544,10 @@ class DownloadArchiveResponse(_message.Message):
     def __init__(self, chunk: _Optional[bytes] = ...) -> None: ...
 
 class ComputerUseStatusRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token")
+    __slots__ = ("allocation_id",)
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class ComputerUseStatusResponse(_message.Message):
     __slots__ = ("available", "display", "backend", "reason", "dependencies")
@@ -628,22 +586,20 @@ class ComputerUseRegion(_message.Message):
     def __init__(self, x: _Optional[int] = ..., y: _Optional[int] = ..., width: _Optional[int] = ..., height: _Optional[int] = ...) -> None: ...
 
 class ComputerUseScreenshotRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "show_cursor", "region", "format", "quality", "scale")
+    __slots__ = ("allocation_id", "show_cursor", "region", "format", "quality", "scale")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     SHOW_CURSOR_FIELD_NUMBER: _ClassVar[int]
     REGION_FIELD_NUMBER: _ClassVar[int]
     FORMAT_FIELD_NUMBER: _ClassVar[int]
     QUALITY_FIELD_NUMBER: _ClassVar[int]
     SCALE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     show_cursor: bool
     region: ComputerUseRegion
     format: str
     quality: int
     scale: float
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., show_cursor: _Optional[bool] = ..., region: _Optional[_Union[ComputerUseRegion, _Mapping]] = ..., format: _Optional[str] = ..., quality: _Optional[int] = ..., scale: _Optional[float] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., show_cursor: _Optional[bool] = ..., region: _Optional[_Union[ComputerUseRegion, _Mapping]] = ..., format: _Optional[str] = ..., quality: _Optional[int] = ..., scale: _Optional[float] = ...) -> None: ...
 
 class ComputerUseScreenshotResponse(_message.Message):
     __slots__ = ("data", "content_type")
@@ -654,12 +610,10 @@ class ComputerUseScreenshotResponse(_message.Message):
     def __init__(self, data: _Optional[bytes] = ..., content_type: _Optional[str] = ...) -> None: ...
 
 class ComputerUseDisplayRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token")
+    __slots__ = ("allocation_id",)
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class ComputerUseDisplayResponse(_message.Message):
     __slots__ = ("display", "backend", "width", "height")
@@ -674,9 +628,8 @@ class ComputerUseDisplayResponse(_message.Message):
     def __init__(self, display: _Optional[str] = ..., backend: _Optional[str] = ..., width: _Optional[int] = ..., height: _Optional[int] = ...) -> None: ...
 
 class ComputerUseMouseRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "action", "x", "y", "to_x", "to_y", "button", "direction", "amount")
+    __slots__ = ("allocation_id", "action", "x", "y", "to_x", "to_y", "button", "direction", "amount")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     ACTION_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
@@ -686,7 +639,6 @@ class ComputerUseMouseRequest(_message.Message):
     DIRECTION_FIELD_NUMBER: _ClassVar[int]
     AMOUNT_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     action: str
     x: int
     y: int
@@ -695,39 +647,35 @@ class ComputerUseMouseRequest(_message.Message):
     button: str
     direction: str
     amount: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., action: _Optional[str] = ..., x: _Optional[int] = ..., y: _Optional[int] = ..., to_x: _Optional[int] = ..., to_y: _Optional[int] = ..., button: _Optional[str] = ..., direction: _Optional[str] = ..., amount: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., action: _Optional[str] = ..., x: _Optional[int] = ..., y: _Optional[int] = ..., to_x: _Optional[int] = ..., to_y: _Optional[int] = ..., button: _Optional[str] = ..., direction: _Optional[str] = ..., amount: _Optional[int] = ...) -> None: ...
 
 class ComputerUseMouseResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class ComputerUseKeyboardRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "text", "key", "keys", "delay_ms")
+    __slots__ = ("allocation_id", "text", "key", "keys", "delay_ms")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     KEY_FIELD_NUMBER: _ClassVar[int]
     KEYS_FIELD_NUMBER: _ClassVar[int]
     DELAY_MS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     text: str
     key: str
     keys: _containers.RepeatedScalarFieldContainer[str]
     delay_ms: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., text: _Optional[str] = ..., key: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., delay_ms: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., text: _Optional[str] = ..., key: _Optional[str] = ..., keys: _Optional[_Iterable[str]] = ..., delay_ms: _Optional[int] = ...) -> None: ...
 
 class ComputerUseKeyboardResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
 class BrowserStatusRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token")
+    __slots__ = ("allocation_id",)
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class BrowserStatusResponse(_message.Message):
     __slots__ = ("available", "command", "running", "pid", "url", "reason")
@@ -746,77 +694,63 @@ class BrowserStatusResponse(_message.Message):
     def __init__(self, available: _Optional[bool] = ..., command: _Optional[str] = ..., running: _Optional[bool] = ..., pid: _Optional[int] = ..., url: _Optional[str] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class BrowserOpenRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "url")
+    __slots__ = ("allocation_id", "url")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     URL_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     url: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., url: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., url: _Optional[str] = ...) -> None: ...
 
 class BrowserCloseRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token")
+    __slots__ = ("allocation_id",)
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
 
 class BrowserNavigateRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "url")
+    __slots__ = ("allocation_id", "url")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     URL_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     url: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., url: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., url: _Optional[str] = ...) -> None: ...
 
 class BrowserResizeRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "width", "height")
+    __slots__ = ("allocation_id", "width", "height")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     WIDTH_FIELD_NUMBER: _ClassVar[int]
     HEIGHT_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     width: int
     height: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., width: _Optional[int] = ..., height: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., width: _Optional[int] = ..., height: _Optional[int] = ...) -> None: ...
 
 class BrowserClickRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "x", "y", "button")
+    __slots__ = ("allocation_id", "x", "y", "button")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     X_FIELD_NUMBER: _ClassVar[int]
     Y_FIELD_NUMBER: _ClassVar[int]
     BUTTON_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     x: int
     y: int
     button: str
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., x: _Optional[int] = ..., y: _Optional[int] = ..., button: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., x: _Optional[int] = ..., y: _Optional[int] = ..., button: _Optional[str] = ...) -> None: ...
 
 class BrowserTypeRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "text", "delay_ms")
+    __slots__ = ("allocation_id", "text", "delay_ms")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     TEXT_FIELD_NUMBER: _ClassVar[int]
     DELAY_MS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     text: str
     delay_ms: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., text: _Optional[str] = ..., delay_ms: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., text: _Optional[str] = ..., delay_ms: _Optional[int] = ...) -> None: ...
 
 class BrowserWaitRequest(_message.Message):
-    __slots__ = ("allocation_id", "execution_lease_token", "timeout_ms")
+    __slots__ = ("allocation_id", "timeout_ms")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    EXECUTION_LEASE_TOKEN_FIELD_NUMBER: _ClassVar[int]
     TIMEOUT_MS_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    execution_lease_token: str
     timeout_ms: int
-    def __init__(self, allocation_id: _Optional[str] = ..., execution_lease_token: _Optional[str] = ..., timeout_ms: _Optional[int] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., timeout_ms: _Optional[int] = ...) -> None: ...

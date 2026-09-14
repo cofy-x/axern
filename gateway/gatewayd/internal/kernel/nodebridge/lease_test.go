@@ -7,8 +7,22 @@ import (
 	"time"
 
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
+
+func TestWithExecutionLeaseReplacesExistingOutgoingAuthority(t *testing.T) {
+	t.Parallel()
+	ctx := metadata.AppendToOutgoingContext(context.Background(), ExecutionLeaseTokenMetadata, "caller-token")
+	ctx = WithExecutionLease(ctx, "gateway-token")
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		t.Fatal("outgoing metadata is missing")
+	}
+	if got := md.Get(ExecutionLeaseTokenMetadata); len(got) != 1 || got[0] != "gateway-token" {
+		t.Fatalf("execution lease metadata = %#v, want only gateway-token", got)
+	}
+}
 
 func TestIsExecutionLeaseRejectedUsesGRPCStatus(t *testing.T) {
 	t.Parallel()

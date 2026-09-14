@@ -125,15 +125,15 @@ var (
 	}
 	MetricAllocationReconcileQueueCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_allocation_reconcile_queue_current",
-		Description: "Current allocation lifecycle reconcile queue size by owner and reason.",
+		Description: "Current allocation lifecycle reconcile queue size by allocation lifecycle state.",
 	}
 	MetricAllocationReconcileQueueOldestAge = sdkobs.Instrument{
 		Name:        "axern.controld_allocation_reconcile_queue_oldest_age_seconds",
-		Description: "Oldest allocation lifecycle reconcile queue age in seconds by owner and reason.",
+		Description: "Oldest allocation lifecycle reconcile queue age in seconds by allocation lifecycle state.",
 	}
 	MetricAllocationReconcileAttemptsCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_allocation_reconcile_attempts_current",
-		Description: "Maximum current allocation lifecycle reconcile attempts by owner and reason.",
+		Description: "Maximum current allocation lifecycle reconcile attempts by allocation lifecycle state.",
 	}
 	MetricCapabilityConditionAllocationsCurrent = sdkobs.Instrument{
 		Name:        "axern.controld_capability_condition_allocations_current",

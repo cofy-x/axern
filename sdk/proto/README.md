@@ -14,7 +14,7 @@ Layout:
 - `axern/private/control/node/v1`: repo-internal control-plane/node coordination API for node reporting, allocation lifecycle, execution lease replication, and tunnel session replication. Node reports must include axnoded's aggregate `runtime_slots` contract; controld does not infer it from implementation-specific pools.
 - `axern/private/control/environment/v1`: deployment-private Environment template inputs used only while resolving a public immutable Environment
 - `axern/control/common/v1`: shared control-plane value types including execution config, resource quantities, allocation lifecycle, internal execution leases, immutable strict or DNS-only sandbox egress policy, and workload diagnostic codes used by public workload views
-- `axern/node/sandbox/v1`: gateway-exposed sandbox execution and allocation HTTP proxy API; gatewayd resolves allocations and forwards to internal nodes
+- `axern/node/sandbox/v1`: gateway-exposed sandbox execution and allocation HTTP proxy API; requests carry Allocation identity but no internal node target or execution lease credential, which gatewayd resolves and transports privately
 - `axern/tunnel/v1`: tunnel relay data-plane peer stream API
 - `axern/private/node/lifecycle/v1`: repo-internal control-plane-to-node allocation lifecycle API
 - `axern/private/node/operator/v1`: repo-internal local node operator API

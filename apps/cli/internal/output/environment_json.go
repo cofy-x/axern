@@ -34,7 +34,6 @@ type EnvironmentSpecJSON struct {
 
 type EnvironmentImageSourceJSON struct {
 	Ref                  string `json:"ref,omitempty"`
-	Digest               string `json:"digest,omitempty"`
 	RootfsReadonly       bool   `json:"rootfs_readonly,omitempty"`
 	RegistryCredentialID string `json:"registry_credential_id,omitempty"`
 }
@@ -87,7 +86,6 @@ func newEnvironmentImageSourceJSON(image *environmentv1.EnvironmentImageSource) 
 	}
 	return &EnvironmentImageSourceJSON{
 		Ref:                  image.GetRef(),
-		Digest:               image.GetDigest(),
 		RootfsReadonly:       image.GetRootfsReadonly(),
 		RegistryCredentialID: image.GetRegistryCredentialID(),
 	}

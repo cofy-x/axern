@@ -13,6 +13,20 @@ import (
 // after axnoded validates an allocation-scoped execution lease.
 const ExecutionLeaseAcceptedHeader = "x-axern-execution-lease-accepted"
 
+// ExecutionLeaseTokenMetadata carries the gateway-issued allocation authority
+// on the private gateway-to-node hop. It is deliberately absent from public
+// NodeSandbox request messages.
+const ExecutionLeaseTokenMetadata = "x-axern-execution-lease-token"
+
+// WithExecutionLease replaces any existing outgoing lease value. Gateway
+// callers must never forward a caller-supplied value to axnoded.
+func WithExecutionLease(ctx context.Context, token string) context.Context {
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md.Set(ExecutionLeaseTokenMetadata, token)
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
 // IsExecutionLeaseRejected reports whether a node rejected the allocation-scoped
 // execution authority before accepting the operation.
 func IsExecutionLeaseRejected(err error) bool {

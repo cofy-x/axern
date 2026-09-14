@@ -129,7 +129,8 @@ func (m *Manager) openExecStream(ctx context.Context, resolved *gatewayv1.Resolv
 	}()
 	current := resolved
 	for attempt := 1; attempt <= m.options.LeaseRetryAttempts; attempt++ {
-		stream, err = m.nodes.ExecStream(ctx, current.GetNodeTarget())
+		backendCtx := nodekernel.WithExecutionLease(ctx, current.GetAccessGrant().GetPlaintextToken())
+		stream, err = m.nodes.ExecStream(backendCtx, current.GetNodeTarget())
 		if err != nil {
 			return nil, err
 		}

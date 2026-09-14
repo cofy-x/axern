@@ -137,6 +137,10 @@ check_absent \
 	"gatewayd should not contain catch-all helper files" \
 	"find gateway/gatewayd/internal \\( -name helpers.go -o -name helper.go -o -name utils.go \\) -print"
 
+check_absent \
+	"public NodeSandbox protobuf messages must not expose internal execution lease credentials" \
+	"rg -n 'execution_lease_token' sdk/proto/axern/node/sandbox/v1/node.proto || true"
+
 if [[ "$fail" -ne 0 ]]; then
 	exit 1
 fi

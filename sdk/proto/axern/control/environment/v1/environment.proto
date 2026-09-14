@@ -51,9 +51,8 @@ message ResolvedEnvironmentSpec {
 
 message EnvironmentImageSource {
   string ref = 1;
-  string digest = 2;
-  bool rootfs_readonly = 3;
-  string registry_credential_id = 4;
+  bool rootfs_readonly = 2;
+  string registry_credential_id = 3;
 }
 
 message EnvironmentSpec {

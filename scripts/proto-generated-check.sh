@@ -10,6 +10,16 @@ GENERATED_PATHS=(
 
 cd "${ROOT_DIR}"
 
+if rg -n 'execution_lease_token' sdk/proto/axern/node/sandbox/v1/node.proto; then
+	echo "public NodeSandbox protobuf messages must not expose internal execution lease credentials" >&2
+	exit 1
+fi
+
+if awk '/message EnvironmentImageSource/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/environment/v1/environment.proto | rg -n 'digest'; then
+	echo "Environment image source must not duplicate the resolved OCI digest" >&2
+	exit 1
+fi
+
 before="$(mktemp)"
 after="$(mktemp)"
 trap 'rm -f "${before}" "${after}"' EXIT

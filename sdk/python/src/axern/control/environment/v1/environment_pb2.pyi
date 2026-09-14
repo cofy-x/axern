@@ -96,16 +96,14 @@ class ResolvedEnvironmentSpec(_message.Message):
     def __init__(self, rootfs_readonly: _Optional[bool] = ..., image_default_argv: _Optional[_Iterable[str]] = ..., default_cwd: _Optional[str] = ..., default_env: _Optional[_Mapping[str, str]] = ..., mounts: _Optional[_Iterable[_Union[EnvironmentMount, _Mapping]]] = ..., image_descriptor: _Optional[_Union[OciImageDescriptor, _Mapping]] = ..., execution_profile: _Optional[_Union[OciExecutionProfile, _Mapping]] = ...) -> None: ...
 
 class EnvironmentImageSource(_message.Message):
-    __slots__ = ("ref", "digest", "rootfs_readonly", "registry_credential_id")
+    __slots__ = ("ref", "rootfs_readonly", "registry_credential_id")
     REF_FIELD_NUMBER: _ClassVar[int]
-    DIGEST_FIELD_NUMBER: _ClassVar[int]
     ROOTFS_READONLY_FIELD_NUMBER: _ClassVar[int]
     REGISTRY_CREDENTIAL_ID_FIELD_NUMBER: _ClassVar[int]
     ref: str
-    digest: str
     rootfs_readonly: bool
     registry_credential_id: str
-    def __init__(self, ref: _Optional[str] = ..., digest: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., registry_credential_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, ref: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., registry_credential_id: _Optional[str] = ...) -> None: ...
 
 class EnvironmentSpec(_message.Message):
     __slots__ = ("namespace", "template_id", "template_version", "image")

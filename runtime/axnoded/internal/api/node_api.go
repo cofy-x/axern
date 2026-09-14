@@ -28,6 +28,7 @@ type DirectLeaseValidator interface {
 const (
 	leaseVisibilityWaitTimeout      = 2 * time.Second
 	executionLeaseAcceptedHeaderKey = "x-axern-execution-lease-accepted"
+	executionLeaseTokenMetadataKey  = "x-axern-execution-lease-token"
 )
 
 type executionLeaseHeaderSender interface {
@@ -44,9 +45,9 @@ type directAuthTarget struct {
 }
 
 type allocationExitReport struct {
-	allocationID  string
-	exitCode      *int32
-	message       string
+	allocationID string
+	exitCode     *int32
+	message      string
 }
 
 func NewNodeSandboxServer(svc service.SandboxService, nodeID string, leaseAuth ...DirectLeaseValidator) nodesandboxv1.NodeSandboxServer {
@@ -61,11 +62,13 @@ func NewNodeSandboxServer(svc service.SandboxService, nodeID string, leaseAuth .
 	}
 }
 
-func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string, leaseToken string) (directAuthTarget, error) {
-	if strings.TrimSpace(allocationID) == "" || strings.TrimSpace(leaseToken) == "" {
-		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id and execution_lease_token are required")
-	}
+func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string) (directAuthTarget, error) {
 	allocationID = strings.TrimSpace(allocationID)
+	leaseTokens := metadata.ValueFromIncomingContext(ctx, executionLeaseTokenMetadataKey)
+	if allocationID == "" || len(leaseTokens) != 1 || strings.TrimSpace(leaseTokens[0]) == "" {
+		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id and internal execution lease metadata are required")
+	}
+	leaseToken := strings.TrimSpace(leaseTokens[0])
 	visibilityCtx, cancel := context.WithTimeout(ctx, leaseVisibilityWaitTimeout)
 	defer cancel()
 	visibilityStart := time.Now()

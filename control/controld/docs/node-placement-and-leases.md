@@ -59,7 +59,7 @@ Retirement requires a stale heartbeat and fails while the node has active alloca
 
 ## Lifecycle Retry Queue
 
-The debug `/allocation-reconcilez` endpoint is intentionally read-only. It lists queued allocation lifecycle work: Run, reason, attempts, last error, next retry time, and queue age.
+The debug `/allocation-reconcilez` endpoint is intentionally read-only. It lists queued allocation lifecycle work: Allocation and Run identity, current Allocation lifecycle state, attempts, last error, next retry time, and queue age. The queue does not store an action or reason; the reconciler derives start versus cleanup exclusively from the authoritative Allocation lifecycle state.
 
 The debug `/consistencyz` endpoint is also read-only. It scans durable Postgres state for active reservations, execution leases, or tunnel sessions attached to terminal Allocations. It is a diagnostic guardrail for convergence bugs; it does not mutate state or replace the Run/Allocation or admin repair paths.
 
@@ -69,9 +69,9 @@ Lifecycle retry writes are admin operations, not debug HTTP operations. The queu
 
 The typed gRPC admin surface is:
 
-- `ListAllocationLifecycleRetries`: queue rows plus Run, reason, due-only, limit filters, `clearable`, and `clear_blocked_reason`.
-- `ForceAllocationLifecycleRetry`: lock the row, record an audit event, and move `next_run_at` to `now` without changing reason or attempt count.
-- `FailAllocationLifecycleRetry`: create retries only; mark the owning Run and Allocation failed, release the reservation, remove the retry row, and record the operator reason.
+- `ListAllocationLifecycleRetries`: queue rows joined with Allocation and Run state, plus due-only and limit filters, `clearable`, and `clear_blocked_reason`.
+- `ForceAllocationLifecycleRetry`: lock the row, record an audit event, and move `next_run_at` to `now` without changing the attempt count or authoritative Allocation state.
+- `FailAllocationLifecycleRetry`: startup retries only; mark the owning Run and Allocation failed, release the reservation, remove the retry row, and record the operator reason.
 - `ClearAllocationLifecycleRetry`: stale rows only; require terminal Allocation and Run convergence plus no active reservations, leases, or tunnel sessions.
 
 All write requests require an explicit human-readable reason, audit before commit, a transactional row lock, and typed gRPC errors when the requested action no longer matches allocation state. There is no generic delete operation: queue rows are convergence intent, and removing one without lifecycle cleanup can strand reservations or leases. For operator triage and repair commands, see [Reconcile Operations](reconcile-operations.md).
@@ -82,13 +82,13 @@ Create retry is bounded because the allocation has not reached confirmed node ow
 
 ```mermaid
 flowchart TD
-  A["Run admission commits"] --> B["queue reason=create"]
+  A["Run admission commits STARTING Allocation"] --> B["upsert keyed convergence intent"]
   B --> C{"retry budget left?"}
   C -- yes --> D["next_run_at = exponential backoff"]
   D --> B
   C -- no --> E["mark allocation failed; release reservation; complete retry"]
 
-  F["cancel or terminal result commits"] --> G["queue reason=delete"]
+  F["cancel or terminal result commits RELEASING Allocation"] --> G["replace with fresh keyed convergence intent"]
   G --> H{"node deletion confirmed?"}
   H -- no --> I["next_run_at = DeleteRetryDelay"]
   I --> G
@@ -103,10 +103,10 @@ flowchart TD
 
 Timing rules:
 
-- Initial create failure schedules `create` at `now + CreateRetryDelay(1)` and increments attempts.
-- Queued create failure schedules exponential backoff capped by `CreateRetryMaxDelay` and increments attempts until exhaustion.
-- Run cancellation atomically replaces any create work with a fresh immediate `delete` intent and resets the create retry history.
-- Queued delete failures schedule `delete` at `now + DeleteRetryDelay` and increment attempts.
+- Initial node-start failure schedules the Allocation intent at `now + CreateRetryDelay(1)` and increments attempts.
+- A queued failure while the Allocation is `STARTING` uses exponential backoff capped by `CreateRetryMaxDelay` and increments attempts until exhaustion.
+- Run cancellation atomically moves the Allocation to `RELEASING`, replaces any pending startup work with a fresh immediate convergence intent, and resets the startup retry history.
+- A queued cleanup failure while the Allocation is `RELEASING` schedules the same keyed intent at `now + DeleteRetryDelay` and increments attempts.
 
 ## Resource Admission Policy
 

@@ -21,8 +21,7 @@ func execStreamOpenRequest(resolved *gatewayv1.ResolveAllocationTerminalResponse
 			Env:  cloneEnv(opts.Env),
 			User: strings.TrimSpace(opts.User),
 		},
-		AllocationID:        resolved.GetAllocationID(),
-		ExecutionLeaseToken: resolved.GetAccessGrant().GetPlaintextToken(),
+		AllocationID: resolved.GetAllocationID(),
 	}}}
 }
 

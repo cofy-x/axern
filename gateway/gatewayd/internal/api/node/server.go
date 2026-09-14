@@ -55,9 +55,9 @@ func New(resolver Resolver, dialer Dialer, options Options, metrics LeaseRetryOb
 
 func (s *Server) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nodesandboxv1.ExecResponse, error) {
 	var response *nodesandboxv1.ExecResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Exec(ctx, req)
+		response, err = client.Exec(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -65,9 +65,9 @@ func (s *Server) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nod
 
 func (s *Server) WaitSandbox(ctx context.Context, req *nodesandboxv1.WaitSandboxRequest) (*nodesandboxv1.WaitSandboxResponse, error) {
 	var response *nodesandboxv1.WaitSandboxResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.WaitSandbox(ctx, req)
+		response, err = client.WaitSandbox(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -75,9 +75,9 @@ func (s *Server) WaitSandbox(ctx context.Context, req *nodesandboxv1.WaitSandbox
 
 func (s *Server) CapabilityStatus(ctx context.Context, req *nodesandboxv1.CapabilityStatusRequest) (*nodesandboxv1.CapabilityStatusResponse, error) {
 	var response *nodesandboxv1.CapabilityStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.CapabilityStatus(ctx, req)
+		response, err = client.CapabilityStatus(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -85,9 +85,9 @@ func (s *Server) CapabilityStatus(ctx context.Context, req *nodesandboxv1.Capabi
 
 func (s *Server) StatFile(ctx context.Context, req *nodesandboxv1.StatFileRequest) (*nodesandboxv1.StatFileResponse, error) {
 	var response *nodesandboxv1.StatFileResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.StatFile(ctx, req)
+		response, err = client.StatFile(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -95,9 +95,9 @@ func (s *Server) StatFile(ctx context.Context, req *nodesandboxv1.StatFileReques
 
 func (s *Server) ListDir(ctx context.Context, req *nodesandboxv1.ListDirRequest) (*nodesandboxv1.ListDirResponse, error) {
 	var response *nodesandboxv1.ListDirResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ListDir(ctx, req)
+		response, err = client.ListDir(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -105,9 +105,9 @@ func (s *Server) ListDir(ctx context.Context, req *nodesandboxv1.ListDirRequest)
 
 func (s *Server) ReadFile(ctx context.Context, req *nodesandboxv1.ReadFileRequest) (*nodesandboxv1.ReadFileResponse, error) {
 	var response *nodesandboxv1.ReadFileResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ReadFile(ctx, req)
+		response, err = client.ReadFile(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -115,9 +115,9 @@ func (s *Server) ReadFile(ctx context.Context, req *nodesandboxv1.ReadFileReques
 
 func (s *Server) WriteFile(ctx context.Context, req *nodesandboxv1.WriteFileRequest) (*nodesandboxv1.WriteFileResponse, error) {
 	var response *nodesandboxv1.WriteFileResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.WriteFile(ctx, req)
+		response, err = client.WriteFile(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -125,9 +125,9 @@ func (s *Server) WriteFile(ctx context.Context, req *nodesandboxv1.WriteFileRequ
 
 func (s *Server) Mkdir(ctx context.Context, req *nodesandboxv1.MkdirRequest) (*nodesandboxv1.MkdirResponse, error) {
 	var response *nodesandboxv1.MkdirResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Mkdir(ctx, req)
+		response, err = client.Mkdir(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -135,9 +135,9 @@ func (s *Server) Mkdir(ctx context.Context, req *nodesandboxv1.MkdirRequest) (*n
 
 func (s *Server) Remove(ctx context.Context, req *nodesandboxv1.RemoveRequest) (*nodesandboxv1.RemoveResponse, error) {
 	var response *nodesandboxv1.RemoveResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Remove(ctx, req)
+		response, err = client.Remove(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -145,9 +145,9 @@ func (s *Server) Remove(ctx context.Context, req *nodesandboxv1.RemoveRequest) (
 
 func (s *Server) Exists(ctx context.Context, req *nodesandboxv1.ExistsRequest) (*nodesandboxv1.ExistsResponse, error) {
 	var response *nodesandboxv1.ExistsResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Exists(ctx, req)
+		response, err = client.Exists(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -155,9 +155,9 @@ func (s *Server) Exists(ctx context.Context, req *nodesandboxv1.ExistsRequest) (
 
 func (s *Server) Copy(ctx context.Context, req *nodesandboxv1.CopyRequest) (*nodesandboxv1.CopyResponse, error) {
 	var response *nodesandboxv1.CopyResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Copy(ctx, req)
+		response, err = client.Copy(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -165,9 +165,9 @@ func (s *Server) Copy(ctx context.Context, req *nodesandboxv1.CopyRequest) (*nod
 
 func (s *Server) Move(ctx context.Context, req *nodesandboxv1.MoveRequest) (*nodesandboxv1.MoveResponse, error) {
 	var response *nodesandboxv1.MoveResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Move(ctx, req)
+		response, err = client.Move(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -175,9 +175,9 @@ func (s *Server) Move(ctx context.Context, req *nodesandboxv1.MoveRequest) (*nod
 
 func (s *Server) Chmod(ctx context.Context, req *nodesandboxv1.ChmodRequest) (*nodesandboxv1.ChmodResponse, error) {
 	var response *nodesandboxv1.ChmodResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Chmod(ctx, req)
+		response, err = client.Chmod(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -185,9 +185,9 @@ func (s *Server) Chmod(ctx context.Context, req *nodesandboxv1.ChmodRequest) (*n
 
 func (s *Server) Touch(ctx context.Context, req *nodesandboxv1.TouchRequest) (*nodesandboxv1.TouchResponse, error) {
 	var response *nodesandboxv1.TouchResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.Touch(ctx, req)
+		response, err = client.Touch(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -195,9 +195,9 @@ func (s *Server) Touch(ctx context.Context, req *nodesandboxv1.TouchRequest) (*n
 
 func (s *Server) ComputerUseStatus(ctx context.Context, req *nodesandboxv1.ComputerUseStatusRequest) (*nodesandboxv1.ComputerUseStatusResponse, error) {
 	var response *nodesandboxv1.ComputerUseStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ComputerUseStatus(ctx, req)
+		response, err = client.ComputerUseStatus(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -205,9 +205,9 @@ func (s *Server) ComputerUseStatus(ctx context.Context, req *nodesandboxv1.Compu
 
 func (s *Server) ComputerUseScreenshot(ctx context.Context, req *nodesandboxv1.ComputerUseScreenshotRequest) (*nodesandboxv1.ComputerUseScreenshotResponse, error) {
 	var response *nodesandboxv1.ComputerUseScreenshotResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ComputerUseScreenshot(ctx, req)
+		response, err = client.ComputerUseScreenshot(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -215,9 +215,9 @@ func (s *Server) ComputerUseScreenshot(ctx context.Context, req *nodesandboxv1.C
 
 func (s *Server) ComputerUseDisplay(ctx context.Context, req *nodesandboxv1.ComputerUseDisplayRequest) (*nodesandboxv1.ComputerUseDisplayResponse, error) {
 	var response *nodesandboxv1.ComputerUseDisplayResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ComputerUseDisplay(ctx, req)
+		response, err = client.ComputerUseDisplay(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -225,9 +225,9 @@ func (s *Server) ComputerUseDisplay(ctx context.Context, req *nodesandboxv1.Comp
 
 func (s *Server) ComputerUseMouse(ctx context.Context, req *nodesandboxv1.ComputerUseMouseRequest) (*nodesandboxv1.ComputerUseMouseResponse, error) {
 	var response *nodesandboxv1.ComputerUseMouseResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ComputerUseMouse(ctx, req)
+		response, err = client.ComputerUseMouse(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -235,9 +235,9 @@ func (s *Server) ComputerUseMouse(ctx context.Context, req *nodesandboxv1.Comput
 
 func (s *Server) ComputerUseKeyboard(ctx context.Context, req *nodesandboxv1.ComputerUseKeyboardRequest) (*nodesandboxv1.ComputerUseKeyboardResponse, error) {
 	var response *nodesandboxv1.ComputerUseKeyboardResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.ComputerUseKeyboard(ctx, req)
+		response, err = client.ComputerUseKeyboard(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -245,9 +245,9 @@ func (s *Server) ComputerUseKeyboard(ctx context.Context, req *nodesandboxv1.Com
 
 func (s *Server) BrowserStatus(ctx context.Context, req *nodesandboxv1.BrowserStatusRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserStatus(ctx, req)
+		response, err = client.BrowserStatus(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -255,9 +255,9 @@ func (s *Server) BrowserStatus(ctx context.Context, req *nodesandboxv1.BrowserSt
 
 func (s *Server) BrowserOpen(ctx context.Context, req *nodesandboxv1.BrowserOpenRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserOpen(ctx, req)
+		response, err = client.BrowserOpen(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -265,9 +265,9 @@ func (s *Server) BrowserOpen(ctx context.Context, req *nodesandboxv1.BrowserOpen
 
 func (s *Server) BrowserClose(ctx context.Context, req *nodesandboxv1.BrowserCloseRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserClose(ctx, req)
+		response, err = client.BrowserClose(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -275,9 +275,9 @@ func (s *Server) BrowserClose(ctx context.Context, req *nodesandboxv1.BrowserClo
 
 func (s *Server) BrowserNavigate(ctx context.Context, req *nodesandboxv1.BrowserNavigateRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserNavigate(ctx, req)
+		response, err = client.BrowserNavigate(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -285,9 +285,9 @@ func (s *Server) BrowserNavigate(ctx context.Context, req *nodesandboxv1.Browser
 
 func (s *Server) BrowserResize(ctx context.Context, req *nodesandboxv1.BrowserResizeRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserResize(ctx, req)
+		response, err = client.BrowserResize(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -295,9 +295,9 @@ func (s *Server) BrowserResize(ctx context.Context, req *nodesandboxv1.BrowserRe
 
 func (s *Server) BrowserClick(ctx context.Context, req *nodesandboxv1.BrowserClickRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserClick(ctx, req)
+		response, err = client.BrowserClick(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -305,9 +305,9 @@ func (s *Server) BrowserClick(ctx context.Context, req *nodesandboxv1.BrowserCli
 
 func (s *Server) BrowserType(ctx context.Context, req *nodesandboxv1.BrowserTypeRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserType(ctx, req)
+		response, err = client.BrowserType(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -315,9 +315,9 @@ func (s *Server) BrowserType(ctx context.Context, req *nodesandboxv1.BrowserType
 
 func (s *Server) BrowserWait(ctx context.Context, req *nodesandboxv1.BrowserWaitRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
 	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(client nodesandboxv1.NodeSandboxClient) error {
+	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		var err error
-		response, err = client.BrowserWait(ctx, req)
+		response, err = client.BrowserWait(backendCtx, req)
 		return err
 	})
 	return response, err
@@ -332,8 +332,8 @@ func (s *Server) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) e
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "exec stream must start with open")
 	}
-	return s.withResolvedClient(stream.Context(), open, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) error {
-		up, err := client.ExecStream(stream.Context())
+	return s.withResolvedClient(stream.Context(), open, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
+		up, err := client.ExecStream(backendCtx)
 		if err != nil {
 			return err
 		}
@@ -364,8 +364,8 @@ func (s *Server) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "process stream must start with open")
 	}
-	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (processClient, error) {
-		return client.Process(stream.Context())
+	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (processClient, error) {
+		return client.Process(backendCtx)
 	}, func(up processClient) error {
 		if err := up.Send(first); err != nil {
 			return markLeaseOpenRejection(err)
@@ -400,8 +400,8 @@ func (s *Server) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer) err
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "proxy http stream must start with open")
 	}
-	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (proxyHTTPClient, error) {
-		return client.ProxyHTTP(stream.Context())
+	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (proxyHTTPClient, error) {
+		return client.ProxyHTTP(backendCtx)
 	}, func(up proxyHTTPClient) error {
 		if err := up.Send(first); err != nil {
 			return markLeaseOpenRejection(err)
@@ -430,8 +430,8 @@ func (s *Server) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchiveSer
 		return grpcstatus.Error(codes.InvalidArgument, "upload archive stream must start with open")
 	}
 	var response *nodesandboxv1.UploadArchiveResponse
-	err = bidi(s, stream.Context(), open, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (uploadArchiveClient, error) {
-		return client.UploadArchive(stream.Context())
+	err = bidi(s, stream.Context(), open, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (uploadArchiveClient, error) {
+		return client.UploadArchive(backendCtx)
 	}, func(up uploadArchiveClient) error {
 		if err := up.Send(first); err != nil {
 			return markLeaseOpenRejection(err)
@@ -469,8 +469,8 @@ func (s *Server) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchiveSer
 }
 
 func (s *Server) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stream nodesandboxv1.NodeSandbox_DownloadArchiveServer) error {
-	return serverStream(s, stream.Context(), req, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (downloadArchiveClient, error) {
-		return client.DownloadArchive(stream.Context(), req)
+	return serverStream(s, stream.Context(), req, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (downloadArchiveClient, error) {
+		return client.DownloadArchive(backendCtx, req)
 	}, func(up downloadArchiveClient) error {
 		header, err := acceptedExecutionLeaseHeader(up, "archive download", func() error {
 			_, err := up.Recv()
@@ -498,8 +498,8 @@ func (s *Server) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stre
 }
 
 func (s *Server) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	return serverStreamForPurpose(s, stream.Context(), req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, isLeaseOpenRejection, func(client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
-		return client.ReadOutput(stream.Context(), req)
+	return serverStreamForPurpose(s, stream.Context(), req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
+		return client.ReadOutput(backendCtx, req)
 	}, func(up nodesandboxv1.NodeSandbox_ReadOutputClient) error {
 		header, err := acceptedExecutionLeaseHeader(up, "run output", func() error {
 			_, err := up.Recv()

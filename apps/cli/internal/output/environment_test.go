@@ -15,7 +15,6 @@ func TestRenderEnvironmentImageBacked(t *testing.T) {
 		Spec: &environmentv1.EnvironmentSpec{
 			Image: &environmentv1.EnvironmentImageSource{
 				Ref:                  "index.docker.io/library/nginx:1.27",
-				Digest:               "sha256:abc",
 				RegistryCredentialID: "sec-regcred",
 				RootfsReadonly:       true,
 			},
@@ -56,10 +55,10 @@ func TestRenderEnvironmentTable(t *testing.T) {
 			ID: "env-image",
 			Spec: &environmentv1.EnvironmentSpec{
 				Image: &environmentv1.EnvironmentImageSource{
-					Ref:    "index.docker.io/library/nginx:1.27",
-					Digest: "sha256:image",
+					Ref: "index.docker.io/library/nginx:1.27",
 				},
 			},
+			ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{Digest: "sha256:image"}},
 		},
 	})
 	out := b.String()

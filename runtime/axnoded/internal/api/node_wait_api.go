@@ -10,7 +10,7 @@ import (
 )
 
 func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.WaitSandboxRequest) (*nodesandboxv1.WaitSandboxResponse, error) {
-	target, err := s.validateDirectAuth(ctx, req.GetAllocationID(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
@@ -18,25 +18,25 @@ func (s *nodeSandboxServer) WaitSandbox(ctx context.Context, req *nodesandboxv1.
 	resp, err := s.svc.Wait(ctx, &runtimev1.WaitRequest{ID: target.targetID})
 	if err == nil {
 		s.reportExit(allocationExitReport{
-			allocationID:  target.allocationID,
-			exitCode:      resp.ExitCode,
-			message:       resp.GetMessage(),
+			allocationID: target.allocationID,
+			exitCode:     resp.ExitCode,
+			message:      resp.GetMessage(),
 		})
 		return &nodesandboxv1.WaitSandboxResponse{
-			State:         nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED,
-			ExitCode:      resp.ExitCode,
-			Message:       resp.GetMessage(),
+			State:    nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED,
+			ExitCode: resp.ExitCode,
+			Message:  resp.GetMessage(),
 		}, nil
 	}
 
 	if grpcstatus.Code(err) == codes.Unavailable && resp != nil {
 		s.reportExit(allocationExitReport{
-			allocationID:  target.allocationID,
-			message:       resp.GetMessage(),
+			allocationID: target.allocationID,
+			message:      resp.GetMessage(),
 		})
 		return &nodesandboxv1.WaitSandboxResponse{
-			State:         nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED,
-			Message:       resp.GetMessage(),
+			State:   nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED,
+			Message: resp.GetMessage(),
 		}, nil
 	}
 	return nil, err

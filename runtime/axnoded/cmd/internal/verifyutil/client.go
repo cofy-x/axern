@@ -17,9 +17,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 )
 
 const dialTimeout = 15 * time.Second
+
+const executionLeaseTokenMetadataKey = "x-axern-execution-lease-token"
 
 type NodeClients struct {
 	Lifecycle    privatenodev1.NodeLifecycleClient
@@ -152,17 +155,17 @@ func GetAllocationLifecycle(ctx context.Context, clients *NodeClients, sandboxID
 }
 
 func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) (*nodesandboxv1.ExecResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, executionLeaseTokenMetadataKey, h.LeaseToken)
 	return h.clients.Node.Exec(ctx, &nodesandboxv1.ExecRequest{
-		AllocationID:        h.SandboxID,
-		ExecutionLeaseToken: h.LeaseToken,
-		Spec:                spec,
+		AllocationID: h.SandboxID,
+		Spec:         spec,
 	})
 }
 
 func (h *SandboxHandle) Wait(ctx context.Context) (*nodesandboxv1.WaitSandboxResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, executionLeaseTokenMetadataKey, h.LeaseToken)
 	return h.clients.Node.WaitSandbox(ctx, &nodesandboxv1.WaitSandboxRequest{
-		AllocationID:        h.SandboxID,
-		ExecutionLeaseToken: h.LeaseToken,
+		AllocationID: h.SandboxID,
 	})
 }
 

@@ -18,7 +18,7 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 
 `axnoded` serves these gRPC surfaces:
 
-- `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded `exec`, `exec_stream`, `process`, `exec_image`, `process_image`, `wait`, archive transfer, and allocation HTTP proxy. Streaming operations acknowledge a validated execution lease before consuming request data or producing sandbox output.
+- `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded `exec`, `exec_stream`, `process`, `exec_image`, `process_image`, `wait`, archive transfer, and allocation HTTP proxy. Public messages never carry lease credentials; axnoded accepts the execution lease only from private incoming gRPC metadata and rejects missing or ambiguous values. Streaming operations acknowledge a validated execution lease before consuming request data or producing sandbox output.
 - `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status.
 - `axern.private.node.operator.v1.NodeOperator`: local Unix-socket operator workflows for `axctl`.
 - `axern.private.control.node.v1.NodeControl`: outbound registration, node reports, coalesced allocation lifecycle batches, and execution lease replication with `controld`.
