@@ -24,7 +24,7 @@ Both flows build local deploy images before starting services. They also write C
 - `deploy/local/state/compose/axern.env`
 - `deploy/local/state/kind/axern.env`
 
-The kind node reserves 1 GiB for node daemons and runtime conformance, matching the verification runtime default. A 512 MiB reserve cannot cover both the 512 MiB conformance reservation and the daemons: capability checks correctly fail closed and prevent workload placement. This local test reserve is not a production sizing recommendation; production uses measured qualification evidence.
+The kind node reserves 1 GiB for node daemons and runtime conformance, matching the verification runtime default. A 512 MiB reserve cannot cover both the 512 MiB conformance charge and the daemons: capability checks correctly fail closed and prevent workload placement. This local test reserve is not a production sizing recommendation; production uses measured qualification evidence.
 
 `make kind-up` also starts or reuses a Docker-backed repo-managed local registry at `127.0.0.1:5001`. New repo-managed kind clusters mirror `localhost:5001` to that registry through the Docker `kind` network. If an existing kind cluster was created before this mirror existed or before the registry container was named `axern-registry`, run `make kind-reset` to recreate it.
 

@@ -9,44 +9,46 @@ import (
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
-	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
+	pgresourceadmission "github.com/cofy-x/axern/control/controld/internal/postgres/resourceadmission"
 )
 
 const (
-	leaseRevisionName  = "execution_leases"
-	leaseChangeChannel = "axern_execution_lease_changes"
-	runChangeChannel   = "axern_run_changes"
+	accessGrantRevisionName  = "allocation_access_grants"
+	accessGrantChangeChannel = "axern_allocation_access_grant_changes"
+	runChangeChannel         = "axern_run_changes"
 
-	defaultExecutionLeaseTTL = 5 * time.Minute
+	defaultAllocationAccessGrantTTL = 5 * time.Minute
 )
 
 type Store struct {
-	db            *postgres.DB
-	reservations  pgreservation.Admission
-	leaseWatches  *changeWatchHub
-	runWatches    *changeWatchHub
-	reconcileWake chan struct{}
+	db                 *postgres.DB
+	resourceAdmission  pgresourceadmission.Admission
+	accessGrantWatches *changeWatchHub
+	runWatches         *changeWatchHub
+	reconcileWake      chan struct{}
 }
 
 type Option func(*Store)
 
 func WithAdmissionPolicy(policy resourcekernel.AdmissionPolicy) Option {
 	return func(s *Store) {
-		s.reservations = pgreservation.NewAdmission(policy, s.reservations.Evaluator())
+		s.resourceAdmission = pgresourceadmission.NewAdmission(policy, s.resourceAdmission.Evaluator())
 	}
 }
 
 func WithPlacementEvaluator(evaluator placementkernel.Evaluator) Option {
-	return func(s *Store) { s.reservations = pgreservation.NewAdmission(s.reservations.Policy(), evaluator) }
+	return func(s *Store) {
+		s.resourceAdmission = pgresourceadmission.NewAdmission(s.resourceAdmission.Policy(), evaluator)
+	}
 }
 
 func NewStore(db *postgres.DB, options ...Option) *Store {
 	store := &Store{
-		db:            db,
-		reservations:  pgreservation.NewAdmission(resourcekernel.AdmissionPolicy{}, nil),
-		leaseWatches:  newChangeWatchHub(db.Pool(), leaseChangeChannel, "execution lease"),
-		runWatches:    newChangeWatchHub(db.Pool(), runChangeChannel, "run"),
-		reconcileWake: make(chan struct{}, 1),
+		db:                 db,
+		resourceAdmission:  pgresourceadmission.NewAdmission(resourcekernel.AdmissionPolicy{}, nil),
+		accessGrantWatches: newChangeWatchHub(db.Pool(), accessGrantChangeChannel, "allocation access grant"),
+		runWatches:         newChangeWatchHub(db.Pool(), runChangeChannel, "run"),
+		reconcileWake:      make(chan struct{}, 1),
 	}
 	for _, option := range options {
 		option(store)
@@ -77,8 +79,8 @@ func (s *Store) WaitReconcileWork(ctx context.Context) error {
 }
 
 func (s *Store) Close() {
-	if s != nil && s.leaseWatches != nil {
-		s.leaseWatches.close()
+	if s != nil && s.accessGrantWatches != nil {
+		s.accessGrantWatches.close()
 	}
 	if s != nil && s.runWatches != nil {
 		s.runWatches.close()
@@ -88,7 +90,7 @@ func (s *Store) Close() {
 var (
 	_ runkernel.EnvironmentStore   = (*Store)(nil)
 	_ runkernel.RunStore           = (*Store)(nil)
-	_ runkernel.LeaseStore         = (*Store)(nil)
+	_ runkernel.AccessGrantStore   = (*Store)(nil)
 	_ runkernel.AllocationReporter = (*Store)(nil)
 	_ runkernel.ReconcileStore     = (*Store)(nil)
 )

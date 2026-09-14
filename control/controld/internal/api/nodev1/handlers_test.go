@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
@@ -31,6 +31,37 @@ func TestReportNodeRequiresRuntimeSlotContract(t *testing.T) {
 	}
 	if got := grpcstatus.Convert(err).Message(); got != "summary.pools.runtime_slots is required" {
 		t.Fatalf("ReportNode() error message = %q", got)
+	}
+}
+
+type executionAuthorityReporterStub struct{ allocationIDs []string }
+
+func (s executionAuthorityReporterStub) Report(context.Context, nodekernel.ReportParams) ([]string, error) {
+	return append([]string(nil), s.allocationIDs...), nil
+}
+
+func TestReportNodeReturnsCompleteExecutionAuthoritySnapshot(t *testing.T) {
+	server := New(Dependencies{
+		Reporter: executionAuthorityReporterStub{allocationIDs: []string{"alloc-a", "alloc-b"}},
+		Now:      time.Now,
+	})
+	response, err := server.ReportNode(context.Background(), &controlnodev1.ReportNodeRequest{
+		NodeID: "node-a",
+		Summary: &controlnodev1.NodeSummary{
+			Pools: &controlnodev1.PoolsSummary{RuntimeSlots: &controlnodev1.PoolState{}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReportNode() error = %v", err)
+	}
+	if len(response.GetExecutionLeases()) != 2 {
+		t.Fatalf("execution leases = %#v", response.GetExecutionLeases())
+	}
+	for i, allocationID := range []string{"alloc-a", "alloc-b"} {
+		lease := response.GetExecutionLeases()[i]
+		if lease.GetAllocationID() != allocationID || lease.GetTtlSeconds() != int64(allocationkernel.ExecutionLeaseTTL/time.Second) {
+			t.Fatalf("execution lease %d = %#v", i, lease)
+		}
 	}
 }
 
@@ -315,7 +346,7 @@ func (f *fakeAllocationControl) ReconcileNodeInventory(context.Context, allocati
 	return nil
 }
 
-func (f *fakeAllocationControl) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*leasekernel.Record, int64, error) {
+func (f *fakeAllocationControl) WatchAllocationAccessGrants(context.Context, string, int64, time.Time) ([]*accessgrantkernel.Record, int64, error) {
 	return nil, 0, nil
 }
 

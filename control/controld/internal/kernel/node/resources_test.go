@@ -51,19 +51,19 @@ func TestCalculateRuntimeSlotOccupancyUnionsAllocationOwnership(t *testing.T) {
 		want     RuntimeSlotOccupancy
 	}{
 		{
-			name:     "overlapping reservations and active allocations are counted once",
+			name:     "overlapping charges and active Allocations are counted once",
 			reserved: []string{"a", "b"}, active: []string{"a"}, using: 1,
-			want: RuntimeSlotOccupancy{Reserved: 2, Active: 1, PoolUsing: 1, Occupied: 2},
+			want: RuntimeSlotOccupancy{Charged: 2, Active: 1, PoolUsing: 1, Occupied: 2},
 		},
 		{
-			name:     "released reservation with active sandbox remains occupied",
+			name:     "released Allocation charge with active sandbox remains occupied",
 			reserved: []string{"new"}, active: []string{"old"}, using: 2,
-			want: RuntimeSlotOccupancy{Reserved: 1, Active: 1, PoolUsing: 2, Occupied: 2},
+			want: RuntimeSlotOccupancy{Charged: 1, Active: 1, PoolUsing: 2, Occupied: 2},
 		},
 		{
 			name:     "anonymous pool usage remains conservative",
 			reserved: []string{"a"}, active: []string{"a"}, using: 2,
-			want: RuntimeSlotOccupancy{Reserved: 1, Active: 1, PoolUsing: 2, Occupied: 2},
+			want: RuntimeSlotOccupancy{Charged: 1, Active: 1, PoolUsing: 2, Occupied: 2},
 		},
 	}
 	for _, tt := range tests {

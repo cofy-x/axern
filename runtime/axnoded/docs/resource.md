@@ -10,7 +10,7 @@ Every resource binding belongs to one globally unique Allocation ID. Runtime met
 | --- | --- | --- |
 | cgroup | `CgroupLease(allocation_id, cgroup_id, lifecycle, commitment)` | OCI `linux.cgroupsPath`, kernel counters, workload leaf |
 | network | `NetworkLease(allocation_id, host_veth, IP, netns)` | link state, neighbor entries, runtime namespace |
-| writable storage | filestore reservation ledger and projection manifest | runsc writable root and host mount projection |
+| writable storage | filestore Allocation charge ledger and projection manifest | runsc writable root and host mount projection |
 
 `AllocationState` owns the admitted execution specification. Resource ledgers own node-local bindings and cleanup debt. Neither duplicates the other's facts.
 
@@ -18,7 +18,7 @@ Every resource binding belongs to one globally unique Allocation ID. Runtime met
 
 Assignment is durably recorded before allocation succeeds. Release is durably recorded before an IP, interface slot, or other reusable capacity returns to a pool. A failed write leaves the resource owned and unavailable for retry.
 
-Warm resources are optimization only. A cache miss may create a resource synchronously, but capacity reservation remains atomic and bounded by `max_instance_num`. Only never-assigned cgroups may be reused; an Allocation-owned cgroup moves from `assigned` to `retiring` and is destroyed after cleanup.
+Warm resources are optimization only. A cache miss may create a resource synchronously, but capacity charging remains atomic and bounded by `max_instance_num`. Only never-assigned cgroups may be reused; an Allocation-owned cgroup moves from `assigned` to `retiring` and is destroyed after cleanup.
 
 Delete resolves bindings by Allocation ID, crosses the runtime and monitor exit barrier, cleans activation-specific network state, releases runtime storage and image ownership, then retires the cgroup. Every step is idempotent. Failure preserves the remaining authoritative records and returns an error to the durable control-plane retry path.
 
@@ -49,7 +49,7 @@ Axnoded reads the immutable `ResourceSpec` from `AllocationState` and applies on
 | `limits.cpu_milli` | CFS quota and period |
 | `requests.memory_bytes` | scheduling commitment for the entire sandbox cgroup |
 | `limits.memory_bytes` | parent `memory.max`, zero swap, and group OOM |
-| `requests.ephemeral_storage_bytes` | filestore reservation |
+| `requests.ephemeral_storage_bytes` | filestore Allocation charge |
 | `limits.ephemeral_storage_bytes` | runsc writable-root hard limit |
 
 CPU and memory commitment use requests, falling back to the corresponding limit only when the request is absent. A running Allocation with neither value increments the matching unbounded diagnostic counter.

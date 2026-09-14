@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
@@ -21,6 +22,7 @@ const (
 	ReconcileClaimTTL         = 30 * time.Second
 	ReconcileClaimRenewal     = 10 * time.Second
 	ReconcileWorkerCount      = 8
+	ExecutionLeaseTTL         = executionlease.TTL
 )
 
 type ReconcileItem struct {

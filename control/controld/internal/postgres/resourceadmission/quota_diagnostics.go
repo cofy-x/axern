@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import (
 	"fmt"
@@ -68,7 +68,7 @@ func quotaResourceMessage(resource quotaDiagnosticResource, unit quotaDiagnostic
 	if evaluation.Available != nil {
 		available = *evaluation.Available
 	}
-	return fmt.Sprintf("%s requested_%s=%d reserved_%s=%d limit_%s=%d available_%s=%d",
+	return fmt.Sprintf("%s requested_%s=%d used_%s=%d limit_%s=%d available_%s=%d",
 		resource,
 		unit,
 		evaluation.Requested,
@@ -117,7 +117,7 @@ func addQuotaResourceMetadata(metadata map[string]string, resource quotaDiagnost
 	prefix := string(resource) + "_"
 	metadata[prefix+"unit"] = string(unit)
 	metadata[prefix+"requested"] = strconv.FormatInt(evaluation.Requested, 10)
-	metadata[prefix+"reserved"] = strconv.FormatInt(evaluation.Used, 10)
+	metadata[prefix+"used"] = strconv.FormatInt(evaluation.Used, 10)
 	metadata[prefix+"limit"] = strconv.FormatInt(limit, 10)
 	metadata[prefix+"available"] = strconv.FormatInt(available, 10)
 }

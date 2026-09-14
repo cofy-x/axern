@@ -38,13 +38,13 @@ type AllocateOption struct {
 	TraceID            string
 	MemoryRequestBytes int64
 	MemoryLimitBytes   int64
-	// CapacityReservationBytes is the admission charge for node-owned work
+	// CapacityChargeBytes is the admission charge for node-owned work
 	// around a sandbox. It normally equals MemoryRequestBytes, but runtime
 	// conformance includes trusted monitor/control overhead outside the workload
 	// hard limit and therefore reserves a larger aggregate envelope.
-	CapacityReservationBytes int64
-	RuntimeName              string
-	CgroupOwnerKind          apipb.CgroupLeaseOwnerKind
+	CapacityChargeBytes int64
+	RuntimeName         string
+	CgroupOwnerKind     apipb.CgroupLeaseOwnerKind
 }
 
 // RetiringMemoryLease is the durable information needed to keep reporting an

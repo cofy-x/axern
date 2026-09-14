@@ -50,7 +50,7 @@ func TestPostgresAdminRejectsRetiringNodeWithActiveAllocation(t *testing.T) {
 	registerReadyNode(t, app, "node-a", now)
 	app.now = func() time.Time { return now.Add(2 * time.Hour) }
 	insertAdminNodeTestRun(t, app, "run-a", now)
-	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', $1, $1)`, now); err != nil {
+	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $1, $1)`, now); err != nil {
 		t.Fatalf("insert active allocation: %v", err)
 	}
 	_, err := app.AdminV1Handler().RetireAdminNode(context.Background(), &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "host permanently removed"})
@@ -67,7 +67,7 @@ func TestPostgresAdminRetiresNodeWithReleasedAllocation(t *testing.T) {
 	registerReadyNode(t, app, "node-a", now)
 	app.now = func() time.Time { return now.Add(2 * time.Hour) }
 	insertAdminNodeTestRun(t, app, "run-a", now)
-	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_RELEASED', $1, $1)`, now); err != nil {
+	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_RELEASED', 1, $1, $1)`, now); err != nil {
 		t.Fatalf("insert released allocation: %v", err)
 	}
 	if _, err := app.db.Pool().Exec(context.Background(), `UPDATE runs SET status = 'RUN_STATUS_FAILED' WHERE run_id = 'run-a'`); err != nil {

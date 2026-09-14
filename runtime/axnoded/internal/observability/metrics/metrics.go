@@ -39,7 +39,7 @@ const (
 	MetricLifecycleStageDuration                    = "axern.axnoded_lifecycle_stage_duration_seconds"
 	MetricAllocationDeleteStageDuration             = "axern.axnoded_allocation_delete_stage_duration_seconds"
 	MetricHTTPProxyStageDuration                    = "axern.axnoded_http_proxy_stage_duration_seconds"
-	MetricExecutionLeaseVisibilityDuration          = "axern.axnoded_execution_lease_visibility_duration_seconds"
+	MetricAllocationAccessGrantVisibilityDuration   = "axern.axnoded_allocation_access_grant_visibility_duration_seconds"
 	MetricRetainedEnvironmentCurrent                = "axern.axnoded_retained_environment_current"
 	MetricRetainedRootfsCurrent                     = "axern.axnoded_retained_rootfs_current"
 	MetricRetentionReuseTotal                       = "axern.axnoded_retention_reuse_total"
@@ -99,7 +99,7 @@ const (
 	descLifecycleStageDuration                    = "Axnoded node lifecycle RPC handling stage duration."
 	descAllocationDeleteStageDuration             = "Axnoded allocation delete stage duration."
 	descHTTPProxyStageDuration                    = "Axnoded HTTP proxy stage duration."
-	descExecutionLeaseVisibilityDuration          = "Axnoded execution lease cache visibility duration."
+	descAllocationAccessGrantVisibilityDuration   = "Axnoded allocation access grant cache visibility duration."
 	descRetainedEnvironmentCurrent                = "Axnoded retained idle runtime count."
 	descRetainedRootfsCurrent                     = "Axnoded retained rootfs count."
 	descRetentionReuseTotal                       = "Axnoded retention reuse events."
@@ -130,7 +130,7 @@ const (
 	descNodeMemoryBudgetCurrent                   = "Node sandbox memory boundary, commitments, system reserve, and cleanup debt."
 	descMemoryAdmissionTotal                      = "Node-local sandbox memory admission decisions."
 	descCgroupRetirementTotal                     = "Allocation-owned cgroup retirement and reclaim outcomes."
-	descEphemeralStorageOperationTotal            = "Ephemeral-storage reservation, quota, ENOSPC, and cleanup operations."
+	descEphemeralStorageOperationTotal            = "Ephemeral-storage charging, quota, ENOSPC, and cleanup operations."
 	descFilestoreProbe                            = "Runtime filestore capability probe results."
 )
 
@@ -238,10 +238,10 @@ func RecordActionLatencyMs(action string, cost int64) {
 	)
 }
 
-func RecordExecutionLeaseVisibility(duration time.Duration, result string) {
+func RecordAllocationAccessGrantVisibility(duration time.Duration, result string) {
 	recordDuration(
-		MetricExecutionLeaseVisibilityDuration,
-		descExecutionLeaseVisibilityDuration,
+		MetricAllocationAccessGrantVisibilityDuration,
+		descAllocationAccessGrantVisibilityDuration,
 		duration,
 		attribute.String(sdkobs.AttrResult, result),
 	)

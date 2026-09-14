@@ -23,7 +23,7 @@ const (
 	NodeControl_ReportNode_FullMethodName                                = "/axern.private.control.node.v1.NodeControl/ReportNode"
 	NodeControl_BatchReportAllocationLifecycle_FullMethodName            = "/axern.private.control.node.v1.NodeControl/BatchReportAllocationLifecycle"
 	NodeControl_BatchReportAllocationCapabilityConditions_FullMethodName = "/axern.private.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions"
-	NodeControl_WatchExecutionLeases_FullMethodName                      = "/axern.private.control.node.v1.NodeControl/WatchExecutionLeases"
+	NodeControl_WatchAllocationAccessGrants_FullMethodName               = "/axern.private.control.node.v1.NodeControl/WatchAllocationAccessGrants"
 	NodeControl_WatchTunnelSessions_FullMethodName                       = "/axern.private.control.node.v1.NodeControl/WatchTunnelSessions"
 	NodeControl_ReportTunnelSessionStatus_FullMethodName                 = "/axern.private.control.node.v1.NodeControl/ReportTunnelSessionStatus"
 )
@@ -36,7 +36,7 @@ type NodeControlClient interface {
 	ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error)
 	BatchReportAllocationLifecycle(ctx context.Context, in *BatchReportAllocationLifecycleRequest, opts ...grpc.CallOption) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, in *BatchReportAllocationCapabilityConditionsRequest, opts ...grpc.CallOption) (*BatchReportAllocationCapabilityConditionsResponse, error)
-	WatchExecutionLeases(ctx context.Context, in *WatchExecutionLeasesRequest, opts ...grpc.CallOption) (NodeControl_WatchExecutionLeasesClient, error)
+	WatchAllocationAccessGrants(ctx context.Context, in *WatchAllocationAccessGrantsRequest, opts ...grpc.CallOption) (NodeControl_WatchAllocationAccessGrantsClient, error)
 	WatchTunnelSessions(ctx context.Context, in *WatchTunnelSessionsRequest, opts ...grpc.CallOption) (NodeControl_WatchTunnelSessionsClient, error)
 	ReportTunnelSessionStatus(ctx context.Context, in *ReportTunnelSessionStatusRequest, opts ...grpc.CallOption) (*ReportTunnelSessionStatusResponse, error)
 }
@@ -85,12 +85,12 @@ func (c *nodeControlClient) BatchReportAllocationCapabilityConditions(ctx contex
 	return out, nil
 }
 
-func (c *nodeControlClient) WatchExecutionLeases(ctx context.Context, in *WatchExecutionLeasesRequest, opts ...grpc.CallOption) (NodeControl_WatchExecutionLeasesClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeControl_ServiceDesc.Streams[0], NodeControl_WatchExecutionLeases_FullMethodName, opts...)
+func (c *nodeControlClient) WatchAllocationAccessGrants(ctx context.Context, in *WatchAllocationAccessGrantsRequest, opts ...grpc.CallOption) (NodeControl_WatchAllocationAccessGrantsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &NodeControl_ServiceDesc.Streams[0], NodeControl_WatchAllocationAccessGrants_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &nodeControlWatchExecutionLeasesClient{stream}
+	x := &nodeControlWatchAllocationAccessGrantsClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -100,17 +100,17 @@ func (c *nodeControlClient) WatchExecutionLeases(ctx context.Context, in *WatchE
 	return x, nil
 }
 
-type NodeControl_WatchExecutionLeasesClient interface {
-	Recv() (*WatchExecutionLeasesResponse, error)
+type NodeControl_WatchAllocationAccessGrantsClient interface {
+	Recv() (*WatchAllocationAccessGrantsResponse, error)
 	grpc.ClientStream
 }
 
-type nodeControlWatchExecutionLeasesClient struct {
+type nodeControlWatchAllocationAccessGrantsClient struct {
 	grpc.ClientStream
 }
 
-func (x *nodeControlWatchExecutionLeasesClient) Recv() (*WatchExecutionLeasesResponse, error) {
-	m := new(WatchExecutionLeasesResponse)
+func (x *nodeControlWatchAllocationAccessGrantsClient) Recv() (*WatchAllocationAccessGrantsResponse, error) {
+	m := new(WatchAllocationAccessGrantsResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -166,7 +166,7 @@ type NodeControlServer interface {
 	ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error)
 	BatchReportAllocationLifecycle(context.Context, *BatchReportAllocationLifecycleRequest) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error)
-	WatchExecutionLeases(*WatchExecutionLeasesRequest, NodeControl_WatchExecutionLeasesServer) error
+	WatchAllocationAccessGrants(*WatchAllocationAccessGrantsRequest, NodeControl_WatchAllocationAccessGrantsServer) error
 	WatchTunnelSessions(*WatchTunnelSessionsRequest, NodeControl_WatchTunnelSessionsServer) error
 	ReportTunnelSessionStatus(context.Context, *ReportTunnelSessionStatusRequest) (*ReportTunnelSessionStatusResponse, error)
 	mustEmbedUnimplementedNodeControlServer()
@@ -188,8 +188,8 @@ func (UnimplementedNodeControlServer) BatchReportAllocationLifecycle(context.Con
 func (UnimplementedNodeControlServer) BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationCapabilityConditions not implemented")
 }
-func (UnimplementedNodeControlServer) WatchExecutionLeases(*WatchExecutionLeasesRequest, NodeControl_WatchExecutionLeasesServer) error {
-	return status.Errorf(codes.Unimplemented, "method WatchExecutionLeases not implemented")
+func (UnimplementedNodeControlServer) WatchAllocationAccessGrants(*WatchAllocationAccessGrantsRequest, NodeControl_WatchAllocationAccessGrantsServer) error {
+	return status.Errorf(codes.Unimplemented, "method WatchAllocationAccessGrants not implemented")
 }
 func (UnimplementedNodeControlServer) WatchTunnelSessions(*WatchTunnelSessionsRequest, NodeControl_WatchTunnelSessionsServer) error {
 	return status.Errorf(codes.Unimplemented, "method WatchTunnelSessions not implemented")
@@ -282,24 +282,24 @@ func _NodeControl_BatchReportAllocationCapabilityConditions_Handler(srv interfac
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeControl_WatchExecutionLeases_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(WatchExecutionLeasesRequest)
+func _NodeControl_WatchAllocationAccessGrants_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchAllocationAccessGrantsRequest)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(NodeControlServer).WatchExecutionLeases(m, &nodeControlWatchExecutionLeasesServer{stream})
+	return srv.(NodeControlServer).WatchAllocationAccessGrants(m, &nodeControlWatchAllocationAccessGrantsServer{stream})
 }
 
-type NodeControl_WatchExecutionLeasesServer interface {
-	Send(*WatchExecutionLeasesResponse) error
+type NodeControl_WatchAllocationAccessGrantsServer interface {
+	Send(*WatchAllocationAccessGrantsResponse) error
 	grpc.ServerStream
 }
 
-type nodeControlWatchExecutionLeasesServer struct {
+type nodeControlWatchAllocationAccessGrantsServer struct {
 	grpc.ServerStream
 }
 
-func (x *nodeControlWatchExecutionLeasesServer) Send(m *WatchExecutionLeasesResponse) error {
+func (x *nodeControlWatchAllocationAccessGrantsServer) Send(m *WatchAllocationAccessGrantsResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -372,8 +372,8 @@ var NodeControl_ServiceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
-			StreamName:    "WatchExecutionLeases",
-			Handler:       _NodeControl_WatchExecutionLeases_Handler,
+			StreamName:    "WatchAllocationAccessGrants",
+			Handler:       _NodeControl_WatchAllocationAccessGrants_Handler,
 			ServerStreams: true,
 		},
 		{

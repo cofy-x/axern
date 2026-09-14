@@ -176,6 +176,9 @@ CREATE TABLE allocations (
 	run_id TEXT NOT NULL UNIQUE REFERENCES runs(run_id) ON DELETE CASCADE,
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE RESTRICT,
 	lifecycle_state TEXT NOT NULL,
+	cpu_request_milli BIGINT NOT NULL,
+	sandbox_memory_request_bytes BIGINT NOT NULL DEFAULT 0,
+	ephemeral_storage_request_bytes BIGINT NOT NULL DEFAULT 0,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	node_active_at TIMESTAMPTZ,
@@ -186,6 +189,9 @@ CREATE TABLE allocations (
 		'ALLOCATION_LIFECYCLE_STATE_RELEASING',
 		'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 	)),
+	CHECK (cpu_request_milli > 0),
+	CHECK (sandbox_memory_request_bytes >= 0),
+	CHECK (ephemeral_storage_request_bytes >= 0),
 	CHECK (updated_at >= created_at),
 	UNIQUE (allocation_id, node_id)
 );
@@ -219,22 +225,6 @@ CREATE TABLE node_capability_instances (
 	CHECK (last_sequence > 0)
 );
 
-CREATE TABLE reservations (
-	allocation_id TEXT PRIMARY KEY,
-	node_id TEXT NOT NULL,
-	cpu_milli BIGINT NOT NULL DEFAULT 0,
-	sandbox_memory_request_bytes BIGINT NOT NULL DEFAULT 0,
-	ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
-	created_at TIMESTAMPTZ NOT NULL,
-	released_at TIMESTAMPTZ,
-	CHECK (cpu_milli >= 0),
-	CHECK (sandbox_memory_request_bytes >= 0),
-	CHECK (ephemeral_storage_bytes >= 0),
-	CHECK (released_at IS NULL OR released_at >= created_at),
-	FOREIGN KEY (allocation_id, node_id)
-		REFERENCES allocations(allocation_id, node_id) ON DELETE CASCADE
-);
-
 CREATE TABLE namespace_quota_events (
 	event_id TEXT PRIMARY KEY,
 	namespace TEXT NOT NULL REFERENCES namespaces(namespace),
@@ -242,15 +232,15 @@ CREATE TABLE namespace_quota_events (
 	environment_id TEXT NOT NULL,
 	reason TEXT NOT NULL,
 	requested_cpu_milli BIGINT NOT NULL DEFAULT 0,
-	reserved_cpu_milli BIGINT NOT NULL DEFAULT 0,
+	used_cpu_milli BIGINT NOT NULL DEFAULT 0,
 	cpu_milli_limit BIGINT,
 	available_cpu_milli BIGINT,
 	requested_memory_bytes BIGINT NOT NULL DEFAULT 0,
-	reserved_memory_bytes BIGINT NOT NULL DEFAULT 0,
+	used_memory_bytes BIGINT NOT NULL DEFAULT 0,
 	memory_bytes_limit BIGINT,
 	available_memory_bytes BIGINT,
 	requested_ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
-	reserved_ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
+	used_ephemeral_storage_bytes BIGINT NOT NULL DEFAULT 0,
 	ephemeral_storage_bytes_limit BIGINT,
 	available_ephemeral_storage_bytes BIGINT,
 	created_at TIMESTAMPTZ NOT NULL,
@@ -258,21 +248,21 @@ CREATE TABLE namespace_quota_events (
 	CHECK (reason IN ('insufficient_cpu', 'insufficient_memory', 'insufficient_cpu_memory', 'insufficient_ephemeral_storage')),
 	CHECK (length(btrim(environment_id)) > 0),
 	CHECK (requested_cpu_milli >= 0),
-	CHECK (reserved_cpu_milli >= 0),
+	CHECK (used_cpu_milli >= 0),
 	CHECK (cpu_milli_limit IS NULL OR cpu_milli_limit >= 0),
 	CHECK (available_cpu_milli IS NULL OR available_cpu_milli >= 0),
 	CHECK (requested_memory_bytes >= 0),
-	CHECK (reserved_memory_bytes >= 0),
+	CHECK (used_memory_bytes >= 0),
 	CHECK (memory_bytes_limit IS NULL OR memory_bytes_limit >= 0),
 	CHECK (available_memory_bytes IS NULL OR available_memory_bytes >= 0),
 	CHECK (requested_ephemeral_storage_bytes >= 0),
-	CHECK (reserved_ephemeral_storage_bytes >= 0),
+	CHECK (used_ephemeral_storage_bytes >= 0),
 	CHECK (ephemeral_storage_bytes_limit IS NULL OR ephemeral_storage_bytes_limit >= 0),
 	CHECK (available_ephemeral_storage_bytes IS NULL OR available_ephemeral_storage_bytes >= 0)
 );
 
-CREATE TABLE execution_leases (
-	lease_id TEXT PRIMARY KEY,
+CREATE TABLE allocation_access_grants (
+	grant_id TEXT PRIMARY KEY,
 	allocation_id TEXT NOT NULL,
 	node_id TEXT NOT NULL,
 	expires_at TIMESTAMPTZ NOT NULL,
@@ -292,15 +282,15 @@ CREATE TABLE allocation_reconcile_queue (
 	next_run_at TIMESTAMPTZ NOT NULL,
 	reconcile_attempts INTEGER NOT NULL DEFAULT 0,
 	last_error TEXT NOT NULL DEFAULT '',
-	lease_owner TEXT NOT NULL DEFAULT '',
-	lease_expires_at TIMESTAMPTZ,
+	claim_owner TEXT NOT NULL DEFAULT '',
+	claim_expires_at TIMESTAMPTZ,
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	CHECK (reconcile_attempts >= 0),
 	CHECK (updated_at >= created_at),
 	CHECK (
-		(lease_owner = '' AND lease_expires_at IS NULL) OR
-		(length(btrim(lease_owner)) > 0 AND lease_expires_at IS NOT NULL)
+		(claim_owner = '' AND claim_expires_at IS NULL) OR
+		(length(btrim(claim_owner)) > 0 AND claim_expires_at IS NOT NULL)
 	)
 );
 
@@ -320,7 +310,7 @@ CREATE TABLE control_revisions (
 );
 
 INSERT INTO control_revisions(name, revision)
-VALUES ('execution_leases', 0), ('tunnel_sessions', 0);
+VALUES ('allocation_access_grants', 0), ('tunnel_sessions', 0);
 
 CREATE TABLE tunnel_sessions (
 	session_id TEXT PRIMARY KEY,
@@ -401,16 +391,18 @@ CREATE INDEX idx_allocations_run_lifecycle_updated ON allocations(run_id, lifecy
 CREATE INDEX idx_admin_audit_events_created ON admin_audit_events(created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_operation_created ON admin_audit_events(operation, created_at DESC, event_id DESC);
 CREATE INDEX idx_admin_audit_events_target_created ON admin_audit_events(target_type, target_id, created_at DESC, event_id DESC);
-CREATE INDEX idx_reservations_active_node ON reservations(node_id) WHERE released_at IS NULL;
-CREATE INDEX idx_reservations_active_created ON reservations(created_at, allocation_id) WHERE released_at IS NULL;
+CREATE INDEX idx_allocations_resource_charge_node
+	ON allocations(node_id)
+	INCLUDE (allocation_id, cpu_request_milli, sandbox_memory_request_bytes, ephemeral_storage_request_bytes)
+	WHERE lifecycle_state <> 'ALLOCATION_LIFECYCLE_STATE_RELEASED';
 CREATE INDEX idx_namespace_quota_events_namespace_created ON namespace_quota_events(namespace, created_at DESC, event_id DESC);
 CREATE INDEX idx_namespace_quota_events_created ON namespace_quota_events(created_at DESC, event_id DESC);
-CREATE INDEX idx_execution_leases_node_revision ON execution_leases(node_id, revision);
-CREATE INDEX idx_execution_leases_retention ON execution_leases(created_at, expires_at, revoked);
-CREATE INDEX idx_execution_leases_active_created ON execution_leases(created_at, allocation_id) WHERE revoked = FALSE;
+CREATE INDEX idx_allocation_access_grants_node_revision ON allocation_access_grants(node_id, revision);
+CREATE INDEX idx_allocation_access_grants_retention ON allocation_access_grants(created_at, expires_at, revoked);
+CREATE INDEX idx_allocation_access_grants_active_created ON allocation_access_grants(created_at, allocation_id) WHERE revoked = FALSE;
 CREATE INDEX idx_runs_status_updated ON runs(status, updated_at);
 CREATE INDEX idx_allocation_reconcile_queue_claimable
-	ON allocation_reconcile_queue(next_run_at, lease_expires_at, allocation_id);
+	ON allocation_reconcile_queue(next_run_at, claim_expires_at, allocation_id);
 CREATE UNIQUE INDEX idx_tunnel_sessions_active_remote_port
 	ON tunnel_sessions(allocation_id, remote_port)
 	WHERE status IN (
@@ -429,20 +421,20 @@ CREATE INDEX idx_tunnel_sessions_active_created
 CREATE INDEX idx_tunnel_session_events_session_created
 	ON tunnel_session_events(session_id, created_at DESC, event_id DESC);
 
-CREATE FUNCTION notify_execution_lease_change()
+CREATE FUNCTION notify_allocation_access_grant_change()
 RETURNS TRIGGER AS $$
 BEGIN
 	PERFORM pg_notify(
-		'axern_execution_lease_changes',
+		'axern_allocation_access_grant_changes',
 		CASE WHEN TG_OP = 'DELETE' THEN OLD.node_id ELSE NEW.node_id END
 	);
 	RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER execution_lease_change_notify
-AFTER INSERT OR UPDATE OR DELETE ON execution_leases
-FOR EACH ROW EXECUTE FUNCTION notify_execution_lease_change();
+CREATE TRIGGER allocation_access_grant_change_notify
+AFTER INSERT OR UPDATE OR DELETE ON allocation_access_grants
+FOR EACH ROW EXECUTE FUNCTION notify_allocation_access_grant_change();
 
 CREATE FUNCTION notify_run_change()
 RETURNS TRIGGER AS $$

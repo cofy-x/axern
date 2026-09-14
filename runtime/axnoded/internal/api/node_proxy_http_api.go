@@ -42,7 +42,7 @@ func (s *nodeSandboxServer) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTP
 	// Acknowledge authentication before the gateway starts consuming the HTTP
 	// request body. Lease refresh can then retry only work that the node has not
 	// forwarded to the allocation.
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	return s.svc.ProxyHTTP(&proxyHTTPAdapter{

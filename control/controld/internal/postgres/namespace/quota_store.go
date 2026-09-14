@@ -119,29 +119,29 @@ type quotaScanner interface {
 
 func scanQuota(row quotaScanner) (*quotav1.NamespaceQuota, error) {
 	var (
-		namespace                string
-		cpuLimit                 sql.NullInt64
-		memoryLimit              sql.NullInt64
-		ephemeralStorageLimit    sql.NullInt64
-		reservedCPU              int64
-		reservedMemory           int64
-		reservedEphemeralStorage int64
-		createdAt, updatedAt     time.Time
+		namespace             string
+		cpuLimit              sql.NullInt64
+		memoryLimit           sql.NullInt64
+		ephemeralStorageLimit sql.NullInt64
+		usedCPU               int64
+		usedMemory            int64
+		usedEphemeralStorage  int64
+		createdAt, updatedAt  time.Time
 	)
-	if err := row.Scan(&namespace, &cpuLimit, &memoryLimit, &ephemeralStorageLimit, &reservedCPU, &reservedMemory, &reservedEphemeralStorage, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&namespace, &cpuLimit, &memoryLimit, &ephemeralStorageLimit, &usedCPU, &usedMemory, &usedEphemeralStorage, &createdAt, &updatedAt); err != nil {
 		return nil, err
 	}
 	return &quotav1.NamespaceQuota{
 		Namespace:                      namespace,
 		CpuMilliLimit:                  optionalInt64(cpuLimit),
 		MemoryBytesLimit:               optionalInt64(memoryLimit),
-		ReservedCpuMilli:               reservedCPU,
-		ReservedMemoryBytes:            reservedMemory,
-		AvailableCpuMilli:              optionalAvailable(cpuLimit, reservedCPU),
-		AvailableMemoryBytes:           optionalAvailable(memoryLimit, reservedMemory),
+		UsedCpuMilli:                   usedCPU,
+		UsedMemoryBytes:                usedMemory,
+		AvailableCpuMilli:              optionalAvailable(cpuLimit, usedCPU),
+		AvailableMemoryBytes:           optionalAvailable(memoryLimit, usedMemory),
 		EphemeralStorageBytesLimit:     optionalInt64(ephemeralStorageLimit),
-		ReservedEphemeralStorageBytes:  reservedEphemeralStorage,
-		AvailableEphemeralStorageBytes: optionalAvailable(ephemeralStorageLimit, reservedEphemeralStorage),
+		UsedEphemeralStorageBytes:      usedEphemeralStorage,
+		AvailableEphemeralStorageBytes: optionalAvailable(ephemeralStorageLimit, usedEphemeralStorage),
 		CreatedAt:                      timestamppb.New(createdAt),
 		UpdatedAt:                      timestamppb.New(updatedAt),
 	}, nil
@@ -153,22 +153,21 @@ func quotaSelectSQL(where string) string {
 		       q.cpu_milli_limit,
 		       q.memory_bytes_limit,
 		       q.ephemeral_storage_bytes_limit,
-		       COALESCE(usage.cpu_milli, 0) AS reserved_cpu_milli,
-		       COALESCE(usage.memory_bytes, 0) AS reserved_memory_bytes,
-		       COALESCE(usage.ephemeral_storage_bytes, 0) AS reserved_ephemeral_storage_bytes,
+		       COALESCE(usage.cpu_request_milli, 0) AS used_cpu_milli,
+		       COALESCE(usage.memory_bytes, 0) AS used_memory_bytes,
+		       COALESCE(usage.ephemeral_storage_request_bytes, 0) AS used_ephemeral_storage_bytes,
 		       q.created_at,
 		       q.updated_at
 		FROM namespace_resource_quotas q
 		JOIN namespaces n ON n.namespace = q.namespace AND n.deleted_at IS NULL
 		LEFT JOIN (
 			SELECT r.namespace,
-			       SUM(res.cpu_milli) AS cpu_milli,
-			       SUM(res.sandbox_memory_request_bytes) AS memory_bytes,
-			       SUM(res.ephemeral_storage_bytes) AS ephemeral_storage_bytes
-			FROM reservations res
-			JOIN allocations a ON a.allocation_id = res.allocation_id
+			       SUM(a.cpu_request_milli) AS cpu_request_milli,
+			       SUM(a.sandbox_memory_request_bytes) AS memory_bytes,
+			       SUM(a.ephemeral_storage_request_bytes) AS ephemeral_storage_request_bytes
+			FROM allocations a
 			JOIN runs r ON r.run_id = a.run_id
-			WHERE res.released_at IS NULL
+			WHERE a.lifecycle_state <> 'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 			GROUP BY r.namespace
 		) usage ON usage.namespace = q.namespace
 		` + where + `

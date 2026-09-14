@@ -41,11 +41,11 @@ func NewManager(control Resolver, nodes nodekernel.ExecStreamer, options Options
 	if options.MaxDuration <= 0 {
 		options.MaxDuration = 2 * time.Hour
 	}
-	if options.LeaseRetryAttempts <= 0 {
-		options.LeaseRetryAttempts = 3
+	if options.AccessGrantRetryAttempts <= 0 {
+		options.AccessGrantRetryAttempts = 3
 	}
-	if options.LeaseRetryDelay <= 0 {
-		options.LeaseRetryDelay = 500 * time.Millisecond
+	if options.AccessGrantRetryDelay <= 0 {
+		options.AccessGrantRetryDelay = 500 * time.Millisecond
 	}
 	return &Manager{control: control, nodes: nodes, options: options, metrics: metrics, obs: obs}
 }
@@ -128,8 +128,8 @@ func (m *Manager) openExecStream(ctx context.Context, resolved *gatewayv1.Resolv
 		op.End(err)
 	}()
 	current := resolved
-	for attempt := 1; attempt <= m.options.LeaseRetryAttempts; attempt++ {
-		backendCtx := nodekernel.WithExecutionLease(ctx, current.GetAccessGrant().GetPlaintextToken())
+	for attempt := 1; attempt <= m.options.AccessGrantRetryAttempts; attempt++ {
+		backendCtx := nodekernel.WithAllocationAccessGrant(ctx, current.GetAccessGrant().GetPlaintextToken())
 		stream, err = m.nodes.ExecStream(backendCtx, current.GetNodeTarget())
 		if err != nil {
 			return nil, err
@@ -138,10 +138,10 @@ func (m *Manager) openExecStream(ctx context.Context, resolved *gatewayv1.Resolv
 		if err == nil {
 			var header metadata.MD
 			header, err = stream.Header()
-			if err == nil && !nodekernel.ExecutionLeaseAccepted(header) {
+			if err == nil && !nodekernel.AllocationAccessGrantAccepted(header) {
 				_, err = stream.Recv()
 				if err == nil {
-					err = status.Error(codes.FailedPrecondition, "node did not acknowledge execution lease before terminal output")
+					err = status.Error(codes.FailedPrecondition, "node did not acknowledge allocation access grant before terminal output")
 				}
 			}
 		}
@@ -149,13 +149,13 @@ func (m *Manager) openExecStream(ctx context.Context, resolved *gatewayv1.Resolv
 			return stream, nil
 		}
 		_ = stream.CloseSend()
-		if attempt == m.options.LeaseRetryAttempts || !nodekernel.IsExecutionLeaseRejected(err) {
+		if attempt == m.options.AccessGrantRetryAttempts || !nodekernel.IsAllocationAccessGrantRejected(err) {
 			return nil, err
 		}
 		if m.metrics != nil {
-			m.metrics.LeaseRetry("terminal")
+			m.metrics.AccessGrantRetry("terminal")
 		}
-		if err := nodekernel.WaitLeaseRetry(ctx, attempt, m.options.LeaseRetryDelay); err != nil {
+		if err := nodekernel.WaitAccessGrantRetry(ctx, attempt, m.options.AccessGrantRetryDelay); err != nil {
 			return nil, err
 		}
 		current, err = m.Resolve(ctx, allocationID)

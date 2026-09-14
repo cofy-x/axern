@@ -26,9 +26,8 @@ enum ConsistencyIssueSeverity {
 
 enum ConsistencyIssueCode {
   CONSISTENCY_ISSUE_CODE_UNSPECIFIED = 0;
-  CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION = 1;
-  CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION = 2;
-  CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION = 3;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION = 1;
+  CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION = 2;
 }
 
 enum ConsistencyRepairOwner {
@@ -61,8 +60,8 @@ enum AdminReliabilitySignalCode {
 }
 
 message ConsistencyCounts {
-  int64 active_reservations = 1;
-  int64 active_leases = 2;
+  int64 active_allocations = 1;
+  int64 active_access_grants = 2;
   int64 active_tunnels = 3;
   int64 allocation_lifecycle_retries = 4;
   int64 issues = 5;

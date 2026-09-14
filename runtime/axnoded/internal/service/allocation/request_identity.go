@@ -24,6 +24,7 @@ func StartRequestDigest(request *runtimev1.StartRequest) (string, error) {
 	}
 	canonical := proto.Clone(request).(*runtimev1.StartRequest)
 	canonical.TraceID = ""
+	canonical.ExecutionLeaseTtlSeconds = 0
 	dependencies := make([]*capabilityv1.CapabilityRequirement, 0, len(canonical.GetCapabilityRequirements()))
 	for _, dependency := range canonical.GetCapabilityRequirements() {
 		if dependency == nil {

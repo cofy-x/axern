@@ -86,14 +86,14 @@ func (b *leaseHandshakeBackend) ProxyHTTP(stream nodesandboxv1.NodeSandbox_Proxy
 	if err != nil {
 		return err
 	}
-	values := metadata.ValueFromIncomingContext(stream.Context(), nodekernel.ExecutionLeaseTokenMetadata)
+	values := metadata.ValueFromIncomingContext(stream.Context(), nodekernel.AllocationAccessGrantTokenMetadata)
 	if len(values) != 1 {
-		return status.Error(codes.Unauthenticated, "execution lease metadata is missing")
+		return status.Error(codes.Unauthenticated, "allocation access grant metadata is missing")
 	}
 	if values[0] == "stale-token" {
-		return status.Error(codes.Unauthenticated, "execution lease is invalid")
+		return status.Error(codes.Unauthenticated, "allocation access grant is invalid")
 	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 		return err
 	}
 	var body strings.Builder

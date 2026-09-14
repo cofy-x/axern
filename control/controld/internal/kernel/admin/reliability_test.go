@@ -67,7 +67,7 @@ func TestBuildReliabilityHealthDegradesOnStuckReconcile(t *testing.T) {
 func TestBuildReliabilityHealthDegraded(t *testing.T) {
 	health := BuildReliabilityHealth(
 		consistencykernel.NewSnapshot(consistencykernel.Counts{}, []consistencykernel.Issue{{
-			Code:     consistencykernel.IssueActiveReservationOnReleasedAllocation,
+			Code:     consistencykernel.IssueActiveAccessGrantOnEndedAllocation,
 			Severity: consistencykernel.SeverityError,
 		}}, false),
 		AllocationLifecycleRetryCounts{Total: 2, Due: 1},

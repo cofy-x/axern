@@ -159,9 +159,9 @@ type StorageInventoryEntry struct {
 	Collected                   bool   `json:"collected"`
 	Error                       string `json:"error,omitempty"`
 	SystemReserveBytes          int64  `json:"system_reserve_bytes"`
-	ReservedBytes               int64  `json:"reserved_bytes"`
+	ChargedBytes                int64  `json:"charged_bytes"`
 	AllocatableBytes            int64  `json:"allocatable_bytes"`
-	ActiveReservations          int64  `json:"active_reservations"`
+	ActiveAllocations           int64  `json:"active_allocations"`
 	FilesystemType              string `json:"filesystem_type,omitempty"`
 	MountIdentity               string `json:"mount_identity,omitempty"`
 	AllocationUsedBytes         int64  `json:"allocation_used_bytes"`

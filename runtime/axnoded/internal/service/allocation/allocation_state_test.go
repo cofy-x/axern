@@ -33,7 +33,7 @@ func TestStoreAllocationIntentOwnsImmutableResourceSpec(t *testing.T) {
 	const allocationID = "allocation-resource-intent"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	resources := &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 << 20}, Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, resources, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), resources, nil))
 
 	resources.Requests.MemoryBytes = 1
 	got := fixture.controller.ResourceSpec(allocationID)
@@ -95,11 +95,12 @@ func persistedAllocationState(t *testing.T, store stateStore, allocationID strin
 	t.Helper()
 	now := time.Now().UTC()
 	record := &apipb.AllocationState{
-		AllocationID:            allocationID,
-		NodeID:                  "node-a",
-		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		Environment:             testResolvedEnvironment(t, "runtime-"+allocationID),
-		ImageMountUrls:          images,
+		AllocationID:                    allocationID,
+		NodeID:                          "node-a",
+		ExecutionLeaseExpiresAtUnixNano: now.Add(time.Minute).UnixNano(),
+		AllocationRequestDigest:         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		Environment:                     testResolvedEnvironment(t, "runtime-"+allocationID),
+		ImageMountUrls:                  images,
 		EnforcementManifest: &apipb.AllocationEnforcementManifest{
 			BundlePath:        "/var/lib/axnoded/root/containers/" + allocationID,
 			CreatedAtUnixNano: now.UnixNano(),
@@ -114,9 +115,10 @@ func TestInspectRecoveryRecordsClassifiesInterruptedCreateIntent(t *testing.T) {
 	store := storetest.NewMockStore()
 	const allocationID = "interrupted-create"
 	record := &apipb.AllocationState{
-		AllocationID:            allocationID,
-		NodeID:                  "node-a",
-		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		AllocationID:                    allocationID,
+		NodeID:                          "node-a",
+		ExecutionLeaseExpiresAtUnixNano: time.Now().Add(time.Minute).UnixNano(),
+		AllocationRequestDigest:         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 	}
 	if err := store.PutRecord(config.AllocationStateBucket, allocationID, record); err != nil {
 		t.Fatal(err)
@@ -162,10 +164,11 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 		t.Fatal(err)
 	}
 	record := &apipb.AllocationState{
-		AllocationID:            "condition-recovery",
-		NodeID:                  "node-a",
-		AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		EnforcementManifest:     verifiedManifest,
+		AllocationID:                    "condition-recovery",
+		NodeID:                          "node-a",
+		ExecutionLeaseExpiresAtUnixNano: now.Add(time.Minute).UnixNano(),
+		AllocationRequestDigest:         "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		EnforcementManifest:             verifiedManifest,
 	}
 	if err := validateRecoveredCapabilityState(record, now); err != nil {
 		t.Fatalf("validateRecoveredCapabilityState() rejected rebuildable conditions: %v", err)
@@ -174,6 +177,42 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	if err := validateRecoveredCapabilityState(record, now); err == nil {
 		t.Fatal("validateRecoveredCapabilityState() accepted an allocation without a request digest")
 	}
+}
+
+func TestReplaceExecutionLeasesIsCompleteAndUsesNodeReceiptClock(t *testing.T) {
+	store := storetest.NewMockStore()
+	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	receivedAt := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
+	require.NoError(t, fixture.controller.StoreAllocationIntent("alloc-authorized", "node-a", digest, time.Now().Add(time.Minute), nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent("alloc-revoked", "node-a", digest, time.Now().Add(time.Minute), nil, nil))
+
+	require.NoError(t, fixture.controller.ReplaceExecutionLeases(map[string]time.Duration{
+		"alloc-authorized": 30 * time.Second,
+	}, receivedAt))
+
+	assert.Equal(t, []string{"alloc-revoked"}, fixture.controller.ExpiredExecutionLeaseAllocationIDs(receivedAt))
+	assert.Equal(t, []string{"alloc-authorized", "alloc-revoked"}, fixture.controller.ExpiredExecutionLeaseAllocationIDs(receivedAt.Add(30*time.Second)))
+	var persisted apipb.AllocationState
+	require.NoError(t, store.GetRecord(config.AllocationStateBucket, "alloc-authorized", &persisted))
+	assert.Equal(t, receivedAt.Add(30*time.Second).UnixNano(), persisted.GetExecutionLeaseExpiresAtUnixNano())
+}
+
+func TestTerminationIntentSurvivesNodeRestart(t *testing.T) {
+	store := storetest.NewMockStore()
+	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
+	const allocationID = "alloc-expired"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil))
+	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired"))
+
+	code, message := fixture.controller.TerminationIntent(allocationID)
+	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, code)
+	assert.Equal(t, "execution authority expired", message)
+	var persisted apipb.AllocationState
+	require.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
+	assert.Equal(t, code, persisted.GetTerminationDiagnosticCode())
+	assert.Equal(t, message, persisted.GetTerminationMessage())
 }
 
 func TestVerifiedEnforcementManifestBindsRequiredEgressCapability(t *testing.T) {
@@ -317,7 +356,7 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
-	if err := fixture.controller.StoreAllocationIntent(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+	if err := fixture.controller.StoreAllocationIntent(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
@@ -351,7 +390,7 @@ func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *tes
 	fixture := newTestAllocationControllerWithStore(t,
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
-	if err := fixture.controller.StoreAllocationIntent("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+	if err := fixture.controller.StoreAllocationIntent("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "delete-failure-runtime"))
@@ -392,7 +431,7 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	for _, allocationID := range []string{"allocation-a", "allocation-b"} {
-		if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+		if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "runtime-"+allocationID))
@@ -419,7 +458,7 @@ func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testin
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
 	allocationID := "atomic-allocation-state"
-	if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+	if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{

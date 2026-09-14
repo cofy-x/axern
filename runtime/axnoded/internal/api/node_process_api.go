@@ -25,7 +25,7 @@ func (s *nodeSandboxServer) Process(stream nodesandboxv1.NodeSandbox_ProcessServ
 	if open.GetSpec() == nil || len(open.GetSpec().GetArgv()) == 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "spec.argv is required")
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	return s.svc.Process(&processAdapter{

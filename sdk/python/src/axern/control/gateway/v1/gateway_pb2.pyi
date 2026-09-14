@@ -45,18 +45,18 @@ class ResolveAllocationTerminalResponse(_message.Message):
     def __init__(self, allocation_id: _Optional[str] = ..., run_id: _Optional[str] = ..., node_id: _Optional[str] = ..., node_target: _Optional[str] = ..., access_grant: _Optional[_Union[AllocationAccessGrant, _Mapping]] = ...) -> None: ...
 
 class AllocationAccessGrant(_message.Message):
-    __slots__ = ("lease_id", "allocation_id", "node_id", "plaintext_token", "expires_at")
-    LEASE_ID_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("grant_id", "allocation_id", "node_id", "plaintext_token", "expires_at")
+    GRANT_ID_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     PLAINTEXT_TOKEN_FIELD_NUMBER: _ClassVar[int]
     EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
-    lease_id: str
+    grant_id: str
     allocation_id: str
     node_id: str
     plaintext_token: str
     expires_at: _timestamp_pb2.Timestamp
-    def __init__(self, lease_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., plaintext_token: _Optional[str] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, grant_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., plaintext_token: _Optional[str] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ResolveTunnelRelayTargetRequest(_message.Message):
     __slots__ = ("session_id",)

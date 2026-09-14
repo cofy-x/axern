@@ -40,7 +40,7 @@ func TestAllocationRuntimeStateRoundTrip(t *testing.T) {
 	template := testResolvedEnvironment(t, "allocation-runtime")
 	runtime := addTestRuntimeMappingRuntime(t, first.environmentCache, template)
 	allocationID := "allocation-runtime-round-trip"
-	err := first.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil)
+	err := first.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil)
 	assert.NoError(t, err)
 	runtime.IncRef()
 	assert.NoError(t, first.controller.rememberContainerRuntime(allocationID, runtime))

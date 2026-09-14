@@ -22,7 +22,7 @@ import (
 
 const dialTimeout = 15 * time.Second
 
-const executionLeaseTokenMetadataKey = "x-axern-execution-lease-token"
+const allocationAccessTokenMetadataKey = "x-axern-allocation-access-token"
 
 type NodeClients struct {
 	Lifecycle    privatenodev1.NodeLifecycleClient
@@ -42,9 +42,9 @@ func WithInventoryURL(url string) NodeClientOption {
 }
 
 type SandboxHandle struct {
-	clients    *NodeClients
-	SandboxID  string
-	LeaseToken string
+	clients     *NodeClients
+	SandboxID   string
+	AccessToken string
 }
 
 func DialGRPC(address string) (*grpc.ClientConn, error) {
@@ -116,6 +116,10 @@ func NewSandboxID(prefix string) string {
 }
 
 func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID string, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
+	return CreateAllocationWithBinding(ctx, clients, sandboxID, "", 0, spec)
+}
+
+func CreateAllocationWithBinding(ctx context.Context, clients *NodeClients, sandboxID, nodeID string, leaseTTL time.Duration, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
@@ -124,18 +128,19 @@ func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID strin
 		return nil, fmt.Errorf("prepare capability dependencies: %w", err)
 	}
 	req := &privatenodev1.CreateAllocationRequest{
-		AllocationID: sandboxID,
-		NodeID:       "",
-		Config:       preparedSpec,
+		AllocationID:             sandboxID,
+		NodeID:                   nodeID,
+		Config:                   preparedSpec,
+		ExecutionLeaseTtlSeconds: int64(leaseTTL / time.Second),
 	}
 	resp, err := clients.Lifecycle.CreateAllocation(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return &SandboxHandle{
-		clients:    clients,
-		SandboxID:  resp.GetAllocationID(),
-		LeaseToken: "verify-local-lease",
+		clients:     clients,
+		SandboxID:   resp.GetAllocationID(),
+		AccessToken: "verify-local-access",
 	}, nil
 }
 
@@ -155,7 +160,7 @@ func GetAllocationLifecycle(ctx context.Context, clients *NodeClients, sandboxID
 }
 
 func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) (*nodesandboxv1.ExecResponse, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, executionLeaseTokenMetadataKey, h.LeaseToken)
+	ctx = metadata.AppendToOutgoingContext(ctx, allocationAccessTokenMetadataKey, h.AccessToken)
 	return h.clients.Node.Exec(ctx, &nodesandboxv1.ExecRequest{
 		AllocationID: h.SandboxID,
 		Spec:         spec,
@@ -163,7 +168,7 @@ func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) 
 }
 
 func (h *SandboxHandle) Wait(ctx context.Context) (*nodesandboxv1.WaitSandboxResponse, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, executionLeaseTokenMetadataKey, h.LeaseToken)
+	ctx = metadata.AppendToOutgoingContext(ctx, allocationAccessTokenMetadataKey, h.AccessToken)
 	return h.clients.Node.WaitSandbox(ctx, &nodesandboxv1.WaitSandboxRequest{
 		AllocationID: h.SandboxID,
 	})

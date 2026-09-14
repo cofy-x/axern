@@ -31,8 +31,7 @@ class ConsistencyIssueSeverity(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
 class ConsistencyIssueCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     CONSISTENCY_ISSUE_CODE_UNSPECIFIED: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
-    CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
+    CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
     CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION: _ClassVar[ConsistencyIssueCode]
 
 class ConsistencyRepairOwner(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
@@ -73,8 +72,7 @@ CONSISTENCY_ISSUE_SEVERITY_UNSPECIFIED: ConsistencyIssueSeverity
 CONSISTENCY_ISSUE_SEVERITY_WARNING: ConsistencyIssueSeverity
 CONSISTENCY_ISSUE_SEVERITY_ERROR: ConsistencyIssueSeverity
 CONSISTENCY_ISSUE_CODE_UNSPECIFIED: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION: ConsistencyIssueCode
-CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION: ConsistencyIssueCode
+CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION: ConsistencyIssueCode
 CONSISTENCY_REPAIR_OWNER_UNSPECIFIED: ConsistencyRepairOwner
 CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER: ConsistencyRepairOwner
@@ -95,18 +93,18 @@ ADMIN_RELIABILITY_SIGNAL_CODE_RECONCILE_FAILURES: AdminReliabilitySignalCode
 ADMIN_RELIABILITY_SIGNAL_CODE_NODE_FLEET: AdminReliabilitySignalCode
 
 class ConsistencyCounts(_message.Message):
-    __slots__ = ("active_reservations", "active_leases", "active_tunnels", "allocation_lifecycle_retries", "issues")
-    ACTIVE_RESERVATIONS_FIELD_NUMBER: _ClassVar[int]
-    ACTIVE_LEASES_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("active_allocations", "active_access_grants", "active_tunnels", "allocation_lifecycle_retries", "issues")
+    ACTIVE_ALLOCATIONS_FIELD_NUMBER: _ClassVar[int]
+    ACTIVE_ACCESS_GRANTS_FIELD_NUMBER: _ClassVar[int]
     ACTIVE_TUNNELS_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_LIFECYCLE_RETRIES_FIELD_NUMBER: _ClassVar[int]
     ISSUES_FIELD_NUMBER: _ClassVar[int]
-    active_reservations: int
-    active_leases: int
+    active_allocations: int
+    active_access_grants: int
     active_tunnels: int
     allocation_lifecycle_retries: int
     issues: int
-    def __init__(self, active_reservations: _Optional[int] = ..., active_leases: _Optional[int] = ..., active_tunnels: _Optional[int] = ..., allocation_lifecycle_retries: _Optional[int] = ..., issues: _Optional[int] = ...) -> None: ...
+    def __init__(self, active_allocations: _Optional[int] = ..., active_access_grants: _Optional[int] = ..., active_tunnels: _Optional[int] = ..., allocation_lifecycle_retries: _Optional[int] = ..., issues: _Optional[int] = ...) -> None: ...
 
 class ConsistencyIssue(_message.Message):
     __slots__ = ("code", "severity", "allocation_id", "run_id", "node_id", "status", "detail", "repair_owner", "repair_action", "automatic_repair", "repair_target_type", "repair_target_id")

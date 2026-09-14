@@ -12,7 +12,7 @@ func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, str
 	if err != nil {
 		return err
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	reader := allocationoutput.New(s.svc)

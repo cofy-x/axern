@@ -16,27 +16,27 @@ import (
 
 type nodeSandboxServer struct {
 	nodesandboxv1.UnimplementedNodeSandboxServer
-	svc       service.SandboxService
-	nodeID    string
-	leaseAuth DirectLeaseValidator
+	svc             service.SandboxService
+	nodeID          string
+	accessGrantAuth DirectAccessGrantValidator
 }
 
-type DirectLeaseValidator interface {
+type DirectAccessGrantValidator interface {
 	WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (valid, waited bool)
 }
 
 const (
-	leaseVisibilityWaitTimeout      = 2 * time.Second
-	executionLeaseAcceptedHeaderKey = "x-axern-execution-lease-accepted"
-	executionLeaseTokenMetadataKey  = "x-axern-execution-lease-token"
+	accessGrantVisibilityWaitTimeout = 2 * time.Second
+	accessGrantAcceptedHeaderKey     = "x-axern-allocation-access-accepted"
+	accessGrantTokenMetadataKey      = "x-axern-allocation-access-token"
 )
 
-type executionLeaseHeaderSender interface {
+type accessGrantHeaderSender interface {
 	SendHeader(metadata.MD) error
 }
 
-func acknowledgeExecutionLease(stream executionLeaseHeaderSender) error {
-	return stream.SendHeader(metadata.Pairs(executionLeaseAcceptedHeaderKey, "1"))
+func acknowledgeAllocationAccessGrant(stream accessGrantHeaderSender) error {
+	return stream.SendHeader(metadata.Pairs(accessGrantAcceptedHeaderKey, "1"))
 }
 
 type directAuthTarget struct {
@@ -50,31 +50,31 @@ type allocationExitReport struct {
 	message      string
 }
 
-func NewNodeSandboxServer(svc service.SandboxService, nodeID string, leaseAuth ...DirectLeaseValidator) nodesandboxv1.NodeSandboxServer {
-	var validator DirectLeaseValidator
-	if len(leaseAuth) > 0 {
-		validator = leaseAuth[0]
+func NewNodeSandboxServer(svc service.SandboxService, nodeID string, accessGrantAuth ...DirectAccessGrantValidator) nodesandboxv1.NodeSandboxServer {
+	var validator DirectAccessGrantValidator
+	if len(accessGrantAuth) > 0 {
+		validator = accessGrantAuth[0]
 	}
 	return &nodeSandboxServer{
-		svc:       svc,
-		nodeID:    nodeID,
-		leaseAuth: validator,
+		svc:             svc,
+		nodeID:          nodeID,
+		accessGrantAuth: validator,
 	}
 }
 
 func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string) (directAuthTarget, error) {
 	allocationID = strings.TrimSpace(allocationID)
-	leaseTokens := metadata.ValueFromIncomingContext(ctx, executionLeaseTokenMetadataKey)
-	if allocationID == "" || len(leaseTokens) != 1 || strings.TrimSpace(leaseTokens[0]) == "" {
-		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id and internal execution lease metadata are required")
+	accessTokens := metadata.ValueFromIncomingContext(ctx, accessGrantTokenMetadataKey)
+	if allocationID == "" || len(accessTokens) != 1 || strings.TrimSpace(accessTokens[0]) == "" {
+		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id and internal allocation access metadata are required")
 	}
-	leaseToken := strings.TrimSpace(leaseTokens[0])
-	visibilityCtx, cancel := context.WithTimeout(ctx, leaseVisibilityWaitTimeout)
+	accessToken := strings.TrimSpace(accessTokens[0])
+	visibilityCtx, cancel := context.WithTimeout(ctx, accessGrantVisibilityWaitTimeout)
 	defer cancel()
 	visibilityStart := time.Now()
 	valid, waited := true, false
-	if s.leaseAuth != nil {
-		valid, waited = s.leaseAuth.WaitValidate(visibilityCtx, allocationID, leaseToken, func() time.Time { return time.Now().UTC() })
+	if s.accessGrantAuth != nil {
+		valid, waited = s.accessGrantAuth.WaitValidate(visibilityCtx, allocationID, accessToken, func() time.Time { return time.Now().UTC() })
 	}
 	result := "cache_hit"
 	if waited {
@@ -86,12 +86,12 @@ func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID
 			result = "timeout"
 		}
 	}
-	obsmetrics.RecordExecutionLeaseVisibility(time.Since(visibilityStart), result)
+	obsmetrics.RecordAllocationAccessGrantVisibility(time.Since(visibilityStart), result)
 	if !valid {
 		if err := ctx.Err(); err != nil {
 			return directAuthTarget{}, grpcstatus.FromContextError(err).Err()
 		}
-		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
+		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
 	}
 	return directAuthTarget{
 		allocationID: allocationID,

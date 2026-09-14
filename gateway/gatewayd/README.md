@@ -2,7 +2,7 @@
 
 `gatewayd` is Axern's unified external gateway for public control API traffic, Allocation-bound browser terminal and SSH-compatible sessions, process, file and archive operations, and foreground tunnel client peers.
 
-It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped execution leases without creating a second control plane. Public `NodeSandbox` messages contain only the Allocation identity and operation input; gatewayd replaces any caller-supplied internal lease metadata and sends the controld-issued token only on the private gateway-to-node gRPC hop.
+It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped access grants without creating a second control plane. Public `NodeSandbox` messages contain only the Allocation identity and operation input; gatewayd replaces any caller-supplied private access metadata and sends the controld-issued token only on the gateway-to-node gRPC hop.
 
 External CLI and SDK control-plane gRPC traffic should terminate at `gatewayd`'s control edge listener, which is enabled by default. `controld` stays private inside the cluster; `gatewayd` verifies external client mTLS and forwards public control RPCs to the internal `controld` target with the dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is discarded; gatewayd injects only the fingerprint of the leaf certificate it verified. Controld resolves that fingerprint to a durable Principal and applies platform or namespace role bindings on every RPC.
 
@@ -61,7 +61,7 @@ The SSH surface supports interactive `shell` sessions and non-interactive `exec`
 
 Gateway metrics, traces, and logs use the shared OpenTelemetry pipeline. Domain metrics cover allocation target resolution, upstream failures, lease retries, tunnel relay traffic, and active terminal or SSH sessions. Standard Go runtime metrics report heap, allocation, GC, goroutine, and scheduler behavior for long-running stability analysis. The deployment Prometheus scrapes the OTel Collector; gatewayd does not expose a separate production metrics endpoint.
 
-Every request emits a structured access log with method, path, route type, status, duration, namespace, allocation id, node id, and error class. Logs and metrics never include plaintext lease tokens, Authorization headers, or terminal stdin/stdout content.
+Every request emits a structured access log with method, path, route type, status, duration, namespace, allocation id, node id, and error class. Logs and metrics never include plaintext access tokens, Authorization headers, or terminal stdin/stdout content.
 
 ## Terminal Protocol
 
@@ -93,11 +93,11 @@ Key flags/env:
 - `-read-header-timeout`, `-read-timeout`, `-write-timeout`, `-idle-timeout`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
 - `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`
-- `-lease-retry-attempts`, `-lease-retry-base-delay`
+- `-access-grant-retry-attempts`, `-access-grant-retry-base-delay`
 
 Terminal sessions enforce read limits, idle timeout, max duration, and write deadlines. Browser terminal always requires the dev token. SSH terminal requires public key authentication through the configured `authorized_keys` file.
 
-Execution lease recovery is request scoped and bounded. A node acknowledges an accepted lease before gatewayd consumes terminal/process input or archive chunks, and before gatewayd forwards streamed node output. An authentication rejection before that boundary invalidates the old authority and resolves a fresh lease from controld; gatewayd never retries the same rejected token or retries after the node has accepted it. Allocation target and lease refresh remain request-scoped and may retry only before the node accepts authority or consumes client input.
+Allocation access-grant recovery is request scoped and bounded. A node acknowledges an accepted grant before gatewayd consumes terminal/process input or archive chunks, and before gatewayd forwards streamed node output. An authentication rejection before that boundary invalidates the old authority and resolves a fresh grant from controld; gatewayd never retries the same rejected token or retries after the node has accepted it. Allocation target and grant refresh remain request-scoped and may retry only before the node accepts authority or consumes client input.
 
 ## Local Smoke
 

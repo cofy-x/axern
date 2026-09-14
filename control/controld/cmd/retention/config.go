@@ -18,7 +18,7 @@ func retentionConfigFromEnv() retentionkernel.Config {
 	cfg.TunnelEventsKeep = intFromEnv("CONTROLD_RETENTION_TUNNEL_EVENTS_KEEP", cfg.TunnelEventsKeep)
 	cfg.QuotaEventsTTL = durationFromEnv("CONTROLD_RETENTION_QUOTA_EVENTS_TTL", cfg.QuotaEventsTTL)
 	cfg.TerminalRunsTTL = durationFromEnv("CONTROLD_RETENTION_TERMINAL_RUNS_TTL", cfg.TerminalRunsTTL)
-	cfg.LeasesTTL = durationFromEnv("CONTROLD_RETENTION_LEASES_TTL", cfg.LeasesTTL)
+	cfg.AccessGrantsTTL = durationFromEnv("CONTROLD_RETENTION_ACCESS_GRANTS_TTL", cfg.AccessGrantsTTL)
 	return retentionkernel.NormalizeConfig(cfg)
 }
 

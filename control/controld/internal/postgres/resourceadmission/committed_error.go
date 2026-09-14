@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import grpcstatus "google.golang.org/grpc/status"
 

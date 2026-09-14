@@ -11,29 +11,29 @@ import (
 
 func newTestWritableCapacityManager(t *testing.T, systemReserve int64) *writableCapacityManager {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "reservations")
+	dir := filepath.Join(t.TempDir(), "allocation-charges")
 	manager := &writableCapacityManager{
 		dir:           dir,
 		systemReserve: systemReserve,
-		reservations:  make(map[string]writableReservation),
+		charges:       make(map[string]writableCharge),
 	}
 	require.NoError(t, manager.load())
 	return manager
 }
 
-func TestWritableCapacityReservationIsDurableAndIdempotent(t *testing.T) {
+func TestWritableCapacityChargeIsDurableAndIdempotent(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 0)
 
-	require.NoError(t, manager.Reserve("sandbox-1", "runsc", 4096, 8192))
-	require.NoError(t, manager.Reserve("sandbox-1", "runsc", 4096, 8192))
-	require.ErrorContains(t, manager.Reserve("sandbox-1", "runsc", 4096, 16384), "different writable reservation")
+	require.NoError(t, manager.Charge("sandbox-1", "runsc", 4096, 8192))
+	require.NoError(t, manager.Charge("sandbox-1", "runsc", 4096, 8192))
+	require.ErrorContains(t, manager.Charge("sandbox-1", "runsc", 4096, 16384), "different writable charge")
 
 	reloaded := &writableCapacityManager{
-		dir:          manager.dir,
-		reservations: make(map[string]writableReservation),
+		dir:     manager.dir,
+		charges: make(map[string]writableCharge),
 	}
 	require.NoError(t, reloaded.load())
-	assert.Equal(t, int64(4096), reloaded.reservations["sandbox-1"].RequestBytes)
+	assert.Equal(t, int64(4096), reloaded.charges["sandbox-1"].RequestBytes)
 
 	require.NoError(t, reloaded.Release("sandbox-1"))
 	_, err := os.Stat(filepath.Join(manager.dir, "sandbox-1.json"))
@@ -41,17 +41,17 @@ func TestWritableCapacityReservationIsDurableAndIdempotent(t *testing.T) {
 	require.NoError(t, reloaded.Release("sandbox-1"))
 }
 
-func TestWritableCapacityReservationRejectsUnsafeContainerID(t *testing.T) {
+func TestWritableCapacityChargeRejectsUnsafeContainerID(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 0)
 
-	require.ErrorContains(t, manager.Reserve("../escape", "runsc", 1, 1), "invalid container ID")
-	require.ErrorContains(t, manager.Reserve("", "runsc", 1, 1), "invalid container ID")
-	require.ErrorContains(t, manager.Reserve("escape;command", "runsc", 1, 1), "invalid container ID")
+	require.ErrorContains(t, manager.Charge("../escape", "runsc", 1, 1), "invalid container ID")
+	require.ErrorContains(t, manager.Charge("", "runsc", 1, 1), "invalid container ID")
+	require.ErrorContains(t, manager.Charge("escape;command", "runsc", 1, 1), "invalid container ID")
 	require.ErrorContains(t, manager.Release("../escape"), "invalid container ID")
 }
 
-func TestWritableCapacityReservationRejectsFilenameMismatch(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "reservations")
+func TestWritableCapacityChargeRejectsFilenameMismatch(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "allocation-charges")
 	require.NoError(t, os.MkdirAll(dir, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "safe.json"), []byte(`{
   "container_id": "../escape",
@@ -59,12 +59,12 @@ func TestWritableCapacityReservationRejectsFilenameMismatch(t *testing.T) {
   "limit_bytes": 1
 }`), 0600))
 
-	manager := &writableCapacityManager{dir: dir, reservations: make(map[string]writableReservation)}
-	require.ErrorContains(t, manager.load(), "invalid writable reservation")
+	manager := &writableCapacityManager{dir: dir, charges: make(map[string]writableCharge)}
+	require.ErrorContains(t, manager.load(), "invalid writable charge")
 }
 
-func TestWritableCapacityReservationRejectsRemovedRuntimeIdentity(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "reservations")
+func TestWritableCapacityChargeRejectsRemovedRuntimeIdentity(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "allocation-charges")
 	require.NoError(t, os.MkdirAll(dir, 0700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "sandbox.json"), []byte(`{
   "container_id": "sandbox",
@@ -73,21 +73,21 @@ func TestWritableCapacityReservationRejectsRemovedRuntimeIdentity(t *testing.T) 
   "limit_bytes": 1
 }`), 0600))
 
-	manager := &writableCapacityManager{dir: dir, reservations: make(map[string]writableReservation)}
+	manager := &writableCapacityManager{dir: dir, charges: make(map[string]writableCharge)}
 	require.ErrorContains(t, manager.load(), `unknown field "runtime_name"`)
 }
 
-func TestWritableCapacityReservationEnforcesLiveAvailableFloor(t *testing.T) {
+func TestWritableCapacityChargeEnforcesLiveAvailableFloor(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 1<<62)
 
-	require.ErrorContains(t, manager.Reserve("sandbox-1", "runsc", 1, 1), "insufficient ephemeral storage capacity")
+	require.ErrorContains(t, manager.Charge("sandbox-1", "runsc", 1, 1), "insufficient ephemeral storage capacity")
 }
 
-func TestWritableCapacityReconcileCleansAllStaleReservations(t *testing.T) {
+func TestWritableCapacityReconcileCleansAllStaleCharges(t *testing.T) {
 	manager := newTestWritableCapacityManager(t, 0)
-	require.NoError(t, manager.Reserve("active-runsc", "runsc", 1, 1))
-	require.NoError(t, manager.Reserve("stale-runsc", "runsc", 1, 1))
-	require.NoError(t, manager.Reserve("stale-second", "runsc", 1, 1))
+	require.NoError(t, manager.Charge("active-runsc", "runsc", 1, 1))
+	require.NoError(t, manager.Charge("stale-runsc", "runsc", 1, 1))
+	require.NoError(t, manager.Charge("stale-second", "runsc", 1, 1))
 	cleaned := make([]string, 0)
 
 	require.NoError(t, manager.Reconcile(map[string]struct{}{"active-runsc": {}}, func(id string) error {
@@ -95,7 +95,7 @@ func TestWritableCapacityReconcileCleansAllStaleReservations(t *testing.T) {
 		return nil
 	}))
 	assert.Equal(t, []string{"stale-runsc", "stale-second"}, cleaned)
-	assert.Contains(t, manager.reservations, "active-runsc")
-	assert.NotContains(t, manager.reservations, "stale-runsc")
-	assert.NotContains(t, manager.reservations, "stale-second")
+	assert.Contains(t, manager.charges, "active-runsc")
+	assert.NotContains(t, manager.charges, "stale-runsc")
+	assert.NotContains(t, manager.charges, "stale-second")
 }

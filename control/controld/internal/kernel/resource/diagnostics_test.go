@@ -8,7 +8,7 @@ func TestAdmissionDiagnosticForReason(t *testing.T) {
 		want   AdmissionDiagnosticCode
 	}{
 		{AdmissionRejectionNamespaceQuotaExceeded, AdmissionDiagnosticNamespaceQuotaExceeded},
-		{AdmissionRejectionNodeReservationCapacity, AdmissionDiagnosticNodeReservationCapacity},
+		{AdmissionRejectionNodeCapacity, AdmissionDiagnosticNodeCapacity},
 		{AdmissionRejectionPlacementCapacity, AdmissionDiagnosticPlacementCapacity},
 		{AdmissionRejectionNodeSelection, AdmissionDiagnosticNodeSelection},
 		{"unknown", AdmissionDiagnosticUnspecified},

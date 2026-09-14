@@ -24,7 +24,7 @@ func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apip
 	}
 	options = preparedOptions
 	options.EphemeralStorageLimitBytes = effectiveRequest.GetEphemeralStorageLimitBytes()
-	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
+	if err := r.writableCapacity.Charge(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
 	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, options)
@@ -66,7 +66,7 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 	}
 	options = preparedOptions
 	options.EphemeralStorageLimitBytes = effectiveRequest.GetEphemeralStorageLimitBytes()
-	if err := r.writableCapacity.Reserve(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
+	if err := r.writableCapacity.Charge(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
 	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, options)

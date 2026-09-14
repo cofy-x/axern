@@ -7,7 +7,7 @@
 - node registration, heartbeat, summary, active inventory ingest, node-availability reconciliation, and audited irreversible node retirement
 - authenticated allocation lifecycle batch ingest with durable Run projection
 - Environment and Run lifecycle control
-- allocation admission, node reservations, execution leases, and tunnel sessions
+- Allocation resource admission, execution liveness authority, allocation access grants, and TunnelSessions
 - namespace lifecycle, resource quota policy, quota admission, and quota usage reporting
 - allocation terminal and tunnel relay target resolution
 - controld-managed secret metadata, encryption, and resolution
@@ -15,7 +15,7 @@
 
 `controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here.
 
-Run creation freezes the Environment source and resolved runtime input, then persists the Run, its single Allocation, reservation, required Secret references, capability requirements, and node-create intent in one transaction. It returns before node startup. The reusable Environment row may later be physically deleted without changing execution or recovery for admitted Runs. Periodic Run, node, tunnel, and capability maintenance executes in independent, non-overlapping component loops. Allocation creation uses a bounded timeout per lifecycle item so cold image preparation cannot consume unrelated work budgets. On shutdown, active calls are canceled before the application waits for workers.
+Run creation freezes the Environment source and resolved runtime input, then persists the Run, its single resource-charged Allocation, required Secret references, capability requirements, and node-create intent in one transaction. It returns before node startup. The reusable Environment row may later be physically deleted without changing execution or recovery for admitted Runs. Periodic Run, node, tunnel, and capability maintenance executes in independent, non-overlapping component loops. Allocation creation uses a bounded timeout per lifecycle item so cold image preparation cannot consume unrelated work budgets. On shutdown, active calls are canceled before the application waits for workers.
 
 Runtime-slot admission consumes only axnoded's aggregate `runtime_slots` summary. Individual cgroup and interface pools are diagnostic details. `ReportNode` rejects summaries that omit `runtime_slots`; releases that add a required node-summary contract must rebuild controld and axnoded together.
 
@@ -88,7 +88,7 @@ go run ./control/controld/cmd/retention \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
 ```
 
-`controld` requires both migrations and access bootstrap to be complete. It refuses startup without an active platform administrator. Public product APIs accept only gatewayd-forwarded verified client fingerprints; direct public API calls to controld are rejected. See [Principal And Namespace Authorization](../../docs/architecture/authorization.md). `cmd/retention` assumes the database has already been initialized. Retention uses a Postgres advisory lock, so duplicate workers skip instead of racing. The cleanup policy covers tunnel session events, terminal runs, and expired or revoked execution leases; use the `-retention-*-ttl` and `-retention-*-keep` flags on `cmd/retention` for per-resource tuning.
+`controld` requires both migrations and access bootstrap to be complete. It refuses startup without an active platform administrator. Public product APIs accept only gatewayd-forwarded verified client fingerprints; direct public API calls to controld are rejected. See [Principal And Namespace Authorization](../../docs/architecture/authorization.md). `cmd/retention` assumes the database has already been initialized. Retention uses a Postgres advisory lock, so duplicate workers skip instead of racing. The cleanup policy covers tunnel session events, terminal runs, and expired or revoked allocation access grants; use the `-retention-*-ttl` and `-retention-*-keep` flags on `cmd/retention` for per-resource tuning.
 
 Common optional environment variables:
 
@@ -129,7 +129,7 @@ The HTTP listener exposes diagnostics and internal runtime artifact downloads. D
 - `/quotasz`
 - `/reconcilez` for background reconciler health
 - `/allocation-reconcilez` for allocation lifecycle retry queue state
-- `/consistencyz` for read-only reservation, lease, tunnel, and allocation consistency diagnostics
+- `/consistencyz` for read-only Allocation resource-charge, access-grant, TunnelSession, and lifecycle consistency diagnostics
 
 ## Design Docs
 
@@ -187,7 +187,7 @@ flowchart LR
 - `internal/api/{adminv1,publicv1,nodev1,gatewayv1,debughttp}` adapts gRPC/HTTP to narrow capabilities.
 - `internal/application/{admin,capability,environment,gateway,node,run}` owns use-case orchestration across kernel contracts and adapters, including node availability, capability-loss reconciliation, and workload lifecycle convergence.
 - `internal/kernel/*` owns domain contracts, state transitions, and reusable control-plane rules. `internal/kernel/placement` carries request-scoped candidate plans and the pure preference ordering shared with durable admission.
-- `internal/postgres/*` owns SQL-backed stores, row scanners, transaction helpers, migrations, Postgres-specific persistence details, and transactional reservation admission.
+- `internal/postgres/*` owns SQL-backed stores, row scanners, transaction helpers, migrations, Postgres-specific persistence details, and transactional resource admission.
 - `internal/placement` owns candidate filtering, eligibility evaluation, candidate-plan construction, and placement request shaping.
 - `internal/nodebridge` owns control-plane-to-node lifecycle request construction and RPC bridging.
 - `internal/observability`, `internal/ociimage`, and `internal/environmenttemplate` own metrics/span names, OCI descriptor resolution, and embedded environment templates.

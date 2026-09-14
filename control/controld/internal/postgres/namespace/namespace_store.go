@@ -161,13 +161,12 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 		args  []any
 	}{
 		{
-			name: "active reservations",
+			name: "resource-owning allocations",
 			query: `SELECT EXISTS (
 				SELECT 1
-				FROM reservations res
-				JOIN allocations a ON a.allocation_id = res.allocation_id
+				FROM allocations a
 				JOIN runs r ON r.run_id = a.run_id
-				WHERE r.namespace = $1 AND res.released_at IS NULL
+				WHERE r.namespace = $1 AND a.lifecycle_state <> 'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 			)`,
 		},
 		{

@@ -140,8 +140,8 @@ func TestRunKeepsEnvironmentSnapshotAfterEnvironmentDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
-		VALUES ('alloc-snapshot', 'run-snapshot', 'node-snapshot', 'ALLOCATION_LIFECYCLE_STATE_BOUND', $1, $1)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at)
+		VALUES ('alloc-snapshot', 'run-snapshot', 'node-snapshot', 'ALLOCATION_LIFECYCLE_STATE_BOUND', 1, $1, $1)
 	`, now); err != nil {
 		t.Fatal(err)
 	}

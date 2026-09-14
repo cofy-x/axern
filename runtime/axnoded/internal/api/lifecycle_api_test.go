@@ -26,6 +26,14 @@ type fakeNodeLifecycleService struct {
 	startResponseID      string
 }
 
+func (f *fakeNodeLifecycleService) Start(ctx context.Context, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
+	return f.StartControlPlaneAllocation(ctx, "", req)
+}
+
+func (f *fakeNodeLifecycleService) Delete(ctx context.Context, req *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error) {
+	return f.DeleteControlPlaneAllocation(ctx, "", req)
+}
+
 func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error) {
 	return cloneCapabilityRequirements(f.admittedDependencies), nil, nil
 }
@@ -45,14 +53,54 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 
 	server := NewNodeLifecycleServer(&fakeNodeLifecycleService{startResponseID: "container-alias"}, "node-a")
 	_, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
-		AllocationID: "alloc-123",
-		NodeID:       "node-a",
+		AllocationID:             "alloc-123",
+		NodeID:                   "node-a",
+		ExecutionLeaseTtlSeconds: 30,
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			ImageDescriptor: "example.com/runtime:latest",
 		},
 	})
 	if grpcstatus.Code(err) != codes.Internal {
 		t.Fatalf("CreateAllocation() code = %v, want internal", grpcstatus.Code(err))
+	}
+}
+
+func TestNodeLifecycleCreateAllocationRequiresLeaseOnlyForControlPlaneBinding(t *testing.T) {
+	t.Parallel()
+
+	localService := &fakeNodeLifecycleService{}
+	localServer := NewLocalNodeLifecycleServer(localService, "node-a")
+	if _, err := localServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+		AllocationID: "local-conformance",
+		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
+	}); err != nil {
+		t.Fatalf("local CreateAllocation() error = %v", err)
+	}
+	if _, err := localServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+		AllocationID:             "local-with-lease",
+		ExecutionLeaseTtlSeconds: 30,
+		Config:                   &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
+	}); grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("local CreateAllocation() with lease code = %v, want invalid argument", grpcstatus.Code(err))
+	}
+
+	boundServer := NewNodeLifecycleServer(&fakeNodeLifecycleService{}, "node-a")
+	if _, err := boundServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+		AllocationID: "remote-without-binding",
+		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
+	}); grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("remote CreateAllocation() without binding code = %v, want invalid argument", grpcstatus.Code(err))
+	}
+	for _, ttl := range []int64{0, 31} {
+		_, err := boundServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+			AllocationID:             "bound-invalid-lease",
+			NodeID:                   "node-a",
+			ExecutionLeaseTtlSeconds: ttl,
+			Config:                   &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
+		})
+		if grpcstatus.Code(err) != codes.InvalidArgument {
+			t.Fatalf("bound CreateAllocation() ttl %d code = %v, want invalid argument", ttl, grpcstatus.Code(err))
+		}
 	}
 }
 
@@ -108,8 +156,9 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	server := NewNodeLifecycleServer(fakeService, "node-a")
 
 	resp, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
-		AllocationID: "alloc-123",
-		NodeID:       "node-a",
+		AllocationID:             "alloc-123",
+		NodeID:                   "node-a",
+		ExecutionLeaseTtlSeconds: 30,
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			ImageDescriptor: imageRef,
 			Argv:            []string{"/bin/sh", "-lc", "sleep 3600"},
@@ -186,8 +235,9 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 	server := NewNodeLifecycleServer(fakeService, "node-a")
 
 	_, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
-		AllocationID: "alloc-image-default",
-		NodeID:       "node-a",
+		AllocationID:             "alloc-image-default",
+		NodeID:                   "node-a",
+		ExecutionLeaseTtlSeconds: 30,
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			ImageDescriptor: "docker.io/library/nginx:1.27",
 			Cwd:             "/",

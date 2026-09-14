@@ -2,11 +2,11 @@
 
 Axern separates workload resource intent into three layers:
 
-- request: scheduler and admission reservation
+- request: scheduler and admission resource charge
 - limit: runtime hard enforcement
 - quota: namespace-level admission ceiling
 
-This mirrors the common container platform model while keeping Axern's runtime boundary explicit: the control plane admits and reserves requests; `axnoded` enforces limits through the `runsc` runtime; namespace quota caps admitted requests.
+This mirrors the common container platform model while keeping Axern's runtime boundary explicit: the control plane charges requests to the admitted Allocation; `axnoded` enforces limits through the `runsc` runtime; namespace quota caps admitted requests.
 
 ## Requests and Limits
 
@@ -39,7 +39,7 @@ Memory values accept byte units:
 --limit-memory 2GiB
 ```
 
-Ephemeral-storage values use the same byte units. The resource means node-local, disposable storage managed by Axern for the lifetime of a sandbox. Writable roots require both a reservation and a hard limit; readonly roots reject non-zero ephemeral-storage resources:
+Ephemeral-storage values use the same byte units. The resource means node-local, disposable storage managed by Axern for the lifetime of a sandbox. Writable roots require both an admitted request and a hard limit; readonly roots reject non-zero ephemeral-storage resources:
 
 ```bash
 --request-ephemeral-storage 1GiB
@@ -58,18 +58,18 @@ axern run --template python311 \
   -- python -c 'print("hello")'
 ```
 
-Runs are the only workload owner for resource requests and limits. A Sandbox created by an SDK uses the same Run/Allocation reservation and enforcement path; there is no parallel Service resource model.
+Runs are the only workload owner for resource requests and limits. A Sandbox created by an SDK uses the same Run/Allocation charge and enforcement path; there is no parallel Service resource model.
 
 ## Node Admission
 
 Node admission uses workload requests, not runtime limits. The control plane checks candidate nodes twice:
 
-1. placement prefilter selects nodes whose observed resources appear to fit
-2. the Postgres reservation transaction locks the selected node and rechecks active reservations before committing
+1. the in-memory placement pass filters immutable requirements, freshness, readiness, and requests that can never fit the observed total allocatable capacity
+2. the Postgres admission transaction locks candidate Node rows and checks current resource charges from non-released Allocations before committing
 
-Both checks use the same resource admission policy.
+Only the second check decides remaining capacity. Node runtime usage is pressure telemetry, not a second charge ledger.
 
-The authoritative transaction also reruns lifecycle, freshness, runtime, component, label, typed-capability, capacity, and slot eligibility. Capability requirements and selected evidence commit atomically with the reservation; see the [Observed Capability Providers](observed-capability-providers.md) contract.
+The authoritative transaction also reruns lifecycle, freshness, runtime, component, label, typed-capability, capacity, and slot eligibility. Capability requirements and the immutable node binding commit atomically with the Allocation resource charge; node observations are not copied into a second admission record. See the [Observed Capability Providers](observed-capability-providers.md) contract.
 
 CPU can be overcommitted globally by `controld` with `-resource-cpu-overcommit-ratio`. The effective CPU allocatable value is:
 
@@ -77,7 +77,9 @@ CPU can be overcommitted globally by `controld` with `-resource-cpu-overcommit-r
 floor(node_allocatable_cpu_milli * resource_cpu_overcommit_ratio)
 ```
 
-Memory and ephemeral storage are not overcommitted. Their effective allocatable values come from the node inventory after the relevant system reserves.
+Memory and ephemeral storage are not overcommitted. Their allocatable values come from the current Node observation after the relevant system reserves.
+
+The binding, immutable requests, Run, and ensure-present intent commit together. CPU, memory, and ephemeral-storage charge therefore has no independent row: it is the sum of request columns on Allocations whose lifecycle is not `RELEASED`. Runtime-slot occupancy additionally unions those Allocation IDs with node-reported active Allocation IDs, so an orphan or asynchronously deleting sandbox cannot make a discrete slot reusable early.
 
 ## Ephemeral Storage Accounting Scope
 
@@ -85,7 +87,7 @@ The current charged scope is intentionally narrow and runtime-independent:
 
 - the runsc file-backed root overlay, including its metadata, copy-up, and whiteouts
 
-Immutable lower rootfs and image caches, artifacts, mount-target projection placeholders, tmpfs, and logs are not charged to `ephemeral_storage_bytes` in the current contract. Adding one of those classes later requires an explicit accounting-version change; it must not silently consume an existing sandbox reservation.
+Immutable lower rootfs and image caches, mount-target projection placeholders, tmpfs, logs, and process output streams are not charged to `ephemeral_storage_bytes`. Extending the charged scope requires an explicit contract change; it must not silently consume an existing Allocation charge.
 
 Allocation-local files are not a persistent volume contract. Applications must export data that needs to survive allocation replacement or node loss; see the [storage ownership and lifetime model](storage-architecture.md).
 
@@ -93,7 +95,7 @@ Overcommit changes control-plane admission capacity only. It does not change con
 
 ## Namespace Quota
 
-Namespace quota is a control-plane admission ceiling over active workload requests in a namespace. It limits the CPU, memory, and ephemeral-storage reservations a namespace can hold, independent of which node eventually runs each workload.
+Namespace quota is a control-plane admission ceiling over active workload requests in a namespace. It limits the CPU, memory, and ephemeral-storage charges held by non-released Allocations, independent of which node runs each workload.
 
 Omitted quota fields are unlimited. `quota unset` returns the namespace policy to unlimited CPU, memory, and ephemeral storage. Existing admitted workloads keep running if quota is lowered below current usage; future admissions are blocked until usage falls back under the new limit.
 
@@ -107,18 +109,18 @@ axern quota unset --namespace team-a
 axern namespace delete team-a
 ```
 
-Quota usage is based on active workload reservations. A completed, cancelled, or released workload no longer counts against namespace quota.
+Quota usage is based on Allocation resource charges until cleanup reaches `RELEASED`. A terminal Run continues to consume capacity while node cleanup is incomplete, preventing premature reuse of resources that may still be live.
 
 Quota and node admission are separate gates:
 
-- quota answers whether the namespace may reserve more requested resources
+- quota answers whether the namespace may admit more requested resources
 - node admission answers whether an eligible node has remaining effective request capacity
 - CPU overcommit changes node admission capacity only; it does not increase namespace quota
 - memory is strict for both namespace quota and node admission
-- runtime memory is already inside the sandbox budget and is never added as a hidden overhead reservation
+- runtime memory is already inside the sandbox budget and is never added as a hidden overhead charge
 - node-local daemons are outside sandbox cgroups and consume the separately qualified node system reserve, which is not namespace quota usage
 
-Namespace deletion is lifecycle cleanup, not quota reset. It rejects live operational state such as active reservations, non-terminal runs, live environments, active allocations, or secrets. Historical terminal workload metadata can keep its namespace string for auditability without blocking deletion.
+Namespace deletion is lifecycle cleanup, not quota reset. It rejects live operational state such as non-released Allocations, non-terminal Runs, live Environments, or Secrets. Historical terminal workload metadata can keep its namespace string for auditability without blocking deletion.
 
 ## Diagnostics
 

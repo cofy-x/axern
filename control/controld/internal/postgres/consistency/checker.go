@@ -18,8 +18,8 @@ type queryer interface {
 type dependentResource string
 
 const (
-	dependentResourceLease  dependentResource = "active_lease"
-	dependentResourceTunnel dependentResource = "active_tunnel"
+	dependentResourceAccessGrant dependentResource = "active_access_grant"
+	dependentResourceTunnel      dependentResource = "active_tunnel"
 
 	defaultIssueLimit = 200
 )
@@ -39,8 +39,7 @@ func SnapshotWithLimit(ctx context.Context, q queryer, now time.Time, issueLimit
 	issues := make([]consistencykernel.Issue, 0)
 	truncated := false
 	loaders := []func(context.Context, queryer, time.Time, int) ([]consistencykernel.Issue, bool, error){
-		loadActiveReservationIssues,
-		loadActiveLeaseIssues,
+		loadActiveAccessGrantIssues,
 		loadActiveTunnelIssues,
 	}
 	for _, load := range loaders {
@@ -66,8 +65,8 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 	var counts consistencykernel.Counts
 	err := q.QueryRow(ctx, `
 		SELECT
-			(SELECT COUNT(*) FROM reservations WHERE released_at IS NULL),
-			(SELECT COUNT(*) FROM execution_leases WHERE revoked = FALSE AND expires_at > $1),
+			(SELECT COUNT(*) FROM allocations WHERE lifecycle_state <> 'ALLOCATION_LIFECYCLE_STATE_RELEASED'),
+			(SELECT COUNT(*) FROM allocation_access_grants WHERE revoked = FALSE AND expires_at > $1),
 			(SELECT COUNT(*) FROM tunnel_sessions WHERE status IN (
 				'TUNNEL_SESSION_STATUS_PENDING',
 				'TUNNEL_SESSION_STATUS_RUNNING',
@@ -75,8 +74,8 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 			)),
 			(SELECT COUNT(*) FROM allocation_reconcile_queue)
 	`, now.UTC()).Scan(
-		&counts.ActiveReservations,
-		&counts.ActiveLeases,
+		&counts.ActiveAllocations,
+		&counts.ActiveAccessGrants,
 		&counts.ActiveTunnels,
 		&counts.ReconcileQueue,
 	)
@@ -86,59 +85,22 @@ func loadCounts(ctx context.Context, q queryer, now time.Time) (consistencykerne
 	return counts, nil
 }
 
-func loadActiveReservationIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
+func loadActiveAccessGrantIssues(ctx context.Context, q queryer, now time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
 	rows, err := q.Query(ctx, `
-		SELECT a.allocation_id, a.run_id, a.node_id, a.lifecycle_state
-		FROM reservations res
-		JOIN allocations a ON a.allocation_id = res.allocation_id
-		WHERE res.released_at IS NULL
+		SELECT ag.grant_id, a.allocation_id, a.node_id, a.lifecycle_state, a.run_id
+		FROM allocation_access_grants ag
+		JOIN allocations a ON a.allocation_id = ag.allocation_id
+		WHERE ag.revoked = FALSE
+		  AND ag.expires_at > $2
 		  AND a.lifecycle_state = ANY($1::text[])
-		ORDER BY res.created_at ASC, res.allocation_id ASC
-		LIMIT $2
-	`, []string{commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()}, limit+1)
-	if err != nil {
-		return nil, false, fmt.Errorf("query active reservation consistency: %w", err)
-	}
-	defer rows.Close()
-
-	var out []consistencykernel.Issue
-	for rows.Next() {
-		if len(out) == limit {
-			return out, true, nil
-		}
-		var allocationID, runID, nodeID, allocationLifecycle string
-		if err := rows.Scan(&allocationID, &runID, &nodeID, &allocationLifecycle); err != nil {
-			return nil, false, err
-		}
-		out = append(out, consistencykernel.Issue{
-			Code:         consistencykernel.IssueActiveReservationOnReleasedAllocation,
-			Severity:     consistencykernel.SeverityError,
-			AllocationID: allocationID,
-			RunID:        runID,
-			NodeID:       nodeID,
-			Status:       allocationLifecycle,
-			Detail:       "active reservation remains after allocation release completed",
-		})
-	}
-	return out, false, rows.Err()
-}
-
-func loadActiveLeaseIssues(ctx context.Context, q queryer, now time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
-	rows, err := q.Query(ctx, `
-		SELECT el.lease_id, a.allocation_id, a.node_id, a.lifecycle_state, a.run_id
-		FROM execution_leases el
-		JOIN allocations a ON a.allocation_id = el.allocation_id
-		WHERE el.revoked = FALSE
-		  AND el.expires_at > $2
-		  AND a.lifecycle_state = ANY($1::text[])
-		ORDER BY el.created_at ASC, el.allocation_id ASC
+		ORDER BY ag.created_at ASC, ag.allocation_id ASC
 		LIMIT $3
 	`, terminalAllocationLifecycleStates(), now.UTC(), limit+1)
 	if err != nil {
-		return nil, false, fmt.Errorf("query active lease consistency: %w", err)
+		return nil, false, fmt.Errorf("query active allocation access grant consistency: %w", err)
 	}
 	defer rows.Close()
-	return scanDependentIssues(rows, dependentResourceLease, limit)
+	return scanDependentIssues(rows, dependentResourceAccessGrant, limit)
 }
 
 func loadActiveTunnelIssues(ctx context.Context, q queryer, _ time.Time, limit int) ([]consistencykernel.Issue, bool, error) {
@@ -189,8 +151,8 @@ func scanDependentIssues(rows pgx.Rows, resource dependentResource, limit int) (
 
 func dependentIssueCode(resource dependentResource) consistencykernel.IssueCode {
 	switch resource {
-	case dependentResourceLease:
-		return consistencykernel.IssueActiveLeaseOnEndedAllocation
+	case dependentResourceAccessGrant:
+		return consistencykernel.IssueActiveAccessGrantOnEndedAllocation
 	case dependentResourceTunnel:
 		return consistencykernel.IssueActiveTunnelOnEndedAllocation
 	default:

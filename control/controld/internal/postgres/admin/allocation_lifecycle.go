@@ -20,7 +20,7 @@ type Store struct {
 	db *postgres.DB
 }
 
-const leaseRevisionName = "execution_leases"
+const accessGrantRevisionName = "allocation_access_grants"
 
 func NewStore(db *postgres.DB) *Store {
 	return &Store{db: db}
@@ -57,7 +57,7 @@ func (s *Store) ForceAllocationLifecycleRetry(ctx context.Context, req allocatio
 		if _, err := tx.Exec(ctx, `
 			UPDATE allocation_reconcile_queue
 			SET next_run_at = $2, updated_at = $3,
-				lease_owner = '', lease_expires_at = NULL
+				claim_owner = '', claim_expires_at = NULL
 			WHERE allocation_id = $1
 		`, req.AllocationID, runAt.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("force allocation lifecycle retry: %w", err)

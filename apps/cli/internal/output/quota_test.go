@@ -14,20 +14,20 @@ func TestRenderNamespaceQuotaUsesFriendlyUnits(t *testing.T) {
 	quota := &quotav1.NamespaceQuota{
 		Namespace:            "team-a",
 		CpuMilliLimit:        wrapperspb.Int64(1500),
-		ReservedCpuMilli:     500,
+		UsedCpuMilli:         500,
 		AvailableCpuMilli:    wrapperspb.Int64(1000),
 		MemoryBytesLimit:     wrapperspb.Int64(8 << 30),
-		ReservedMemoryBytes:  512 << 20,
+		UsedMemoryBytes:      512 << 20,
 		AvailableMemoryBytes: wrapperspb.Int64(7680 << 20),
 	}
 	var out bytes.Buffer
 	RenderNamespaceQuota(&out, quota)
 	for _, want := range []string{
 		"CPU Limit: 1.5 CPU",
-		"CPU Reserved: 500m",
+		"CPU Used: 500m",
 		"CPU Available: 1 CPU",
 		"Memory Limit: 8GiB",
-		"Memory Reserved: 512MiB",
+		"Memory Used: 512MiB",
 		"Memory Available: 7680MiB",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -40,9 +40,9 @@ func TestRenderNamespaceQuotaTableUsesFriendlyUnits(t *testing.T) {
 	quota := &quotav1.NamespaceQuota{
 		Namespace:            "team-a",
 		CpuMilliLimit:        wrapperspb.Int64(2000),
-		ReservedCpuMilli:     750,
+		UsedCpuMilli:         750,
 		MemoryBytesLimit:     wrapperspb.Int64(1 << 30),
-		ReservedMemoryBytes:  128 << 20,
+		UsedMemoryBytes:      128 << 20,
 		AvailableMemoryBytes: wrapperspb.Int64(896 << 20),
 	}
 	var out bytes.Buffer
@@ -61,9 +61,9 @@ func TestRenderNamespaceQuotaTableUsesFriendlyUnits(t *testing.T) {
 
 func TestRenderNamespaceQuotaTableUsesCompactUnlimitedMarker(t *testing.T) {
 	quota := &quotav1.NamespaceQuota{
-		Namespace:           "default",
-		ReservedCpuMilli:    500,
-		ReservedMemoryBytes: 4 << 30,
+		Namespace:       "default",
+		UsedCpuMilli:    500,
+		UsedMemoryBytes: 4 << 30,
 	}
 	var out bytes.Buffer
 	RenderNamespaceQuotaTable(&out, []*quotav1.NamespaceQuota{quota})

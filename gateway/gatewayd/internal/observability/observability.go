@@ -8,9 +8,9 @@ import (
 )
 
 type Metrics struct {
-	activeTerminal sdkobs.UpDownCounter
-	leaseRetries   sdkobs.Counter
-	terminalEvents sdkobs.Counter
+	activeTerminal     sdkobs.UpDownCounter
+	accessGrantRetries sdkobs.Counter
+	terminalEvents     sdkobs.Counter
 }
 
 func NewMetrics(obs *sdkobs.Handle) *Metrics {
@@ -18,9 +18,9 @@ func NewMetrics(obs *sdkobs.Handle) *Metrics {
 		return &Metrics{}
 	}
 	return &Metrics{
-		activeTerminal: obs.Int64UpDownCounter(MetricTerminalSessionsCurrent.Name, MetricTerminalSessionsCurrent.Description),
-		leaseRetries:   obs.Int64Counter(MetricLeaseRetryTotal.Name, MetricLeaseRetryTotal.Description),
-		terminalEvents: obs.Int64Counter(MetricTerminalEventTotal.Name, MetricTerminalEventTotal.Description),
+		activeTerminal:     obs.Int64UpDownCounter(MetricTerminalSessionsCurrent.Name, MetricTerminalSessionsCurrent.Description),
+		accessGrantRetries: obs.Int64Counter(MetricAccessGrantRetryTotal.Name, MetricAccessGrantRetryTotal.Description),
+		terminalEvents:     obs.Int64Counter(MetricTerminalEventTotal.Name, MetricTerminalEventTotal.Description),
 	}
 }
 
@@ -34,11 +34,11 @@ func (m *Metrics) IncActiveTerminal() func() {
 	}
 }
 
-func (m *Metrics) LeaseRetry(routeType string) {
+func (m *Metrics) AccessGrantRetry(routeType string) {
 	if m == nil {
 		return
 	}
-	m.leaseRetries.Add(
+	m.accessGrantRetries.Add(
 		context.Background(),
 		1,
 		attribute.String(sdkobs.AttrRouteType, normalizeLabel(routeType, "unknown")),

@@ -22,9 +22,9 @@ func (s *Store) ListEvents(ctx context.Context, namespace string, limit int) ([]
 	limit = normalizeQuotaEventLimit(limit)
 	rows, err := s.db.Pool().Query(ctx, `
 		SELECT event_id, namespace, event_type, environment_id, reason,
-		       requested_cpu_milli, reserved_cpu_milli, cpu_milli_limit, available_cpu_milli,
-		       requested_memory_bytes, reserved_memory_bytes, memory_bytes_limit, available_memory_bytes,
-		       requested_ephemeral_storage_bytes, reserved_ephemeral_storage_bytes, ephemeral_storage_bytes_limit, available_ephemeral_storage_bytes,
+		       requested_cpu_milli, used_cpu_milli, cpu_milli_limit, available_cpu_milli,
+		       requested_memory_bytes, used_memory_bytes, memory_bytes_limit, available_memory_bytes,
+		       requested_ephemeral_storage_bytes, used_ephemeral_storage_bytes, ephemeral_storage_bytes_limit, available_ephemeral_storage_bytes,
 		       created_at
 		FROM namespace_quota_events
 		WHERE namespace = $1
@@ -75,15 +75,15 @@ func scanQuotaEvent(row quotaScanner) (*quotav1.NamespaceQuotaEvent, error) {
 		&event.EnvironmentID,
 		&reason,
 		&event.RequestedCpuMilli,
-		&event.ReservedCpuMilli,
+		&event.UsedCpuMilli,
 		&cpuLimit,
 		&cpuAvailable,
 		&event.RequestedMemoryBytes,
-		&event.ReservedMemoryBytes,
+		&event.UsedMemoryBytes,
 		&memoryLimit,
 		&memoryAvailable,
 		&event.RequestedEphemeralStorageBytes,
-		&event.ReservedEphemeralStorageBytes,
+		&event.UsedEphemeralStorageBytes,
 		&ephemeralStorageLimit,
 		&ephemeralStorageAvailable,
 		&createdAt,

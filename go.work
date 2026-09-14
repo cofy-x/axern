@@ -5,6 +5,7 @@ use (
 	./apps/cli
 	./control/controld
 	./gateway/gatewayd
+	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/memorybudget

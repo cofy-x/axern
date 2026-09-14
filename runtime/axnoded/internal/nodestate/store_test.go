@@ -31,7 +31,7 @@ func TestDBRecordLifecycle(t *testing.T) {
 		t.Fatalf("GetRecord() error = %v", err)
 	}
 	if !proto.Equal(&got, want) {
-		t.Fatalf("GetRecord() = %#v, want %#v", got, *want)
+		t.Fatalf("GetRecord().stdout = %q, want %q", got.GetStdout(), want.GetStdout())
 	}
 	if err := db.DeleteRecord("records", "allocation-a"); err != nil {
 		t.Fatalf("DeleteRecord() error = %v", err)

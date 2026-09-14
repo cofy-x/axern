@@ -104,7 +104,7 @@ func parseFlags() (options, error) {
 	flagSet.IntVar(&opts.retention.TunnelEventsKeep, "retention-tunnel-events-keep", opts.retention.TunnelEventsKeep, "minimum tunnel session events to retain per session")
 	flagSet.DurationVar(&opts.retention.QuotaEventsTTL, "retention-quota-events-ttl", opts.retention.QuotaEventsTTL, "namespace quota admission event retention TTL")
 	flagSet.DurationVar(&opts.retention.TerminalRunsTTL, "retention-terminal-runs-ttl", opts.retention.TerminalRunsTTL, "terminal run retention TTL")
-	flagSet.DurationVar(&opts.retention.LeasesTTL, "retention-leases-ttl", opts.retention.LeasesTTL, "expired or revoked execution lease retention TTL")
+	flagSet.DurationVar(&opts.retention.AccessGrantsTTL, "retention-access-grants-ttl", opts.retention.AccessGrantsTTL, "expired or revoked allocation access grant retention TTL")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		return options{}, err
 	}

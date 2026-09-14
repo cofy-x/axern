@@ -29,8 +29,8 @@ func newFlagSet(cfg *Config) *flag.FlagSet {
 	flags.DurationVar(&cfg.TerminalIdleTimeout, "terminal-idle-timeout", cfg.TerminalIdleTimeout, "terminal websocket idle timeout")
 	flags.DurationVar(&cfg.TerminalMaxDuration, "terminal-max-duration", cfg.TerminalMaxDuration, "terminal websocket maximum session duration")
 	flags.Int64Var(&cfg.TerminalMaxMessageBytes, "terminal-max-message-bytes", cfg.TerminalMaxMessageBytes, "terminal websocket maximum message bytes")
-	flags.IntVar(&cfg.LeaseRetryAttempts, "lease-retry-attempts", cfg.LeaseRetryAttempts, "terminal and NodeSandbox execution lease attempts")
-	flags.DurationVar(&cfg.LeaseRetryBaseDelay, "lease-retry-base-delay", cfg.LeaseRetryBaseDelay, "transient lease retry base delay")
+	flags.IntVar(&cfg.AccessGrantRetryAttempts, "access-grant-retry-attempts", cfg.AccessGrantRetryAttempts, "terminal and NodeSandbox allocation access grant attempts")
+	flags.DurationVar(&cfg.AccessGrantRetryBaseDelay, "access-grant-retry-base-delay", cfg.AccessGrantRetryBaseDelay, "transient allocation access grant retry base delay")
 	flags.StringVar(&cfg.LogLevel, "log-level", cfg.LogLevel, "log level: debug|info|warn|error")
 	return flags
 }

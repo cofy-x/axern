@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import (
 	"context"
@@ -21,12 +21,12 @@ const (
 )
 
 const (
-	resourceAdmissionStageLockNamespace     = "lock_namespace"
-	resourceAdmissionStageEvaluateNamespace = "evaluate_namespace"
-	resourceAdmissionStageLockCandidates    = "lock_candidates"
-	resourceAdmissionStageLoadReservations  = "load_reservations"
-	resourceAdmissionStageSelectCandidate   = "select_candidate"
-	resourceAdmissionStageTotal             = "total"
+	resourceAdmissionStageLockNamespace         = "lock_namespace"
+	resourceAdmissionStageEvaluateNamespace     = "evaluate_namespace"
+	resourceAdmissionStageLockCandidates        = "lock_candidates"
+	resourceAdmissionStageLoadAllocationCharges = "load_allocation_charges"
+	resourceAdmissionStageSelectCandidate       = "select_candidate"
+	resourceAdmissionStageTotal                 = "total"
 )
 
 type quotaAdmissionReason string
@@ -41,8 +41,8 @@ const (
 type resourceAdmissionScope string
 
 const (
-	resourceAdmissionScopeQuota           resourceAdmissionScope = "namespace_quota"
-	resourceAdmissionScopeNodeReservation resourceAdmissionScope = "node_reservation"
+	resourceAdmissionScopeQuota        resourceAdmissionScope = "namespace_quota"
+	resourceAdmissionScopeNodeCapacity resourceAdmissionScope = "node_capacity"
 )
 
 func recordQuotaAdmission(ctx context.Context, namespace string, result quotaAdmissionResult, reason quotaAdmissionReason) {
@@ -100,14 +100,14 @@ func recordQuotaEvaluation(ctx context.Context, namespace string, evaluation res
 	}
 }
 
-func recordNodeReservationRejected(ctx context.Context, namespace string, diagnostics reservationRejectionDiagnostics) {
+func recordNodeCapacityRejected(ctx context.Context, namespace string, diagnostics admissionRejectionDiagnostics) {
 	resources := diagnostics.rejectedResources()
 	if len(resources) == 0 {
-		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeReservation, string(quotaAdmissionRejected), "exceeded")
+		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeCapacity, string(quotaAdmissionRejected), "exceeded")
 		return
 	}
 	for _, resource := range resources {
-		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeReservation, string(quotaAdmissionRejected), "insufficient_"+resource)
+		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeCapacity, string(quotaAdmissionRejected), "insufficient_"+resource)
 	}
 }
 

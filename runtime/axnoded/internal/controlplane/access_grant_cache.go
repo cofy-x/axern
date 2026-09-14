@@ -14,54 +14,54 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const leaseWatchReconnectDelay = time.Second
+const accessGrantWatchReconnectDelay = time.Second
 
-type LeaseCache struct {
+type AccessGrantCache struct {
 	mu      sync.RWMutex
-	byToken map[string]*nodev1.NodeExecutionGrant
-	byLease map[string]string
+	byToken map[string]*nodev1.NodeAllocationAccessGrant
+	byGrant map[string]string
 	changed chan struct{}
 }
 
-func NewLeaseCache() *LeaseCache {
-	return &LeaseCache{
-		byToken: make(map[string]*nodev1.NodeExecutionGrant),
-		byLease: make(map[string]string),
+func NewAccessGrantCache() *AccessGrantCache {
+	return &AccessGrantCache{
+		byToken: make(map[string]*nodev1.NodeAllocationAccessGrant),
+		byGrant: make(map[string]string),
 		changed: make(chan struct{}),
 	}
 }
 
-func (c *LeaseCache) Apply(leases []*nodev1.NodeExecutionGrant) {
+func (c *AccessGrantCache) Apply(grants []*nodev1.NodeAllocationAccessGrant) {
 	if c == nil {
 		return
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	now := time.Now().UTC()
-	for tokenHash, lease := range c.byToken {
-		if lease == nil || lease.GetExpiresAt() == nil || !lease.GetExpiresAt().AsTime().After(now) {
+	for tokenHash, grant := range c.byToken {
+		if grant == nil || grant.GetExpiresAt() == nil || !grant.GetExpiresAt().AsTime().After(now) {
 			delete(c.byToken, tokenHash)
-			if leaseID := strings.TrimSpace(lease.GetLeaseID()); leaseID != "" && c.byLease[leaseID] == tokenHash {
-				delete(c.byLease, leaseID)
+			if grantID := strings.TrimSpace(grant.GetGrantID()); grantID != "" && c.byGrant[grantID] == tokenHash {
+				delete(c.byGrant, grantID)
 			}
 		}
 	}
 	applied := false
-	for _, lease := range leases {
-		if lease == nil || strings.TrimSpace(lease.GetAllocationID()) == "" {
+	for _, grant := range grants {
+		if grant == nil || strings.TrimSpace(grant.GetAllocationID()) == "" {
 			continue
 		}
-		tokenHash := strings.ToLower(strings.TrimSpace(lease.GetValidationTokenHash()))
+		tokenHash := strings.ToLower(strings.TrimSpace(grant.GetValidationTokenHash()))
 		if tokenHash == "" {
 			continue
 		}
-		leaseID := strings.TrimSpace(lease.GetLeaseID())
-		if previous := c.byLease[leaseID]; leaseID != "" && previous != "" && previous != tokenHash {
+		grantID := strings.TrimSpace(grant.GetGrantID())
+		if previous := c.byGrant[grantID]; grantID != "" && previous != "" && previous != tokenHash {
 			delete(c.byToken, previous)
 		}
-		c.byToken[tokenHash] = cloneLease(lease)
-		if leaseID != "" {
-			c.byLease[leaseID] = tokenHash
+		c.byToken[tokenHash] = cloneAccessGrant(grant)
+		if grantID != "" {
+			c.byGrant[grantID] = tokenHash
 		}
 		applied = true
 	}
@@ -71,26 +71,26 @@ func (c *LeaseCache) Apply(leases []*nodev1.NodeExecutionGrant) {
 	}
 }
 
-func (c *LeaseCache) Validate(allocationID string, token string, now time.Time) bool {
+func (c *AccessGrantCache) Validate(allocationID string, token string, now time.Time) bool {
 	valid, _ := c.validationState(allocationID, token, now)
 	return valid
 }
 
-func (c *LeaseCache) validationState(allocationID string, token string, now time.Time) (valid, known bool) {
+func (c *AccessGrantCache) validationState(allocationID string, token string, now time.Time) (valid, known bool) {
 	if c == nil || strings.TrimSpace(allocationID) == "" || strings.TrimSpace(token) == "" {
 		return false, false
 	}
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	hash := leaseTokenHash(token)
-	lease, known := c.byToken[hash]
-	if !known || lease == nil || lease.GetAllocationID() != strings.TrimSpace(allocationID) {
+	hash := accessGrantTokenHash(token)
+	grant, known := c.byToken[hash]
+	if !known || grant == nil || grant.GetAllocationID() != strings.TrimSpace(allocationID) {
 		return false, false
 	}
-	return !lease.GetRevoked() && lease.GetExpiresAt() != nil && lease.GetExpiresAt().AsTime().After(now), true
+	return !grant.GetRevoked() && grant.GetExpiresAt() != nil && grant.GetExpiresAt().AsTime().After(now), true
 }
 
-func (c *LeaseCache) WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (bool, bool) {
+func (c *AccessGrantCache) WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (bool, bool) {
 	if c == nil || now == nil {
 		return false, false
 	}
@@ -116,11 +116,11 @@ func (c *LeaseCache) WaitValidate(ctx context.Context, allocationID string, toke
 	}
 }
 
-type LeaseWatcher struct {
+type AccessGrantWatcher struct {
 	target        string
 	nodeID        string
 	nodeAuthToken string
-	cache         *LeaseCache
+	cache         *AccessGrantCache
 	control       NodeControlClientProvider
 	tlsCACert     string
 	tlsCert       string
@@ -134,38 +134,38 @@ type LeaseWatcher struct {
 	wg        sync.WaitGroup
 }
 
-type LeaseWatcherOption func(*LeaseWatcher)
+type AccessGrantWatcherOption func(*AccessGrantWatcher)
 
-func WithLeaseWatcherTarget(target string) LeaseWatcherOption {
-	return func(w *LeaseWatcher) {
+func WithAccessGrantWatcherTarget(target string) AccessGrantWatcherOption {
+	return func(w *AccessGrantWatcher) {
 		w.target = strings.TrimSpace(target)
 	}
 }
 
-func WithLeaseWatcherNode(nodeID, nodeAuthToken string) LeaseWatcherOption {
-	return func(w *LeaseWatcher) {
+func WithAccessGrantWatcherNode(nodeID, nodeAuthToken string) AccessGrantWatcherOption {
+	return func(w *AccessGrantWatcher) {
 		w.nodeID = strings.TrimSpace(nodeID)
 		w.nodeAuthToken = strings.TrimSpace(nodeAuthToken)
 	}
 }
 
-func WithLeaseWatcherTLS(caCert, cert, key string) LeaseWatcherOption {
-	return func(w *LeaseWatcher) {
+func WithAccessGrantWatcherTLS(caCert, cert, key string) AccessGrantWatcherOption {
+	return func(w *AccessGrantWatcher) {
 		w.tlsCACert = caCert
 		w.tlsCert = cert
 		w.tlsKey = key
 	}
 }
 
-func WithLeaseWatcherCache(cache *LeaseCache) LeaseWatcherOption {
-	return func(w *LeaseWatcher) {
+func WithAccessGrantWatcherCache(cache *AccessGrantCache) AccessGrantWatcherOption {
+	return func(w *AccessGrantWatcher) {
 		w.cache = cache
 	}
 }
 
-func NewLeaseWatcher(options ...LeaseWatcherOption) *LeaseWatcher {
+func NewAccessGrantWatcher(options ...AccessGrantWatcherOption) *AccessGrantWatcher {
 	ctx, cancel := context.WithCancel(context.Background())
-	w := &LeaseWatcher{
+	w := &AccessGrantWatcher{
 		stopCh: make(chan struct{}),
 		ctx:    ctx,
 		cancel: cancel,
@@ -183,7 +183,7 @@ func NewLeaseWatcher(options ...LeaseWatcherOption) *LeaseWatcher {
 		control, err := newNodeControlClientProvider(w.target, w.tlsCACert, w.tlsCert, w.tlsKey)
 		if err != nil {
 			cancel()
-			logrus.WithError(err).Warn("control-plane lease watcher disabled")
+			logrus.WithError(err).Warn("control-plane allocation access grant watcher disabled")
 			return nil
 		}
 		w.control = control
@@ -191,7 +191,7 @@ func NewLeaseWatcher(options ...LeaseWatcherOption) *LeaseWatcher {
 	return w
 }
 
-func (w *LeaseWatcher) Start() {
+func (w *AccessGrantWatcher) Start() {
 	if w == nil {
 		return
 	}
@@ -206,12 +206,12 @@ func (w *LeaseWatcher) Start() {
 					if w.ctx.Err() != nil {
 						return
 					}
-					logrus.WithError(err).Warn("control-plane lease watch failed")
+					logrus.WithError(err).Warn("control-plane allocation access grant watch failed")
 				} else if next > revision {
 					revision = next
 				}
 				select {
-				case <-time.After(leaseWatchReconnectDelay):
+				case <-time.After(accessGrantWatchReconnectDelay):
 				case <-w.stopCh:
 					return
 				}
@@ -220,7 +220,7 @@ func (w *LeaseWatcher) Start() {
 	})
 }
 
-func (w *LeaseWatcher) Stop() {
+func (w *AccessGrantWatcher) Stop() {
 	if w == nil {
 		return
 	}
@@ -230,18 +230,18 @@ func (w *LeaseWatcher) Stop() {
 		w.wg.Wait()
 		if w.control != nil {
 			if err := w.control.Close(); err != nil {
-				logrus.WithError(err).Warn("close control-plane lease watcher client")
+				logrus.WithError(err).Warn("close control-plane allocation access grant watcher client")
 			}
 		}
 	})
 }
 
-func (w *LeaseWatcher) watchOnce(afterRevision int64) (int64, error) {
+func (w *AccessGrantWatcher) watchOnce(afterRevision int64) (int64, error) {
 	client, err := w.control.Client(w.ctx)
 	if err != nil {
 		return afterRevision, err
 	}
-	stream, err := client.WatchExecutionLeases(w.ctx, &nodev1.WatchExecutionLeasesRequest{
+	stream, err := client.WatchAllocationAccessGrants(w.ctx, &nodev1.WatchAllocationAccessGrantsRequest{
 		NodeID:        w.nodeID,
 		AfterRevision: afterRevision,
 		NodeAuthToken: w.nodeAuthToken,
@@ -264,16 +264,16 @@ func (w *LeaseWatcher) watchOnce(afterRevision int64) (int64, error) {
 	}
 }
 
-func leaseTokenHash(token string) string {
+func accessGrantTokenHash(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
 }
 
-func cloneLease(in *nodev1.NodeExecutionGrant) *nodev1.NodeExecutionGrant {
+func cloneAccessGrant(in *nodev1.NodeAllocationAccessGrant) *nodev1.NodeAllocationAccessGrant {
 	if in == nil {
 		return nil
 	}
-	cloned, ok := proto.Clone(in).(*nodev1.NodeExecutionGrant)
+	cloned, ok := proto.Clone(in).(*nodev1.NodeAllocationAccessGrant)
 	if !ok {
 		return nil
 	}

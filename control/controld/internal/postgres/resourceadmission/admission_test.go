@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import (
 	"fmt"
@@ -16,17 +16,12 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func TestRefreshPlacementCandidateRanksOnlyUnreportedReservations(t *testing.T) {
+func TestRefreshPlacementCandidateRanksByAuthoritativeAllocationCharges(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	record := &nodekernel.Record{
 		NodeID:          "node-a",
 		LastHeartbeatAt: now,
-		Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{
-			AxnodedCommittedMilli: 500,
-			AxnodedUsedMilli:      125,
-			AxnodedCommittedBytes: 512,
-			AxnodedUsedBytes:      256,
-		}, MemoryBudget: &nodev1.NodeMemoryBudget{LocalCommitmentBytes: 512}},
+		Summary:         &nodev1.NodeSummary{},
 	}
 	candidate := &placementkernel.Candidate{
 		Record: record,
@@ -37,24 +32,24 @@ func TestRefreshPlacementCandidateRanksOnlyUnreportedReservations(t *testing.T) 
 	}
 
 	refreshed := refreshPlacementCandidate(candidate, record, resourcekernel.Claim{CPUMilli: 700, MemoryBytes: 768}, testAllocationIDs(3), now)
-	if got := refreshed.Evaluation.GetRank().GetAxnodedUsedMilli(); got != 325 {
-		t.Fatalf("ranked CPU = %d, want actual 125 + unreported 200", got)
+	if got := refreshed.Evaluation.GetRank().GetChargedCPUMilli(); got != 700 {
+		t.Fatalf("ranked CPU charge = %d, want 700", got)
 	}
-	if got := refreshed.Evaluation.GetRank().GetAxnodedUsedBytes(); got != 512 {
-		t.Fatalf("ranked memory = %d, want actual 256 + unreported 256", got)
+	if got := refreshed.Evaluation.GetRank().GetChargedMemoryBytes(); got != 768 {
+		t.Fatalf("ranked memory charge = %d, want 768", got)
 	}
-	if got := refreshed.Evaluation.GetRank().GetAxnodedActiveInstances(); got != 3 {
-		t.Fatalf("ranked active instances = %d, want 3", got)
+	if got := refreshed.Evaluation.GetRank().GetRuntimeSlotOccupancy(); got != 3 {
+		t.Fatalf("ranked runtime slot occupancy = %d, want 3", got)
 	}
 	if !refreshed.Evaluation.GetRank().GetMountedMatch() {
 		t.Fatal("static placement preference was not preserved")
 	}
 }
 
-func TestPlacementCandidateRankingBalancesInFlightReservationsWithinPreferenceTier(t *testing.T) {
+func TestPlacementCandidateRankingBalancesInFlightAllocationChargesWithinPreferenceTier(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
-	recordA := &nodekernel.Record{NodeID: "node-a", LastHeartbeatAt: now, Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{}}}
-	recordB := &nodekernel.Record{NodeID: "node-b", LastHeartbeatAt: now, Summary: &nodev1.NodeSummary{Resources: &nodev1.ResourcesSummary{}}}
+	recordA := &nodekernel.Record{NodeID: "node-a", LastHeartbeatAt: now, Summary: &nodev1.NodeSummary{}}
+	recordB := &nodekernel.Record{NodeID: "node-b", LastHeartbeatAt: now, Summary: &nodev1.NodeSummary{}}
 	candidate := func(record *nodekernel.Record) *placementkernel.Candidate {
 		return &placementkernel.Candidate{
 			Record: record,
@@ -68,7 +63,7 @@ func TestPlacementCandidateRankingBalancesInFlightReservationsWithinPreferenceTi
 	busy := refreshPlacementCandidate(candidate(recordA), recordA, resourcekernel.Claim{CPUMilli: 500, MemoryBytes: 512}, testAllocationIDs(2), now)
 	idle := refreshPlacementCandidate(candidate(recordB), recordB, resourcekernel.Claim{}, nil, now)
 	if !placementkernel.CandidateLess(idle, busy) {
-		t.Fatalf("idle candidate should rank ahead of candidate with in-flight reservations")
+		t.Fatalf("idle candidate should rank ahead of candidate with in-flight Allocation charges")
 	}
 
 	mounted := candidate(recordA)
@@ -79,14 +74,14 @@ func TestPlacementCandidateRankingBalancesInFlightReservationsWithinPreferenceTi
 	}
 }
 
-func TestReservationRejectionDiagnosticsCapsDetails(t *testing.T) {
-	diagnostics := newReservationRejectionDiagnostics(maxReservationRejectionDetails)
+func TestAdmissionRejectionDiagnosticsCapsDetails(t *testing.T) {
+	diagnostics := newAdmissionRejectionDiagnostics(maxAdmissionRejectionDetails)
 	policy := resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2}
 	allocatable := &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
 	used := resourcekernel.Claim{CPUMilli: 1900}
 	requested := resourcekernel.Claim{CPUMilli: 200}
 
-	for i := 0; i < maxReservationRejectionDetails+2; i++ {
+	for i := 0; i < maxAdmissionRejectionDetails+2; i++ {
 		diagnostics.Add(
 			fmt.Sprintf("node-%d", i),
 			policy,
@@ -94,8 +89,8 @@ func TestReservationRejectionDiagnosticsCapsDetails(t *testing.T) {
 		)
 	}
 
-	if len(diagnostics.details) != maxReservationRejectionDetails {
-		t.Fatalf("details len = %d, want %d", len(diagnostics.details), maxReservationRejectionDetails)
+	if len(diagnostics.details) != maxAdmissionRejectionDetails {
+		t.Fatalf("details len = %d, want %d", len(diagnostics.details), maxAdmissionRejectionDetails)
 	}
 	if diagnostics.omitted != 2 {
 		t.Fatalf("omitted = %d, want 2", diagnostics.omitted)
@@ -133,24 +128,24 @@ func TestRuntimeSlotEvaluationRejectsMissingAggregateContract(t *testing.T) {
 	}
 }
 
-func TestReservationDiagnosticsDescribeRuntimeSlotExhaustion(t *testing.T) {
-	diagnostics := newReservationRejectionDiagnostics(maxReservationRejectionDetails)
+func TestAdmissionDiagnosticsDescribeRuntimeSlotExhaustion(t *testing.T) {
+	diagnostics := newAdmissionRejectionDiagnostics(maxAdmissionRejectionDetails)
 	diagnostics.AddCandidate(
 		"node-a",
 		resourcekernel.AdmissionPolicy{},
 		resourcekernel.FitEvaluation{},
-		runtimeSlotEvaluation{Reserved: 64, Occupied: 64, Capacity: 64, Available: 0, Known: true},
+		runtimeSlotEvaluation{Charged: 64, Occupied: 64, Capacity: 64, Available: 0, Known: true},
 	)
 
 	if got := strings.Join(diagnostics.rejectedResources(), ","); got != "runtime_slots" {
 		t.Fatalf("rejected resources = %q, want runtime_slots", got)
 	}
-	if got := diagnostics.Message(); !strings.Contains(got, "runtime_slots requested=1 reserved=64 active=0 pool_using=0 occupied=64 capacity=64 available=0") {
+	if got := diagnostics.Message(); !strings.Contains(got, "runtime_slots requested=1 charged=64 active=0 pool_using=0 occupied=64 capacity=64 available=0") {
 		t.Fatalf("diagnostic message = %q", got)
 	}
 }
 
-func TestRuntimeSlotEvaluationUsesReportedOccupancyWhenItExceedsReservations(t *testing.T) {
+func TestRuntimeSlotEvaluationUsesReportedOccupancyWhenItExceedsAllocationCharges(t *testing.T) {
 	summary := &nodev1.NodeSummary{
 		Components: &nodev1.ComponentsSummary{Axnoded: &nodev1.AxnodedSummary{
 			ActiveAllocationIds: testAllocationIDs(63),
@@ -160,7 +155,7 @@ func TestRuntimeSlotEvaluationUsesReportedOccupancyWhenItExceedsReservations(t *
 		},
 	}
 	evaluation := evaluateRuntimeSlots(summary, testAllocationIDs(63))
-	if evaluation.Fits || evaluation.Reserved != 63 || evaluation.Active != 63 || evaluation.PoolUsing != 64 || evaluation.Occupied != 64 || evaluation.Available != 0 {
+	if evaluation.Fits || evaluation.Charged != 63 || evaluation.Active != 63 || evaluation.PoolUsing != 64 || evaluation.Occupied != 64 || evaluation.Available != 0 {
 		t.Fatalf("runtime slot evaluation = %+v, want node pool usage to block admission", evaluation)
 	}
 }
@@ -173,8 +168,8 @@ func testAllocationIDs(count int) []string {
 	return ids
 }
 
-func TestReservationRejectionDetailCapturesStructuredResources(t *testing.T) {
-	detail := buildReservationRejectionDetail(
+func TestAdmissionRejectionDetailCapturesStructuredResources(t *testing.T) {
+	detail := buildAdmissionRejectionDetail(
 		"node-a",
 		resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2},
 		resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2}.EvaluateFit(
@@ -201,9 +196,9 @@ func TestReservationRejectionDetailCapturesStructuredResources(t *testing.T) {
 	}
 }
 
-func TestReservationRejectionErrorIncludesStructuredDetails(t *testing.T) {
+func TestAdmissionRejectionErrorIncludesStructuredDetails(t *testing.T) {
 	policy := resourcekernel.AdmissionPolicy{CPUOvercommitRatio: 2}
-	diagnostics := newReservationRejectionDiagnostics(maxReservationRejectionDetails)
+	diagnostics := newAdmissionRejectionDiagnostics(maxAdmissionRejectionDetails)
 	diagnostics.Add(
 		"node-a",
 		policy,
@@ -214,18 +209,18 @@ func TestReservationRejectionErrorIncludesStructuredDetails(t *testing.T) {
 		),
 	)
 
-	st := grpcstatus.Convert(reservationRejectionError(diagnostics))
+	st := grpcstatus.Convert(admissionRejectionError(diagnostics))
 	if st.Code() != codes.ResourceExhausted {
 		t.Fatalf("code = %v, want ResourceExhausted", st.Code())
 	}
 	info := errorInfoFromStatus(t, st)
-	if info.GetReason() != string(resourcekernel.AdmissionRejectionNodeReservationCapacity) {
-		t.Fatalf("reason = %q, want %q", info.GetReason(), resourcekernel.AdmissionRejectionNodeReservationCapacity)
+	if info.GetReason() != string(resourcekernel.AdmissionRejectionNodeCapacity) {
+		t.Fatalf("reason = %q, want %q", info.GetReason(), resourcekernel.AdmissionRejectionNodeCapacity)
 	}
 	if info.GetDomain() != resourcekernel.AdmissionErrorDomain {
 		t.Fatalf("domain = %q, want %q", info.GetDomain(), resourcekernel.AdmissionErrorDomain)
 	}
-	if info.GetMetadata()["diagnostic_code"] != string(resourcekernel.AdmissionDiagnosticNodeReservationCapacity) {
+	if info.GetMetadata()["diagnostic_code"] != string(resourcekernel.AdmissionDiagnosticNodeCapacity) {
 		t.Fatalf("diagnostic_code = %q", info.GetMetadata()["diagnostic_code"])
 	}
 	if info.GetMetadata()["resources"] != "cpu" {
@@ -250,8 +245,8 @@ func TestLockedAdmissionEligibilityFailureIsNotReportedAsCapacity(t *testing.T) 
 	if info.GetReason() != string(resourcekernel.AdmissionRejectionNodeSelection) {
 		t.Fatalf("reason = %q, want %q", info.GetReason(), resourcekernel.AdmissionRejectionNodeSelection)
 	}
-	if strings.Contains(st.Message(), "remaining reservation capacity") {
-		t.Fatalf("message = %q, must not report reservation capacity", st.Message())
+	if strings.Contains(st.Message(), "remaining resource capacity") {
+		t.Fatalf("message = %q, must not report resource capacity", st.Message())
 	}
 }
 
@@ -281,7 +276,7 @@ func TestQuotaRejectionErrorIncludesStructuredDetails(t *testing.T) {
 	if st.Code() != codes.ResourceExhausted {
 		t.Fatalf("code = %v, want ResourceExhausted", st.Code())
 	}
-	if st.Message() != "namespace quota exceeded: namespace=team-a cpu requested_milli=200 reserved_milli=900 limit_milli=1000 available_milli=100" {
+	if st.Message() != "namespace quota exceeded: namespace=team-a cpu requested_milli=200 used_milli=900 limit_milli=1000 available_milli=100" {
 		t.Fatalf("message = %q", st.Message())
 	}
 	info := errorInfoFromStatus(t, st)
@@ -297,7 +292,7 @@ func TestQuotaRejectionErrorIncludesStructuredDetails(t *testing.T) {
 		"resources":       "cpu",
 		"cpu_unit":        "milli",
 		"cpu_requested":   "200",
-		"cpu_reserved":    "900",
+		"cpu_used":        "900",
 		"cpu_limit":       "1000",
 		"cpu_available":   "100",
 	}

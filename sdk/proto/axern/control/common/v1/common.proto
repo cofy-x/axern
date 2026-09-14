@@ -9,7 +9,7 @@ import "axern/control/capability/v1/capability.proto";
 message ResourceQuantity {
   int64 cpu_milli = 1;
   // Total sandbox memory budget. requests.memory_bytes is the placement,
-  // reservation, and namespace-quota commitment. limits.memory_bytes is the
+  // node-capacity charge and namespace-quota commitment. limits.memory_bytes is the
   // host cgroup v2 hard boundary and includes runtime processes, guest
   // accounting, kernel memory, shmem, and charged file/page cache.
   int64 memory_bytes = 2;
@@ -142,4 +142,5 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED = 7;
   WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 8;
   WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 9;
+  WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED = 10;
 }

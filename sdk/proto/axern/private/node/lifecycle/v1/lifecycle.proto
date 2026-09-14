@@ -70,6 +70,7 @@ message CreateAllocationRequest {
   string allocation_id = 1;
   string node_id = 2;
   ResolvedExecutionConfig config = 3;
+  int64 execution_lease_ttl_seconds = 4;
 }
 
 message CreateAllocationResponse {

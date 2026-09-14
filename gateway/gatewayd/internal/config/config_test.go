@@ -41,7 +41,7 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 
 	cfg, err := Parse([]string{
 		"-terminal-idle-timeout=11s",
-		"-lease-retry-attempts=5",
+		"-access-grant-retry-attempts=5",
 		"-control-edge-address=127.0.0.1:25002",
 		"-tunnel-relay-target=127.0.0.1:24100",
 	})
@@ -51,8 +51,8 @@ func TestParseGatewayHardeningEnvAndFlags(t *testing.T) {
 	if cfg.TerminalIdleTimeout != 11*time.Second {
 		t.Fatalf("TerminalIdleTimeout = %s, want 11s", cfg.TerminalIdleTimeout)
 	}
-	if cfg.LeaseRetryAttempts != 5 {
-		t.Fatalf("LeaseRetryAttempts = %d, want 5", cfg.LeaseRetryAttempts)
+	if cfg.AccessGrantRetryAttempts != 5 {
+		t.Fatalf("AccessGrantRetryAttempts = %d, want 5", cfg.AccessGrantRetryAttempts)
 	}
 	if cfg.ControlEdgeAddress != "127.0.0.1:25002" {
 		t.Fatalf("ControlEdgeAddress = %q, want flag value", cfg.ControlEdgeAddress)

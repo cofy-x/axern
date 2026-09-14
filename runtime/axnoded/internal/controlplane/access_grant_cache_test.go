@@ -9,10 +9,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestLeaseCacheWaitValidateWakesForExactToken(t *testing.T) {
+func TestAccessGrantCacheWaitValidateWakesForExactToken(t *testing.T) {
 	t.Parallel()
 
-	cache := NewLeaseCache()
+	cache := NewAccessGrantCache()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	result := make(chan bool, 1)
@@ -21,10 +21,10 @@ func TestLeaseCacheWaitValidateWakesForExactToken(t *testing.T) {
 		result <- valid
 	}()
 
-	cache.Apply([]*nodev1.NodeExecutionGrant{{
-		LeaseID:             "lease-1",
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+		GrantID:             "grant-1",
 		AllocationID:        "alloc-1",
-		ValidationTokenHash: leaseTokenHash("token-1"),
+		ValidationTokenHash: accessGrantTokenHash("token-1"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
 	}})
 
@@ -33,14 +33,14 @@ func TestLeaseCacheWaitValidateWakesForExactToken(t *testing.T) {
 	}
 }
 
-func TestLeaseCacheWaitValidateRejectsKnownRevokedToken(t *testing.T) {
+func TestAccessGrantCacheWaitValidateRejectsKnownRevokedToken(t *testing.T) {
 	t.Parallel()
 
-	cache := NewLeaseCache()
-	cache.Apply([]*nodev1.NodeExecutionGrant{{
-		LeaseID:             "lease-1",
+	cache := NewAccessGrantCache()
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+		GrantID:             "grant-1",
 		AllocationID:        "alloc-1",
-		ValidationTokenHash: leaseTokenHash("token-1"),
+		ValidationTokenHash: accessGrantTokenHash("token-1"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
 		Revoked:             true,
 	}})
@@ -50,10 +50,10 @@ func TestLeaseCacheWaitValidateRejectsKnownRevokedToken(t *testing.T) {
 	}
 }
 
-func TestLeaseCacheWaitValidateStopsWithContext(t *testing.T) {
+func TestAccessGrantCacheWaitValidateStopsWithContext(t *testing.T) {
 	t.Parallel()
 
-	cache := NewLeaseCache()
+	cache := NewAccessGrantCache()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if valid, _ := cache.WaitValidate(ctx, "alloc-1", "unknown-token", time.Now); valid {
@@ -61,18 +61,18 @@ func TestLeaseCacheWaitValidateStopsWithContext(t *testing.T) {
 	}
 }
 
-func TestLeaseCacheApplyPrunesExpiredTokens(t *testing.T) {
+func TestAccessGrantCacheApplyPrunesExpiredTokens(t *testing.T) {
 	t.Parallel()
 
-	cache := NewLeaseCache()
-	cache.Apply([]*nodev1.NodeExecutionGrant{{
+	cache := NewAccessGrantCache()
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
 		AllocationID:        "alloc-expired",
-		ValidationTokenHash: leaseTokenHash("expired-token"),
+		ValidationTokenHash: accessGrantTokenHash("expired-token"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(-time.Second)),
 	}})
-	cache.Apply([]*nodev1.NodeExecutionGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
 		AllocationID:        "alloc-live",
-		ValidationTokenHash: leaseTokenHash("live-token"),
+		ValidationTokenHash: accessGrantTokenHash("live-token"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
 	}})
 
@@ -83,19 +83,19 @@ func TestLeaseCacheApplyPrunesExpiredTokens(t *testing.T) {
 	}
 }
 
-func TestLeaseCacheApplyReplacesRotatedToken(t *testing.T) {
+func TestAccessGrantCacheApplyReplacesRotatedToken(t *testing.T) {
 	t.Parallel()
 
-	cache := NewLeaseCache()
-	lease := &nodev1.NodeExecutionGrant{
-		LeaseID:      "lease-1",
+	cache := NewAccessGrantCache()
+	grant := &nodev1.NodeAllocationAccessGrant{
+		GrantID:      "grant-1",
 		AllocationID: "alloc-1",
 		ExpiresAt:    timestamppb.New(time.Now().Add(time.Minute)),
 	}
-	lease.ValidationTokenHash = leaseTokenHash("old-token")
-	cache.Apply([]*nodev1.NodeExecutionGrant{lease})
-	lease.ValidationTokenHash = leaseTokenHash("new-token")
-	cache.Apply([]*nodev1.NodeExecutionGrant{lease})
+	grant.ValidationTokenHash = accessGrantTokenHash("old-token")
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{grant})
+	grant.ValidationTokenHash = accessGrantTokenHash("new-token")
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{grant})
 
 	if cache.Validate("alloc-1", "old-token", time.Now()) {
 		t.Fatal("Validate(old-token) = true after rotation")

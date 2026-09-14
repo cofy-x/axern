@@ -112,6 +112,7 @@ COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
 COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY runtime/tunneld/go.mod runtime/tunneld/go.sum /workspace/runtime/tunneld/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
+COPY lib/go/executionlease/go.mod /workspace/lib/go/executionlease/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
 COPY lib/go/networkpolicy/go.mod /workspace/lib/go/networkpolicy/go.mod
@@ -122,6 +123,7 @@ RUN cat > /workspace/go.work <<'EOF'
 go 1.25.12
 
 use (
+	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref
 	./lib/go/networkpolicy

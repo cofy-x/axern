@@ -116,6 +116,7 @@ metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HA
 container_id="$(
   verify-cli \
     -address "${AXNODED_SOCKET}" \
+    -node-id node-verify \
     -environment-id "${environment_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
@@ -152,6 +153,7 @@ request_only_id="verify-inventory-request-only-$$"
 container_id="$(
   verify-cli \
     -address "${AXNODED_SOCKET}" \
+    -node-id node-verify \
     -environment-id "${request_only_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \

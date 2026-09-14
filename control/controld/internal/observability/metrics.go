@@ -141,7 +141,7 @@ var (
 	}
 	MetricCapabilityAdmissionTotal = sdkobs.Instrument{
 		Name:        "axern.controld_capability_admission_total",
-		Description: "Capability admission outcomes while current node observations are re-evaluated under the reservation lock.",
+		Description: "Capability admission outcomes while current node observations are re-evaluated under the admission lock.",
 	}
 	MetricNodeCapabilityChangeTotal = sdkobs.Instrument{
 		Name:        "axern.controld_node_capability_change_total",

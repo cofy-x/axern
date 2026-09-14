@@ -46,7 +46,7 @@ Built-in templates are deployment-managed, read-only inputs used while resolving
 
 ### Namespace
 
-A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metadata. Namespace deletion must reject live operational state, including an active Run, Allocation, Reservation, TunnelSession, or Secret. Deletion is an irreversible security tombstone: the Namespace row remains to preserve retained references and prevents the deleted name from acquiring a new authorization identity.
+A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metadata. Namespace deletion must reject live operational state, including an active Run, non-released Allocation, TunnelSession, or Secret. Deletion is an irreversible security tombstone: the Namespace row remains to preserve retained references and prevents the deleted name from acquiring a new authorization identity.
 
 Namespace is not an alias for a Kubernetes namespace, cluster, region, cloud account, project-management system, or billing account.
 
@@ -72,7 +72,7 @@ PLACED -> STARTING -> RUNNING
                            +-> FAILED
 ```
 
-These are the public Run states. Allocation has its own concrete reservation, binding, execution, releasing, and released states; internal detail must project unambiguously to the owning Run. Run has no replica convergence, rolling update, readiness, degraded-service, or desired-state controller.
+These are the public Run states. Allocation has concrete binding, execution, releasing, and released states; internal detail must project unambiguously to the owning Run. Run has no replica convergence, rolling update, readiness, degraded-service, or desired-state controller.
 
 One Run owns one immutable Allocation identity. Retries of an idempotent lifecycle operation address that same Allocation and must match the Run's frozen request. Axern does not reschedule a Run onto a replacement Allocation: an infrastructure failure terminates the Run, and another execution or episode is a new Run with a new Allocation ID.
 
@@ -90,7 +90,7 @@ Platform workload identities for gatewayd, axnoded, and tunneld remain distinct 
 
 ### Node
 
-Node identity is durable and independent from heartbeat freshness. Retirement is an audited, irreversible administrative transition and requires execution, lease, tunnel, retry, reservation, and cleanup blockers to converge. A replacement host uses a new Node ID; a stale host must not regain authority by reusing a retired identity.
+Node identity is durable and independent from heartbeat freshness. Retirement is an audited, irreversible administrative transition and requires Allocations, access grants, tunnels, lifecycle delivery, and cleanup blockers to converge. A replacement host uses a new Node ID; a stale host must not regain authority by reusing a retired identity.
 
 ## Durable Subordinate Execution Records
 
@@ -99,8 +99,9 @@ These records need durable identity and state, but users cannot create them inde
 | Object                 | Direct owner            | Purpose                                                              |
 | ---------------------- | ----------------------- | -------------------------------------------------------------------- |
 | `Allocation`           | Run                     | Concrete node binding and infrastructure convergence identity        |
-| `Reservation`          | Allocation              | Committed namespace and node resource usage                          |
-| `ExecutionLease`       | Allocation              | Short-lived internal gateway authority for the selected node         |
+| Allocation resource charge | Allocation          | Committed namespace and node resource usage on the Allocation row    |
+| `ExecutionLease`       | Allocation              | Finite control-plane authority for the bound node to keep executing  |
+| `AllocationAccessGrant` | Allocation             | Short-lived gateway authority for one Allocation data-plane access   |
 | `TunnelSession`        | Allocation              | Revocable reverse-TCP session and relay convergence state            |
 | `CapabilityRequirement` | Allocation              | Immutable capability key and platform-owned loss policy              |
 | `CapabilityCondition`   | Allocation              | Latest rebuildable satisfaction or enforcement diagnosis             |
@@ -114,19 +115,19 @@ Allocation is the only concrete execution target. Its globally unique, never-reu
 
 Allocation does not copy the Run request, public status, result, diagnostic, message, or optimistic version. Node creation resolves the immutable request through `Allocation -> Run`; terminal, SSH, Tunnel, process, file, and administrative lifecycle operations select the Allocation explicitly.
 
-Allocation cannot exist as a durable orphan or an independently created public workload. A Run is not fully released until runtime, network, mounts, leases, tunnels, reservations, and node recovery ownership have converged.
+Allocation cannot exist as a durable orphan or an independently created public workload. A Run is not fully released until runtime, network, mounts, execution authority, access grants, tunnels, resource charges, and node recovery ownership have converged.
 
-### Reservation
+### Allocation resource charge
 
-Reservation is a transactional admission ledger, not a user-managed resource. It commits with Allocation admission and accounts for CPU, sandbox memory, ephemeral storage, and runtime slots at the Namespace and Node boundaries.
+Reservation is not an independent domain object or table. Immutable CPU, sandbox-memory, and ephemeral-storage requests are stored once on the Allocation created by the admission transaction. Every non-`RELEASED` Allocation contributes that charge to Namespace and Node admission; runtime slots count the same Allocation identity.
 
-A failed or timed-out RPC is not evidence that resources are free. Reservation release follows confirmed node cleanup, when the Allocation becomes `RELEASED`; committing a terminal Run result alone is insufficient.
+A failed or timed-out delete RPC is not evidence that resources are free. The charge stops only after confirmed node cleanup moves the Allocation to `RELEASED`; committing a terminal Run result alone is insufficient.
 
 ### ExecutionLease
 
-ExecutionLease is short-lived internal authority bound to Allocation ID, Node ID, expiry, and revocation state. The Allocation already determines the execution purpose and node route, so leases do not repeat a type or target. PostgreSQL stores a token hash; plaintext is returned only as a gateway-only `AllocationAccessGrant`. Nodes receive a separate `NodeExecutionGrant` containing validation hash material and no plaintext field.
+ExecutionLease is finite liveness authority for exactly one Allocation on its bound Node. Each successful authenticated node heartbeat returns the complete currently authorized Allocation set and a TTL. Axnoded measures the deadline from its local receipt clock, persists it with the sole Allocation recovery record, and stops an omitted or expired Allocation fail-closed. There is no separate control-plane lease table, generation, or revision.
 
-Public SDKs do not persist or replay ExecutionLeases. Gateway retries may refresh authority only before the selected node accepts an operation. Authority for one Allocation can never authorize input, output, status, or cleanup for another Allocation.
+`AllocationAccessGrant` is separate short-lived data-plane authority. PostgreSQL stores its token hash, Allocation ID, Node ID, expiry, revocation and delivery revision; plaintext is returned only to gatewayd. The node watches hash-only grants and acknowledges a grant before consuming input or producing output. Public SDKs receive neither mechanism, and authority for one Allocation never authorizes another.
 
 ### TunnelSession
 
@@ -184,7 +185,8 @@ Large stdout, files, and object bytes do not belong in PostgreSQL. PostgreSQL st
 | State                                                                  | Authoritative owner               | Explicitly not authoritative               |
 | ---------------------------------------------------------------------- | --------------------------------- | ------------------------------------------ |
 | Principal, Namespace, Environment, Run, Allocation, Secret metadata    | controld / PostgreSQL             | gateway cache, node recovery state         |
-| Reservation, ExecutionLease, TunnelSession, capability evidence, audit | controld / PostgreSQL             | process-local queues or relay memory       |
+| Allocation resource charges, access grants, TunnelSession, capability requirements, audit | controld / PostgreSQL | process-local queues or relay memory |
+| ExecutionLease receipt deadline | axnoded Allocation recovery record, derived from controld heartbeat response | gateway access-grant cache or OCI metadata |
 | Runtime, mount, network, cleanup, output, and node recovery state      | axnoded and its node-local stores | cross-node product truth                   |
 | Image cache and read-only mount leases                                 | imagemgr / imagefsd               | Run status or writable workspace truth     |
 | Process streams, PTY, terminal, SSH connections                        | node and gateway transient state  | durable results or long-term authorization |
@@ -236,8 +238,8 @@ Every implementation must preserve these invariants:
 1. Environment input is immutable, verifiable, and rebuildable on another eligible Node.
 2. Run is the only owner of user execution intent and terminal result.
 3. Allocation IDs are globally unique and never reused; reports, operations, and cleanup for one ID cannot mutate another Allocation.
-4. Reservation is not released before execution and required cleanup are confirmed complete.
-5. ExecutionLease, SSH, and Tunnel authority ends with the owning Allocation.
+4. Allocation resource charge is not released before execution and required cleanup are confirmed complete.
+5. ExecutionLease, AllocationAccessGrant, SSH, and Tunnel authority ends with the owning Allocation.
 6. Missing isolation, capability, network, mount, or resource enforcement fails closed.
 7. Node-local files and stdout are not described as durable without explicit delivery.
 8. Control-plane restart, node restart, and network partition cannot create two authoritative owners.

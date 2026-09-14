@@ -114,7 +114,7 @@ verify_admin_lifecycle() {
     exit 1
   fi
   # Failing the unrecoverable create retry terminates the Run, but the
-  # Allocation keeps its reservation and durable delete debt until the missing
+  # Allocation keeps its resource charge and durable delete debt until the missing
   # node can confirm cleanup.
   assert_allocation_reconcilez_contains "${admin_allocation_id}" "ALLOCATION_LIFECYCLE_STATE_RELEASING"
 

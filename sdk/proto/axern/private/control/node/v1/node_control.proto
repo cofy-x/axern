@@ -47,18 +47,6 @@ message PoolState {
   int32 unavailable = 4;
 }
 
-message ResourcesSummary {
-  int64 axnoded_committed_milli = 1;
-  int64 axnoded_used_milli = 2;
-  int64 axnoded_cpu_unbounded_count = 3;
-  int64 axnoded_committed_bytes = 4;
-  int64 axnoded_used_bytes = 5;
-  int64 axnoded_memory_unbounded_count = 6;
-  int64 axnoded_ephemeral_storage_committed_bytes = 7;
-  int64 axnoded_ephemeral_storage_used_bytes = 8;
-  int64 axnoded_ephemeral_storage_unbounded_count = 9;
-}
-
 // NodeMemoryBudget is the node-observed scheduling boundary. The system
 // reserve covers node-local control processes and is never charged to a
 // namespace or allocation.
@@ -148,9 +136,9 @@ message NodeStorageSummary {
   bool collected = 8;
   string error = 9;
   int64 system_reserve_bytes = 10;
-  int64 reserved_bytes = 11;
+  int64 charged_bytes = 11;
   int64 allocatable_bytes = 12;
-  int64 active_reservations = 13;
+  int64 active_allocations = 13;
   string filesystem_type = 14;
   string mount_identity = 15;
   int64 allocation_used_bytes = 16;
@@ -184,17 +172,16 @@ message LocalitySummary {
 
 message NodeSummary {
   google.protobuf.Timestamp collected_at = 1;
-  ResourcesSummary resources = 2;
-  PoolsSummary pools = 3;
-  ComponentsSummary components = 4;
-  repeated LocalitySummary locality = 5;
-  NodeState node_state = 6;
-  map<string, string> labels = 7;
-  axern.control.capability.v1.CapabilitySnapshot capability_snapshot = 8;
-  axern.control.common.v1.ResourceQuantity capacity = 9;
-  axern.control.common.v1.ResourceQuantity allocatable = 10;
-  repeated NodeStorageSummary storage = 11;
-  NodeMemoryBudget memory_budget = 12;
+  PoolsSummary pools = 2;
+  ComponentsSummary components = 3;
+  repeated LocalitySummary locality = 4;
+  NodeState node_state = 5;
+  map<string, string> labels = 6;
+  axern.control.capability.v1.CapabilitySnapshot capability_snapshot = 7;
+  axern.control.common.v1.ResourceQuantity capacity = 8;
+  axern.control.common.v1.ResourceQuantity allocatable = 9;
+  repeated NodeStorageSummary storage = 10;
+  NodeMemoryBudget memory_budget = 11;
 }
 
 message RegisterNodeRequest {
@@ -212,7 +199,17 @@ message ReportNodeRequest {
   string node_auth_token = 4;
 }
 
-message ReportNodeResponse {}
+message ReportNodeResponse {
+  // Complete authority snapshot for Allocations currently allowed to execute
+  // on this node. Absence revokes authority; TTL is measured from receipt on
+  // the node so correctness does not depend on synchronized wall clocks.
+  repeated AllocationExecutionLease execution_leases = 1;
+}
+
+message AllocationExecutionLease {
+  string allocation_id = 1;
+  int64 ttl_seconds = 2;
+}
 
 // AllocationLifecycleObservation reports concrete node lifecycle plus a
 // candidate Run result. Controld stores the lifecycle state on Allocation and
@@ -306,24 +303,24 @@ message AllocationMemoryObservation {
   bool peak_available = 29;
 }
 
-message WatchExecutionLeasesRequest {
+message WatchAllocationAccessGrantsRequest {
   string node_id = 1;
   int64 after_revision = 2;
   string node_auth_token = 3;
 }
 
-// NodeExecutionGrant is the node-facing authorization projection. It never
+// NodeAllocationAccessGrant is the node-facing data-plane authorization projection. It never
 // carries client plaintext credentials, routing targets, or watch cursors.
-message NodeExecutionGrant {
-  string lease_id = 1;
+message NodeAllocationAccessGrant {
+  string grant_id = 1;
   string allocation_id = 2;
   string validation_token_hash = 3;
   google.protobuf.Timestamp expires_at = 4;
   bool revoked = 5;
 }
 
-message WatchExecutionLeasesResponse {
-  repeated NodeExecutionGrant grants = 1;
+message WatchAllocationAccessGrantsResponse {
+  repeated NodeAllocationAccessGrant grants = 1;
   int64 current_revision = 2;
 }
 
@@ -360,7 +357,7 @@ service NodeControl {
   rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
   rpc BatchReportAllocationLifecycle(BatchReportAllocationLifecycleRequest) returns (BatchReportAllocationLifecycleResponse) {}
   rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}
-  rpc WatchExecutionLeases(WatchExecutionLeasesRequest) returns (stream WatchExecutionLeasesResponse) {}
+  rpc WatchAllocationAccessGrants(WatchAllocationAccessGrantsRequest) returns (stream WatchAllocationAccessGrantsResponse) {}
   rpc WatchTunnelSessions(WatchTunnelSessionsRequest) returns (stream WatchTunnelSessionsResponse) {}
   rpc ReportTunnelSessionStatus(ReportTunnelSessionStatusRequest) returns (ReportTunnelSessionStatusResponse) {}
 }

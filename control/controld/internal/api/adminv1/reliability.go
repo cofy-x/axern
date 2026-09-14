@@ -107,8 +107,8 @@ func consistencySnapshotToProto(snapshot consistencykernel.Snapshot) *adminv1.Co
 	return &adminv1.ConsistencySnapshot{
 		Status: consistencyStatusToProto(snapshot.Status),
 		Counts: &adminv1.ConsistencyCounts{
-			ActiveReservations:         snapshot.Counts.ActiveReservations,
-			ActiveLeases:               snapshot.Counts.ActiveLeases,
+			ActiveAllocations:          snapshot.Counts.ActiveAllocations,
+			ActiveAccessGrants:         snapshot.Counts.ActiveAccessGrants,
 			ActiveTunnels:              snapshot.Counts.ActiveTunnels,
 			AllocationLifecycleRetries: snapshot.Counts.ReconcileQueue,
 			Issues:                     snapshot.Counts.Issues,
@@ -168,10 +168,8 @@ func consistencyIssueSeverityToProto(severity consistencykernel.Severity) adminv
 
 func consistencyIssueCodeToProto(code consistencykernel.IssueCode) adminv1.ConsistencyIssueCode {
 	switch code {
-	case consistencykernel.IssueActiveReservationOnReleasedAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION
-	case consistencykernel.IssueActiveLeaseOnEndedAllocation:
-		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_LEASE_ON_ENDED_ALLOCATION
+	case consistencykernel.IssueActiveAccessGrantOnEndedAllocation:
+		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION
 	case consistencykernel.IssueActiveTunnelOnEndedAllocation:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION
 	default:

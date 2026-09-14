@@ -10,7 +10,6 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
-	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -47,13 +46,10 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 				return fmt.Errorf("complete allocation release: %w", err)
 			}
 		}
-		if err := s.revokeAllocationLeases(ctx, tx, allocationID, now); err != nil {
+		if err := s.revokeAllocationAccessGrants(ctx, tx, allocationID, now); err != nil {
 			return err
 		}
-		if err := pgreservation.ReleaseAllocation(ctx, tx, allocationID, now); err != nil {
-			return err
-		}
-		tag, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1 AND lease_owner = $2`, allocationID, strings.TrimSpace(claimOwner))
+		tag, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1 AND claim_owner = $2`, allocationID, strings.TrimSpace(claimOwner))
 		if err != nil {
 			return fmt.Errorf("delete reconcile item: %w", err)
 		}
@@ -87,7 +83,7 @@ func (s *Store) CompleteAllocationStart(ctx context.Context, allocationID, claim
 		}
 		tag, err := tx.Exec(ctx, `
 			DELETE FROM allocation_reconcile_queue
-			WHERE allocation_id = $1 AND lease_owner = $2
+			WHERE allocation_id = $1 AND claim_owner = $2
 		`, strings.TrimSpace(allocationID), strings.TrimSpace(claimOwner))
 		if err != nil {
 			return fmt.Errorf("delete start reconcile item: %w", err)
@@ -132,64 +128,64 @@ func (s *Store) LoadStartAllocation(ctx context.Context, allocationID string) (*
 	return out, err
 }
 
-func (s *Store) nextLeaseRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
+func (s *Store) nextAccessGrantRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
 	var revision int64
 	if err := tx.QueryRow(ctx, `
 		UPDATE control_revisions
 		SET revision = revision + 1
 		WHERE name = $1
 		RETURNING revision
-	`, leaseRevisionName).Scan(&revision); err != nil {
-		return 0, fmt.Errorf("next lease revision: %w", err)
+	`, accessGrantRevisionName).Scan(&revision); err != nil {
+		return 0, fmt.Errorf("next allocation access grant revision: %w", err)
 	}
 	return revision, nil
 }
 
-func (s *Store) revokeAllocationLeases(ctx context.Context, tx pgx.Tx, allocationID string, now time.Time) error {
+func (s *Store) revokeAllocationAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string, now time.Time) error {
 	rows, err := tx.Query(ctx, `
-		SELECT lease_id
-		FROM execution_leases
+		SELECT grant_id
+		FROM allocation_access_grants
 		WHERE allocation_id = $1 AND revoked = false
 		FOR UPDATE
 	`, strings.TrimSpace(allocationID))
 	if err != nil {
-		return fmt.Errorf("query leases for revoke: %w", err)
+		return fmt.Errorf("query allocation access grants for revoke: %w", err)
 	}
 	defer rows.Close()
-	leaseIDs := make([]string, 0)
+	grantIDs := make([]string, 0)
 	for rows.Next() {
-		var leaseID string
-		if err := rows.Scan(&leaseID); err != nil {
+		var grantID string
+		if err := rows.Scan(&grantID); err != nil {
 			return err
 		}
-		leaseIDs = append(leaseIDs, leaseID)
+		grantIDs = append(grantIDs, grantID)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, leaseID := range leaseIDs {
-		revision, err := s.nextLeaseRevision(ctx, tx)
+	for _, grantID := range grantIDs {
+		revision, err := s.nextAccessGrantRevision(ctx, tx)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE execution_leases
+			UPDATE allocation_access_grants
 			SET revoked = true, revision = $2
-			WHERE lease_id = $1
-		`, leaseID, revision); err != nil {
-			return fmt.Errorf("revoke lease %s: %w", leaseID, err)
+			WHERE grant_id = $1
+		`, grantID, revision); err != nil {
+			return fmt.Errorf("revoke allocation access grant %s: %w", grantID, err)
 		}
 	}
 	_ = now
 	return nil
 }
 
-func (s *Store) ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, leaseTTL time.Duration) ([]allocationkernel.ReconcileItem, error) {
-	return pgallocation.ClaimDueReconcileItems(ctx, s.db.Pool(), owner, limit, now, leaseTTL)
+func (s *Store) ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, claimTTL time.Duration) ([]allocationkernel.ReconcileItem, error) {
+	return pgallocation.ClaimDueReconcileItems(ctx, s.db.Pool(), owner, limit, now, claimTTL)
 }
 
-func (s *Store) RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, leaseTTL time.Duration) (bool, error) {
-	return pgallocation.RenewReconcileClaim(ctx, s.db.Pool(), allocationID, owner, now, leaseTTL)
+func (s *Store) RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error) {
+	return pgallocation.RenewReconcileClaim(ctx, s.db.Pool(), allocationID, owner, now, claimTTL)
 }
 
 func (s *Store) ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error) {

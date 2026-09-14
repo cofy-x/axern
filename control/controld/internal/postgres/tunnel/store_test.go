@@ -542,16 +542,9 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO allocations (
-			allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at
-		) VALUES ($1, 'run-test', 'node-test', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', $2, $2)
+			allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at
+		) VALUES ($1, 'run-test', 'node-test', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $2, $2)
 	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert allocation: %v", err)
-	}
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO reservations(
-			allocation_id,node_id,created_at
-		) VALUES ($1,'node-test',$2)
-	`, allocationID, now.UTC()); err != nil {
-		t.Fatalf("insert workload reservation: %v", err)
 	}
 }

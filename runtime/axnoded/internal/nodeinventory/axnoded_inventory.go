@@ -240,7 +240,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		// A runtime may therefore report the delegated root (commonly "/") as
 		// its cgroup path. Sampling that shared domain once per allocation would
 		// fabricate attribution and double-count host usage. Keep the durable
-		// reservation totals above, but publish no per-allocation usage or CPU
+		// Allocation charge totals above, but publish no per-allocation usage or CPU
 		// sample unless the production cgroup ownership contract is enforced.
 		s.sampleMu.Lock()
 		s.prevCPUSamples = make(map[string]cpuUsageSample)

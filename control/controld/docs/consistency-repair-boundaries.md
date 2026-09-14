@@ -1,16 +1,16 @@
 # Consistency Repair Boundaries
 
-This document defines the long-term boundary between consistency diagnostics and repair writes. The checker is a read model. It finds mismatches across Runs, Allocations, reservations, leases, tunnel sessions, and lifecycle retry queue state, but it does not own mutation.
+This document defines the boundary between consistency diagnostics and repair writes. The checker is a read model over Runs, Allocations, AllocationAccessGrants, TunnelSessions, and lifecycle delivery intent; it does not own mutation.
 
 ## Principle
 
 Consistency repair must go through the owner that owns the state transition:
 
-- Run controllers repair Run-owned Allocations, reservations, and leases;
+- Run controllers repair Run-owned Allocation lifecycle and access-grant cleanup;
 - tunnel controllers repair tunnel session lifecycle state;
 - audited admin operations repair durable lifecycle retry queue state when an operator chooses an explicit action.
 
-The checker can classify and report. It must not silently release reservations, revoke leases, delete tunnel sessions, or edit Run/Allocation references.
+The checker can classify and report. It must not silently release Allocation charges, revoke access grants, delete TunnelSessions, or edit Run/Allocation facts.
 
 ```mermaid
 flowchart LR
@@ -30,15 +30,14 @@ The admin consistency API attaches a repair plan to every issue as typed `repair
 
 | Issue family                           | `repair_owner`          | `repair_action`                | target                                                        |
 | -------------------------------------- | ----------------------- | ------------------------------ | ------------------------------------------------------------- |
-| active reservation on ended allocation | `run_controller`        | `run_cleanup`                  | `run/<run_id>` or `allocation/<allocation_id>`                |
-| active lease on ended allocation       | `node_lifecycle`        | `node_lifecycle_reconcile`     | `allocation/<allocation_id>`                                  |
+| active access grant on ended allocation | `run_controller`       | `run_cleanup`                  | `run/<run_id>` or `allocation/<allocation_id>`                |
 | active tunnel on ended allocation      | `tunnel_controller`     | `tunnel_lifecycle_reconcile`   | `tunnel_session/<session_id>` or `allocation/<allocation_id>` |
 
-Foreign keys make missing-Allocation and allocation/node mismatch states unrepresentable. The checker therefore reports only lifecycle drift that relational constraints cannot prevent: an active reservation, lease, or tunnel on an ended Allocation. Those issues remain owner-reconciled because a generic checker cannot infer the correct transition without duplicating controller logic.
+Foreign keys make missing-Allocation and Allocation/Node mismatch states unrepresentable. The checker reports only lifecycle drift that relational constraints cannot prevent, such as an active access grant or TunnelSession on an ended Allocation. Resource charges are columns on Allocation and therefore cannot drift into a separate lifecycle.
 
 ## Future Auto Repair
 
-Auto repair can be added only as owner-scoped commands, not as checker writes. For example, a future `RepairRunAllocation` operation may lock the Run, validate its Allocation, reservation, and lease state, record an audit event, and then repair those references in one transaction.
+Auto repair can be added only as owner-scoped commands, not as checker writes. An owner command must lock the Run and Allocation, validate dependent access grants and tunnels, record an audit event, and apply one state-machine transition.
 
 An auto repair operation must satisfy all of these rules:
 
@@ -64,7 +63,7 @@ sequenceDiagram
   Operator->>AdminAPI: RepairRunAllocation(run_id, reason)
   AdminAPI->>Owner: validate repair command
   Owner->>DB: lock Run row
-  Owner->>DB: load allocations, reservations, leases
+  Owner->>DB: load Allocation, access grants, and TunnelSessions
   Owner->>Owner: apply owner state-machine rules
   Owner->>DB: write repair and audit atomically
   AdminAPI-->>Operator: repaired/refused with typed diagnostics
@@ -72,7 +71,7 @@ sequenceDiagram
 
 The intended command families are:
 
-- `RepairRunAllocation`: lock the run row and repair one run-owned allocation, reservation, and lease set.
+- `RepairRunAllocation`: lock the Run row and repair its one Allocation and access-grant set.
 - `RepairTunnelSession`: lock the tunnel session and repair tunnel lifecycle state for the selected allocation.
 - allocation lifecycle retry admin commands remain under the audited admin lifecycle API because the retry queue itself is the owner.
 

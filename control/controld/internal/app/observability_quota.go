@@ -18,21 +18,21 @@ func (a *App) observeNamespaceResources(ctx context.Context, observe sdkobs.Int6
 		return err
 	}
 	for _, quota := range quotas {
-		observeNamespaceQuotaResource(observe, quota, "cpu_milli", quota.GetCpuMilliLimit(), quota.GetReservedCpuMilli(), quota.GetAvailableCpuMilli())
-		observeNamespaceQuotaResource(observe, quota, "memory_bytes", quota.GetMemoryBytesLimit(), quota.GetReservedMemoryBytes(), quota.GetAvailableMemoryBytes())
-		observeNamespaceQuotaResource(observe, quota, "ephemeral_storage_bytes", quota.GetEphemeralStorageBytesLimit(), quota.GetReservedEphemeralStorageBytes(), quota.GetAvailableEphemeralStorageBytes())
+		observeNamespaceQuotaResource(observe, quota, "cpu_milli", quota.GetCpuMilliLimit(), quota.GetUsedCpuMilli(), quota.GetAvailableCpuMilli())
+		observeNamespaceQuotaResource(observe, quota, "memory_bytes", quota.GetMemoryBytesLimit(), quota.GetUsedMemoryBytes(), quota.GetAvailableMemoryBytes())
+		observeNamespaceQuotaResource(observe, quota, "ephemeral_storage_bytes", quota.GetEphemeralStorageBytesLimit(), quota.GetUsedEphemeralStorageBytes(), quota.GetAvailableEphemeralStorageBytes())
 	}
 	return nil
 }
 
-func observeNamespaceQuotaResource(observe sdkobs.Int64GaugeObserver, quota *quotav1.NamespaceQuota, resource string, limit *wrapperspb.Int64Value, reserved int64, available *wrapperspb.Int64Value) {
+func observeNamespaceQuotaResource(observe sdkobs.Int64GaugeObserver, quota *quotav1.NamespaceQuota, resource string, limit *wrapperspb.Int64Value, used int64, available *wrapperspb.Int64Value) {
 	if quota == nil {
 		return
 	}
 	if limit != nil {
 		observe(limit.GetValue(), namespaceResourceAttrs(quota.GetNamespace(), resource, "limit")...)
 	}
-	observe(reserved, namespaceResourceAttrs(quota.GetNamespace(), resource, "reserved")...)
+	observe(used, namespaceResourceAttrs(quota.GetNamespace(), resource, "used")...)
 	if available != nil {
 		observe(available.GetValue(), namespaceResourceAttrs(quota.GetNamespace(), resource, "available")...)
 	}

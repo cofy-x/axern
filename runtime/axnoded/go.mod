@@ -10,7 +10,10 @@ replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapabi
 
 replace github.com/cofy-x/axern/lib/go/networkpolicy => ../../lib/go/networkpolicy
 
+replace github.com/cofy-x/axern/lib/go/executionlease => ../../lib/go/executionlease
+
 require (
+	github.com/cofy-x/axern/lib/go/executionlease v0.0.0
 	github.com/cofy-x/axern/lib/go/networkpolicy v0.0.0
 	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
 	github.com/cofy-x/axern/network/bpfnet v0.0.0

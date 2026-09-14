@@ -90,7 +90,7 @@ func (r *RunscServiceHandler) waitForForegroundRunExit(parent context.Context, c
 func (r *RunscServiceHandler) cleanupContainer(ctx context.Context, traceID, containerID, msg string) {
 	logrus.WithField("trace_id", traceID).Warn(msg)
 	if err := r.deleteRuntimeContainer(ctx, containerID, true); err != nil {
-		logrus.WithField("trace_id", traceID).Warnf("runtime cleanup for %s failed; retaining rootfs and writable reservation: %v", containerID, err)
+		logrus.WithField("trace_id", traceID).Warnf("runtime cleanup for %s failed; retaining rootfs and writable charge: %v", containerID, err)
 		return
 	}
 	if err := cleanupOwnedRootfsStorage(containerID, r.rootfsViews.Remove, r.writableCapacity.Release); err != nil {

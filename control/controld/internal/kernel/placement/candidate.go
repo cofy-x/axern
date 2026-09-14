@@ -76,14 +76,17 @@ func EvaluationLess(left, right *Evaluation) bool {
 	if leftRank.GetIdlePoolReady() != rightRank.GetIdlePoolReady() {
 		return leftRank.GetIdlePoolReady()
 	}
-	if leftRank.GetAxnodedActiveInstances() != rightRank.GetAxnodedActiveInstances() {
-		return leftRank.GetAxnodedActiveInstances() < rightRank.GetAxnodedActiveInstances()
+	if leftRank.GetRuntimeSlotOccupancy() != rightRank.GetRuntimeSlotOccupancy() {
+		return leftRank.GetRuntimeSlotOccupancy() < rightRank.GetRuntimeSlotOccupancy()
 	}
-	if leftRank.GetAxnodedUsedMilli() != rightRank.GetAxnodedUsedMilli() {
-		return leftRank.GetAxnodedUsedMilli() < rightRank.GetAxnodedUsedMilli()
+	if leftRank.GetChargedCPUMilli() != rightRank.GetChargedCPUMilli() {
+		return leftRank.GetChargedCPUMilli() < rightRank.GetChargedCPUMilli()
 	}
-	if leftRank.GetAxnodedUsedBytes() != rightRank.GetAxnodedUsedBytes() {
-		return leftRank.GetAxnodedUsedBytes() < rightRank.GetAxnodedUsedBytes()
+	if leftRank.GetChargedMemoryBytes() != rightRank.GetChargedMemoryBytes() {
+		return leftRank.GetChargedMemoryBytes() < rightRank.GetChargedMemoryBytes()
+	}
+	if leftRank.GetChargedEphemeralBytes() != rightRank.GetChargedEphemeralBytes() {
+		return leftRank.GetChargedEphemeralBytes() < rightRank.GetChargedEphemeralBytes()
 	}
 	if left.GetHeartbeatAgeSecs() != right.GetHeartbeatAgeSecs() {
 		return left.GetHeartbeatAgeSecs() < right.GetHeartbeatAgeSecs()

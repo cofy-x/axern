@@ -26,7 +26,7 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 	}
 	metrics := NewMetrics(obs)
 	releaseTerminal := metrics.IncActiveTerminal()
-	metrics.LeaseRetry("terminal")
+	metrics.AccessGrantRetry("terminal")
 	metrics.TerminalEvent("open")
 	releaseTerminal()
 
@@ -42,7 +42,7 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 	}
 	for _, want := range []string{
 		MetricTerminalSessionsCurrent.Name,
-		MetricLeaseRetryTotal.Name,
+		MetricAccessGrantRetryTotal.Name,
 		MetricTerminalEventTotal.Name,
 	} {
 		if !names[want] {

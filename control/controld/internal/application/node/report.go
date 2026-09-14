@@ -38,27 +38,37 @@ func NewReporter(store ReportStore, registry ReportRegistry, allocations Allocat
 	return &Reporter{store: store, registry: registry, allocations: allocations, now: now}
 }
 
-func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) error {
+func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) ([]string, error) {
 	if r == nil || r.store == nil || r.registry == nil {
-		return errNodeReporterUnavailable
+		return nil, errNodeReporterUnavailable
 	}
 	record, err := r.store.Report(ctx, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	recordCapabilityChanges(ctx, record.ReportedCapabilityChanges)
 	r.registry.Report(record.NodeID, record.NodeTarget, record.Summary, record.LastHeartbeatAt)
-	if !reportedAxnodedReady(record.Summary) || r.allocations == nil {
-		return nil
+	if r.allocations == nil {
+		return nil, nil
 	}
 	now := params.Now
 	if now.IsZero() && r.now != nil {
 		now = r.now()
 	}
-	return r.allocations.ReconcileNodeInventory(ctx, allocationkernel.NodeInventorySnapshot{
-		NodeID: record.NodeID, ActiveAllocationIDs: record.Summary.GetComponents().GetAxnoded().GetActiveAllocationIds(),
-		CollectedAt: reportSnapshotTime(record.Summary, now),
-	}, now)
+	// Readiness gates inventory reconciliation because a recovering axnoded has
+	// not yet produced a complete runtime observation. It must not gate the
+	// execution authority snapshot: doing so would turn the first successful
+	// post-restart heartbeat into an accidental revocation of every recovered
+	// Allocation on the node.
+	if reportedAxnodedReady(record.Summary) {
+		if err := r.allocations.ReconcileNodeInventory(ctx, allocationkernel.NodeInventorySnapshot{
+			NodeID: record.NodeID, ActiveAllocationIDs: record.Summary.GetComponents().GetAxnoded().GetActiveAllocationIds(),
+			CollectedAt: reportSnapshotTime(record.Summary, now),
+		}, now); err != nil {
+			return nil, err
+		}
+	}
+	return r.allocations.ListNodeExecutionAllocationIDs(ctx, record.NodeID)
 }
 
 func recordCapabilityChanges(ctx context.Context, changes []nodekernel.CapabilityChange) {

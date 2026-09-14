@@ -1,11 +1,9 @@
-package leasekernel
+package accessgrantkernel
 
 import "time"
 
-// Record is the durable node-facing authorization fact. Plaintext client
-// credentials and routing data deliberately do not belong here.
 type Record struct {
-	LeaseID             string
+	GrantID             string
 	AllocationID        string
 	NodeID              string
 	ValidationTokenHash string
@@ -14,7 +12,6 @@ type Record struct {
 	Revoked             bool
 }
 
-// IssuedGrant contains the one-time plaintext credential returned to gatewayd.
 type IssuedGrant struct {
 	Record
 	PlaintextToken string

@@ -89,12 +89,6 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	if summary.GetCapacity().GetCpuMilli() != 8000 || summary.GetAllocatable().GetMemoryBytes() != 12<<30 {
 		t.Fatalf("unexpected capacity/allocatable = %#v %#v", summary.GetCapacity(), summary.GetAllocatable())
 	}
-	if summary.GetResources().GetAxnodedCommittedMilli() != 1200 || summary.GetResources().GetAxnodedCpuUnboundedCount() != 2 {
-		t.Fatalf("unexpected cpu resources summary: %#v", summary.GetResources())
-	}
-	if summary.GetResources().GetAxnodedCommittedBytes() != 1024 || summary.GetResources().GetAxnodedMemoryUnboundedCount() != 1 {
-		t.Fatalf("unexpected memory resources summary: %#v", summary.GetResources())
-	}
 	if summary.GetPools().GetCgroup().GetIdle() != 3 || summary.GetPools().GetInterface().GetIdle() != 4 {
 		t.Fatalf("unexpected pools summary: %#v", summary.GetPools())
 	}

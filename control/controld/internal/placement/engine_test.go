@@ -134,8 +134,6 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 	now := time.Date(2026, 4, 21, 15, 0, 0, 0, time.UTC)
 
 	hot := readySummary(now)
-	hot.Resources.AxnodedUsedMilli = 300
-	hot.Resources.AxnodedUsedBytes = 3000
 	hot.Locality = []*nodev1.LocalitySummary{{
 		Key:                        "image:repo/app:latest",
 		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
@@ -148,8 +146,6 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 		PeerHintedCount:            2,
 	}}
 	warm := readySummary(now)
-	warm.Resources.AxnodedUsedMilli = 100
-	warm.Resources.AxnodedUsedBytes = 1000
 	warm.Locality = []*nodev1.LocalitySummary{{
 		Key:                        "image:repo/app:latest",
 		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
@@ -193,9 +189,6 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(restricted, 1024)
-	restricted.Resources.AxnodedCommittedMilli = 900
-	restricted.Resources.AxnodedCommittedBytes = 900
-	restricted.MemoryBudget.LocalCommitmentBytes = 900
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -217,8 +210,6 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 	assertRejectedReasons(t, rejected[0], "node-a",
 		placementkernel.RejectionReasonNodeDraining,
 		placementkernel.RejectionReasonNodeSelectorMismatch,
-		placementkernel.RejectionReasonInsufficientCPU,
-		placementkernel.RejectionReasonInsufficientMemory,
 		placementkernel.RejectionReasonNetworkUnsupported,
 		placementkernel.RejectionReasonCapabilityUnsupported,
 	)
@@ -234,8 +225,6 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		MemoryBytes: 2048,
 	}
 	setTestMemoryCapacity(summary, 2048)
-	summary.Resources.AxnodedCommittedBytes = 1800
-	summary.MemoryBudget.LocalCommitmentBytes = 1800
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -245,7 +234,7 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		RootfsKey:            "image:repo/app:latest",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:            nodev1.MountType_MOUNT_TYPE_OCI,
-		RequestedMemoryBytes: 512,
+		RequestedMemoryBytes: 2049,
 	}, now)
 	if len(eligible) != 0 {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
@@ -253,15 +242,12 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 	assertRejectedReasons(t, rejected[0], "node-mem", placementkernel.RejectionReasonInsufficientMemory)
 }
 
-func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testing.T) {
+func TestPlanIgnoresNodeLocalCommitmentForDurableAllocationAccounting(t *testing.T) {
 	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 4000, MemoryBytes: 2048}
 	setTestMemoryCapacity(summary, 2048)
 	summary.MemoryBudget.LocalCommitmentBytes = 256
-	// This inventory aggregate may lag or include diagnostic runtime state. It
-	// must not become a third commitment ledger.
-	summary.Resources.AxnodedCommittedBytes = 2000
 
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-memory-ledger", []string{"runsc"}, summary, now),
@@ -270,11 +256,11 @@ func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testi
 		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, RequestedMemoryBytes: 512,
 	}, now)
 	if len(eligible) != 1 || len(rejected) != 0 {
-		t.Fatalf("eligible=%#v rejected=%#v, want node admitted from local commitment ledger", eligible, rejected)
+		t.Fatalf("eligible=%#v rejected=%#v, want registry prefilter to defer charge accounting to PostgreSQL", eligible, rejected)
 	}
 }
 
-func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
+func TestPlanDoesNotTreatRetiringMemoryAsAllocationCharge(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
 	summary.MemoryBudget.LocalCommitmentBytes = 15 << 30
@@ -286,10 +272,9 @@ func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
 		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, RequestedMemoryBytes: 2 << 30,
 	}, now)
-	if len(eligible) != 0 || len(rejected) != 1 {
+	if len(eligible) != 1 || len(rejected) != 0 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-retiring", placementkernel.RejectionReasonInsufficientMemory)
 }
 
 func TestPlanCPUOvercommitPolicy(t *testing.T) {
@@ -298,7 +283,6 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
 	setTestMemoryCapacity(summary, 1<<30)
-	summary.Resources.AxnodedCommittedMilli = 1500
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-cpu", []string{"runsc"}, summary, now),
@@ -317,7 +301,7 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
-		RequestedCpuMilli: 600,
+		RequestedCpuMilli: 2100,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("expected node-cpu rejected, got eligible=%#v rejected=%#v", eligible, rejected)
@@ -331,8 +315,6 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
 	setTestMemoryCapacity(summary, 1<<30)
-	summary.Resources.AxnodedCommittedBytes = 900 << 20
-	summary.MemoryBudget.LocalCommitmentBytes = 900 << 20
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-mem-overcommit", []string{"runsc"}, summary, now),
@@ -341,7 +323,7 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 		RootfsKey:            "local:/tmp/rootfs",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:            nodev1.MountType_MOUNT_TYPE_LOCAL,
-		RequestedMemoryBytes: 200 << 20,
+		RequestedMemoryBytes: (1 << 30) + 1,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("expected node rejected for memory, got eligible=%#v rejected=%#v", eligible, rejected)
@@ -399,10 +381,6 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		),
-		Resources: &nodev1.ResourcesSummary{
-			AxnodedUsedMilli: 100,
-			AxnodedUsedBytes: 1000,
-		},
 		Allocatable: &commonv1.ResourceQuantity{
 			CpuMilli:    8000,
 			MemoryBytes: 16 << 30,

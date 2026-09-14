@@ -12,17 +12,6 @@ import (
 func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary {
 	summary := &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(snapshot.Node.CollectedAt),
-		Resources: &nodev1.ResourcesSummary{
-			AxnodedCommittedMilli:                 snapshot.Resources.CPU.AxnodedCommittedMilli,
-			AxnodedUsedMilli:                      snapshot.Resources.CPU.AxnodedUsedMilli,
-			AxnodedCpuUnboundedCount:              snapshot.Resources.CPU.AxnodedUnboundedCount,
-			AxnodedCommittedBytes:                 snapshot.Resources.Memory.AxnodedCommittedBytes,
-			AxnodedUsedBytes:                      snapshot.Resources.Memory.AxnodedUsedBytes,
-			AxnodedMemoryUnboundedCount:           snapshot.Resources.Memory.AxnodedUnboundedCount,
-			AxnodedEphemeralStorageCommittedBytes: snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes,
-			AxnodedEphemeralStorageUsedBytes:      snapshot.Resources.EphemeralStorage.AxnodedUsedBytes,
-			AxnodedEphemeralStorageUnboundedCount: snapshot.Resources.EphemeralStorage.AxnodedUnboundedCount,
-		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.RuntimeSlots.Using),
@@ -136,9 +125,9 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			Collected:                   entry.Collected,
 			Error:                       entry.Error,
 			SystemReserveBytes:          entry.SystemReserveBytes,
-			ReservedBytes:               entry.ReservedBytes,
+			ChargedBytes:                entry.ChargedBytes,
 			AllocatableBytes:            entry.AllocatableBytes,
-			ActiveReservations:          entry.ActiveReservations,
+			ActiveAllocations:           entry.ActiveAllocations,
 			FilesystemType:              entry.FilesystemType,
 			MountIdentity:               entry.MountIdentity,
 			AllocationUsedBytes:         entry.AllocationUsedBytes,

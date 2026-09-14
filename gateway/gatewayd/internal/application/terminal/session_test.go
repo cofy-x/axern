@@ -26,7 +26,7 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		NodeTarget:   "node-new:24010",
 		AccessGrant:  &gatewayv1.AllocationAccessGrant{PlaintextToken: "fresh-token"},
 	}}}
-	manager := NewManager(resolver, nodes, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond}, nil, nil)
+	manager := NewManager(resolver, nodes, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond}, nil, nil)
 
 	session, err := manager.OpenResolved(context.Background(), &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
@@ -45,10 +45,10 @@ func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) 
 		t.Fatalf("resolve requests = %#v, want one alloc-1 refresh", resolver.requests)
 	}
 	if got := nodes.tokens[0]; got != "stale-token" {
-		t.Fatalf("stale lease token = %q", got)
+		t.Fatalf("stale access grant token = %q", got)
 	}
 	if got := nodes.tokens[1]; got != "fresh-token" {
-		t.Fatalf("fresh lease token = %q", got)
+		t.Fatalf("fresh access grant token = %q", got)
 	}
 	if stale.closeCalls != 1 {
 		t.Fatalf("stale stream close calls = %d, want 1", stale.closeCalls)
@@ -61,7 +61,7 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	cancel()
 	nodes := &fakeExecStreamer{streams: []*fakeExecStream{{headerErr: status.Error(codes.Unauthenticated, "stale lease")}}}
 	resolver := &fakeTerminalResolver{}
-	manager := NewManager(resolver, nodes, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Hour}, nil, nil)
+	manager := NewManager(resolver, nodes, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Hour}, nil, nil)
 
 	_, err := manager.OpenResolved(ctx, &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
@@ -215,7 +215,7 @@ func (f *fakeExecStream) Header() (metadata.MD, error) {
 	if f.headerErr != nil {
 		return nil, f.headerErr
 	}
-	return metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1"), nil
+	return metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1"), nil
 }
 func (f *fakeExecStream) Trailer() metadata.MD { return nil }
 func (f *fakeExecStream) CloseSend() error {
@@ -235,7 +235,7 @@ type fakeExecStreamer struct {
 func (f *fakeExecStreamer) ExecStream(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ExecStreamClient, error) {
 	f.targets = append(f.targets, target)
 	md, _ := metadata.FromOutgoingContext(ctx)
-	values := md.Get(nodekernel.ExecutionLeaseTokenMetadata)
+	values := md.Get(nodekernel.AllocationAccessGrantTokenMetadata)
 	if len(values) == 1 {
 		f.tokens = append(f.tokens, values[0])
 	} else {

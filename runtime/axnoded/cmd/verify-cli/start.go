@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
@@ -51,7 +52,13 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 	}
 	rootfsSpec.Apply(spec)
 
-	handle, err := verifyutil.CreateAllocation(ctx, clients, verifyutil.NewSandboxID(cfg.environmentID), spec)
+	allocationID := verifyutil.NewSandboxID(cfg.environmentID)
+	var handle *verifyutil.SandboxHandle
+	if cfg.nodeID == "" {
+		handle, err = verifyutil.CreateAllocation(ctx, clients, allocationID, spec)
+	} else {
+		handle, err = verifyutil.CreateAllocationWithBinding(ctx, clients, allocationID, cfg.nodeID, executionlease.TTL, spec)
+	}
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}

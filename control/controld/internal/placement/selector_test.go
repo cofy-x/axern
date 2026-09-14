@@ -23,9 +23,6 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(summary, 1024)
-	summary.Resources.AxnodedCommittedMilli = 900
-	summary.Resources.AxnodedCommittedBytes = 900
-	summary.MemoryBudget.LocalCommitmentBytes = 900
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
@@ -36,8 +33,8 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 	_, err := selector.SelectCandidates(context.Background(), &environmentv1.Environment{ID: "env-1"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    200,
-				MemoryBytes: 256,
+				CpuMilli:    1200,
+				MemoryBytes: 1280,
 			},
 		},
 	})
@@ -46,7 +43,7 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 	}
 	message := status.Convert(err).Message()
 	for _, want := range []string{
-		"requested cpu_milli=200 memory_bytes=256",
+		"requested cpu_milli=1200 memory_bytes=1280",
 		"insufficient_cpu",
 		"insufficient_memory",
 	} {
@@ -72,9 +69,6 @@ func TestSelectCandidatesNoEligibleMixedFailuresAreNodeSelection(t *testing.T) {
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(unsupportedLowCapacity, 1024)
-	unsupportedLowCapacity.Resources.AxnodedCommittedMilli = 900
-	unsupportedLowCapacity.Resources.AxnodedCommittedBytes = 900
-	unsupportedLowCapacity.MemoryBudget.LocalCommitmentBytes = 900
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
@@ -111,9 +105,6 @@ func TestSelectCandidatesNoEligibleCapacityAndSelectionCandidatesAreNodeSelectio
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(lowCapacity, 1024)
-	lowCapacity.Resources.AxnodedCommittedMilli = 900
-	lowCapacity.Resources.AxnodedCommittedBytes = 900
-	lowCapacity.MemoryBudget.LocalCommitmentBytes = 900
 
 	runtimeUnsupported := readySummary(now)
 	lowCapacity.Labels = map[string]string{"pool": "required"}
@@ -130,8 +121,8 @@ func TestSelectCandidatesNoEligibleCapacityAndSelectionCandidatesAreNodeSelectio
 		Placement: &commonv1.PlacementConstraints{NodeSelector: map[string]string{"pool": "required"}},
 		Resources: &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    200,
-				MemoryBytes: 256,
+				CpuMilli:    1200,
+				MemoryBytes: 1280,
 			},
 		},
 	})

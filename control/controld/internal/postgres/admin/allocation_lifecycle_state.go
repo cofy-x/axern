@@ -30,12 +30,8 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, now
 		SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 			q.reconcile_attempts, q.last_error, q.next_run_at, q.created_at, q.updated_at, a.lifecycle_state,
 			EXISTS (
-				SELECT 1 FROM reservations res
-				WHERE res.allocation_id = q.allocation_id AND res.released_at IS NULL
-			),
-			EXISTS (
-				SELECT 1 FROM execution_leases el
-				WHERE el.allocation_id = q.allocation_id AND el.revoked = FALSE AND el.expires_at > $2
+				SELECT 1 FROM allocation_access_grants ag
+				WHERE ag.allocation_id = q.allocation_id AND ag.revoked = FALSE AND ag.expires_at > $2
 			),
 			EXISTS (
 				SELECT 1 FROM tunnel_sessions ts
@@ -69,8 +65,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, now
 		&out.Item.CreatedAt,
 		&out.Item.UpdatedAt,
 		&clearanceInput.AllocationState,
-		&clearanceInput.HasActiveReservation,
-		&clearanceInput.HasActiveLease,
+		&clearanceInput.HasActiveAccessGrant,
 		&clearanceInput.HasActiveTunnelSession,
 		&clearanceInput.RunStatus,
 	)
@@ -135,7 +130,7 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	if tag.RowsAffected() == 0 {
 		return grpcstatus.Errorf(codes.FailedPrecondition, "run allocation lifecycle retry %q cannot be failed because the run is already terminal", item.AllocationID)
 	}
-	if err := revokeActiveAllocationLeases(ctx, tx, item.AllocationID); err != nil {
+	if err := revokeActiveAllocationAccessGrants(ctx, tx, item.AllocationID); err != nil {
 		return err
 	}
 	if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{
@@ -149,7 +144,7 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	if _, err := tx.Exec(ctx, `
 		UPDATE allocation_reconcile_queue
 		SET reconcile_attempts = 0, next_run_at = $2,
-			last_error = '', lease_owner = '', lease_expires_at = NULL, updated_at = $2
+			last_error = '', claim_owner = '', claim_expires_at = NULL, updated_at = $2
 		WHERE allocation_id = $1
 	`, item.AllocationID, now.UTC()); err != nil {
 		return fmt.Errorf("schedule cleanup after failed allocation create: %w", err)
@@ -157,53 +152,53 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	return nil
 }
 
-func revokeActiveAllocationLeases(ctx context.Context, tx pgx.Tx, allocationID string) error {
+func revokeActiveAllocationAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) error {
 	rows, err := tx.Query(ctx, `
-		SELECT lease_id
-		FROM execution_leases
+		SELECT grant_id
+		FROM allocation_access_grants
 		WHERE allocation_id = $1 AND revoked = FALSE
 		FOR UPDATE
 	`, strings.TrimSpace(allocationID))
 	if err != nil {
-		return fmt.Errorf("query active allocation leases: %w", err)
+		return fmt.Errorf("query active allocation access grants: %w", err)
 	}
 	defer rows.Close()
-	leaseIDs := make([]string, 0)
+	grantIDs := make([]string, 0)
 	for rows.Next() {
-		var leaseID string
-		if err := rows.Scan(&leaseID); err != nil {
+		var grantID string
+		if err := rows.Scan(&grantID); err != nil {
 			return err
 		}
-		leaseIDs = append(leaseIDs, leaseID)
+		grantIDs = append(grantIDs, grantID)
 	}
 	if err := rows.Err(); err != nil {
 		return err
 	}
-	for _, leaseID := range leaseIDs {
-		revision, err := nextLeaseRevision(ctx, tx)
+	for _, grantID := range grantIDs {
+		revision, err := nextAccessGrantRevision(ctx, tx)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
-			UPDATE execution_leases
+			UPDATE allocation_access_grants
 			SET revoked = TRUE, revision = $2
-			WHERE lease_id = $1
-		`, leaseID, revision); err != nil {
-			return fmt.Errorf("revoke allocation lease %s: %w", leaseID, err)
+			WHERE grant_id = $1
+		`, grantID, revision); err != nil {
+			return fmt.Errorf("revoke allocation access grant %s: %w", grantID, err)
 		}
 	}
 	return nil
 }
 
-func nextLeaseRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
+func nextAccessGrantRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
 	var revision int64
 	if err := tx.QueryRow(ctx, `
 		UPDATE control_revisions
 		SET revision = revision + 1
 		WHERE name = $1
 		RETURNING revision
-	`, leaseRevisionName).Scan(&revision); err != nil {
-		return 0, fmt.Errorf("next lease revision: %w", err)
+	`, accessGrantRevisionName).Scan(&revision); err != nil {
+		return 0, fmt.Errorf("next allocation access grant revision: %w", err)
 	}
 	return revision, nil
 }
@@ -223,27 +218,16 @@ func deleteLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string) e
 }
 
 func requireNoActiveAllocationCleanupState(ctx context.Context, tx pgx.Tx, allocationID string, now time.Time) error {
-	var activeReservations int
+	var activeAccessGrants int
 	if err := tx.QueryRow(ctx, `
 		SELECT COUNT(*)
-		FROM reservations
-		WHERE allocation_id = $1 AND released_at IS NULL
-	`, strings.TrimSpace(allocationID)).Scan(&activeReservations); err != nil {
-		return fmt.Errorf("count active allocation reservations: %w", err)
-	}
-	if activeReservations > 0 {
-		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q has active reservations", allocationID)
-	}
-	var activeLeases int
-	if err := tx.QueryRow(ctx, `
-		SELECT COUNT(*)
-		FROM execution_leases
+		FROM allocation_access_grants
 		WHERE allocation_id = $1 AND revoked = FALSE AND expires_at > $2
-	`, strings.TrimSpace(allocationID), now.UTC()).Scan(&activeLeases); err != nil {
-		return fmt.Errorf("count active allocation leases: %w", err)
+	`, strings.TrimSpace(allocationID), now.UTC()).Scan(&activeAccessGrants); err != nil {
+		return fmt.Errorf("count active allocation access grants: %w", err)
 	}
-	if activeLeases > 0 {
-		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q has active leases", allocationID)
+	if activeAccessGrants > 0 {
+		return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q has active allocation access grants", allocationID)
 	}
 	var activeTunnels int
 	if err := tx.QueryRow(ctx, `

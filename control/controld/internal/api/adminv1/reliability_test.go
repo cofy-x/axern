@@ -19,18 +19,18 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 		Now: func() time.Time { return now },
 		Reliability: fakeReliability{
 			snapshot: consistencykernel.NewSnapshot(consistencykernel.Counts{
-				ActiveReservations: 3,
-				ActiveLeases:       2,
+				ActiveAllocations:  3,
+				ActiveAccessGrants: 2,
 				ActiveTunnels:      1,
 				ReconcileQueue:     4,
 			}, []consistencykernel.Issue{{
-				Code:         consistencykernel.IssueActiveReservationOnReleasedAllocation,
+				Code:         consistencykernel.IssueActiveAccessGrantOnEndedAllocation,
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-a",
 				RunID:        "run-a",
 				NodeID:       "node-a",
 				Status:       "ALLOCATION_LIFECYCLE_STATE_RELEASED",
-				Detail:       "active reservation remains after allocation release completed",
+				Detail:       "active access grant remains after allocation ended",
 			}}, true),
 		},
 	})
@@ -43,17 +43,17 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 	if got.GetStatus() != adminv1.ConsistencyStatus_CONSISTENCY_STATUS_INCONSISTENT || !got.GetTruncated() {
 		t.Fatalf("snapshot status/truncated = %s/%v", got.GetStatus(), got.GetTruncated())
 	}
-	if got.GetCounts().GetActiveReservations() != 3 || got.GetCounts().GetAllocationLifecycleRetries() != 4 || got.GetCounts().GetIssues() != 1 {
+	if got.GetCounts().GetActiveAllocations() != 3 || got.GetCounts().GetAllocationLifecycleRetries() != 4 || got.GetCounts().GetIssues() != 1 {
 		t.Fatalf("counts = %+v", got.GetCounts())
 	}
-	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_RELEASED_ALLOCATION {
+	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION {
 		t.Fatalf("issues = %+v", got.GetIssues())
 	}
 	issue := got.GetIssues()[0]
-	if issue.GetRepairOwner() != adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER ||
-		issue.GetRepairAction() != adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP ||
-		issue.GetRepairTargetType() != adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_RUN ||
-		issue.GetRepairTargetID() != "run-a" ||
+	if issue.GetRepairOwner() != adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE ||
+		issue.GetRepairAction() != adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE ||
+		issue.GetRepairTargetType() != adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION ||
+		issue.GetRepairTargetID() != "alloc-a" ||
 		issue.GetAutomaticRepair() {
 		t.Fatalf("issue repair plan = owner:%s action:%s target:%s/%s automatic:%v", issue.GetRepairOwner(), issue.GetRepairAction(), issue.GetRepairTargetType(), issue.GetRepairTargetID(), issue.GetAutomaticRepair())
 	}

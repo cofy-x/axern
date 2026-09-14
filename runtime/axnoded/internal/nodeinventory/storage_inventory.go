@@ -90,11 +90,11 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 			entry.SystemReserveBytes = target.SystemReserveBytes
 			entry.AllocatableBytes = max(entry.CapacityBytes-target.SystemReserveBytes, 0)
 			if target.Target == StorageTargetRuntimeFilestore {
-				entry.ReservedBytes, entry.ActiveReservations = readWritableReservations(filepath.Join(target.Path, "reservations"))
+				entry.ChargedBytes, entry.ActiveAllocations = readWritableCharges(filepath.Join(target.Path, "allocation-charges"))
 				entry.AllocationUsedBytes = readVisibleWritableUsage(target.Path)
-				entry.UnlinkedBackingUsageUnknown = hasWritableReservations(filepath.Join(target.Path, "reservations"))
+				entry.UnlinkedBackingUsageUnknown = hasWritableCharges(filepath.Join(target.Path, "allocation-charges"))
 				entry.FilesystemType, entry.MountIdentity = storageMountFacts(target.Path)
-				snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes = entry.ReservedBytes
+				snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes = entry.ChargedBytes
 				snapshot.Resources.EphemeralStorage.AxnodedUsedBytes = entry.AllocationUsedBytes
 				snapshot.Node.Capacity.EphemeralStorageBytes = entry.CapacityBytes
 				snapshot.Node.Allocatable.EphemeralStorageBytes = entry.AllocatableBytes
@@ -136,7 +136,7 @@ func readVisibleWritableUsage(filestore string) int64 {
 	return used
 }
 
-func hasWritableReservations(dir string) bool {
+func hasWritableCharges(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
@@ -150,7 +150,7 @@ func hasWritableReservations(dir string) bool {
 	return false
 }
 
-func readWritableReservations(dir string) (int64, int64) {
+func readWritableCharges(dir string) (int64, int64) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0, 0

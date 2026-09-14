@@ -144,7 +144,7 @@ func TestRunscForceDeleteDoesNotDeleteBeforeForegroundExit(t *testing.T) {
 	}
 }
 
-func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T) {
+func TestDeleteReleasesWritableChargeWhenExitStateRemovalFails(t *testing.T) {
 	rootDir := t.TempDir()
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: rootDir},
@@ -160,7 +160,7 @@ func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T
 		t.Fatal(err)
 	}
 	handler.writableCapacity = manager
-	if err := manager.Reserve("alloc-a", config.RuntimeNameRunsc, 1, 1); err != nil {
+	if err := manager.Charge("alloc-a", config.RuntimeNameRunsc, 1, 1); err != nil {
 		t.Fatal(err)
 	}
 	handler.common.SetExecutor(&recordingExecutor{})
@@ -173,8 +173,8 @@ func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T
 	if err == nil {
 		t.Fatal("expected exit-state removal error")
 	}
-	if hasWritableReservation(manager, "alloc-a") {
-		t.Fatal("writable reservation must be released after rootfs cleanup succeeds")
+	if hasWritableCharge(manager, "alloc-a") {
+		t.Fatal("writable charge must be released after rootfs cleanup succeeds")
 	}
 }
 
@@ -196,12 +196,12 @@ func assertDeleteRemovesExitState(
 	}
 }
 
-func hasWritableReservation(manager *writableCapacityManager, containerID string) bool {
+func hasWritableCharge(manager *writableCapacityManager, containerID string) bool {
 	if manager == nil {
 		return false
 	}
 	manager.mu.Lock()
 	defer manager.mu.Unlock()
-	_, found := manager.reservations[containerID]
+	_, found := manager.charges[containerID]
 	return found
 }

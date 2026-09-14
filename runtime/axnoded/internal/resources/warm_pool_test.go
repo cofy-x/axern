@@ -430,7 +430,7 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 
 	conformance, err := manager.Allocate(AllocateOption{
 		ContainerID: "self-test", MemoryRequestBytes: 256 << 20, MemoryLimitBytes: 256 << 20,
-		CapacityReservationBytes: 512 << 20, RuntimeName: "runsc",
+		CapacityChargeBytes: 512 << 20, RuntimeName: "runsc",
 		CgroupOwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
 	})
 	if err != nil {
@@ -440,8 +440,8 @@ func TestRuntimeConformanceUsesReservedDomainWithoutConsumingWorkloadCapacity(t 
 		t.Fatalf("conformance root = %q, want %q", got, manager.conformanceRoot)
 	}
 	lease, ok := manager.leases.Get(conformance.ToString())
-	if !ok || lease.GetMemoryRequestBytes() != 256<<20 || lease.GetMemoryLimitBytes() != 256<<20 || lease.GetCapacityReservationBytes() != 512<<20 {
-		t.Fatalf("certification reservation changed workload enforcement: %+v", lease)
+	if !ok || lease.GetMemoryRequestBytes() != 256<<20 || lease.GetMemoryLimitBytes() != 256<<20 || lease.GetCapacityChargeBytes() != 512<<20 {
+		t.Fatalf("certification capacity charge changed workload enforcement: %+v", lease)
 	}
 	commitment := manager.MemoryCommitment()
 	if commitment.CommittedBytes != 0 || commitment.ConformanceBytes != 512<<20 {
@@ -493,7 +493,7 @@ func TestWorkloadCgroupCountPreservesStaleRootCapacityDebt(t *testing.T) {
 	}
 }
 
-func TestConcurrentInventoryRefreshAndWorkloadAdmissionDoNotRaceRuntimeConformanceReservation(t *testing.T) {
+func TestConcurrentInventoryRefreshAndWorkloadAdmissionDoNotRaceRuntimeConformanceCharge(t *testing.T) {
 	const (
 		workloadCount = 32
 		refreshCount  = 64

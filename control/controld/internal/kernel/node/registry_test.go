@@ -82,10 +82,6 @@ func TestDebugNodesClassifiesFreshness(t *testing.T) {
 func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 	return &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(collectedAt),
-		Resources: &nodev1.ResourcesSummary{
-			AxnodedUsedMilli: 100,
-			AxnodedUsedBytes: 1000,
-		},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded: &nodev1.AxnodedSummary{
 				State: nodev1.ComponentState_COMPONENT_STATE_READY,

@@ -1,4 +1,4 @@
-package leasekernel
+package accessgrantkernel
 
 import (
 	"crypto/sha256"
@@ -8,9 +8,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func NewPlaintextToken() string {
-	return uuid.NewString()
-}
+func NewPlaintextToken() string { return uuid.NewString() }
 
 func HashToken(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))

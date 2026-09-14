@@ -51,10 +51,10 @@ func candidateTerminalRuns(ctx context.Context, tx pgx.Tx, req terminalRunRetent
 		  )
 		  AND NOT EXISTS (
 			SELECT 1
-			FROM execution_leases l
-			WHERE l.allocation_id = a.allocation_id
-			  AND l.revoked = FALSE
-			  AND l.expires_at >= $3
+			FROM allocation_access_grants ag
+			WHERE ag.allocation_id = a.allocation_id
+			  AND ag.revoked = FALSE
+			  AND ag.expires_at >= $3
 		  )
 		  AND NOT EXISTS (
 			SELECT 1

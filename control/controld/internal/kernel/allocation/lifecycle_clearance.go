@@ -12,8 +12,7 @@ type LifecycleRetryClearanceInput struct {
 	AllocationID           string
 	AllocationState        string
 	RunStatus              string
-	HasActiveReservation   bool
-	HasActiveLease         bool
+	HasActiveAccessGrant   bool
 	HasActiveTunnelSession bool
 }
 
@@ -27,11 +26,8 @@ func EvaluateLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleR
 	if ParseLifecycleState(allocationState) != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
 		return blockedLifecycleRetryClearance("allocation lifecycle state is %s", statusOrUnknown(allocationState))
 	}
-	if in.HasActiveReservation {
-		return blockedLifecycleRetryClearance("active reservations")
-	}
-	if in.HasActiveLease {
-		return blockedLifecycleRetryClearance("active leases")
+	if in.HasActiveAccessGrant {
+		return blockedLifecycleRetryClearance("active allocation access grants")
 	}
 	if in.HasActiveTunnelSession {
 		return blockedLifecycleRetryClearance("active tunnel sessions")

@@ -26,15 +26,15 @@ type NamespaceQuotaEventJSON struct {
 	EnvironmentID                  string `json:"environment_id"`
 	Reason                         string `json:"reason"`
 	RequestedCPUMilli              int64  `json:"requested_cpu_milli"`
-	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
+	UsedCPUMilli                   int64  `json:"used_cpu_milli"`
 	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
 	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
 	RequestedMemoryBytes           int64  `json:"requested_memory_bytes"`
-	ReservedMemoryBytes            int64  `json:"reserved_memory_bytes"`
+	UsedMemoryBytes                int64  `json:"used_memory_bytes"`
 	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
 	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
 	RequestedEphemeralStorageBytes int64  `json:"requested_ephemeral_storage_bytes"`
-	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
+	UsedEphemeralStorageBytes      int64  `json:"used_ephemeral_storage_bytes"`
 	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
 	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
 	CreatedAt                      string `json:"created_at,omitempty"`
@@ -44,12 +44,12 @@ type NamespaceQuotaJSON struct {
 	Namespace                      string `json:"namespace"`
 	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
 	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
-	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
-	ReservedMemoryBytes            int64  `json:"reserved_memory_bytes"`
+	UsedCPUMilli                   int64  `json:"used_cpu_milli"`
+	UsedMemoryBytes                int64  `json:"used_memory_bytes"`
 	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
 	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
 	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
-	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
+	UsedEphemeralStorageBytes      int64  `json:"used_ephemeral_storage_bytes"`
 	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
 	CreatedAt                      string `json:"created_at,omitempty"`
 	UpdatedAt                      string `json:"updated_at,omitempty"`
@@ -92,15 +92,15 @@ func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQu
 		EnvironmentID:                  event.GetEnvironmentID(),
 		Reason:                         quotaEventReason(event.GetReason()),
 		RequestedCPUMilli:              event.GetRequestedCpuMilli(),
-		ReservedCPUMilli:               event.GetReservedCpuMilli(),
+		UsedCPUMilli:                   event.GetUsedCpuMilli(),
 		CPUMilliLimit:                  optionalWrapperInt64(event.GetCpuMilliLimit()),
 		AvailableCPUMilli:              optionalWrapperInt64(event.GetAvailableCpuMilli()),
 		RequestedMemoryBytes:           event.GetRequestedMemoryBytes(),
-		ReservedMemoryBytes:            event.GetReservedMemoryBytes(),
+		UsedMemoryBytes:                event.GetUsedMemoryBytes(),
 		MemoryBytesLimit:               optionalWrapperInt64(event.GetMemoryBytesLimit()),
 		AvailableMemoryBytes:           optionalWrapperInt64(event.GetAvailableMemoryBytes()),
 		RequestedEphemeralStorageBytes: event.GetRequestedEphemeralStorageBytes(),
-		ReservedEphemeralStorageBytes:  event.GetReservedEphemeralStorageBytes(),
+		UsedEphemeralStorageBytes:      event.GetUsedEphemeralStorageBytes(),
 		EphemeralStorageBytesLimit:     optionalWrapperInt64(event.GetEphemeralStorageBytesLimit()),
 		AvailableEphemeralStorageBytes: optionalWrapperInt64(event.GetAvailableEphemeralStorageBytes()),
 		CreatedAt:                      FormatProtoTimestamp(event.GetCreatedAt()),
@@ -115,12 +115,12 @@ func NewNamespaceQuotaJSON(quota *quotav1.NamespaceQuota) *NamespaceQuotaJSON {
 		Namespace:                      quota.GetNamespace(),
 		CPUMilliLimit:                  optionalWrapperInt64(quota.GetCpuMilliLimit()),
 		MemoryBytesLimit:               optionalWrapperInt64(quota.GetMemoryBytesLimit()),
-		ReservedCPUMilli:               quota.GetReservedCpuMilli(),
-		ReservedMemoryBytes:            quota.GetReservedMemoryBytes(),
+		UsedCPUMilli:                   quota.GetUsedCpuMilli(),
+		UsedMemoryBytes:                quota.GetUsedMemoryBytes(),
 		AvailableCPUMilli:              optionalWrapperInt64(quota.GetAvailableCpuMilli()),
 		AvailableMemoryBytes:           optionalWrapperInt64(quota.GetAvailableMemoryBytes()),
 		EphemeralStorageBytesLimit:     optionalWrapperInt64(quota.GetEphemeralStorageBytesLimit()),
-		ReservedEphemeralStorageBytes:  quota.GetReservedEphemeralStorageBytes(),
+		UsedEphemeralStorageBytes:      quota.GetUsedEphemeralStorageBytes(),
 		AvailableEphemeralStorageBytes: optionalWrapperInt64(quota.GetAvailableEphemeralStorageBytes()),
 		CreatedAt:                      FormatProtoTimestamp(quota.GetCreatedAt()),
 		UpdatedAt:                      FormatProtoTimestamp(quota.GetUpdatedAt()),

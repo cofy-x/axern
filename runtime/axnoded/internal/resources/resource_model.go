@@ -22,7 +22,7 @@ type MemoryCommitment struct {
 
 // MemoryCapacitySnapshot is the latest node-observed local admission boundary.
 // The resource manager consumes it under the same lock that persists allocation
-// ownership, making capacity check and reservation one atomic operation.
+// ownership, making capacity check and charging one atomic operation.
 type MemoryCapacitySnapshot struct {
 	// Unavailable is an explicit invalidation publication. It clears any prior
 	// sample so a recently healthy capacity cannot remain admissible after a

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	"github.com/cofy-x/axern/lib/go/memorybudget"
@@ -70,7 +71,7 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 	if s.deps.Reporter == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "node reporter is unavailable")
 	}
-	err := s.deps.Reporter.Report(ctx, nodekernel.ReportParams{
+	allocationIDs, err := s.deps.Reporter.Report(ctx, nodekernel.ReportParams{
 		NodeID:        nodeID,
 		NodeTarget:    req.GetNodeTarget(),
 		Summary:       req.GetSummary(),
@@ -86,7 +87,14 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 		return nil, grpcstatus.Errorf(codes.Internal, "persist node report: %v", err)
 	}
 	span.SetAttributes(attribute.String(sdkobs.AttrResult, "ok"))
-	return &controlnodev1.ReportNodeResponse{}, nil
+	response := &controlnodev1.ReportNodeResponse{}
+	for _, allocationID := range allocationIDs {
+		response.ExecutionLeases = append(response.ExecutionLeases, &controlnodev1.AllocationExecutionLease{
+			AllocationID: allocationID,
+			TtlSeconds:   int64(allocationkernel.ExecutionLeaseTTL / time.Second),
+		})
+	}
+	return response, nil
 }
 
 func validateNodeMemoryBudget(summary *controlnodev1.NodeSummary, now time.Time) error {
@@ -266,7 +274,7 @@ func allocationReportErrorClass(err error) string {
 	return "error"
 }
 
-func (s *Server) WatchExecutionLeases(req *controlnodev1.WatchExecutionLeasesRequest, stream controlnodev1.NodeControl_WatchExecutionLeasesServer) error {
+func (s *Server) WatchAllocationAccessGrants(req *controlnodev1.WatchAllocationAccessGrantsRequest, stream controlnodev1.NodeControl_WatchAllocationAccessGrantsServer) error {
 	nodeID := strings.TrimSpace(req.GetNodeID())
 	if nodeID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "node_id is required")
@@ -276,27 +284,27 @@ func (s *Server) WatchExecutionLeases(req *controlnodev1.WatchExecutionLeasesReq
 	}
 	revision := req.GetAfterRevision()
 	for {
-		records, current, err := s.deps.Allocations.WatchExecutionLeases(stream.Context(), nodeID, revision, s.deps.Now())
+		records, current, err := s.deps.Allocations.WatchAllocationAccessGrants(stream.Context(), nodeID, revision, s.deps.Now())
 		if err != nil {
 			return err
 		}
 		if current <= revision {
-			return grpcstatus.Error(codes.Internal, "execution lease watch returned a non-advancing revision")
+			return grpcstatus.Error(codes.Internal, "allocation access grant watch returned a non-advancing revision")
 		}
-		grants := make([]*controlnodev1.NodeExecutionGrant, 0, len(records))
+		grants := make([]*controlnodev1.NodeAllocationAccessGrant, 0, len(records))
 		for _, record := range records {
 			if record == nil {
 				continue
 			}
-			grants = append(grants, &controlnodev1.NodeExecutionGrant{
-				LeaseID:             record.LeaseID,
+			grants = append(grants, &controlnodev1.NodeAllocationAccessGrant{
+				GrantID:             record.GrantID,
 				AllocationID:        record.AllocationID,
 				ValidationTokenHash: record.ValidationTokenHash,
 				ExpiresAt:           timestamppb.New(record.ExpiresAt),
 				Revoked:             record.Revoked,
 			})
 		}
-		if err := stream.Send(&controlnodev1.WatchExecutionLeasesResponse{Grants: grants, CurrentRevision: current}); err != nil {
+		if err := stream.Send(&controlnodev1.WatchAllocationAccessGrantsResponse{Grants: grants, CurrentRevision: current}); err != nil {
 			return err
 		}
 		revision = current

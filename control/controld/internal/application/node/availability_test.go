@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
@@ -101,6 +101,9 @@ func (f *fakeAvailabilityNodeStore) Authenticate(context.Context, string, string
 type fakeAvailabilityAllocations struct {
 	unavailableNodeIDs []string
 	errByNodeID        map[string]error
+	executionIDs       []string
+	executionListCalls int
+	inventoryCalls     int
 }
 
 func (f *fakeAvailabilityAllocations) BatchReportAllocationCapabilityConditions(context.Context, string, []*nodev1.AllocationCapabilityConditionReport, time.Time) error {
@@ -134,9 +137,15 @@ func (f *fakeAvailabilityAllocations) BatchReportAllocationLifecycle(context.Con
 }
 
 func (f *fakeAvailabilityAllocations) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {
-	panic("unexpected ReconcileNodeInventory call")
+	f.inventoryCalls++
+	return nil
 }
 
-func (f *fakeAvailabilityAllocations) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*leasekernel.Record, int64, error) {
-	panic("unexpected WatchExecutionLeases call")
+func (f *fakeAvailabilityAllocations) WatchAllocationAccessGrants(context.Context, string, int64, time.Time) ([]*accessgrantkernel.Record, int64, error) {
+	panic("unexpected WatchAllocationAccessGrants call")
+}
+
+func (f *fakeAvailabilityAllocations) ListNodeExecutionAllocationIDs(context.Context, string) ([]string, error) {
+	f.executionListCalls++
+	return append([]string(nil), f.executionIDs...), nil
 }

@@ -39,7 +39,7 @@ func (p *recordingRuntimeArtifactProvider) ReconcileRuntimeViews(_ context.Conte
 func TestReconcileRuntimeArtifactsUsesOnlyRuntimeInventoryForLiveness(t *testing.T) {
 	views := &recordingRuntimeArtifactProvider{}
 	capacity := newTestWritableCapacityManager(t, 0)
-	require.NoError(t, capacity.Reserve("orphan", "runsc", 1, 1))
+	require.NoError(t, capacity.Charge("orphan", "runsc", 1, 1))
 
 	err := reconcileRuntimeArtifacts(
 		context.Background(),
@@ -52,7 +52,7 @@ func TestReconcileRuntimeArtifactsUsesOnlyRuntimeInventoryForLiveness(t *testing
 	assert.Equal(t, 1, views.reconcileCalls)
 	assert.Empty(t, views.retained)
 	assert.Equal(t, []string{"orphan"}, views.removed)
-	assert.NotContains(t, capacity.reservations, "orphan")
+	assert.NotContains(t, capacity.charges, "orphan")
 }
 
 func TestReconcileRuntimeArtifactsRetainsRuntimeInventory(t *testing.T) {
@@ -69,10 +69,10 @@ func TestReconcileRuntimeArtifactsRetainsRuntimeInventory(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"live": {}}, views.retained)
 }
 
-func TestReconcileRuntimeArtifactsPreservesReservationWhenCleanupFails(t *testing.T) {
+func TestReconcileRuntimeArtifactsPreservesChargeWhenCleanupFails(t *testing.T) {
 	views := &recordingRuntimeArtifactProvider{removeErr: errors.New("projection is still mounted")}
 	capacity := newTestWritableCapacityManager(t, 0)
-	require.NoError(t, capacity.Reserve("orphan", "runsc", 1, 1))
+	require.NoError(t, capacity.Charge("orphan", "runsc", 1, 1))
 
 	err := reconcileRuntimeArtifacts(
 		context.Background(),
@@ -81,9 +81,9 @@ func TestReconcileRuntimeArtifactsPreservesReservationWhenCleanupFails(t *testin
 		views,
 		capacity,
 	)
-	require.ErrorContains(t, err, "cleanup stale ephemeral storage reservation")
+	require.ErrorContains(t, err, "cleanup stale ephemeral storage charge")
 	assert.Equal(t, []string{"orphan"}, views.removed)
-	assert.Contains(t, capacity.reservations, "orphan", "failed cleanup must retain the durable reservation")
+	assert.Contains(t, capacity.charges, "orphan", "failed cleanup must retain the durable charge")
 }
 
 func TestReconcileRuntimeArtifactsReportsActiveViewDegradation(t *testing.T) {

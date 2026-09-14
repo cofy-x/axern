@@ -110,7 +110,6 @@ func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		CollectedAt:        timestamppb.New(collectedAt),
 		NodeState:          nodev1.NodeState_NODE_STATE_READY,
 		CapabilitySnapshot: readyCapabilitySnapshot(collectedAt),
-		Resources:          &nodev1.ResourcesSummary{AxnodedUsedMilli: 100, AxnodedUsedBytes: 1000},
 		Allocatable:        &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30, EphemeralStorageBytes: 64 << 30},
 		Capacity:           &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 20 << 30, EphemeralStorageBytes: 64 << 30},
 		MemoryBudget: &nodev1.NodeMemoryBudget{

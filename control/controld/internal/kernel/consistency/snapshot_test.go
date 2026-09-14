@@ -3,8 +3,8 @@ package consistencykernel
 import "testing"
 
 func TestNewSnapshotStatusAndTruncation(t *testing.T) {
-	snapshot := NewSnapshot(Counts{ActiveReservations: 3}, []Issue{{
-		Code:     IssueActiveReservationOnReleasedAllocation,
+	snapshot := NewSnapshot(Counts{ActiveAllocations: 3}, []Issue{{
+		Code:     IssueActiveAccessGrantOnEndedAllocation,
 		Severity: SeverityError,
 	}}, true)
 

@@ -32,7 +32,7 @@ run_local_quota_admission_smoke() {
   quota_list="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" quota list --constrained --sort pressure -o json)"
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert any(item["namespace"] == sys.argv[1] for item in data["quotas"])' "${namespace}" <<<"${quota_list}" >/dev/null
   quota_list="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" quota list --pressure -o json)"
-  python3 -c 'import json,sys; data=json.load(sys.stdin); assert all(max((item.get("reserved_cpu_milli") or 0) * 100 // item["cpu_milli_limit"] if item.get("cpu_milli_limit") else 0, (item.get("reserved_memory_bytes") or 0) * 100 // item["memory_bytes_limit"] if item.get("memory_bytes_limit") else 0) >= 80 for item in data.get("quotas", []))' <<<"${quota_list}" >/dev/null
+  python3 -c 'import json,sys; data=json.load(sys.stdin); assert all(max((item.get("used_cpu_milli") or 0) * 100 // item["cpu_milli_limit"] if item.get("cpu_milli_limit") else 0, (item.get("used_memory_bytes") or 0) * 100 // item["memory_bytes_limit"] if item.get("memory_bytes_limit") else 0) >= 80 for item in data.get("quotas", []))' <<<"${quota_list}" >/dev/null
   env_json="$(local_smoke_create_environment "${namespace}")"
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"
 

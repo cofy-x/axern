@@ -170,7 +170,7 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	controller := service.allocationController()
 	const allocationID = "interrupted-before-oci-create"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, nil, nil))
+	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 
@@ -192,7 +192,10 @@ func TestCleanupInterruptedAllocationStartDeletesOrphanedRecoveryRecord(t *testi
 	controller := service.allocationController()
 	const allocationID = "orphaned-create-intent"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	record := &runtimeapi.AllocationState{AllocationID: allocationID, NodeID: "node-a", AllocationRequestDigest: digest}
+	record := &runtimeapi.AllocationState{
+		AllocationID: allocationID, NodeID: "node-a", AllocationRequestDigest: digest,
+		ExecutionLeaseExpiresAtUnixNano: time.Now().Add(time.Minute).UnixNano(),
+	}
 	require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, allocationID, record))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)

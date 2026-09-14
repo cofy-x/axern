@@ -21,14 +21,14 @@ type Dialer interface {
 	NodeSandbox(ctx context.Context, target string) (nodesandboxv1.NodeSandboxClient, error)
 }
 
-type LeaseRetryObserver interface {
-	LeaseRetry(routeType string)
+type AccessGrantRetryObserver interface {
+	AccessGrantRetry(routeType string)
 }
 
 type Options struct {
-	LeaseRetryAttempts int
-	LeaseRetryDelay    time.Duration
-	ClientFingerprint  func(context.Context) (string, error)
+	AccessGrantRetryAttempts int
+	AccessGrantRetryDelay    time.Duration
+	ClientFingerprint        func(context.Context) (string, error)
 }
 
 type Server struct {
@@ -37,15 +37,15 @@ type Server struct {
 	resolver Resolver
 	dialer   Dialer
 	options  Options
-	metrics  LeaseRetryObserver
+	metrics  AccessGrantRetryObserver
 }
 
-func New(resolver Resolver, dialer Dialer, options Options, metrics LeaseRetryObserver) *Server {
-	if options.LeaseRetryAttempts <= 0 {
-		options.LeaseRetryAttempts = 3
+func New(resolver Resolver, dialer Dialer, options Options, metrics AccessGrantRetryObserver) *Server {
+	if options.AccessGrantRetryAttempts <= 0 {
+		options.AccessGrantRetryAttempts = 3
 	}
-	if options.LeaseRetryDelay <= 0 {
-		options.LeaseRetryDelay = 500 * time.Millisecond
+	if options.AccessGrantRetryDelay <= 0 {
+		options.AccessGrantRetryDelay = 500 * time.Millisecond
 	}
 	if options.ClientFingerprint == nil {
 		options.ClientFingerprint = auth.CertificateFingerprint
@@ -332,16 +332,16 @@ func (s *Server) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) e
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "exec stream must start with open")
 	}
-	return s.withResolvedClient(stream.Context(), open, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
+	return s.withResolvedClient(stream.Context(), open, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		up, err := client.ExecStream(backendCtx)
 		if err != nil {
 			return err
 		}
 		defer up.CloseSend()
 		if err := up.Send(first); err != nil {
-			return markLeaseOpenRejection(err)
+			return markAccessGrantOpenRejection(err)
 		}
-		header, err := acceptedExecutionLeaseHeader(up, "exec stream", func() error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "exec stream", func() error {
 			_, err := up.Recv()
 			return err
 		})
@@ -364,13 +364,13 @@ func (s *Server) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "process stream must start with open")
 	}
-	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (processClient, error) {
+	return bidi(s, stream.Context(), open, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (processClient, error) {
 		return client.Process(backendCtx)
 	}, func(up processClient) error {
 		if err := up.Send(first); err != nil {
-			return markLeaseOpenRejection(err)
+			return markAccessGrantOpenRejection(err)
 		}
-		header, err := acceptedExecutionLeaseHeader(up, "process", func() error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "process", func() error {
 			_, err := up.Recv()
 			return err
 		})
@@ -400,13 +400,13 @@ func (s *Server) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer) err
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "proxy http stream must start with open")
 	}
-	return bidi(s, stream.Context(), open, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (proxyHTTPClient, error) {
+	return bidi(s, stream.Context(), open, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (proxyHTTPClient, error) {
 		return client.ProxyHTTP(backendCtx)
 	}, func(up proxyHTTPClient) error {
 		if err := up.Send(first); err != nil {
-			return markLeaseOpenRejection(err)
+			return markAccessGrantOpenRejection(err)
 		}
-		header, err := acceptedExecutionLeaseHeader(up, "proxy http", func() error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "proxy http", func() error {
 			_, err := up.Recv()
 			return err
 		})
@@ -430,13 +430,13 @@ func (s *Server) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchiveSer
 		return grpcstatus.Error(codes.InvalidArgument, "upload archive stream must start with open")
 	}
 	var response *nodesandboxv1.UploadArchiveResponse
-	err = bidi(s, stream.Context(), open, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (uploadArchiveClient, error) {
+	err = bidi(s, stream.Context(), open, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (uploadArchiveClient, error) {
 		return client.UploadArchive(backendCtx)
 	}, func(up uploadArchiveClient) error {
 		if err := up.Send(first); err != nil {
-			return markLeaseOpenRejection(err)
+			return markAccessGrantOpenRejection(err)
 		}
-		header, err := acceptedExecutionLeaseHeader(up, "archive upload", func() error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "archive upload", func() error {
 			_, err := up.CloseAndRecv()
 			return err
 		})
@@ -469,10 +469,10 @@ func (s *Server) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchiveSer
 }
 
 func (s *Server) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stream nodesandboxv1.NodeSandbox_DownloadArchiveServer) error {
-	return serverStream(s, stream.Context(), req, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (downloadArchiveClient, error) {
+	return serverStream(s, stream.Context(), req, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (downloadArchiveClient, error) {
 		return client.DownloadArchive(backendCtx, req)
 	}, func(up downloadArchiveClient) error {
-		header, err := acceptedExecutionLeaseHeader(up, "archive download", func() error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "archive download", func() error {
 			_, err := up.Recv()
 			return err
 		})
@@ -498,10 +498,10 @@ func (s *Server) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stre
 }
 
 func (s *Server) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	return serverStreamForPurpose(s, stream.Context(), req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, isLeaseOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
+	return serverStreamForPurpose(s, stream.Context(), req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_ReadOutputClient, error) {
 		return client.ReadOutput(backendCtx, req)
 	}, func(up nodesandboxv1.NodeSandbox_ReadOutputClient) error {
-		header, err := acceptedExecutionLeaseHeader(up, "run output", func() error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "run output", func() error {
 			_, err := up.Recv()
 			return err
 		})

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	obsmetrics "github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
@@ -21,11 +22,14 @@ import (
 
 type nodeLifecycleServer struct {
 	nodelifecyclev1.UnimplementedNodeLifecycleServer
-	svc    serviceLike
-	nodeID string
+	svc        serviceLike
+	nodeID     string
+	allowLocal bool
 }
 
 type serviceLike interface {
+	Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
+	Delete(context.Context, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	StartControlPlaneAllocation(context.Context, string, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
 	DeleteControlPlaneAllocation(context.Context, string, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	HasControlPlaneAllocation(string, string) bool
@@ -52,6 +56,18 @@ func NewNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1.Node
 	}
 }
 
+// NewLocalNodeLifecycleServer exposes the same lifecycle protocol on the
+// privileged node-local socket for runtime conformance verification. Local
+// allocations are deliberately unbound and never acquire control-plane
+// authority or enter node inventory.
+func NewLocalNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1.NodeLifecycleServer {
+	return &nodeLifecycleServer{
+		svc:        svc,
+		nodeID:     nodeID,
+		allowLocal: true,
+	}
+}
+
 func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
 	totalStarted := time.Now()
 	runtimeClass := "runsc"
@@ -65,7 +81,24 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
+	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	leaseTTL := time.Duration(req.GetExecutionLeaseTtlSeconds()) * time.Second
+	if requestNodeID == "" && !s.allowLocal {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID == "" && leaseTTL != 0 {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "node-local allocation cannot carry an execution lease")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID != "" && (leaseTTL <= 0 || leaseTTL > executionlease.TTL) {
+		resultErr = grpcstatus.Errorf(codes.InvalidArgument, "execution_lease_ttl_seconds must be between 1 and %d for a node-bound allocation", int64(executionlease.TTL/time.Second))
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID != "" && requestNodeID != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
@@ -80,7 +113,12 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageBuildStartRequest, runtimeClass, stageStarted, nil)
 	stageStarted = time.Now()
-	resp, err := s.svc.StartControlPlaneAllocation(ctx, s.nodeID, startReq)
+	var resp *runtimev1.StartResponse
+	if requestNodeID == "" {
+		resp, err = s.svc.Start(ctx, startReq)
+	} else {
+		resp, err = s.svc.StartControlPlaneAllocation(ctx, requestNodeID, startReq)
+	}
 	if err != nil {
 		resultErr = err
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, err)
@@ -133,14 +171,26 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
+	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	if requestNodeID == "" && !s.allowLocal {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID != "" && requestNodeID != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, nil)
 	stageStarted = time.Now()
-	_, err := s.svc.DeleteControlPlaneAllocation(ctx, s.nodeID, &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds()})
+	deleteRequest := &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds()}
+	var err error
+	if requestNodeID == "" {
+		_, err = s.svc.Delete(ctx, deleteRequest)
+	} else {
+		_, err = s.svc.DeleteControlPlaneAllocation(ctx, requestNodeID, deleteRequest)
+	}
 	if err != nil {
 		if allocationDeleteNotFound(err) {
 			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
@@ -183,10 +233,14 @@ func (s *nodeLifecycleServer) GetAllocationLifecycle(ctx context.Context, req *n
 	if strings.TrimSpace(req.GetAllocationID()) == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
+	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	if requestNodeID == "" && !s.allowLocal {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
+	}
+	if requestNodeID != "" && requestNodeID != s.nodeID {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 	}
-	if !s.svc.HasControlPlaneAllocation(req.GetAllocationID(), s.nodeID) {
+	if requestNodeID != "" && !s.svc.HasControlPlaneAllocation(req.GetAllocationID(), requestNodeID) {
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q is not admitted to this node", req.GetAllocationID())
 	}
 	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: req.GetAllocationID()})
@@ -249,6 +303,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
+		ExecutionLeaseTtlSeconds: req.GetExecutionLeaseTtlSeconds(),
 	}, nil
 }
 

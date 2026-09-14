@@ -18,8 +18,7 @@ func TestSnapshotReportsActiveDependentsOnEndedAllocation(t *testing.T) {
 
 	now := time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)
 	insertConsistencyAllocation(t, db, "alloc-ended", "run-ended", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(), now)
-	insertConsistencyReservation(t, db, "alloc-ended", now)
-	insertConsistencyLease(t, db, "lease-ended", "alloc-ended", now, now.Add(time.Hour))
+	insertConsistencyAccessGrant(t, db, "grant-ended", "alloc-ended", now, now.Add(time.Hour))
 	insertConsistencyTunnel(t, db, "tun-ended", "alloc-ended", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), now, now.Add(time.Hour))
 
 	snapshot, err := Snapshot(context.Background(), db.Pool(), now)
@@ -29,13 +28,12 @@ func TestSnapshotReportsActiveDependentsOnEndedAllocation(t *testing.T) {
 	if snapshot.Status != "inconsistent" {
 		t.Fatalf("status = %q, want inconsistent", snapshot.Status)
 	}
-	if snapshot.Counts.ActiveReservations != 1 || snapshot.Counts.ActiveLeases != 1 || snapshot.Counts.ActiveTunnels != 1 {
+	if snapshot.Counts.ActiveAllocations != 0 || snapshot.Counts.ActiveAccessGrants != 1 || snapshot.Counts.ActiveTunnels != 1 {
 		t.Fatalf("unexpected counts: %+v", snapshot.Counts)
 	}
 	wantCodes := map[string]bool{
-		"active_reservation_on_released_allocation": false,
-		"active_lease_on_ended_allocation":          false,
-		"active_tunnel_on_ended_allocation":         false,
+		"active_access_grant_on_ended_allocation": false,
+		"active_tunnel_on_ended_allocation":       false,
 	}
 	for _, issue := range snapshot.Issues {
 		if _, ok := wantCodes[string(issue.Code)]; ok {
@@ -58,8 +56,7 @@ func TestSnapshotReportsOKForReleasedDependents(t *testing.T) {
 
 	now := time.Date(2026, 5, 10, 9, 0, 0, 0, time.UTC)
 	insertConsistencyAllocation(t, db, "alloc-ok", "run-ok", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(), now)
-	insertReleasedConsistencyReservation(t, db, "alloc-ok", now)
-	insertConsistencyLeaseRevoked(t, db, "lease-ok", "alloc-ok", now, now.Add(time.Hour))
+	insertConsistencyAccessGrantRevoked(t, db, "grant-ok", "alloc-ok", now, now.Add(time.Hour))
 	insertConsistencyTunnel(t, db, "tun-ok", "alloc-ok", tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED.String(), now, now.Add(time.Hour))
 
 	snapshot, err := Snapshot(context.Background(), db.Pool(), now)
@@ -74,23 +71,22 @@ func TestSnapshotReportsOKForReleasedDependents(t *testing.T) {
 	}
 }
 
-func TestSnapshotAllowsReservationWhileAllocationIsReleasing(t *testing.T) {
+func TestSnapshotCountsResourceOwningAllocationWhileReleasing(t *testing.T) {
 	db := openConsistencyTestDB(t)
 	defer db.Close()
 
 	now := time.Date(2026, 5, 10, 9, 30, 0, 0, time.UTC)
 	insertConsistencyAllocation(t, db, "alloc-releasing", "run-releasing", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(), now)
-	insertConsistencyReservation(t, db, "alloc-releasing", now)
 
 	snapshot, err := Snapshot(context.Background(), db.Pool(), now)
 	if err != nil {
 		t.Fatalf("Snapshot() error = %v", err)
 	}
 	if snapshot.Status != "ok" || snapshot.Counts.Issues != 0 {
-		t.Fatalf("releasing allocation snapshot = %+v, want active reservation without consistency issue", snapshot)
+		t.Fatalf("releasing allocation snapshot = %+v, want resource-owning allocation without consistency issue", snapshot)
 	}
-	if snapshot.Counts.ActiveReservations != 1 {
-		t.Fatalf("active reservations = %d, want 1", snapshot.Counts.ActiveReservations)
+	if snapshot.Counts.ActiveAllocations != 1 {
+		t.Fatalf("active allocations = %d, want 1", snapshot.Counts.ActiveAllocations)
 	}
 }
 
@@ -132,56 +128,32 @@ func insertConsistencyAllocation(t *testing.T, db *postgres.DB, allocationID, ru
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO allocations (
-			allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at
-		) VALUES ($1, $2, 'node-test', $3, $4, $4)
+			allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at
+		) VALUES ($1, $2, 'node-test', $3, 1, $4, $4)
 	`, allocationID, runID, status, now.UTC()); err != nil {
 		t.Fatalf("insert allocation: %v", err)
 	}
 }
 
-func insertConsistencyReservation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
+func insertConsistencyAccessGrant(t *testing.T, db *postgres.DB, grantID, allocationID string, createdAt, expiresAt time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO reservations (
-			allocation_id, node_id,
-			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
-		) VALUES ($1, 'node-test', 500, 536870912, $2, NULL)
-	`, allocationID, now.UTC()); err != nil {
-		t.Fatalf("insert reservation: %v", err)
-	}
-}
-
-func insertReleasedConsistencyReservation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
-	t.Helper()
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO reservations (
-			allocation_id, node_id,
-			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
-		) VALUES ($1, 'node-test', 500, 536870912, $2, $2)
-	`, allocationID, now.UTC()); err != nil {
-		t.Fatalf("insert released reservation: %v", err)
-	}
-}
-
-func insertConsistencyLease(t *testing.T, db *postgres.DB, leaseID, allocationID string, createdAt, expiresAt time.Time) {
-	t.Helper()
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		INSERT INTO allocation_access_grants (
+			grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
 		) VALUES ($1, $2, 'node-test', $3, 1, FALSE, 'hash', $4)
-	`, leaseID, allocationID, expiresAt.UTC(), createdAt.UTC()); err != nil {
-		t.Fatalf("insert lease: %v", err)
+	`, grantID, allocationID, expiresAt.UTC(), createdAt.UTC()); err != nil {
+		t.Fatalf("insert allocation access grant: %v", err)
 	}
 }
 
-func insertConsistencyLeaseRevoked(t *testing.T, db *postgres.DB, leaseID, allocationID string, createdAt, expiresAt time.Time) {
+func insertConsistencyAccessGrantRevoked(t *testing.T, db *postgres.DB, grantID, allocationID string, createdAt, expiresAt time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		INSERT INTO allocation_access_grants (
+			grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
 		) VALUES ($1, $2, 'node-test', $3, 1, TRUE, 'hash', $4)
-	`, leaseID, allocationID, expiresAt.UTC(), createdAt.UTC()); err != nil {
-		t.Fatalf("insert revoked lease: %v", err)
+	`, grantID, allocationID, expiresAt.UTC(), createdAt.UTC()); err != nil {
+		t.Fatalf("insert revoked allocation access grant: %v", err)
 	}
 }
 

@@ -11,7 +11,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
-func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
+func TestWatchAllocationAccessGrantsWakesAfterCommittedNotification(t *testing.T) {
 	dsn := os.Getenv("AXERN_TEST_POSTGRES_DSN")
 	if dsn == "" {
 		t.Skip("AXERN_TEST_POSTGRES_DSN is not set")
@@ -25,12 +25,12 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 		t.Fatalf("apply migrations: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		DELETE FROM execution_leases;
+		DELETE FROM allocation_access_grants;
 		DELETE FROM runs WHERE run_id = 'run-watch';
 		DELETE FROM nodes WHERE node_id = 'node-a';
-		UPDATE control_revisions SET revision = 0 WHERE name = 'execution_leases'
+		UPDATE control_revisions SET revision = 0 WHERE name = 'allocation_access_grants'
 	`); err != nil {
-		t.Fatalf("reset leases: %v", err)
+		t.Fatalf("reset access grants: %v", err)
 	}
 	now := time.Now().UTC()
 	if _, err := db.Pool().Exec(context.Background(), `
@@ -53,8 +53,8 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 		t.Fatalf("insert lease run: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
-		VALUES ('alloc-watch', 'run-watch', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', $1, $1)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at)
+		VALUES ('alloc-watch', 'run-watch', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $1, $1)
 	`, now); err != nil {
 		t.Fatalf("insert lease allocation: %v", err)
 	}
@@ -70,8 +70,8 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	}
 	resultCh := make(chan result, 1)
 	go func() {
-		leases, revision, err := store.WatchExecutionLeases(ctx, "node-a", 0, time.Now().UTC())
-		resultCh <- result{count: len(leases), revision: revision, err: err}
+		grants, revision, err := store.WatchAllocationAccessGrants(ctx, "node-a", 0, time.Now().UTC())
+		resultCh <- result{count: len(grants), revision: revision, err: err}
 	}()
 
 	tx, err := db.Pool().Begin(ctx)
@@ -82,27 +82,27 @@ func TestWatchExecutionLeasesWakesAfterCommittedNotification(t *testing.T) {
 	var revision int64
 	if err := tx.QueryRow(ctx, `
 		UPDATE control_revisions SET revision = revision + 1
-		WHERE name = 'execution_leases' RETURNING revision
+		WHERE name = 'allocation_access_grants' RETURNING revision
 	`).Scan(&revision); err != nil {
 		t.Fatalf("advance revision: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO execution_leases (
-			lease_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
-		) VALUES ('lease-watch', 'alloc-watch', 'node-a', $1, $2, false, 'token-hash', $3)
+		INSERT INTO allocation_access_grants (
+			grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		) VALUES ('grant-watch', 'alloc-watch', 'node-a', $1, $2, false, 'token-hash', $3)
 	`, time.Now().Add(time.Minute).UTC(), revision, time.Now().UTC()); err != nil {
-		t.Fatalf("insert lease: %v", err)
+		t.Fatalf("insert access grant: %v", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
-		t.Fatalf("commit lease: %v", err)
+		t.Fatalf("commit access grant: %v", err)
 	}
 
 	got := <-resultCh
 	if got.err != nil {
-		t.Fatalf("WatchExecutionLeases() error = %v", got.err)
+		t.Fatalf("WatchAllocationAccessGrants() error = %v", got.err)
 	}
 	if got.count != 1 || got.revision != revision {
-		t.Fatalf("WatchExecutionLeases() = count %d revision %d, want 1/%d", got.count, got.revision, revision)
+		t.Fatalf("WatchAllocationAccessGrants() = count %d revision %d, want 1/%d", got.count, got.revision, revision)
 	}
 }
 
@@ -189,8 +189,8 @@ func insertRunQueryAllocationFixtures(t *testing.T, db *postgres.DB, now time.Ti
 	}
 	for allocationID, runID := range allocations {
 		if _, err := db.Pool().Exec(context.Background(), `
-			INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
-			VALUES ($1, $2, 'node-query-test', 'ALLOCATION_LIFECYCLE_STATE_BOUND', $3, $3)
+			INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at)
+			VALUES ($1, $2, 'node-query-test', 'ALLOCATION_LIFECYCLE_STATE_BOUND', 1, $3, $3)
 		`, allocationID, runID, now); err != nil {
 			t.Fatalf("insert query allocation %q: %v", allocationID, err)
 		}

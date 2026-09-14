@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc/codes"
@@ -14,8 +14,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type LeaseIssuer interface {
-	IssueExecutionLease(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*leasekernel.IssuedGrant, error)
+type AccessGrantIssuer interface {
+	IssueAllocationAccessGrant(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
 }
 
 type RouteReader interface {
@@ -31,16 +31,16 @@ type Allocation struct {
 }
 
 type Resolver struct {
-	routes RouteReader
-	leases LeaseIssuer
+	routes       RouteReader
+	accessGrants AccessGrantIssuer
 }
 
-func NewResolver(routes RouteReader, leases LeaseIssuer) *Resolver {
-	return &Resolver{routes: routes, leases: leases}
+func NewResolver(routes RouteReader, accessGrants AccessGrantIssuer) *Resolver {
+	return &Resolver{routes: routes, accessGrants: accessGrants}
 }
 
 func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
-	if r == nil || r.routes == nil || r.leases == nil {
+	if r == nil || r.routes == nil || r.accessGrants == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "gateway terminal resolver is not configured")
 	}
 	allocationID := strings.TrimSpace(req.GetAllocationID())
@@ -63,7 +63,7 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE && !terminalRunOutput {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 	}
-	lease, err := r.leases.IssueExecutionLease(ctx, alloc.AllocationID, ttl, now)
+	grant, err := r.accessGrants.IssueAllocationAccessGrant(ctx, alloc.AllocationID, ttl, now)
 	if err != nil {
 		return nil, err
 	}
@@ -73,11 +73,11 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 		NodeID:       alloc.NodeID,
 		NodeTarget:   alloc.NodeTarget,
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
-			LeaseID:        lease.LeaseID,
-			AllocationID:   lease.AllocationID,
-			NodeID:         lease.NodeID,
-			PlaintextToken: lease.PlaintextToken,
-			ExpiresAt:      timestamppb.New(lease.ExpiresAt),
+			GrantID:        grant.GrantID,
+			AllocationID:   grant.AllocationID,
+			NodeID:         grant.NodeID,
+			PlaintextToken: grant.PlaintextToken,
+			ExpiresAt:      timestamppb.New(grant.ExpiresAt),
 		},
 	}, nil
 }

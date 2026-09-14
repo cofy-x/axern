@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
+
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
@@ -232,6 +234,9 @@ func (c PluginConfig) ControlPlaneHeartbeatIntervalDuration() (time.Duration, er
 	}
 	if d <= 0 {
 		return time.ParseDuration(DefaultControlPlaneHeartbeatInterval)
+	}
+	if d > executionlease.MaxRenewalInterval {
+		return 0, fmt.Errorf("control-plane heartbeat interval %s exceeds execution lease renewal maximum %s", d, executionlease.MaxRenewalInterval)
 	}
 	return d, nil
 }

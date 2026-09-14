@@ -86,7 +86,7 @@ func (a *App) buildAPIs() {
 		a.gatewayAPI = apigatewayv1.New(apigatewayv1.Dependencies{
 			Now:        func() time.Time { return a.now() },
 			Resolver:   appgateway.NewResolver(pggateway.NewReader(a.db), a.runStore),
-			DefaultTTL: defaultExecutionLeaseTTL,
+			DefaultTTL: defaultAllocationAccessGrantTTL,
 			Access:     a.accessControl,
 			Tunnels:    a.tunnelPG,
 		})

@@ -12,21 +12,9 @@ func TestRepairPlanForIssue(t *testing.T) {
 		wantTargetID   string
 	}{
 		{
-			name: "reservation released allocation",
-			issue: Issue{
-				Code:         IssueActiveReservationOnReleasedAllocation,
-				AllocationID: "alloc-b",
-				RunID:        "run-ended",
-			},
-			wantOwner:      RepairOwnerRunController,
-			wantAction:     RepairActionRunCleanup,
-			wantTargetType: RepairTargetTypeRun,
-			wantTargetID:   "run-ended",
-		},
-		{
 			name: "lease issue",
 			issue: Issue{
-				Code:         IssueActiveLeaseOnEndedAllocation,
+				Code:         IssueActiveAccessGrantOnEndedAllocation,
 				AllocationID: "alloc-d",
 			},
 			wantOwner:      RepairOwnerNodeLifecycle,

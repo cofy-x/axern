@@ -118,10 +118,10 @@ Useful symptoms:
 | `filestore_dir` | Runtime writable-storage mount. | Must be a writable independent XFS or ext4 mount; startup performs a real OverlayFS scratch probe. |
 | `filestore_loopback_image` | Persistent image used by `loopback_dev`. | Created only when absent and retained after shutdown. |
 | `filestore_loopback_size_bytes` | Initial size for a newly created loopback image. | Must be positive in `loopback_dev`. |
-| `filestore_system_reserve_bytes` | Capacity unavailable to sandbox reservations. | Admission checks both committed reservations and the live available-space floor. |
+| `filestore_system_reserve_bytes` | Capacity unavailable to sandbox Allocation charges. | Admission checks both committed Allocation charges and the live available-space floor. |
 | `ephemeral_storage_default_limit_bytes` | Internal default backing limit for the public `limits.ephemeral_storage_bytes` contract. | Writable runsc roots use this in `root:dir=...,size=...`. |
 
-Environment retention is keyed by the static execution template, so namespace, Environment, Run, and Allocation identity do not duplicate the same rootfs/template cache entry. It retains only reusable immutable rootfs and bundle-template inputs. OCI create is always Allocation-owned because the container ID, cgroup, network, storage reservation, evidence, and cleanup record cannot be safely rebound to a future Allocation.
+Environment retention is keyed by the static execution template, so namespace, Environment, Run, and Allocation identity do not duplicate the same rootfs/template cache entry. It retains only reusable immutable rootfs and bundle-template inputs. OCI create is always Allocation-owned because the container ID, cgroup, network, storage charge, evidence, and cleanup record cannot be safely rebound to a future Allocation.
 
 ### Runtime DNS
 

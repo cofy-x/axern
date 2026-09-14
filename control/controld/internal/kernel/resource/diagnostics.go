@@ -5,20 +5,20 @@ const AdmissionErrorDomain = "axern.control.resource_admission"
 type AdmissionRejectionReason string
 
 const (
-	AdmissionRejectionNamespaceQuotaExceeded  AdmissionRejectionReason = "NAMESPACE_QUOTA_EXCEEDED"
-	AdmissionRejectionNodeReservationCapacity AdmissionRejectionReason = "NODE_RESERVATION_CAPACITY_EXHAUSTED"
-	AdmissionRejectionPlacementCapacity       AdmissionRejectionReason = "PLACEMENT_CAPACITY_EXHAUSTED"
-	AdmissionRejectionNodeSelection           AdmissionRejectionReason = "NODE_SELECTION_ERROR"
+	AdmissionRejectionNamespaceQuotaExceeded AdmissionRejectionReason = "NAMESPACE_QUOTA_EXCEEDED"
+	AdmissionRejectionNodeCapacity           AdmissionRejectionReason = "NODE_CAPACITY_EXHAUSTED"
+	AdmissionRejectionPlacementCapacity      AdmissionRejectionReason = "PLACEMENT_CAPACITY_EXHAUSTED"
+	AdmissionRejectionNodeSelection          AdmissionRejectionReason = "NODE_SELECTION_ERROR"
 )
 
 type AdmissionDiagnosticCode string
 
 const (
-	AdmissionDiagnosticUnspecified             AdmissionDiagnosticCode = ""
-	AdmissionDiagnosticNamespaceQuotaExceeded  AdmissionDiagnosticCode = "namespace_quota_exceeded"
-	AdmissionDiagnosticNodeReservationCapacity AdmissionDiagnosticCode = "node_reservation_capacity_exhausted"
-	AdmissionDiagnosticPlacementCapacity       AdmissionDiagnosticCode = "placement_capacity_exhausted"
-	AdmissionDiagnosticNodeSelection           AdmissionDiagnosticCode = "node_selection_error"
+	AdmissionDiagnosticUnspecified            AdmissionDiagnosticCode = ""
+	AdmissionDiagnosticNamespaceQuotaExceeded AdmissionDiagnosticCode = "namespace_quota_exceeded"
+	AdmissionDiagnosticNodeCapacity           AdmissionDiagnosticCode = "node_capacity_exhausted"
+	AdmissionDiagnosticPlacementCapacity      AdmissionDiagnosticCode = "placement_capacity_exhausted"
+	AdmissionDiagnosticNodeSelection          AdmissionDiagnosticCode = "node_selection_error"
 )
 
 type QuotaEventType string
@@ -41,8 +41,8 @@ func AdmissionDiagnosticForReason(reason AdmissionRejectionReason) AdmissionDiag
 	switch reason {
 	case AdmissionRejectionNamespaceQuotaExceeded:
 		return AdmissionDiagnosticNamespaceQuotaExceeded
-	case AdmissionRejectionNodeReservationCapacity:
-		return AdmissionDiagnosticNodeReservationCapacity
+	case AdmissionRejectionNodeCapacity:
+		return AdmissionDiagnosticNodeCapacity
 	case AdmissionRejectionPlacementCapacity:
 		return AdmissionDiagnosticPlacementCapacity
 	case AdmissionRejectionNodeSelection:
@@ -55,7 +55,7 @@ func AdmissionDiagnosticForReason(reason AdmissionRejectionReason) AdmissionDiag
 func AdmissionReasonBlocksCapacity(reason AdmissionRejectionReason) bool {
 	switch reason {
 	case AdmissionRejectionNamespaceQuotaExceeded,
-		AdmissionRejectionNodeReservationCapacity,
+		AdmissionRejectionNodeCapacity,
 		AdmissionRejectionPlacementCapacity:
 		return true
 	default:

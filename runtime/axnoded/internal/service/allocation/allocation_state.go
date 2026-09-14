@@ -47,7 +47,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
+	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetExecutionLeaseExpiresAtUnixNano() == 0 && record.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && record.GetTerminationMessage() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -135,11 +135,14 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 // StoreAllocationIntent persists the immutable node execution contract as the
 // first create side effect. Node observations, effective runtime projection,
 // and conditions are rebuildable and are never copied into this record.
-func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement) error {
+func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, executionLeaseExpiresAt time.Time, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement) error {
 	allocationID = strings.TrimSpace(allocationID)
 	nodeID = strings.TrimSpace(nodeID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
 		return errors.New("allocation id and canonical request digest are required")
+	}
+	if nodeID != "" && !executionLeaseExpiresAt.After(time.Now()) {
+		return errors.New("control-plane allocation requires a future execution lease deadline")
 	}
 	if err := capabilitycontract.ValidateRequirements(requirements); err != nil {
 		return fmt.Errorf("validate allocation capability requirements: %w", err)
@@ -166,6 +169,9 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 		desired.Resources = nil
 	}
 	desired.AllocationRequestDigest = requestDigest
+	if nodeID != "" {
+		desired.ExecutionLeaseExpiresAtUnixNano = executionLeaseExpiresAt.UTC().UnixNano()
+	}
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist allocation intent: %w", err)
 	}
@@ -174,6 +180,110 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	state.record = desired
 	h.stateMu.Unlock()
 	return nil
+}
+
+// ReplaceExecutionLeases applies a complete control-plane authority snapshot.
+// Missing Allocations are revoked immediately. Deadlines use the node receipt
+// clock and are persisted with the sole Allocation recovery record.
+func (h *Controller) ReplaceExecutionLeases(ttls map[string]time.Duration, receivedAt time.Time) error {
+	if h == nil {
+		return nil
+	}
+	h.stateMu.RLock()
+	ids := make([]string, 0, len(h.allocationStates))
+	for allocationID, state := range h.allocationStates {
+		if state != nil && strings.TrimSpace(state.record.GetNodeID()) != "" {
+			ids = append(ids, allocationID)
+		}
+	}
+	h.stateMu.RUnlock()
+	for _, allocationID := range ids {
+		expiresAt := int64(0)
+		if ttl := ttls[allocationID]; ttl > 0 {
+			expiresAt = receivedAt.Add(ttl).UTC().UnixNano()
+		}
+		unlock := h.recordMutationLocks.Lock(allocationID)
+		h.stateMu.RLock()
+		state := h.allocationStates[allocationID]
+		if state == nil {
+			h.stateMu.RUnlock()
+			unlock()
+			continue
+		}
+		desired := cloneAllocationRecord(state.record)
+		h.stateMu.RUnlock()
+		desired.ExecutionLeaseExpiresAtUnixNano = expiresAt
+		if err := h.persistAllocationRecord(desired); err != nil {
+			unlock()
+			return fmt.Errorf("persist allocation %s execution lease: %w", allocationID, err)
+		}
+		h.stateMu.Lock()
+		if current := h.allocationStates[allocationID]; current != nil {
+			current.record = desired
+		}
+		h.stateMu.Unlock()
+		unlock()
+	}
+	return nil
+}
+
+func (h *Controller) ExpiredExecutionLeaseAllocationIDs(now time.Time) []string {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	var ids []string
+	for allocationID, state := range h.allocationStates {
+		if state == nil || strings.TrimSpace(state.record.GetNodeID()) == "" {
+			continue
+		}
+		expires := state.record.GetExecutionLeaseExpiresAtUnixNano()
+		if expires <= 0 || !time.Unix(0, expires).After(now) {
+			ids = append(ids, allocationID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+// MarkTerminationIntent durably records why node-owned cleanup must stop an
+// Allocation. It is intentionally narrow: the Allocation state machine remains
+// control-plane owned, while this record survives a node crash between deciding
+// to fail closed and observing the runtime exit.
+func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
+	allocationID = strings.TrimSpace(allocationID)
+	if allocationID == "" || diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+		return errors.New("allocation id and termination diagnostic code are required")
+	}
+	unlock := h.recordMutationLocks.Lock(allocationID)
+	defer unlock()
+	h.stateMu.RLock()
+	state := h.allocationStates[allocationID]
+	if state == nil || state.record == nil {
+		h.stateMu.RUnlock()
+		return fmt.Errorf("allocation %q has no durable recovery record", allocationID)
+	}
+	desired := cloneAllocationRecord(state.record)
+	h.stateMu.RUnlock()
+	desired.TerminationDiagnosticCode = diagnosticCode
+	desired.TerminationMessage = strings.TrimSpace(message)
+	if err := h.persistAllocationRecord(desired); err != nil {
+		return fmt.Errorf("persist allocation termination intent: %w", err)
+	}
+	h.stateMu.Lock()
+	if current := h.allocationStates[allocationID]; current != nil {
+		current.record = desired
+	}
+	h.stateMu.Unlock()
+	return nil
+}
+
+func (h *Controller) TerminationIntent(allocationID string) (commonv1.WorkloadDiagnosticCode, string) {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	state := h.allocationStates[strings.TrimSpace(allocationID)]
+	if state == nil || state.record == nil {
+		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, ""
+	}
+	return state.record.GetTerminationDiagnosticCode(), state.record.GetTerminationMessage()
 }
 
 // ResourceSpec returns the immutable scheduler and enforcement inputs for an
@@ -836,6 +946,9 @@ func classifyRecoveryRecord(record *apipb.AllocationState, now time.Time) (bool,
 	}
 	if !validStartRequestDigest(record.GetAllocationRequestDigest()) {
 		return false, errors.New("allocation create intent is missing its canonical request digest")
+	}
+	if strings.TrimSpace(record.GetNodeID()) != "" && record.GetExecutionLeaseExpiresAtUnixNano() <= 0 {
+		return false, errors.New("control-plane allocation is missing its execution lease deadline")
 	}
 	manifest := record.GetEnforcementManifest()
 	if manifest == nil {

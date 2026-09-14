@@ -16,8 +16,8 @@ func RenderConsistencySnapshot(w io.Writer, snapshot *adminv1.ConsistencySnapsho
 	counts := snapshot.GetCounts()
 	if counts != nil {
 		fmt.Fprintf(w, "Issues: %d\n", counts.GetIssues())
-		fmt.Fprintf(w, "Active Reservations: %d\n", counts.GetActiveReservations())
-		fmt.Fprintf(w, "Active Leases: %d\n", counts.GetActiveLeases())
+		fmt.Fprintf(w, "Active Allocations: %d\n", counts.GetActiveAllocations())
+		fmt.Fprintf(w, "Active Access Grants: %d\n", counts.GetActiveAccessGrants())
 		fmt.Fprintf(w, "Active Tunnels: %d\n", counts.GetActiveTunnels())
 		fmt.Fprintf(w, "Allocation Lifecycle Retries: %d\n", counts.GetAllocationLifecycleRetries())
 	}
@@ -176,8 +176,8 @@ type ReconcileComponentHealthJSON struct {
 }
 
 type ConsistencyCountsJSON struct {
-	ActiveReservations         int64 `json:"active_reservations"`
-	ActiveLeases               int64 `json:"active_leases"`
+	ActiveAllocations          int64 `json:"active_allocations"`
+	ActiveAccessGrants         int64 `json:"active_access_grants"`
 	ActiveTunnels              int64 `json:"active_tunnels"`
 	AllocationLifecycleRetries int64 `json:"allocation_lifecycle_retries"`
 	Issues                     int64 `json:"issues"`
@@ -295,8 +295,8 @@ func NewConsistencySnapshotJSON(snapshot *adminv1.ConsistencySnapshot) *Consiste
 	var counts *ConsistencyCountsJSON
 	if raw := snapshot.GetCounts(); raw != nil {
 		counts = &ConsistencyCountsJSON{
-			ActiveReservations:         raw.GetActiveReservations(),
-			ActiveLeases:               raw.GetActiveLeases(),
+			ActiveAllocations:          raw.GetActiveAllocations(),
+			ActiveAccessGrants:         raw.GetActiveAccessGrants(),
 			ActiveTunnels:              raw.GetActiveTunnels(),
 			AllocationLifecycleRetries: raw.GetAllocationLifecycleRetries(),
 			Issues:                     raw.GetIssues(),

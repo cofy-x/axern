@@ -30,7 +30,7 @@ const (
 	DefaultCgroupRoot = "sandbox"
 	// RuntimeConformanceMemoryLimitBytes is the hard limit exercised inside the
 	// certification sandbox. RuntimeConformanceMemoryMaxBytes is the larger
-	// aggregate certification ceiling and capacity reservation, not a larger
+	// aggregate certification ceiling and capacity charge, not a larger
 	// per-allocation limit. Host lifecycle monitors inherit the internal domain;
 	// runtime processes in the sandbox remain charged to its 256 MiB limit.
 	RuntimeConformanceMemoryLimitBytes int64 = 256 << 20

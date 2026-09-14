@@ -12,6 +12,7 @@ import (
 
 type verifyCLIConfig struct {
 	address          string
+	nodeID           string
 	environmentID    string
 	rootfsSrc        string
 	rootfsPath       string
@@ -31,6 +32,7 @@ type verifyCLIConfig struct {
 func parseFlags() verifyCLIConfig {
 	cfg := verifyCLIConfig{}
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
+	flag.StringVar(&cfg.nodeID, "node-id", "", "bind the verification allocation to this control-plane node")
 	flag.StringVar(&cfg.environmentID, "environment-id", "", "runtime id")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfsPath, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")

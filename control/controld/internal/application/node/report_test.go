@@ -35,7 +35,7 @@ func TestReporterDoesNotPublishUncommittedReport(t *testing.T) {
 	registry := &reportRegistrySpy{}
 	reporter := NewReporter(reportStoreStub{err: errors.New("commit failed")}, registry, nil, time.Now)
 
-	if err := reporter.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a"}); err == nil {
+	if _, err := reporter.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a"}); err == nil {
 		t.Fatal("Report() error = nil, want store failure")
 	}
 	if registry.calls != 0 {
@@ -50,10 +50,33 @@ func TestReporterPublishesCommittedReport(t *testing.T) {
 	registry := &reportRegistrySpy{}
 	reporter := NewReporter(reportStoreStub{record: record}, registry, nil, func() time.Time { return now })
 
-	if err := reporter.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", Now: now}); err != nil {
+	if _, err := reporter.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", Now: now}); err != nil {
 		t.Fatalf("Report() error = %v", err)
 	}
 	if registry.calls != 1 || registry.nodeID != "node-a" || registry.summary != summary {
 		t.Fatalf("registry report = calls:%d node:%q summary:%p, want committed node-a summary:%p", registry.calls, registry.nodeID, registry.summary, summary)
+	}
+}
+
+func TestReporterRenewsBoundAllocationsWhileNodeRecovers(t *testing.T) {
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	summary := &nodev1.NodeSummary{} // A restarting axnoded is not ready yet.
+	record := &nodekernel.Record{NodeID: "node-a", NodeTarget: "node-a:25001", Summary: summary, LastHeartbeatAt: now}
+	registry := &reportRegistrySpy{}
+	allocations := &fakeAvailabilityAllocations{executionIDs: []string{"allocation-a"}}
+	reporter := NewReporter(reportStoreStub{record: record}, registry, allocations, func() time.Time { return now })
+
+	got, err := reporter.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", Now: now})
+	if err != nil {
+		t.Fatalf("Report() error = %v", err)
+	}
+	if len(got) != 1 || got[0] != "allocation-a" {
+		t.Fatalf("execution authority = %#v, want allocation-a", got)
+	}
+	if allocations.executionListCalls != 1 {
+		t.Fatalf("execution authority reads = %d, want 1", allocations.executionListCalls)
+	}
+	if allocations.inventoryCalls != 0 {
+		t.Fatalf("inventory reconciliations = %d, want 0 while recovering", allocations.inventoryCalls)
 	}
 }

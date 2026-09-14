@@ -68,9 +68,10 @@ type Rank struct {
 	PeerHealthyCount           int64
 	PeerHintedCount            int64
 	IdlePoolReady              bool
-	AxnodedUsedMilli           int64
-	AxnodedUsedBytes           int64
-	AxnodedActiveInstances     int64
+	RuntimeSlotOccupancy       int64
+	ChargedCPUMilli            int64
+	ChargedMemoryBytes         int64
+	ChargedEphemeralBytes      int64
 }
 
 type Evaluation struct {
@@ -80,7 +81,6 @@ type Evaluation struct {
 	HeartbeatAgeSecs int64
 	SummaryAgeSecs   int64
 	Pools            *nodev1.PoolsSummary
-	Resources        *nodev1.ResourcesSummary
 	Locality         *nodev1.LocalitySummary
 	Rank             *Rank
 }
@@ -162,21 +162,27 @@ func (r *Rank) GetPeerHintedCount() int64 {
 	return r.PeerHintedCount
 }
 func (r *Rank) GetIdlePoolReady() bool { return r != nil && r.IdlePoolReady }
-func (r *Rank) GetAxnodedActiveInstances() int64 {
+func (r *Rank) GetRuntimeSlotOccupancy() int64 {
 	if r == nil {
 		return 0
 	}
-	return r.AxnodedActiveInstances
+	return r.RuntimeSlotOccupancy
 }
-func (r *Rank) GetAxnodedUsedMilli() int64 {
+func (r *Rank) GetChargedCPUMilli() int64 {
 	if r == nil {
 		return 0
 	}
-	return r.AxnodedUsedMilli
+	return r.ChargedCPUMilli
 }
-func (r *Rank) GetAxnodedUsedBytes() int64 {
+func (r *Rank) GetChargedMemoryBytes() int64 {
 	if r == nil {
 		return 0
 	}
-	return r.AxnodedUsedBytes
+	return r.ChargedMemoryBytes
+}
+func (r *Rank) GetChargedEphemeralBytes() int64 {
+	if r == nil {
+		return 0
+	}
+	return r.ChargedEphemeralBytes
 }

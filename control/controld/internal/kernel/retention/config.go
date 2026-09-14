@@ -10,7 +10,7 @@ const (
 	DefaultTunnelEventsKeep = 100
 	DefaultQuotaEventsTTL   = 7 * 24 * time.Hour
 	DefaultTerminalRunsTTL  = 7 * 24 * time.Hour
-	DefaultLeasesTTL        = 24 * time.Hour
+	DefaultAccessGrantsTTL  = 24 * time.Hour
 )
 
 type Config struct {
@@ -21,7 +21,7 @@ type Config struct {
 	TunnelEventsKeep int
 	QuotaEventsTTL   time.Duration
 	TerminalRunsTTL  time.Duration
-	LeasesTTL        time.Duration
+	AccessGrantsTTL  time.Duration
 }
 
 func DefaultConfig() Config {
@@ -33,7 +33,7 @@ func DefaultConfig() Config {
 		TunnelEventsKeep: DefaultTunnelEventsKeep,
 		QuotaEventsTTL:   DefaultQuotaEventsTTL,
 		TerminalRunsTTL:  DefaultTerminalRunsTTL,
-		LeasesTTL:        DefaultLeasesTTL,
+		AccessGrantsTTL:  DefaultAccessGrantsTTL,
 	}
 }
 
@@ -57,8 +57,8 @@ func NormalizeConfig(cfg Config) Config {
 	if out.TerminalRunsTTL <= 0 {
 		out.TerminalRunsTTL = DefaultTerminalRunsTTL
 	}
-	if out.LeasesTTL <= 0 {
-		out.LeasesTTL = DefaultLeasesTTL
+	if out.AccessGrantsTTL <= 0 {
+		out.AccessGrantsTTL = DefaultAccessGrantsTTL
 	}
 	return out
 }

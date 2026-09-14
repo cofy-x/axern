@@ -61,8 +61,8 @@ type fakeNodeSandboxService struct {
 	processFunc             func(service.ProcessStreamServer) error
 }
 
-func executionLeaseIncomingContext(parent context.Context, token string) context.Context {
-	return metadata.NewIncomingContext(parent, metadata.Pairs(executionLeaseTokenMetadataKey, token))
+func allocationAccessIncomingContext(parent context.Context, token string) context.Context {
+	return metadata.NewIncomingContext(parent, metadata.Pairs(accessGrantTokenMetadataKey, token))
 }
 
 func (f *fakeNodeSandboxService) Run(context.Context) error      { return nil }
@@ -474,7 +474,7 @@ func TestNodeSandboxExecBridgesRequest(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 
-	resp, err := server.Exec(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExecRequest{
+	resp, err := server.Exec(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
 		Spec: &nodesandboxv1.ExecSpec{
 			Argv:           []string{"python", "-c", "print('ok')"},
@@ -536,7 +536,7 @@ func TestNodeSandboxExecStreamExitDoesNotReportAllocationExit(t *testing.T) {
 	}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 	stream := &fakeNodeSandboxExecStream{
-		ctx: executionLeaseIncomingContext(context.Background(), "lease-token"),
+		ctx: allocationAccessIncomingContext(context.Background(), "lease-token"),
 		requests: []*nodesandboxv1.ExecStreamRequest{{
 			Payload: &nodesandboxv1.ExecStreamRequest_Open{Open: &nodesandboxv1.ExecStreamOpen{
 				AllocationID: "alloc-123",
@@ -554,8 +554,8 @@ func TestNodeSandboxExecStreamExitDoesNotReportAllocationExit(t *testing.T) {
 	if len(stream.sent) != 1 || stream.sent[0].GetExit().GetMessage() != "exec session done" {
 		t.Fatalf("unexpected exec stream responses = %#v", stream.sent)
 	}
-	if got := stream.header.Get(executionLeaseAcceptedHeaderKey); len(got) != 1 || got[0] != "1" {
-		t.Fatalf("execution lease acceptance header = %#v, want 1", got)
+	if got := stream.header.Get(accessGrantAcceptedHeaderKey); len(got) != 1 || got[0] != "1" {
+		t.Fatalf("allocation access grant acceptance header = %#v, want 1", got)
 	}
 }
 
@@ -583,7 +583,7 @@ func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 	}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 	stream := &fakeNodeSandboxProcessStream{
-		ctx: executionLeaseIncomingContext(context.Background(), "lease-token"),
+		ctx: allocationAccessIncomingContext(context.Background(), "lease-token"),
 		requests: []*nodesandboxv1.ProcessRequest{
 			{Payload: &nodesandboxv1.ProcessRequest_Open{Open: &nodesandboxv1.ProcessOpen{
 				AllocationID: "alloc-123",
@@ -599,7 +599,7 @@ func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 	if len(stream.sent) != 1 || stream.sent[0].GetExit().GetExitCode() != 0 {
 		t.Fatalf("unexpected process responses = %#v", stream.sent)
 	}
-	assertExecutionLeaseAccepted(t, stream.header)
+	assertAllocationAccessGrantAccepted(t, stream.header)
 }
 
 func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
@@ -607,7 +607,7 @@ func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
 
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
-	upload := &fakeNodeSandboxUploadArchiveStream{ctx: executionLeaseIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
+	upload := &fakeNodeSandboxUploadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Open{Open: &nodesandboxv1.UploadArchiveOpen{
 			AllocationID: "alloc-123", Path: "/workspace",
 			Format:        filev1.SandboxArchiveFormat_SANDBOX_ARCHIVE_FORMAT_TAR,
@@ -618,12 +618,12 @@ func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
 	if err := server.UploadArchive(upload); err != nil {
 		t.Fatalf("UploadArchive() error = %v", err)
 	}
-	assertExecutionLeaseAccepted(t, upload.header)
+	assertAllocationAccessGrantAccepted(t, upload.header)
 	if upload.closed == nil || len(fakeService.uploadArchiveRequests) != 1 {
 		t.Fatalf("upload result = %#v requests = %#v", upload.closed, fakeService.uploadArchiveRequests)
 	}
 
-	download := &fakeNodeSandboxDownloadArchiveStream{ctx: executionLeaseIncomingContext(context.Background(), "lease-token")}
+	download := &fakeNodeSandboxDownloadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token")}
 	if err := server.DownloadArchive(&nodesandboxv1.DownloadArchiveRequest{
 		AllocationID: "alloc-123", Path: "/workspace",
 		Format:        filev1.SandboxArchiveFormat_SANDBOX_ARCHIVE_FORMAT_TAR,
@@ -631,16 +631,16 @@ func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
 	}, download); err != nil {
 		t.Fatalf("DownloadArchive() error = %v", err)
 	}
-	assertExecutionLeaseAccepted(t, download.header)
+	assertAllocationAccessGrantAccepted(t, download.header)
 	if len(download.sent) != 1 || string(download.sent[0].GetChunk()) != "archive" {
 		t.Fatalf("download responses = %#v", download.sent)
 	}
 }
 
-func assertExecutionLeaseAccepted(t *testing.T, header metadata.MD) {
+func assertAllocationAccessGrantAccepted(t *testing.T, header metadata.MD) {
 	t.Helper()
-	if got := header.Get(executionLeaseAcceptedHeaderKey); len(got) != 1 || got[0] != "1" {
-		t.Fatalf("execution lease acceptance header = %#v, want 1", got)
+	if got := header.Get(accessGrantAcceptedHeaderKey); len(got) != 1 || got[0] != "1" {
+		t.Fatalf("allocation access grant acceptance header = %#v, want 1", got)
 	}
 }
 
@@ -650,7 +650,7 @@ func TestNodeSandboxWaitReportsExit(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 
-	resp, err := server.WaitSandbox(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.WaitSandboxRequest{
+	resp, err := server.WaitSandbox(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.WaitSandboxRequest{
 		AllocationID: "alloc-123",
 	})
 	if err != nil {
@@ -673,7 +673,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 
-	statResp, err := server.StatFile(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.StatFileRequest{
+	statResp, err := server.StatFile(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.StatFileRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/out.txt",
 	})
@@ -687,7 +687,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("stat request = %#v", fakeService.statFileRequests)
 	}
 
-	listResp, err := server.ListDir(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ListDirRequest{
+	listResp, err := server.ListDir(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ListDirRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp",
 	})
@@ -701,7 +701,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("list request = %#v", fakeService.listDirRequests)
 	}
 
-	readResp, err := server.ReadFile(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ReadFileRequest{
+	readResp, err := server.ReadFile(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ReadFileRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/out.txt",
 	})
@@ -712,7 +712,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("read response/request = response=%q requests=%#v", string(readResp.GetData()), fakeService.readFileRequests)
 	}
 
-	_, err = server.WriteFile(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.WriteFileRequest{
+	_, err = server.WriteFile(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.WriteFileRequest{
 		AllocationID:  "alloc-123",
 		Path:          "/tmp/out.txt",
 		Data:          []byte("hello"),
@@ -725,7 +725,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("write request = %#v", fakeService.writeFileRequests)
 	}
 
-	_, err = server.Mkdir(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.MkdirRequest{
+	_, err = server.Mkdir(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.MkdirRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/nested",
 		Parents:      true,
@@ -737,7 +737,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("mkdir request = %#v", fakeService.mkdirRequests)
 	}
 
-	_, err = server.Remove(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.RemoveRequest{
+	_, err = server.Remove(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.RemoveRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/nested",
 		Recursive:    true,
@@ -750,7 +750,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("remove request = %#v", fakeService.removeRequests)
 	}
 
-	existsResp, err := server.Exists(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExistsRequest{
+	existsResp, err := server.Exists(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExistsRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/out.txt",
 	})
@@ -761,7 +761,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("exists response/request = response=%v requests=%#v", existsResp.GetExists(), fakeService.existsRequests)
 	}
 
-	_, err = server.Copy(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.CopyRequest{
+	_, err = server.Copy(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.CopyRequest{
 		AllocationID: "alloc-123",
 		SrcPath:      "/tmp/out.txt",
 		DstPath:      "/tmp/copy.txt",
@@ -775,7 +775,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("copy request = %#v", fakeService.copyRequests)
 	}
 
-	_, err = server.Move(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.MoveRequest{
+	_, err = server.Move(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.MoveRequest{
 		AllocationID: "alloc-123",
 		SrcPath:      "/tmp/copy.txt",
 		DstPath:      "/tmp/moved.txt",
@@ -788,7 +788,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("move request = %#v", fakeService.moveRequests)
 	}
 
-	_, err = server.Chmod(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ChmodRequest{
+	_, err = server.Chmod(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ChmodRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/moved.txt",
 		Mode:         0600,
@@ -801,7 +801,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 		t.Fatalf("chmod request = %#v", fakeService.chmodRequests)
 	}
 
-	_, err = server.Touch(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.TouchRequest{
+	_, err = server.Touch(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.TouchRequest{
 		AllocationID: "alloc-123",
 		Path:         "/tmp/moved.txt",
 		Create:       true,
@@ -821,7 +821,7 @@ func TestNodeSandboxArchiveBridgesRequests(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 
-	uploadStream := &fakeNodeSandboxUploadArchiveStream{ctx: executionLeaseIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
+	uploadStream := &fakeNodeSandboxUploadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
 		{
 			Payload: &nodesandboxv1.UploadArchiveRequest_Open{Open: &nodesandboxv1.UploadArchiveOpen{
 				AllocationID:  "alloc-123",
@@ -844,7 +844,7 @@ func TestNodeSandboxArchiveBridgesRequests(t *testing.T) {
 		t.Fatalf("upload request = %#v", got)
 	}
 
-	downloadStream := &fakeNodeSandboxDownloadArchiveStream{ctx: executionLeaseIncomingContext(context.Background(), "lease-token")}
+	downloadStream := &fakeNodeSandboxDownloadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token")}
 	err := server.DownloadArchive(&nodesandboxv1.DownloadArchiveRequest{
 		AllocationID:  "alloc-123",
 		Path:          "/tmp/tree",
@@ -868,7 +868,7 @@ func TestNodeSandboxCapabilityStatusBridgesSafeSummary(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 
-	resp, err := server.CapabilityStatus(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.CapabilityStatusRequest{
+	resp, err := server.CapabilityStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.CapabilityStatusRequest{
 		AllocationID: "alloc-123",
 	})
 	if err != nil {
@@ -904,7 +904,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
-	statusResp, err := server.ComputerUseStatus(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseStatusRequest{
+	statusResp, err := server.ComputerUseStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseStatusRequest{
 		AllocationID: "alloc-123",
 	})
 	if err != nil {
@@ -913,7 +913,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	if !statusResp.GetAvailable() || statusResp.GetDisplay() != ":99" || statusResp.GetBackend() != "x11" {
 		t.Fatalf("status response = %#v", statusResp)
 	}
-	screenResp, err := server.ComputerUseScreenshot(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseScreenshotRequest{
+	screenResp, err := server.ComputerUseScreenshot(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseScreenshotRequest{
 		AllocationID: "alloc-123",
 		Region:       &nodesandboxv1.ComputerUseRegion{X: 1, Y: 2, Width: 3, Height: 4},
 		Format:       "jpeg",
@@ -935,7 +935,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	if got := fakeService.computerUseScreenReqs[0]; got.GetRegion().GetWidth() != 3 || got.GetFormat() != "jpeg" || got.GetQuality() != 75 || got.GetScale() != 0.5 {
 		t.Fatalf("screenshot request details = %#v", got)
 	}
-	displayResp, err := server.ComputerUseDisplay(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseDisplayRequest{
+	displayResp, err := server.ComputerUseDisplay(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseDisplayRequest{
 		AllocationID: "alloc-123",
 	})
 	if err != nil {
@@ -944,7 +944,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	if displayResp.GetWidth() != 1280 || displayResp.GetHeight() != 720 {
 		t.Fatalf("display response = %#v", displayResp)
 	}
-	if _, err := server.ComputerUseMouse(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseMouseRequest{
+	if _, err := server.ComputerUseMouse(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseMouseRequest{
 		AllocationID: "alloc-123",
 		Action:       "click",
 		X:            7,
@@ -953,7 +953,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ComputerUseMouse() error = %v", err)
 	}
-	if _, err := server.ComputerUseKeyboard(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseKeyboardRequest{
+	if _, err := server.ComputerUseKeyboard(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseKeyboardRequest{
 		AllocationID: "alloc-123",
 		Text:         "hello",
 	}); err != nil {
@@ -970,7 +970,7 @@ func TestNodeSandboxBrowserBridgesRequests(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a")
 
-	statusResp, err := server.BrowserStatus(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserStatusRequest{
+	statusResp, err := server.BrowserStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserStatusRequest{
 		AllocationID: "alloc-123",
 	})
 	if err != nil {
@@ -980,7 +980,7 @@ func TestNodeSandboxBrowserBridgesRequests(t *testing.T) {
 		t.Fatalf("status response = %#v", statusResp)
 	}
 
-	openResp, err := server.BrowserOpen(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserOpenRequest{
+	openResp, err := server.BrowserOpen(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserOpenRequest{
 		AllocationID: "alloc-123",
 		Url:          "data:text/html,open",
 	})
@@ -991,20 +991,20 @@ func TestNodeSandboxBrowserBridgesRequests(t *testing.T) {
 		t.Fatalf("open response = %#v", openResp)
 	}
 
-	if _, err := server.BrowserNavigate(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserNavigateRequest{
+	if _, err := server.BrowserNavigate(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserNavigateRequest{
 		AllocationID: "alloc-123",
 		Url:          "data:text/html,navigate",
 	}); err != nil {
 		t.Fatalf("BrowserNavigate() error = %v", err)
 	}
-	if _, err := server.BrowserResize(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserResizeRequest{
+	if _, err := server.BrowserResize(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserResizeRequest{
 		AllocationID: "alloc-123",
 		Width:        1024,
 		Height:       768,
 	}); err != nil {
 		t.Fatalf("BrowserResize() error = %v", err)
 	}
-	if _, err := server.BrowserClick(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserClickRequest{
+	if _, err := server.BrowserClick(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserClickRequest{
 		AllocationID: "alloc-123",
 		X:            7,
 		Y:            9,
@@ -1012,20 +1012,20 @@ func TestNodeSandboxBrowserBridgesRequests(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("BrowserClick() error = %v", err)
 	}
-	if _, err := server.BrowserType(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserTypeRequest{
+	if _, err := server.BrowserType(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserTypeRequest{
 		AllocationID: "alloc-123",
 		Text:         "hello",
 		DelayMs:      5,
 	}); err != nil {
 		t.Fatalf("BrowserType() error = %v", err)
 	}
-	if _, err := server.BrowserWait(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserWaitRequest{
+	if _, err := server.BrowserWait(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserWaitRequest{
 		AllocationID: "alloc-123",
 		TimeoutMs:    250,
 	}); err != nil {
 		t.Fatalf("BrowserWait() error = %v", err)
 	}
-	if _, err := server.BrowserClose(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserCloseRequest{
+	if _, err := server.BrowserClose(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserCloseRequest{
 		AllocationID: "alloc-123",
 	}); err != nil {
 		t.Fatalf("BrowserClose() error = %v", err)
@@ -1097,8 +1097,8 @@ func TestNodeSandboxUploadArchiveDoesNotAcknowledgeRejectedLease(t *testing.T) {
 	if grpcstatus.Code(err) != codes.Unauthenticated {
 		t.Fatalf("UploadArchive() code = %v, want Unauthenticated", grpcstatus.Code(err))
 	}
-	if got := stream.header.Get(executionLeaseAcceptedHeaderKey); len(got) != 0 {
-		t.Fatalf("rejected lease acceptance header = %#v, want none", got)
+	if got := stream.header.Get(accessGrantAcceptedHeaderKey); len(got) != 0 {
+		t.Fatalf("rejected access grant acceptance header = %#v, want none", got)
 	}
 }
 
@@ -1122,8 +1122,8 @@ func TestNodeSandboxExecRejectsAmbiguousLeaseMetadata(t *testing.T) {
 
 	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a")
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
-		executionLeaseTokenMetadataKey, "lease-one",
-		executionLeaseTokenMetadataKey, "lease-two",
+		accessGrantTokenMetadataKey, "grant-one",
+		accessGrantTokenMetadataKey, "grant-two",
 	))
 	_, err := server.Exec(ctx, &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -1134,14 +1134,14 @@ func TestNodeSandboxExecRejectsAmbiguousLeaseMetadata(t *testing.T) {
 	}
 }
 
-func TestNodeSandboxExecAcceptsLeaseCacheTokenHash(t *testing.T) {
+func TestNodeSandboxExecAcceptsAccessGrantCacheTokenHash(t *testing.T) {
 	t.Parallel()
 
-	token := "lease-token"
+	token := "access-token"
 	sum := sha256.Sum256([]byte(token))
-	cache := controlplane.NewLeaseCache()
-	cache.Apply([]*nodev1.NodeExecutionGrant{{
-		LeaseID:             "lease-123",
+	cache := controlplane.NewAccessGrantCache()
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+		GrantID:             "grant-123",
 		AllocationID:        "alloc-123",
 		ValidationTokenHash: hex.EncodeToString(sum[:]),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
@@ -1149,7 +1149,7 @@ func TestNodeSandboxExecAcceptsLeaseCacheTokenHash(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a", cache)
 
-	_, err := server.Exec(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExecRequest{
+	_, err := server.Exec(allocationAccessIncomingContext(context.Background(), "access-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
 		Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"true"}},
 	})
@@ -1158,13 +1158,13 @@ func TestNodeSandboxExecAcceptsLeaseCacheTokenHash(t *testing.T) {
 	}
 }
 
-func TestNodeSandboxExecRejectsRevokedLeaseFromCache(t *testing.T) {
+func TestNodeSandboxExecRejectsRevokedAccessGrantFromCache(t *testing.T) {
 	t.Parallel()
 
-	token := "lease-token"
+	token := "access-token"
 	sum := sha256.Sum256([]byte(token))
-	cache := controlplane.NewLeaseCache()
-	cache.Apply([]*nodev1.NodeExecutionGrant{{
+	cache := controlplane.NewAccessGrantCache()
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
 		AllocationID:        "alloc-123",
 		ValidationTokenHash: hex.EncodeToString(sum[:]),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
@@ -1173,7 +1173,7 @@ func TestNodeSandboxExecRejectsRevokedLeaseFromCache(t *testing.T) {
 	fakeService := &fakeNodeSandboxService{}
 	server := NewNodeSandboxServer(fakeService, "node-a", cache)
 
-	_, err := server.Exec(executionLeaseIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExecRequest{
+	_, err := server.Exec(allocationAccessIncomingContext(context.Background(), "access-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
 		Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"true"}},
 	})

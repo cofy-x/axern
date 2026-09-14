@@ -35,7 +35,7 @@ func TestRenderRunDisplaysTypedAdmissionDiagnostic(t *testing.T) {
 		EnvironmentID:  "env-1",
 		Status:         runv1.RunStatus_RUN_STATUS_FAILED,
 		DiagnosticCode: commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED,
-		Message:        "rpc error: code = ResourceExhausted desc = namespace quota exceeded: namespace=team-a cpu requested_milli=500 reserved_milli=0 limit_milli=100 available_milli=100",
+		Message:        "rpc error: code = ResourceExhausted desc = namespace quota exceeded: namespace=team-a cpu requested_milli=500 used_milli=0 limit_milli=100 available_milli=100",
 	})
 	out := b.String()
 	for _, want := range []string{

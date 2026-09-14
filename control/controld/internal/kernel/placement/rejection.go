@@ -14,7 +14,7 @@ import (
 // NoEligibleNodeError renders the canonical placement rejection used both by
 // optimistic candidate selection and by durable admission after node rows are
 // locked. Keeping this at the policy boundary prevents the transaction path
-// from misclassifying a refreshed eligibility failure as reservation capacity.
+// from misclassifying a refreshed eligibility failure as resource capacity.
 func NoEligibleNodeError(req *Request, rejected []*Evaluation) error {
 	reasons := CandidateRejectionReasons(rejected)
 	reason := admissionReason(rejected)

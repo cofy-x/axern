@@ -47,7 +47,7 @@ message CgroupLease {
   // Node admission charge, separated from the OCI workload request/limit so
   // trusted runtime monitor overhead can be reserved without weakening the
   // workload's cgroup boundary.
-  int64 capacity_reservation_bytes = 16;
+  int64 capacity_charge_bytes = 16;
 }
 
 message CgroupLedger {
@@ -106,6 +106,12 @@ message AllocationState {
   // Canonical digest of the behaviorally relevant StartRequest. It fences
   // idempotent retries from mutating a running allocation's contract.
   string allocation_request_digest = 9;
+  // Node-local receipt-clock deadline for the control plane's finite right to
+  // keep this Allocation running. It is renewable and is not part of the
+  // immutable create request digest.
+  int64 execution_lease_expires_at_unix_nano = 10;
+  axern.control.common.v1.WorkloadDiagnosticCode termination_diagnostic_code = 11;
+  string termination_message = 12;
 }
 
 // AllocationCapabilityReconcileState is the durable node-local intent to

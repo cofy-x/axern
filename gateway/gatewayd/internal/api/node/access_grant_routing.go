@@ -15,7 +15,7 @@ import (
 )
 
 func (s *Server) unary(ctx context.Context, req proto.Message, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
-	return s.withResolvedClient(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, nodekernel.IsExecutionLeaseRejected, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
+	return s.withResolvedClient(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, nodekernel.IsAllocationAccessGrantRejected, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		return call(backendCtx, client)
 	})
 }
@@ -58,7 +58,7 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 		return authErr
 	}
 	var err error
-	for attempt := 1; attempt <= s.options.LeaseRetryAttempts; attempt++ {
+	for attempt := 1; attempt <= s.options.AccessGrantRetryAttempts; attempt++ {
 		resolved, resolveErr := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
 			AllocationID:                 allocationID,
 			TtlSeconds:                   300,
@@ -73,21 +73,21 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 		}
 		token := strings.TrimSpace(resolved.GetAccessGrant().GetPlaintextToken())
 		if token == "" {
-			return grpcstatus.Error(codes.Internal, "resolved execution lease token is empty")
+			return grpcstatus.Error(codes.Internal, "resolved allocation access grant token is empty")
 		}
 		client, dialErr := s.dialer.NodeSandbox(ctx, resolved.GetNodeTarget())
 		if dialErr != nil {
 			return dialErr
 		}
-		err = call(nodekernel.WithExecutionLease(ctx, token), client)
-		if attempt == s.options.LeaseRetryAttempts || !shouldRetry(err) {
-			return unwrapLeaseOpenRejection(err)
+		err = call(nodekernel.WithAllocationAccessGrant(ctx, token), client)
+		if attempt == s.options.AccessGrantRetryAttempts || !shouldRetry(err) {
+			return unwrapAccessGrantOpenRejection(err)
 		}
-		if err := nodekernel.WaitLeaseRetry(ctx, attempt, s.options.LeaseRetryDelay); err != nil {
+		if err := nodekernel.WaitAccessGrantRetry(ctx, attempt, s.options.AccessGrantRetryDelay); err != nil {
 			return err
 		}
 		if s.metrics != nil {
-			s.metrics.LeaseRetry("node_sandbox")
+			s.metrics.AccessGrantRetry("node_sandbox")
 		}
 	}
 	return err
@@ -101,47 +101,47 @@ func allocationID(msg proto.Message) string {
 	return strings.TrimSpace(msg.ProtoReflect().Get(field).String())
 }
 
-type leaseOpenRejection struct {
+type accessGrantOpenRejection struct {
 	err error
 }
 
-func (e leaseOpenRejection) Error() string { return e.err.Error() }
-func (e leaseOpenRejection) Unwrap() error { return e.err }
+func (e accessGrantOpenRejection) Error() string { return e.err.Error() }
+func (e accessGrantOpenRejection) Unwrap() error { return e.err }
 
-func markLeaseOpenRejection(err error) error {
-	if nodekernel.IsExecutionLeaseRejected(err) {
-		return leaseOpenRejection{err: err}
+func markAccessGrantOpenRejection(err error) error {
+	if nodekernel.IsAllocationAccessGrantRejected(err) {
+		return accessGrantOpenRejection{err: err}
 	}
 	return err
 }
 
-func isLeaseOpenRejection(err error) bool {
-	var marked leaseOpenRejection
+func isAccessGrantOpenRejection(err error) bool {
+	var marked accessGrantOpenRejection
 	return errors.As(err, &marked)
 }
 
-func unwrapLeaseOpenRejection(err error) error {
-	var marked leaseOpenRejection
+func unwrapAccessGrantOpenRejection(err error) error {
+	var marked accessGrantOpenRejection
 	if errors.As(err, &marked) {
 		return marked.err
 	}
 	return err
 }
 
-type executionLeaseHeaderClient interface {
+type accessGrantHeaderClient interface {
 	Header() (metadata.MD, error)
 }
 
-func acceptedExecutionLeaseHeader(up executionLeaseHeaderClient, operation string, surfaceStatus func() error) (metadata.MD, error) {
+func acceptedAllocationAccessGrantHeader(up accessGrantHeaderClient, operation string, surfaceStatus func() error) (metadata.MD, error) {
 	header, err := up.Header()
 	if err != nil {
-		return nil, markLeaseOpenRejection(err)
+		return nil, markAccessGrantOpenRejection(err)
 	}
-	if !nodekernel.ExecutionLeaseAccepted(header) {
+	if !nodekernel.AllocationAccessGrantAccepted(header) {
 		if err := surfaceStatus(); err != nil {
-			return nil, markLeaseOpenRejection(err)
+			return nil, markAccessGrantOpenRejection(err)
 		}
-		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "node did not acknowledge execution lease before %s", operation)
+		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "node did not acknowledge allocation access grant before %s", operation)
 	}
 	return header, nil
 }

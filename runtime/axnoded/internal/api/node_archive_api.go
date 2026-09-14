@@ -29,7 +29,7 @@ func (s *nodeSandboxServer) UploadArchive(stream nodesandboxv1.NodeSandbox_Uploa
 	if err := validateArchiveRequest(open.GetPath(), open.GetFormat(), open.GetSymlinkPolicy()); err != nil {
 		return err
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	_, err = s.svc.UploadArchive(stream.Context(), &runtimev1.UploadArchiveRequest{
@@ -54,7 +54,7 @@ func (s *nodeSandboxServer) DownloadArchive(req *nodesandboxv1.DownloadArchiveRe
 	if err := validateArchiveRequest(req.GetPath(), req.GetFormat(), req.GetSymlinkPolicy()); err != nil {
 		return err
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	_, err = s.svc.DownloadArchive(stream.Context(), &runtimev1.DownloadArchiveRequest{

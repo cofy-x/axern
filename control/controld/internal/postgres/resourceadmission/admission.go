@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import (
 	"context"
@@ -24,9 +24,9 @@ type Admission struct {
 	placement placementkernel.Evaluator
 }
 
-const maxReservationRejectionDetails = 5
+const maxAdmissionRejectionDetails = 5
 
-type ReserveCandidateRequest struct {
+type AdmitCandidateRequest struct {
 	Namespace     string
 	EnvironmentID string
 	Candidates    []*placementkernel.Candidate
@@ -43,7 +43,7 @@ func (a Admission) Policy() resourcekernel.AdmissionPolicy { return a.policy }
 
 func (a Admission) Evaluator() placementkernel.Evaluator { return a.placement }
 
-func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveCandidateRequest) (_ *placementkernel.AdmissionDecision, retErr error) {
+func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandidateRequest) (_ *placementkernel.AdmissionDecision, retErr error) {
 	totalStarted := time.Now()
 	defer func() {
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageTotal, totalStarted, retErr)
@@ -61,7 +61,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		return nil, err
 	}
 	stageStarted = time.Now()
-	namespaceUsed, err := activeNamespaceReservationUsage(ctx, tx, namespace)
+	namespaceUsed, err := activeNamespaceAllocationUsage(ctx, tx, namespace)
 	if err != nil {
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, err)
 		return nil, err
@@ -90,8 +90,8 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 		return nil, err
 	}
 	stageStarted = time.Now()
-	usage, err := activeCandidateReservationUsage(ctx, tx, locked)
-	recordResourceAdmissionStage(ctx, resourceAdmissionStageLoadReservations, stageStarted, err)
+	usage, err := activeCandidateAllocationUsage(ctx, tx, locked)
+	recordResourceAdmissionStage(ctx, resourceAdmissionStageLoadAllocationCharges, stageStarted, err)
 	if err != nil {
 		return nil, err
 	}
@@ -100,10 +100,10 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 	// eligible merely because admission was queued behind another transaction.
 	lockedEvaluationTime := req.Now.Add(time.Since(totalStarted))
 	stageStarted = time.Now()
-	diagnostics := newReservationRejectionDiagnostics(maxReservationRejectionDetails)
+	diagnostics := newAdmissionRejectionDiagnostics(maxAdmissionRejectionDetails)
 	lockedEligibilityRejections := make([]*placementkernel.Evaluation, 0)
 	var lockedRejectionRequest *placementkernel.Request
-	reservationEvaluated := 0
+	candidatesEvaluated := 0
 	var selected *placementkernel.Candidate
 	for _, candidate := range req.Candidates {
 		if candidate == nil || candidate.Record == nil {
@@ -145,16 +145,15 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			}
 			continue
 		}
-		reservationEvaluated++
+		candidatesEvaluated++
 		used := usage[record.NodeID]
-		effectiveUsed := effectiveReservationUsage(record.Summary, used.resources)
-		fit := a.policy.EvaluateFit(allocatableFromSummary(record.Summary), effectiveUsed, nodeRequested)
+		fit := a.policy.EvaluateFit(allocatableFromSummary(record.Summary), used.resources, nodeRequested)
 		slots := evaluateRuntimeSlots(record.Summary, used.allocationIDs)
 		if !fit.Fits() || !slots.Fits {
 			diagnostics.AddCandidate(record.NodeID, a.policy, fit, slots)
 			continue
 		}
-		refreshed := refreshPlacementCandidate(&placementkernel.Candidate{Record: record, Evaluation: freshEvaluation, BaseRequest: baseRequest, Request: freshRequest}, record, effectiveUsed, used.allocationIDs, lockedEvaluationTime)
+		refreshed := refreshPlacementCandidate(&placementkernel.Candidate{Record: record, Evaluation: freshEvaluation, BaseRequest: baseRequest, Request: freshRequest}, record, used.resources, used.allocationIDs, lockedEvaluationTime)
 		if selected == nil || placementkernel.CandidateLess(refreshed, selected) {
 			selected = refreshed
 		}
@@ -173,7 +172,7 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			return nil, fmt.Errorf("resolve capability requirements: %w", err)
 		}
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, nil)
-		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeReservation, string(quotaAdmissionAllowed), "fits")
+		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeCapacity, string(quotaAdmissionAllowed), "fits")
 		return &placementkernel.AdmissionDecision{
 			Record:                 selected.Record,
 			Evaluation:             selected.Evaluation,
@@ -181,18 +180,18 @@ func (a Admission) ReserveCandidate(ctx context.Context, tx pgx.Tx, req ReserveC
 			CapabilityRequirements: requirements,
 		}, nil
 	}
-	if rejection := lockedAdmissionEligibilityError(reservationEvaluated, lockedRejectionRequest, lockedEligibilityRejections); rejection != nil {
+	if rejection := lockedAdmissionEligibilityError(candidatesEvaluated, lockedRejectionRequest, lockedEligibilityRejections); rejection != nil {
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, rejection)
 		return nil, rejection
 	}
-	rejection := reservationRejectionError(diagnostics)
+	rejection := admissionRejectionError(diagnostics)
 	recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, rejection)
-	recordNodeReservationRejected(ctx, namespace, diagnostics)
+	recordNodeCapacityRejected(ctx, namespace, diagnostics)
 	return nil, rejection
 }
 
-func lockedAdmissionEligibilityError(reservationEvaluated int, request *placementkernel.Request, rejected []*placementkernel.Evaluation) error {
-	if reservationEvaluated > 0 || len(rejected) == 0 {
+func lockedAdmissionEligibilityError(candidatesEvaluated int, request *placementkernel.Request, rejected []*placementkernel.Evaluation) error {
+	if candidatesEvaluated > 0 || len(rejected) == 0 {
 		return nil
 	}
 	return placementkernel.NoEligibleNodeError(request, rejected)
@@ -211,10 +210,10 @@ func sameCapabilityObservationOrder(left, right *capabilityv1.CapabilitySnapshot
 	return left != nil && right != nil && left.GetNodeInstanceID() == right.GetNodeInstanceID() && left.GetSequence() == right.GetSequence()
 }
 
-func reservationRejectionError(diagnostics reservationRejectionDiagnostics) error {
+func admissionRejectionError(diagnostics admissionRejectionDiagnostics) error {
 	st := grpcstatus.New(codes.ResourceExhausted, diagnostics.Message())
 	withDetails, err := st.WithDetails(&errdetails.ErrorInfo{
-		Reason:   string(resourcekernel.AdmissionRejectionNodeReservationCapacity),
+		Reason:   string(resourcekernel.AdmissionRejectionNodeCapacity),
 		Domain:   resourcekernel.AdmissionErrorDomain,
 		Metadata: diagnostics.Metadata(),
 	})
@@ -224,16 +223,15 @@ func reservationRejectionError(diagnostics reservationRejectionDiagnostics) erro
 	return withDetails.Err()
 }
 
-func activeNamespaceReservationUsage(ctx context.Context, tx pgx.Tx, namespace string) (resourcekernel.Claim, error) {
+func activeNamespaceAllocationUsage(ctx context.Context, tx pgx.Tx, namespace string) (resourcekernel.Claim, error) {
 	var used resourcekernel.Claim
 	if err := tx.QueryRow(ctx, `
-		SELECT COALESCE(SUM(res.cpu_milli), 0), COALESCE(SUM(res.sandbox_memory_request_bytes), 0), COALESCE(SUM(res.ephemeral_storage_bytes), 0)
-		FROM reservations res
-		JOIN allocations a ON a.allocation_id = res.allocation_id
+		SELECT COALESCE(SUM(a.cpu_request_milli), 0), COALESCE(SUM(a.sandbox_memory_request_bytes), 0), COALESCE(SUM(a.ephemeral_storage_request_bytes), 0)
+		FROM allocations a
 		JOIN runs r ON r.run_id = a.run_id
-		WHERE r.namespace = $1 AND res.released_at IS NULL
-	`, namespace).Scan(&used.CPUMilli, &used.MemoryBytes, &used.EphemeralStorageBytes); err != nil {
-		return resourcekernel.Claim{}, fmt.Errorf("sum namespace reservations: %w", err)
+		WHERE r.namespace = $1 AND a.lifecycle_state <> $2
+	`, namespace, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&used.CPUMilli, &used.MemoryBytes, &used.EphemeralStorageBytes); err != nil {
+		return resourcekernel.Claim{}, fmt.Errorf("sum namespace allocation charges: %w", err)
 	}
 	return used, nil
 }

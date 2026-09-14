@@ -36,7 +36,6 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *placementkernel.Evalua
 		HeartbeatAgeSecs: nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, input.Now),
 		SummaryAgeSecs:   nodekernel.SummaryAgeSecs(summary, input.Now),
 		Pools:            clonePools(summary.GetPools()),
-		Resources:        cloneResources(summary.GetResources()),
 		Locality:         locality,
 		Rank:             buildPlacementRank(input.Request, summary, locality),
 	}
@@ -144,13 +143,6 @@ func clonePools(in *nodev1.PoolsSummary) *nodev1.PoolsSummary {
 		return nil
 	}
 	return proto.Clone(in).(*nodev1.PoolsSummary)
-}
-
-func cloneResources(in *nodev1.ResourcesSummary) *nodev1.ResourcesSummary {
-	if in == nil {
-		return nil
-	}
-	return proto.Clone(in).(*nodev1.ResourcesSummary)
 }
 
 func cloneLocality(in *nodev1.LocalitySummary) *nodev1.LocalitySummary {

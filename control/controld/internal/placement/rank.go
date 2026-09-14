@@ -38,9 +38,7 @@ func buildPlacementRank(req *placementkernel.Request, summary *nodev1.NodeSummar
 		PeerHealthyCount:           locality.GetPeerHealthyCount(),
 		PeerHintedCount:            locality.GetPeerHintedCount(),
 		IdlePoolReady:              hasWarmRuntimeSlot(summary.GetPools()),
-		AxnodedUsedMilli:           summary.GetResources().GetAxnodedUsedMilli(),
-		AxnodedUsedBytes:           summary.GetResources().GetAxnodedUsedBytes(),
-		AxnodedActiveInstances:     nodekernel.ReportedActiveInstances(summary),
+		RuntimeSlotOccupancy:       nodekernel.ReportedActiveInstances(summary),
 	}
 	return rank
 }

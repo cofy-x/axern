@@ -207,7 +207,7 @@ func (c *CgroupManager) memoryCommitmentLocked(now time.Time) MemoryCommitment {
 		if lease == nil {
 			continue
 		}
-		charge := lease.GetCapacityReservationBytes()
+		charge := lease.GetCapacityChargeBytes()
 		if charge == 0 {
 			charge = lease.GetMemoryRequestBytes()
 		}

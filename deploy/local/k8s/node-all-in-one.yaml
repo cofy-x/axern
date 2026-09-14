@@ -60,7 +60,7 @@ spec:
             - name: AXNODED_CONTROL_PLANE_TLS_KEY
               value: /certs/node.key
             # Match the verification runtime's local-only 1 GiB reserve:
-            # a 512 MiB conformance reservation must coexist with node daemons.
+            # a 512 MiB conformance charge must coexist with node daemons.
             # Production deployments must use a measured qualification receipt.
             - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
               value: "1073741824"

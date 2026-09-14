@@ -107,8 +107,8 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	if opt.MemoryRequestBytes < 0 {
 		return EmptyStringResource, fmt.Errorf("cgroup memory request cannot be negative")
 	}
-	if opt.MemoryLimitBytes < 0 || opt.CapacityReservationBytes < 0 {
-		return EmptyStringResource, fmt.Errorf("cgroup memory limit and capacity reservation cannot be negative")
+	if opt.MemoryLimitBytes < 0 || opt.CapacityChargeBytes < 0 {
+		return EmptyStringResource, fmt.Errorf("cgroup memory limit and capacity charge cannot be negative")
 	}
 	if opt.MemoryLimitBytes > 0 && opt.MemoryRequestBytes > opt.MemoryLimitBytes {
 		return EmptyStringResource, fmt.Errorf("cgroup memory request cannot exceed its hard limit")
@@ -120,15 +120,15 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		opt.CgroupOwnerKind != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
 		return EmptyStringResource, fmt.Errorf("cgroup allocation owner kind is invalid")
 	}
-	capacityReservation := opt.CapacityReservationBytes
-	if capacityReservation == 0 {
-		capacityReservation = opt.MemoryRequestBytes
+	capacityCharge := opt.CapacityChargeBytes
+	if capacityCharge == 0 {
+		capacityCharge = opt.MemoryRequestBytes
 	}
-	if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD && capacityReservation != opt.MemoryRequestBytes {
-		return EmptyStringResource, fmt.Errorf("workload capacity reservation must equal its memory request")
+	if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD && capacityCharge != opt.MemoryRequestBytes {
+		return EmptyStringResource, fmt.Errorf("workload capacity charge must equal its memory request")
 	}
-	if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE && capacityReservation < opt.MemoryRequestBytes {
-		return EmptyStringResource, fmt.Errorf("runtime conformance capacity reservation cannot be smaller than its memory request")
+	if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE && capacityCharge < opt.MemoryRequestBytes {
+		return EmptyStringResource, fmt.Errorf("runtime conformance capacity charge cannot be smaller than its memory request")
 	}
 
 	c.Lock()
@@ -140,7 +140,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 				lease.GetOwnerKind() != opt.CgroupOwnerKind ||
 				lease.GetMemoryRequestBytes() != opt.MemoryRequestBytes ||
 				lease.GetMemoryLimitBytes() != opt.MemoryLimitBytes ||
-				lease.GetCapacityReservationBytes() != capacityReservation {
+				lease.GetCapacityChargeBytes() != capacityCharge {
 				c.Unlock()
 				return EmptyStringResource, fmt.Errorf("allocation %s already has a different or retiring cgroup binding", opt.ContainerID)
 			}
@@ -163,26 +163,26 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 			return EmptyStringResource, fmt.Errorf("node memory system reserve is exhausted: %w", errord.ErrResourceExhausted)
 		}
 		if opt.CgroupOwnerKind == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
-			if capacityReservation <= 0 {
+			if capacityCharge <= 0 {
 				c.Unlock()
-				return EmptyStringResource, fmt.Errorf("runtime conformance requires an explicit memory reservation")
+				return EmptyStringResource, fmt.Errorf("runtime conformance requires an explicit memory charge")
 			}
 			conformanceCommitted := c.memoryCommitmentLocked(now).ConformanceBytes
 			commitmentHeadroom := max(capacity.SystemReserveBaseAvailableBytes-conformanceCommitted, 0)
-			if capacityReservation > commitmentHeadroom {
+			if capacityCharge > commitmentHeadroom {
 				c.Unlock()
 				metrics.RecordMemoryAdmission("conformance_commitment_exhausted")
 				return EmptyStringResource, fmt.Errorf(
-					"runtime conformance memory reservation %d exceeds system reserve commitment headroom %d: %w",
-					capacityReservation, commitmentHeadroom, errord.ErrResourceExhausted,
+					"runtime conformance memory charge %d exceeds system reserve commitment headroom %d: %w",
+					capacityCharge, commitmentHeadroom, errord.ErrResourceExhausted,
 				)
 			}
-			if capacityReservation > capacity.SystemReserveAvailableBytes {
+			if capacityCharge > capacity.SystemReserveAvailableBytes {
 				c.Unlock()
 				metrics.RecordMemoryAdmission("conformance_reserve_exhausted")
 				return EmptyStringResource, fmt.Errorf(
-					"runtime conformance memory reservation %d exceeds system reserve headroom %d: %w",
-					capacityReservation, capacity.SystemReserveAvailableBytes, errord.ErrResourceExhausted,
+					"runtime conformance memory charge %d exceeds system reserve headroom %d: %w",
+					capacityCharge, capacity.SystemReserveAvailableBytes, errord.ErrResourceExhausted,
 				)
 			}
 		} else if opt.MemoryRequestBytes > 0 {
@@ -244,7 +244,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	lease.AllocationID = opt.ContainerID
 	lease.MemoryRequestBytes = opt.MemoryRequestBytes
 	lease.MemoryLimitBytes = opt.MemoryLimitBytes
-	lease.CapacityReservationBytes = capacityReservation
+	lease.CapacityChargeBytes = capacityCharge
 	lease.OwnerKind = opt.CgroupOwnerKind
 	lease.AssignedAtUnixNano = time.Now().UTC().UnixNano()
 	c.leases.Set(id, lease)
@@ -265,7 +265,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 			lease.AllocationID = ""
 			lease.MemoryRequestBytes = 0
 			lease.MemoryLimitBytes = 0
-			lease.CapacityReservationBytes = 0
+			lease.CapacityChargeBytes = 0
 			lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 			lease.AssignedAtUnixNano = 0
 			lease.RetiringAtUnixNano = time.Now().UTC().UnixNano()
@@ -278,7 +278,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		lease.AllocationID = ""
 		lease.MemoryRequestBytes = 0
 		lease.MemoryLimitBytes = 0
-		lease.CapacityReservationBytes = 0
+		lease.CapacityChargeBytes = 0
 		lease.OwnerKind = apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED
 		lease.AssignedAtUnixNano = 0
 		c.leases.Set(id, lease)
@@ -287,7 +287,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		return EmptyStringResource, err
 	}
 	c.Unlock()
-	if c.memoryAdmissionRequired && capacityReservation > 0 {
+	if c.memoryAdmissionRequired && capacityCharge > 0 {
 		result := "admitted"
 		if conformance {
 			result = "conformance_admitted"

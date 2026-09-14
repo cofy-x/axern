@@ -5,14 +5,26 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/require"
 )
+
+type deleteCountingRuntime struct {
+	*runtimetest.FakeSandboxRuntime
+	deleteCalls atomic.Int64
+}
+
+func (r *deleteCountingRuntime) DeleteContainer(ctx context.Context, request *runtimeapi.DeleteContainerRequest, options contract.HandlerOptions) (*runtimeapi.DeleteContainerResponse, error) {
+	r.deleteCalls.Add(1)
+	return r.FakeSandboxRuntime.DeleteContainer(ctx, request, options)
+}
 
 func TestRunReturnsWithoutBlocking(t *testing.T) {
 	s := newTestService(t,
@@ -86,4 +98,35 @@ func TestShutdownDrainsRetainedEnvironments(t *testing.T) {
 	require.NoError(t, s.Shutdown(t.Context()))
 	require.Nil(t, s.environmentCache.GetPreparedEnvironment("retained-on-close"))
 	require.True(t, lr.Released())
+}
+
+func TestShutdownPreservesLiveAllocationForRestartRecovery(t *testing.T) {
+	runtimeHandler := &deleteCountingRuntime{FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
+	s := newTestService(t, runtimeHandler)
+	const allocationID = "allocation-survives-restart"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil))
+	s.containerManager.StoreMetadata(allocationID, &runtimeapi.ContainerMetadata{})
+	markTestContainerRunning(t, s, allocationID)
+
+	require.NoError(t, s.Shutdown(t.Context()))
+	require.Zero(t, runtimeHandler.deleteCalls.Load(), "graceful process shutdown must not become Allocation deletion")
+	require.True(t, s.allocations.HasAllocation(allocationID), "durable Allocation recovery record must survive process shutdown")
+}
+
+func TestExpiredExecutionLeaseStopsAllocation(t *testing.T) {
+	runtimeHandler := &deleteCountingRuntime{FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
+	s := newTestService(t, runtimeHandler)
+	const allocationID = "allocation-expired"
+	const digest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	now := time.Now().UTC()
+	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, now.Add(time.Minute), nil, nil))
+	s.containerManager.StoreMetadata(allocationID, &runtimeapi.ContainerMetadata{})
+	markTestContainerRunning(t, s, allocationID)
+	require.NoError(t, s.allocations.ReplaceExecutionLeases(nil, now))
+
+	s.stopExpiredExecutionLeases(t.Context(), now)
+
+	require.EqualValues(t, 1, runtimeHandler.deleteCalls.Load())
+	require.False(t, s.allocations.HasAllocation(allocationID))
 }

@@ -40,7 +40,7 @@ import (
 const (
 	defaultHeartbeatFreshnessWindow = 15 * time.Second
 	defaultSummaryFreshnessWindow   = 15 * time.Second
-	defaultExecutionLeaseTTL        = 5 * time.Minute
+	defaultAllocationAccessGrantTTL = 5 * time.Minute
 	defaultSandboxRuntime           = "runsc"
 	defaultReconcileInterval        = 2 * time.Second
 	defaultReconcileTimeout         = 30 * time.Second

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -60,15 +60,16 @@ type AdmitRunParams struct {
 	Candidates  []*placementkernel.Candidate
 }
 
-type LeaseStore interface {
-	IssueExecutionLease(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*leasekernel.IssuedGrant, error)
-	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*leasekernel.Record, int64, error)
+type AccessGrantStore interface {
+	IssueAllocationAccessGrant(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
+	WatchAllocationAccessGrants(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*accessgrantkernel.Record, int64, error)
 }
 
 type AllocationReporter interface {
 	BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*nodev1.AllocationLifecycleObservation, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
 	ReconcileNodeUnavailable(ctx context.Context, nodeID string, now time.Time) error
+	ListNodeExecutionAllocationIDs(ctx context.Context, nodeID string) ([]string, error)
 }
 
 type ReconcileStore interface {
@@ -76,8 +77,8 @@ type ReconcileStore interface {
 	CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
 	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, now time.Time) error
 	MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error)
-	ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, leaseTTL time.Duration) ([]allocationkernel.ReconcileItem, error)
-	RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, leaseTTL time.Duration) (bool, error)
+	ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, claimTTL time.Duration) ([]allocationkernel.ReconcileItem, error)
+	RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error)
 	ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error)
 	WaitReconcileWork(ctx context.Context) error
 }

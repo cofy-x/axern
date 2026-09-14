@@ -7,7 +7,7 @@ This runbook covers control-plane reconcile diagnostics and allocation lifecycle
 - Grafana/Prometheus metrics answer whether reconcile work is healthy over time.
 - `/reconcilez` shows process-local background reconciler health for one `controld` instance.
 - `/allocation-reconcilez` shows read-only allocation lifecycle retry queue state.
-- `/consistencyz` shows read-only cross-table consistency issues for active reservations, leases, tunnel sessions, Runs, and Allocations.
+- `/consistencyz` shows read-only consistency issues for Runs, Allocations, AllocationAccessGrants, TunnelSessions, and lifecycle delivery intent.
 - `axern admin consistency check` and `axern admin reliability check` expose the typed admin gRPC read models used by smoke tests and operator triage.
 - Active-node heartbeat freshness, summary freshness, and axnoded readiness are folded into the same reliability response. Retired nodes are excluded.
 - The admin gRPC API and CLI perform audited repair actions.
@@ -66,7 +66,7 @@ Important fields:
 - `due`: whether the item is eligible to run now.
 - `clearable` and `clear_blocked_reason`: server-side clear preconditions.
 
-Use `/consistencyz` when queue state, quotas, or node inventory suggest stranded control-plane resources. A healthy response has `status: "ok"`. An inconsistent response lists issue codes such as active reservations on ended allocations, active leases or tunnel sessions on ended allocations, or Run references to missing/ended allocations. The endpoint is diagnostic only; fix state through the owning reconciler or audited admin operation. Issue details are capped; `truncated: true` means the response found more issues than it returned.
+Use `/consistencyz` when queue state, quotas, or Node inventory suggest stranded control-plane resources. A healthy response has `status: "ok"`. An inconsistent response lists issue codes such as active access grants or TunnelSessions on ended Allocations, or invalid Run/Allocation lifecycle relationships. The endpoint is diagnostic only; fix state through the owning reconciler or audited admin operation.
 
 Repair ownership for each consistency issue family is defined in [Consistency Repair Boundaries](consistency-repair-boundaries.md). The short version: diagnostics stay read-only, and writes go through the owning Run/Allocation or tunnel controller, or an audited admin operation.
 
@@ -101,11 +101,11 @@ axern admin audit list --target-type allocation --target-id <allocation_id>
 
 ## Retry Policy
 
-Ensure-present retries are bounded. If creation continues failing, the Run reconciler marks the Allocation and Run failed, releases the reservation, and removes the queue row.
+Ensure-present retries are bounded. If creation continues failing, the Run reconciler marks the Run failed, moves the Allocation to `RELEASING`, and converts the same queue row into ensure-absent cleanup intent. Its resource charge remains until cleanup reaches `RELEASED`.
 
 Ensure-absent retries are intentionally unbounded. They represent cleanup intent derived from Allocation lifecycle and continue until node deletion is confirmed or an operator clears a stale, already-clean terminal row.
 
-Do not add generic queue deletion. Removing convergence intent without lifecycle cleanup can strand reservations, leases, or tunnel sessions.
+Do not add generic queue deletion. Removing durable delivery intent without lifecycle cleanup can strand runtimes, resource ownership, access grants, or TunnelSessions.
 
 ## Verification
 

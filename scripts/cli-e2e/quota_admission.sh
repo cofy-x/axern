@@ -2,7 +2,7 @@
 
 verify_quota_admission() {
   local namespace quota_env_output quota_environment_id quota_events_output quota_events_count quota_get_output quota_list_output quota_list_contains quota_unset_output quota_run_output quota_run_id deadline
-  local quota_cpu_limit quota_memory_limit quota_reserved_cpu quota_reserved_memory quota_unset_cpu quota_unset_memory
+  local quota_cpu_limit quota_memory_limit quota_used_cpu quota_used_memory quota_unset_cpu quota_unset_memory
   namespace="e2e-quota-admission"
 
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" namespace create "${namespace}" -o json >"${cli_object_output}"
@@ -10,9 +10,9 @@ verify_quota_admission() {
   quota_get_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" quota get --namespace "${namespace}" -o json)"
   quota_cpu_limit="$(json_query "quota admission quota get" 'json.load(sys.stdin)["quota"]["cpu_milli_limit"]' "${quota_get_output}")"
   quota_memory_limit="$(json_query "quota admission quota get" 'json.load(sys.stdin)["quota"]["memory_bytes_limit"]' "${quota_get_output}")"
-  quota_reserved_cpu="$(json_query "quota admission quota get" 'json.load(sys.stdin)["quota"]["reserved_cpu_milli"]' "${quota_get_output}")"
-  quota_reserved_memory="$(json_query "quota admission quota get" 'json.load(sys.stdin)["quota"]["reserved_memory_bytes"]' "${quota_get_output}")"
-  if [ "${quota_cpu_limit}" != "100" ] || [ "${quota_memory_limit}" != "1073741824" ] || [ "${quota_reserved_cpu}" != "0" ] || [ "${quota_reserved_memory}" != "0" ]; then
+  quota_used_cpu="$(json_query "quota admission quota get" 'json.load(sys.stdin)["quota"]["used_cpu_milli"]' "${quota_get_output}")"
+  quota_used_memory="$(json_query "quota admission quota get" 'json.load(sys.stdin)["quota"]["used_memory_bytes"]' "${quota_get_output}")"
+  if [ "${quota_cpu_limit}" != "100" ] || [ "${quota_memory_limit}" != "1073741824" ] || [ "${quota_used_cpu}" != "0" ] || [ "${quota_used_memory}" != "0" ]; then
     echo "quota admission quota get returned unexpected usage or limits" >&2
     printf '%s\n' "${quota_get_output}" >&2
     dump_logs

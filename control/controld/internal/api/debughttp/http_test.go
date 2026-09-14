@@ -191,8 +191,8 @@ func TestReconcileHealthHandlerReturnsStableEmptySnapshot(t *testing.T) {
 func TestConsistencyHandlerReturnsJSONSnapshot(t *testing.T) {
 	handler := New(Config{
 		ConsistencySnapshot: func(context.Context) (consistencykernel.Snapshot, error) {
-			return consistencykernel.NewSnapshot(consistencykernel.Counts{ActiveReservations: 1}, []consistencykernel.Issue{{
-				Code:         "active_reservation_on_released_allocation",
+			return consistencykernel.NewSnapshot(consistencykernel.Counts{ActiveAllocations: 1}, []consistencykernel.Issue{{
+				Code:         "active_lease_on_ended_allocation",
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-1",
 				RunID:        "run-1",
@@ -207,7 +207,7 @@ func TestConsistencyHandlerReturnsJSONSnapshot(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"status":"inconsistent"`, `"active_reservations":1`, `"issues":1`, `"code":"active_reservation_on_released_allocation"`, `"allocation_id":"alloc-1"`} {
+	for _, want := range []string{`"status":"inconsistent"`, `"active_allocations":1`, `"issues":1`, `"code":"active_lease_on_ended_allocation"`, `"allocation_id":"alloc-1"`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected consistency body: %s", recorder.Body.String())
 		}

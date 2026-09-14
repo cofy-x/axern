@@ -49,6 +49,11 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		return nil, fmt.Errorf("identify allocation request: %w", err)
 	}
 	controller := h.allocationController()
+	leaseTTL := time.Duration(request.GetExecutionLeaseTtlSeconds()) * time.Second
+	if strings.TrimSpace(controlPlaneNodeID) != "" && leaseTTL <= 0 {
+		return nil, errord.ToGRPC(fmt.Errorf("control-plane allocation requires a positive execution lease TTL: %w", errord.ErrInvalidArgument))
+	}
+	leaseExpiresAt := time.Now().Add(leaseTTL).UTC()
 	unlockLifecycle := controller.LockAllocationLifecycle(request.GetAllocationID())
 	defer unlockLifecycle()
 	if controller.VerifiedEnforcementManifest(request.GetAllocationID()) != nil {
@@ -61,6 +66,9 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		}
 		if !active {
 			return nil, errord.ToGRPC(fmt.Errorf("durably verified allocation has no active runtime: %w", errord.ErrFailedPrecondition))
+		}
+		if err := controller.ReplaceExecutionLeases(map[string]time.Duration{request.GetAllocationID(): leaseTTL}, time.Now().UTC()); err != nil {
+			return nil, errord.ToGRPC(err)
 		}
 		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "replayed")
 		return resp, nil
@@ -82,7 +90,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, request.GetResources(), admitted)
+	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted)
 	if err != nil {
 		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err

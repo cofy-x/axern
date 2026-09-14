@@ -46,7 +46,7 @@ func (s *PGStore) Cleanup(ctx context.Context, cfg retention.Config, now time.Ti
 		if err != nil {
 			return err
 		}
-		result.LeasesDeleted, err = s.deleteExpiredLeases(ctx, tx, now.Add(-cfg.LeasesTTL), now, cfg.BatchSize)
+		result.AccessGrantsDeleted, err = s.deleteExpiredAccessGrants(ctx, tx, now.Add(-cfg.AccessGrantsTTL), now, cfg.BatchSize)
 		if err != nil {
 			return err
 		}

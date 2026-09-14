@@ -64,6 +64,8 @@ type sandboxService struct {
 	capabilityReconcileCtx    context.Context
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup
+	executionLeaseCancel      context.CancelFunc
+	executionLeaseWG          sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
 	allocationLifecycleOutbox *nodecontrol.AllocationLifecycleOutbox
 

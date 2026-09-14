@@ -53,6 +53,7 @@ type Reporter struct {
 	snapshot             SnapshotFunc
 	summaryBuilder       SummaryBuilder
 	refreshInventory     func()
+	applyExecutionLeases func([]*nodev1.AllocationExecutionLease, time.Time) error
 	control              NodeControlClientProvider
 	lifecycleBatcher     *allocationLifecycleBatcher
 	lifecycleBatcherOnce sync.Once
@@ -152,6 +153,12 @@ func (r *Reporter) SetInventoryRefresh(refresh func()) {
 		return
 	}
 	r.refreshInventory = refresh
+}
+
+func (r *Reporter) SetExecutionLeaseConsumer(consume func([]*nodev1.AllocationExecutionLease, time.Time) error) {
+	if r != nil {
+		r.applyExecutionLeases = consume
+	}
 }
 
 func (r *Reporter) NotifyInventoryChanged() {
@@ -256,8 +263,10 @@ func (r *Reporter) report() {
 		NodeAuthToken: r.nodeAuthToken,
 	}
 	started := time.Now()
+	var response *nodev1.ReportNodeResponse
 	if err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
-		_, err := client.ReportNode(ctx, req)
+		var err error
+		response, err = client.ReportNode(ctx, req)
 		return err
 	}); err != nil {
 		op.SetErrorStatus("report node")
@@ -266,6 +275,15 @@ func (r *Reporter) report() {
 		metrics.RecordControlPlaneRPCDuration("report", "error", time.Since(started).Seconds())
 		logrus.WithError(err).Warn("control-plane report failed")
 		return
+	}
+	if r.applyExecutionLeases != nil {
+		if err := r.applyExecutionLeases(response.GetExecutionLeases(), time.Now().UTC()); err != nil {
+			op.SetErrorStatus("persist execution leases")
+			opErr = err
+			metrics.RecordControlPlaneRPC("report", "error")
+			logrus.WithError(err).Error("apply control-plane execution leases")
+			return
+		}
 	}
 	metrics.RecordControlPlaneRPC("report", "ok")
 	metrics.RecordControlPlaneRPCDuration("report", "ok", time.Since(started).Seconds())

@@ -16,7 +16,7 @@ func TestCgroupAllocateRetryRequiresExactBindingContract(t *testing.T) {
 		CgroupID: "/axern/cgroup-1", AllocationID: "allocation-1",
 		State:              apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
 		OwnerKind:          apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
-		MemoryRequestBytes: 64, MemoryLimitBytes: 128, CapacityReservationBytes: 64,
+		MemoryRequestBytes: 64, MemoryLimitBytes: 128, CapacityChargeBytes: 64,
 	})
 	manager := &CgroupManager{allocationLeases: &index, leases: leases}
 

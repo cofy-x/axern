@@ -42,8 +42,8 @@ func TestExecResolvesLeaseMetadataAndForwards(t *testing.T) {
 		t.Fatalf("dial target = %q", got)
 	}
 	req := h.backend.exec
-	if req.GetAllocationID() != "alloc-public" || h.backend.execLeaseToken != "lease-token" {
-		t.Fatalf("backend exec auth = allocation %q metadata token %q", req.GetAllocationID(), h.backend.execLeaseToken)
+	if req.GetAllocationID() != "alloc-public" || h.backend.accessGrantToken != "lease-token" {
+		t.Fatalf("backend exec auth = allocation %q metadata token %q", req.GetAllocationID(), h.backend.accessGrantToken)
 	}
 }
 
@@ -51,13 +51,13 @@ func TestExecDoesNotForwardCallerLeaseMetadata(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
 
-	ctx := metadata.AppendToOutgoingContext(context.Background(), nodekernel.ExecutionLeaseTokenMetadata, "caller-token")
+	ctx := metadata.AppendToOutgoingContext(context.Background(), nodekernel.AllocationAccessGrantTokenMetadata, "caller-token")
 	_, err := h.client.Exec(ctx, &nodesandboxv1.ExecRequest{AllocationID: "alloc-public", Spec: &nodesandboxv1.ExecSpec{Argv: []string{"true"}}})
 	if err != nil {
 		t.Fatalf("Exec returned error: %v", err)
 	}
-	if got := h.backend.execLeaseToken; got != "lease-token" {
-		t.Fatalf("backend execution lease metadata = %q, want gateway-issued token", got)
+	if got := h.backend.accessGrantToken; got != "lease-token" {
+		t.Fatalf("backend allocation access grant metadata = %q, want gateway-issued token", got)
 	}
 }
 
@@ -124,8 +124,8 @@ func TestProcessBridgesFirstOpenWithLeaseMetadata(t *testing.T) {
 
 func TestProcessRetriesTransientLeaseBeforeReadingClientInput(t *testing.T) {
 	h := newHarnessWithOptions(t, Options{
-		LeaseRetryAttempts: 2,
-		LeaseRetryDelay:    time.Nanosecond,
+		AccessGrantRetryAttempts: 2,
+		AccessGrantRetryDelay:    time.Nanosecond,
 	})
 	defer h.Close()
 	h.backend.failProcessReadyOnce = true
@@ -162,8 +162,8 @@ func TestProcessRetriesTransientLeaseBeforeReadingClientInput(t *testing.T) {
 
 func TestExecStreamRefreshesLeaseBeforeBridgingClientInput(t *testing.T) {
 	h := newHarnessWithOptions(t, Options{
-		LeaseRetryAttempts: 2,
-		LeaseRetryDelay:    time.Nanosecond,
+		AccessGrantRetryAttempts: 2,
+		AccessGrantRetryDelay:    time.Nanosecond,
 	})
 	defer h.Close()
 	h.resolver.tokens = []string{"stale-token", "fresh-token"}
@@ -263,8 +263,8 @@ func TestUploadArchiveRequiresOpenFirstMessage(t *testing.T) {
 
 func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
 	h := newHarnessWithOptions(t, Options{
-		LeaseRetryAttempts: 2,
-		LeaseRetryDelay:    time.Nanosecond,
+		AccessGrantRetryAttempts: 2,
+		AccessGrantRetryDelay:    time.Nanosecond,
 	})
 	defer h.Close()
 	h.resolver.tokens = []string{"stale-token", "fresh-token"}
@@ -306,12 +306,12 @@ func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
 		t.Fatalf("uploaded data = %q, want archive-data", got)
 	}
 	if got := h.metrics.routeTypes; len(got) != 1 || got[0] != "node_sandbox" {
-		t.Fatalf("lease retry metrics = %#v, want node_sandbox", got)
+		t.Fatalf("access grant retry metrics = %#v, want node_sandbox", got)
 	}
 }
 
 func TestProxyHTTPRefreshesLeaseBeforeReadingBody(t *testing.T) {
-	h := newHarnessWithOptions(t, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond})
+	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
 	defer h.Close()
 	h.resolver.tokens = []string{"stale-token", "fresh-token"}
 	h.backend.failProxyHTTPLeaseOnce = true
@@ -360,7 +360,7 @@ func TestProxyHTTPRefreshesLeaseBeforeReadingBody(t *testing.T) {
 }
 
 func TestDownloadArchiveRefreshesLeaseBeforeSendingBytes(t *testing.T) {
-	h := newHarnessWithOptions(t, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond})
+	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
 	defer h.Close()
 	h.resolver.tokens = []string{"stale-token", "fresh-token"}
 	h.backend.failDownloadArchiveLeaseOnce = true
@@ -397,7 +397,7 @@ func TestDownloadArchiveRefreshesLeaseBeforeSendingBytes(t *testing.T) {
 }
 
 func TestDownloadArchiveDoesNotRetryAfterSendingBytes(t *testing.T) {
-	h := newHarnessWithOptions(t, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond})
+	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
 	defer h.Close()
 	h.backend.failDownloadArchiveAfterChunk = true
 
@@ -421,7 +421,7 @@ func TestDownloadArchiveDoesNotRetryAfterSendingBytes(t *testing.T) {
 }
 
 func TestDownloadArchiveRejectsBackendWithoutLeaseAcknowledgement(t *testing.T) {
-	h := newHarnessWithOptions(t, Options{LeaseRetryAttempts: 2, LeaseRetryDelay: time.Nanosecond})
+	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
 	defer h.Close()
 	h.backend.omitDownloadArchiveLeaseHeader = true
 
@@ -439,7 +439,7 @@ func TestDownloadArchiveRejectsBackendWithoutLeaseAcknowledgement(t *testing.T) 
 		t.Fatalf("resolve calls = %d, want 1", got)
 	}
 	if got := h.metrics.routeTypes; len(got) != 0 {
-		t.Fatalf("lease retry metrics = %#v, want none", got)
+		t.Fatalf("access grant retry metrics = %#v, want none", got)
 	}
 }
 
@@ -449,13 +449,13 @@ type harness struct {
 	resolver *fakeResolver
 	dialer   *fakeDialer
 	backend  *fakeBackend
-	metrics  *fakeLeaseRetryObserver
+	metrics  *fakeAccessGrantRetryObserver
 	close    func()
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
-	return newHarnessWithOptions(t, Options{LeaseRetryAttempts: 1})
+	return newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 1})
 }
 
 func newHarnessWithOptions(t *testing.T, options Options) *harness {
@@ -466,7 +466,7 @@ func newHarnessWithOptions(t *testing.T, options Options) *harness {
 	})
 	resolver := &fakeResolver{}
 	dialer := &fakeDialer{client: nodesandboxv1.NewNodeSandboxClient(backendConn)}
-	metrics := &fakeLeaseRetryObserver{}
+	metrics := &fakeAccessGrantRetryObserver{}
 	options.ClientFingerprint = func(context.Context) (string, error) {
 		return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil
 	}
@@ -490,11 +490,11 @@ func newHarnessWithOptions(t *testing.T, options Options) *harness {
 	}
 }
 
-type fakeLeaseRetryObserver struct {
+type fakeAccessGrantRetryObserver struct {
 	routeTypes []string
 }
 
-func (f *fakeLeaseRetryObserver) LeaseRetry(routeType string) {
+func (f *fakeAccessGrantRetryObserver) AccessGrantRetry(routeType string) {
 	f.routeTypes = append(f.routeTypes, routeType)
 }
 
@@ -555,7 +555,7 @@ type fakeBackend struct {
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
 	exec                           *nodesandboxv1.ExecRequest
-	execLeaseToken                 string
+	accessGrantToken               string
 	processOpen                    *nodesandboxv1.ProcessOpen
 	processLeaseToken              string
 	failProcessReadyOnce           bool
@@ -578,7 +578,7 @@ type fakeBackend struct {
 }
 
 func backendLeaseToken(ctx context.Context) string {
-	values := metadata.ValueFromIncomingContext(ctx, nodekernel.ExecutionLeaseTokenMetadata)
+	values := metadata.ValueFromIncomingContext(ctx, nodekernel.AllocationAccessGrantTokenMetadata)
 	if len(values) != 1 {
 		return ""
 	}
@@ -587,12 +587,12 @@ func backendLeaseToken(ctx context.Context) string {
 
 func (b *fakeBackend) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nodesandboxv1.ExecResponse, error) {
 	b.exec = req
-	b.execLeaseToken = backendLeaseToken(ctx)
+	b.accessGrantToken = backendLeaseToken(ctx)
 	return &nodesandboxv1.ExecResponse{ExitCode: 0, Stdout: []byte("ok")}, nil
 }
 
 func (b *fakeBackend) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 		return err
 	}
 	return stream.Send(&nodesandboxv1.ReadOutputResponse{
@@ -612,9 +612,9 @@ func (b *fakeBackend) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServ
 	b.execStreamLeaseTokens = append(b.execStreamLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failExecStreamLeaseOnce {
 		b.failExecStreamLeaseOnce = false
-		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
+		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
 	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 		return err
 	}
 	if err := stream.Send(&nodesandboxv1.ExecStreamResponse{
@@ -636,9 +636,9 @@ func (b *fakeBackend) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) er
 	b.processLeaseToken = backendLeaseToken(stream.Context())
 	if b.failProcessReadyOnce {
 		b.failProcessReadyOnce = false
-		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
+		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
 	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 		return err
 	}
 	if err := stream.Send(&nodesandboxv1.ProcessResponse{
@@ -676,9 +676,9 @@ func (b *fakeBackend) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchi
 	b.uploadArchiveLeaseTokens = append(b.uploadArchiveLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failUploadArchiveLeaseOnce {
 		b.failUploadArchiveLeaseOnce = false
-		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
+		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
 	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 		return err
 	}
 	for {
@@ -703,9 +703,9 @@ func (b *fakeBackend) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer
 	b.proxyHTTPLeaseTokens = append(b.proxyHTTPLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failProxyHTTPLeaseOnce {
 		b.failProxyHTTPLeaseOnce = false
-		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
+		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
 	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 		return err
 	}
 	for {
@@ -732,10 +732,10 @@ func (b *fakeBackend) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest,
 	b.downloadArchiveLeaseTokens = append(b.downloadArchiveLeaseTokens, backendLeaseToken(stream.Context()))
 	if b.failDownloadArchiveLeaseOnce {
 		b.failDownloadArchiveLeaseOnce = false
-		return status.Error(codes.Unauthenticated, "execution lease is invalid, expired, revoked, or not current")
+		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
 	}
 	if !b.omitDownloadArchiveLeaseHeader {
-		if err := stream.SendHeader(metadata.Pairs(nodekernel.ExecutionLeaseAcceptedHeader, "1")); err != nil {
+		if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
 			return err
 		}
 	}

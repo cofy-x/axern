@@ -39,6 +39,30 @@ func (f *fakeAllocationLifecycleReporter) ReportAllocationLifecycle(report contr
 	return nil
 }
 
+func TestExecutionLeaseExpiryTerminationIntentClassifiesRuntimeExit(t *testing.T) {
+	s := newTestService(t, runtimetest.NewFakeSandboxRuntime())
+	const allocationID = "allocation-lease-expired"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if err := s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.allocations.MarkTerminationIntent(
+		allocationID,
+		commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED,
+		"allocation execution lease expired",
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	code, message := s.classifyContainerExit(container.Event{ContainerID: allocationID})
+	if code != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED {
+		t.Fatalf("diagnostic code = %v, want execution lease expired", code)
+	}
+	if message != "allocation execution lease expired" {
+		t.Fatalf("message = %q", message)
+	}
+}
+
 func (f *fakeAllocationLifecycleReporter) Start() {}
 
 func (f *fakeAllocationLifecycleReporter) Stop() {}
@@ -134,7 +158,7 @@ func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T
 	stateStore := storetest.NewMockStore()
 	outbox := controlplane.NewAllocationLifecycleOutbox(stateStore)
 	allocationController := allocation.NewController(allocation.Options{Store: stateStore})
-	if err := allocationController.StoreAllocationIntent("alloc-recovered", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", nil, nil); err != nil {
+	if err := allocationController.StoreAllocationIntent("alloc-recovered", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil); err != nil {
 		t.Fatalf("StoreAllocationIntent() error = %v", err)
 	}
 	service := &sandboxService{

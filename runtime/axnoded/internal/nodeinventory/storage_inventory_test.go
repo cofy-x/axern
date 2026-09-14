@@ -18,11 +18,11 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 		}
 	}
 	requireDir(filepath.Join(filestore, "runsc", "sandbox", "upper"))
-	requireDir(filepath.Join(filestore, "reservations"))
+	requireDir(filepath.Join(filestore, "allocation-charges"))
 	if err := os.WriteFile(filepath.Join(filestore, "runsc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(filestore, "reservations", "sandbox.json"), []byte(`{"container_id":"sandbox","request_bytes":4096,"limit_bytes":8192}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(filestore, "allocation-charges", "sandbox.json"), []byte(`{"container_id":"sandbox","request_bytes":4096,"limit_bytes":8192}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	source := NewAxnodedSource(AxnodedSourceOptions{
@@ -38,7 +38,7 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 		t.Fatalf("allocation usage = %d, filesystem usage = %d", entry.AllocationUsedBytes, entry.UsedBytes)
 	}
 	if !entry.UnlinkedBackingUsageUnknown {
-		t.Fatal("runsc reservation should expose possible unlinked backing usage")
+		t.Fatal("runsc Allocation charge should expose possible unlinked backing usage")
 	}
 	if snapshot.Resources.EphemeralStorage.AxnodedUsedBytes != entry.AllocationUsedBytes {
 		t.Fatalf("ephemeral storage resource usage = %d, want %d", snapshot.Resources.EphemeralStorage.AxnodedUsedBytes, entry.AllocationUsedBytes)

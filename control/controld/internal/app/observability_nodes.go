@@ -38,12 +38,12 @@ func (a *App) observeResourcePolicy(_ context.Context, observe sdkobs.Float64Gau
 }
 
 func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64GaugeObserver) error {
-	reserved, err := a.activeReservedResources(ctx)
+	charged, err := a.activeChargedResources(ctx)
 	if err != nil {
 		return err
 	}
 	for _, record := range a.readyNodeRecords() {
-		nodeReserved := reserved[record.NodeID]
+		nodeCharged := charged[record.NodeID]
 		summary := record.Summary
 		cpuCapacity := summary.GetCapacity().GetCpuMilli()
 		cpuAllocatable := summary.GetAllocatable().GetCpuMilli()
@@ -58,7 +58,7 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 			capacity:             cpuCapacity,
 			allocatable:          cpuAllocatable,
 			effectiveAllocatable: effective.CPUMilli,
-			reserved:             nodeReserved.cpuMilli,
+			charged:              nodeCharged.cpuMilli,
 		})
 		observeNodeResource(observe, nodeResourceObservation{
 			nodeID:               record.NodeID,
@@ -66,12 +66,12 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 			capacity:             memoryCapacity,
 			allocatable:          memoryAllocatable,
 			effectiveAllocatable: effective.MemoryBytes,
-			reserved:             nodeReserved.memoryBytes,
+			charged:              nodeCharged.memoryBytes,
 		})
 		observeNodeResource(observe, nodeResourceObservation{
 			nodeID: record.NodeID, resource: "ephemeral_storage_bytes",
 			capacity: ephemeralStorageCapacity, allocatable: ephemeralStorageAllocatable,
-			effectiveAllocatable: effective.EphemeralStorageBytes, reserved: nodeReserved.ephemeralStorageBytes,
+			effectiveAllocatable: effective.EphemeralStorageBytes, charged: nodeCharged.ephemeralStorageBytes,
 		})
 		if runtimeCapacity, known := nodekernel.RuntimeSlotCapacity(summary); known {
 			observeNodeResource(observe, nodeResourceObservation{
@@ -80,7 +80,7 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 				capacity:             runtimeCapacity,
 				allocatable:          runtimeCapacity,
 				effectiveAllocatable: runtimeCapacity,
-				reserved:             nodeReserved.instances,
+				charged:              nodeCharged.instances,
 			})
 		}
 	}
@@ -171,7 +171,7 @@ func axnodedReadySummary(summary *nodev1.NodeSummary) bool {
 	return axnoded.GetReady() && axnoded.GetState() == nodev1.ComponentState_COMPONENT_STATE_READY
 }
 
-type nodeReservedResources struct {
+type nodeChargedResources struct {
 	cpuMilli              int64
 	memoryBytes           int64
 	ephemeralStorageBytes int64
@@ -184,29 +184,29 @@ type nodeResourceObservation struct {
 	capacity             int64
 	allocatable          int64
 	effectiveAllocatable int64
-	reserved             int64
+	charged              int64
 }
 
-func (a *App) activeReservedResources(ctx context.Context) (map[string]nodeReservedResources, error) {
+func (a *App) activeChargedResources(ctx context.Context) (map[string]nodeChargedResources, error) {
 	rows, err := a.db.Pool().Query(ctx, `
-		SELECT node_id, COALESCE(sum(cpu_milli), 0), COALESCE(sum(sandbox_memory_request_bytes), 0), COALESCE(sum(ephemeral_storage_bytes), 0), COUNT(*)
-		FROM reservations
-		WHERE released_at IS NULL
+		SELECT node_id, COALESCE(sum(cpu_request_milli), 0), COALESCE(sum(sandbox_memory_request_bytes), 0), COALESCE(sum(ephemeral_storage_request_bytes), 0), COUNT(*)
+		FROM allocations
+		WHERE lifecycle_state <> 'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 		GROUP BY node_id
 	`)
 	if err != nil {
-		return nil, fmt.Errorf("query reserved resources: %w", err)
+		return nil, fmt.Errorf("query charged resources: %w", err)
 	}
 	defer rows.Close()
 
-	out := map[string]nodeReservedResources{}
+	out := map[string]nodeChargedResources{}
 	for rows.Next() {
 		var nodeID string
-		var reserved nodeReservedResources
-		if err := rows.Scan(&nodeID, &reserved.cpuMilli, &reserved.memoryBytes, &reserved.ephemeralStorageBytes, &reserved.instances); err != nil {
+		var charged nodeChargedResources
+		if err := rows.Scan(&nodeID, &charged.cpuMilli, &charged.memoryBytes, &charged.ephemeralStorageBytes, &charged.instances); err != nil {
 			return nil, err
 		}
-		out[nodeID] = reserved
+		out[nodeID] = charged
 	}
 	return out, rows.Err()
 }
@@ -215,8 +215,8 @@ func observeNodeResource(observe sdkobs.Int64GaugeObserver, observation nodeReso
 	observe(observation.capacity, nodeResourceAttrs(observation.nodeID, observation.resource, "capacity")...)
 	observe(observation.allocatable, nodeResourceAttrs(observation.nodeID, observation.resource, "allocatable")...)
 	observe(observation.effectiveAllocatable, nodeResourceAttrs(observation.nodeID, observation.resource, "effective_allocatable")...)
-	observe(observation.reserved, nodeResourceAttrs(observation.nodeID, observation.resource, "reserved")...)
-	observe(maxInt64(observation.effectiveAllocatable-observation.reserved, 0), nodeResourceAttrs(observation.nodeID, observation.resource, "available")...)
+	observe(observation.charged, nodeResourceAttrs(observation.nodeID, observation.resource, "charged")...)
+	observe(maxInt64(observation.effectiveAllocatable-observation.charged, 0), nodeResourceAttrs(observation.nodeID, observation.resource, "available")...)
 }
 
 func observeNodePool(observe sdkobs.Int64GaugeObserver, nodeID, resource string, idle, using, capacity, unavailable int64) {
@@ -241,9 +241,9 @@ func observeNodeStorage(observe sdkobs.Int64GaugeObserver, nodeID string, storag
 	observe(storage.GetInodesUsed(), nodeStorageAttrs(nodeID, storage.GetTarget(), "inodes_used")...)
 	observe(storage.GetInodesAvailable(), nodeStorageAttrs(nodeID, storage.GetTarget(), "inodes_available")...)
 	observe(storage.GetSystemReserveBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "system_reserve")...)
-	observe(storage.GetReservedBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "reserved")...)
+	observe(storage.GetChargedBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "charged")...)
 	observe(storage.GetAllocatableBytes(), nodeStorageAttrs(nodeID, storage.GetTarget(), "allocatable")...)
-	observe(storage.GetActiveReservations(), nodeStorageAttrs(nodeID, storage.GetTarget(), "active_reservations")...)
+	observe(storage.GetActiveAllocations(), nodeStorageAttrs(nodeID, storage.GetTarget(), "active_allocations")...)
 }
 
 func observeNodeBPFNet(observe sdkobs.Int64GaugeObserver, nodeID string, bpfnet *nodev1.BpfNetSummary) {

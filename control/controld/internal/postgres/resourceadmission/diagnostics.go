@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import (
 	"fmt"
@@ -10,9 +10,9 @@ import (
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
-type reservationRejectionDiagnostics struct {
+type admissionRejectionDiagnostics struct {
 	limit                    int
-	details                  []reservationRejectionDetail
+	details                  []admissionRejectionDetail
 	omitted                  int
 	rejectedCPU              bool
 	rejectedMemory           bool
@@ -20,7 +20,7 @@ type reservationRejectionDiagnostics struct {
 	rejectedSlots            bool
 }
 
-type reservationRejectionDetail struct {
+type admissionRejectionDetail struct {
 	NodeID             string
 	CPU                *resourcekernel.ResourceEvaluation
 	Memory             *resourcekernel.ResourceEvaluation
@@ -30,7 +30,7 @@ type reservationRejectionDetail struct {
 }
 
 type runtimeSlotEvaluation struct {
-	Reserved  int64
+	Charged   int64
 	Active    int64
 	PoolUsing int64
 	Occupied  int64
@@ -40,18 +40,18 @@ type runtimeSlotEvaluation struct {
 	Known     bool
 }
 
-func newReservationRejectionDiagnostics(limit int) reservationRejectionDiagnostics {
-	return reservationRejectionDiagnostics{
+func newAdmissionRejectionDiagnostics(limit int) admissionRejectionDiagnostics {
+	return admissionRejectionDiagnostics{
 		limit:   limit,
-		details: make([]reservationRejectionDetail, 0, limit),
+		details: make([]admissionRejectionDetail, 0, limit),
 	}
 }
 
-func (d *reservationRejectionDiagnostics) Add(nodeID string, policy resourcekernel.AdmissionPolicy, evaluation resourcekernel.FitEvaluation) {
+func (d *admissionRejectionDiagnostics) Add(nodeID string, policy resourcekernel.AdmissionPolicy, evaluation resourcekernel.FitEvaluation) {
 	d.AddCandidate(nodeID, policy, evaluation, runtimeSlotEvaluation{Fits: true})
 }
 
-func (d *reservationRejectionDiagnostics) AddCandidate(nodeID string, policy resourcekernel.AdmissionPolicy, evaluation resourcekernel.FitEvaluation, slots runtimeSlotEvaluation) {
+func (d *admissionRejectionDiagnostics) AddCandidate(nodeID string, policy resourcekernel.AdmissionPolicy, evaluation resourcekernel.FitEvaluation, slots runtimeSlotEvaluation) {
 	if evaluation.CPU.Requested > 0 && !evaluation.CPU.Fits {
 		d.rejectedCPU = true
 	}
@@ -68,15 +68,15 @@ func (d *reservationRejectionDiagnostics) AddCandidate(nodeID string, policy res
 		d.omitted++
 		return
 	}
-	detail := buildReservationRejectionDetail(nodeID, policy, evaluation)
+	detail := buildAdmissionRejectionDetail(nodeID, policy, evaluation)
 	if slots.Known && !slots.Fits {
 		detail.RuntimeSlots = &slots
 	}
 	d.details = append(d.details, detail)
 }
 
-func (d reservationRejectionDiagnostics) Message() string {
-	message := "no node has remaining reservation capacity"
+func (d admissionRejectionDiagnostics) Message() string {
+	message := "no node has remaining resource capacity"
 	if len(d.details) > 0 {
 		rendered := make([]string, 0, len(d.details))
 		for _, detail := range d.details {
@@ -90,9 +90,9 @@ func (d reservationRejectionDiagnostics) Message() string {
 	return message
 }
 
-func (d reservationRejectionDiagnostics) Metadata() map[string]string {
+func (d admissionRejectionDiagnostics) Metadata() map[string]string {
 	metadata := map[string]string{
-		"diagnostic_code": string(resourcekernel.AdmissionDiagnosticNodeReservationCapacity),
+		"diagnostic_code": string(resourcekernel.AdmissionDiagnosticNodeCapacity),
 		"rejection_count": strconv.Itoa(len(d.details) + d.omitted),
 	}
 	if d.omitted > 0 {
@@ -105,7 +105,7 @@ func (d reservationRejectionDiagnostics) Metadata() map[string]string {
 	return metadata
 }
 
-func (d reservationRejectionDiagnostics) rejectedResources() []string {
+func (d admissionRejectionDiagnostics) rejectedResources() []string {
 	resources := make([]string, 0, 3)
 	if d.rejectedCPU {
 		resources = append(resources, "cpu")
@@ -122,8 +122,8 @@ func (d reservationRejectionDiagnostics) rejectedResources() []string {
 	return resources
 }
 
-func buildReservationRejectionDetail(nodeID string, policy resourcekernel.AdmissionPolicy, evaluation resourcekernel.FitEvaluation) reservationRejectionDetail {
-	detail := reservationRejectionDetail{
+func buildAdmissionRejectionDetail(nodeID string, policy resourcekernel.AdmissionPolicy, evaluation resourcekernel.FitEvaluation) admissionRejectionDetail {
+	detail := admissionRejectionDetail{
 		NodeID:             nodeID,
 		CPUOvercommitRatio: resourcekernel.NormalizeAdmissionPolicy(policy).CPUOvercommitRatio,
 	}
@@ -139,10 +139,10 @@ func buildReservationRejectionDetail(nodeID string, policy resourcekernel.Admiss
 	return detail
 }
 
-func (d reservationRejectionDetail) Message() string {
+func (d admissionRejectionDetail) Message() string {
 	parts := []string{fmt.Sprintf("node_id=%s", d.NodeID)}
 	if d.CPU != nil {
-		parts = append(parts, fmt.Sprintf("cpu requested_milli=%d reserved_milli=%d effective_allocatable_milli=%d available_milli=%d overcommit_ratio=%.3g",
+		parts = append(parts, fmt.Sprintf("cpu requested_milli=%d used_milli=%d effective_allocatable_milli=%d available_milli=%d overcommit_ratio=%.3g",
 			d.CPU.Requested,
 			d.CPU.Used,
 			d.CPU.EffectiveAllocatable,
@@ -151,7 +151,7 @@ func (d reservationRejectionDetail) Message() string {
 		))
 	}
 	if d.Memory != nil {
-		parts = append(parts, fmt.Sprintf("memory requested_bytes=%d reserved_bytes=%d effective_allocatable_bytes=%d available_bytes=%d",
+		parts = append(parts, fmt.Sprintf("memory requested_bytes=%d used_bytes=%d effective_allocatable_bytes=%d available_bytes=%d",
 			d.Memory.Requested,
 			d.Memory.Used,
 			d.Memory.EffectiveAllocatable,
@@ -159,12 +159,12 @@ func (d reservationRejectionDetail) Message() string {
 		))
 	}
 	if d.EphemeralStorage != nil {
-		parts = append(parts, fmt.Sprintf("ephemeral_storage requested_bytes=%d reserved_bytes=%d effective_allocatable_bytes=%d available_bytes=%d",
+		parts = append(parts, fmt.Sprintf("ephemeral_storage requested_bytes=%d used_bytes=%d effective_allocatable_bytes=%d available_bytes=%d",
 			d.EphemeralStorage.Requested, d.EphemeralStorage.Used, d.EphemeralStorage.EffectiveAllocatable, d.EphemeralStorage.Available))
 	}
 	if d.RuntimeSlots != nil {
-		parts = append(parts, fmt.Sprintf("runtime_slots requested=1 reserved=%d active=%d pool_using=%d occupied=%d capacity=%d available=%d",
-			d.RuntimeSlots.Reserved,
+		parts = append(parts, fmt.Sprintf("runtime_slots requested=1 charged=%d active=%d pool_using=%d occupied=%d capacity=%d available=%d",
+			d.RuntimeSlots.Charged,
 			d.RuntimeSlots.Active,
 			d.RuntimeSlots.PoolUsing,
 			d.RuntimeSlots.Occupied,
@@ -175,16 +175,16 @@ func (d reservationRejectionDetail) Message() string {
 	return strings.Join(parts, " ")
 }
 
-func evaluateRuntimeSlots(summary *nodev1.NodeSummary, reservedAllocationIDs []string) runtimeSlotEvaluation {
+func evaluateRuntimeSlots(summary *nodev1.NodeSummary, chargedAllocationIDs []string) runtimeSlotEvaluation {
 	capacity, known := nodekernel.RuntimeSlotCapacity(summary)
-	occupancy := nodekernel.CalculateRuntimeSlotOccupancy(summary, reservedAllocationIDs)
+	occupancy := nodekernel.CalculateRuntimeSlotOccupancy(summary, chargedAllocationIDs)
 	occupied := occupancy.Occupied
 	available := capacity - occupied
 	if available < 0 {
 		available = 0
 	}
 	return runtimeSlotEvaluation{
-		Reserved:  occupancy.Reserved,
+		Charged:   occupancy.Charged,
 		Active:    occupancy.Active,
 		PoolUsing: occupancy.PoolUsing,
 		Occupied:  occupied,

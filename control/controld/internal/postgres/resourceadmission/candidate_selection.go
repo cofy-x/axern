@@ -1,4 +1,4 @@
-package reservation
+package resourceadmission
 
 import (
 	"context"
@@ -81,24 +81,12 @@ func candidateNodeIDs(candidates []*placementkernel.Candidate) []string {
 	return nodeIDs
 }
 
-type nodeReservationUsage struct {
+type nodeAllocationUsage struct {
 	resources     resourcekernel.Claim
 	allocationIDs []string
 }
 
-// effectiveReservationUsage closes the gap between control-plane reservation
-// release and node-local cgroup cleanup. A retiring cgroup remains committed
-// until axnoded has reclaimed and removed it, even when the allocation has
-// already reached a terminal control-plane state.
-func effectiveReservationUsage(summary *nodev1.NodeSummary, database resourcekernel.Claim) resourcekernel.Claim {
-	local := summary.GetMemoryBudget().GetLocalCommitmentBytes()
-	if local > database.MemoryBytes {
-		database.MemoryBytes = local
-	}
-	return database
-}
-
-func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[string]*nodekernel.Record) (map[string]nodeReservationUsage, error) {
+func activeCandidateAllocationUsage(ctx context.Context, tx pgx.Tx, locked map[string]*nodekernel.Record) (map[string]nodeAllocationUsage, error) {
 	if len(locked) == 0 {
 		return nil, nil
 	}
@@ -108,51 +96,44 @@ func activeCandidateReservationUsage(ctx context.Context, tx pgx.Tx, locked map[
 	}
 	sort.Strings(nodeIDs)
 	rows, err := tx.Query(ctx, `
-		SELECT node_id, COALESCE(SUM(cpu_milli), 0), COALESCE(SUM(sandbox_memory_request_bytes), 0), COALESCE(SUM(ephemeral_storage_bytes), 0),
+		SELECT node_id, COALESCE(SUM(cpu_request_milli), 0), COALESCE(SUM(sandbox_memory_request_bytes), 0), COALESCE(SUM(ephemeral_storage_request_bytes), 0),
 		       ARRAY_AGG(allocation_id ORDER BY allocation_id)
-		FROM reservations
-		WHERE node_id = ANY($1::text[]) AND released_at IS NULL
+		FROM allocations
+		WHERE node_id = ANY($1::text[]) AND lifecycle_state <> $2
 		GROUP BY node_id
-	`, nodeIDs)
+	`, nodeIDs, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String())
 	if err != nil {
-		return nil, fmt.Errorf("sum placement candidate reservations: %w", err)
+		return nil, fmt.Errorf("sum placement candidate allocation charges: %w", err)
 	}
 	defer rows.Close()
 
-	usage := make(map[string]nodeReservationUsage, len(locked))
+	usage := make(map[string]nodeAllocationUsage, len(locked))
 	for rows.Next() {
 		var nodeID string
-		var used nodeReservationUsage
+		var used nodeAllocationUsage
 		if err := rows.Scan(&nodeID, &used.resources.CPUMilli, &used.resources.MemoryBytes, &used.resources.EphemeralStorageBytes, &used.allocationIDs); err != nil {
-			return nil, fmt.Errorf("scan placement candidate reservations: %w", err)
+			return nil, fmt.Errorf("scan placement candidate allocation charges: %w", err)
 		}
 		usage[nodeID] = used
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate placement candidate reservations: %w", err)
+		return nil, fmt.Errorf("iterate placement candidate allocation charges: %w", err)
 	}
 	return usage, nil
 }
 
-func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nodekernel.Record, reserved resourcekernel.Claim, reservedAllocationIDs []string, now time.Time) *placementkernel.Candidate {
+func refreshPlacementCandidate(candidate *placementkernel.Candidate, record *nodekernel.Record, charged resourcekernel.Claim, chargedAllocationIDs []string, now time.Time) *placementkernel.Candidate {
 	evaluation := placementkernel.CloneEvaluation(candidate.Evaluation)
 	evaluation.NodeID = record.NodeID
 	evaluation.HeartbeatAgeSecs = nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, now)
 	if evaluation.Rank == nil {
 		evaluation.Rank = &placementkernel.Rank{}
 	}
-	resources := record.Summary.GetResources()
-	evaluation.Rank.AxnodedActiveInstances = nodekernel.CalculateRuntimeSlotOccupancy(record.Summary, reservedAllocationIDs).Occupied
-	evaluation.Rank.AxnodedUsedMilli = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedMilli(), positiveDifference(reserved.CPUMilli, resources.GetAxnodedCommittedMilli()))
-	evaluation.Rank.AxnodedUsedBytes = resourcekernel.SaturatingAdd(resources.GetAxnodedUsedBytes(), positiveDifference(reserved.MemoryBytes, record.Summary.GetMemoryBudget().GetLocalCommitmentBytes()))
+	evaluation.Rank.RuntimeSlotOccupancy = nodekernel.CalculateRuntimeSlotOccupancy(record.Summary, chargedAllocationIDs).Occupied
+	evaluation.Rank.ChargedCPUMilli = charged.CPUMilli
+	evaluation.Rank.ChargedMemoryBytes = charged.MemoryBytes
+	evaluation.Rank.ChargedEphemeralBytes = charged.EphemeralStorageBytes
 	return &placementkernel.Candidate{Record: record, Evaluation: evaluation, BaseRequest: candidate.BaseRequest, Request: candidate.Request}
-}
-
-func positiveDifference(total, reported int64) int64 {
-	if total <= reported {
-		return 0
-	}
-	return total - reported
 }
 
 func allocatableFromSummary(summary *nodev1.NodeSummary) *commonv1.ResourceQuantity {

@@ -2,7 +2,9 @@ package nodebridge
 
 import (
 	"strings"
+	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -21,9 +23,10 @@ type createAllocationRequestParams struct {
 
 func buildCreateAllocationRequestFromParams(params createAllocationRequestParams) *privatenodev1.CreateAllocationRequest {
 	return &privatenodev1.CreateAllocationRequest{
-		AllocationID: params.AllocationID,
-		NodeID:       params.NodeID,
-		Config:       buildResolvedExecutionConfig(params),
+		AllocationID:             params.AllocationID,
+		NodeID:                   params.NodeID,
+		Config:                   buildResolvedExecutionConfig(params),
+		ExecutionLeaseTtlSeconds: int64(allocationkernel.ExecutionLeaseTTL / time.Second),
 	}
 }
 

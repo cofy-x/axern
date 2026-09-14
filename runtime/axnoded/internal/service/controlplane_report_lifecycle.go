@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
@@ -11,6 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	nodecontrolpb "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type ControlPlaneReporterHealth struct {
@@ -54,8 +57,25 @@ func (h *sandboxService) initControlPlaneReporter() error {
 	if reporter != nil {
 		h.controlPlaneReports.SetReporter(reporter)
 		reporter.SetInventoryRefresh(h.refreshNodeInventory)
+		reporter.SetExecutionLeaseConsumer(h.applyExecutionLeases)
 	}
 	return nil
+}
+
+func (h *sandboxService) applyExecutionLeases(leases []*nodecontrolpb.AllocationExecutionLease, receivedAt time.Time) error {
+	ttls := make(map[string]time.Duration, len(leases))
+	for _, lease := range leases {
+		allocationID := strings.TrimSpace(lease.GetAllocationID())
+		ttl := time.Duration(lease.GetTtlSeconds()) * time.Second
+		if allocationID == "" || ttl <= 0 || ttl > executionlease.TTL {
+			return fmt.Errorf("invalid allocation execution lease")
+		}
+		if _, duplicate := ttls[allocationID]; duplicate {
+			return fmt.Errorf("duplicate allocation execution lease %q", allocationID)
+		}
+		ttls[allocationID] = ttl
+	}
+	return h.allocationController().ReplaceExecutionLeases(ttls, receivedAt)
 }
 
 func (h *sandboxService) notifyNodeInventoryChanged() {
@@ -119,6 +139,11 @@ func (h *sandboxService) seedTerminalAllocationLifecycleOutbox(admittedAllocatio
 func (h *sandboxService) classifyContainerExit(event container.Event) (commonv1.WorkloadDiagnosticCode, string) {
 	if event.DiagnosticCode != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		return event.DiagnosticCode, event.Reason
+	}
+	if h != nil && h.allocations != nil {
+		if code, message := h.allocations.TerminationIntent(event.ContainerID); code != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+			return code, message
+		}
 	}
 	if !h.allocationExitWasMemoryOOM(event.ContainerID) {
 		return event.DiagnosticCode, event.Reason

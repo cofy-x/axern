@@ -8,7 +8,7 @@ The rebuild-only schema has one canonical baseline:
 
 | Migration | Ownership |
 | --- | --- |
-| `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, reservations, execution leases, tunnels, reconciliation, and audit state |
+| `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, allocation access grants, tunnels, lifecycle delivery, and audit state |
 
 Each migration declares the final shape of its domain. Migrations run in one direction under a Postgres advisory lock and are recorded in `schema_migrations` with version, name, checksum, and application time. The repository uses rebuild-only database upgrades: schema changes are folded into the owning baseline migration and the database is recreated. Compatibility migrations and dual-read paths are outside the current contract.
 
@@ -44,8 +44,7 @@ erDiagram
   secrets ||--o{ run_secret_references : referenced
   nodes ||--o{ allocations : hosts
   nodes ||--|| node_summaries : reports
-  allocations ||--o| reservations : reserves
-  allocations ||--o{ execution_leases : authorizes
+  allocations ||--o{ allocation_access_grants : authorizes_access
   allocations ||--o| allocation_reconcile_queue : retries
   allocations ||--o{ allocation_capability_requirements : requires
   allocations ||--o| allocation_capability_conditions : projects
@@ -71,21 +70,21 @@ Namespace names are stored on scoped resources for filtering and ownership. Only
 
 ### Runs and allocations
 
-`runs` models one user-visible execution lifecycle and is the only durable owner of immutable execution config, the admitted Environment source and resolved snapshots, public status, result, diagnostics, message, optimistic version, and user-visible timestamps. Admission copies both Environment snapshots in the same transaction as the Run, Allocation, reservation, capability requirements, Secret references, and create intent. Node creation and recovery never depend on the continued existence of the Environment row. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. The uniqueness constraint is intentional: the product does not reschedule one Run onto multiple or replacement Allocations. A retry of execution is a new Run.
+`runs` models one user-visible execution lifecycle and is the only durable owner of immutable execution config, the admitted Environment source and resolved snapshots, public status, result, diagnostics, message, optimistic version, and user-visible timestamps. Admission copies both Environment snapshots in the same transaction as the Run, Allocation, capability requirements, Secret references, and create intent. Node creation and recovery never depend on the continued existence of the Environment row. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. The uniqueness constraint is intentional: the product does not reschedule one Run onto multiple or replacement Allocations. A retry of execution is a new Run.
 
 `allocations` is the concrete execution unit and infrastructure-convergence record. Its globally unique, never-reused `allocation_id` is the data-plane and cleanup identity; `run_id` is its sole owner and `node_id` is its immutable execution binding. `lifecycle_state` contains only `BOUND`, `STARTING`, `ACTIVE`, `RELEASING`, or `RELEASED`. A node `STOPPED` observation atomically commits result fields to the Run and persists the Allocation as `RELEASING`; it is never stored as an Allocation state. Allocation has no config, public status, exit result, diagnostic, message, version, or TaskSet-specific preparation columns.
 
-`reservations` records admitted CPU, sandbox-memory, and ephemeral-storage requests. `sandbox_memory_request_bytes` is the public request without a runtime overhead side channel. A non-null `released_at` closes the control-plane reservation without erasing accounting history; node admission still honors a larger axnoded local commitment until host cleanup completes.
+`allocations` also stores the immutable admitted CPU, sandbox-memory, and ephemeral-storage request. This is the single resource charge: every Allocation whose lifecycle is not `RELEASED` counts at Namespace and Node admission. There is no Reservation row, release timestamp, or accounting lifecycle parallel to Allocation cleanup.
 
-Allocation memory usage is live node-local diagnostic data rebuilt from the authoritative cgroup. It is not persisted by controld and does not participate in reservation or lifecycle decisions. The memory budget used during placement is validated inside the reservation transaction.
+Allocation memory usage is live node-local diagnostic data rebuilt from the authoritative cgroup. It is not persisted by controld and does not participate in admission or lifecycle decisions. The memory budget used during placement is validated inside the admission transaction.
 
-`allocation_capability_requirements` stores only the immutable typed key and platform loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, requirement rows, reservation, and create intent commit in one transaction; that transaction is the admission decision.
+`allocation_capability_requirements` stores only the immutable typed key and platform loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, resource charge, requirement rows, and create intent commit in one transaction; that transaction is the admission decision.
 
 `allocation_capability_conditions` stores one complete latest diagnostic projection and its `observed_at`. Older reports are ignored, exact equal-time replay is idempotent, and conflicting equal-time data is rejected. Terminal Allocations ignore late reports. Conditions cannot update Run or Allocation lifecycle, readiness, exit information, or the primary message.
 
 ### Reconciliation and audit
 
-`allocation_reconcile_queue` is the sole durable dispatcher for node Create/Delete operations. `next_run_at`, `reconcile_attempts`, and `last_error` describe delivery state; `lease_owner` and `lease_expires_at` provide renewable multi-worker claims. Run admission, cancellation, terminal observation, and create exhaustion write or replace this intent in the same transaction as their authoritative lifecycle changes. Completion and rescheduling require the current claim owner, so an expired worker cannot acknowledge newer work.
+`allocation_reconcile_queue` is the sole durable dispatcher for node Create/Delete operations. `next_run_at`, `reconcile_attempts`, and `last_error` describe delivery state; `claim_owner` and `claim_expires_at` provide renewable multi-worker delivery fencing and are not execution leases. Run admission, cancellation, terminal observation, and create exhaustion write or replace this intent in the same transaction as their authoritative lifecycle changes. Completion and rescheduling require the current claim owner, so an expired worker cannot acknowledge newer work.
 
 Lifecycle transactions lock the Allocation before its queue row. Node reports, cancellation, worker completion, and release therefore share one lock order; a terminal report racing successful node creation cannot deadlock or let the stale create completion erase the replacement delete intent.
 
@@ -93,7 +92,7 @@ Capability loss has no controld queue or transition-history table. Axnoded owns 
 
 `admin_audit_events` records operator mutations before lifecycle coordination state changes. It is distinct from quota decisions and workload event history.
 
-## Nodes and Execution Leases
+## Nodes, Execution Leases, and Access Grants
 
 `nodes` stores identity, non-empty control target, a 64-character authentication hash, the latest accepted heartbeat time, lifecycle status, and retirement facts. The schema does not permit a half-registered empty target or token hash. Active identities may report and participate in placement. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries.summary` stores the complete rich observation, including its own collection time; duplicate summary timestamps and node versions are not persisted. Runtime eligibility is not stored because Axern has one production execution boundary.
 
@@ -104,17 +103,19 @@ sequenceDiagram
   participant DB as "Postgres"
   participant Node as "axnoded"
 
-  Gateway->>Control: acquire execution lease
+  Gateway->>Control: request allocation access grant
   Control->>DB: persist token hash, allocation and node identity, expiry, revision
-  Control-->>Gateway: return allocation access grant with plaintext token once
-  DB-->>Node: notify lease stream changed
-  Node->>Control: watch from last revision
-  Control-->>Node: node execution grants with hashes, revocations, and expiries
+  Control-->>Gateway: return plaintext allocation access token once
+  DB-->>Node: notify access-grant stream changed
+  Node->>Control: watch access grants from last revision
+  Control-->>Node: hash-only grants, revocations, and expiries
 ```
 
-`execution_leases` binds authorization to an exact Allocation ID and Node ID. Only token hashes are stored. `control_revisions` owns the monotonic revision stream, and the execution-lease trigger wakes watchers without making notifications authoritative state.
+`allocation_access_grants` binds data-plane authorization to an exact Allocation ID and Node ID. Only token hashes are stored. `control_revisions` owns the monotonic delivery stream, and the access-grant trigger wakes watchers without making notifications authoritative state.
 
-Gateway and node protocols deliberately use different messages. `AllocationAccessGrant` exists only on the trusted gateway issuance path and carries plaintext. `NodeExecutionGrant` is the node validation projection and never has a plaintext field. Neither message carries a lease type or routing target; the Allocation binding owns both purpose and node routing.
+Gateway and node protocols deliberately use different messages. `AllocationAccessGrant` exists only on the trusted gateway issuance path and carries plaintext. `NodeAllocationAccessGrant` is the node validation projection and never has a plaintext field. Neither message carries a type or routing target; the Allocation binding owns both purpose and node routing.
+
+Execution liveness uses no Postgres lease entity. A successful authenticated `ReportNode` response contains the complete set of Allocations currently authorized on that Node, each with a TTL. Axnoded measures expiry from receipt time and persists only that deadline in its authoritative local Allocation record. Omission, expiry, invalid identity, or inability to renew stops the sandbox fail-closed.
 
 ## Tunnel Model
 
@@ -135,7 +136,7 @@ Indexes follow server-side access paths:
 - namespace and creation cursors for list APIs;
 - composite `(created_at, id)` keyset indexes and JSONB label indexes for Run, Environment, and Secret list filters;
 - node/lifecycle and namespace/run-status indexes for placement and lifecycle projection;
-- partial active indexes for reservations, leases, tunnels, and live Allocations;
+- partial active indexes for Allocation resource charges, access grants, tunnels, and live Allocations;
 - retention indexes on expiry and creation timestamps;
 
 New indexes require a concrete query, reconciliation, retention, or uniqueness contract. Low-cardinality status values are not indexed alone.
@@ -144,4 +145,4 @@ New indexes require a concrete query, reconciliation, retention, or uniqueness c
 
 Typed columns own identity, state-machine status, foreign keys, required concurrency versions, timestamps, budgets, usage totals, and fields used for ordering or selection. JSONB owns typed protobuf intent and immutable snapshots that are read and written as a whole. Database checks reject unknown Run and TunnelSession states, unsupported Secret types, empty Node routing or authentication identity, empty quota-event Environment identity, non-object specifications and labels, invalid versions or revisions, negative counters, and impossible timestamp ordering before those values can become authoritative. Quota rejection events name the real Environment request but have no `run_id`, because rejection means no Run exists.
 
-Retention may delete completed history only after checking domain references. A terminal Run is eligible only after its Allocation is `RELEASED`, no reconcile intent remains, every execution lease is revoked or expired, and no pending/running/degraded TunnelSession survives. It must not delete current workloads or active access paths through cascading foreign keys.
+Retention may delete completed history only after checking domain references. A terminal Run is eligible only after its Allocation is `RELEASED`, no lifecycle delivery intent remains, every allocation access grant is revoked or expired, and no pending/running/degraded TunnelSession survives. It must not delete current workloads or active access paths through cascading foreign keys.

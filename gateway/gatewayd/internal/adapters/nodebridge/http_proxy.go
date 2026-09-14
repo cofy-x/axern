@@ -22,7 +22,7 @@ func (d *Dialer) ProxyHTTP(ctx context.Context, spec nodekernel.HTTPProxySpec) (
 		return nil, err
 	}
 	streamCtx, cancel := proxyHTTPStreamContext(ctx, spec.Timeout)
-	streamCtx = nodekernel.WithExecutionLease(streamCtx, spec.Token)
+	streamCtx = nodekernel.WithAllocationAccessGrant(streamCtx, spec.Token)
 	stream, err := client.ProxyHTTP(streamCtx)
 	if err != nil {
 		cancel()
@@ -48,13 +48,13 @@ func (d *Dialer) ProxyHTTP(ctx context.Context, spec nodekernel.HTTPProxySpec) (
 		cancel()
 		return nil, err
 	}
-	if !nodekernel.ExecutionLeaseAccepted(header) {
+	if !nodekernel.AllocationAccessGrantAccepted(header) {
 		if _, err := stream.Recv(); err != nil {
 			cancel()
 			return nil, err
 		}
 		cancel()
-		return nil, status.Error(codes.FailedPrecondition, "node did not acknowledge execution lease before proxy response")
+		return nil, status.Error(codes.FailedPrecondition, "node did not acknowledge allocation access grant before proxy response")
 	}
 	sendErrCh := make(chan error, 1)
 	go sendProxyHTTPRequestBody(stream, spec.Body, spec.HasBody, sendErrCh)

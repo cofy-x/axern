@@ -27,7 +27,7 @@ message ResolveAllocationTerminalResponse {
 }
 
 message AllocationAccessGrant {
-  string lease_id = 1;
+  string grant_id = 1;
   string allocation_id = 2;
   string node_id = 3;
   string plaintext_token = 4;

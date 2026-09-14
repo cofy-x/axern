@@ -10,7 +10,7 @@ func TestDefaultConfigCoversRunAndTunnelHistory(t *testing.T) {
 	if !cfg.Enabled || cfg.Interval <= 0 || cfg.BatchSize <= 0 {
 		t.Fatalf("invalid default retention config: %+v", cfg)
 	}
-	if cfg.TunnelEventsTTL <= 0 || cfg.TunnelEventsKeep < 0 || cfg.QuotaEventsTTL <= 0 || cfg.TerminalRunsTTL <= 0 || cfg.LeasesTTL <= 0 {
+	if cfg.TunnelEventsTTL <= 0 || cfg.TunnelEventsKeep < 0 || cfg.QuotaEventsTTL <= 0 || cfg.TerminalRunsTTL <= 0 || cfg.AccessGrantsTTL <= 0 {
 		t.Fatalf("incomplete default retention config: %+v", cfg)
 	}
 }
@@ -23,7 +23,7 @@ func TestNormalizeConfigRestoresInvalidDurations(t *testing.T) {
 }
 
 func TestResultTotalDeleted(t *testing.T) {
-	result := Result{TunnelEventsDeleted: 1, QuotaEventsDeleted: 2, TerminalRunsDeleted: 3, LeasesDeleted: 4}
+	result := Result{TunnelEventsDeleted: 1, QuotaEventsDeleted: 2, TerminalRunsDeleted: 3, AccessGrantsDeleted: 4}
 	if got := result.TotalDeleted(); got != 10 {
 		t.Fatalf("TotalDeleted() = %d, want 10", got)
 	}

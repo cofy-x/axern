@@ -16,34 +16,34 @@ const (
 )
 
 type Config struct {
-	HTTPAddress              string
-	ControlEdgeAddress       string
-	ControlEdgeTLSCACert     string
-	ControlEdgeTLSCert       string
-	ControlEdgeTLSKey        string
-	TunnelRelayTarget        string
-	TunnelRelayTLSCACert     string
-	TunnelRelayTLSServerName string
-	ControlTarget            string
-	TLSCACert                string
-	TLSCert                  string
-	TLSKey                   string
-	DevToken                 string
-	SSHEnabled               bool
-	SSHAddress               string
-	SSHHostKey               string
-	SSHAuthorizedKeys        string
-	ControlDialTimeout       time.Duration
-	ReadHeaderTimeout        time.Duration
-	ReadTimeout              time.Duration
-	WriteTimeout             time.Duration
-	IdleTimeout              time.Duration
-	TerminalIdleTimeout      time.Duration
-	TerminalMaxDuration      time.Duration
-	TerminalMaxMessageBytes  int64
-	LeaseRetryAttempts       int
-	LeaseRetryBaseDelay      time.Duration
-	LogLevel                 string
+	HTTPAddress               string
+	ControlEdgeAddress        string
+	ControlEdgeTLSCACert      string
+	ControlEdgeTLSCert        string
+	ControlEdgeTLSKey         string
+	TunnelRelayTarget         string
+	TunnelRelayTLSCACert      string
+	TunnelRelayTLSServerName  string
+	ControlTarget             string
+	TLSCACert                 string
+	TLSCert                   string
+	TLSKey                    string
+	DevToken                  string
+	SSHEnabled                bool
+	SSHAddress                string
+	SSHHostKey                string
+	SSHAuthorizedKeys         string
+	ControlDialTimeout        time.Duration
+	ReadHeaderTimeout         time.Duration
+	ReadTimeout               time.Duration
+	WriteTimeout              time.Duration
+	IdleTimeout               time.Duration
+	TerminalIdleTimeout       time.Duration
+	TerminalMaxDuration       time.Duration
+	TerminalMaxMessageBytes   int64
+	AccessGrantRetryAttempts  int
+	AccessGrantRetryBaseDelay time.Duration
+	LogLevel                  string
 }
 
 func Parse(args []string) (Config, error) {

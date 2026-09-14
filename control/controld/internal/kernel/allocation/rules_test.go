@@ -104,20 +104,12 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			blockedFor: "allocation lifecycle state is ALLOCATION_LIFECYCLE_STATE_ACTIVE",
 		},
 		{
-			name: "active reservation blocks terminal allocation",
+			name: "active access grant blocks terminal allocation",
 			in: LifecycleRetryClearanceInput{
 				AllocationState:      commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
-				HasActiveReservation: true,
+				HasActiveAccessGrant: true,
 			},
-			blockedFor: "active reservations",
-		},
-		{
-			name: "active lease blocks terminal allocation",
-			in: LifecycleRetryClearanceInput{
-				AllocationState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
-				HasActiveLease:  true,
-			},
-			blockedFor: "active leases",
+			blockedFor: "active allocation access grants",
 		},
 		{
 			name: "active tunnel blocks terminal allocation",

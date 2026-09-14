@@ -172,13 +172,6 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 	`, allocationID, runv1.RunStatus_RUN_STATUS_FAILED.String(), now.UTC()); err != nil {
 		t.Fatalf("mark run failed for clear precondition: %v", err)
 	}
-	if _, err := app.db.Pool().Exec(context.Background(), `
-		UPDATE reservations
-		SET released_at = $2
-		WHERE allocation_id = $1
-	`, allocationID, now.UTC()); err != nil {
-		t.Fatalf("release reservation for clear precondition: %v", err)
-	}
 	listResp, err = admin.ListAllocationLifecycleRetries(context.Background(), &adminv1.ListAllocationLifecycleRetriesRequest{
 		Filter: &adminv1.AllocationLifecycleRetryFilter{},
 	})
@@ -212,14 +205,14 @@ func assertAllocationRetryCleanup(t *testing.T, app *App, allocationID string, a
 	if queueItems != 0 {
 		t.Fatalf("reconcile queue items after admin operation = %d, want 0", queueItems)
 	}
-	var activeReservations int
+	var chargedAllocations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations after admin operation: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after admin operation: %v", err)
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations after admin operation = %d, want 0", activeReservations)
+	if chargedAllocations != 0 {
+		t.Fatalf("charged allocations after admin operation = %d, want 0", chargedAllocations)
 	}
 	assertPostgresConsistencyOK(t, app)
 	if auditOperation == "" {
@@ -251,13 +244,13 @@ func assertAllocationReleasePending(t *testing.T, app *App, allocationID string)
 	if queueItems != 1 {
 		t.Fatalf("pending allocation deletes = %d, want 1", queueItems)
 	}
-	var activeReservations int
+	var chargedAllocations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count reservations pending allocation release: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations pending release: %v", err)
 	}
-	if activeReservations != 1 {
-		t.Fatalf("active reservations pending allocation release = %d, want 1", activeReservations)
+	if chargedAllocations != 1 {
+		t.Fatalf("charged allocations pending release = %d, want 1", chargedAllocations)
 	}
 }

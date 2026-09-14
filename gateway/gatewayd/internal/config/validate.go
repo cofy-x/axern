@@ -48,11 +48,11 @@ func validate(cfg Config) (Config, error) {
 	if cfg.TerminalMaxMessageBytes <= 0 {
 		cfg.TerminalMaxMessageBytes = 1 << 20
 	}
-	if cfg.LeaseRetryAttempts <= 0 {
-		cfg.LeaseRetryAttempts = 3
+	if cfg.AccessGrantRetryAttempts <= 0 {
+		cfg.AccessGrantRetryAttempts = 3
 	}
-	if cfg.LeaseRetryBaseDelay <= 0 {
-		cfg.LeaseRetryBaseDelay = 500 * time.Millisecond
+	if cfg.AccessGrantRetryBaseDelay <= 0 {
+		cfg.AccessGrantRetryBaseDelay = 500 * time.Millisecond
 	}
 	return cfg, nil
 }

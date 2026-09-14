@@ -15,9 +15,8 @@ const (
 )
 
 const (
-	IssueActiveReservationOnReleasedAllocation IssueCode = "active_reservation_on_released_allocation"
-	IssueActiveLeaseOnEndedAllocation          IssueCode = "active_lease_on_ended_allocation"
-	IssueActiveTunnelOnEndedAllocation         IssueCode = "active_tunnel_on_ended_allocation"
+	IssueActiveAccessGrantOnEndedAllocation IssueCode = "active_access_grant_on_ended_allocation"
+	IssueActiveTunnelOnEndedAllocation      IssueCode = "active_tunnel_on_ended_allocation"
 )
 
 type Snapshot struct {
@@ -28,8 +27,8 @@ type Snapshot struct {
 }
 
 type Counts struct {
-	ActiveReservations int64 `json:"active_reservations"`
-	ActiveLeases       int64 `json:"active_leases"`
+	ActiveAllocations  int64 `json:"active_allocations"`
+	ActiveAccessGrants int64 `json:"active_access_grants"`
 	ActiveTunnels      int64 `json:"active_tunnels"`
 	ReconcileQueue     int64 `json:"reconcile_queue"`
 	Issues             int64 `json:"issues"`

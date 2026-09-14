@@ -59,7 +59,7 @@ func (s *nodeSandboxServer) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStre
 	// Force response headers after authentication so gateway clients can
 	// distinguish an accepted stream from a rejected lease before forwarding
 	// terminal input.
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 

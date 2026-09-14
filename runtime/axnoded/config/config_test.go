@@ -304,6 +304,13 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	}
 }
 
+func TestControlPlaneHeartbeatIntervalRejectsUnsafeExecutionLeaseCadence(t *testing.T) {
+	cfg := PluginConfig{ControlPlaneHeartbeatInterval: "11s"}
+	if _, err := cfg.ControlPlaneHeartbeatIntervalDuration(); err == nil {
+		t.Fatal("ControlPlaneHeartbeatIntervalDuration() error = nil, want unsafe cadence rejection")
+	}
+}
+
 func TestResourcePoolReconcileIntervalDurationSupportsExplicitZero(t *testing.T) {
 	cfg := ResourceConfig{ResourcePoolReconcileInterval: "0s"}
 	interval, err := cfg.ResourcePoolReconcileIntervalDuration()

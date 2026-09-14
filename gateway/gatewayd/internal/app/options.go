@@ -9,17 +9,17 @@ import (
 
 func terminalOptions(cfg config.Config) term.Options {
 	return term.Options{
-		IdleTimeout:        cfg.TerminalIdleTimeout,
-		MaxDuration:        cfg.TerminalMaxDuration,
-		LeaseRetryAttempts: cfg.LeaseRetryAttempts,
-		LeaseRetryDelay:    cfg.LeaseRetryBaseDelay,
+		IdleTimeout:              cfg.TerminalIdleTimeout,
+		MaxDuration:              cfg.TerminalMaxDuration,
+		AccessGrantRetryAttempts: cfg.AccessGrantRetryAttempts,
+		AccessGrantRetryDelay:    cfg.AccessGrantRetryBaseDelay,
 	}
 }
 
 func nodeOptions(cfg config.Config) nodeapi.Options {
 	return nodeapi.Options{
-		LeaseRetryAttempts: cfg.LeaseRetryAttempts,
-		LeaseRetryDelay:    cfg.LeaseRetryBaseDelay,
+		AccessGrantRetryAttempts: cfg.AccessGrantRetryAttempts,
+		AccessGrantRetryDelay:    cfg.AccessGrantRetryBaseDelay,
 	}
 }
 

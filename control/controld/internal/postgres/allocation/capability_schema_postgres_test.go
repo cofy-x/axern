@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,9 +50,32 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 		allocationColumns = append(allocationColumns, column)
 	}
 	rows.Close()
-	wantColumns := []string{"allocation_id", "run_id", "node_id", "lifecycle_state", "created_at", "updated_at", "node_active_at"}
+	wantColumns := []string{
+		"allocation_id",
+		"run_id",
+		"node_id",
+		"lifecycle_state",
+		"cpu_request_milli",
+		"sandbox_memory_request_bytes",
+		"ephemeral_storage_request_bytes",
+		"created_at",
+		"updated_at",
+		"node_active_at",
+	}
 	if !slices.Equal(allocationColumns, wantColumns) {
 		t.Fatalf("allocation columns = %v, want %v", allocationColumns, wantColumns)
+	}
+	var chargeIndex string
+	if err := db.Pool().QueryRow(ctx, `
+		SELECT indexdef FROM pg_indexes
+		WHERE schemaname = 'public' AND indexname = 'idx_allocations_resource_charge_node'
+	`).Scan(&chargeIndex); err != nil {
+		t.Fatal(err)
+	}
+	for _, required := range []string{"node_id", "allocation_id", "cpu_request_milli", "sandbox_memory_request_bytes", "ephemeral_storage_request_bytes", "lifecycle_state", "ALLOCATION_LIFECYCLE_STATE_RELEASED"} {
+		if !strings.Contains(chargeIndex, required) {
+			t.Fatalf("resource charge index %q does not contain %q", chargeIndex, required)
+		}
 	}
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -78,14 +102,14 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
-		VALUES ($1, $1, $2, $3, $4, $4)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at)
+		VALUES ($1, $1, $2, $3, 1, $4, $4)
 	`, allocationID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(), now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $5)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 1, $5, $5)
 	`, allocationID+"-replacement", allocationID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(), now); err == nil {
 		t.Fatal("one Run accepted a replacement Allocation")
 	}
@@ -98,8 +122,8 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	}
 	defer db.Pool().Exec(context.Background(), `DELETE FROM runs WHERE run_id = $1`, stoppedRunID)
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $5)
+		INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, 1, $5, $5)
 	`, allocationID+"-stopped", stoppedRunID, nodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED.String(), now); err == nil {
 		t.Fatal("node-only STOPPED observation was accepted as durable Allocation state")
 	}

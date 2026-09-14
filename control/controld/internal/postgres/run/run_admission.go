@@ -11,7 +11,7 @@ import (
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
-	pgreservation "github.com/cofy-x/axern/control/controld/internal/postgres/reservation"
+	resourceadmission "github.com/cofy-x/axern/control/controld/internal/postgres/resourceadmission"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"github.com/google/uuid"
@@ -43,7 +43,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		}
 		runID := "run-" + uuid.NewString()
 		allocationID := "alloc-" + uuid.NewString()
-		selected, err := s.reserveCandidate(ctx, tx, pgreservation.ReserveCandidateRequest{
+		selected, err := s.admitCandidateResources(ctx, tx, resourceadmission.AdmitCandidateRequest{
 			Namespace:     namespace,
 			EnvironmentID: params.Environment.GetID(),
 			Candidates:    params.Candidates,
@@ -101,23 +101,18 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if err := insertRunSecretReferences(ctx, tx, run); err != nil {
 			return err
 		}
+		resources := normalizedConfig.GetResources().GetRequests()
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO allocations (
-				allocation_id, run_id, node_id, lifecycle_state, created_at, updated_at
-			) VALUES ($1, $2, $3, $4, $5, $6)
-		`, alloc.AllocationID, run.GetID(), alloc.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(), now.UTC(), now.UTC()); err != nil {
+				allocation_id, run_id, node_id, lifecycle_state,
+				cpu_request_milli, sandbox_memory_request_bytes, ephemeral_storage_request_bytes,
+				created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`, alloc.AllocationID, run.GetID(), alloc.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
+			resources.GetCpuMilli(), resources.GetMemoryBytes(), resources.GetEphemeralStorageBytes(), now.UTC(), now.UTC()); err != nil {
 			return fmt.Errorf("insert allocation: %w", err)
 		}
 		if err := pgallocation.InsertCapabilityRequirements(ctx, tx, alloc.AllocationID, selected.CapabilityRequirements, now); err != nil {
-			return err
-		}
-		res := normalizedConfig.GetResources().GetRequests()
-		if err := pgreservation.InsertReservation(ctx, tx, pgreservation.Reservation{
-			AllocationID: alloc.AllocationID,
-			NodeID:       alloc.NodeID,
-			Requests:     res,
-			CreatedAt:    now,
-		}); err != nil {
 			return err
 		}
 		if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{

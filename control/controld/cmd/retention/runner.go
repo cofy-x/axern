@@ -15,7 +15,7 @@ const (
 	resourceTunnelEvents = "tunnel_events"
 	resourceQuotaEvents  = "quota_events"
 	resourceTerminalRuns = "terminal_runs"
-	resourceLeases       = "leases"
+	resourceAccessGrants = "allocation_access_grants"
 )
 
 type cleanupController interface {
@@ -61,7 +61,7 @@ func (r *runner) RunOnce(ctx context.Context) error {
 	recordDeleted(ctx, resourceTunnelEvents, result.TunnelEventsDeleted)
 	recordDeleted(ctx, resourceQuotaEvents, result.QuotaEventsDeleted)
 	recordDeleted(ctx, resourceTerminalRuns, result.TerminalRunsDeleted)
-	recordDeleted(ctx, resourceLeases, result.LeasesDeleted)
+	recordDeleted(ctx, resourceAccessGrants, result.AccessGrantsDeleted)
 	logResult(result, err)
 	return err
 }
@@ -83,7 +83,7 @@ func logResult(result retentionkernel.Result, err error) {
 		"tunnel_events_deleted": result.TunnelEventsDeleted,
 		"quota_events_deleted":  result.QuotaEventsDeleted,
 		"runs_deleted":          result.TerminalRunsDeleted,
-		"leases_deleted":        result.LeasesDeleted,
+		"access_grants_deleted": result.AccessGrantsDeleted,
 		"duration":              result.Duration.String(),
 	}
 	if err != nil {

@@ -325,7 +325,7 @@ func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) 
 	}
 }
 
-func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T) {
+func TestPostgresRunCancelDeleteRetryEventuallyReleasesAllocationResources(t *testing.T) {
 	app, lifecycle := newPostgresTestServiceWithConfig(t, Config{
 		HeartbeatFreshnessWindow: time.Hour,
 		ReconcileInterval:        time.Hour,
@@ -355,14 +355,14 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
-	var activeReservations int
+	var chargedAllocations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations after delete failure: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after delete failure: %v", err)
 	}
-	if activeReservations != 1 {
-		t.Fatalf("active reservations after delete failure = %d, want 1", activeReservations)
+	if chargedAllocations != 1 {
+		t.Fatalf("charged allocations after delete failure = %d, want 1", chargedAllocations)
 	}
 
 	lifecycle.DeleteErr = nil
@@ -376,12 +376,12 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 		t.Fatalf("retry delete allocation = %q, want %q", got, allocationID)
 	}
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations after delete retry success: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after delete retry success: %v", err)
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations after delete retry success = %d, want 0", activeReservations)
+	if chargedAllocations != 0 {
+		t.Fatalf("charged allocations after delete retry success = %d, want 0", chargedAllocations)
 	}
 	var queueItems int
 	if err := app.db.Pool().QueryRow(context.Background(), `
@@ -394,7 +394,7 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	}
 }
 
-func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T) {
+func TestPostgresRunKernelCancelRevokesAccessGrantAndReleasesAllocationResources(t *testing.T) {
 	app, lifecycle := newPostgresTestService(t)
 	defer app.Close()
 	now := time.Date(2026, 4, 24, 9, 0, 0, 0, time.UTC)
@@ -415,12 +415,12 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
-	leaseResp, err := app.runStore.IssueExecutionLease(context.Background(), runResp.GetRun().GetAllocationID(), 30*time.Second, now)
+	grantResp, err := app.runStore.IssueAllocationAccessGrant(context.Background(), runResp.GetRun().GetAllocationID(), 30*time.Second, now)
 	if err != nil {
-		t.Fatalf("AcquireRunLease() error = %v", err)
+		t.Fatalf("IssueAllocationAccessGrant() error = %v", err)
 	}
-	if leaseResp.PlaintextToken == "" {
-		t.Fatal("AcquireRunLease() returned empty plaintext token")
+	if grantResp.PlaintextToken == "" {
+		t.Fatal("IssueAllocationAccessGrant() returned empty plaintext token")
 	}
 
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
@@ -429,33 +429,33 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	if len(lifecycle.DeleteRequests) != 0 {
 		t.Fatalf("cancel request called node delete directly: %d calls", len(lifecycle.DeleteRequests))
 	}
-	leases, revision, err := app.runStore.WatchExecutionLeases(context.Background(), "node-a", 0, now)
+	grants, revision, err := app.runStore.WatchAllocationAccessGrants(context.Background(), "node-a", 0, now)
 	if err != nil {
-		t.Fatalf("WatchExecutionLeases() error = %v", err)
+		t.Fatalf("WatchAllocationAccessGrants() error = %v", err)
 	}
 	if revision < 2 {
-		t.Fatalf("lease revision = %d, want at least 2 after acquire+revoke", revision)
+		t.Fatalf("access grant revision = %d, want at least 2 after issue+revoke", revision)
 	}
 	var revoked bool
-	for _, lease := range leases {
-		if lease.LeaseID == leaseResp.LeaseID {
-			revoked = lease.Revoked
-			if lease.ValidationTokenHash == "" {
+	for _, grant := range grants {
+		if grant.GrantID == grantResp.GrantID {
+			revoked = grant.Revoked
+			if grant.ValidationTokenHash == "" {
 				t.Fatal("watch path did not return validation token hash")
 			}
 		}
 	}
 	if !revoked {
-		t.Fatal("cancelled run lease was not revoked")
+		t.Fatal("cancelled run access grant was not revoked")
 	}
-	var activeReservations int
+	var chargedAllocations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, runResp.GetRun().GetAllocationID()).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, runResp.GetRun().GetAllocationID(), commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations: %v", err)
 	}
-	if activeReservations != 1 {
-		t.Fatalf("active reservations before durable delete delivery = %d, want 1", activeReservations)
+	if chargedAllocations != 1 {
+		t.Fatalf("charged allocations before durable delete delivery = %d, want 1", chargedAllocations)
 	}
 	if err := app.runReconciler.ReconcilePending(context.Background(), now); err != nil {
 		t.Fatalf("ReconcilePending(delete intent) error = %v", err)
@@ -464,12 +464,12 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 		t.Fatalf("delete requests after reconcile = %d, want 1", len(lifecycle.DeleteRequests))
 	}
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, runResp.GetRun().GetAllocationID()).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations after reconcile: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, runResp.GetRun().GetAllocationID(), commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after reconcile: %v", err)
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations after durable delete delivery = %d, want 0", activeReservations)
+	if chargedAllocations != 0 {
+		t.Fatalf("charged allocations after durable delete delivery = %d, want 0", chargedAllocations)
 	}
 	assertPostgresConsistencyOK(t, app)
 }

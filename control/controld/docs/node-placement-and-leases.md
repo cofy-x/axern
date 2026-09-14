@@ -20,19 +20,19 @@ When `plugin.control_plane_target` is empty, `axnoded` does not start the report
 
 Placement is evaluated in three stages:
 
-- eligibility evaluation records explicit rejection reasons for stale reports, non-ready components, label mismatches, capability mismatches, unsupported runtimes, and resource pressure
-- locality, warm-path, and current-load rank sort the remaining eligible candidates
+- eligibility evaluation records explicit rejection reasons for stale reports, non-ready components, label mismatches, capability mismatches, unsupported runtimes, and requests larger than total allocatable capacity
+- locality, warm-path, runtime-slot occupancy, and durable Allocation charges deterministically sort the remaining eligible candidates
 - if every otherwise-valid node is rejected only for transient health conditions such as stale reports or node-local runtime components being unavailable, admission may still bind the allocation to one of those nodes and rely on the durable allocation lifecycle retry queue to converge
 
 Capability mismatch, missing observation, invalid host evidence, and expired observation are fail-closed eligibility failures. They never enter the transient-health fallback.
 
 The selector returns a request-scoped candidate plan rather than a bare node list. The plan preserves health, capability, locality, warm-path, and initial load preferences until the Postgres admission transaction reaches its authoritative node decision.
 
-Durable admission locks candidate node rows in stable node-id order and reruns the complete eligibility evaluator against the locked row: lifecycle, heartbeat and summary freshness, runtime, component health, labels, typed capability observations, capacity, and slots. A candidate that changed after the initial plan is skipped and the transaction tries the next candidate. The immutable capability requirements commit with the Allocation binding and reservation; selected observations are not copied into a second admission record. Admission also loads the latest active reservations and refreshes the dynamic load rank. It adds only reservations not yet reflected in the latest node `committed` summary, so running allocations are not counted twice while concurrent `STARTING` allocations still influence placement. Run admission is the only workload admission path. Every Allocation is durably admitted before its node create RPC is dispatched; no process-local placement ledger or Service replica path exists.
+Durable admission locks candidate Node rows in stable Node-ID order and reruns the complete eligibility evaluator against the locked row: lifecycle, heartbeat and summary freshness, runtime, component health, labels, typed capability observations, capacity, and slots. A candidate that changed after the initial plan is skipped and the transaction tries the next candidate. Immutable capability requirements, the Node binding, and resource quantities commit on the Allocation; selected observations are not copied into a second admission record. Admission derives CPU, memory, and ephemeral-storage charge exclusively from non-released Allocations. Node-reported actual usage remains diagnostic and never participates in the charge calculation. Run admission is the only workload admission path.
 
-Pending lifecycle recovery runs immediately at process startup and after an in-process commit signal, with a periodic scan as the lost-wakeup safety net. The durable Allocation queue coalesces repeated intent. Workers claim rows with a unique controld owner and a renewable lease; independent Allocations run through a bounded worker pool. This preserves parallel progress without allowing two controld instances to own the same delivery concurrently.
+Pending lifecycle recovery runs immediately at process startup and after an in-process commit signal, with a periodic scan as the lost-wakeup safety net. The durable Allocation queue coalesces repeated intent. Workers claim rows with a unique controld owner and a renewable delivery claim; independent Allocations run through a bounded worker pool. The claim is only multi-worker fencing and never authorizes sandbox execution.
 
-`CreateRun` transactionally creates the Run, Allocation, reservation, immutable capability requirements, and create intent. Cancellation and terminal observation transactionally replace any create intent with delete intent while changing the Run and Allocation states and revoking leases. Public request handlers never call node Create/Delete directly.
+`CreateRun` transactionally creates the Run, Allocation with its resource charge, immutable capability requirements, and ensure-present intent. Cancellation and terminal observation transactionally replace that intent with ensure-absent while changing Run and Allocation state and revoking AllocationAccessGrants and TunnelSessions. Public request handlers never call Node Create/Delete directly.
 
 The durable `allocation_reconcile_queue` is the sole dispatcher for Run-owned node lifecycle calls. A claimed worker renews ownership during long operations; completion, retry, and create-to-delete transitions are fenced by that owner. A failed or stale worker therefore cannot acknowledge or rewrite work after another controld instance takes over. The queue is Allocation-scoped; the Run controller applies terminal workload state independently from infrastructure cleanup convergence.
 
@@ -46,7 +46,7 @@ The Admin reliability API reports process-local background reconciler health for
 
 ## Node Lifecycle
 
-Postgres stores node identity independently from heartbeat freshness. Active nodes participate in placement and fleet health; retired nodes remain as audit and historical allocation references but cannot register, report, authenticate, or receive new reservations. Retirement is irreversible and replacement hosts must use a new node ID.
+Postgres stores Node identity independently from heartbeat freshness. Active Nodes participate in placement and fleet health; retired Nodes remain as audit and historical Allocation references but cannot register, report, authenticate, or receive new Allocations. Retirement is irreversible and replacement hosts must use a new Node ID.
 
 Inspect and retire nodes through the typed admin workflow:
 
@@ -55,26 +55,26 @@ axern admin node list --status active
 axern admin node retire <node-id> --operator-reason "host permanently removed"
 ```
 
-Retirement requires a stale heartbeat and fails while the node has active allocations, reservations, execution leases, tunnel sessions, allocation lifecycle retries. A successful mutation and its audit event commit together.
+Retirement requires a stale heartbeat and fails while the Node has non-released Allocations, active AllocationAccessGrants, TunnelSessions, or Allocation lifecycle delivery intents. ExecutionLease has no control-plane row: its authority derives from those bound non-terminal Allocations. A successful mutation and its audit event commit together.
 
 ## Lifecycle Retry Queue
 
 The debug `/allocation-reconcilez` endpoint is intentionally read-only. It lists queued allocation lifecycle work: Allocation and Run identity, current Allocation lifecycle state, attempts, last error, next retry time, and queue age. The queue does not store an action or reason; the reconciler derives start versus cleanup exclusively from the authoritative Allocation lifecycle state.
 
-The debug `/consistencyz` endpoint is also read-only. It scans durable Postgres state for active reservations, execution leases, or tunnel sessions attached to terminal Allocations. It is a diagnostic guardrail for convergence bugs; it does not mutate state or replace the Run/Allocation or admin repair paths.
+The debug `/consistencyz` endpoint is also read-only. It scans durable Postgres state for active AllocationAccessGrants or TunnelSessions attached to ended Allocations and for lifecycle inconsistencies. It does not mutate state or replace owner-scoped repair paths.
 
 The admin read model exposes the same consistency snapshot through `axern admin consistency check` and folds it with allocation lifecycle retry counts, active-node fleet health, and reconcile health in `axern admin reliability check`. Lifecycle retry mutations live in the private operator Proto package; they are deliberately absent from the public product API and public Python/TypeScript SDK surfaces. Smoke tests use the typed operator gRPC path rather than debug HTTP.
 
-Lifecycle retry writes are admin operations, not debug HTTP operations. The queue coordinates node lifecycle convergence with allocation lifecycle, reservations, and lease cleanup, so every write must go through the owning Run controller or an audited admin operation and its state-transition rules.
+Lifecycle retry writes are admin operations, not debug HTTP operations. The queue coordinates Node lifecycle delivery with Allocation state and dependent cleanup, so every write must go through the owning Run controller or an audited admin operation and its state-transition rules.
 
 The typed gRPC admin surface is:
 
 - `ListAllocationLifecycleRetries`: queue rows joined with Allocation and Run state, plus due-only and limit filters, `clearable`, and `clear_blocked_reason`.
 - `ForceAllocationLifecycleRetry`: lock the row, record an audit event, and move `next_run_at` to `now` without changing the attempt count or authoritative Allocation state.
-- `FailAllocationLifecycleRetry`: startup retries only; mark the owning Run and Allocation failed, release the reservation, remove the retry row, and record the operator reason.
-- `ClearAllocationLifecycleRetry`: stale rows only; require terminal Allocation and Run convergence plus no active reservations, leases, or tunnel sessions.
+- `FailAllocationLifecycleRetry`: startup retries only; mark the owning Run failed and Allocation `RELEASING`, replace create with cleanup intent, and record the operator reason.
+- `ClearAllocationLifecycleRetry`: stale rows only; require terminal Run/Allocation convergence and no active access grant or TunnelSession.
 
-All write requests require an explicit human-readable reason, audit before commit, a transactional row lock, and typed gRPC errors when the requested action no longer matches allocation state. There is no generic delete operation: queue rows are convergence intent, and removing one without lifecycle cleanup can strand reservations or leases. For operator triage and repair commands, see [Reconcile Operations](reconcile-operations.md).
+All write requests require an explicit human-readable reason, audit before commit, a transactional row lock, and typed gRPC errors when the requested action no longer matches Allocation state. There is no generic delete operation: removing durable cleanup intent can strand a runtime or resource ownership. See [Reconcile Operations](reconcile-operations.md).
 
 ## Lifecycle Retry Policy
 
@@ -86,7 +86,7 @@ flowchart TD
   B --> C{"retry budget left?"}
   C -- yes --> D["next_run_at = exponential backoff"]
   D --> B
-  C -- no --> E["mark allocation failed; release reservation; complete retry"]
+  C -- no --> E["mark Run failed and Allocation RELEASING"]
 
   F["cancel or terminal result commits RELEASING Allocation"] --> G["replace with fresh keyed convergence intent"]
   G --> H{"node deletion confirmed?"}
@@ -116,9 +116,9 @@ The global `-resource-cpu-overcommit-ratio` flag controls only control-plane CPU
 floor(node_allocatable_cpu_milli * resource_cpu_overcommit_ratio)
 ```
 
-Memory does not overcommit. Axnoded reports physical capacity and the resource source's allocatable value as distinct facts. Raw allocatable is the lesser of `source_allocatable_bytes` and any finite delegated cgroup-root limit; `physical_capacity_bytes` is diagnostic identity-bound capacity and is not a second scheduling pool. Effective allocatable subtracts the explicit system reserve. Placement and the locked admission transaction use the larger of database reservations and the latest node-local commitment so terminating workloads remain charged until cgroup cleanup converges. Requests drive that reservation; limits remain the sandbox-domain host `memory.max`.
+Memory does not overcommit. Axnoded reports physical capacity and the resource source's allocatable value as distinct facts. Raw allocatable is the lesser of `source_allocatable_bytes` and any finite delegated cgroup-root limit. Effective allocatable subtracts the explicit system reserve. The locked admission transaction subtracts non-released Allocation requests from that observation. Requests drive the charge; limits remain the sandbox-domain host `memory.max`. Node-local cgroup commitment is a rebuildable enforcement projection and cleanup diagnostic, not a control-plane charge ledger.
 
-Each active Allocation reservation also consumes one runtime instance slot. The transactional capacity comes from the node-owned aggregate `runtime_slots` report. Placement ranks nodes by active instance occupancy, including reservations not yet reflected in node summaries, so zero-request Runs remain balanced without weakening the hard admission boundary.
+Each non-released Allocation also consumes one runtime instance slot. The transactional capacity comes from the Node-owned aggregate `runtime_slots` report. Occupancy is the conservative union of charged Allocation IDs and node-reported active Allocation IDs, bounded below by the pool's current using count.
 
 The debug `/resourcez` endpoint also reports the current global resource admission policy, including `cpu_overcommit_ratio`.
 
@@ -128,12 +128,14 @@ The debug `/resourcez` endpoint also reports the current global resource admissi
 
 `ReportNode` closes the complementary inventory loop. Axnoded summaries carry both running allocation ids and the broader set of active locally known allocation ids. `controld` uses the active set to detect allocations that disappeared from a node without racing legitimate `STARTING` allocations that have not reached `RUNNING` yet.
 
-The control-plane reconciler also sweeps nodes whose heartbeat is outside the configured freshness window. Active Run Allocations on an unavailable node are failed through the same allocation-reporting path used by inventory reconciliation. That releases reservations and leases and records the Allocation and owning Run failure.
+The control-plane availability reconciler sweeps Nodes whose heartbeat is outside the freshness window. Active Run Allocations on an unavailable Node become terminal through the same authoritative transaction used for accepted terminal observations; this revokes access grants and tunnels and schedules cleanup. The Node independently stops the sandbox when its locally measured ExecutionLease expires.
 
-## Execution Leases
+## Execution Authority And Data-Plane Access
 
-Execution lease plaintext tokens are returned only to internal gateway callers as `AllocationAccessGrant`. Public CLI and SDK clients never receive them. The database stores token hashes, and `WatchExecutionLeases` replicates only `NodeExecutionGrant` validation material to the selected node. The watch is a commit-driven stream. Each response fixes a global revision high-water mark before reading that node's `(after_revision, current_revision]` lease window; the client resumes from `current_revision`. This ordering prevents a concurrent commit from being omitted while its revision is already acknowledged.
+ExecutionLease is finite liveness authority, not a token or database entity. Every successful authenticated `ReportNode` response returns the complete set of non-terminal Allocations bound to that Node with a TTL. Axnoded measures deadlines from its local receipt clock, persists them in the sole Allocation recovery record, and durably records termination intent before stopping an omitted or expired Allocation. Failed heartbeats never extend authority; delayed successful responses cannot arrive out of order because one reporter loop owns heartbeat delivery. The default five-second heartbeat renews a thirty-second lease.
+
+AllocationAccessGrant is separate request-scoped data-plane authority. PostgreSQL stores grant token hashes, expiry, revocation, and delivery revision. `WatchAllocationAccessGrants` replicates hash-only validation material to the bound Node. Public CLI and SDK clients receive neither access tokens nor Node targets. An access grant cannot keep a sandbox alive, and an ExecutionLease cannot authorize process, file, archive, terminal, SSH, or Tunnel traffic.
 
 Run watches use the same principle without inventing a second event log: PostgreSQL notification is only a wake-up edge, while the versioned Run row remains authoritative. A watcher subscribes before reading and reloads the row after every wake, so commits cannot be lost and no fixed-interval database polling is required.
 
-The control plane is the authoritative registry for Environments, Runs, Allocations, reservations, tunnel sessions, and execution leases. Durable control-plane state is stored in Postgres; in-memory registries are reconstructed caches, not the source of truth.
+The control plane is authoritative for Environments, Runs, Allocations, AllocationAccessGrants, and TunnelSessions. PostgreSQL owns durable central state; in-memory registries are reconstructed caches. Axnoded's Allocation recovery record is the node-local authority for resources already admitted to that exact Allocation, including the most recently received ExecutionLease deadline.

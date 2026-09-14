@@ -120,11 +120,11 @@ func TestCgroupLeaseOwnerKindIsUnforgeableContextState(t *testing.T) {
 	if got := cgroupLeaseOwnerKind(ctx); got != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE {
 		t.Fatalf("internal conformance owner kind = %s", got)
 	}
-	if got := cgroupCapacityReservation(context.Background(), 123); got != 123 {
-		t.Fatalf("workload reservation = %d", got)
+	if got := cgroupCapacityCharge(context.Background(), 123); got != 123 {
+		t.Fatalf("workload capacity charge = %d", got)
 	}
-	if got := cgroupCapacityReservation(ctx, 0); got != config.RuntimeConformanceMemoryMaxBytes {
-		t.Fatalf("conformance reservation = %d, want aggregate ceiling %d", got, config.RuntimeConformanceMemoryMaxBytes)
+	if got := cgroupCapacityCharge(ctx, 0); got != config.RuntimeConformanceMemoryMaxBytes {
+		t.Fatalf("conformance capacity charge = %d, want aggregate ceiling %d", got, config.RuntimeConformanceMemoryMaxBytes)
 	}
 }
 

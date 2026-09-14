@@ -13,9 +13,9 @@ var (
 		Name:        "axern.gateway_terminal_sessions_current",
 		Description: "Current gateway terminal sessions.",
 	}
-	MetricLeaseRetryTotal = sdkobs.Instrument{
-		Name:        "axern.gateway_lease_retry_total",
-		Description: "Gateway transient execution lease retries.",
+	MetricAccessGrantRetryTotal = sdkobs.Instrument{
+		Name:        "axern.gateway_allocation_access_grant_retry_total",
+		Description: "Gateway transient allocation access grant retries.",
 	}
 	MetricTerminalEventTotal = sdkobs.Instrument{
 		Name:        "axern.gateway_terminal_event_total",
