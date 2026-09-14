@@ -109,13 +109,23 @@ func (m *InterfaceManager) Del(num int) {
 }
 
 func (m *InterfaceManager) Allocate(opt AllocateOption) (Resource, error) {
+	if opt.ContainerID == "" {
+		return EmptyStringResource, fmt.Errorf("network allocation requires allocation ownership")
+	}
+	if existing, ok := m.AllocationResource(opt.ContainerID); ok {
+		resource, err := NewNetResource(existing)
+		if err != nil {
+			return EmptyStringResource, fmt.Errorf("decode existing network lease for %s: %w", opt.ContainerID, err)
+		}
+		return resource, nil
+	}
 	m.initializeSlots()
 	for {
 		buildGeneration := m.currentBuildGeneration()
 		cacheStarted := time.Now()
 		if netResourceStr := m.interfaces.Pop(); netResourceStr != "" {
 			metrics.RecordResourceAllocateStage(string(InterfaceResourceName), "cache_pop", "hit", time.Since(cacheStarted).Seconds())
-			return m.allocateCachedInterface(netResourceStr)
+			return m.allocateCachedInterface(opt.ContainerID, netResourceStr)
 		}
 		metrics.RecordResourceAllocateStage(string(InterfaceResourceName), "cache_pop", "miss", time.Since(cacheStarted).Seconds())
 
@@ -128,7 +138,14 @@ func (m *InterfaceManager) Allocate(opt AllocateOption) (Resource, error) {
 		}
 		metrics.RecordResourceAllocateStage(string(InterfaceResourceName), "sync_create", createResult, time.Since(createStarted).Seconds())
 		if err == nil {
-			m.markInterfaceUsing(netResource)
+			if err := m.markInterfaceUsing(opt.ContainerID, netResource); err != nil {
+				_ = m.destroyInterface(*netResource.Interface)
+				if netResource.Ip != nil {
+					m.idleIp.Push(netResource.Ip.String())
+				}
+				m.releaseSlot()
+				return EmptyStringResource, err
+			}
 			metrics.RecordResourcePoolAllocate(string(InterfaceResourceName), ResourcePoolAllocateMissSyncCreate)
 			m.requestPoolRefill(ResourcePoolTriggerAllocationMiss)
 			return netResource, nil
@@ -158,7 +175,7 @@ func (m *InterfaceManager) Allocate(opt AllocateOption) (Resource, error) {
 	}
 }
 
-func (m *InterfaceManager) allocateCachedInterface(netResourceStr string) (Resource, error) {
+func (m *InterfaceManager) allocateCachedInterface(allocationID, netResourceStr string) (Resource, error) {
 	netResource, err := NewNetResource(netResourceStr)
 	if err != nil {
 		m.releaseSlot()
@@ -198,7 +215,10 @@ func (m *InterfaceManager) allocateCachedInterface(netResourceStr string) (Resou
 		metrics.RecordResourceAllocateStage(string(InterfaceResourceName), "validate_cached", "ok", time.Since(validateStarted).Seconds())
 	}
 
-	m.markInterfaceUsing(netResource)
+	if err := m.markInterfaceUsing(allocationID, netResource); err != nil {
+		m.interfaces.Push(netResource.ToString())
+		return EmptyStringResource, err
+	}
 	metrics.RecordResourcePoolAllocate(string(InterfaceResourceName), ResourcePoolAllocateHit)
 	if m.CacheNum() < m.CacheSizeLimit() {
 		m.requestPoolRefill(ResourcePoolTriggerLowWatermark)
@@ -206,24 +226,54 @@ func (m *InterfaceManager) allocateCachedInterface(netResourceStr string) (Resou
 	return netResource, nil
 }
 
-func (m *InterfaceManager) markInterfaceUsing(netResource *NetResource) {
+func (m *InterfaceManager) markInterfaceUsing(allocationID string, netResource *NetResource) error {
 	neighborStarted := time.Now()
 	m.resetBridgeNeighbor(netResource.Ip, "allocate")
 	metrics.RecordResourceAllocateStage(string(InterfaceResourceName), "neighbor_reset", "ok", time.Since(neighborStarted).Seconds())
+	m.leaseMu.Lock()
+	defer m.leaseMu.Unlock()
+	m.ensureLeaseIndexLocked()
+	if existing, ok := m.allocationLeases.Get(allocationID); ok {
+		return fmt.Errorf("allocation %s already owns network resource %s", allocationID, existing)
+	}
 	m.usingInterfaces.Set(netResource.ToString(), struct{}{})
-	m.storeMark.Store(true)
+	m.allocationLeases.Set(allocationID, netResource.ToString())
+	if err := m.storeLeasesLocked(); err != nil {
+		m.allocationLeases.Remove(allocationID)
+		m.usingInterfaces.Remove(netResource.ToString())
+		return err
+	}
+	return nil
 }
 
 func (m *InterfaceManager) Recycle(id string) error {
 	m.initializeSlots()
+	m.leaseMu.Lock()
+	m.ensureLeaseIndexLocked()
 	if _, owned := m.usingInterfaces.Pop(id); !owned {
+		m.leaseMu.Unlock()
 		return nil
+	}
+	owner := ""
+	for item := range m.allocationLeases.IterBuffered() {
+		if item.Val == id {
+			owner = item.Key
+			m.allocationLeases.Remove(item.Key)
+			break
+		}
+	}
+	if owner == "" {
+		m.usingInterfaces.Set(id, struct{}{})
+		m.leaseMu.Unlock()
+		return fmt.Errorf("network resource %s has no allocation owner", id)
 	}
 	restoreOwnership := true
 	defer func() {
 		if restoreOwnership {
 			m.usingInterfaces.Set(id, struct{}{})
+			m.allocationLeases.Set(owner, id)
 		}
+		m.leaseMu.Unlock()
 	}()
 	netResource := &NetResource{}
 	if err := netResource.FromString(id); err != nil {
@@ -236,14 +286,23 @@ func (m *InterfaceManager) Recycle(id string) error {
 		return fmt.Errorf("destroy recycled interface %s: %w", netResource.Interface.Name, err)
 	}
 
-	restoreOwnership = false
 	m.resetBridgeNeighbor(netResource.Ip, "recycle")
+	if err := m.storeLeasesLocked(); err != nil {
+		return err
+	}
+	restoreOwnership = false
 	m.idleIp.Push(netResource.Ip.String())
 	m.releaseSlot()
-	m.storeMark.Store(true)
 	m.requestPoolRefill(ResourcePoolTriggerLowWatermark)
 	logrus.Infof("retired interface after use: %s", netResource.ToString())
 	return nil
+}
+
+func (m *InterfaceManager) AllocationResource(allocationID string) (string, bool) {
+	m.leaseMu.Lock()
+	defer m.leaseMu.Unlock()
+	m.ensureLeaseIndexLocked()
+	return m.allocationLeases.Get(allocationID)
 }
 
 func (m *InterfaceManager) Status() ([]string, []string) {

@@ -66,7 +66,11 @@ func (h *Controller) createContainer(
 		attribute.String(sdkobs.AttrAllocationID, resource.ID),
 		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
 	)
-	metaData, err := handler.CreateContainer(ctx, request, h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder))
+	options, err := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
+	if err != nil {
+		return response, "", h.cleanupCreatedRuntime(handler, resource, err)
+	}
+	metaData, err := handler.CreateContainer(ctx, request, options)
 	if err != nil {
 		runtimeSpan.RecordError(err)
 		runtimeSpan.SetStatus(codes.Error, "runtime create")
@@ -119,7 +123,10 @@ func (h *Controller) createAllocation(
 		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
 
-	options := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
+	options, err := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
+	if err != nil {
+		return response, "", errors.Join(err, errRuntimeCleanupPending)
+	}
 	prepared, err := allocationRuntime.PrepareContainer(ctx, request, options)
 	if err != nil {
 		h.cleanupFailedContainerCreate(traceID.String(), resource.ID, preparedContainerMetadata(prepared))
@@ -299,10 +306,23 @@ func (h *Controller) createHandlerOptions(
 	templateRequest *apipb.CreateContainerRequest,
 	resource container.OccupiedResource,
 	phaseRecorder contract.StartupPhaseRecorder,
-) contract.HandlerOptions {
+) (contract.HandlerOptions, error) {
 	var templateSource *runtimeoci.TemplateOptions
 	if templateRequest != nil {
 		templateSource = &runtimeoci.TemplateOptions{Request: templateRequest}
+	}
+
+	var networkNamespacePath, sandboxIP string
+	if networkResource, ok := resource.Resources[resourcemanager.InterfaceResourceName]; ok {
+		netDevice := &resourcemanager.NetResource{}
+		if err := netDevice.FromString(networkResource); err != nil {
+			return contract.HandlerOptions{}, fmt.Errorf("decode allocation %s network binding: %w", resource.ID, err)
+		}
+		if netDevice.Ip == nil || netDevice.NetNSPath == "" {
+			return contract.HandlerOptions{}, fmt.Errorf("allocation %s has an incomplete network binding", resource.ID)
+		}
+		networkNamespacePath = netDevice.NetNSPath
+		sandboxIP = netDevice.Ip.String()
 	}
 
 	return contract.HandlerOptions{
@@ -315,9 +335,10 @@ func (h *Controller) createHandlerOptions(
 		RootfsType:            rootfsTypeFromPreparedEnvironment(lrt),
 		BundleTemplateCarrier: lrt,
 		BundleTemplateSource:  templateSource,
-		ResourceAnnotations:   resource.RuntimeAnnotations(),
+		NetworkNamespacePath:  networkNamespacePath,
+		SandboxIP:             sandboxIP,
 		ExecutionProfile:      executionProfileFromPreparedEnvironment(lrt),
-	}
+	}, nil
 }
 
 func (h *Controller) cleanupFailedContainerCreate(traceID, containerID string, metaData *apipb.ContainerMetadata) {

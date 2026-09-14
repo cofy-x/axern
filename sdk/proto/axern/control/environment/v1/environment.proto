@@ -25,18 +25,8 @@ message OciBaselinePolicy {
   uint64 no_file_limit = 2;
 }
 
-message OciNetworkNamespacePolicy {
-  string annotation_key = 1;
-}
-
-message OciResourcePolicy {
-  repeated string ignore_annotation_keys = 1;
-}
-
 message OciExecutionProfile {
   OciBaselinePolicy baseline = 1;
-  OciNetworkNamespacePolicy network_namespace = 2;
-  OciResourcePolicy resources = 3;
 }
 
 message ResolvedEnvironmentSpec {

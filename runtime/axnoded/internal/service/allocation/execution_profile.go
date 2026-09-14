@@ -26,13 +26,5 @@ func ExecutionProfileFromProto(in *environmentv1.OciExecutionProfile) *runtimeoc
 			out.Baseline.NoFileLimit = baseline.GetNoFileLimit()
 		}
 	}
-	if network := in.GetNetworkNamespace(); network != nil {
-		if network.GetAnnotationKey() != "" {
-			out.NetworkNamespace.AnnotationKey = network.GetAnnotationKey()
-		}
-	}
-	if resources := in.GetResources(); resources != nil && len(resources.GetIgnoreAnnotationKeys()) > 0 {
-		out.Resources.IgnoreAnnotationKeys = append([]string(nil), resources.GetIgnoreAnnotationKeys()...)
-	}
 	return &out
 }

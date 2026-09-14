@@ -2,10 +2,6 @@ package oci
 
 import spec "github.com/opencontainers/runtime-spec/specs-go"
 
-const (
-	ignoreResourceFieldAnnoKey = "io.axnoded/ignore-resource-field"
-)
-
 var defaultLinuxCapabilities = []string{
 	"CAP_CHOWN",
 	"CAP_DAC_OVERRIDE",

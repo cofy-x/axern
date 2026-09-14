@@ -188,7 +188,7 @@ func TestSeedSymlinksRejectsOccupiedPublicPath(t *testing.T) {
 	require.ErrorContains(t, err, "already occupied")
 }
 
-func TestReconcilePersistentViewsRemovesAllStaleViews(t *testing.T) {
+func TestReconcileRuntimeViewsRemovesAllStaleViews(t *testing.T) {
 	filestore := t.TempDir()
 	provider := NewOverlayProvider(filestore).(*overlayProvider)
 	for _, item := range []struct {
@@ -204,7 +204,7 @@ func TestReconcilePersistentViewsRemovesAllStaleViews(t *testing.T) {
 		require.NoError(t, atomicWrite(filepath.Join(root, "projection.json"), content, 0644))
 	}
 
-	err := provider.ReconcilePersistentViews(context.Background(), "runsc", map[string]struct{}{"active": {}})
+	err := provider.ReconcileRuntimeViews(context.Background(), "runsc", map[string]struct{}{"active": {}})
 	require.NoError(t, err)
 	_, err = os.Stat(filepath.Join(filestore, projectionViewDir, "stale-first"))
 	assert.ErrorIs(t, err, os.ErrNotExist)

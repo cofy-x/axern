@@ -18,7 +18,11 @@ func (m *Manager) ReconcileResourceClaims() error {
 		if c == nil || c.Spec == nil || c.Spec.Version == "" {
 			return fmt.Errorf("reconcile resource claims: container %s has no recoverable OCI spec", id)
 		}
-		for name, resourceID := range collectResourceFromSpec(id, c.Spec).Resources {
+		resource, err := m.CollectResourceByID(id)
+		if err != nil {
+			return fmt.Errorf("reconcile resource claims: collect allocation %s ownership: %w", id, err)
+		}
+		for name, resourceID := range resource.Resources {
 			if claimed[name] == nil {
 				claimed[name] = make(map[string]struct{})
 			}

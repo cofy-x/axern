@@ -18,6 +18,10 @@ type stateStore interface {
 
 type Manager interface {
 	Allocate(opt AllocateOption) (Resource, error)
+	// AllocationResource returns the resource durably bound to the exact
+	// Allocation identity. Runtime metadata and OCI annotations are not an
+	// ownership source.
+	AllocationResource(allocationID string) (string, bool)
 	// Recycle releases a resource and must be idempotent so a partially
 	// successful multi-resource cleanup can be retried safely.
 	Recycle(id string) error

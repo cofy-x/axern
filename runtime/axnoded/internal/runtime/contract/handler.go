@@ -35,13 +35,13 @@ type AllocationRuntime interface {
 	StartPreparedContainer(context.Context, *PreparedContainer, HandlerOptions) (*apipb.ContainerMetadata, error)
 }
 
-// PersistentStorageReconciler converges runtime-private storage against a
+// RuntimeArtifactReconciler converges runtime-private artifacts against a
 // successfully collected runtime inventory. Persisted allocation/container
 // metadata is recovery input, not proof that a runtime still exists. Callers
 // must not invoke destructive reconciliation unless every enabled runtime
 // inventory was collected without error.
-type PersistentStorageReconciler interface {
-	ReconcilePersistentStorage(context.Context, map[string]struct{}) error
+type RuntimeArtifactReconciler interface {
+	ReconcileRuntimeArtifacts(context.Context, map[string]struct{}) error
 }
 
 type AllocationCapabilityVerifier interface {

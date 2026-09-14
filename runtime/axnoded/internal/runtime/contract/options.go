@@ -28,8 +28,9 @@ type HandlerOptions struct {
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
 	BundleTemplateSource  *runtimeoci.TemplateOptions
 
-	ResourceAnnotations map[string]string
-	ExecutionProfile    *runtimeoci.ExecutionProfile
+	NetworkNamespacePath string
+	SandboxIP            string
+	ExecutionProfile     *runtimeoci.ExecutionProfile
 }
 
 func (o HandlerOptions) RecordStartupPhase(phase StartupPhase, duration time.Duration) {

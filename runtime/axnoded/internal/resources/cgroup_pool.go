@@ -132,6 +132,22 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	}
 
 	c.Lock()
+	if c.allocationLeases != nil {
+		if existing, ok := c.allocationLeases.Get(opt.ContainerID); ok {
+			lease, found := c.leases.Get(existing)
+			if !found || lease == nil ||
+				lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED ||
+				lease.GetOwnerKind() != opt.CgroupOwnerKind ||
+				lease.GetMemoryRequestBytes() != opt.MemoryRequestBytes ||
+				lease.GetMemoryLimitBytes() != opt.MemoryLimitBytes ||
+				lease.GetCapacityReservationBytes() != capacityReservation {
+				c.Unlock()
+				return EmptyStringResource, fmt.Errorf("allocation %s already has a different or retiring cgroup binding", opt.ContainerID)
+			}
+			c.Unlock()
+			return NewStringResource(existing), nil
+		}
+	}
 	capacity := c.memoryCapacity
 	now := time.Now().UTC()
 	capacityFresh := !capacity.SampledAt.IsZero() && now.Sub(capacity.SampledAt) <= memoryCapacityFreshness && !capacity.SampledAt.After(now.Add(time.Minute))
@@ -233,8 +249,14 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 	lease.AssignedAtUnixNano = time.Now().UTC().UnixNano()
 	c.leases.Set(id, lease)
 	c.usingID.Set(id, struct{}{})
+	if c.allocationLeases != nil {
+		c.allocationLeases.Set(opt.ContainerID, id)
+	}
 	if err := c.storeLocked(); err != nil {
 		c.usingID.Remove(id)
+		if c.allocationLeases != nil {
+			c.allocationLeases.Remove(opt.ContainerID)
+		}
 		if conformance {
 			// This object was created synchronously for one certification run and
 			// has never been exposed to a runtime. It cannot become a warm

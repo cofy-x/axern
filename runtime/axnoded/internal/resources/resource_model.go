@@ -40,8 +40,6 @@ type MemoryCapacitySnapshot struct {
 const (
 	CgroupResourceName    ResourceName = "cgroup"
 	InterfaceResourceName ResourceName = "interface"
-
-	ResourceAnnotationKeyPrefix = "io.axnoded.resource/"
 )
 
 const (

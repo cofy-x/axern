@@ -1,6 +1,7 @@
 package service
 
 import (
+	"net"
 	"path/filepath"
 	"sync"
 
@@ -10,6 +11,7 @@ import (
 func newTestResourceManagers() []resourcemanager.Manager {
 	return []resourcemanager.Manager{
 		newTestResourceManager(resourcemanager.CgroupResourceName, "/sandbox-test"),
+		newTestResourceManager(resourcemanager.InterfaceResourceName, "/var/run/netns"),
 	}
 }
 
@@ -18,6 +20,7 @@ type testResourceManager struct {
 	prefix string
 	mu     sync.Mutex
 	using  map[string]struct{}
+	owners map[string]string
 }
 
 func newTestResourceManager(name resourcemanager.ResourceName, prefix string) *testResourceManager {
@@ -25,6 +28,7 @@ func newTestResourceManager(name resourcemanager.ResourceName, prefix string) *t
 		name:   name,
 		prefix: prefix,
 		using:  make(map[string]struct{}),
+		owners: make(map[string]string),
 	}
 }
 
@@ -36,14 +40,30 @@ func (m *testResourceManager) Allocate(opt resourcemanager.AllocateOption) (reso
 		id = "test-resource"
 	}
 	value := filepath.Join(m.prefix, id)
+	if m.name == resourcemanager.InterfaceResourceName {
+		value = (&resourcemanager.NetResource{Ip: net.ParseIP("10.0.0.20"), NetNSPath: value}).ToString()
+	}
 	m.using[value] = struct{}{}
+	m.owners[id] = value
 	return resourcemanager.NewStringResource(value), nil
+}
+
+func (m *testResourceManager) AllocationResource(id string) (string, bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	value, ok := m.owners[id]
+	return value, ok
 }
 
 func (m *testResourceManager) Recycle(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.using, id)
+	for owner, value := range m.owners {
+		if value == id {
+			delete(m.owners, owner)
+		}
+	}
 	return nil
 }
 

@@ -226,6 +226,20 @@ message DnatRuleSnapshot {
   repeated DnatRuleBinding bindings = 1;
 }
 
+// NetworkLease is the durable owner binding for one host network resource.
+// The Allocation ID, rather than an OCI annotation, authorizes lookup and
+// cleanup after restart.
+message NetworkLease {
+  string allocation_id = 1;
+  string host_interface_name = 2;
+  string ip = 3;
+  string netns_path = 4;
+}
+
+message NetworkLedger {
+  repeated NetworkLease leases = 1;
+}
+
 message Slice {
   repeated string items = 1;
 }

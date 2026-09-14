@@ -41,6 +41,7 @@ type trackingPool struct {
 }
 
 func (p *trackingPool) Allocate(AllocateOption) (Resource, error) { return nil, nil }
+func (p *trackingPool) AllocationResource(string) (string, bool)  { return "", false }
 func (p *trackingPool) Recycle(string) error                      { return nil }
 func (p *trackingPool) Status() ([]string, []string)              { return nil, nil }
 func (p *trackingPool) ShutDown() error                           { return nil }
@@ -632,10 +633,11 @@ func TestInterfaceManagerAllocateHitClearsNeighborBeforeUse(t *testing.T) {
 	resource := &NetResource{
 		Interface: &net.Interface{Name: "veth-test"},
 		Ip:        net.ParseIP("172.17.0.3"),
+		NetNSPath: "/var/run/netns/172.17.0.3",
 	}
 	manager.interfaces.Push(resource.ToString())
 
-	allocated, err := manager.Allocate(AllocateOption{})
+	allocated, err := manager.Allocate(AllocateOption{ContainerID: "cached"})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "172.17.0.3", resetIP)
@@ -676,7 +678,7 @@ func TestInterfaceManagerAllocateWaitsForInFlightPoolBuild(t *testing.T) {
 	waitContext := newWaitObservedContext(context.Background())
 	result := make(chan error, 1)
 	go func() {
-		_, err := manager.Allocate(AllocateOption{Context: waitContext})
+		_, err := manager.Allocate(AllocateOption{Context: waitContext, ContainerID: "waiting"})
 		result <- err
 	}()
 
@@ -719,7 +721,7 @@ func TestInterfaceManagerAllocateCancelsWhileWaitingForPoolBuild(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err := manager.Allocate(AllocateOption{Context: ctx})
+	_, err := manager.Allocate(AllocateOption{Context: ctx, ContainerID: "cancelled"})
 	assert.ErrorIs(t, err, context.Canceled)
 
 	manager.releaseLookup()
@@ -817,11 +819,11 @@ func TestInterfaceManagerConcurrentMissesRespectCapacity(t *testing.T) {
 	errs := make(chan error, attempts)
 	for i := 0; i < attempts; i++ {
 		wg.Add(1)
-		go func() {
+		go func(id int) {
 			defer wg.Done()
-			_, err := manager.Allocate(AllocateOption{})
+			_, err := manager.Allocate(AllocateOption{ContainerID: fmt.Sprintf("concurrent-%d", id)})
 			errs <- err
-		}()
+		}(i)
 	}
 	wg.Wait()
 	close(errs)
@@ -859,7 +861,7 @@ func TestInterfaceManagerFailedBuildReleasesCapacitySlot(t *testing.T) {
 	}
 	manager.idleIp.Push("172.17.0.2")
 
-	if _, err := manager.Allocate(AllocateOption{}); err == nil {
+	if _, err := manager.Allocate(AllocateOption{ContainerID: "failed"}); err == nil {
 		t.Fatal("Allocate() error = nil, want create failure")
 	}
 	assert.Equal(t, int64(0), manager.activeSlots.Load())
@@ -869,7 +871,7 @@ func TestInterfaceManagerFailedBuildReleasesCapacitySlot(t *testing.T) {
 	manager.lookupDeviceFunc = func(name string) (*net.Interface, error) {
 		return &net.Interface{Name: name}, nil
 	}
-	if _, err := manager.Allocate(AllocateOption{}); err != nil {
+	if _, err := manager.Allocate(AllocateOption{ContainerID: "retried"}); err != nil {
 		t.Fatalf("Allocate() after rollback error = %v", err)
 	}
 	assert.Equal(t, int64(1), manager.activeSlots.Load())
@@ -896,13 +898,13 @@ func TestInterfaceManagerQuarantinesSlotWhenFailedBuildCannotCleanUp(t *testing.
 	}
 	manager.idleIp.Push("172.17.0.2")
 
-	if _, err := manager.Allocate(AllocateOption{}); err == nil {
+	if _, err := manager.Allocate(AllocateOption{ContainerID: "quarantined"}); err == nil {
 		t.Fatal("Allocate() error = nil, want lookup and cleanup failure")
 	}
 	assert.Equal(t, int64(1), manager.activeSlots.Load())
 	assert.Equal(t, 1, manager.UnavailableNum())
 	assert.Equal(t, 0, manager.idleIp.Length())
-	if _, err := manager.Allocate(AllocateOption{}); !errors.Is(err, errord.ErrResourceExhausted) {
+	if _, err := manager.Allocate(AllocateOption{ContainerID: "after-quarantine"}); !errors.Is(err, errord.ErrResourceExhausted) {
 		t.Fatalf("Allocate() after quarantine error = %v, want resource exhausted", err)
 	}
 }

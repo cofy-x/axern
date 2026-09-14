@@ -6,22 +6,16 @@ For operator-facing config fields, use [Configuration](configuration.md). For cr
 
 ## Contract
 
-This document covers allocation-owned cgroup domains, the reusable interface pool, and their OCI claims. Only never-assigned warm cgroups are reusable; every cgroup assigned to an allocation is destroyed after cleanup. Ephemeral-storage reservations and hard limits are a separate filestore lifecycle described in [Rootfs And Writable Storage](rootfs-storage.md).
+This document covers allocation-owned cgroup domains and the reusable interface pool. Only never-assigned warm cgroups are reusable; every cgroup assigned to an allocation is destroyed after cleanup. Ephemeral-storage reservations and hard limits are a separate filestore lifecycle described in [Rootfs And Writable Storage](rootfs-storage.md).
 
 The reusable pool manager owns these two claim types for each sandbox:
 
-| Resource  | Owner                                                                  | Durable claim                                            |
-| --------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
-| cgroup    | `internal/resources.CgroupManager` plus `internal/cgroup` drivers      | `io.axnoded.resource/cgroup` and OCI `linux.cgroupsPath` |
-| interface | `internal/resources.InterfaceManager` plus `internal/network` backends | `io.axnoded.resource/interface`                          |
+| Resource  | Owner                                                                  | Durable binding                                      |
+| --------- | ---------------------------------------------------------------------- | ---------------------------------------------------- |
+| cgroup    | `internal/resources.CgroupManager` plus `internal/cgroup` drivers      | `CgroupLease(allocation_id, cgroup_id, lifecycle)`   |
+| interface | `internal/resources.InterfaceManager` plus `internal/network` backends | `NetworkLease(allocation_id, host_veth, IP, netns)`  |
 
-Resource claims are written into OCI annotations with this prefix:
-
-```text
-io.axnoded.resource/
-```
-
-The stored OCI spec is authoritative for cgroup and interface cleanup claims. Delete, housekeeping, and retry paths collect those claims from the spec, not from an in-memory-only allocation record. It is not the entire allocation recovery contract: nodestate owns the allocation dependency and runtime/image record, while the filestore ledger and projection manifest own writable-storage reservation and mount cleanup state.
+Resource ledgers are the sole ownership source. Delete, housekeeping, and retry paths resolve them by the exact Allocation ID. OCI `linux.cgroupsPath`, namespaces, mounts, and runtime files are execution projections only; labels and annotations never authorize lookup or cleanup. Nodestate owns the admitted Allocation dependency and runtime/image record, while the filestore ledger and projection manifest own writable-storage reservation and mount cleanup state.
 
 ## Ownership
 
@@ -33,11 +27,11 @@ At service startup, `internal/service` creates the resource manager from config.
 
 Recovery rules:
 
-- `CgroupManager` loads the durable `idle / assigned / retiring` lease ledger. Assigned ownership must agree with recovered OCI claims. Retiring leases keep their memory commitment and resume reclaim/removal after restart.
-- `InterfaceManager` loads persisted using IDs from the `network_interfaces` store bucket, scans host veths, returns non-using veths to the idle queue, and rebuilds the idle IP queue from `ip_range`.
+- `CgroupManager` loads the durable `idle / assigned / retiring` lease ledger and rebuilds its Allocation index. Retiring leases keep their memory commitment and resume removal after restart.
+- `InterfaceManager` loads typed Allocation-to-interface leases from the `network_interfaces` store bucket, validates unique ownership, scans host veths, returns unassigned veths to the idle queue, and rebuilds the idle IP queue from `ip_range`. A missing assigned host veth remains owned and its IP stays unavailable until the complete runtime inventory proves the Allocation absent; an ambiguous or unreadable assigned interface fails recovery closed.
 - IPv4 veth names preserve the encoded-address format. IPv6 names encode the low 48 address bits so they remain within Linux `IFNAMSIZ`; recovery combines that suffix with the configured prefix and rejects an unreconstructable link.
-- Managers periodically persist using IDs when `storeMark` is set.
-- Before serving, the container manager reconciles every persisted assigned lease against recovered OCI resource claims. Ownership ambiguity fails node startup instead of advertising inconsistent capacity. An assigned cgroup is never converted back to idle during recovery.
+- Assignment is synchronously durable before allocation returns. Release is synchronously durable before an IP or slot becomes reusable. Persistence failure leaves the resource owned and quarantined for retry.
+- Before serving, the container manager reconciles every persisted assigned lease against the complete runtime inventory. Ownership ambiguity fails node startup instead of advertising inconsistent capacity. An assigned cgroup is never converted back to idle during recovery.
 - Startup recovery must be idempotent; a partially deleted sandbox should not permanently poison the pool.
 
 ## Allocation And Delete
@@ -59,16 +53,14 @@ Delete first collects resource claims, crosses the runtime/monitor exit-state ba
 
 Delete rules:
 
-- Collect claims from OCI `config.json` annotations before runtime delete.
-- If the cgroup annotation is missing, fall back to `linux.cgroupsPath`.
+- Resolve cgroup and interface bindings from their typed ledgers by Allocation ID before runtime delete.
 - Clean activation-specific network rules before final container cleanup.
 - Every cleanup operation is idempotent so a partially successful multi-resource cleanup can be retried safely. Interface claims may return to the warm pool; allocation-owned cgroups may not.
 - Interface recycle treats an already-absent host veth as successful cleanup. Runtime netns deletion can remove the peer before the explicit node cleanup runs; restoring ownership in that case would create a permanent ghost claim.
 - A late exit event after an explicit delete treats an already-removed container bundle as cleanup complete when the in-memory container is also absent.
 - A successful runtime delete does not immediately release memory capacity. The retiring cgroup remains committed at `max(original request, memory.current)` until it contains no process and removal succeeds. Cleanup relies on authoritative cgroup removal rather than synchronous proactive reclaim. Successful removal reparents all remaining charges to the sandbox ancestor memcg. The ancestor `memory.current` remains part of the node-local admission safety floor while residual clean, dirty, or writeback pages converge.
 - Successful final cleanup schedules a coalesced inventory refresh and node report. Create needs no matching refresh because its durable reservation accounts for the slot before node startup begins.
-- Clear resource annotations and `linux.cgroupsPath` only after every resource release succeeds.
-- Preserve the OCI spec, claims, and in-memory container when release fails. The node delete RPC returns the error so the control plane's durable delete worker retries it; the bundle is removed only after cleanup succeeds.
+- Preserve the authoritative leases and in-memory container when release fails. The node delete RPC returns the error so the control plane's durable delete worker retries it; the bundle is removed only after cleanup succeeds.
 
 ## Resource Accounting
 

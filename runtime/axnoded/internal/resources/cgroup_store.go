@@ -76,6 +76,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	idleIDs := queue.New("")
 	usingIDs := cmap.New[struct{}]()
 	leases := cmap.New[*apipb.CgroupLease]()
+	allocationLeases := cmap.New[string]()
 	gcQueue := queue.New("")
 	for _, lease := range reconciledLeases {
 		staleRoot := !cgroupPathInCurrentRoot(lease.GetCgroupID(), resolvedRoot, conformanceRoot)
@@ -111,8 +112,18 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 			idleIDs.Push(copy.GetCgroupID())
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
+			if existing, duplicate := allocationLeases.Get(copy.GetAllocationID()); duplicate {
+				return nil, fmt.Errorf("allocation %s owns multiple cgroups: %s and %s", copy.GetAllocationID(), existing, copy.GetCgroupID())
+			}
+			allocationLeases.Set(copy.GetAllocationID(), copy.GetCgroupID())
 			usingIDs.Set(copy.GetCgroupID(), struct{}{})
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
+			if copy.GetAllocationID() != "" {
+				if existing, duplicate := allocationLeases.Get(copy.GetAllocationID()); duplicate {
+					return nil, fmt.Errorf("allocation %s owns multiple cgroups: %s and %s", copy.GetAllocationID(), existing, copy.GetCgroupID())
+				}
+				allocationLeases.Set(copy.GetAllocationID(), copy.GetCgroupID())
+			}
 			gcQueue.Push(copy.GetCgroupID())
 		}
 	}
@@ -132,7 +143,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 
 	c := &CgroupManager{
 		size: cfg.MaxInstanceNum, cacheSize: cfg.CgroupCacheSize, rootName: resolvedRoot, conformanceRoot: conformanceRoot,
-		usingID: usingIDs, idleID: idleIDs, leases: leases, gcQueue: gcQueue,
+		usingID: usingIDs, idleID: idleIDs, leases: leases, allocationLeases: &allocationLeases, gcQueue: gcQueue,
 		gcStop: make(chan struct{}), gcDone: make(chan struct{}),
 		generator:            truncindex.NewFixLenGenerator(12, cgroupIDsUnderRoot(cgs.Keys(), resolvedRoot), truncindex.PrefixModifier(resolvedRoot+"/")),
 		conformanceGenerator: truncindex.NewFixLenGenerator(12, cgroupIDsUnderRoot(cgs.Keys(), conformanceRoot), truncindex.PrefixModifier(conformanceRoot+"/")),

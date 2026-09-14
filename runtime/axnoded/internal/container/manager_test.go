@@ -80,6 +80,8 @@ func (m *stopTestResourceManager) Allocate(resourcemanager.AllocateOption) (reso
 	return resourcemanager.EmptyStringResource, nil
 }
 
+func (m *stopTestResourceManager) AllocationResource(string) (string, bool) { return "", false }
+
 func (m *stopTestResourceManager) Recycle(string) error { return nil }
 
 func (m *stopTestResourceManager) Status() ([]string, []string) { return nil, nil }

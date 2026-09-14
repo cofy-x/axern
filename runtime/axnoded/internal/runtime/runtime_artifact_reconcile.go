@@ -6,14 +6,13 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 )
 
-func (r *RunscServiceHandler) ReconcilePersistentStorage(ctx context.Context, runtimeInventory map[string]struct{}) error {
-	return reconcilePersistentStorage(ctx, r.name, r.containerRoot, runtimeInventory, r.rootfsViews, r.writableCapacity)
+func (r *RunscServiceHandler) ReconcileRuntimeArtifacts(ctx context.Context, runtimeInventory map[string]struct{}) error {
+	return reconcileRuntimeArtifacts(ctx, r.name, runtimeInventory, r.rootfsViews, r.writableCapacity)
 }
 
-func reconcilePersistentStorage(
+func reconcileRuntimeArtifacts(
 	ctx context.Context,
 	runtimeName string,
-	containerRoot string,
 	runtimeInventory map[string]struct{},
 	views rootfsview.Provider,
 	capacity *writableCapacityManager,
@@ -28,13 +27,10 @@ func reconcilePersistentStorage(
 	}
 
 	var result error
-	if reconciler, ok := views.(rootfsview.PersistentReconciler); ok {
-		if err := reconciler.ReconcilePersistentViews(ctx, runtimeName, retained); err != nil {
+	if reconciler, ok := views.(rootfsview.RuntimeArtifactReconciler); ok {
+		if err := reconciler.ReconcileRuntimeViews(ctx, runtimeName, retained); err != nil {
 			result = errors.Join(result, err)
 		}
-	}
-	if err := capacity.ValidateReservations(containerRoot, retained); err != nil {
-		result = errors.Join(result, err)
 	}
 	if err := capacity.Reconcile(retained, func(id string) error {
 		return views.Remove(ctx, id)

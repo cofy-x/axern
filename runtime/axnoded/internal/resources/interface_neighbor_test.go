@@ -42,9 +42,11 @@ func TestInterfaceManagerRecycleRetiresUsedInterfaceAndRefillsPool(t *testing.T)
 	var destroyedName string
 	destroyCalls := 0
 	manager := &InterfaceManager{
-		interfaces:      queue.New(""),
-		idleIp:          queue.New(""),
-		usingInterfaces: cmap.New[struct{}](),
+		interfaces:       queue.New(""),
+		idleIp:           queue.New(""),
+		usingInterfaces:  cmap.New[struct{}](),
+		allocationLeases: func() *cmap.ConcurrentMap[string, string] { v := cmap.New[string](); return &v }(),
+		db:               discardStateStore{},
 		destroyDeviceFunc: func(dev net.Interface) error {
 			destroyCalls++
 			destroyedName = dev.Name
@@ -60,6 +62,7 @@ func TestInterfaceManagerRecycleRetiresUsedInterfaceAndRefillsPool(t *testing.T)
 		Ip:        net.ParseIP("172.17.0.3"),
 	}).ToString()
 	manager.usingInterfaces.Set(resource, struct{}{})
+	manager.allocationLeases.Set("allocation-1", resource)
 
 	assert.NoError(t, manager.Recycle(resource))
 	assert.Equal(t, "172.17.0.3", resetIP)
@@ -74,11 +77,14 @@ func TestInterfaceManagerRecycleRetiresUsedInterfaceAndRefillsPool(t *testing.T)
 
 func TestInterfaceManagerRecycleKeepsOwnershipForInvalidResource(t *testing.T) {
 	manager := &InterfaceManager{
-		interfaces:      queue.New(""),
-		usingInterfaces: cmap.New[struct{}](),
+		interfaces:       queue.New(""),
+		usingInterfaces:  cmap.New[struct{}](),
+		allocationLeases: func() *cmap.ConcurrentMap[string, string] { v := cmap.New[string](); return &v }(),
+		db:               discardStateStore{},
 	}
 	const resource = "invalid"
 	manager.usingInterfaces.Set(resource, struct{}{})
+	manager.allocationLeases.Set("allocation-1", resource)
 
 	assert.Error(t, manager.Recycle(resource))
 	assert.True(t, manager.usingInterfaces.Has(resource))
@@ -87,9 +93,11 @@ func TestInterfaceManagerRecycleKeepsOwnershipForInvalidResource(t *testing.T) {
 
 func TestInterfaceManagerRecycleTreatsAlreadyRemovedDeviceAsReleased(t *testing.T) {
 	manager := &InterfaceManager{
-		interfaces:      queue.New(""),
-		idleIp:          queue.New(""),
-		usingInterfaces: cmap.New[struct{}](),
+		interfaces:       queue.New(""),
+		idleIp:           queue.New(""),
+		usingInterfaces:  cmap.New[struct{}](),
+		allocationLeases: func() *cmap.ConcurrentMap[string, string] { v := cmap.New[string](); return &v }(),
+		db:               discardStateStore{},
 		destroyDeviceFunc: func(net.Interface) error {
 			return unix.ENODEV
 		},
@@ -99,6 +107,7 @@ func TestInterfaceManagerRecycleTreatsAlreadyRemovedDeviceAsReleased(t *testing.
 		Ip:        net.ParseIP("172.17.0.4"),
 	}).ToString()
 	manager.usingInterfaces.Set(resource, struct{}{})
+	manager.allocationLeases.Set("allocation-1", resource)
 	manager.activeSlots.Store(1)
 
 	assert.NoError(t, manager.Recycle(resource))

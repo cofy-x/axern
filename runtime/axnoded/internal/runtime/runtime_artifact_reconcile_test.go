@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type recordingPersistentViewProvider struct {
+type recordingRuntimeArtifactProvider struct {
 	reconcileCalls int
 	retained       map[string]struct{}
 	removed        []string
@@ -18,16 +18,16 @@ type recordingPersistentViewProvider struct {
 	reconcileErr   error
 }
 
-func (p *recordingPersistentViewProvider) Prepare(context.Context, string, rootfsview.Request) (rootfsview.View, error) {
+func (p *recordingRuntimeArtifactProvider) Prepare(context.Context, string, rootfsview.Request) (rootfsview.View, error) {
 	return rootfsview.View{}, nil
 }
 
-func (p *recordingPersistentViewProvider) Remove(_ context.Context, containerID string) error {
+func (p *recordingRuntimeArtifactProvider) Remove(_ context.Context, containerID string) error {
 	p.removed = append(p.removed, containerID)
 	return p.removeErr
 }
 
-func (p *recordingPersistentViewProvider) ReconcilePersistentViews(_ context.Context, _ string, retained map[string]struct{}) error {
+func (p *recordingRuntimeArtifactProvider) ReconcileRuntimeViews(_ context.Context, _ string, retained map[string]struct{}) error {
 	p.reconcileCalls++
 	p.retained = make(map[string]struct{}, len(retained))
 	for id := range retained {
@@ -36,15 +36,14 @@ func (p *recordingPersistentViewProvider) ReconcilePersistentViews(_ context.Con
 	return p.reconcileErr
 }
 
-func TestReconcilePersistentStorageUsesOnlyRuntimeInventoryForLiveness(t *testing.T) {
-	views := &recordingPersistentViewProvider{}
+func TestReconcileRuntimeArtifactsUsesOnlyRuntimeInventoryForLiveness(t *testing.T) {
+	views := &recordingRuntimeArtifactProvider{}
 	capacity := newTestWritableCapacityManager(t, 0)
 	require.NoError(t, capacity.Reserve("orphan", "runsc", 1, 1))
 
-	err := reconcilePersistentStorage(
+	err := reconcileRuntimeArtifacts(
 		context.Background(),
 		"runsc",
-		t.TempDir(),
 		map[string]struct{}{},
 		views,
 		capacity,
@@ -56,13 +55,12 @@ func TestReconcilePersistentStorageUsesOnlyRuntimeInventoryForLiveness(t *testin
 	assert.NotContains(t, capacity.reservations, "orphan")
 }
 
-func TestReconcilePersistentStorageRetainsRuntimeInventory(t *testing.T) {
-	views := &recordingPersistentViewProvider{}
+func TestReconcileRuntimeArtifactsRetainsRuntimeInventory(t *testing.T) {
+	views := &recordingRuntimeArtifactProvider{}
 
-	err := reconcilePersistentStorage(
+	err := reconcileRuntimeArtifacts(
 		context.Background(),
 		"runsc",
-		t.TempDir(),
 		map[string]struct{}{"live": {}},
 		views,
 		nil,
@@ -71,15 +69,14 @@ func TestReconcilePersistentStorageRetainsRuntimeInventory(t *testing.T) {
 	assert.Equal(t, map[string]struct{}{"live": {}}, views.retained)
 }
 
-func TestReconcilePersistentStoragePreservesReservationWhenCleanupFails(t *testing.T) {
-	views := &recordingPersistentViewProvider{removeErr: errors.New("projection is still mounted")}
+func TestReconcileRuntimeArtifactsPreservesReservationWhenCleanupFails(t *testing.T) {
+	views := &recordingRuntimeArtifactProvider{removeErr: errors.New("projection is still mounted")}
 	capacity := newTestWritableCapacityManager(t, 0)
 	require.NoError(t, capacity.Reserve("orphan", "runsc", 1, 1))
 
-	err := reconcilePersistentStorage(
+	err := reconcileRuntimeArtifacts(
 		context.Background(),
 		"runsc",
-		t.TempDir(),
 		map[string]struct{}{},
 		views,
 		capacity,
@@ -89,13 +86,12 @@ func TestReconcilePersistentStoragePreservesReservationWhenCleanupFails(t *testi
 	assert.Contains(t, capacity.reservations, "orphan", "failed cleanup must retain the durable reservation")
 }
 
-func TestReconcilePersistentStorageReportsActiveViewDegradation(t *testing.T) {
-	views := &recordingPersistentViewProvider{reconcileErr: errors.New("active backing identity changed")}
+func TestReconcileRuntimeArtifactsReportsActiveViewDegradation(t *testing.T) {
+	views := &recordingRuntimeArtifactProvider{reconcileErr: errors.New("active backing identity changed")}
 
-	err := reconcilePersistentStorage(
+	err := reconcileRuntimeArtifacts(
 		context.Background(),
 		"runsc",
-		t.TempDir(),
 		map[string]struct{}{"live": {}},
 		views,
 		nil,

@@ -33,25 +33,6 @@ func appendMountIfMissing(ociSpec *spec.Spec, mnt *apipb.Mount) {
 	})
 }
 
-func combineAnnotations(annotations map[string]string, annoToAdd map[string]string) map[string]string {
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	for k, v := range annoToAdd {
-		annotations[k] = v
-	}
-	return annotations
-}
-
-func hasAnyAnnotation(annotations map[string]string, keys ...string) bool {
-	for _, key := range keys {
-		if _, ok := annotations[key]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 func appendUnique(values []string, value string) []string {
 	if slices.Contains(values, value) {
 		return values

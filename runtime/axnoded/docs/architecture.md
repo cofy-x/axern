@@ -63,6 +63,21 @@ The immutable verified enforcement manifest and cgroup ledger deliberately have 
 
 Recovery ordering is strict: load the complete runsc inventory and local checkpoints, load admitted `AllocationState` records, and classify the complete inventory before deletion. A persisted create intent with no runtime is rolled back through the ordinary failed-start cleanup path. An OCI container still in `created` state is also rolled back because the workload never crossed OCI start. A running or unknown admitted container without a verified enforcement manifest is retained fail-closed and keeps the node NotReady. For a runsc container already in `exited`, recovery obtains the exact `Wait` result and commits the terminal runtime checkpoint before seeding the lifecycle outbox or deleting runtime state; inventory status alone is never terminal evidence. Only then does recovery seed admitted terminal observations, discard containers with no admitted Allocation record, restore durable Allocation state, and reconcile cgroup, egress, runtime storage, and resource ownership. A live execution with an incomplete or conflicting admitted record keeps the node NotReady before destructive orphan cleanup.
 
+The deterministic crash matrix is:
+
+| Last durable barrier | Runtime observation after restart | Recovery action |
+| --- | --- | --- |
+| no Allocation admission | absent | discard partial runtime artifacts; no lifecycle report |
+| admitted Allocation, no runtime | absent | ordered failed-start cleanup and terminal failure report |
+| typed cgroup/network leases | absent | release through the normal idempotent cleanup path; never infer ownership from OCI metadata |
+| runtime created, not started | `created` | force-delete, then ordered resource and storage cleanup |
+| runtime started, no verified enforcement manifest | `running` or `unknown` | retain everything, keep the node NotReady, and require operator/recovery resolution |
+| verified enforcement manifest | `running` or `unknown` | restore monitoring and the admitted Allocation without rewriting immutable facts |
+| exact terminal checkpoint | `exited` or absent | seed/replay the terminal outbox, acknowledge controld, then clean up |
+| resource release persistence failed | runtime absent | retain/quarantine the durable lease and retry; do not return capacity to the pool |
+
+Tests inject failures at the admission/runtime persistence boundary, terminal checkpoint/outbox boundary, cgroup retirement store, network assignment/release store, writable reservation cleanup, and image/projection cleanup. A new persistent write in this sequence must extend this matrix and add both “before durable write” and “after durable write” recovery coverage.
+
 Inventory active IDs come from admitted `AllocationState` records plus their unacknowledged terminal outbox entries. Running IDs and locality are live joins against runtime state and the environment template already held by `AllocationState`; arbitrary internal containers and container labels cannot enter the control-plane Allocation inventory.
 
 Rootfs handling follows the three-boundary contract in [rootfs-storage.md](rootfs-storage.md): host target projection, runtime-specific guest writable storage, and cgroup memory enforcement are independent. The input lower rootfs is immutable across create, start, failure rollback, and delete.

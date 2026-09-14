@@ -307,9 +307,9 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.reconcileEgressPolicies(context.Background()); err != nil {
 		return err
 	}
-	if reconciler, ok := h.runscHandler.(contract.PersistentStorageReconciler); ok {
-		if err := reconciler.ReconcilePersistentStorage(context.Background(), retained.allIDs()); err != nil {
-			return fmt.Errorf("reconcile runsc persistent storage: %w", err)
+	if reconciler, ok := h.runscHandler.(contract.RuntimeArtifactReconciler); ok {
+		if err := reconciler.ReconcileRuntimeArtifacts(context.Background(), retained.allIDs()); err != nil {
+			return fmt.Errorf("reconcile runsc runtime artifacts: %w", err)
 		}
 	}
 	if err := h.containerManager.ReconcileRuntimeInventory(retained.allIDs()); err != nil {

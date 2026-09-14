@@ -87,6 +87,8 @@ func (m *MockResourceManager) Allocate(opt AllocateOption) (Resource, error) {
 	}, nil
 }
 
+func (m *MockResourceManager) AllocationResource(string) (string, bool) { return "", false }
+
 func (m *MockResourceManager) Recycle(id string) error {
 	if strings.Contains(id, "error") {
 		return fmt.Errorf("error with %s", id)

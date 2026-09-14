@@ -3,7 +3,6 @@ package oci
 import (
 	"encoding/json"
 	"errors"
-	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -13,7 +12,6 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -23,11 +21,6 @@ func newTestBundleLoader(t *testing.T, baseFile, bundleDir string, options ...Bu
 	if err != nil {
 		return nil, err
 	}
-	if loader.baseSpec.Annotations == nil {
-		loader.baseSpec.Annotations = map[string]string{}
-	}
-	key := resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName)
-	loader.baseSpec.Annotations[key] = (&resourcemanager.NetResource{Ip: net.ParseIP("10.88.0.2")}).ToString()
 	return loader, nil
 }
 
@@ -228,8 +221,6 @@ func TestSpecBuilderUsesExecutionProfile(t *testing.T) {
 			Capabilities: []string{"CAP_SYS_PTRACE"},
 			NoFileLimit:  4096,
 		},
-		NetworkNamespace: DefaultNetworkNamespacePolicy(),
-		Resources:        DefaultResourcePolicy(),
 	})
 
 	generated, err := builder.build(base, buildOptions{
@@ -323,8 +314,7 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/dynamic-first", Type: "bind", Source: "/host/first", Options: []string{"rw"}},
 			},
 		},
-		CgroupPath:          "/sandbox/test/first",
-		ResourceAnnotations: map[string]string{"io.axnoded.resource/test": "first"},
+		CgroupPath: "/sandbox/test/first",
 	})
 	if err != nil {
 		t.Fatalf("MaterializeBundle(first) error = %v", err)
@@ -348,8 +338,7 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 				{Target: "/dynamic-second", Type: "bind", Source: "/host/second", Options: []string{"rw"}},
 			},
 		},
-		CgroupPath:          "/sandbox/test/second",
-		ResourceAnnotations: map[string]string{"io.axnoded.resource/test": "second"},
+		CgroupPath: "/sandbox/test/second",
 	})
 	if err != nil {
 		t.Fatalf("MaterializeBundle(second) error = %v", err)
@@ -376,9 +365,6 @@ func TestPrepareAndMaterializeBundleTemplateAvoidsDynamicLeakage(t *testing.T) {
 	}
 	if got := secondSpec.Linux.CgroupsPath; got != "/sandbox/test/second" {
 		t.Fatalf("second cgroupsPath = %q, want /sandbox/test/second", got)
-	}
-	if got := secondSpec.Annotations["io.axnoded.resource/test"]; got != "second" {
-		t.Fatalf("second extra annotation = %q, want second", got)
 	}
 	if got := firstSpec.Hostname; got != "alloc-bundle-first" {
 		t.Fatalf("first hostname = %q, want alloc-bundle-first", got)
@@ -414,6 +400,7 @@ func TestGenerateSetsWorkloadHostnameAndRuntimeEtcFiles(t *testing.T) {
 
 	bundleDir, generated, err := loader.Generate(LoadOptions{
 		ContainerID: "alloc-ABCDEF1234567890",
+		SandboxIP:   "10.88.0.2",
 		Request: &apipb.CreateContainerRequest{
 			Command: []string{"/bin/true"},
 			Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},

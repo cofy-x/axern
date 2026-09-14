@@ -14,7 +14,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -73,14 +72,6 @@ func (m *Manager) Occupy(opts resourcemanager.AllocateOption, resources ...resou
 	return resource, nil
 }
 
-func (or OccupiedResource) RuntimeAnnotations() map[string]string {
-	annotations := make(map[string]string)
-	for r, key := range or.Resources {
-		annotations[resourcemanager.ResourceAnnotationKeyPrefix+string(r)] = key
-	}
-	return annotations
-}
-
 func (m *Manager) Release(resource OccupiedResource) error {
 	return m.ReleaseResource(resource.Resources)
 }
@@ -126,56 +117,18 @@ func (m *Manager) ReleaseResource(resources map[resourcemanager.ResourceName]str
 }
 
 func (m *Manager) CollectResourceByID(id string) (OccupiedResource, error) {
-	if c, ok := m.containers.Get(id); ok && c != nil && c.Spec != nil {
-		resource := collectResourceFromSpec(id, c.Spec)
-		logrus.Debugf("collect resource for %s success, details: %+v", id, resource.Resources)
-		return resource, nil
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return OccupiedResource{}, errord.ErrInvalidArgument
 	}
-
-	oci, err := runtimeoci.LoadSpec(filepath.Join(m.root, id, "config.json"))
-	if err != nil {
-		return OccupiedResource{}, err
+	resource := OccupiedResource{ID: id, Resources: make(map[resourcemanager.ResourceName]string)}
+	for item := range m.resourceManagers.IterBuffered() {
+		if key, ok := item.Val.AllocationResource(id); ok {
+			resource.Resources[resourcemanager.ResourceName(item.Key)] = key
+		}
 	}
-	resource := collectResourceFromSpec(id, oci)
 	logrus.Debugf("collect resource for %s success, details: %+v", id, resource.Resources)
 	return resource, nil
-}
-
-func collectResourceFromSpec(id string, oci *specs.Spec) OccupiedResource {
-	resource := OccupiedResource{
-		ID:        id,
-		Resources: make(map[resourcemanager.ResourceName]string),
-	}
-	if oci == nil {
-		return resource
-	}
-	for resourceName, key := range oci.Annotations {
-		if after, ok := strings.CutPrefix(resourceName, resourcemanager.ResourceAnnotationKeyPrefix); ok {
-			name := resourcemanager.ResourceName(after)
-			if isManagedResourceClaim(name) {
-				resource.Resources[name] = key
-			}
-		}
-	}
-
-	if _, ok := resource.Resources[resourcemanager.CgroupResourceName]; !ok {
-		if oci.Linux != nil && oci.Linux.CgroupsPath != "" {
-			resource.Resources[resourcemanager.CgroupResourceName] = oci.Linux.CgroupsPath
-		}
-	}
-	return resource
-}
-
-// The resource annotation namespace also contains persisted runtime contracts,
-// such as ephemeral-storage reservation metadata. Only pool-backed claims belong
-// to the generic resource managers and may be recycled through Manager.Release.
-func isManagedResourceClaim(name resourcemanager.ResourceName) bool {
-	switch name {
-	case resourcemanager.CgroupResourceName, resourcemanager.InterfaceResourceName:
-		return true
-	default:
-		return false
-	}
 }
 
 func (m *Manager) RuntimeCgroupPath(containerID string) (string, error) {
@@ -197,6 +150,18 @@ func (m *Manager) RuntimeCgroupPath(containerID string) (string, error) {
 		if err != nil {
 			return "", fmt.Errorf("cgroup path not found for container %s", containerID)
 		}
+	}
+	return cgroupPath, nil
+}
+
+func (m *Manager) AllocationCgroupPath(allocationID string) (string, error) {
+	resource, err := m.CollectResourceByID(allocationID)
+	if err != nil {
+		return "", err
+	}
+	cgroupPath := strings.TrimSpace(resource.Resources[resourcemanager.CgroupResourceName])
+	if cgroupPath == "" {
+		return "", fmt.Errorf("allocation %s has no cgroup binding", allocationID)
 	}
 	return cgroupPath, nil
 }

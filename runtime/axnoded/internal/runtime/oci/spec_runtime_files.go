@@ -2,6 +2,7 @@ package oci
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"path"
 	"path/filepath"
@@ -51,7 +52,7 @@ func (c RuntimeDNSConfig) withDefaults() RuntimeDNSConfig {
 	return c
 }
 
-func materializeRuntimeEtcFiles(bundleDir string, ociSpec *spec.Spec, runtimeFiles RuntimeFilesConfig) error {
+func materializeRuntimeEtcFiles(bundleDir string, ociSpec *spec.Spec, runtimeFiles RuntimeFilesConfig, sandboxIPText string) error {
 	if bundleDir == "" || ociSpec == nil {
 		return nil
 	}
@@ -65,9 +66,12 @@ func materializeRuntimeEtcFiles(bundleDir string, ociSpec *spec.Spec, runtimeFil
 		files = append(files, runtimeEtcFile{name: "hostname", target: "/etc/hostname", content: hostname + "\n"})
 	}
 	if !mountDestinationsOwn(ociSpec.Mounts, "/etc/hosts") {
-		sandboxIP, err := sandboxIPFromSpec(ociSpec)
-		if err != nil {
-			return err
+		var sandboxIP net.IP
+		if sandboxIPText != "" {
+			sandboxIP = net.ParseIP(strings.TrimSpace(sandboxIPText))
+		}
+		if sandboxIPText != "" && sandboxIP == nil {
+			return fmt.Errorf("sandbox network IP is required for /etc/hosts")
 		}
 		files = append(files, runtimeEtcFile{name: "hosts", target: "/etc/hosts", content: buildHostsFile(hostname, sandboxIP)})
 	}

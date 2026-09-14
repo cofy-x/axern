@@ -38,14 +38,6 @@
             "CAP_SETFCAP"
           ],
           "noFileLimit": 1048576
-        },
-        "networkNamespace": {
-          "annotationKey": "io.axnoded.resource/interface"
-        },
-        "resources": {
-          "ignoreAnnotationKeys": [
-            "io.axnoded/ignore-resource-field"
-          ]
         }
       }
     }
@@ -87,14 +79,6 @@
             "CAP_SETFCAP"
           ],
           "noFileLimit": 1048576
-        },
-        "networkNamespace": {
-          "annotationKey": "io.axnoded.resource/interface"
-        },
-        "resources": {
-          "ignoreAnnotationKeys": [
-            "io.axnoded/ignore-resource-field"
-          ]
         }
       }
     }
@@ -140,14 +124,6 @@
             "CAP_SETFCAP"
           ],
           "noFileLimit": 1048576
-        },
-        "networkNamespace": {
-          "annotationKey": "io.axnoded.resource/interface"
-        },
-        "resources": {
-          "ignoreAnnotationKeys": [
-            "io.axnoded/ignore-resource-field"
-          ]
         }
       }
     }
@@ -189,14 +165,6 @@
             "CAP_SETFCAP"
           ],
           "noFileLimit": 1048576
-        },
-        "networkNamespace": {
-          "annotationKey": "io.axnoded.resource/interface"
-        },
-        "resources": {
-          "ignoreAnnotationKeys": [
-            "io.axnoded/ignore-resource-field"
-          ]
         }
       }
     }

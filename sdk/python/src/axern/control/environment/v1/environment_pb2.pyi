@@ -48,27 +48,11 @@ class OciBaselinePolicy(_message.Message):
     no_file_limit: int
     def __init__(self, capabilities: _Optional[_Iterable[str]] = ..., no_file_limit: _Optional[int] = ...) -> None: ...
 
-class OciNetworkNamespacePolicy(_message.Message):
-    __slots__ = ("annotation_key",)
-    ANNOTATION_KEY_FIELD_NUMBER: _ClassVar[int]
-    annotation_key: str
-    def __init__(self, annotation_key: _Optional[str] = ...) -> None: ...
-
-class OciResourcePolicy(_message.Message):
-    __slots__ = ("ignore_annotation_keys",)
-    IGNORE_ANNOTATION_KEYS_FIELD_NUMBER: _ClassVar[int]
-    ignore_annotation_keys: _containers.RepeatedScalarFieldContainer[str]
-    def __init__(self, ignore_annotation_keys: _Optional[_Iterable[str]] = ...) -> None: ...
-
 class OciExecutionProfile(_message.Message):
-    __slots__ = ("baseline", "network_namespace", "resources")
+    __slots__ = ("baseline",)
     BASELINE_FIELD_NUMBER: _ClassVar[int]
-    NETWORK_NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    RESOURCES_FIELD_NUMBER: _ClassVar[int]
     baseline: OciBaselinePolicy
-    network_namespace: OciNetworkNamespacePolicy
-    resources: OciResourcePolicy
-    def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ..., network_namespace: _Optional[_Union[OciNetworkNamespacePolicy, _Mapping]] = ..., resources: _Optional[_Union[OciResourcePolicy, _Mapping]] = ...) -> None: ...
+    def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ...) -> None: ...
 
 class ResolvedEnvironmentSpec(_message.Message):
     __slots__ = ("rootfs_readonly", "image_default_argv", "default_cwd", "default_env", "mounts", "image_descriptor", "execution_profile")

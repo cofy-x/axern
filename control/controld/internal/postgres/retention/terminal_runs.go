@@ -10,6 +10,7 @@ import (
 
 type terminalRunRetentionRequest struct {
 	cutoff    time.Time
+	now       time.Time
 	batchSize int
 }
 
@@ -37,6 +38,7 @@ func candidateTerminalRuns(ctx context.Context, tx pgx.Tx, req terminalRunRetent
 		FROM runs r
 		JOIN allocations a ON a.run_id = r.run_id
 		WHERE r.updated_at < $1
+		  AND a.lifecycle_state = 'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 		  AND r.status IN (
 			'RUN_STATUS_SUCCEEDED',
 			'RUN_STATUS_FAILED',
@@ -47,9 +49,26 @@ func candidateTerminalRuns(ctx context.Context, tx pgx.Tx, req terminalRunRetent
 			FROM allocation_reconcile_queue q
 			WHERE q.allocation_id = a.allocation_id
 		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM execution_leases l
+			WHERE l.allocation_id = a.allocation_id
+			  AND l.revoked = FALSE
+			  AND l.expires_at >= $3
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM tunnel_sessions t
+			WHERE t.allocation_id = a.allocation_id
+			  AND t.status IN (
+				'TUNNEL_SESSION_STATUS_PENDING',
+				'TUNNEL_SESSION_STATUS_RUNNING',
+				'TUNNEL_SESSION_STATUS_DEGRADED'
+			  )
+		  )
 		ORDER BY r.updated_at ASC, r.run_id ASC
 		LIMIT $2
-	`, req.cutoff.UTC(), req.batchSize)
+	`, req.cutoff.UTC(), req.batchSize, req.now.UTC())
 	if err != nil {
 		return nil, fmt.Errorf("query terminal run retention candidates: %w", err)
 	}

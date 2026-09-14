@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path"
 	"sort"
 	"strings"
 	"time"
@@ -322,7 +321,12 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		resourceSpec := s.allocationResourceSpecFor(c.ID)
 		memoryLimit := resourceSpec.GetLimits().GetMemoryBytes()
 		if s.memoryBudgetEnabled {
-			observation, observationErr := allocationMemoryObservation(c, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
+			parentPath, parentErr := s.container.AllocationCgroupPath(c.ID)
+			if parentErr != nil {
+				errs = append(errs, fmt.Sprintf("%s memory binding: %v", c.ID, parentErr))
+				continue
+			}
+			observation, observationErr := allocationMemoryObservation(c, parentPath, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
 			if observationErr != nil {
 				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, observationErr))
 				continue
@@ -397,7 +401,12 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, err))
 			continue
 		}
-		observation, observationErr := allocationMemoryObservation(c, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
+		parentPath, parentErr := s.container.AllocationCgroupPath(c.ID)
+		if parentErr != nil {
+			errs = append(errs, fmt.Sprintf("%s exited memory binding: %v", c.ID, parentErr))
+			continue
+		}
+		observation, observationErr := allocationMemoryObservation(c, parentPath, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
 		if observationErr != nil {
 			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, observationErr))
 			continue
@@ -529,16 +538,13 @@ func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.Retiring
 	), nil
 }
 
-func allocationMemoryObservation(c *container.Container, workloadPath string, requestBytes, limitBytes int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
+func allocationMemoryObservation(c *container.Container, parentPath, workloadPath string, requestBytes, limitBytes int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
 	if c == nil || c.Metadata == nil || c.Status == nil || limitBytes < 0 {
 		return nil, fmt.Errorf("allocation memory metadata is incomplete")
 	}
-	parentPath := ""
-	if c.Spec != nil {
-		parentPath = strings.TrimSpace(c.Spec.Annotations[resources.ResourceAnnotationKeyPrefix+string(resources.CgroupResourceName)])
-	}
+	parentPath = strings.TrimSpace(parentPath)
 	if parentPath == "" {
-		parentPath = path.Dir(strings.TrimSpace(workloadPath))
+		return nil, fmt.Errorf("allocation cgroup binding is empty")
 	}
 	domain, err := hostlinux.InspectCgroupMemoryDomain(parentPath, workloadPath)
 	if err != nil {

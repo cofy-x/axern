@@ -42,6 +42,7 @@ type containerManagerView interface {
 	List(...container.ListOption) []*container.Container
 	ResourcePoolStatus(resources.ResourceName) (resources.PoolStatus, error)
 	RuntimeCgroupPath(string) (string, error)
+	AllocationCgroupPath(string) (string, error)
 }
 
 type preparedEnvironmentManagerView interface {

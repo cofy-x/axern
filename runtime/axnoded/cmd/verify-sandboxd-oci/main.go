@@ -5,14 +5,12 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
@@ -168,11 +166,6 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	if cwd == "" {
 		cwd = "/"
 	}
-	resourceAnnotations := map[string]string{
-		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): (&resourcemanager.NetResource{
-			Ip: net.ParseIP("10.88.0.2"), NetNSPath: cfg.netnsPath,
-		}).ToString(),
-	}
 	request := &apipb.CreateContainerRequest{
 		Command: tc.argv,
 		Cwd:     cwd,
@@ -191,10 +184,11 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 	}
 	loadOptions := runtimeoci.LoadOptions{
-		ContainerID:         containerID,
-		Request:             request,
-		ResourceAnnotations: resourceAnnotations,
-		SandboxdInjection:   &runtimeoci.SandboxdInjectionOptions{HostBinaryPath: cfg.sandboxdBinary},
+		ContainerID:          containerID,
+		Request:              request,
+		NetworkNamespacePath: cfg.netnsPath,
+		SandboxIP:            "10.88.0.2",
+		SandboxdInjection:    &runtimeoci.SandboxdInjectionOptions{HostBinaryPath: cfg.sandboxdBinary},
 	}
 	var bundlePath string
 	var ociSpec *spec.Spec

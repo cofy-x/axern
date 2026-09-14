@@ -199,8 +199,8 @@ type Provider interface {
 	Remove(ctx context.Context, containerID string) error
 }
 
-type PersistentReconciler interface {
-	ReconcilePersistentViews(context.Context, string, map[string]struct{}) error
+type RuntimeArtifactReconciler interface {
+	ReconcileRuntimeViews(context.Context, string, map[string]struct{}) error
 }
 
 type overlayProvider struct {
@@ -574,7 +574,7 @@ func validateImmutableDirectory(name, candidate string) error {
 	return nil
 }
 
-func (p *overlayProvider) ReconcilePersistentViews(_ context.Context, _ string, retained map[string]struct{}) error {
+func (p *overlayProvider) ReconcileRuntimeViews(_ context.Context, _ string, retained map[string]struct{}) error {
 	if p.filestoreDir == "" {
 		return nil
 	}

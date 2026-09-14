@@ -2,13 +2,9 @@ package oci
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 	"os"
 	"strings"
-
-	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 func buildHostsFile(hostname string, sandboxIP net.IP) string {
@@ -21,19 +17,6 @@ func buildHostsFile(hostname string, sandboxIP net.IP) string {
 	}
 	lines = append(lines, hostDockerInternalHostEntries()...)
 	return strings.Join(lines, "\n") + "\n"
-}
-
-func sandboxIPFromSpec(ociSpec *spec.Spec) (net.IP, error) {
-	if ociSpec == nil {
-		return nil, fmt.Errorf("sandbox network IP is required for /etc/hosts")
-	}
-	annotationKey := resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName)
-	raw := strings.TrimSpace(ociSpec.Annotations[annotationKey])
-	networkResource := &resourcemanager.NetResource{}
-	if raw == "" || networkResource.FromString(raw) != nil || networkResource.Ip == nil {
-		return nil, fmt.Errorf("sandbox network IP is required for /etc/hosts")
-	}
-	return networkResource.Ip, nil
 }
 
 func hostDockerInternalHostEntries() []string {

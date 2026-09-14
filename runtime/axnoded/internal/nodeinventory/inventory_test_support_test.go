@@ -3,6 +3,7 @@ package nodeinventory
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -37,6 +38,13 @@ func (m *fakeContainerManager) ResourcePoolStatus(name resources.ResourceName) (
 func (m *fakeContainerManager) RuntimeCgroupPath(id string) (string, error) {
 	if path, ok := m.runtimeCgroup[id]; ok {
 		return path, nil
+	}
+	return "", os.ErrNotExist
+}
+
+func (m *fakeContainerManager) AllocationCgroupPath(id string) (string, error) {
+	if workloadPath, ok := m.runtimeCgroup[id]; ok {
+		return filepath.Dir(workloadPath), nil
 	}
 	return "", os.ErrNotExist
 }

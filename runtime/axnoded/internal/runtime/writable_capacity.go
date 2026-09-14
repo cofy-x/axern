@@ -169,45 +169,6 @@ func (m *writableCapacityManager) Reconcile(retained map[string]struct{}, cleanu
 	return result
 }
 
-func (m *writableCapacityManager) ValidateReservations(containerRoot string, retained map[string]struct{}) error {
-	if m == nil {
-		return nil
-	}
-	m.mu.Lock()
-	expected := make([]writableReservation, 0)
-	for id, reservation := range m.reservations {
-		if _, ok := retained[id]; ok {
-			expected = append(expected, reservation)
-		}
-	}
-	m.mu.Unlock()
-
-	var result error
-	for _, reservation := range expected {
-		data, err := os.ReadFile(filepath.Join(containerRoot, reservation.ContainerID, "config.json"))
-		if err != nil {
-			result = errors.Join(result, fmt.Errorf("writable reservation %s has no recoverable OCI spec: %w", reservation.ContainerID, err))
-			continue
-		}
-		var document struct {
-			Annotations map[string]string `json:"annotations"`
-		}
-		if err := json.Unmarshal(data, &document); err != nil {
-			result = errors.Join(result, fmt.Errorf("decode OCI spec for writable reservation %s: %w", reservation.ContainerID, err))
-			continue
-		}
-		var annotation struct {
-			RequestBytes int64 `json:"request_bytes"`
-			LimitBytes   int64 `json:"limit_bytes"`
-		}
-		value := document.Annotations["io.axnoded.resource/ephemeral-storage"]
-		if value == "" || json.Unmarshal([]byte(value), &annotation) != nil || annotation.RequestBytes != reservation.RequestBytes || annotation.LimitBytes != reservation.LimitBytes {
-			result = errors.Join(result, fmt.Errorf("writable reservation %s does not match its OCI annotation", reservation.ContainerID))
-		}
-	}
-	return result
-}
-
 func (m *writableCapacityManager) Release(containerID string) error {
 	if m == nil || containerID == "" {
 		return nil

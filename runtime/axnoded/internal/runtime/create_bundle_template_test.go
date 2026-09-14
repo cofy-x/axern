@@ -37,7 +37,6 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 			RootfsType:            contract.StartupRootfsTypeLocal,
 			BundleTemplateCarrier: carrier,
 			BundleTemplateSource:  templateSource,
-			ResourceAnnotations:   map[string]string{"io.axnoded.resource/test": "true"},
 			ExecutionProfile:      &profile,
 		})
 		if err != nil {

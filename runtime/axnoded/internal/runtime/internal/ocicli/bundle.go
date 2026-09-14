@@ -29,7 +29,8 @@ type PrepareBundleOptions struct {
 	ContainerID           string
 	CgroupPath            string
 	RuntimeCgroupPath     string
-	ResourceAnnotations   map[string]string
+	NetworkNamespacePath  string
+	SandboxIP             string
 	ExecutionProfile      *runtimeoci.ExecutionProfile
 	RootfsType            string
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
@@ -46,9 +47,10 @@ func PrepareBundle(options PrepareBundleOptions) (string, *apipb.ContainerMetada
 		ContainerID: options.ContainerID,
 		Request:     options.Request,
 
-		CgroupPath:          runtimeCgroupPath,
-		ResourceAnnotations: options.ResourceAnnotations,
-		ExecutionProfile:    options.ExecutionProfile,
+		CgroupPath:           runtimeCgroupPath,
+		NetworkNamespacePath: options.NetworkNamespacePath,
+		SandboxIP:            options.SandboxIP,
+		ExecutionProfile:     options.ExecutionProfile,
 	}
 	bundleOptions.SandboxdInjection = resolveSandboxdInjectionOptions()
 

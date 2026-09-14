@@ -5,22 +5,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/sirupsen/logrus"
 )
-
-// ResourcePolicy controls resource-related mutations on generated OCI specs.
-type ResourcePolicy struct {
-	IgnoreAnnotationKeys []string
-}
-
-// DefaultResourcePolicy returns the default resource policy.
-func DefaultResourcePolicy() ResourcePolicy {
-	return ResourcePolicy{
-		IgnoreAnnotationKeys: []string{
-			ignoreResourceFieldAnnoKey,
-		},
-	}
-}
 
 func setSpecResource(ociSpec *spec.Spec, resource *apipb.LinuxContainerResources) {
 	if ociSpec == nil || ociSpec.Linux == nil {
@@ -78,15 +63,4 @@ func setSpecResource(ociSpec *spec.Spec, resource *apipb.LinuxContainerResources
 	if resource.Unified != nil {
 		maps.Copy(ociSpec.Linux.Resources.Unified, resource.Unified)
 	}
-}
-
-func (p ResourcePolicy) apply(ociSpec *spec.Spec) {
-	if ociSpec == nil || ociSpec.Linux == nil {
-		return
-	}
-	if !hasAnyAnnotation(ociSpec.Annotations, p.IgnoreAnnotationKeys...) {
-		return
-	}
-	logrus.Debug("ignore resource field for spec materialization")
-	ociSpec.Linux.Resources = nil
 }
