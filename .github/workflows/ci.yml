@@ -114,6 +114,11 @@ jobs:
       - name: Install workflow validator
         run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 
+      - name: Install architecture check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
+
       - name: Validate workflows and release contracts
         run: |
           actionlint .github/workflows/*.yml

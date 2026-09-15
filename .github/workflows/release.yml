@@ -28,6 +28,10 @@ jobs:
         with:
           go-version: "1.25.12"
           cache: false
+      - name: Install architecture check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
       - name: Validate release contract
         run: make release-check
 
@@ -61,6 +65,10 @@ jobs:
         with:
           name: local-image-lock
           path: dist/local-image-lock
+      - name: Install architecture check dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes ripgrep
       - name: Build CLI and Helm artifacts
         env:
           AXERN_LOCAL_IMAGE_LOCK_FILE: ${{ github.workspace }}/dist/local-image-lock/images.lock
