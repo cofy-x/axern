@@ -7,6 +7,8 @@ import (
 
 func defaultsFromEnv() Config {
 	return Config{
+		WorkloadBundle:            defaultString(os.Getenv("GATEWAYD_WORKLOAD_BUNDLE"), ".dev/certs/gatewayd.pem"),
+		WorkloadCluster:           defaultString(os.Getenv("AXERN_WORKLOAD_CLUSTER"), "axern.local"),
 		HTTPAddress:               defaultString(os.Getenv("GATEWAYD_HTTP_ADDRESS"), DefaultHTTPAddress),
 		ControlEdgeAddress:        defaultString(os.Getenv("GATEWAYD_CONTROL_EDGE_ADDRESS"), DefaultControlEdgeAddress),
 		ControlEdgeTLSCACert:      defaultString(os.Getenv("GATEWAYD_CONTROL_EDGE_TLS_CA_CERT"), DefaultTLSCACert),
@@ -17,12 +19,6 @@ func defaultsFromEnv() Config {
 		TunnelRelayTLSServerName:  os.Getenv("GATEWAYD_TUNNEL_RELAY_TLS_SERVER_NAME"),
 		ControlTarget:             defaultString(os.Getenv("GATEWAYD_CONTROL_TARGET"), DefaultControlTarget),
 		TLSCACert:                 defaultString(os.Getenv("GATEWAYD_TLS_CA_CERT"), DefaultTLSCACert),
-		TLSCert:                   defaultString(os.Getenv("GATEWAYD_TLS_CERT"), DefaultTLSCert),
-		TLSKey:                    defaultString(os.Getenv("GATEWAYD_TLS_KEY"), DefaultTLSKey),
-		NodeTLSCACert:             os.Getenv("GATEWAYD_NODE_TLS_CA_CERT"),
-		NodeTLSCert:               os.Getenv("GATEWAYD_NODE_TLS_CERT"),
-		NodeTLSKey:                os.Getenv("GATEWAYD_NODE_TLS_KEY"),
-		NodeTLSServerName:         defaultString(os.Getenv("GATEWAYD_NODE_TLS_SERVER_NAME"), DefaultNodeTLSServerName),
 		DevToken:                  os.Getenv("AXERN_GATEWAY_DEV_TOKEN"),
 		SSHEnabled:                parseBool(os.Getenv("GATEWAYD_SSH_ENABLED")),
 		SSHAddress:                defaultString(os.Getenv("GATEWAYD_SSH_ADDRESS"), DefaultSSHAddress),

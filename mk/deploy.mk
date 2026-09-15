@@ -33,6 +33,11 @@ AXERN_HELM_RENDER_DIR ?= $(ROOTDIR)/deploy/local/state/helm/$(AXERN_HELM_RELEASE
 AXERN_HELM_RENDER_FILE ?= $(AXERN_HELM_RENDER_DIR)/rendered.yaml
 AXERN_KUBECONFIG ?=
 AXERN_KUBE_CONTEXT ?=
+AXERN_PKI_DIR ?= $(ROOTDIR)/.dev/helm-pki/$(AXERN_HELM_RELEASE)
+AXERN_WORKLOAD_CLUSTER ?= axern.local
+AXERN_PKI_SECRET ?= axern-pki
+AXERN_PKI_SIGNER_SECRET ?= axern-pki-signer
+AXERN_PKI_DNS_NAMES ?= localhost,host.docker.internal,controld,controld.$(AXERN_HELM_NAMESPACE).svc.cluster.local,gatewayd,gatewayd.$(AXERN_HELM_NAMESPACE).svc.cluster.local,tunneld,tunneld.$(AXERN_HELM_NAMESPACE).svc.cluster.local
 
 AXERN_REGISTRY_PULL_SECRET ?= registry-pull
 AXERN_REGISTRY_SERVER ?=
@@ -45,7 +50,7 @@ AXERN_CLI_CONTEXT ?= $(AXERN_HELM_RELEASE)
 AXERN_CLI_STATE_DIR ?= $(AXERN_HELM_RENDER_DIR)/axern-cli
 AXERN_CLI_CERT_DIR ?= $(AXERN_CLI_STATE_DIR)/certs
 AXERN_CLI_SSH_DIR ?= $(AXERN_CLI_STATE_DIR)/ssh
-AXERN_CLI_PKI_SECRET ?= controld-pki
+AXERN_CLI_PKI_SECRET ?= axern-pki
 AXERN_CLI_ENDPOINT ?= 127.0.0.1:$(AXERN_GATEWAYD_CONTROL_PORT)
 AXERN_CLI_SSH_ENDPOINT ?= 127.0.0.1:$(AXERN_GATEWAYD_SSH_PORT)
 AXERN_CLI_SSH_IDENTITY_FILE ?= $(AXERN_CLI_SSH_DIR)/gateway_client_ed25519
@@ -130,13 +135,14 @@ endef
 helm-lint: helm-contract-check ## Lint the Axern Helm chart
 	$(HELM) lint '$(AXERN_HELM_CHART)' \
 		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
-		--set-string 'node.credential.existingSecret=node-credential'
+		--set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0]=test-node'
 
 helm-contract-check: ## Verify Helm values preserve runtime argument contracts
+	bash $(ROOTDIR)/scripts/helm-identity-contract-check.sh
 	@for component in postgres; do \
 		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
 			--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
-			--set-string 'node.credential.existingSecret=node-credential' \
+			--set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0]=test-node' \
 			--set "$${component}.enabled=true" \
 			--show-only "templates/$${component}.yaml")"; \
 		printf '%s\n' "$$rendered" | grep -q '^    type: RollingUpdate$$' && \
@@ -202,6 +208,23 @@ helm-install: helm-lint helm-dry-run ## Install or upgrade Axern with Helm
 		--create-namespace \
 		$(AXERN_HELM_UPGRADE_ARGS) $(AXERN_HELM_EXTRA_UPGRADE_ARGS) \
 		$(AXERN_HELM_WAIT_ARGS)
+
+.PHONY: helm-pki-bootstrap
+helm-pki-bootstrap: ## Provision Axern-owned PKI; back up AXERN_PKI_DIR and keep signer control-only
+	$(call require_kube_context)
+	go run ./control/controld/cmd/workload-pki -directory '$(AXERN_PKI_DIR)' -cluster '$(AXERN_WORKLOAD_CLUSTER)' -dns '$(AXERN_PKI_DNS_NAMES)'
+	@$(KUBECTL) $(call kubectl_args) create namespace '$(AXERN_HELM_NAMESPACE)' --dry-run=client -o yaml | $(KUBECTL) $(call kubectl_args) apply -f -
+	@$(KUBECTL) $(call kubectl_args) -n '$(AXERN_HELM_NAMESPACE)' create secret generic '$(AXERN_PKI_SECRET)' \
+		--from-file=ca.crt='$(AXERN_PKI_DIR)/ca.crt' \
+		--from-file=controld.pem='$(AXERN_PKI_DIR)/controld.pem' \
+		--from-file=gatewayd.pem='$(AXERN_PKI_DIR)/gatewayd.pem' \
+		--from-file=tunneld.pem='$(AXERN_PKI_DIR)/tunneld.pem' \
+		--from-file=client.crt='$(AXERN_PKI_DIR)/client.crt' \
+		--from-file=client.key='$(AXERN_PKI_DIR)/client.key' \
+		--dry-run=client -o yaml | $(KUBECTL) $(call kubectl_args) apply -f -
+	@$(KUBECTL) $(call kubectl_args) -n '$(AXERN_HELM_NAMESPACE)' create secret generic '$(AXERN_PKI_SIGNER_SECRET)' \
+		--from-file=signer.pem='$(AXERN_PKI_DIR)/private/signer.pem' \
+		--dry-run=client -o yaml | $(KUBECTL) $(call kubectl_args) apply -f -
 
 helm-status: ## Show the configured Helm release status
 	$(call require_kube_context)

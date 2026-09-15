@@ -2,15 +2,14 @@ package api
 
 import (
 	"context"
-	"crypto/x509"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	"strings"
+	"time"
 
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 )
 
@@ -19,25 +18,39 @@ const (
 	gatewaydPeerIdentity = "gatewayd"
 )
 
-type NodeIngressAuthority struct{}
+type NodeIngressAuthority struct{ cluster string }
 
-func NewNodeIngressAuthority() NodeIngressAuthority { return NodeIngressAuthority{} }
+func NewNodeIngressAuthority(cluster string) NodeIngressAuthority {
+	return NodeIngressAuthority{cluster: cluster}
+}
 
-func (NodeIngressAuthority) Unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
-	if err := authorizeNodeIngress(ctx, info.FullMethod); err != nil {
+func (a NodeIngressAuthority) Unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
+	if err := authorizeNodeIngress(ctx, info.FullMethod, a.cluster); err != nil {
 		return nil, err
 	}
+	_, deadline, err := workloadtls.PeerIdentity(ctx, a.cluster, time.Now())
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "current workload identity is required")
+	}
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
 	return handler(ctx, req)
 }
 
-func (NodeIngressAuthority) Stream(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
-	if err := authorizeNodeIngress(stream.Context(), info.FullMethod); err != nil {
+func (a NodeIngressAuthority) Stream(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+	if err := authorizeNodeIngress(stream.Context(), info.FullMethod, a.cluster); err != nil {
 		return err
 	}
-	return handler(srv, stream)
+	_, deadline, err := workloadtls.PeerIdentity(stream.Context(), a.cluster, time.Now())
+	if err != nil {
+		return status.Error(codes.Unauthenticated, "current workload identity is required")
+	}
+	ctx, cancel := context.WithDeadline(stream.Context(), deadline)
+	defer cancel()
+	return handler(srv, &identityDeadlineStream{ServerStream: stream, ctx: ctx})
 }
 
-func authorizeNodeIngress(ctx context.Context, fullMethod string) error {
+func authorizeNodeIngress(ctx context.Context, fullMethod, cluster string) error {
 	want := ""
 	switch {
 	case strings.HasPrefix(fullMethod, "/"+nodelifecyclev1.NodeLifecycle_ServiceDesc.ServiceName+"/"):
@@ -45,7 +58,7 @@ func authorizeNodeIngress(ctx context.Context, fullMethod string) error {
 	case strings.HasPrefix(fullMethod, "/"+nodesandboxv1.NodeSandbox_ServiceDesc.ServiceName+"/"):
 		want = gatewaydPeerIdentity
 	case strings.HasPrefix(fullMethod, "/grpc.health.v1.Health/"):
-		identity := nodeIngressPeerIdentity(ctx)
+		identity := nodeIngressPeerIdentity(ctx, cluster)
 		if identity == controldPeerIdentity || identity == gatewaydPeerIdentity {
 			return nil
 		}
@@ -56,7 +69,7 @@ func authorizeNodeIngress(ctx context.Context, fullMethod string) error {
 	default:
 		return status.Error(codes.PermissionDenied, "service is not available on the node ingress listener")
 	}
-	identity := nodeIngressPeerIdentity(ctx)
+	identity := nodeIngressPeerIdentity(ctx, cluster)
 	if identity == "" {
 		return status.Error(codes.Unauthenticated, "verified mTLS identity is required")
 	}
@@ -66,21 +79,17 @@ func authorizeNodeIngress(ctx context.Context, fullMethod string) error {
 	return nil
 }
 
-func nodeIngressPeerIdentity(ctx context.Context) string {
-	p, ok := peer.FromContext(ctx)
-	if !ok || p.AuthInfo == nil {
+func nodeIngressPeerIdentity(ctx context.Context, cluster string) string {
+	identity, _, err := workloadtls.PeerIdentity(ctx, cluster, time.Now())
+	if err != nil {
 		return ""
 	}
-	info, ok := p.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
-		return ""
-	}
-	return certificateCommonName(info.State.VerifiedChains[0][0])
+	return identity.Role
 }
 
-func certificateCommonName(cert *x509.Certificate) string {
-	if cert == nil {
-		return ""
-	}
-	return strings.TrimSpace(cert.Subject.CommonName)
+type identityDeadlineStream struct {
+	grpc.ServerStream
+	ctx context.Context
 }
+
+func (s *identityDeadlineStream) Context() context.Context { return s.ctx }

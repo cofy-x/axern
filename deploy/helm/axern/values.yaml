@@ -154,19 +154,9 @@ observability:
         memory: 2Gi
 
 pki:
-  enabled: true
-  existingSecret: ""
-  secretName: controld-pki
-  durationDays: 3650
-  control:
-    extraDNSNames: []
-    extraIPAddresses: []
-  gateway:
-    extraDNSNames: []
-    extraIPAddresses: []
-  tunnel:
-    extraDNSNames: []
-    extraIPAddresses: []
+  trustDomain: axern.local
+  secretName: axern-pki
+  signerSecretName: axern-pki-signer
 
 auth:
   bootstrap:
@@ -238,11 +228,11 @@ node:
     pullPolicy: ""
   privileged: true
   heartbeatInterval: 1s
-  # Required. This Secret must contain one random credential per admitted
-  # node, keyed by the resulting Axern node ID (for example
-  # `node-worker-a`). Admit those identities before starting the DaemonSet.
-  credential:
+  # Tokens are projected only onto their explicitly selected Kubernetes Node.
+  # No runtime pod receives another Node identity\'s enrollment token.
+  enrollment:
     existingSecret: ""
+    nodes: []
   runtime:
     idleRetentionTTL: 5m
     idleRetentionMax: 8

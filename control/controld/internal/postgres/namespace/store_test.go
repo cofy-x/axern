@@ -386,7 +386,7 @@ func insertAllocationCharge(t *testing.T, db *postgres.DB, chargeID, allocationI
 		lifecycleState = commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, node_credential_hash, admitted_at, last_heartbeat_at, lifecycle_status)
+		INSERT INTO nodes (node_id, node_target, enrollment_token_hash, admitted_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-a', '127.0.0.1:24010', repeat('0', 64), $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now); err != nil {

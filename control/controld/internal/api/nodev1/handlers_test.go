@@ -106,12 +106,11 @@ func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
-	nodeStore.Admit("node-a", "token-a", now)
+	nodeStore.Admit("node-a", now)
 	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
-		Summary:        controldtest.ReadySummary(now),
-		Now:            now,
+		NodeID:  "node-a",
+		Summary: controldtest.ReadySummary(now),
+		Now:     now,
 	}); err != nil {
 		t.Fatalf("report node: %v", err)
 	}
@@ -127,9 +126,8 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	if _, err := server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
-		Observations:   observations,
+		NodeID:       "node-a",
+		Observations: observations,
 	}); err != nil {
 		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)
 	}
@@ -138,8 +136,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err := server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
+		NodeID: "node-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{
 			{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
 			{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
@@ -153,8 +150,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
+		NodeID: "node-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID: "alloc-1",
 			State:        commonv1.AllocationLifecycleState(999),
@@ -168,8 +164,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
+		NodeID: "node-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID: "alloc-1",
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
@@ -183,8 +178,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
+		NodeID: "node-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID:   "alloc-1",
 			State:          commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
@@ -199,8 +193,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
+		NodeID: "node-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID: "alloc-1",
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
@@ -211,8 +204,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
+		NodeID: "node-a",
 		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID: "alloc-1",
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
@@ -225,9 +217,8 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 	}
 
 	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:         "node-a",
-		NodeCredential: "wrong-token",
-		Observations:   observations,
+		NodeID:       "node-unknown",
+		Observations: observations,
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("invalid auth error = %v, want PermissionDenied", err)
@@ -240,7 +231,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 func TestMemoryNodeStoreRejectsIdentityBeforeAdmission(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	_, err := controldtest.NewMemoryNodeStore().Report(context.Background(), nodekernel.ReportParams{
-		NodeID: "node-unknown", NodeCredential: "unknown-credential", Summary: controldtest.ReadySummary(now), Now: now,
+		NodeID: "node-unknown", Summary: controldtest.ReadySummary(now), Now: now,
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("ReportNode() error = %v, want PermissionDenied", err)
@@ -250,15 +241,15 @@ func TestMemoryNodeStoreRejectsIdentityBeforeAdmission(t *testing.T) {
 func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnly(t *testing.T) {
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
-	nodeStore.Admit("node-a", "token-a", now)
-	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", NodeCredential: "token-a", Summary: controldtest.ReadySummary(now), Now: now}); err != nil {
+	nodeStore.Admit("node-a", now)
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", Summary: controldtest.ReadySummary(now), Now: now}); err != nil {
 		t.Fatal(err)
 	}
 	allocations := &fakeAllocationControl{}
 	server := New(Dependencies{Now: func() time.Time { return now }, NodeStore: nodeStore, Allocations: allocations})
 	report := validCapabilityConditionReport(now)
 	if _, err := server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: "node-a", NodeCredential: "token-a", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
+		NodeID: "node-a", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -271,13 +262,13 @@ func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnl
 
 	duplicate := []*controlnodev1.AllocationCapabilityConditionReport{report, report}
 	_, err := server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: "node-a", NodeCredential: "token-a", Reports: duplicate,
+		NodeID: "node-a", Reports: duplicate,
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument || allocations.conditionCalls != 1 {
 		t.Fatalf("duplicate condition report error=%v calls=%d", err, allocations.conditionCalls)
 	}
 	_, err = server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: "node-a", NodeCredential: "wrong", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
+		NodeID: "node-unknown", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied || allocations.conditionCalls != 1 {
 		t.Fatalf("unauthenticated condition report error=%v calls=%d", err, allocations.conditionCalls)
@@ -298,13 +289,12 @@ func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapa
 func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	now := time.Now().UTC()
 	nodeStore := controldtest.NewMemoryNodeStore()
-	nodeStore.Admit("node-a", "token-a", now)
+	nodeStore.Admit("node-a", now)
 	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{
-		NodeID:         "node-a",
-		NodeTarget:     "127.0.0.1:25000",
-		NodeCredential: "token-a",
-		Summary:        controldtest.ReadySummary(now),
-		Now:            now,
+		NodeID:     "node-a",
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    controldtest.ReadySummary(now),
+		Now:        now,
 	}); err != nil {
 		t.Fatalf("report node: %v", err)
 	}
@@ -316,10 +306,9 @@ func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	})
 
 	_, err := server.ReportTunnelSessionStatus(context.Background(), &controlnodev1.ReportTunnelSessionStatusRequest{
-		NodeID:         "node-a",
-		NodeCredential: "wrong-token",
-		SessionID:      "tun-1",
-		Status:         tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+		NodeID:    "node-unknown",
+		SessionID: "tun-1",
+		Status:    tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("ReportTunnelSessionStatus error = %v, want PermissionDenied", err)
@@ -329,10 +318,9 @@ func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	}
 
 	if _, err := server.ReportTunnelSessionStatus(context.Background(), &controlnodev1.ReportTunnelSessionStatusRequest{
-		NodeID:         "node-a",
-		NodeCredential: "token-a",
-		SessionID:      "tun-1",
-		Status:         tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+		NodeID:    "node-a",
+		SessionID: "tun-1",
+		Status:    tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 	}); err != nil {
 		t.Fatalf("ReportTunnelSessionStatus with valid node auth: %v", err)
 	}

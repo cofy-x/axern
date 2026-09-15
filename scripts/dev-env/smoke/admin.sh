@@ -147,22 +147,23 @@ SQL
       -v "node_id=${node_id}" \
       -v "namespace=${namespace}" \
       -v "due=${due}" <<'SQL' >/dev/null
+BEGIN;
 INSERT INTO namespaces (namespace, created_at)
 VALUES (:'namespace', now())
 ON CONFLICT (namespace) DO NOTHING;
 INSERT INTO runs (
   run_id, namespace, environment_id,
-  status, config, labels, created_at, updated_at
+  status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at
 ) VALUES (
   :'run_id', :'namespace', 'env-admin-repair-smoke',
-  'RUN_STATUS_PLACED', '{}'::jsonb, '{}'::jsonb, now(), now()
+  'RUN_STATUS_PLACED', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, now(), now()
 );
 INSERT INTO allocations (
   allocation_id, run_id, node_id,
-  lifecycle_state, created_at, updated_at
+  lifecycle_state, cpu_request_milli, created_at, updated_at
 ) VALUES (
   :'allocation_id', :'run_id', :'node_id',
-  'ALLOCATION_LIFECYCLE_STATE_BOUND', now(), now()
+  'ALLOCATION_LIFECYCLE_STATE_BOUND', 1, now(), now()
 );
 INSERT INTO allocation_reconcile_queue (
   allocation_id, next_run_at, reconcile_attempts, last_error, created_at, updated_at
@@ -171,6 +172,7 @@ INSERT INTO allocation_reconcile_queue (
   CASE WHEN :'due' = 'true' THEN now() ELSE now() + interval '1 hour' END,
   1, 'admin repair smoke seed', now(), now()
 );
+COMMIT;
 SQL
   }
 

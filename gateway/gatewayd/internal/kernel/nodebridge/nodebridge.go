@@ -7,5 +7,5 @@ import (
 )
 
 type ProcessStreamer interface {
-	Process(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ProcessClient, error)
+	Process(ctx context.Context, target, nodeID string) (nodesandboxv1.NodeSandbox_ProcessClient, error)
 }

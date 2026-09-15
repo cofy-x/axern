@@ -1,6 +1,7 @@
 package api
 
 import (
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
@@ -8,17 +9,20 @@ import (
 )
 
 func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID())
+	target, err := s.validateAccessPurpose(stream.Context(), req.GetAllocationID(), gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT)
 	if err != nil {
 		return err
 	}
 	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
-	reader := allocationoutput.New(s.svc)
+	read := s.svc.ReadAllocationOutput
+	if s.localOnly {
+		read = allocationoutput.New(s.svc).Read
+	}
 	cursor := req.GetCursor()
 	for {
-		chunks, complete, err := reader.Read(stream.Context(), target.targetID, cursor)
+		chunks, complete, err := read(stream.Context(), target.targetID, cursor)
 		if err != nil {
 			return err
 		}
@@ -35,8 +39,11 @@ func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, str
 			}
 			cursor = chunk.Cursor
 		}
-		if complete || !req.GetFollow() {
+		if complete || (!req.GetFollow() && len(chunks) == 0) {
 			return nil
+		}
+		if len(chunks) > 0 {
+			continue
 		}
 		select {
 		case <-stream.Context().Done():

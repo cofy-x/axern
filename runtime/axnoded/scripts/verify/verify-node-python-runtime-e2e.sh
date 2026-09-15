@@ -14,7 +14,7 @@ CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_ADDRESS:-127.0.0.1:24101}"
 GATEWAY_CONTROL_PORT="${GATEWAY_CONTROL_PORT:-25000}"
 GATEWAY_HTTP_PORT="${GATEWAY_HTTP_PORT:-25080}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-python-runtime-e2e}"
-CONTROL_PLANE_NODE_CREDENTIAL="${CONTROL_PLANE_NODE_CREDENTIAL:-node-python-runtime-e2e-credential-00000000}"
+CONTROL_PLANE_ENROLLMENT_TOKEN="${CONTROL_PLANE_ENROLLMENT_TOKEN:-node-python-runtime-e2e-credential-00000000}"
 PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axnoded-python-runtime-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axnoded-python-runtime-e2e-net}"
@@ -46,6 +46,7 @@ CONTROLD_HTTP_PORT="$(reserve_unique_host_port "${CONTROLD_HTTP_HOST}" 0 "${CONT
 CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}"
 NODE_GRPC_PORT="$(reserve_unique_host_port "${NODE_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}")"
 NODE_GRPC_ADDRESS="${NODE_GRPC_HOST}:${NODE_GRPC_PORT}"
+CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}")"
 
 dump_logs() {
   echo "--- controld log ---" >&2
@@ -112,8 +113,8 @@ fi
 
 IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF}" bash "${ROOT_DIR}/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
 bash "${REPO_ROOT}/scripts/dev-mtls-certs.sh" "${cert_dir}" >/dev/null
-printf '%s\n' "${CONTROL_PLANE_NODE_CREDENTIAL}" > "${cert_dir}/node-credential"
-chmod 600 "${cert_dir}/node-credential"
+printf '%s\n' "${CONTROL_PLANE_ENROLLMENT_TOKEN}" > "${cert_dir}/enrollment-token"
+chmod 600 "${cert_dir}/enrollment-token"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" python --version >"${python311_stdout}"
 grep -q '^Python 3\.11\.' "${python311_stdout}"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" /bin/sh -lc 'python -m pip --version >/dev/null'
@@ -129,7 +130,8 @@ docker run --rm \
 docker run --rm \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/client.crt:/shared/certs/client.crt:ro" \
+  --volume "${cert_dir}/enrollment-token:/shared/certs/enrollment-token:ro" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld-access-bootstrap \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
@@ -138,7 +140,7 @@ docker run --rm \
     -credential-label local-client \
     -certificate /shared/certs/client.crt \
     -node-id "${CONTROL_PLANE_NODE_ID}" \
-    -node-credential-file /shared/certs/node-credential
+    -enrollment-token-file /shared/certs/enrollment-token
 
 docker run -d \
   --name "${CONTROLD_CONTAINER_NAME}" \
@@ -147,15 +149,19 @@ docker run -d \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
   -p "${CONTROLD_GRPC_HOST}:${CONTROLD_GRPC_PORT}:${CONTROLD_GRPC_PORT}" \
   -p "${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}:${CONTROLD_HTTP_PORT}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
+  --volume "${cert_dir}/controld.pem:/shared/certs/controld.pem:ro" \
+  --volume "${cert_dir}/private/signer.pem:/shared/certs/private/signer.pem:ro" \
   -e "AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE=${PYTHON_RUNTIME_IMAGE_REF}" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_PORT}" \
     -http-address "0.0.0.0:${CONTROLD_HTTP_PORT}" \
     -tls-ca-cert /shared/certs/ca.crt \
-    -tls-cert /shared/certs/controld.crt \
-    -tls-key /shared/certs/controld.key \
+    -workload-bundle /shared/certs/controld.pem \
+    -workload-signer-bundle /shared/certs/private/signer.pem \
+    -workload-cluster axern.local \
+    -enrollment-address "0.0.0.0:${CONTROLD_ENROLLMENT_PORT}" \
     -secrets-master-key "test-only-master-key-32-bytes!!!" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
     -log-level info >"${controld_log}" 2>&1
@@ -178,18 +184,18 @@ docker run -d \
   --name "${GATEWAYD_CONTAINER_NAME}" \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
+  --volume "${cert_dir}/gatewayd.pem:/shared/certs/gatewayd.pem:ro" \
   "${IMAGE_TAG}" \
   /usr/local/bin/gatewayd \
     -control-target "controld:${CONTROLD_GRPC_PORT}" \
     -control-edge-address "0.0.0.0:${GATEWAY_CONTROL_PORT}" \
     -control-edge-tls-ca-cert /shared/certs/ca.crt \
-    -control-edge-tls-cert /shared/certs/gatewayd.crt \
-    -control-edge-tls-key /shared/certs/gatewayd.key \
+    -control-edge-tls-cert /shared/certs/gatewayd.pem \
+    -control-edge-tls-key /shared/certs/gatewayd.pem \
     -http-address "0.0.0.0:${GATEWAY_HTTP_PORT}" \
     -tls-ca-cert /shared/certs/ca.crt \
-    -tls-cert /shared/certs/gatewayd.crt \
-    -tls-key /shared/certs/gatewayd.key \
+    -workload-bundle /shared/certs/gatewayd.pem \
     -log-level info >/dev/null
 
 deadline=$((SECONDS + 60))
@@ -213,20 +219,19 @@ docker run -d \
   --add-host "host.docker.internal:host-gateway" \
   -p "${NODE_GRPC_HOST}:${NODE_GRPC_PORT}:${NODE_GRPC_PORT}" \
   --volume "${shared_run_dir}:/shared/run" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
   -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
   -e "AXNODED_GRPC_ADDRESS=0.0.0.0:${NODE_GRPC_PORT}" \
   -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
   -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
   -e "AXNODED_CONTROL_PLANE_TARGET=controld:${CONTROLD_GRPC_PORT}" \
+  -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=controld:${CONTROLD_ENROLLMENT_PORT}" \
   -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
-  -e "AXNODED_CONTROL_PLANE_NODE_CREDENTIAL=${CONTROL_PLANE_NODE_CREDENTIAL}" \
+  -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN=${CONTROL_PLANE_ENROLLMENT_TOKEN}" \
   -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_CONTAINER_NAME}:${NODE_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
   -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \
-  -e "AXNODED_CONTROL_PLANE_TLS_CERT=/shared/certs/node.crt" \
-  -e "AXNODED_CONTROL_PLANE_TLS_KEY=/shared/certs/node.key" \
   "${IMAGE_TAG}" \
   /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >/dev/null
 
@@ -276,7 +281,9 @@ fi
 if ! docker run --rm \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
+  --volume "${cert_dir}/client.crt:/shared/certs/client.crt:ro" \
+  --volume "${cert_dir}/client.key:/shared/certs/client.key:ro" \
   --volume "${REPO_ROOT}/sdk/python/tests/e2e/python_runtime_e2e.py:/tmp/python_runtime_e2e.py:ro" \
   -e AXERN_TLS_CA_CERT=/shared/certs/ca.crt \
   -e AXERN_TLS_CERT=/shared/certs/client.crt \

@@ -73,7 +73,7 @@ func (s *Server) AdmitAdminNode(ctx context.Context, req *adminv1.AdmitAdminNode
 		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
 	}
 	now := s.now()
-	record, err := s.deps.Nodes.AdmitNode(ctx, strings.TrimSpace(req.GetNodeID()), strings.TrimSpace(req.GetNodeCredential()), strings.TrimSpace(req.GetOperatorReason()), now)
+	record, err := s.deps.Nodes.AdmitNode(ctx, strings.TrimSpace(req.GetNodeID()), strings.TrimSpace(req.GetEnrollmentToken()), strings.TrimSpace(req.GetOperatorReason()), now)
 	if err != nil {
 		return nil, err
 	}

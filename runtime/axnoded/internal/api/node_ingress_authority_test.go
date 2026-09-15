@@ -4,8 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
+	"net/url"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -34,7 +35,7 @@ func TestNodeIngressAuthoritySeparatesControlAndGatewayServices(t *testing.T) {
 			if tt.identity != "" {
 				ctx = verifiedPeerContext(ctx, tt.identity)
 			}
-			if got := status.Code(authorizeNodeIngress(ctx, tt.method)); got != tt.wantCode {
+			if got := status.Code(authorizeNodeIngress(ctx, tt.method, "cluster.test")); got != tt.wantCode {
 				t.Fatalf("authorizeNodeIngress() code = %v, want %v", got, tt.wantCode)
 			}
 		})
@@ -42,7 +43,8 @@ func TestNodeIngressAuthoritySeparatesControlAndGatewayServices(t *testing.T) {
 }
 
 func verifiedPeerContext(ctx context.Context, commonName string) context.Context {
-	certificate := &x509.Certificate{Subject: pkix.Name{CommonName: commonName}}
+	uri, _ := url.Parse("spiffe://cluster.test/service/" + commonName)
+	certificate := &x509.Certificate{URIs: []*url.URL{uri}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour)}
 	return peer.NewContext(ctx, &peer.Peer{AuthInfo: credentials.TLSInfo{State: tls.ConnectionState{
 		VerifiedChains: [][]*x509.Certificate{{certificate}},
 	}}})

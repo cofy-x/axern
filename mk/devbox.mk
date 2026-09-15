@@ -115,8 +115,10 @@ controld-dev-run: node-dev-prepare postgres-dev-up ## Run controld in the repo-l
 		-heartbeat-freshness-window 15s \
 		-summary-freshness-window 15s \
 		-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-tls-cert '$(NODE_DEV_DIR)/certs/controld.crt' \
-		-tls-key '$(NODE_DEV_DIR)/certs/controld.key' \
+		-workload-cluster axern.local \
+		-workload-bundle '$(NODE_DEV_DIR)/certs/controld.pem' \
+		-workload-signer-bundle '$(NODE_DEV_DIR)/certs/private/signer.pem' \
+		-enrollment-address 127.0.0.1:24002 \
 		-secrets-master-key '$(AXERN_SECRETS_MASTER_KEY)' \
 		-tunnel-relays 'default,127.0.0.1:25000,127.0.0.1:24100,1,false' \
 		-postgres-dsn '$(POSTGRES_DSN)'
@@ -131,14 +133,14 @@ gatewayd-dev-run: node-dev-prepare ## Run gatewayd in the repo-local Linux dev w
 		-http-address 127.0.0.1:25080 \
 		-control-edge-address 127.0.0.1:25000 \
 		-control-edge-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-control-edge-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.crt' \
-		-control-edge-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.key' \
+		-control-edge-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.pem' \
+		-control-edge-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.pem' \
 		-tunnel-relay-target 127.0.0.1:24100 \
 		-tunnel-relay-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
 		-control-target 127.0.0.1:24000 \
 		-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.crt' \
-		-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.key' \
+		-workload-cluster axern.local \
+		-workload-bundle '$(NODE_DEV_DIR)/certs/gatewayd.pem' \
 		-dev-token '$(AXERN_DEV_TOKEN)'
 
 axern-dev: node-dev-prepare ## Run the product CLI against the standalone control plane, with ARGS='<args>'

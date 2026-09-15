@@ -9,25 +9,42 @@ This page describes the evaluation path using a local port-forward. It needs `ku
 
 ## Install the chart
 
-Create the namespace and one random credential per Kubernetes Node. The Secret key is the Axern Node ID (`node-` plus the Kubernetes Node name); keep the temporary files until the matching identities are admitted below.
+Create the namespace, Axern-owned signing material and one random enrollment token per Kubernetes Node. The Secret key is the Axern Node ID (`node-` plus the Kubernetes Node name); keep the temporary files until the matching identities are admitted below.
 
 ```bash
 kubectl create namespace axern-system
 
-node_credential_dir="$(mktemp -d)"
+axern admin pki bootstrap --directory ./axern-pki --cluster axern.local \
+  --dns localhost,controld,gatewayd,tunneld,controld.axern-system.svc,gatewayd.axern-system.svc,tunneld.axern-system.svc
+kubectl -n axern-system create secret generic axern-pki \
+  --from-file=ca.crt=./axern-pki/ca.crt \
+  --from-file=controld.pem=./axern-pki/controld.pem \
+  --from-file=gatewayd.pem=./axern-pki/gatewayd.pem \
+  --from-file=tunneld.pem=./axern-pki/tunneld.pem \
+  --from-file=client.crt=./axern-pki/client.crt \
+  --from-file=client.key=./axern-pki/client.key
+kubectl -n axern-system create secret generic axern-pki-signer \
+  --from-file=signer.pem=./axern-pki/private/signer.pem
+
+enrollment_token_dir="$(mktemp -d)"
 node_secret_args=()
+node_helm_args=()
+node_index=0
 for kubernetes_node in $(kubectl get nodes -o name | sed 's#node/##'); do
   axern_node_id="node-${kubernetes_node}"
-  openssl rand -hex 32 > "${node_credential_dir}/${axern_node_id}"
-  chmod 600 "${node_credential_dir}/${axern_node_id}"
-  node_secret_args+=(--from-file="${axern_node_id}=${node_credential_dir}/${axern_node_id}")
+  node_helm_args+=(--set-string "node.enrollment.nodes[${node_index}]=${kubernetes_node}")
+  node_index=$((node_index + 1))
+  openssl rand -hex 32 > "${enrollment_token_dir}/${axern_node_id}"
+  chmod 600 "${enrollment_token_dir}/${axern_node_id}"
+  node_secret_args+=(--from-file="${axern_node_id}=${enrollment_token_dir}/${axern_node_id}")
 done
-kubectl --namespace axern-system create secret generic axern-node-credentials "${node_secret_args[@]}"
+kubectl --namespace axern-system create secret generic axern-enrollment-tokens "${node_secret_args[@]}"
 
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --version <version> \
   --namespace axern-system \
-  --set-string node.credential.existingSecret=axern-node-credentials \
+  --set-string node.enrollment.existingSecret=axern-enrollment-tokens \
+  "${node_helm_args[@]}" \
   --wait \
   --timeout 15m
 ```
@@ -43,18 +60,19 @@ kubectl --namespace axern-system port-forward svc/gatewayd \
   25100:25000 25101:25080
 ```
 
-In a second terminal, import the chart-generated mTLS identity as a local CLI context. The empty SSH endpoint is intentional: SSH is disabled by the chart defaults and is not required for Environment, Run, or SDK workflows.
+In a second terminal, import the deployment-owned administrator mTLS identity as a local CLI context. The empty SSH endpoint is intentional: SSH is disabled by the chart defaults and is not required for Environment, Run, or SDK workflows.
 
 ```bash
 axern context import-kubernetes local \
   --namespace axern-system \
+  --secret axern-pki \
   --endpoint 127.0.0.1:25100 \
   --ssh-endpoint "" \
   --current
 
-for credential_path in "${node_credential_dir}"/node-*; do
+for credential_path in "${enrollment_token_dir}"/node-*; do
   axern admin node admit "$(basename "${credential_path}")" \
-    --credential-file "${credential_path}" \
+    --enrollment-token-file "${credential_path}" \
     --operator-reason "initial Kubernetes node admission"
 done
 
@@ -95,6 +113,7 @@ Import or update a context with an SSH endpoint and a private key that matches t
 ```bash
 axern context import-kubernetes local \
   --namespace axern-system \
+  --secret axern-pki \
   --endpoint 127.0.0.1:25100 \
   --ssh-endpoint 127.0.0.1:25122 \
   --ssh-identity-file ~/.ssh/id_ed25519 \
@@ -111,7 +130,7 @@ The bundled PostgreSQL and single-node defaults are intended for evaluation. Rev
 - **Cluster prerequisites:** confirm the required Kubernetes/Helm versions, `runsc` runtime availability, node privileges for the runtime and image services, an eBPF-capable Linux kernel for the default NAT dataplane (`node.network.natBackend=iptables` is the explicit rollback), and image-registry reachability from every scheduled node.
 - **Gateway exposure:** replace the local port-forward with an explicitly managed Service or Ingress, configure TLS server names and network policy, and keep SSH disabled unless an interactive workflow needs it.
 
-- **Secrets:** supply `secrets.existingSecret` with the master key and gateway token, `postgres.existingSecret` for database credentials, and `node.credential.existingSecret` with an independent random credential for every admitted Node ID. Before scheduling the DaemonSet onto a new Kubernetes Node, add its `node-<kubernetes-node-name>` key and admit that identity through the admin API.
+- **Secrets:** supply `secrets.existingSecret` with the master key and gateway token, `postgres.existingSecret` for database credentials, and `node.enrollment.existingSecret` with an independent one-time enrollment token for every admitted Node ID. Before scheduling the DaemonSet onto a new Kubernetes Node, add its `node-<kubernetes-node-name>` key and admit that identity through the admin API.
 - **Durable storage:** set `postgres.persistence.enabled=true` with a topology-aware `ReadWriteOnce` StorageClass; do not run a durable environment on the `emptyDir` fallback.
 - **Scheduling:** give `scheduling.platform`, `scheduling.observability`, and `scheduling.runtime` dedicated node-pool labels and matching `NoSchedule` taints.
 - **Observability:** the bundled Prometheus, Tempo, Loki, and Grafana stack is durable but single-replica; size retention and storage under `observability`.

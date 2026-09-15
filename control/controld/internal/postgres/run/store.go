@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	accessGrantRevisionName  = "allocation_access_grants"
 	accessGrantChangeChannel = "axern_allocation_access_grant_changes"
 	runChangeChannel         = "axern_run_changes"
 

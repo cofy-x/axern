@@ -2,16 +2,12 @@ package controlplane
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Client struct {
@@ -19,30 +15,14 @@ type Client struct {
 	Gateway gatewayv1.GatewayControlClient
 }
 
-func Dial(ctx context.Context, target, caPath, certPath, keyPath string, timeout time.Duration, dialOptions ...grpc.DialOption) (*Client, error) {
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("load tls key pair: %w", err)
-	}
-	caPEM, err := os.ReadFile(caPath)
-	if err != nil {
-		return nil, fmt.Errorf("read tls ca cert: %w", err)
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("parse tls ca cert %q", caPath)
-	}
+func Dial(ctx context.Context, target, caPath, bundlePath, cluster string, timeout time.Duration, dialOptions ...grpc.DialOption) (*Client, error) {
 	if timeout <= 0 {
 		timeout = 15 * time.Second
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	options := []grpc.DialOption{
-		grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			RootCAs:      roots,
-			Certificates: []tls.Certificate{cert},
-		})),
+		grpc.WithTransportCredentials(&workloadtls.Credentials{BundlePath: bundlePath, TrustPath: caPath, Local: workloadtls.Identity{Cluster: cluster, Role: "gatewayd"}, Peer: workloadtls.Identity{Cluster: cluster, Role: "controld"}}), grpc.WithNoProxy(),
 	}
 	options = append(options, dialOptions...)
 	conn, err := grpcclient.NewReadyClient(dialCtx, target, options...)

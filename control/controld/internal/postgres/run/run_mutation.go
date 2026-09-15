@@ -99,7 +99,7 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 			`, run.GetAllocationID(), commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(), now.UTC()); err != nil {
 				return fmt.Errorf("mark allocation releasing: %w", err)
 			}
-			if err := s.revokeAllocationAccessGrants(ctx, tx, run.GetAllocationID(), now); err != nil {
+			if err := pgallocation.RevokeAccessGrants(ctx, tx, run.GetAllocationID()); err != nil {
 				return err
 			}
 			if err := deleteRunSecretReferences(ctx, tx, run.GetID()); err != nil {

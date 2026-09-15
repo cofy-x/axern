@@ -149,3 +149,9 @@ make local-compose-refresh-verify
 ```
 
 See [tunnel usage](./docs/tunnel.md) and the [resource model](../../docs/architecture/resource-model.md) for deeper product contracts.
+
+## Deployment Identity
+
+`axern admin pki bootstrap --directory <private-directory> --cluster <trust-domain>` initializes local signing authority and service identities without contacting a cluster. Publish the public/role material and the separate controld-only signer as described in the [Kubernetes guide](../docs/src/content/docs/getting-started/kubernetes.md). The command never generates Node keys; `--renew-services` explicitly renews service certificates without replacing CA or administrator identity.
+
+Admit each Node with `axern admin node admit <node-id> --enrollment-token-file <file> --operator-reason <reason>`. Registration consumes that token for one CSR within one hour. Normal node calls authenticate the node-owned certificate and automatic renewal keeps the same Node identity. The old credential flag and shared Node certificate are removed; internal Proto changes require matching node/control images and a rebuilt local database.

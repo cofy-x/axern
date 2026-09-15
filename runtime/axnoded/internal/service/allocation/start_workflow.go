@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	"os"
 	"strings"
 	"time"
@@ -348,6 +349,13 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	runtimeAbsent := isDeleteNotFound(err)
 	if err != nil && !runtimeAbsent {
 		return new(runtime.DeleteResponse), err
+	}
+	if request.GetOutputExpiresAtUnixNano() > 0 {
+		if target, loadErr := h.containers().Get(request.ID); loadErr == nil && target.Metadata != nil {
+			if err := h.outputRetention.Preserve(request.ID, time.Unix(0, request.GetOutputExpiresAtUnixNano()), allocationoutput.Sources{Stdout: target.Metadata.GetStdout(), Stderr: target.Metadata.GetStderr(), Terminal: true}); err != nil {
+				return new(runtime.DeleteResponse), err
+			}
+		}
 	}
 	// Runtime deletion releases the secret bind mounts. Remove their host-side
 	// plaintext before retiring the allocation's durable recovery state, so a

@@ -17,7 +17,7 @@ import (
 
 const (
 	defaultProbeTimeout = 15 * time.Second
-	defaultConfigPath   = "/tmp/axnoded-node-config.toml"
+	defaultConfigPath   = "/var/lib/axnoded/node-config.toml"
 	resolverPort        = "53"
 )
 

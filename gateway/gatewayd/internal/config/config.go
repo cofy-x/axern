@@ -9,14 +9,13 @@ const (
 	DefaultControlTarget      = "127.0.0.1:24000"
 	DefaultTunnelRelayTarget  = "127.0.0.1:24100"
 	DefaultTLSCACert          = ".dev/certs/ca.crt"
-	DefaultTLSCert            = ".dev/certs/gatewayd.crt"
-	DefaultTLSKey             = ".dev/certs/gatewayd.key"
-	DefaultControlEdgeTLSCert = ".dev/certs/gatewayd.crt"
-	DefaultControlEdgeTLSKey  = ".dev/certs/gatewayd.key"
-	DefaultNodeTLSServerName  = "axern-node"
+	DefaultControlEdgeTLSCert = ".dev/certs/gatewayd.pem"
+	DefaultControlEdgeTLSKey  = ".dev/certs/gatewayd.pem"
 )
 
 type Config struct {
+	WorkloadBundle            string
+	WorkloadCluster           string
 	HTTPAddress               string
 	ControlEdgeAddress        string
 	ControlEdgeTLSCACert      string
@@ -27,12 +26,6 @@ type Config struct {
 	TunnelRelayTLSServerName  string
 	ControlTarget             string
 	TLSCACert                 string
-	TLSCert                   string
-	TLSKey                    string
-	NodeTLSCACert             string
-	NodeTLSCert               string
-	NodeTLSKey                string
-	NodeTLSServerName         string
 	DevToken                  string
 	SSHEnabled                bool
 	SSHAddress                string

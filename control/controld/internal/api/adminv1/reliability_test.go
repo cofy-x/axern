@@ -49,13 +49,8 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION {
 		t.Fatalf("issues = %+v", got.GetIssues())
 	}
-	issue := got.GetIssues()[0]
-	if issue.GetRepairOwner() != adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE ||
-		issue.GetRepairAction() != adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE ||
-		issue.GetRepairTargetType() != adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION ||
-		issue.GetRepairTargetID() != "alloc-a" ||
-		issue.GetAutomaticRepair() {
-		t.Fatalf("issue repair plan = owner:%s action:%s target:%s/%s automatic:%v", issue.GetRepairOwner(), issue.GetRepairAction(), issue.GetRepairTargetType(), issue.GetRepairTargetID(), issue.GetAutomaticRepair())
+	if got.GetIssues()[0].GetAllocationID() != "alloc-a" {
+		t.Fatalf("issue allocation = %q", got.GetIssues()[0].GetAllocationID())
 	}
 }
 

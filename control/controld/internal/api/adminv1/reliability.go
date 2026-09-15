@@ -88,20 +88,14 @@ func optionalTimestamp(value *time.Time) *timestamppb.Timestamp {
 func consistencySnapshotToProto(snapshot consistencykernel.Snapshot) *adminv1.ConsistencySnapshot {
 	issues := make([]*adminv1.ConsistencyIssue, 0, len(snapshot.Issues))
 	for _, issue := range snapshot.Issues {
-		repair := consistencykernel.RepairPlanForIssue(issue)
 		issues = append(issues, &adminv1.ConsistencyIssue{
-			Code:             consistencyIssueCodeToProto(issue.Code),
-			Severity:         consistencyIssueSeverityToProto(issue.Severity),
-			AllocationID:     issue.AllocationID,
-			RunID:            issue.RunID,
-			NodeID:           issue.NodeID,
-			Status:           issue.Status,
-			Detail:           issue.Detail,
-			RepairOwner:      consistencyRepairOwnerToProto(repair.Owner),
-			RepairAction:     consistencyRepairActionToProto(repair.Action),
-			AutomaticRepair:  repair.Automatic,
-			RepairTargetType: consistencyRepairTargetTypeToProto(repair.TargetType),
-			RepairTargetID:   repair.TargetID,
+			Code:         consistencyIssueCodeToProto(issue.Code),
+			Severity:     consistencyIssueSeverityToProto(issue.Severity),
+			AllocationID: issue.AllocationID,
+			RunID:        issue.RunID,
+			NodeID:       issue.NodeID,
+			Status:       issue.Status,
+			Detail:       issue.Detail,
 		})
 	}
 	return &adminv1.ConsistencySnapshot{
@@ -174,44 +168,5 @@ func consistencyIssueCodeToProto(code consistencykernel.IssueCode) adminv1.Consi
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION
 	default:
 		return adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_UNSPECIFIED
-	}
-}
-
-func consistencyRepairOwnerToProto(owner consistencykernel.RepairOwner) adminv1.ConsistencyRepairOwner {
-	switch owner {
-	case consistencykernel.RepairOwnerRunController:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER
-	case consistencykernel.RepairOwnerNodeLifecycle:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE
-	case consistencykernel.RepairOwnerTunnelController:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER
-	default:
-		return adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_UNSPECIFIED
-	}
-}
-
-func consistencyRepairActionToProto(action consistencykernel.RepairAction) adminv1.ConsistencyRepairAction {
-	switch action {
-	case consistencykernel.RepairActionRunCleanup:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP
-	case consistencykernel.RepairActionNodeLifecycleReconcile:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE
-	case consistencykernel.RepairActionTunnelLifecycleReconcile:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE
-	default:
-		return adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_UNSPECIFIED
-	}
-}
-
-func consistencyRepairTargetTypeToProto(targetType consistencykernel.RepairTargetType) adminv1.ConsistencyRepairTargetType {
-	switch targetType {
-	case consistencykernel.RepairTargetTypeAllocation:
-		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION
-	case consistencykernel.RepairTargetTypeRun:
-		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_RUN
-	case consistencykernel.RepairTargetTypeTunnelSession:
-		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_TUNNEL_SESSION
-	default:
-		return adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_UNSPECIFIED
 	}
 }

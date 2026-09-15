@@ -66,8 +66,13 @@ type sandboxService struct {
 	capabilityReconcileWG     sync.WaitGroup
 	executionLeaseCancel      context.CancelFunc
 	executionLeaseWG          sync.WaitGroup
+	nodeIdentityCancel        context.CancelFunc
+	nodeIdentityWG            sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
 	allocationLifecycleOutbox *nodecontrol.AllocationLifecycleOutbox
+
+	outputRetentionCancel context.CancelFunc
+	outputRetentionWG     sync.WaitGroup
 
 	ready atomic.Bool
 

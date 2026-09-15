@@ -41,6 +41,8 @@ message Run {
   // source record may be deleted after this Run is created.
   axern.control.environment.v1.EnvironmentSpec environment_spec = 16;
   axern.control.environment.v1.ResolvedEnvironmentSpec resolved_environment_spec = 17;
+  // Node-local stdout/stderr availability deadline; node loss may make bytes unavailable earlier.
+  google.protobuf.Timestamp output_expires_at = 18;
 }
 
 message RunListFilter {

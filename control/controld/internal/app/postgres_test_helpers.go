@@ -57,21 +57,20 @@ func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Tim
 	summary := controldtest.ReadySummary(now)
 	summary.Sequence = sequence
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:         nodeID,
-		NodeTarget:     "127.0.0.1:25000",
-		NodeCredential: testNodeCredential,
-		Summary:        summary,
+		NodeID:     nodeID,
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 }
 
-const testNodeCredential = "test-node-credential-at-least-32-bytes"
+const testEnrollmentToken = "test-enrollment-token-at-least-32-bytes"
 
 func ensureTestNodeAdmitted(t *testing.T, app *App, nodeID string) {
 	t.Helper()
 	_, err := app.AdminV1Handler().AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
-		NodeID: nodeID, NodeCredential: testNodeCredential, OperatorReason: "test fixture",
+		NodeID: nodeID, EnrollmentToken: testEnrollmentToken, OperatorReason: "test fixture",
 	})
 	if err != nil && grpcstatus.Code(err) != codes.AlreadyExists {
 		t.Fatalf("AdmitAdminNode() error = %v", err)

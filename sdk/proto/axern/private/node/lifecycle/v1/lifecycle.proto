@@ -82,6 +82,7 @@ message DeleteAllocationRequest {
   string allocation_id = 1;
   string node_id = 2;
   int64 timeout_seconds = 3;
+  int64 output_expires_at_unix_nano = 4;
 }
 
 message DeleteAllocationResponse {}

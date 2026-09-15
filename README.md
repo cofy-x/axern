@@ -110,7 +110,7 @@ helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --timeout 15m
 ```
 
-After installing the CLI archive for your operating system, keep the gateway port-forward open and import the chart-generated mTLS identity:
+After installing the CLI archive for your operating system, keep the gateway port-forward open and import the deployment-owned administrator mTLS identity:
 
 ```bash
 kubectl --namespace axern-system port-forward svc/gatewayd \

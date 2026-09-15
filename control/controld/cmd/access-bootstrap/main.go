@@ -38,7 +38,7 @@ func run(ctx context.Context, args []string) error {
 	certificatePath := flags.String("certificate", "", "initial platform administrator certificate PEM path")
 	label := flags.String("credential-label", "bootstrap-admin", "initial credential label")
 	nodeID := flags.String("node-id", "", "optional initial admitted node ID")
-	nodeCredentialPath := flags.String("node-credential-file", "", "file containing the initial node credential")
+	enrollmentTokenPath := flags.String("enrollment-token-file", "", "file containing the initial Node enrollment token")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -65,19 +65,19 @@ func run(ctx context.Context, args []string) error {
 	if err := pgaccess.NewStore(db).BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now); err != nil {
 		return err
 	}
-	if strings.TrimSpace(*nodeID) == "" && strings.TrimSpace(*nodeCredentialPath) == "" {
+	if strings.TrimSpace(*nodeID) == "" && strings.TrimSpace(*enrollmentTokenPath) == "" {
 		return nil
 	}
-	if strings.TrimSpace(*nodeID) == "" || strings.TrimSpace(*nodeCredentialPath) == "" {
-		return errors.New("node-id and node-credential-file must be provided together")
+	if strings.TrimSpace(*nodeID) == "" || strings.TrimSpace(*enrollmentTokenPath) == "" {
+		return errors.New("node-id and enrollment-token-file must be provided together")
 	}
-	credential, err := os.ReadFile(filepath.Clean(*nodeCredentialPath))
+	credential, err := os.ReadFile(filepath.Clean(*enrollmentTokenPath))
 	if err != nil {
-		return fmt.Errorf("read node credential: %w", err)
+		return fmt.Errorf("read Node enrollment token: %w", err)
 	}
 	return pgadmin.NewStore(db).BootstrapNode(ctx, adminkernel.AdmitNodeRequest{
-		NodeID:         strings.TrimSpace(*nodeID),
-		NodeCredential: string(credential), OperatorReason: "initial node identity bootstrap", Now: now,
+		NodeID:          strings.TrimSpace(*nodeID),
+		EnrollmentToken: string(credential), OperatorReason: "initial node identity bootstrap", Now: now,
 	})
 }
 

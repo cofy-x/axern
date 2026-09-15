@@ -452,7 +452,7 @@ type fakeDialer struct {
 	targets []string
 }
 
-func (d *fakeDialer) NodeSandbox(_ context.Context, target string) (nodesandboxv1.NodeSandboxClient, error) {
+func (d *fakeDialer) NodeSandbox(_ context.Context, target, nodeID string) (nodesandboxv1.NodeSandboxClient, error) {
 	d.targets = append(d.targets, target)
 	return d.client, nil
 }

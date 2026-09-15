@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package axern.private.control.node.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1;privatecontrolnodev1";
+
+// Bootstrap accepts only a node-specific, time-bounded admission token.
+// Renewal uses the verified Node certificate instead of that token.
+service NodeEnrollment {
+  rpc EnrollNode(EnrollNodeRequest) returns (EnrollNodeResponse) {}
+  rpc RenewNodeCertificate(RenewNodeCertificateRequest) returns (RenewNodeCertificateResponse) {}
+}
+
+message EnrollNodeRequest {
+  string node_id = 1;
+  string enrollment_token = 2;
+  bytes csr_der = 3;
+}
+
+message EnrollNodeResponse {
+  bytes certificate_pem = 1;
+}
+
+message RenewNodeCertificateRequest {
+  string node_id = 1;
+  bytes csr_der = 2;
+}
+
+message RenewNodeCertificateResponse {
+  bytes certificate_pem = 1;
+}

@@ -52,7 +52,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 				q.reconcile_attempts, q.last_error, q.next_run_at,
 				`+capabilityDependenciesProjectionSQL+` AS capability_requirements,
-				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.claim_expires_at, '-infinity'::timestamptz)) AS eligible_at,
+				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.claim_expires_at, '-infinity'::timestamptz)) AS eligible_at, a.output_expires_at,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
 			FROM allocation_reconcile_queue q
 			JOIN allocations a ON a.allocation_id = q.allocation_id
@@ -62,7 +62,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			  AND (q.claim_expires_at IS NULL OR q.claim_expires_at <= $1)
 		), candidates AS (
 			SELECT r.allocation_id, r.run_id, r.environment_id, r.lifecycle_state, r.node_id, r.node_target,
-				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.eligible_at
+				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.eligible_at, r.output_expires_at
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
 			ORDER BY r.node_rank ASC, r.next_run_at ASC, r.allocation_id ASC
@@ -77,7 +77,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			RETURNING q.allocation_id
 		)
 		SELECT c.allocation_id, c.run_id, c.environment_id, c.lifecycle_state, c.node_id, c.node_target,
-			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.eligible_at
+			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.eligible_at, c.output_expires_at
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
 		ORDER BY c.allocation_id ASC
@@ -91,7 +91,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		item := allocationkernel.ReconcileItem{ClaimOwner: owner}
 		var dependenciesJSON []byte
 		var lifecycleState string
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt); err != nil {
+		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt, &item.OutputExpiresAt); err != nil {
 			return nil, err
 		}
 		item.LifecycleState = allocationkernel.ParseLifecycleState(lifecycleState)

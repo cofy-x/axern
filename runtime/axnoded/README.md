@@ -24,7 +24,7 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 - `axern.private.node.network.v1.AllocationNetwork`: narrow machine-only Allocation network resolution for `node-tunneld`, registered on a separate Unix socket.
 - `axern.private.control.node.v1.NodeControl`: ordered atomic node reports with complete execution-lease snapshots, coalesced Allocation lifecycle batches, and allocation-access-grant replication with `controld`.
 
-The reporter uses a durable, explicitly admitted Node identity and a fresh process identity for observation ordering. An administrator must admit the Node ID and random credential before the first complete report; the mutable node target is observation data, and reports cannot create identities or rotate credentials. If an operator retires the Node identity, `controld` rejects reports, status batches, and watches; the host must be removed and any replacement must use a new Node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
+The reporter uses an explicitly admitted Node identity and a fresh process identity for observation ordering. An administrator admits the Node ID with a one-time enrollment token. The node generates its private key locally, registers its CSR on the dedicated enrollment listener, and automatically renews its 24-hour certificate. Normal reports and watches authenticate the exact Node URI, never the enrollment token. Retirement is irreversible and rejects reports, renewal, status batches, and watches; replacement requires a new Node ID.
 
 Node lifecycle requests carry resolved secret env vars, resolved secret files, request-scoped registry auth, ports, network mode, egress policy, and read-only image mounts as typed fields. `axnoded` validates that contract before computing its request digest or creating side effects, materializes inputs into the Allocation-local runtime environment, and cleans up Allocation-scoped files on teardown. It does not pack execution behavior into JSON or OCI labels. Writable rootfs, retained stdout/stderr, and workspace data are Allocation-local; callers must transfer required bytes before teardown.
 
@@ -141,9 +141,9 @@ Default local endpoints:
 - repo-local machine socket: `.dev/run/axnoded-network.sock`
 - HTTP operator surface: `127.0.0.1:23001`
 
-When `-grpc-address` is configured, `axnoded` requires `-node-tls-ca-cert`, `-node-tls-cert`, and `-node-tls-key`. The listener requires client certificates and enforces an explicit service matrix: `gatewayd` may call only `NodeSandbox`, while `controld` may call only `NodeLifecycle`. The node certificate must be valid for the stable server name `axern-node`.
+The routable listener loads the node-owned `identity/node.pem` bundle under the configured root and `control_plane_tls_ca_cert`. Verified URI roles enforce the service matrix: gatewayd may call NodeSandbox and controld may call NodeLifecycle. Callers verify the exact Allocation-bound Node ID, not a shared DNS name.
 
-Externally supplied PKI must therefore issue the node certificate with an `axern-node` DNS SAN and server authentication usage, and issue the `controld` and `gatewayd` workload certificates with client authentication usage. The bundled development and Helm certificate paths satisfy this contract.
+The enrollment listener authenticates controld before sending a one-time token. Invalid or expired existing identity does not fall back to registration. Recovery and the ExecutionLease watchdog continue while enrollment or renewal is unavailable; no failed authentication extends execution authority.
 
 Local lifecycle conformance is never registered on the operator socket or the routable listener. It is available only when `-conformance-socket` is explicitly configured, accepts only unbound local Allocations, and refuses to create, inspect, or delete any control-plane-bound Allocation.
 
@@ -159,3 +159,7 @@ Image-backed rootfs flows depend on the node-local `imagemgr` socket:
 Cross-subsystem sockets and runtime relationships are tracked in [Runtime Stack](../../.x/runtime-stack.md). The storage ownership contract is summarized in [Storage Architecture](../../docs/architecture/storage-architecture.md).
 
 Shared API contracts live in [SDK Proto Workspace](../../sdk/proto/README.md).
+
+## Bounded Allocation Output
+
+Normal control-plane cleanup carries the immutable output deadline. Axnoded seals stdout/stderr into an Allocation-keyed directory using synced files and an atomic manifest publication before deleting live logs. Reads hold the lifecycle lock through each bounded file read and use either live logs or the sealed snapshot. The manifest owns output deletion only, never execution identity or admission. Startup and a one-minute sweep remove expired snapshots; corrupt snapshots are unreadable and diagnosed without preventing recovery of unrelated running Allocations. Rootfs files are not retained. Node-disk loss and local break-glass cleanup do not guarantee output availability.

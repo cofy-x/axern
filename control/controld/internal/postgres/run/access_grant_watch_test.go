@@ -28,7 +28,7 @@ func TestWatchAllocationAccessGrantsWakesAfterCommittedNotification(t *testing.T
 		DELETE FROM allocation_access_grants;
 		DELETE FROM runs WHERE run_id = 'run-watch';
 		DELETE FROM nodes WHERE node_id = 'node-a';
-		UPDATE control_revisions SET revision = 0 WHERE name = 'allocation_access_grants'
+		DELETE FROM node_access_grant_cursors
 	`); err != nil {
 		t.Fatalf("reset access grants: %v", err)
 	}
@@ -41,7 +41,7 @@ func TestWatchAllocationAccessGrantsWakesAfterCommittedNotification(t *testing.T
 		t.Fatalf("insert lease namespace: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, node_credential_hash, admitted_at, last_heartbeat_at, lifecycle_status)
+		INSERT INTO nodes (node_id, node_target, enrollment_token_hash, admitted_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-a', 'node-a:24010', repeat('0', 64), $1, $1, 'active')
 	`, now); err != nil {
 		t.Fatalf("insert lease node: %v", err)
@@ -81,15 +81,15 @@ func TestWatchAllocationAccessGrantsWakesAfterCommittedNotification(t *testing.T
 	defer tx.Rollback(context.Background())
 	var revision int64
 	if err := tx.QueryRow(ctx, `
-		UPDATE control_revisions SET revision = revision + 1
-		WHERE name = 'allocation_access_grants' RETURNING revision
+		INSERT INTO node_access_grant_cursors(node_id, revision) VALUES ('node-a', 1)
+		ON CONFLICT (node_id) DO UPDATE SET revision = node_access_grant_cursors.revision + 1 RETURNING revision
 	`).Scan(&revision); err != nil {
 		t.Fatalf("advance revision: %v", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO allocation_access_grants (
-			grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
-		) VALUES ('grant-watch', 'alloc-watch', 'node-a', $1, $2, false, 'token-hash', $3)
+			purpose, grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, created_at
+		) VALUES ('ALLOCATION_ACCESS_PURPOSE_INTERACTIVE', 'grant-watch', 'alloc-watch', 'node-a', $1, $2, false, 'token-hash', $3)
 	`, time.Now().Add(time.Minute).UTC(), revision, time.Now().UTC()); err != nil {
 		t.Fatalf("insert access grant: %v", err)
 	}
@@ -181,7 +181,7 @@ func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
 func insertRunQueryAllocationFixtures(t *testing.T, db *postgres.DB, now time.Time, allocations map[string]string) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, node_credential_hash, admitted_at, last_heartbeat_at, lifecycle_status)
+		INSERT INTO nodes (node_id, node_target, enrollment_token_hash, admitted_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-query-test', 'node-query-test:24010', repeat('0', 64), $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now); err != nil {

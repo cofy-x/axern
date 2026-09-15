@@ -23,7 +23,11 @@ func (h *sandboxService) Run(ctx context.Context) error {
 	if err := h.controlPlaneReports.ReplayDurableAllocationLifecycles(); err != nil {
 		return fmt.Errorf("replay durable allocation lifecycle outbox: %w", err)
 	}
+	if err := h.startOutputRetention(ctx); err != nil {
+		return err
+	}
 	h.inventoryCollector.Start()
+	h.startNodeIdentity(ctx)
 	h.controlPlaneReports.Start()
 	h.startExecutionLeaseWatchdog(ctx)
 	h.startCapabilityRefresh(ctx)
@@ -43,10 +47,18 @@ func (h *sandboxService) Shutdown(ctx context.Context) error {
 func (h *sandboxService) shutdown(ctx context.Context) error {
 	logrus.Info("sandbox service shutting down")
 	h.ready.Store(false)
+	if h.nodeIdentityCancel != nil {
+		h.nodeIdentityCancel()
+	}
+	h.nodeIdentityWG.Wait()
 	if h.executionLeaseCancel != nil {
 		h.executionLeaseCancel()
 	}
 	h.executionLeaseWG.Wait()
+	if h.outputRetentionCancel != nil {
+		h.outputRetentionCancel()
+	}
+	h.outputRetentionWG.Wait()
 	h.stopCapabilityRefresh()
 	if h.capabilityReconcileCancel != nil {
 		h.capabilityReconcileCancel()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	retention "github.com/cofy-x/axern/control/controld/internal/kernel/retention"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	"github.com/jackc/pgx/v5"
@@ -50,6 +51,15 @@ func (s *PGStore) Cleanup(ctx context.Context, cfg retention.Config, now time.Ti
 		if err != nil {
 			return err
 		}
+		deleted, err := tx.Exec(ctx, `DELETE FROM node_enrollment_receipts WHERE node_id IN (
+		 SELECT r.node_id FROM node_enrollment_receipts r JOIN nodes n USING(node_id)
+		 WHERE n.admitted_at + $1 * INTERVAL '1 second' <= clock_timestamp()
+		 ORDER BY n.admitted_at,r.node_id LIMIT $2
+		)`, int64(nodekernel.EnrollmentLifetime/time.Second), cfg.BatchSize)
+		if err != nil {
+			return err
+		}
+		result.EnrollmentReceiptsDeleted = deleted.RowsAffected()
 		return nil
 	})
 	return result, err

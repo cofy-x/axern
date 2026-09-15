@@ -12,7 +12,7 @@ This document defines the stable user-facing boundary shared by Axern SDKs and e
 
 ## Sandbox Files And Outputs
 
-Sandbox writable files and retained stdout/stderr belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract; stream or download required bytes before terminating the Sandbox because Allocation cleanup makes them unavailable from Axern. An upper-layer system may publish the downloaded bytes under its own output contract.
+Sandbox writable files and retained stdout/stderr belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract. Download required files before termination. Run stdout/stderr remain readable after runtime cleanup until the control-plane `output_expires_at` deadline, for 15 minutes from cleanup initiation, subject to node-disk availability and the combined 64 MiB output limit. An upper-layer system owns durable publication of downloaded bytes.
 
 ```python
 from axern_sdk import AxernClient, Sandbox

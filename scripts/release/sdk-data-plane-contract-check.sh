@@ -50,7 +50,7 @@ for value in (
     "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS:-300",
     "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS must be a positive decimal integer",
     'node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}',
-    'node.credential.existingSecret=',
+    'node.enrollment.existingSecret=',
     "AXERN_SDK_ACCEPTANCE_CONFIG",
     "AXERN_SDK_ACCEPTANCE_CONTEXT=release",
     "AXERN_SDK_ACCEPTANCE_CLI",

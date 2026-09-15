@@ -18,7 +18,7 @@ type Resolver interface {
 }
 
 type Dialer interface {
-	NodeSandbox(ctx context.Context, target string) (nodesandboxv1.NodeSandboxClient, error)
+	NodeSandbox(ctx context.Context, target, nodeID string) (nodesandboxv1.NodeSandboxClient, error)
 }
 
 type AccessGrantRetryObserver interface {

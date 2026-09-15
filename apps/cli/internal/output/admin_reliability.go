@@ -95,13 +95,10 @@ func RenderConsistencyIssueTable(w io.Writer, issues []*adminv1.ConsistencyIssue
 			issue.GetRunID(),
 			issue.GetNodeID(),
 			issue.GetStatus(),
-			consistencyRepairOwnerLabel(issue.GetRepairOwner()),
-			consistencyRepairActionLabel(issue.GetRepairAction()),
-			consistencyRepairTargetLabel(issue.GetRepairTargetType(), issue.GetRepairTargetID()),
 			ShortMessage(issue.GetDetail(), 72),
 		})
 	}
-	RenderTable(w, []string{"CODE", "SEVERITY", "ALLOCATION", "RUN", "NODE", "STATUS", "REPAIR_OWNER", "REPAIR", "REPAIR_TARGET", "DETAIL"}, rows)
+	RenderTable(w, []string{"CODE", "SEVERITY", "ALLOCATION", "RUN", "NODE", "STATUS", "DETAIL"}, rows)
 }
 
 func adminReliabilityStatusLabel(status adminv1.AdminReliabilityStatus) string {
@@ -122,29 +119,6 @@ func consistencyIssueSeverityLabel(severity adminv1.ConsistencyIssueSeverity) st
 
 func consistencyIssueCodeLabel(code adminv1.ConsistencyIssueCode) string {
 	return strings.ToLower(trimEnumPrefix(code.String(), "CONSISTENCY_ISSUE_CODE_"))
-}
-
-func consistencyRepairOwnerLabel(owner adminv1.ConsistencyRepairOwner) string {
-	return strings.ToLower(trimEnumPrefix(owner.String(), "CONSISTENCY_REPAIR_OWNER_"))
-}
-
-func consistencyRepairActionLabel(action adminv1.ConsistencyRepairAction) string {
-	return strings.ToLower(trimEnumPrefix(action.String(), "CONSISTENCY_REPAIR_ACTION_"))
-}
-
-func consistencyRepairTargetTypeLabel(targetType adminv1.ConsistencyRepairTargetType) string {
-	return strings.ToLower(trimEnumPrefix(targetType.String(), "CONSISTENCY_REPAIR_TARGET_TYPE_"))
-}
-
-func consistencyRepairTargetLabel(targetType adminv1.ConsistencyRepairTargetType, targetID string) string {
-	label := consistencyRepairTargetTypeLabel(targetType)
-	if label == "" || label == "unspecified" {
-		return targetID
-	}
-	if targetID == "" {
-		return label
-	}
-	return label + "/" + targetID
 }
 
 type ConsistencySnapshotJSON struct {
@@ -184,18 +158,13 @@ type ConsistencyCountsJSON struct {
 }
 
 type ConsistencyIssueJSON struct {
-	Code             string `json:"code"`
-	Severity         string `json:"severity"`
-	AllocationID     string `json:"allocation_id,omitempty"`
-	RunID            string `json:"run_id,omitempty"`
-	NodeID           string `json:"node_id,omitempty"`
-	Status           string `json:"status,omitempty"`
-	Detail           string `json:"detail,omitempty"`
-	RepairOwner      string `json:"repair_owner,omitempty"`
-	RepairAction     string `json:"repair_action,omitempty"`
-	RepairTargetType string `json:"repair_target_type,omitempty"`
-	RepairTargetID   string `json:"repair_target_id,omitempty"`
-	AutomaticRepair  bool   `json:"automatic_repair"`
+	Code         string `json:"code"`
+	Severity     string `json:"severity"`
+	AllocationID string `json:"allocation_id,omitempty"`
+	RunID        string `json:"run_id,omitempty"`
+	NodeID       string `json:"node_id,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Detail       string `json:"detail,omitempty"`
 }
 
 type AdminReliabilitySignalJSON struct {
@@ -278,18 +247,13 @@ func NewConsistencySnapshotJSON(snapshot *adminv1.ConsistencySnapshot) *Consiste
 	issues := make([]*ConsistencyIssueJSON, 0, len(snapshot.GetIssues()))
 	for _, issue := range snapshot.GetIssues() {
 		issues = append(issues, &ConsistencyIssueJSON{
-			Code:             consistencyIssueCodeLabel(issue.GetCode()),
-			Severity:         consistencyIssueSeverityLabel(issue.GetSeverity()),
-			AllocationID:     issue.GetAllocationID(),
-			RunID:            issue.GetRunID(),
-			NodeID:           issue.GetNodeID(),
-			Status:           issue.GetStatus(),
-			Detail:           issue.GetDetail(),
-			RepairOwner:      consistencyRepairOwnerLabel(issue.GetRepairOwner()),
-			RepairAction:     consistencyRepairActionLabel(issue.GetRepairAction()),
-			RepairTargetType: consistencyRepairTargetTypeLabel(issue.GetRepairTargetType()),
-			RepairTargetID:   issue.GetRepairTargetID(),
-			AutomaticRepair:  issue.GetAutomaticRepair(),
+			Code:         consistencyIssueCodeLabel(issue.GetCode()),
+			Severity:     consistencyIssueSeverityLabel(issue.GetSeverity()),
+			AllocationID: issue.GetAllocationID(),
+			RunID:        issue.GetRunID(),
+			NodeID:       issue.GetNodeID(),
+			Status:       issue.GetStatus(),
+			Detail:       issue.GetDetail(),
 		})
 	}
 	var counts *ConsistencyCountsJSON

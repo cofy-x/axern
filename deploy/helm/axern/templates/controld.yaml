@@ -70,6 +70,14 @@ spec:
             - configMapRef:
                 name: local-proxy-env
           args:
+            - -workload-bundle
+            - /certs/controld.pem
+            - -workload-cluster
+            - {{ .Values.pki.trustDomain | quote }}
+            - -workload-signer-bundle
+            - /signer/signer.pem
+            - -enrollment-address
+            - 0.0.0.0:24002
             - -grpc-address
             - 0.0.0.0:24000
             - -http-address
@@ -84,10 +92,6 @@ spec:
             - {{ .Values.controld.reconcileTimeout | quote }}
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/controld.crt
-            - -tls-key
-            - /certs/controld.key
           env:
             - name: CONTROLD_POSTGRES_DSN
               valueFrom:
@@ -114,6 +118,9 @@ spec:
             - containerPort: 24000
             - containerPort: 24001
           volumeMounts:
+            - name: signer
+              mountPath: /signer
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -124,9 +131,21 @@ spec:
             initialDelaySeconds: 2
             periodSeconds: 2
       volumes:
+        - name: signer
+          secret:
+            secretName: {{ .Values.pki.signerSecretName }}
+            defaultMode: 384
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: controld.pem
+                path: controld.pem
+              - key: client.crt
+                path: client.crt
 ---
 apiVersion: v1
 kind: Service
@@ -138,6 +157,9 @@ spec:
   selector:
     {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld") | nindent 4 }}
   ports:
+    - name: enrollment
+      port: 24002
+      targetPort: 24002
     - name: grpc
       port: 24000
       targetPort: 24000

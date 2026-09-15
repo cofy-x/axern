@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	"io"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 )
 
 type SandboxService interface {
+	ReadAllocationOutput(context.Context, string, string) ([]allocationoutput.Chunk, bool, error)
 	// Sandbox-local data-plane operations.
 	SandboxFileService
 	SandboxComputerUseService

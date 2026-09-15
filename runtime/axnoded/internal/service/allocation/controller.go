@@ -13,6 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
@@ -44,8 +45,9 @@ type Options struct {
 }
 
 type Controller struct {
-	config config.Config
-	store  stateStore
+	config          config.Config
+	outputRetention *allocationoutput.Retention
+	store           stateStore
 
 	containerManager            func() *container.Manager
 	runscHandler                contract.SandboxRuntime
@@ -83,6 +85,7 @@ func IsInternalConformance(ctx context.Context) bool {
 func NewController(options Options) *Controller {
 	c := &Controller{
 		config:                      options.Config,
+		outputRetention:             allocationoutput.NewRetention(options.Config.RootDir),
 		store:                       options.Store,
 		containerManager:            options.ContainerManager,
 		runscHandler:                options.RunscHandler,

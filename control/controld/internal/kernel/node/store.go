@@ -8,15 +8,14 @@ import (
 )
 
 type ReportParams struct {
-	NodeID         string
-	NodeTarget     string
-	Summary        *nodev1.NodeSummary
-	NodeCredential string
-	Now            time.Time
+	NodeID     string
+	NodeTarget string
+	Summary    *nodev1.NodeSummary
+	Now        time.Time
 }
 
 type Store interface {
 	Report(ctx context.Context, params ReportParams) (*Record, error)
-	Authenticate(ctx context.Context, nodeID, nodeCredential string) error
+	RequireActive(ctx context.Context, nodeID string) error
 	Load(ctx context.Context) ([]*Record, error)
 }

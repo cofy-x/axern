@@ -31,35 +31,53 @@ type Chunk struct {
 	Truncated bool
 }
 
-type Reader struct{ containers ContainerLister }
+type Reader struct {
+	containers ContainerLister
+	sources    func(context.Context, string) (Sources, error)
+}
 
 func New(containers ContainerLister) *Reader { return &Reader{containers: containers} }
 
-func (r *Reader) Read(ctx context.Context, allocationID, cursor string) ([]Chunk, bool, error) {
+func NewWithSources(source func(context.Context, string) (Sources, error)) *Reader {
+	return &Reader{sources: source}
+}
+
+func (r *Reader) source(ctx context.Context, allocationID string) (Sources, error) {
+	if r.sources != nil {
+		return r.sources(ctx, allocationID)
+	}
 	response, err := r.containers.List(ctx, &runtimev1.ListContainersRequest{ID: allocationID})
+	if err != nil {
+		return Sources{}, err
+	}
+	if len(response.GetContainers()) != 1 {
+		return Sources{}, grpcstatus.Error(codes.NotFound, "allocation output is not available")
+	}
+	container := response.GetContainers()[0]
+	return Sources{Stdout: container.GetStdout(), Stderr: container.GetStderr(), Terminal: container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED}, nil
+}
+
+func (r *Reader) Read(ctx context.Context, allocationID, cursor string) ([]Chunk, bool, error) {
+	source, err := r.source(ctx, allocationID)
 	if err != nil {
 		return nil, false, err
 	}
-	if len(response.GetContainers()) != 1 {
-		return nil, false, grpcstatus.Error(codes.NotFound, "allocation output is not available")
-	}
-	container := response.GetContainers()[0]
 	stdoutOffset, stderrOffset, truncationNotified, err := decodeCursor(cursor)
 	if err != nil {
 		return nil, false, grpcstatus.Error(codes.InvalidArgument, err.Error())
 	}
-	stdoutCurrentSize, err := outputSize(container.GetStdout())
+	stdoutCurrentSize, err := outputSize(source.Stdout)
 	if err != nil {
 		return nil, false, err
 	}
-	stderrCurrentSize, err := outputSize(container.GetStderr())
+	stderrCurrentSize, err := outputSize(source.Stderr)
 	if err != nil {
 		return nil, false, err
 	}
 	if stdoutOffset > MaxOutputBytes || stderrOffset > MaxOutputBytes || stdoutOffset > stdoutCurrentSize || stderrOffset > stderrCurrentSize || stdoutOffset+stderrOffset > MaxOutputBytes || (truncationNotified && stdoutOffset+stderrOffset != MaxOutputBytes) {
 		return nil, false, grpcstatus.Error(codes.InvalidArgument, "output cursor is invalid")
 	}
-	terminal := container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED
+	terminal := source.Terminal
 	remaining := int64(MaxOutputBytes) - stdoutOffset - stderrOffset
 	if remaining <= 0 {
 		if terminal || !truncationNotified {
@@ -68,7 +86,7 @@ func (r *Reader) Read(ctx context.Context, allocationID, cursor string) ([]Chunk
 		return nil, false, nil
 	}
 	chunks := make([]Chunk, 0, 2)
-	stdout, stdoutSize, err := readAt(container.GetStdout(), stdoutOffset, min64(ChunkBytes, remaining))
+	stdout, stdoutSize, err := readAt(source.Stdout, stdoutOffset, min64(ChunkBytes, remaining))
 	if err != nil {
 		return nil, false, err
 	}
@@ -77,7 +95,7 @@ func (r *Reader) Read(ctx context.Context, allocationID, cursor string) ([]Chunk
 		remaining -= int64(len(stdout))
 		chunks = append(chunks, Chunk{Stream: "stdout", Data: stdout, Cursor: encodeCursor(stdoutOffset, stderrOffset, truncationNotified)})
 	}
-	stderr, stderrSize, err := readAt(container.GetStderr(), stderrOffset, min64(ChunkBytes, remaining))
+	stderr, stderrSize, err := readAt(source.Stderr, stderrOffset, min64(ChunkBytes, remaining))
 	if err != nil {
 		return nil, false, err
 	}
@@ -86,7 +104,7 @@ func (r *Reader) Read(ctx context.Context, allocationID, cursor string) ([]Chunk
 		chunks = append(chunks, Chunk{Stream: "stderr", Data: stderr, Cursor: encodeCursor(stdoutOffset, stderrOffset, truncationNotified)})
 	}
 	truncated := stdoutSize+stderrSize > MaxOutputBytes
-	complete := terminal && (truncated || (stdoutOffset >= stdoutSize && stderrOffset >= stderrSize))
+	complete := terminal && ((truncated && stdoutOffset+stderrOffset >= MaxOutputBytes) || (stdoutOffset >= stdoutSize && stderrOffset >= stderrSize))
 	if truncated && !truncationNotified && stdoutOffset+stderrOffset >= MaxOutputBytes {
 		truncationNotified = true
 		if len(chunks) > 0 {
@@ -109,7 +127,7 @@ func outputSize(path string) (int64, error) {
 	}
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
-		return 0, nil
+		return 0, grpcstatus.Error(codes.NotFound, "allocation output is unavailable")
 	}
 	if err != nil {
 		return 0, grpcstatus.Error(codes.Internal, "inspect allocation output")
@@ -123,7 +141,7 @@ func readAt(path string, offset, limit int64) ([]byte, int64, error) {
 	}
 	file, err := os.Open(path)
 	if os.IsNotExist(err) {
-		return nil, 0, nil
+		return nil, 0, grpcstatus.Error(codes.NotFound, "allocation output is unavailable")
 	}
 	if err != nil {
 		return nil, 0, grpcstatus.Error(codes.Internal, "open allocation output")

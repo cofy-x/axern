@@ -25,9 +25,9 @@ spec:
             - -control-edge-tls-ca-cert
             - /certs/ca.crt
             - -control-edge-tls-cert
-            - /certs/gatewayd.crt
+            - /certs/gatewayd.pem
             - -control-edge-tls-key
-            - /certs/gatewayd.key
+            - /certs/gatewayd.pem
             - -tunnel-relay-target
             - tunneld.axern-local.svc.cluster.local:24100
             - -tunnel-relay-tls-ca-cert
@@ -41,12 +41,12 @@ spec:
             - /ssh/gateway_host_ed25519
             - -ssh-authorized-keys
             - /ssh/authorized_keys
+            - -workload-bundle
+            - /certs/gatewayd.pem
+            - -workload-cluster
+            - axern.local
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/gatewayd.crt
-            - -tls-key
-            - /certs/gatewayd.key
             - -dev-token
             - axern-local-dev
           env:
@@ -73,6 +73,12 @@ spec:
         - name: certs
           secret:
             secretName: controld-pki
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: gatewayd.pem
+                path: gatewayd.pem
         - name: ssh
           secret:
             secretName: gatewayd-ssh

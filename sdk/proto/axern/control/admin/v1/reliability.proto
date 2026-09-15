@@ -30,27 +30,6 @@ enum ConsistencyIssueCode {
   CONSISTENCY_ISSUE_CODE_ACTIVE_TUNNEL_ON_ENDED_ALLOCATION = 2;
 }
 
-enum ConsistencyRepairOwner {
-  CONSISTENCY_REPAIR_OWNER_UNSPECIFIED = 0;
-  CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER = 1;
-  CONSISTENCY_REPAIR_OWNER_NODE_LIFECYCLE = 2;
-  CONSISTENCY_REPAIR_OWNER_TUNNEL_CONTROLLER = 3;
-}
-
-enum ConsistencyRepairAction {
-  CONSISTENCY_REPAIR_ACTION_UNSPECIFIED = 0;
-  CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP = 1;
-  CONSISTENCY_REPAIR_ACTION_NODE_LIFECYCLE_RECONCILE = 2;
-  CONSISTENCY_REPAIR_ACTION_TUNNEL_LIFECYCLE_RECONCILE = 3;
-}
-
-enum ConsistencyRepairTargetType {
-  CONSISTENCY_REPAIR_TARGET_TYPE_UNSPECIFIED = 0;
-  CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION = 1;
-  CONSISTENCY_REPAIR_TARGET_TYPE_RUN = 2;
-  CONSISTENCY_REPAIR_TARGET_TYPE_TUNNEL_SESSION = 3;
-}
-
 enum AdminReliabilitySignalCode {
   ADMIN_RELIABILITY_SIGNAL_CODE_UNSPECIFIED = 0;
   ADMIN_RELIABILITY_SIGNAL_CODE_CONSISTENCY_ISSUES = 1;
@@ -75,11 +54,6 @@ message ConsistencyIssue {
   string node_id = 5;
   string status = 6;
   string detail = 7;
-  ConsistencyRepairOwner repair_owner = 8;
-  ConsistencyRepairAction repair_action = 9;
-  bool automatic_repair = 10;
-  ConsistencyRepairTargetType repair_target_type = 11;
-  string repair_target_id = 12;
 }
 
 message ConsistencySnapshot {

@@ -308,7 +308,7 @@ class AxernClient:
         follow: bool = False,
         timeout: float | None = None,
     ) -> Generator[node_pb2.ReadOutputResponse, None, None]:
-        """Yield Allocation-local output; consume required bytes before cleanup."""
+        """Yield Allocation-local output through the Run output_expires_at deadline."""
 
         if not run_id.strip():
             raise ValueError("run_id is required")

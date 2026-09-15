@@ -156,10 +156,7 @@ func TestReporterCanUseRealGRPCClient(t *testing.T) {
 		lis.Addr().String(),
 		"node-b",
 		"127.0.0.1:25001",
-		"node-token",
-		"",
-		"",
-		"",
+		&nodeControlClientProvider{target: lis.Addr().String(), opts: []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}},
 		10*time.Millisecond,
 		func() (nodeinventory.NodeInventorySnapshot, bool) {
 			snapshot := nodeinventory.NewSnapshot()

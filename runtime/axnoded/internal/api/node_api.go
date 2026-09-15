@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"strings"
 	"time"
 
@@ -22,7 +23,7 @@ type nodeSandboxServer struct {
 }
 
 type DirectAccessGrantValidator interface {
-	WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (valid, waited bool)
+	WaitValidate(ctx context.Context, allocationID string, token string, purpose gatewayv1.AllocationAccessPurpose, now func() time.Time) (valid, waited bool)
 }
 
 const (
@@ -44,11 +45,7 @@ type directAuthTarget struct {
 	targetID     string
 }
 
-func NewNodeSandboxServer(svc service.SandboxService, nodeID string, accessGrantAuth ...DirectAccessGrantValidator) nodesandboxv1.NodeSandboxServer {
-	var validator DirectAccessGrantValidator
-	if len(accessGrantAuth) > 0 {
-		validator = accessGrantAuth[0]
-	}
+func NewNodeSandboxServer(svc service.SandboxService, nodeID string, validator DirectAccessGrantValidator) nodesandboxv1.NodeSandboxServer {
 	return &nodeSandboxServer{
 		svc:             svc,
 		nodeID:          nodeID,
@@ -61,6 +58,10 @@ func NewLocalNodeSandboxServer(svc service.NodeService, nodeID string) nodesandb
 }
 
 func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string) (directAuthTarget, error) {
+	return s.validateAccessPurpose(ctx, allocationID, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE)
+}
+
+func (s *nodeSandboxServer) validateAccessPurpose(ctx context.Context, allocationID string, purpose gatewayv1.AllocationAccessPurpose) (directAuthTarget, error) {
 	allocationID = strings.TrimSpace(allocationID)
 	accessTokens := metadata.ValueFromIncomingContext(ctx, accessGrantTokenMetadataKey)
 	if allocationID == "" || len(accessTokens) != 1 || strings.TrimSpace(accessTokens[0]) == "" {
@@ -76,9 +77,9 @@ func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID
 	visibilityCtx, cancel := context.WithTimeout(ctx, accessGrantVisibilityWaitTimeout)
 	defer cancel()
 	visibilityStart := time.Now()
-	valid, waited := true, false
+	valid, waited := s.localOnly, false
 	if s.accessGrantAuth != nil {
-		valid, waited = s.accessGrantAuth.WaitValidate(visibilityCtx, allocationID, accessToken, func() time.Time { return time.Now().UTC() })
+		valid, waited = s.accessGrantAuth.WaitValidate(visibilityCtx, allocationID, accessToken, purpose, func() time.Time { return time.Now().UTC() })
 	}
 	result := "cache_hit"
 	if waited {

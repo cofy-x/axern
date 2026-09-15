@@ -16,7 +16,7 @@ AXNODED_SOCKET="${AXNODED_SOCKET:-/shared/run/axnoded.sock}"
 # Docker's default 172.17.0.0/16 bridge so host-gateway traffic stays on eth0.
 AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-axern-cli-e2e}"
-CONTROL_PLANE_NODE_CREDENTIAL="${CONTROL_PLANE_NODE_CREDENTIAL:-node-axern-cli-e2e-credential-00000000}"
+CONTROL_PLANE_ENROLLMENT_TOKEN="${CONTROL_PLANE_ENROLLMENT_TOKEN:-node-axern-cli-e2e-credential-00000000}"
 PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axern-cli-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axern-cli-e2e-net}"
@@ -105,6 +105,9 @@ reserve_e2e_ports() {
   GATEWAY_SSH_ADDRESS="${GATEWAY_SSH_HOST}:${GATEWAY_SSH_PORT}"
 
   POSTGRES_HOST_PORT="$(reserve_host_port "127.0.0.1" "${POSTGRES_HOST_PORT}")"
+  CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0 \
+    "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}" \
+    "${GATEWAY_HTTP_PORT}" "${GATEWAY_CONTROL_PORT}" "${GATEWAY_SSH_PORT}" "${POSTGRES_HOST_PORT}")"
   CONTROLD_POSTGRES_DSN="${CONTROLD_POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_HOST_PORT}/${POSTGRES_DB}?sslmode=disable}"
 }
 
@@ -204,8 +207,8 @@ dump_node_control_plane_route() {
           -connect "host.docker.internal:${AXERN_E2E_CONTROL_PLANE_PORT}" \
           -servername host.docker.internal \
           -CAfile /shared/certs/ca.crt \
-          -cert /shared/certs/node.crt \
-          -key /shared/certs/node.key \
+          -cert /var/lib/axnoded/root/identity/node.pem \
+          -key /var/lib/axnoded/root/identity/node.pem \
           -verify_return_error \
           -verify_hostname host.docker.internal \
           -brief </dev/null

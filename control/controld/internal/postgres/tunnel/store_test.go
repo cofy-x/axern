@@ -2,6 +2,7 @@ package pgtunnel
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -9,6 +10,7 @@ import (
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
@@ -42,6 +44,27 @@ func TestCreateAllocatesRemotePort(t *testing.T) {
 	}
 	if got := result.Session.GetRemotePort(); got < autoPortMin || got > autoPortMax {
 		t.Fatalf("auto remote port = %d, want %d..%d", got, autoPortMin, autoPortMax)
+	}
+}
+
+func TestTunnelAuthorizationNamespaceComesFromAllocationRun(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-auth", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{AllocationID: "alloc-auth", Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	access := pgaccess.NewStore(db)
+	for resource, id := range map[string]string{"tunnel": result.Session.GetSessionID(), "allocation": "alloc-auth", "run": "run-test"} {
+		namespace, err := access.ResolveResourceNamespace(context.Background(), resource, id)
+		if err != nil || namespace != "default" {
+			t.Fatalf("resolve %s namespace = %q, %v", resource, namespace, err)
+		}
+	}
+	if _, err := access.ResolveResourceNamespace(context.Background(), "tunnel", "missing"); !errors.Is(err, accesskernel.ErrNotFound) {
+		t.Fatalf("missing tunnel = %v, want not found", err)
 	}
 }
 
@@ -529,7 +552,7 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (
-			node_id, node_target, admitted_at, last_heartbeat_at, node_credential_hash, lifecycle_status
+			node_id, node_target, admitted_at, last_heartbeat_at, enrollment_token_hash, lifecycle_status
 		) VALUES ('node-test', '127.0.0.1:25000', $1, $1, repeat('0', 64), 'active')
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert node: %v", err)

@@ -15,7 +15,7 @@ import (
 )
 
 type AccessGrantIssuer interface {
-	IssueAllocationAccessGrant(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
+	IssueAllocationAccessGrant(ctx context.Context, allocationID string, purpose gatewayv1.AllocationAccessPurpose, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
 }
 
 type RouteReader interface {
@@ -23,11 +23,12 @@ type RouteReader interface {
 }
 
 type Allocation struct {
-	AllocationID   string
-	RunID          string
-	NodeID         string
-	NodeTarget     string
-	LifecycleState commonv1.AllocationLifecycleState
+	OutputExpiresAt *time.Time
+	AllocationID    string
+	RunID           string
+	NodeID          string
+	NodeTarget      string
+	LifecycleState  commonv1.AllocationLifecycleState
 }
 
 type Resolver struct {
@@ -59,11 +60,14 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation access purpose is invalid")
 	}
 	terminalRunOutput := purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT &&
-		allocationkernel.IsCleanupState(alloc.LifecycleState)
+		allocationkernel.IsCleanupState(alloc.LifecycleState) && alloc.OutputExpiresAt != nil && now.Before(*alloc.OutputExpiresAt)
 	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE && !terminalRunOutput {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 	}
-	grant, err := r.accessGrants.IssueAllocationAccessGrant(ctx, alloc.AllocationID, ttl, now)
+	if terminalRunOutput && (ttl <= 0 || now.Add(ttl).After(*alloc.OutputExpiresAt)) {
+		ttl = alloc.OutputExpiresAt.Sub(now)
+	}
+	grant, err := r.accessGrants.IssueAllocationAccessGrant(ctx, alloc.AllocationID, purpose, ttl, now)
 	if err != nil {
 		return nil, err
 	}

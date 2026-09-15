@@ -2,6 +2,7 @@ package runkernel
 
 import (
 	"context"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"time"
 
 	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
@@ -61,7 +62,7 @@ type AdmitRunParams struct {
 }
 
 type AccessGrantStore interface {
-	IssueAllocationAccessGrant(ctx context.Context, allocationID string, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
+	IssueAllocationAccessGrant(ctx context.Context, allocationID string, purpose gatewayv1.AllocationAccessPurpose, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
 	WatchAllocationAccessGrants(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*accessgrantkernel.Record, int64, error)
 }
 

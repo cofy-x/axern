@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"io"
 	"testing"
 	"time"
@@ -53,6 +55,9 @@ type fakeNodeSandboxService struct {
 	controlPlaneIDs         map[string]bool
 }
 
+func (f *fakeNodeSandboxService) ReadAllocationOutput(ctx context.Context, id, cursor string) ([]allocationoutput.Chunk, bool, error) {
+	return allocationoutput.New(f).Read(ctx, id, cursor)
+}
 func allocationAccessIncomingContext(parent context.Context, token string) context.Context {
 	return metadata.NewIncomingContext(parent, metadata.Pairs(accessGrantTokenMetadataKey, token))
 }
@@ -387,7 +392,7 @@ func TestNodeSandboxExecBridgesRequest(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 
 	resp, err := server.Exec(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -451,7 +456,7 @@ func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 			return stream.Send(&runtimev1.ProcessResponse{Payload: &runtimev1.ProcessResponse_Exit{Exit: &runtimev1.ExecExit{ExitCode: 0}}})
 		},
 	}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 	stream := &fakeNodeSandboxProcessStream{
 		ctx: allocationAccessIncomingContext(context.Background(), "lease-token"),
 		requests: []*nodesandboxv1.ProcessRequest{
@@ -477,7 +482,7 @@ func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 	upload := &fakeNodeSandboxUploadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Open{Open: &nodesandboxv1.UploadArchiveOpen{
 			AllocationID: "alloc-123", Path: "/workspace",
@@ -519,7 +524,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 
 	statResp, err := server.StatFile(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.StatFileRequest{
 		AllocationID: "alloc-123",
@@ -667,7 +672,7 @@ func TestNodeSandboxArchiveBridgesRequests(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 
 	uploadStream := &fakeNodeSandboxUploadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
 		{
@@ -714,7 +719,7 @@ func TestNodeSandboxCapabilityStatusBridgesSafeSummary(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 
 	resp, err := server.CapabilityStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.CapabilityStatusRequest{
 		AllocationID: "alloc-123",
@@ -751,7 +756,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 	statusResp, err := server.ComputerUseStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseStatusRequest{
 		AllocationID: "alloc-123",
 	})
@@ -815,7 +820,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 func TestNodeSandboxUploadArchiveRequiresOpenFrame(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a")
+	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	err := server.UploadArchive(&fakeNodeSandboxUploadArchiveStream{requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Chunk{Chunk: []byte("archive")}},
 	}})
@@ -828,7 +833,7 @@ func TestNodeSandboxUploadArchiveRequiresOpenFrame(t *testing.T) {
 func TestNodeSandboxUploadArchiveRequiresNonEmptyStream(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a")
+	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	err := server.UploadArchive(&fakeNodeSandboxUploadArchiveStream{})
 
 	if grpcstatus.Code(err) != codes.InvalidArgument {
@@ -839,7 +844,7 @@ func TestNodeSandboxUploadArchiveRequiresNonEmptyStream(t *testing.T) {
 func TestNodeSandboxUploadArchiveDoesNotAcknowledgeRejectedLease(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a")
+	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	stream := &fakeNodeSandboxUploadArchiveStream{requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Open{Open: &nodesandboxv1.UploadArchiveOpen{
 			AllocationID: "alloc-123", Path: "/workspace",
@@ -861,7 +866,7 @@ func TestNodeSandboxExecRequiresAllocationLease(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
+	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
 
 	_, err := server.Exec(context.Background(), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -875,7 +880,7 @@ func TestNodeSandboxExecRequiresAllocationLease(t *testing.T) {
 func TestNodeSandboxExecRejectsAmbiguousLeaseMetadata(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a")
+	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
 		accessGrantTokenMetadataKey, "grant-one",
 		accessGrantTokenMetadataKey, "grant-two",
@@ -895,7 +900,7 @@ func TestNodeSandboxExecAcceptsAccessGrantCacheTokenHash(t *testing.T) {
 	token := "access-token"
 	sum := sha256.Sum256([]byte(token))
 	cache := controlplane.NewAccessGrantCache()
-	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		GrantID:             "grant-123",
 		AllocationID:        "alloc-123",
 		ValidationTokenHash: hex.EncodeToString(sum[:]),
@@ -919,7 +924,7 @@ func TestNodeSandboxExecRejectsRevokedAccessGrantFromCache(t *testing.T) {
 	token := "access-token"
 	sum := sha256.Sum256([]byte(token))
 	cache := controlplane.NewAccessGrantCache()
-	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		AllocationID:        "alloc-123",
 		ValidationTokenHash: hex.EncodeToString(sum[:]),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
@@ -934,5 +939,19 @@ func TestNodeSandboxExecRejectsRevokedAccessGrantFromCache(t *testing.T) {
 	})
 	if grpcstatus.Code(err) != codes.Unauthenticated {
 		t.Fatalf("Exec() error code = %v, want %v", grpcstatus.Code(err), codes.Unauthenticated)
+	}
+}
+
+type testAccessGrantValidator struct{}
+
+func (testAccessGrantValidator) WaitValidate(context.Context, string, string, gatewayv1.AllocationAccessPurpose, func() time.Time) (bool, bool) {
+	return true, false
+}
+
+func TestProductionSandboxRejectsMissingGrantValidator(t *testing.T) {
+	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", nil).(*nodeSandboxServer)
+	_, err := server.validateDirectAuth(allocationAccessIncomingContext(context.Background(), "token"), "allocation-one")
+	if grpcstatus.Code(err) != codes.Unauthenticated {
+		t.Fatalf("missing validator allowed access: %v", err)
 	}
 }

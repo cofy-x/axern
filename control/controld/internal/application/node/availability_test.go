@@ -90,7 +90,7 @@ func (f *fakeAvailabilityNodeStore) Report(context.Context, nodekernel.ReportPar
 	panic("unexpected Report call")
 }
 
-func (f *fakeAvailabilityNodeStore) Authenticate(context.Context, string, string) error {
+func (f *fakeAvailabilityNodeStore) RequireActive(context.Context, string) error {
 	panic("unexpected Authenticate call")
 }
 

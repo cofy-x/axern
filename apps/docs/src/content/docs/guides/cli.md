@@ -20,7 +20,7 @@ For a local machine, the recommended path creates and manages the context for yo
 axern local up
 ```
 
-For a Helm installation, keep a gateway port-forward open and import the chart-generated mTLS identity. SSH is optional and disabled by the default chart values, so the basic CLI path only needs the control port:
+For a Helm installation, keep a gateway port-forward open and import the deployment-owned administrator mTLS identity. SSH is optional and disabled by the default chart values, so the basic CLI path only needs the control port:
 
 ```bash
 kubectl --namespace axern-system port-forward svc/gatewayd 25100:25000

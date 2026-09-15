@@ -30,11 +30,11 @@ type App struct {
 }
 
 func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, error) {
-	controlClient, err := controlplane.Dial(ctx, cfg.ControlTarget, cfg.TLSCACert, cfg.TLSCert, cfg.TLSKey, cfg.ControlDialTimeout, obs.GRPCDialOptions()...)
+	controlClient, err := controlplane.Dial(ctx, cfg.ControlTarget, cfg.TLSCACert, cfg.WorkloadBundle, cfg.WorkloadCluster, cfg.ControlDialTimeout, obs.GRPCDialOptions()...)
 	if err != nil {
 		return nil, err
 	}
-	nodes, err := nodebridge.NewDialer(cfg.NodeTLSCACert, cfg.NodeTLSCert, cfg.NodeTLSKey, cfg.NodeTLSServerName, obs)
+	nodes, err := nodebridge.NewDialer(cfg.TLSCACert, cfg.WorkloadBundle, cfg.WorkloadCluster, obs)
 	if err != nil {
 		_ = controlClient.Close()
 		return nil, err

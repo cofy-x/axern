@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"testing"
 	"time"
 
@@ -415,7 +416,10 @@ func TestPostgresRunKernelCancelRevokesAccessGrantAndReleasesAllocationResources
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
-	grantResp, err := app.runStore.IssueAllocationAccessGrant(context.Background(), runResp.GetRun().GetAllocationID(), 30*time.Second, now)
+	if _, err := app.db.Pool().Exec(context.Background(), "UPDATE allocations SET lifecycle_state = 'ALLOCATION_LIFECYCLE_STATE_ACTIVE' WHERE allocation_id = $1", runResp.GetRun().GetAllocationID()); err != nil {
+		t.Fatal(err)
+	}
+	grantResp, err := app.runStore.IssueAllocationAccessGrant(context.Background(), runResp.GetRun().GetAllocationID(), gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, 30*time.Second, now)
 	if err != nil {
 		t.Fatalf("IssueAllocationAccessGrant() error = %v", err)
 	}
@@ -500,10 +504,9 @@ func TestPostgresRunStartingAllocationInActiveInventoryDoesNotFail(t *testing.T)
 	summary.Components.Axnoded.RunningAllocationIds = nil
 	summary.Components.Axnoded.ActiveAllocationIds = []string{runResp.GetRun().GetAllocationID()}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:         "node-a",
-		NodeTarget:     "127.0.0.1:25000",
-		NodeCredential: testNodeCredential,
-		Summary:        summary,
+		NodeID:     "node-a",
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    summary,
 	}); err != nil {
 		t.Fatalf("ReportNode(starting inventory) error = %v", err)
 	}

@@ -4,6 +4,8 @@ This chart is the deployment entrypoint for running Axern on Kubernetes. It supp
 
 ## Render And Install
 
+Provision identity material first with `axern admin pki bootstrap` and create `pki.secretName` and the separate control-only `pki.signerSecretName`. The [Kubernetes install guide](../../../apps/docs/src/content/docs/getting-started/kubernetes.md) gives the release-only commands. Source deployments can use `make helm-pki-bootstrap` before `make helm-install`. The chart never generates or shares Node private keys.
+
 Released charts are published to GHCR as OCI artifacts:
 
 ```bash
@@ -11,7 +13,8 @@ helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --version 0.6.2 \
   --namespace axern-system \
   --create-namespace \
-  --set-string node.credential.existingSecret=axern-node-credentials \
+  --set-string node.enrollment.existingSecret=axern-enrollment-tokens \
+  --set-json 'node.enrollment.nodes=["worker-a","worker-b"]' \
   --set-string node.memorySystemReserveBytes=<qualified-bytes>
 ```
 
@@ -43,9 +46,9 @@ Set the chart's `global.imagePullSecrets` value to the corresponding `AXERN_REGI
 
 When `secrets.existingSecret` is configured, it must contain `AXERN_SECRETS_MASTER_KEY` and `GATEWAYD_DEV_TOKEN`. When `postgres.existingSecret` is configured, it must contain the keys selected by `postgres.passwordKey` and `postgres.dsnKey`.
 
-Gatewayd uses its dedicated `gatewayd.crt` identity for controld calls. When `pki.existingSecret` is used, its `gatewayd.crt` must have both `serverAuth` and `clientAuth` extended key usages and the verified subject identity `gatewayd`; the chart-generated certificate already has that shape. Configure the initial administrator metadata under `auth.bootstrap`. Changing those values after initialization does not rotate identity material: use AccessAdmin credential and role-binding operations through gatewayd instead.
+Gatewayd uses its dedicated URI identity from `gatewayd.pem`. Workloads mount only their role bundle and public trust; only controld mounts the separate signing Secret. All services share `pki.trustDomain`. Initial administrator metadata is configured under `auth.bootstrap`; later administrator credential changes use AccessAdmin, not service renewal.
 
-Every runtime node must be admitted before it may publish observations. Set `node.credential.existingSecret` to a Secret containing one random credential per Axern Node ID, with each data key equal to that ID such as `node-worker-a`. Admit the same IDs and credentials through `axern admin node admit` before starting the runtime DaemonSet. The node's reachable target is learned only from its authenticated report. The chart neither derives predictable credentials nor lets a heartbeat create identity. Credential rotation requires a new Node ID; retirement is irreversible.
+Every Node must be admitted before it reports observations. Set `node.enrollment.nodes` to the explicit Kubernetes Node names. The chart renders one pinned DaemonSet per name and projects only that Node's token key; no runtime pod receives the full token Secret. Deployment-label hashes only disambiguate Kubernetes object names and never authorize Node identity. `node.enrollment.existingSecret` contains one random token per Node ID, with matching data keys. Admit IDs using `axern admin node admit --enrollment-token-file`. Within one hour of admission the node registers one locally generated key; exact CSR retries recover the committed reply and a different CSR is rejected. Certificates renew automatically without changing Node ID. Retirement is irreversible; expired or lost Node identity requires operator recovery, never silent token reuse.
 
 ## Node Resources
 

@@ -39,6 +39,7 @@ func candidateTerminalRuns(ctx context.Context, tx pgx.Tx, req terminalRunRetent
 		JOIN allocations a ON a.run_id = r.run_id
 		WHERE r.updated_at < $1
 		  AND a.lifecycle_state = 'ALLOCATION_LIFECYCLE_STATE_RELEASED'
+		  AND (a.output_expires_at IS NULL OR a.output_expires_at <= $3)
 		  AND r.status IN (
 			'RUN_STATUS_SUCCEEDED',
 			'RUN_STATUS_FAILED',

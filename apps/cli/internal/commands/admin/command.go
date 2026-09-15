@@ -15,23 +15,23 @@ import (
 
 func Command(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "admin", Short: "Operate audited administrative workflows"}
-	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), allocationRetryCommand(runtime))
+	root.AddCommand(pkiCommand(), principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), allocationRetryCommand(runtime))
 	return root
 }
 
 func nodeCommand(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "node", Short: "Admit, inspect, and retire runtime nodes"}
-	var credentialFile, admitReason string
+	var enrollmentTokenFile, admitReason string
 	admit := &cobra.Command{Use: "admit <node-id>", Short: "Admit a node identity before it may publish observations", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if strings.TrimSpace(credentialFile) == "" {
-			return command.Usage(fmt.Errorf("--credential-file is required"))
+		if strings.TrimSpace(enrollmentTokenFile) == "" {
+			return command.Usage(fmt.Errorf("--enrollment-token-file is required"))
 		}
 		if err := appadmin.ValidateOperatorReason(admitReason); err != nil {
 			return command.Usage(err)
 		}
-		credential, err := os.ReadFile(credentialFile)
+		credential, err := os.ReadFile(enrollmentTokenFile)
 		if err != nil {
-			return fmt.Errorf("read node credential: %w", err)
+			return fmt.Errorf("read Node enrollment token: %w", err)
 		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
@@ -48,7 +48,7 @@ func nodeCommand(runtime command.Runtime) *cobra.Command {
 		output.RenderAdminNode(cmd.OutOrStdout(), resp.GetNode())
 		return nil
 	}}
-	admit.Flags().StringVar(&credentialFile, "credential-file", "", "file containing the node credential")
+	admit.Flags().StringVar(&enrollmentTokenFile, "enrollment-token-file", "", "file containing the one-time Node enrollment token")
 	admit.Flags().StringVar(&admitReason, "operator-reason", "", "audit reason")
 	var lifecycle string
 	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {

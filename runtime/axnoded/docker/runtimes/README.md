@@ -36,3 +36,5 @@ Required commands unless replaced by sandboxd command hooks:
 The provider status endpoint reports dependency checks for display env, screenshot backend, display backend, input backend, and display server readiness. Generic images without the contract continue to run normally; they simply do not advertise the optional `computer_use` capability.
 
 `desktop-base` installs a pinned Python Playwright release and Playwright-managed Chromium instead of Ubuntu's snap-backed browser packages. These are workload dependencies, not an Axern-managed browser provider: callers start, drive, and stop browser processes through their own code, process APIs, or Computer Use.
+
+The build helper accepts `PLAYWRIGHT_DOWNLOAD_HOST` for an operator-selected browser artifact mirror. It is a build argument only, not runtime configuration; leaving it empty uses Playwright's official download sources. Regional workspaces should supply the mirror through their existing accelerated build entrypoint.

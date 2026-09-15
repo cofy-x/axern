@@ -21,6 +21,14 @@ spec:
             - configMapRef:
                 name: local-proxy-env
           args:
+            - -workload-bundle
+            - /certs/controld.pem
+            - -workload-cluster
+            - axern.local
+            - -workload-signer-bundle
+            - /signer/signer.pem
+            - -enrollment-address
+            - 0.0.0.0:24002
             - -grpc-address
             - 0.0.0.0:24000
             - -http-address
@@ -33,10 +41,6 @@ spec:
             - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/controld.crt
-            - -tls-key
-            - /certs/controld.key
           env:
             - name: AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE
               value: axern/python311-runtime:dev
@@ -57,6 +61,9 @@ spec:
             - containerPort: 24000
             - containerPort: 24001
           volumeMounts:
+            - name: signer
+              mountPath: /signer
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -67,9 +74,21 @@ spec:
             initialDelaySeconds: 2
             periodSeconds: 2
       volumes:
+        - name: signer
+          secret:
+            secretName: axern-pki-signer
+            defaultMode: 384
         - name: certs
           secret:
             secretName: controld-pki
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: controld.pem
+                path: controld.pem
+              - key: client.crt
+                path: client.crt
 ---
 apiVersion: v1
 kind: Service
@@ -80,6 +99,9 @@ spec:
   selector:
     app: controld
   ports:
+    - name: enrollment
+      port: 24002
+      targetPort: 24002
     - name: grpc
       port: 24000
       targetPort: 24000

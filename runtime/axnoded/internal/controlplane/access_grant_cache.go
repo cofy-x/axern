@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"io"
 	"strings"
 	"sync"
@@ -48,7 +49,7 @@ func (c *AccessGrantCache) Apply(grants []*nodev1.NodeAllocationAccessGrant) {
 	}
 	applied := false
 	for _, grant := range grants {
-		if grant == nil || strings.TrimSpace(grant.GetAllocationID()) == "" {
+		if grant == nil || strings.TrimSpace(grant.GetAllocationID()) == "" || grant.GetRevision() <= 0 {
 			continue
 		}
 		tokenHash := strings.ToLower(strings.TrimSpace(grant.GetValidationTokenHash()))
@@ -56,6 +57,9 @@ func (c *AccessGrantCache) Apply(grants []*nodev1.NodeAllocationAccessGrant) {
 			continue
 		}
 		grantID := strings.TrimSpace(grant.GetGrantID())
+		if previous := c.byToken[c.byGrant[grantID]]; previous != nil && previous.GetRevision() >= grant.GetRevision() {
+			continue
+		}
 		if previous := c.byGrant[grantID]; grantID != "" && previous != "" && previous != tokenHash {
 			delete(c.byToken, previous)
 		}
@@ -72,11 +76,11 @@ func (c *AccessGrantCache) Apply(grants []*nodev1.NodeAllocationAccessGrant) {
 }
 
 func (c *AccessGrantCache) Validate(allocationID string, token string, now time.Time) bool {
-	valid, _ := c.validationState(allocationID, token, now)
+	valid, _ := c.validationState(allocationID, token, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, now)
 	return valid
 }
 
-func (c *AccessGrantCache) validationState(allocationID string, token string, now time.Time) (valid, known bool) {
+func (c *AccessGrantCache) validationState(allocationID string, token string, purpose gatewayv1.AllocationAccessPurpose, now time.Time) (valid, known bool) {
 	if c == nil || strings.TrimSpace(allocationID) == "" || strings.TrimSpace(token) == "" {
 		return false, false
 	}
@@ -87,23 +91,23 @@ func (c *AccessGrantCache) validationState(allocationID string, token string, no
 	if !known || grant == nil || grant.GetAllocationID() != strings.TrimSpace(allocationID) {
 		return false, false
 	}
-	return !grant.GetRevoked() && grant.GetExpiresAt() != nil && grant.GetExpiresAt().AsTime().After(now), true
+	return grant.GetPurpose() == purpose && !grant.GetRevoked() && grant.GetExpiresAt() != nil && grant.GetExpiresAt().AsTime().After(now), true
 }
 
-func (c *AccessGrantCache) WaitValidate(ctx context.Context, allocationID string, token string, now func() time.Time) (bool, bool) {
+func (c *AccessGrantCache) WaitValidate(ctx context.Context, allocationID string, token string, purpose gatewayv1.AllocationAccessPurpose, now func() time.Time) (bool, bool) {
 	if c == nil || now == nil {
 		return false, false
 	}
 	waited := false
 	for {
-		valid, known := c.validationState(allocationID, token, now())
+		valid, known := c.validationState(allocationID, token, purpose, now())
 		if valid || known {
 			return valid, waited
 		}
 		c.mu.RLock()
 		changed := c.changed
 		c.mu.RUnlock()
-		valid, known = c.validationState(allocationID, token, now())
+		valid, known = c.validationState(allocationID, token, purpose, now())
 		if valid || known {
 			return valid, waited
 		}
@@ -117,16 +121,12 @@ func (c *AccessGrantCache) WaitValidate(ctx context.Context, allocationID string
 }
 
 type AccessGrantWatcher struct {
-	target         string
-	nodeID         string
-	nodeCredential string
-	cache          *AccessGrantCache
-	control        NodeControlClientProvider
-	tlsCACert      string
-	tlsCert        string
-	tlsKey         string
-	ctx            context.Context
-	cancel         context.CancelFunc
+	target  string
+	nodeID  string
+	cache   *AccessGrantCache
+	control NodeControlClientProvider
+	ctx     context.Context
+	cancel  context.CancelFunc
 
 	stopCh    chan struct{}
 	stopOnce  sync.Once
@@ -142,19 +142,14 @@ func WithAccessGrantWatcherTarget(target string) AccessGrantWatcherOption {
 	}
 }
 
-func WithAccessGrantWatcherNode(nodeID, nodeCredential string) AccessGrantWatcherOption {
+func WithAccessGrantWatcherNode(nodeID string) AccessGrantWatcherOption {
 	return func(w *AccessGrantWatcher) {
 		w.nodeID = strings.TrimSpace(nodeID)
-		w.nodeCredential = strings.TrimSpace(nodeCredential)
 	}
 }
 
-func WithAccessGrantWatcherTLS(caCert, cert, key string) AccessGrantWatcherOption {
-	return func(w *AccessGrantWatcher) {
-		w.tlsCACert = caCert
-		w.tlsCert = cert
-		w.tlsKey = key
-	}
+func WithAccessGrantWatcherControl(control NodeControlClientProvider) AccessGrantWatcherOption {
+	return func(w *AccessGrantWatcher) { w.control = control }
 }
 
 func WithAccessGrantWatcherCache(cache *AccessGrantCache) AccessGrantWatcherOption {
@@ -175,18 +170,9 @@ func NewAccessGrantWatcher(options ...AccessGrantWatcherOption) *AccessGrantWatc
 			option(w)
 		}
 	}
-	if w.target == "" || w.nodeID == "" || w.nodeCredential == "" || w.cache == nil {
+	if w.target == "" || w.nodeID == "" || w.control == nil || w.cache == nil {
 		cancel()
 		return nil
-	}
-	if w.control == nil {
-		control, err := newNodeControlClientProvider(w.target, w.tlsCACert, w.tlsCert, w.tlsKey)
-		if err != nil {
-			cancel()
-			logrus.WithError(err).Warn("control-plane allocation access grant watcher disabled")
-			return nil
-		}
-		w.control = control
 	}
 	return w
 }
@@ -207,7 +193,8 @@ func (w *AccessGrantWatcher) Start() {
 						return
 					}
 					logrus.WithError(err).Warn("control-plane allocation access grant watch failed")
-				} else if next > revision {
+				}
+				if next > revision {
 					revision = next
 				}
 				select {
@@ -242,9 +229,8 @@ func (w *AccessGrantWatcher) watchOnce(afterRevision int64) (int64, error) {
 		return afterRevision, err
 	}
 	stream, err := client.WatchAllocationAccessGrants(w.ctx, &nodev1.WatchAllocationAccessGrantsRequest{
-		NodeID:         w.nodeID,
-		AfterRevision:  afterRevision,
-		NodeCredential: w.nodeCredential,
+		NodeID:        w.nodeID,
+		AfterRevision: afterRevision,
 	})
 	if err != nil {
 		return afterRevision, err

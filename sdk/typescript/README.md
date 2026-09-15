@@ -151,3 +151,7 @@ The SDK loads protobuf definitions through `@grpc/proto-loader`. Dynamic proto a
 ## Scope
 
 This SDK is Node.js-first. Browser automation runs as caller-owned workload software through process and Computer Use operations; generated TypeScript proto stubs and full control-plane administration APIs remain outside its public contract.
+
+## Run Output Retention
+
+Run output reads expose Allocation-local stdout/stderr after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. The combined readable limit is 64 MiB, with an explicit truncation signal. Node-process restart preserves sealed output; node-disk loss does not. Ordinary writable files still require explicit download before termination. No durable output object or persistent workspace is created.

@@ -23,6 +23,9 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	if run.GetAllocationID() != "" {
 		fmt.Fprintf(w, "Allocation ID: %s\n", run.GetAllocationID())
 	}
+	if expiry := run.GetOutputExpiresAt(); expiry != nil {
+		fmt.Fprintf(w, "Output Expires At: %s\n", FormatProtoTimestamp(expiry))
+	}
 	if len(run.GetConfig().GetArgv()) > 0 {
 		fmt.Fprintf(w, "Argv: %v\n", run.GetConfig().GetArgv())
 	}

@@ -123,11 +123,15 @@ Reservation is not an independent domain object or table. Immutable CPU, sandbox
 
 A failed or timed-out delete RPC is not evidence that resources are free. The charge stops only after confirmed node cleanup moves the Allocation to `RELEASED`; committing a terminal Run result alone is insufficient.
 
+### Node Transport Identity
+
+Node admission and irreversible retirement belong to the Node row. A one-hour enrollment token authorizes exactly one CSR, with a bounded transaction receipt for retry recovery. Node keys originate on the node and certificates renew under the exact Node URI; certificates do not create a second Node lifecycle. Normal NodeControl RPCs use verified URI identity plus current admission, never bootstrap tokens, CN, DNS aliases, or OCI metadata. Execution authority remains Allocation-scoped and finite even when certificate renewal is unavailable.
+
 ### ExecutionLease
 
 ExecutionLease is finite liveness authority for exactly one Allocation on its bound Node. Each successful authenticated node heartbeat returns the complete currently authorized Allocation set and a TTL. Axnoded measures the deadline from its local receipt clock, persists it with the sole Allocation recovery record, and stops an omitted or expired Allocation fail-closed. There is no separate control-plane lease table, generation, or revision.
 
-`AllocationAccessGrant` is separate short-lived data-plane authority. PostgreSQL stores its token hash, Allocation ID, Node ID, expiry, revocation and delivery revision; plaintext is returned only to gatewayd. The node watches hash-only grants and acknowledges a grant before consuming input or producing output. Public SDKs receive neither mechanism, and authority for one Allocation never authorizes another.
+`AllocationAccessGrant` is separate short-lived data-plane authority. PostgreSQL stores its token hash, Allocation ID, Node ID, exact operation purpose, expiry, revocation and per-Node delivery revision; plaintext is returned only to gatewayd. The node watches hash-only grants and acknowledges a grant before consuming input or producing output. Public SDKs receive neither mechanism, and authority for one Allocation never authorizes another.
 
 ### TunnelSession
 
@@ -176,7 +180,7 @@ Closing a Sandbox terminates or cancels its Run according to the SDK contract, r
 
 Run result is durable control-plane metadata: terminal status, exit-code knowledge, failure classification, message, and usage. It does not make stdout, stderr, or sandbox files durable.
 
-Stdout, stderr, and files remain owned by the Allocation and are readable only while its node-local output state exists. Callers must stream or download required bytes before Allocation cleanup, then persist them in an upper-layer evaluation, training, or dataset system if needed.
+Stdout and stderr remain Allocation-local. When infrastructure cleanup begins, the control-plane transaction freezes `output_expires_at` at 15 minutes after that transition. Before deleting live logs, the node seals a bounded read-only snapshot; output reads survive runtime cleanup and node-process restart until that deadline, but not node-disk loss. The API delivers at most 64 MiB combined, with an explicit truncation signal; snapshot storage keeps at most 64 MiB plus one byte per stream to preserve existing cursors. Output-only access cannot execute processes or modify files. Ordinary writable files must be explicitly downloaded or archived before Allocation cleanup; durable publication belongs to the caller.
 
 Axern does not define a generic public Artifact root object or imply an object-storage backend. Large stdout, files, and object bytes do not belong in PostgreSQL; PostgreSQL stores only Run result metadata.
 
@@ -239,7 +243,7 @@ Every implementation must preserve these invariants:
 2. Run is the only owner of user execution intent and terminal result.
 3. Allocation IDs are globally unique and never reused; reports, operations, and cleanup for one ID cannot mutate another Allocation.
 4. Allocation resource charge is not released before execution and required cleanup are confirmed complete.
-5. ExecutionLease, AllocationAccessGrant, SSH, and Tunnel authority ends with the owning Allocation.
+5. ExecutionLease, interactive AllocationAccessGrant, SSH, and Tunnel authority ends with the owning Allocation. Output-only grants can read the bounded retained logs until `output_expires_at`; they never authorize execution.
 6. Missing isolation, capability, network, mount, or resource enforcement fails closed.
 7. Node-local files and stdout are not described as durable without explicit delivery.
 8. Control-plane restart, node restart, and network partition cannot create two authoritative owners.

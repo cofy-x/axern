@@ -93,6 +93,7 @@ func loadActiveAccessGrantIssues(ctx context.Context, q queryer, now time.Time, 
 		WHERE ag.revoked = FALSE
 		  AND ag.expires_at > $2
 		  AND a.lifecycle_state = ANY($1::text[])
+          AND NOT (ag.purpose = 'ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT' AND a.output_expires_at > $2 AND ag.expires_at <= a.output_expires_at)
 		ORDER BY ag.created_at ASC, ag.allocation_id ASC
 		LIMIT $3
 	`, terminalAllocationLifecycleStates(), now.UTC(), limit+1)

@@ -2,8 +2,6 @@ package controldtest
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"sync"
 	"time"
 
@@ -18,19 +16,17 @@ import (
 )
 
 type MemoryNodeStore struct {
-	mu               sync.Mutex
-	records          map[string]*nodekernel.Record
-	credentialHashes map[string]string
+	mu      sync.Mutex
+	records map[string]*nodekernel.Record
 }
 
 func NewMemoryNodeStore() *MemoryNodeStore {
-	return &MemoryNodeStore{records: map[string]*nodekernel.Record{}, credentialHashes: map[string]string{}}
+	return &MemoryNodeStore{records: map[string]*nodekernel.Record{}}
 }
 
-func (s *MemoryNodeStore) Admit(nodeID, nodeCredential string, now time.Time) {
+func (s *MemoryNodeStore) Admit(nodeID string, now time.Time) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.credentialHashes[nodeID] = hashNodeCredential(nodeCredential)
 	s.records[nodeID] = &nodekernel.Record{
 		NodeID: nodeID, Lifecycle: nodekernel.LifecycleActive, AdmittedAt: now,
 	}
@@ -40,7 +36,7 @@ func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportPa
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.checkCredentialLocked(params.NodeID, params.NodeCredential); err != nil {
+	if err := s.requireActiveLocked(params.NodeID); err != nil {
 		return nil, err
 	}
 	record := s.records[params.NodeID]
@@ -53,28 +49,18 @@ func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportPa
 	return cloneNodeRecord(record), nil
 }
 
-func (s *MemoryNodeStore) Authenticate(ctx context.Context, nodeID, nodeCredential string) error {
-	_ = ctx
+func (s *MemoryNodeStore) RequireActive(_ context.Context, nodeID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.credentialHashes[nodeID] == "" || nodeCredential == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node credential is required")
-	}
-	if s.credentialHashes[nodeID] != hashNodeCredential(nodeCredential) {
-		return grpcstatus.Error(codes.PermissionDenied, "invalid node credential")
-	}
-	return nil
+	return s.requireActiveLocked(nodeID)
 }
-
-func (s *MemoryNodeStore) checkCredentialLocked(nodeID, nodeCredential string) error {
-	if nodeCredential == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node credential is required")
+func (s *MemoryNodeStore) requireActiveLocked(nodeID string) error {
+	record := s.records[nodeID]
+	if record == nil {
+		return grpcstatus.Error(codes.PermissionDenied, "Node has not been admitted")
 	}
-	if s.credentialHashes[nodeID] == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node identity has not been admitted")
-	}
-	if s.credentialHashes[nodeID] != hashNodeCredential(nodeCredential) {
-		return grpcstatus.Error(codes.PermissionDenied, "invalid node credential")
+	if record.Lifecycle != nodekernel.LifecycleActive {
+		return grpcstatus.Error(codes.FailedPrecondition, "Node is retired")
 	}
 	return nil
 }
@@ -88,11 +74,6 @@ func (s *MemoryNodeStore) Load(ctx context.Context) ([]*nodekernel.Record, error
 		out = append(out, cloneNodeRecord(record))
 	}
 	return out, nil
-}
-
-func hashNodeCredential(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
 }
 
 func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {

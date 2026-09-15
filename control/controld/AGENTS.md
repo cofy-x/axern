@@ -20,6 +20,8 @@
 - Keep debug HTTP read-only. Durable retry operations and audit/reliability models belong to the admin application and Postgres boundaries.
 - The implementation follows the [Stable Domain Model](../../docs/product/domain-model.md); writable files and output bytes remain Allocation-local and Axern defines no generic Artifact root.
 
+- Node enrollment signs one CSR under the admitted Node row lock; normal NodeControl requires exact URI identity and current admission, never enrollment tokens. Keep signing material control-only.
+
 ## Validation
 
 - Run `make -C control/controld test`, `make -C control/controld vet`, `make -C control/controld check-architecture`, and `test -z "$(gofmt -l control/controld)"`.

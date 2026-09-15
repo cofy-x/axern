@@ -19,11 +19,10 @@ import (
 )
 
 type nodeUpsertParams struct {
-	NodeID         string
-	NodeTarget     string
-	Summary        *nodev1.NodeSummary
-	NodeCredential string
-	Now            time.Time
+	NodeID     string
+	NodeTarget string
+	Summary    *nodev1.NodeSummary
+	Now        time.Time
 }
 
 const maxNodeObservationInstanceIDBytes = 128
@@ -35,29 +34,22 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 			return nil, err
 		}
 	}
-	nodeCredential := strings.TrimSpace(params.NodeCredential)
-	if nodeCredential == "" {
-		return nil, grpcstatus.Error(codes.PermissionDenied, "node credential is required")
-	}
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin node tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	var existingHash, lifecycle string
-	err = tx.QueryRow(ctx, `SELECT node_credential_hash, lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&existingHash, &lifecycle)
+	var lifecycle string
+	err = tx.QueryRow(ctx, `SELECT lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&lifecycle)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "node identity has not been admitted")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("load node credential: %w", err)
+		return nil, fmt.Errorf("load Node admission: %w", err)
 	}
 	if lifecycle == string(nodekernel.LifecycleRetired) {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "node is retired")
-	}
-	if existingHash == "" || !nodeCredentialHashMatches(existingHash, nodeCredential) {
-		return nil, grpcstatus.Error(codes.PermissionDenied, "invalid node credential")
 	}
 
 	if _, err := tx.Exec(ctx, `

@@ -23,24 +23,26 @@ type LifecycleClient interface {
 
 const idempotentRPCAttempts = 2
 
+type nodeEndpoint struct{ target, nodeID string }
+
 type GRPCClient struct {
 	mu    sync.Mutex
-	conns map[string]*grpc.ClientConn
-	creds credentials.TransportCredentials
+	conns map[nodeEndpoint]*grpc.ClientConn
+	creds func(string) credentials.TransportCredentials
 }
 
-func NewGRPCClient(creds credentials.TransportCredentials) *GRPCClient {
-	return &GRPCClient{conns: make(map[string]*grpc.ClientConn), creds: creds}
+func NewGRPCClient(creds func(string) credentials.TransportCredentials) *GRPCClient {
+	return &GRPCClient{conns: make(map[nodeEndpoint]*grpc.ClientConn), creds: creds}
 }
 
 func (c *GRPCClient) CreateAllocation(ctx context.Context, target string, req *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error) {
-	client, conn, err := c.clientConn(ctx, target)
+	client, conn, err := c.clientConn(ctx, target, req.GetNodeID())
 	if err != nil {
 		return nil, err
 	}
 	resp, err := client.CreateAllocation(ctx, req)
 	if err != nil {
-		c.discardRecoverableConn(target, conn, err)
+		c.discardRecoverableConn(nodeEndpoint{target, req.GetNodeID()}, conn, err)
 		return nil, err
 	}
 	if resp.GetAllocationID() != req.GetAllocationID() {
@@ -55,12 +57,12 @@ func (c *GRPCClient) DeleteAllocation(ctx context.Context, target string, req *p
 	for range idempotentRPCAttempts {
 		var client privatenodev1.NodeLifecycleClient
 		var conn *grpc.ClientConn
-		client, conn, err = c.clientConn(ctx, target)
+		client, conn, err = c.clientConn(ctx, target, req.GetNodeID())
 		if err != nil {
 			return nil, err
 		}
 		resp, err = client.DeleteAllocation(ctx, req)
-		c.discardRecoverableConn(target, conn, err)
+		c.discardRecoverableConn(nodeEndpoint{target, req.GetNodeID()}, conn, err)
 		if !isRecoverableNodeRPCError(err) {
 			return resp, err
 		}
@@ -74,12 +76,12 @@ func (c *GRPCClient) GetAllocationLifecycle(ctx context.Context, target string, 
 	for range idempotentRPCAttempts {
 		var client privatenodev1.NodeLifecycleClient
 		var conn *grpc.ClientConn
-		client, conn, err = c.clientConn(ctx, target)
+		client, conn, err = c.clientConn(ctx, target, req.GetNodeID())
 		if err != nil {
 			return nil, err
 		}
 		resp, err = client.GetAllocationLifecycle(ctx, req)
-		c.discardRecoverableConn(target, conn, err)
+		c.discardRecoverableConn(nodeEndpoint{target, req.GetNodeID()}, conn, err)
 		if !isRecoverableNodeRPCError(err) {
 			return resp, err
 		}
@@ -100,36 +102,40 @@ func (c *GRPCClient) Close() error {
 	return first
 }
 
-func (c *GRPCClient) client(ctx context.Context, target string) (privatenodev1.NodeLifecycleClient, error) {
-	client, _, err := c.clientConn(ctx, target)
+func (c *GRPCClient) client(ctx context.Context, target, nodeID string) (privatenodev1.NodeLifecycleClient, error) {
+	client, _, err := c.clientConn(ctx, target, nodeID)
 	return client, err
 }
 
-func (c *GRPCClient) clientConn(ctx context.Context, target string) (privatenodev1.NodeLifecycleClient, *grpc.ClientConn, error) {
+func (c *GRPCClient) clientConn(ctx context.Context, target, nodeID string) (privatenodev1.NodeLifecycleClient, *grpc.ClientConn, error) {
+	if c.creds == nil {
+		return nil, nil, fmt.Errorf("Node transport factory is required")
+	}
+	endpoint := nodeEndpoint{target, nodeID}
 	c.mu.Lock()
-	conn := c.conns[target]
+	conn := c.conns[endpoint]
 	c.mu.Unlock()
 	if conn == nil {
 		dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		var err error
-		conn, err = dial(dialCtx, target, c.creds)
+		conn, err = dial(dialCtx, target, c.creds(nodeID))
 		if err != nil {
 			return nil, nil, err
 		}
 		c.mu.Lock()
-		if existing := c.conns[target]; existing != nil {
+		if existing := c.conns[endpoint]; existing != nil {
 			_ = conn.Close()
 			conn = existing
 		} else {
-			c.conns[target] = conn
+			c.conns[endpoint] = conn
 		}
 		c.mu.Unlock()
 	}
 	return privatenodev1.NewNodeLifecycleClient(conn), conn, nil
 }
 
-func (c *GRPCClient) discardRecoverableConn(target string, conn *grpc.ClientConn, err error) {
+func (c *GRPCClient) discardRecoverableConn(target nodeEndpoint, conn *grpc.ClientConn, err error) {
 	if conn == nil || !isRecoverableNodeRPCError(err) {
 		return
 	}

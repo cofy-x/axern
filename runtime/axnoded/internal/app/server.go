@@ -2,8 +2,6 @@ package app
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -13,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/api"
@@ -26,7 +25,6 @@ import (
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	grpc_health "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -64,14 +62,17 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	controlPlaneConfig := cfg.PluginConfig
 	accessGrantCache := controlplane.NewAccessGrantCache()
 	var accessGrantValidator api.DirectAccessGrantValidator
+	var grantControl controlplane.NodeControlClientProvider
+	if controlPlaneConfig.ControlPlaneTargetValue() != "" {
+		grantControl, err = controlplane.NewNodeControlClientProvider(controlPlaneConfig.ControlPlaneTargetValue(), controlPlaneConfig.ControlPlaneTLSCACertValue(), filepath.Join(cfg.RootDir, "identity", "node.pem"), controlPlaneConfig.WorkloadCluster, nodeID)
+		if err != nil {
+			return err
+		}
+	}
 	accessGrantWatcher := controlplane.NewAccessGrantWatcher(
 		controlplane.WithAccessGrantWatcherTarget(controlPlaneConfig.ControlPlaneTarget),
-		controlplane.WithAccessGrantWatcherNode(nodeID, controlPlaneConfig.ControlPlaneNodeCredentialValue()),
-		controlplane.WithAccessGrantWatcherTLS(
-			controlPlaneConfig.ControlPlaneTLSCACert,
-			controlPlaneConfig.ControlPlaneTLSCert,
-			controlPlaneConfig.ControlPlaneTLSKey,
-		),
+		controlplane.WithAccessGrantWatcherNode(nodeID),
+		controlplane.WithAccessGrantWatcherControl(grantControl),
 		controlplane.WithAccessGrantWatcherCache(accessGrantCache),
 	)
 	if accessGrantWatcher != nil {
@@ -136,13 +137,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		defer nodeLis.Close()
 
 		nodeHealthServer = grpc_health.NewServer()
-		tlsConfig, tlsErr := loadNodeServerTLS(opts)
-		if tlsErr != nil {
-			return tlsErr
-		}
-		authority := api.NewNodeIngressAuthority()
+		authority := api.NewNodeIngressAuthority(controlPlaneConfig.WorkloadCluster)
 		nodeOptions := []grpc.ServerOption{
-			grpc.Creds(credentials.NewTLS(tlsConfig)),
+			grpc.Creds(&workloadtls.Credentials{BundlePath: filepath.Join(cfg.RootDir, "identity", "node.pem"), TrustPath: controlPlaneConfig.ControlPlaneTLSCACertValue(), Local: workloadtls.Identity{Cluster: controlPlaneConfig.WorkloadCluster, Role: "axnoded", NodeID: nodeID}}),
 			grpc.ChainUnaryInterceptor(authority.Unary, trace.InjectTraceInterceptor),
 			grpc.StreamInterceptor(authority.Stream),
 		}
@@ -275,27 +272,6 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		return nil
 	}
 	return runErr
-}
-
-func loadNodeServerTLS(opts options) (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(opts.nodeTLSCert, opts.nodeTLSKey)
-	if err != nil {
-		return nil, fmt.Errorf("load node tls key pair: %w", err)
-	}
-	caPEM, err := os.ReadFile(opts.nodeTLSCACert)
-	if err != nil {
-		return nil, fmt.Errorf("read node tls ca cert: %w", err)
-	}
-	clientCAs := x509.NewCertPool()
-	if !clientCAs.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("parse node tls ca cert %q", opts.nodeTLSCACert)
-	}
-	return &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: []tls.Certificate{cert},
-		ClientCAs:    clientCAs,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-	}, nil
 }
 
 type healthEndpoint struct {

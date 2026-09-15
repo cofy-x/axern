@@ -20,13 +20,13 @@ POSTGRES_DSN="${POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@$
 AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
-if [ -z "${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL:-}" ]; then
+if [ -z "${AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN:-}" ]; then
   mkdir -p "${DEV_DIR}"
-  if [ ! -s "${DEV_DIR}/node-credential" ]; then
-    openssl rand -hex 32 > "${DEV_DIR}/node-credential"
-    chmod 600 "${DEV_DIR}/node-credential"
+  if [ ! -s "${DEV_DIR}/enrollment-token" ]; then
+    openssl rand -hex 32 > "${DEV_DIR}/enrollment-token"
+    chmod 600 "${DEV_DIR}/enrollment-token"
   fi
-  AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL="$(cat "${DEV_DIR}/node-credential")"
+  AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN="$(cat "${DEV_DIR}/enrollment-token")"
 fi
 AXERN_DEV_TOKEN="${AXERN_DEV_TOKEN:-axern-local-dev}"
 AXERN_SECRETS_MASTER_KEY="${AXERN_SECRETS_MASTER_KEY:-local-only-master-key-32-bytes!!}"
@@ -322,7 +322,7 @@ prepare_workspace_config() {
   AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET}" \
   AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
   AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET}" \
-  AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL="${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL}" \
+  AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN="${AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN}" \
   bash "${ROOT_DIR}/scripts/devbox/node-dev-prepare.sh"
 }
 
@@ -355,7 +355,7 @@ run_access_bootstrap() {
     -credential-label local-client \
     -certificate "${DEV_DIR}/certs/client.crt" \
     -node-id "${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
-    -node-credential-file "${DEV_DIR}/node-credential"
+    -enrollment-token-file "${DEV_DIR}/enrollment-token"
 }
 
 start_controld() {
@@ -365,8 +365,10 @@ start_controld() {
     -heartbeat-freshness-window 15s \
     -summary-freshness-window 15s \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/controld.crt' \
-    -tls-key '${DEV_DIR}/certs/controld.key' \
+    -workload-bundle '${DEV_DIR}/certs/controld.pem' \
+    -workload-signer-bundle '${DEV_DIR}/certs/private/signer.pem' \
+    -workload-cluster axern.local \
+    -enrollment-address '0.0.0.0:24002' \
     -secrets-master-key '${AXERN_SECRETS_MASTER_KEY}' \
     -tunnel-relays 'default,127.0.0.1:25000,127.0.0.1:24100,1,false' \
     -postgres-dsn '${POSTGRES_DSN}'"
@@ -378,10 +380,9 @@ start_tunneld() {
     -listen 127.0.0.1:24100 \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/tunneld.crt' \
-    -tls-key '${DEV_DIR}/certs/tunneld.key' \
-    -relay-tls-cert '${DEV_DIR}/certs/tunneld.crt' \
-    -relay-tls-key '${DEV_DIR}/certs/tunneld.key'"
+    -workload-bundle '${DEV_DIR}/certs/tunneld.pem' \
+    -relay-tls-cert '${DEV_DIR}/certs/tunneld.pem' \
+    -relay-tls-key '${DEV_DIR}/certs/tunneld.pem'"
   wait_tcp 127.0.0.1 24100 tunneld
 }
 
@@ -433,12 +434,11 @@ start_axnoded() {
 start_node_tunneld() {
   start_service node-tunneld "exec '${ROOT_DIR}/scripts/devbox/sudo-go.sh' -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
     -node-id '${AXERN_DEV_CONTROL_PLANE_NODE_ID}' \
-    -node-credential '${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL}' \
     -control-target 127.0.0.1:24000 \
     -network-socket '${RUN_DIR}/axnoded-network.sock' \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/node.crt' \
-    -tls-key '${DEV_DIR}/certs/node.key' \
+    -identity-bundle '${DEV_DIR}/axnoded/root/identity/node.pem' \
+    -workload-cluster axern.local \
     -relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -runsc-root '${DEV_DIR}/axnoded/root/runsc' \
     -agent-binary '${BIN_DIR}/tunnel-agent'"
@@ -449,14 +449,13 @@ start_gatewayd() {
     -http-address 127.0.0.1:25080 \
     -control-edge-address 127.0.0.1:25000 \
     -control-edge-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -control-edge-tls-cert '${DEV_DIR}/certs/gatewayd.crt' \
-    -control-edge-tls-key '${DEV_DIR}/certs/gatewayd.key' \
+    -control-edge-tls-cert '${DEV_DIR}/certs/gatewayd.pem' \
+    -control-edge-tls-key '${DEV_DIR}/certs/gatewayd.pem' \
     -tunnel-relay-target 127.0.0.1:24100 \
     -tunnel-relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/gatewayd.crt' \
-    -tls-key '${DEV_DIR}/certs/gatewayd.key' \
+    -workload-bundle '${DEV_DIR}/certs/gatewayd.pem' \
     -dev-token '${AXERN_DEV_TOKEN}'"
   wait_tcp 127.0.0.1 25000 gatewayd
   wait_tcp 127.0.0.1 25080 gatewayd

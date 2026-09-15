@@ -62,6 +62,7 @@ func (r *runner) RunOnce(ctx context.Context) error {
 	recordDeleted(ctx, resourceQuotaEvents, result.QuotaEventsDeleted)
 	recordDeleted(ctx, resourceTerminalRuns, result.TerminalRunsDeleted)
 	recordDeleted(ctx, resourceAccessGrants, result.AccessGrantsDeleted)
+	recordDeleted(ctx, "node_enrollment_receipts", result.EnrollmentReceiptsDeleted)
 	logResult(result, err)
 	return err
 }
@@ -80,11 +81,12 @@ func recordDeleted(ctx context.Context, resource string, count int64) {
 
 func logResult(result retentionkernel.Result, err error) {
 	fields := logrus.Fields{
-		"tunnel_events_deleted": result.TunnelEventsDeleted,
-		"quota_events_deleted":  result.QuotaEventsDeleted,
-		"runs_deleted":          result.TerminalRunsDeleted,
-		"access_grants_deleted": result.AccessGrantsDeleted,
-		"duration":              result.Duration.String(),
+		"tunnel_events_deleted":       result.TunnelEventsDeleted,
+		"quota_events_deleted":        result.QuotaEventsDeleted,
+		"runs_deleted":                result.TerminalRunsDeleted,
+		"access_grants_deleted":       result.AccessGrantsDeleted,
+		"enrollment_receipts_deleted": result.EnrollmentReceiptsDeleted,
+		"duration":                    result.Duration.String(),
 	}
 	if err != nil {
 		logrus.WithError(err).WithFields(fields).Warn("retention cleanup failed")

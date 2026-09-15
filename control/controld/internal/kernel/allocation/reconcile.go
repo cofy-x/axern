@@ -26,6 +26,7 @@ const (
 )
 
 type ReconcileItem struct {
+	OutputExpiresAt        *time.Time
 	AllocationID           string
 	RunID                  string
 	EnvironmentID          string

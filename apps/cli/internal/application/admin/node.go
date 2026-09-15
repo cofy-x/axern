@@ -21,10 +21,10 @@ type NodeControl struct{ client NodeClient }
 
 func NewNode(client NodeClient) NodeControl { return NodeControl{client: client} }
 
-func (c NodeControl) Admit(ctx context.Context, nodeID, nodeCredential, operatorReason string) (*adminv1.AdmitAdminNodeResponse, error) {
+func (c NodeControl) Admit(ctx context.Context, nodeID, enrollmentToken, operatorReason string) (*adminv1.AdmitAdminNodeResponse, error) {
 	return c.client.AdmitAdminNode(ctx, &adminv1.AdmitAdminNodeRequest{
-		NodeID:         strings.TrimSpace(nodeID),
-		NodeCredential: strings.TrimSpace(nodeCredential), OperatorReason: strings.TrimSpace(operatorReason),
+		NodeID:          strings.TrimSpace(nodeID),
+		EnrollmentToken: strings.TrimSpace(enrollmentToken), OperatorReason: strings.TrimSpace(operatorReason),
 	})
 }
 

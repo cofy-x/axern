@@ -30,10 +30,9 @@ func run() error {
 	var (
 		listen          string
 		controlTarget   string
-		insecureControl bool
 		caCert          string
 		cert            string
-		key             string
+		cluster         string
 		relayCert       string
 		relayKey        string
 		relayID         string
@@ -48,12 +47,11 @@ func run() error {
 	)
 	flag.StringVar(&listen, "listen", "127.0.0.1:24100", "Tunnel relay gRPC listen address")
 	flag.StringVar(&controlTarget, "control-target", "127.0.0.1:24000", "controld gRPC target")
-	flag.BoolVar(&insecureControl, "insecure-control", false, "connect to controld without TLS")
 	flag.StringVar(&caCert, "tls-ca-cert", ".dev/certs/ca.crt", "controld CA certificate")
-	flag.StringVar(&cert, "tls-cert", ".dev/certs/client.crt", "client certificate for controld")
-	flag.StringVar(&key, "tls-key", ".dev/certs/client.key", "client key for controld")
-	flag.StringVar(&relayCert, "relay-tls-cert", ".dev/certs/controld.crt", "tunnel relay server certificate")
-	flag.StringVar(&relayKey, "relay-tls-key", ".dev/certs/controld.key", "tunnel relay server key")
+	flag.StringVar(&cert, "workload-bundle", ".dev/certs/tunneld.pem", "tunneld workload certificate and key PEM bundle")
+	flag.StringVar(&cluster, "workload-cluster", "axern.local", "workload URI trust domain")
+	flag.StringVar(&relayCert, "relay-tls-cert", ".dev/certs/tunneld.pem", "tunnel relay server certificate")
+	flag.StringVar(&relayKey, "relay-tls-key", ".dev/certs/tunneld.pem", "tunnel relay server key")
 	flag.StringVar(&relayID, "relay-id", "default", "stable tunnel relay id used in controld relay registry")
 	flag.BoolVar(&drain, "drain", false, "reject new tunnel peers while preserving process health for existing peers")
 	flag.IntVar(&maxSessions, "max-sessions", 10000, "maximum active tunnel relay sessions")
@@ -88,7 +86,7 @@ func run() error {
 		defer cancel()
 		_ = obs.Shutdown(shutdownCtx)
 	}()
-	conn, err := control.Dial(ctx, controlTarget, control.TLSConfig{CACert: caCert, Cert: cert, Key: key}, insecureControl)
+	conn, err := control.Dial(ctx, controlTarget, caCert, cert, cluster)
 	if err != nil {
 		return err
 	}

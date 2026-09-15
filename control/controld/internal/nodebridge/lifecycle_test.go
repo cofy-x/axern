@@ -279,7 +279,7 @@ func TestFormatCreateAllocationErrorExplainsReadonlyRootfsTarget(t *testing.T) {
 
 func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 	bridge := New(&captureLifecycleClient{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
-	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a"); err != nil {
+	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v, want nil for node not found", err)
 	}
 }
@@ -287,7 +287,7 @@ func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	client := &captureLifecycleClient{}
 	bridge := New(client, Config{})
-	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a"); err != nil {
+	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
 	}
 	if client.lastDelete.GetTimeoutSeconds() != 10 {

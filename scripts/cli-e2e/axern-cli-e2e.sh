@@ -21,6 +21,7 @@ run_step doctor verify_doctor
 run_step namespace_quota verify_namespace_quota
 run_step quota_admission verify_quota_admission
 run_step base_environment create_base_environment
+run_step node_identity_recovery verify_node_identity_recovery
 run_step ssh_gateway verify_ssh_gateway
 run_step run verify_run
 run_step admin_lifecycle verify_admin_lifecycle

@@ -14,6 +14,8 @@
 - Use that same dedicated `gatewayd` workload certificate for the node data plane. Axnoded authorizes it only for `NodeSandbox`; gatewayd must never acquire `NodeLifecycle` or node-operator authority.
 - Every data-plane path must honor exact Allocation identity and allocation-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
 
+- Verify the resolved exact Node URI on outbound connections and include Node ID in connection-cache keys. Never use CN or a shared Node DNS alias for authorization.
+
 ## Validation
 
 - Run `go test ./...` and `go vet ./...` from `gateway/gatewayd`, then `make gatewayd-check-architecture` from the repository root.

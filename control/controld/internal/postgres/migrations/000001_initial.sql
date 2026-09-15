@@ -26,19 +26,29 @@ CREATE TABLE principal_credentials (
 CREATE TABLE nodes (
 	node_id TEXT PRIMARY KEY,
 	node_target TEXT NOT NULL,
-	node_credential_hash TEXT NOT NULL,
+	enrollment_token_hash TEXT NOT NULL,
 	admitted_at TIMESTAMPTZ NOT NULL,
 	last_heartbeat_at TIMESTAMPTZ,
 	lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('active', 'retired')),
 	retired_at TIMESTAMPTZ,
 	retired_reason TEXT NOT NULL DEFAULT '',
-	CHECK (length(node_credential_hash) = 64),
+	CHECK (length(enrollment_token_hash) = 64),
 	CHECK (last_heartbeat_at IS NULL OR last_heartbeat_at >= admitted_at),
 	CHECK ((last_heartbeat_at IS NULL AND node_target = '') OR (last_heartbeat_at IS NOT NULL AND length(btrim(node_target)) > 0)),
 	CHECK (
 		(lifecycle_status = 'active' AND retired_at IS NULL AND retired_reason = '') OR
 		(lifecycle_status = 'retired' AND retired_at IS NOT NULL AND length(btrim(retired_reason)) > 0)
 	)
+);
+
+-- Committed first-registration reply. The immutable CSR fences token replay;
+-- this record is not a renewable credential or a second Node lifecycle.
+CREATE TABLE node_enrollment_receipts (
+	node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
+	csr_sha256 BYTEA NOT NULL CHECK (octet_length(csr_sha256) = 32),
+	certificate_pem BYTEA NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	CHECK (octet_length(certificate_pem) BETWEEN 1 AND 16384)
 );
 
 CREATE TABLE node_summaries (
@@ -182,6 +192,7 @@ CREATE TABLE allocations (
 	created_at TIMESTAMPTZ NOT NULL,
 	updated_at TIMESTAMPTZ NOT NULL,
 	node_active_at TIMESTAMPTZ,
+	output_expires_at TIMESTAMPTZ,
 	CHECK (lifecycle_state IN (
 		'ALLOCATION_LIFECYCLE_STATE_BOUND',
 		'ALLOCATION_LIFECYCLE_STATE_STARTING',
@@ -195,6 +206,25 @@ CREATE TABLE allocations (
 	CHECK (updated_at >= created_at),
 	UNIQUE (allocation_id, node_id)
 );
+
+-- Freeze output expiry once when infrastructure teardown begins. Every terminal
+-- path, including administrative failure, crosses this same transition.
+CREATE FUNCTION freeze_allocation_output_expiry() RETURNS trigger AS $$
+BEGIN
+  IF NEW.lifecycle_state IN ('ALLOCATION_LIFECYCLE_STATE_RELEASING', 'ALLOCATION_LIFECYCLE_STATE_RELEASED') THEN
+    IF TG_OP = 'UPDATE' AND OLD.output_expires_at IS NOT NULL THEN
+      NEW.output_expires_at := OLD.output_expires_at;
+    ELSE
+      NEW.output_expires_at := NEW.updated_at + INTERVAL '15 minutes';
+    END IF;
+  ELSE
+    NEW.output_expires_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER allocation_output_expiry BEFORE INSERT OR UPDATE ON allocations
+FOR EACH ROW EXECUTE FUNCTION freeze_allocation_output_expiry();
 
 CREATE TABLE allocation_capability_requirements (
 	allocation_id TEXT NOT NULL REFERENCES allocations(allocation_id) ON DELETE CASCADE,
@@ -262,7 +292,13 @@ CREATE TABLE namespace_quota_events (
 	CHECK (available_ephemeral_storage_bytes IS NULL OR available_ephemeral_storage_bytes >= 0)
 );
 
+CREATE TABLE node_access_grant_cursors (
+	node_id TEXT PRIMARY KEY REFERENCES nodes(node_id) ON DELETE CASCADE,
+	revision BIGINT NOT NULL CHECK (revision > 0)
+);
+
 CREATE TABLE allocation_access_grants (
+    purpose TEXT NOT NULL CHECK (purpose IN ('ALLOCATION_ACCESS_PURPOSE_INTERACTIVE', 'ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT')),
 	grant_id TEXT PRIMARY KEY,
 	allocation_id TEXT NOT NULL,
 	node_id TEXT NOT NULL,
@@ -311,7 +347,7 @@ CREATE TABLE control_revisions (
 );
 
 INSERT INTO control_revisions(name, revision)
-VALUES ('allocation_access_grants', 0), ('tunnel_sessions', 0);
+VALUES ('tunnel_sessions', 0);
 
 CREATE TABLE tunnel_sessions (
 	session_id TEXT PRIMARY KEY,

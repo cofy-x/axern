@@ -37,7 +37,7 @@ message ListAdminNodesResponse {
 
 message AdmitAdminNodeRequest {
   string node_id = 1;
-  string node_credential = 2;
+  string enrollment_token = 2;
   string operator_reason = 3;
 }
 

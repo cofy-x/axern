@@ -17,8 +17,9 @@ tunneld:
     tag: dev
 
 node:
-  credential:
-    existingSecret: node-credential
+  enrollment:
+    nodes: [] # Fill with the actual Kubernetes Node names before installation.
+    existingSecret: enrollment-token
   image:
     repository: axern/local-node-all-in-one
     tag: dev

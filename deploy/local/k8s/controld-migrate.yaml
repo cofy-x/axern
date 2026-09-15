@@ -28,7 +28,7 @@ spec:
                 -credential-label local-client \
                 -certificate /certs/client.crt \
                 -node-id "node-${NODE_NAME}" \
-                -node-credential-file /run/secrets/node-credential
+                -enrollment-token-file /run/secrets/enrollment-token
           env:
             - name: NODE_NAME
               valueFrom:
@@ -38,14 +38,14 @@ spec:
             - name: certs
               mountPath: /certs
               readOnly: true
-            - name: node-credential
-              mountPath: /run/secrets/node-credential
-              subPath: node-credential
+            - name: enrollment-token
+              mountPath: /run/secrets/enrollment-token
+              subPath: enrollment-token
               readOnly: true
       volumes:
         - name: certs
           secret:
             secretName: controld-pki
-        - name: node-credential
+        - name: enrollment-token
           secret:
-            secretName: node-credential
+            secretName: enrollment-token

@@ -58,7 +58,7 @@ The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-
 
 `--detach` creates the Run without following output; `--wait-timeout` bounds how long the CLI waits for the Run to become active (`0` disables the wait). Detaching does not detach the workload from the platform — the Run continues to a terminal state under the control plane and remains inspectable.
 
-Run status is durable. Output streaming is backed by Allocation-local node files and is available only until cleanup; callers that need retained bytes must consume and persist them in an upper-layer system. Axern core provides no durable output object or fixed retention promise.
+Run status is durable. Allocation-local stdout/stderr remain readable after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. Node-process restart preserves sealed logs; node-disk loss does not. Output reads are limited to 64 MiB combined, with an explicit truncation signal. Download ordinary workspace files before cleanup; durable output publication belongs to the caller.
 
 ## Isolation and resources
 

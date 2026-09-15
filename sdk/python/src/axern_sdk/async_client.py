@@ -309,7 +309,7 @@ class AsyncAxernClient:
         follow: bool = False,
         timeout: float | None = None,
     ) -> AsyncGenerator[node_pb2.ReadOutputResponse, None]:
-        """Yield Allocation-local output; consume required bytes before cleanup."""
+        """Yield Allocation-local output through the Run output_expires_at deadline."""
 
         if not run_id.strip():
             raise ValueError("run_id is required")

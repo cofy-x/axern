@@ -10,9 +10,9 @@ import (
 
 func TestValidateAdmitNodeRequest(t *testing.T) {
 	valid := AdmitNodeRequest{
-		NodeID:         "node-a",
-		NodeCredential: "0123456789abcdef0123456789abcdef",
-		OperatorReason: "add worker", Now: time.Now().UTC(),
+		NodeID:          "node-a",
+		EnrollmentToken: "0123456789abcdef0123456789abcdef",
+		OperatorReason:  "add worker", Now: time.Now().UTC(),
 	}
 	if err := ValidateAdmitNodeRequest(valid); err != nil {
 		t.Fatalf("ValidateAdmitNodeRequest(valid) error = %v", err)
@@ -23,7 +23,7 @@ func TestValidateAdmitNodeRequest(t *testing.T) {
 		mutate func(*AdmitNodeRequest)
 	}{
 		{name: "node id", mutate: func(req *AdmitNodeRequest) { req.NodeID = "" }},
-		{name: "credential", mutate: func(req *AdmitNodeRequest) { req.NodeCredential = "short" }},
+		{name: "credential", mutate: func(req *AdmitNodeRequest) { req.EnrollmentToken = "short" }},
 		{name: "reason", mutate: func(req *AdmitNodeRequest) { req.OperatorReason = "" }},
 		{name: "time", mutate: func(req *AdmitNodeRequest) { req.Now = time.Time{} }},
 	}

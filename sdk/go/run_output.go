@@ -28,8 +28,9 @@ type RunOutput struct {
 	stream nodesandboxv1.NodeSandbox_ReadOutputClient
 }
 
-// ReadRunOutput reads Allocation-local stdout and stderr. Callers must consume
-// required output before Allocation cleanup; Run completion does not persist it.
+// ReadRunOutput reads Allocation-local stdout and stderr, including the bounded
+// snapshot retained until Run.OutputExpiresAt after runtime cleanup. Node-disk
+// loss is not recoverable; callers own durable publication.
 func (c *Client) ReadRunOutput(ctx context.Context, runID string, options RunOutputOptions) (*RunOutput, error) {
 	if runID == "" {
 		return nil, requiredError("run_id")

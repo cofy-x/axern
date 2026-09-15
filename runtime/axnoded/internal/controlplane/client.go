@@ -2,19 +2,15 @@ package controlplane
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type NodeControlClientProvider interface {
@@ -31,12 +27,17 @@ type nodeControlClientProvider struct {
 	client nodev1.NodeControlClient
 }
 
-func newNodeControlClientProvider(target, caPath, certPath, keyPath string) (NodeControlClientProvider, error) {
-	opts, err := nodeControlDialOptions(caPath, certPath, keyPath)
-	if err != nil {
+func NewNodeControlClientProvider(target, trustPath, bundlePath, cluster, nodeID string) (NodeControlClientProvider, error) {
+	local := workloadtls.Identity{Cluster: cluster, Role: "axnoded", NodeID: nodeID}
+	if _, err := local.URI(); err != nil {
 		return nil, err
 	}
-	return &nodeControlClientProvider{target: strings.TrimSpace(target), opts: opts}, nil
+	if strings.TrimSpace(target) == "" || strings.TrimSpace(trustPath) == "" || strings.TrimSpace(bundlePath) == "" {
+		return nil, fmt.Errorf("Node control target, trust and identity bundle are required")
+	}
+	opts := []grpc.DialOption{grpc.WithTransportCredentials(&workloadtls.Credentials{BundlePath: bundlePath, TrustPath: trustPath, Local: local, Peer: workloadtls.Identity{Cluster: cluster, Role: "controld"}}), grpc.WithNoProxy()}
+	opts = append(opts, sdkobs.GRPCDialOptions()...)
+	return &nodeControlClientProvider{target: target, opts: opts}, nil
 }
 
 func (p *nodeControlClientProvider) Client(ctx context.Context) (nodev1.NodeControlClient, error) {
@@ -64,38 +65,4 @@ func (p *nodeControlClientProvider) Close() error {
 	p.conn = nil
 	p.client = nil
 	return err
-}
-
-func nodeControlDialOptions(caPath, certPath, keyPath string) ([]grpc.DialOption, error) {
-	caPath = strings.TrimSpace(caPath)
-	certPath = strings.TrimSpace(certPath)
-	keyPath = strings.TrimSpace(keyPath)
-	var opts []grpc.DialOption
-	if caPath == "" && certPath == "" && keyPath == "" {
-		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
-		if caPath == "" || certPath == "" || keyPath == "" {
-			return nil, fmt.Errorf("control-plane mTLS requires ca cert, client cert, and client key")
-		}
-		cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-		if err != nil {
-			return nil, err
-		}
-		caPEM, err := os.ReadFile(caPath)
-		if err != nil {
-			return nil, err
-		}
-		roots := x509.NewCertPool()
-		if !roots.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("parse control-plane tls ca cert %q", caPath)
-		}
-		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{
-			MinVersion:   tls.VersionTLS12,
-			RootCAs:      roots,
-			Certificates: []tls.Certificate{cert},
-		})))
-	}
-	opts = append(opts, sdkobs.GRPCDialOptions()...)
-	opts = append(opts, grpc.WithNoProxy())
-	return opts, nil
 }

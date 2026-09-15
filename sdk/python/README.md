@@ -299,3 +299,7 @@ make lint-py
 make sdk-python-verify
 make local-compose-python-sdk-e2e
 ```
+
+## Run Output Retention
+
+Run output reads expose Allocation-local stdout/stderr after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. The combined readable limit is 64 MiB, with an explicit truncation signal. Node-process restart preserves sealed output; node-disk loss does not. Ordinary writable files still require explicit download before termination. No durable output object or persistent workspace is created.

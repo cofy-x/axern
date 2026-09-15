@@ -21,12 +21,17 @@ for required in (
     '--add-host "host.docker.internal:host-gateway"',
     '-e "AXNODED_NETWORK_IP_RANGE=${AXNODED_NETWORK_IP_RANGE}"',
     '-e "AXNODED_CONTROL_PLANE_TARGET=host.docker.internal:${CONTROLD_GRPC_ADDRESS##*:}"',
+    '-e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=host.docker.internal:${CONTROLD_ENROLLMENT_PORT}"',
 ):
     if required not in node_run:
         raise SystemExit(f"CLI E2E node container is missing host control-plane routing: {required}")
 
 if '-grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}"' not in environment:
     raise SystemExit("CLI E2E controld must listen beyond host loopback for the node container")
+if '-enrollment-address "0.0.0.0:${CONTROLD_ENROLLMENT_PORT}"' not in environment:
+    raise SystemExit("CLI E2E must use the independently allocated enrollment port")
+if 'CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port ' not in library:
+    raise SystemExit("CLI E2E must exclude existing listeners when allocating enrollment port")
 if 'if ! node_control_plane_tcp_ready; then' not in environment:
     raise SystemExit("CLI E2E must fail fast when the node cannot reach the host control plane")
 

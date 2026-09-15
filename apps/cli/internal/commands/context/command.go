@@ -62,7 +62,7 @@ func importKubernetesCommand(runtime command.Runtime) *cobra.Command {
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&namespace, "namespace", "axern-system", "Kubernetes namespace")
-	flags.StringVar(&secretName, "secret", "controld-pki", "Axern PKI Secret name")
+	flags.StringVar(&secretName, "secret", "axern-pki", "Axern PKI Secret name")
 	flags.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig")
 	flags.StringVar(&kubeContext, "kube-context", "", "Kubernetes context name")
 	flags.StringVar(&params.CertDir, "cert-dir", "", "directory for imported certificates")

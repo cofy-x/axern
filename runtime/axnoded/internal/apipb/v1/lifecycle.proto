@@ -50,6 +50,7 @@ message StartResponse {
 message DeleteRequest {
   string id = 1;
   int64 timeout = 2;
+  int64 output_expires_at_unix_nano = 3;
 }
 
 message DeleteResponse {}

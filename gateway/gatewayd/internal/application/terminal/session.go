@@ -133,7 +133,7 @@ func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAl
 	current := resolved
 	for attempt := 1; attempt <= m.options.AccessGrantRetryAttempts; attempt++ {
 		backendCtx := nodekernel.WithAllocationAccessGrant(ctx, current.GetAccessGrant().GetPlaintextToken())
-		stream, err = m.nodes.Process(backendCtx, current.GetNodeTarget())
+		stream, err = m.nodes.Process(backendCtx, current.GetNodeTarget(), current.GetNodeID())
 		if err != nil {
 			return nil, err
 		}

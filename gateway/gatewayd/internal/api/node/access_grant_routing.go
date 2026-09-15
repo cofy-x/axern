@@ -75,7 +75,7 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 		if token == "" {
 			return grpcstatus.Error(codes.Internal, "resolved allocation access grant token is empty")
 		}
-		client, dialErr := s.dialer.NodeSandbox(ctx, resolved.GetNodeTarget())
+		client, dialErr := s.dialer.NodeSandbox(ctx, resolved.GetNodeTarget(), resolved.GetNodeID())
 		if dialErr != nil {
 			return dialErr
 		}

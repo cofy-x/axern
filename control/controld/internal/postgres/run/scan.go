@@ -21,7 +21,7 @@ func environmentSelectSQL() string {
 func runSelectSQL() string {
 	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
 		r.config, r.environment_spec, r.resolved_environment_spec, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message,
-		a.node_id,
+		a.node_id, a.output_expires_at,
 		COALESCE((SELECT conditions FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id), '{}'::jsonb)
 		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
 }
@@ -65,11 +65,15 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		capabilityConditionsJSON    []byte
 		createdAt, updatedAt        time.Time
 		exitCode                    sql.NullInt32
+		outputExpiry                sql.NullTime
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &outputExpiry, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
+	if outputExpiry.Valid {
+		run.OutputExpiresAt = timestamppb.New(outputExpiry.Time)
+	}
 	if exitCode.Valid {
 		value := exitCode.Int32
 		run.ExitCode = &value

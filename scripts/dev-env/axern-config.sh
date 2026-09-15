@@ -9,10 +9,10 @@ ensure_secrets_master_key() {
   fi
 }
 
-ensure_node_credential() {
+ensure_enrollment_token() {
   local env_name="$1"
   local credential_file
-  credential_file="$(node_credential_file "${env_name}")"
+  credential_file="$(enrollment_token_file "${env_name}")"
   if [ ! -s "${credential_file}" ]; then
     openssl rand -hex 32 > "${credential_file}"
     chmod 600 "${credential_file}"

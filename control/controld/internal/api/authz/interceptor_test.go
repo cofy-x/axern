@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +20,7 @@ import (
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -163,7 +164,7 @@ func TestUnknownMethodOnKnownServiceFailsClosed(t *testing.T) {
 }
 
 func TestUnknownControlServiceFailsClosed(t *testing.T) {
-	i := &Interceptor{}
+	i := &Interceptor{cluster: "cluster.test", requireActiveNode: func(context.Context, string) error { return nil }}
 	called := false
 	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.control.future.v1.FutureControl/DoThing"}, func(context.Context, any) (any, error) {
 		called = true
@@ -187,7 +188,7 @@ func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 }
 
 func TestNodeControlRequiresNodeWorkloadIdentity(t *testing.T) {
-	i := &Interceptor{}
+	i := &Interceptor{cluster: "cluster.test", requireActiveNode: func(context.Context, string) error { return nil }}
 	method := "/axern.private.control.node.v1.NodeControl/ReportNode"
 	called := false
 	handler := func(context.Context, any) (any, error) {
@@ -198,15 +199,15 @@ func TestNodeControlRequiresNodeWorkloadIdentity(t *testing.T) {
 	if status.Code(err) != codes.Unauthenticated || called {
 		t.Fatalf("unverified node called=%v code=%v", called, status.Code(err))
 	}
-	ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tlsState("axern-node")}})
-	_, err = i.Unary(ctx, nil, &grpc.UnaryServerInfo{FullMethod: method}, handler)
+	ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tlsState("node-one")}})
+	_, err = i.Unary(ctx, &nodev1.ReportNodeRequest{NodeID: "node-one"}, &grpc.UnaryServerInfo{FullMethod: method}, handler)
 	if err != nil || !called {
 		t.Fatalf("verified node called=%v err=%v", called, err)
 	}
 }
 
 func TestTunnelRelayControlRequiresTunneldWorkloadIdentity(t *testing.T) {
-	i := &Interceptor{}
+	i := &Interceptor{cluster: "cluster.test", requireActiveNode: func(context.Context, string) error { return nil }}
 	method := "/axern.private.control.tunnel.v1.TunnelRelayControl/ValidateTunnelPeer"
 	called := false
 	handler := func(context.Context, any) (any, error) {
@@ -226,6 +227,38 @@ func TestTunnelRelayControlRequiresTunneldWorkloadIdentity(t *testing.T) {
 }
 
 func tlsState(commonName string) tls.ConnectionState {
-	certificate := &x509.Certificate{Subject: pkix.Name{CommonName: commonName}}
+	path := "/service/" + commonName
+	if commonName == "node-one" {
+		path = "/node/node-one"
+	}
+	uri, _ := url.Parse("spiffe://cluster.test" + path)
+	certificate := &x509.Certificate{URIs: []*url.URL{uri}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour)}
 	return tls.ConnectionState{VerifiedChains: [][]*x509.Certificate{{certificate}}}
+}
+
+func TestNodeControlRejectsCrossNodeExpiredAndRetiredAuthority(t *testing.T) {
+	for _, name := range []string{"cross-node", "expired", "retired"} {
+		t.Run(name, func(t *testing.T) {
+			state := tlsState("node-one")
+			requestID := "node-one"
+			if name == "cross-node" {
+				requestID = "node-two"
+			}
+			if name == "expired" {
+				state.VerifiedChains[0][0].NotAfter = time.Now().Add(-time.Second)
+			}
+			i := New(nil, "cluster.test", func(context.Context, string) error {
+				if name == "retired" {
+					return status.Error(codes.PermissionDenied, "Node retired")
+				}
+				return nil
+			})
+			ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: state}})
+			called := false
+			_, err := i.Unary(ctx, &nodev1.ReportNodeRequest{NodeID: requestID}, &grpc.UnaryServerInfo{FullMethod: "/axern.private.control.node.v1.NodeControl/ReportNode"}, func(context.Context, any) (any, error) { called = true; return nil, nil })
+			if err == nil || called {
+				t.Fatal("invalid Node authority reached handler")
+			}
+		})
+	}
 }

@@ -4,7 +4,7 @@
 
 It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped access grants without creating a second control plane. Public `NodeSandbox` messages contain only the Allocation identity and operation input; gatewayd replaces any caller-supplied private access metadata and sends the controld-issued token only on the gateway-to-node gRPC hop.
 
-Gateway-to-node traffic uses the dedicated `gatewayd` workload certificate and verifies the stable node server name `axern-node`. By default the node client inherits `-tls-ca-cert`, `-tls-cert`, and `-tls-key`; `-node-tls-ca-cert`, `-node-tls-cert`, `-node-tls-key`, and `-node-tls-server-name` provide an explicit separate trust configuration when required.
+Gateway-to-node traffic uses the gatewayd URI workload identity and verifies the exact Node ID returned by control-plane resolution. Configure `-workload-cluster`, `-workload-bundle` and `-tls-ca-cert`; credentials reload on every new connection. No shared Node certificate or alternate Node identity override exists.
 
 External CLI and SDK control-plane gRPC traffic should terminate at `gatewayd`'s control edge listener, which is enabled by default. `controld` stays private inside the cluster; `gatewayd` verifies external client mTLS and forwards public control RPCs to the internal `controld` target with the dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is discarded; gatewayd injects only the fingerprint of the leaf certificate it verified. Controld resolves that fingerprint to a durable Principal and applies platform or namespace role bindings on every RPC.
 
@@ -17,12 +17,12 @@ go run ./gateway/gatewayd \
   -http-address 127.0.0.1:25080 \
   -control-edge-address 127.0.0.1:25000 \
   -control-edge-tls-ca-cert .dev/certs/ca.crt \
-  -control-edge-tls-cert .dev/certs/gatewayd.crt \
-  -control-edge-tls-key .dev/certs/gatewayd.key \
+  -control-edge-tls-cert .dev/certs/gatewayd.pem \
+  -control-edge-tls-key .dev/certs/gatewayd.pem \
   -control-target 127.0.0.1:24000 \
   -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/gatewayd.crt \
-  -tls-key .dev/certs/gatewayd.key \
+  -workload-cluster axern.local \
+  -workload-bundle .dev/certs/gatewayd.pem \
   -dev-token axern-local-dev
 ```
 
@@ -33,16 +33,16 @@ go run ./gateway/gatewayd \
   -http-address 127.0.0.1:25080 \
   -control-edge-address 127.0.0.1:25000 \
   -control-edge-tls-ca-cert .dev/certs/ca.crt \
-  -control-edge-tls-cert .dev/certs/gatewayd.crt \
-  -control-edge-tls-key .dev/certs/gatewayd.key \
+  -control-edge-tls-cert .dev/certs/gatewayd.pem \
+  -control-edge-tls-key .dev/certs/gatewayd.pem \
   -ssh-enabled \
   -ssh-address 127.0.0.1:25022 \
   -ssh-host-key .dev/ssh/gateway_host_ed25519 \
   -ssh-authorized-keys .dev/ssh/authorized_keys \
   -control-target 127.0.0.1:24000 \
   -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/gatewayd.crt \
-  -tls-key .dev/certs/gatewayd.key \
+  -workload-cluster axern.local \
+  -workload-bundle .dev/certs/gatewayd.pem \
   -dev-token axern-local-dev
 ```
 
@@ -92,7 +92,7 @@ Key flags/env:
 - `-control-edge-tls-ca-cert`, `-control-edge-tls-cert`, `-control-edge-tls-key`
 - `-tunnel-relay-target`
 - `-tunnel-relay-tls-ca-cert`, `-tunnel-relay-tls-server-name`
-- `-node-tls-ca-cert`, `-node-tls-cert`, `-node-tls-key`, `-node-tls-server-name`
+- `-workload-cluster`, `-workload-bundle`, `-tls-ca-cert`
 - `-read-header-timeout`, `-read-timeout`, `-write-timeout`, `-idle-timeout`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
 - `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`

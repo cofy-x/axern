@@ -2,7 +2,6 @@ package authz
 
 import (
 	"context"
-	"crypto/x509"
 	"errors"
 	"strings"
 	"sync"
@@ -10,13 +9,12 @@ import (
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -30,26 +28,34 @@ type AccessResolver interface {
 }
 
 type Interceptor struct {
-	access          AccessResolver
-	gatewayPeer     func(context.Context) bool
-	recheckInterval time.Duration
+	access            AccessResolver
+	cluster           string
+	requireActiveNode func(context.Context, string) error
+	gatewayPeer       func(context.Context) bool
+	recheckInterval   time.Duration
 }
 
-func New(access AccessResolver) *Interceptor {
-	return &Interceptor{access: access, gatewayPeer: isGatewayPeer, recheckInterval: 15 * time.Second}
+func New(access AccessResolver, cluster string, requireActiveNode func(context.Context, string) error) *Interceptor {
+	return &Interceptor{access: access, cluster: cluster, requireActiveNode: requireActiveNode, gatewayPeer: func(ctx context.Context) bool { return isWorkloadPeer(ctx, "gatewayd", cluster) }, recheckInterval: 15 * time.Second}
 }
 
 func (i *Interceptor) Unary(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 	if isTunnelRelayControlMethod(info.FullMethod) {
-		if !isWorkloadPeer(ctx, "tunneld") {
+		if !isWorkloadPeer(ctx, "tunneld", i.cluster) {
 			return nil, status.Error(codes.Unauthenticated, "tunneld mTLS identity is required")
 		}
 		return handler(ctx, req)
 	}
 	if isNodeControlMethod(info.FullMethod) {
-		if !isWorkloadPeer(ctx, "axern-node") {
-			return nil, status.Error(codes.Unauthenticated, "axern-node mTLS identity is required")
+		nodeID, deadline, err := i.node(ctx)
+		if err != nil {
+			return nil, err
 		}
+		if err := matchNodeRequest(req, nodeID); err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithDeadline(ctx, deadline)
+		defer cancel()
 		return handler(ctx, req)
 	}
 	if isGatewayControlMethod(info.FullMethod) {
@@ -97,16 +103,13 @@ func recordDecision(ctx context.Context, action accesskernel.Action, result stri
 
 func (i *Interceptor) Stream(srv any, stream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	if isTunnelRelayControlMethod(info.FullMethod) {
-		if !isWorkloadPeer(stream.Context(), "tunneld") {
+		if !isWorkloadPeer(stream.Context(), "tunneld", i.cluster) {
 			return status.Error(codes.Unauthenticated, "tunneld mTLS identity is required")
 		}
 		return handler(srv, stream)
 	}
 	if isNodeControlMethod(info.FullMethod) {
-		if !isWorkloadPeer(stream.Context(), "axern-node") {
-			return status.Error(codes.Unauthenticated, "axern-node mTLS identity is required")
-		}
-		return handler(srv, stream)
+		return i.nodeStream(srv, stream, handler)
 	}
 	if isGatewayControlMethod(info.FullMethod) {
 		if i.gatewayPeer == nil || !i.gatewayPeer(stream.Context()) {
@@ -251,26 +254,9 @@ func (i *Interceptor) authenticate(ctx context.Context) (context.Context, access
 	return accesskernel.WithActor(ctx, actor), actor, nil
 }
 
-func isGatewayPeer(ctx context.Context) bool {
-	return isWorkloadPeer(ctx, "gatewayd")
-}
-
-func isWorkloadPeer(ctx context.Context, identity string) bool {
-	p, ok := peer.FromContext(ctx)
-	if !ok {
-		return false
-	}
-	info, ok := p.AuthInfo.(credentials.TLSInfo)
-	if !ok || len(info.State.VerifiedChains) == 0 || len(info.State.VerifiedChains[0]) == 0 {
-		return false
-	}
-	return certificateIdentity(info.State.VerifiedChains[0][0]) == identity
-}
-func certificateIdentity(cert *x509.Certificate) string {
-	if cert == nil {
-		return ""
-	}
-	return strings.TrimSpace(cert.Subject.CommonName)
+func isWorkloadPeer(ctx context.Context, role, cluster string) bool {
+	identity, _, err := workloadtls.PeerIdentity(ctx, cluster, time.Now())
+	return err == nil && identity.Role == role
 }
 
 type methodPolicy struct {

@@ -59,14 +59,14 @@ class ListAdminNodesResponse(_message.Message):
     def __init__(self, nodes: _Optional[_Iterable[_Union[AdminNode, _Mapping]]] = ...) -> None: ...
 
 class AdmitAdminNodeRequest(_message.Message):
-    __slots__ = ("node_id", "node_credential", "operator_reason")
+    __slots__ = ("node_id", "enrollment_token", "operator_reason")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
-    NODE_CREDENTIAL_FIELD_NUMBER: _ClassVar[int]
+    ENROLLMENT_TOKEN_FIELD_NUMBER: _ClassVar[int]
     OPERATOR_REASON_FIELD_NUMBER: _ClassVar[int]
     node_id: str
-    node_credential: str
+    enrollment_token: str
     operator_reason: str
-    def __init__(self, node_id: _Optional[str] = ..., node_credential: _Optional[str] = ..., operator_reason: _Optional[str] = ...) -> None: ...
+    def __init__(self, node_id: _Optional[str] = ..., enrollment_token: _Optional[str] = ..., operator_reason: _Optional[str] = ...) -> None: ...
 
 class AdmitAdminNodeResponse(_message.Message):
     __slots__ = ("node",)

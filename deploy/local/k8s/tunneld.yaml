@@ -13,6 +13,11 @@ spec:
       labels:
         app: tunneld
     spec:
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65534
+        runAsNonRoot: true
+        fsGroup: 65534
       containers:
         - name: tunneld
           image: axern/local-tunneld:dev
@@ -24,16 +29,14 @@ spec:
             - controld.axern-local.svc.cluster.local:24000
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/tunneld.crt
-            - -tls-key
-            - /certs/tunneld.key
+            - -workload-bundle
+            - /certs/tunneld.pem
             - -relay-id
             - default
             - -relay-tls-cert
-            - /certs/tunneld.crt
+            - /certs/tunneld.pem
             - -relay-tls-key
-            - /certs/tunneld.key
+            - /certs/tunneld.pem
           ports:
             - containerPort: 24100
           volumeMounts:
@@ -44,6 +47,12 @@ spec:
         - name: certs
           secret:
             secretName: controld-pki
+            defaultMode: 288
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tunneld.pem
+                path: tunneld.pem
 ---
 apiVersion: v1
 kind: Service

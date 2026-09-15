@@ -62,7 +62,7 @@ type Config struct {
 	ResourcePolicy           resourcekernel.AdmissionPolicy
 
 	NodeLifecycle            nodebridge.LifecycleClient
-	NodeTransportCredentials credentials.TransportCredentials
+	NodeTransportCredentials func(string) credentials.TransportCredentials
 	ImageResolver            environmentkernel.ImageResolver
 }
 

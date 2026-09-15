@@ -5,6 +5,13 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd kubectl
 require_cmd curl
+# This local manifest has one explicitly provisioned development identity.
+# Multi-node deployments must use the chart\'s per-node token projections.
+k8s_node_names="$(kubectl get nodes -o jsonpath=\'{range .items[*]}{.metadata.name}{"\\n"}{end}\')"
+if [ "$(printf \'%s\\n\' "${k8s_node_names}" | wc -l | tr -d \' \')" != 1 ]; then
+  echo "local Kubernetes bootstrap requires exactly one node; use Helm for per-node enrollment" >&2
+  exit 1
+fi
 begin_env_lock "${K8S_ENV_NAME}"
 trap 'end_env_lock "${K8S_ENV_NAME}"' EXIT
 
@@ -14,31 +21,30 @@ ensure_k8s_images_loaded
 generate_k8s_certs
 ensure_k8s_ssh_keys
 ensure_secrets_master_key "${K8S_ENV_NAME}"
-ensure_node_credential "${K8S_ENV_NAME}"
+ensure_enrollment_token "${K8S_ENV_NAME}"
 write_cli_env "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}"
 
 kubectl apply -f "${DEPLOY_ROOT}/k8s/namespace.yaml"
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic controld-pki \
   --from-file=ca.crt="${K8S_STATE_DIR}/certs/ca.crt" \
-  --from-file=controld.crt="${K8S_STATE_DIR}/certs/controld.crt" \
-  --from-file=controld.key="${K8S_STATE_DIR}/certs/controld.key" \
+  --from-file=controld.pem="${K8S_STATE_DIR}/certs/controld.pem" \
+  --from-file=gatewayd.pem="${K8S_STATE_DIR}/certs/gatewayd.pem" \
+  --from-file=tunneld.pem="${K8S_STATE_DIR}/certs/tunneld.pem" \
   --from-file=client.crt="${K8S_STATE_DIR}/certs/client.crt" \
   --from-file=client.key="${K8S_STATE_DIR}/certs/client.key" \
-  --from-file=gatewayd.crt="${K8S_STATE_DIR}/certs/gatewayd.crt" \
-  --from-file=gatewayd.key="${K8S_STATE_DIR}/certs/gatewayd.key" \
-  --from-file=node.crt="${K8S_STATE_DIR}/certs/node.crt" \
-  --from-file=node.key="${K8S_STATE_DIR}/certs/node.key" \
-  --from-file=tunneld.crt="${K8S_STATE_DIR}/certs/tunneld.crt" \
-  --from-file=tunneld.key="${K8S_STATE_DIR}/certs/tunneld.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n "${K8S_NAMESPACE}" create secret generic axern-pki-signer \
+  --from-file=signer.pem="${K8S_STATE_DIR}/certs/private/signer.pem" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic controld-secrets \
   --from-literal=AXERN_SECRETS_MASTER_KEY="$(cat "$(secrets_master_key_file "${K8S_ENV_NAME}")")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl -n "${K8S_NAMESPACE}" create secret generic node-credential \
-  --from-file=node-credential="$(node_credential_file "${K8S_ENV_NAME}")" \
+kubectl -n "${K8S_NAMESPACE}" create secret generic enrollment-token \
+  --from-file=enrollment-token="$(enrollment_token_file "${K8S_ENV_NAME}")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic gatewayd-ssh \
@@ -91,7 +97,9 @@ kubectl apply -f "${DEPLOY_ROOT}/k8s/controld-migrate.yaml"
 kubectl -n "${K8S_NAMESPACE}" wait --for=condition=complete job/controld-migrate --timeout=180s >/dev/null
 kubectl apply -f "${DEPLOY_ROOT}/k8s/controld.yaml"
 kubectl apply -f "${DEPLOY_ROOT}/k8s/tunneld.yaml"
-kubectl apply -f "${DEPLOY_ROOT}/k8s/node-all-in-one.yaml"
+kubectl patch --local -f "${DEPLOY_ROOT}/k8s/node-all-in-one.yaml" --type=json \
+  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchFields/0/values/0\",\"value\":\"${k8s_node_names}\"}]" \
+  -o yaml | kubectl apply -f -
 kubectl apply -f "${DEPLOY_ROOT}/k8s/gatewayd.yaml"
 
 kubectl -n "${K8S_NAMESPACE}" set env deployment/controld \

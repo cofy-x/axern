@@ -25,7 +25,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 
 | Path                                | Meaning                                                      |
 | ----------------------------------- | ------------------------------------------------------------ |
-| `/tmp/axnoded-node-config.toml`     | generated axnoded config used by node-all-in-one deployments |
+| `/var/lib/axnoded/node-config.toml`     | generated axnoded config used by node-all-in-one deployments |
 | `/shared/run/axnoded.sock`          | root-only axnoded operator socket used by `axctl`            |
 | `/shared/run/axnoded-network.sock`  | machine-only Allocation network socket for `node-tunneld`    |
 | `/run/imagemgr/imagemgr.sock`       | axnoded-to-imagemgr image rootfs API socket                  |
@@ -38,7 +38,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 
 ## Config Fields To Check
 
-Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runsc configuration, or image-manager settings look wrong.
+The generated config is root-only and contains the one-time enrollment token; never paste it into logs or issue reports. Exclude `control_plane_enrollment_token` from diagnostic output. Inspect `/var/lib/axnoded/node-config.toml` when socket paths, node identity, runsc configuration, or image-manager settings look wrong.
 
 | Field                                  | Why it matters                                              |
 | -------------------------------------- | ----------------------------------------------------------- |

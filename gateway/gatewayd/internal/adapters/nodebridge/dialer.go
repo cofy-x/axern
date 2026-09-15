@@ -2,45 +2,34 @@ package nodebridge
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
+type nodeEndpoint struct{ target, nodeID string }
+
 type Dialer struct {
-	mu    sync.Mutex
-	conns map[string]*grpc.ClientConn
-	obs   *sdkobs.Handle
-	creds credentials.TransportCredentials
+	mu                             sync.Mutex
+	conns                          map[nodeEndpoint]*grpc.ClientConn
+	obs                            *sdkobs.Handle
+	trustPath, bundlePath, cluster string
 }
 
-func NewDialer(caCert, certPath, keyPath, serverName string, obs *sdkobs.Handle) (*Dialer, error) {
-	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("load gateway node mTLS key pair: %w", err)
+func NewDialer(trustPath, bundlePath, cluster string, obs *sdkobs.Handle) (*Dialer, error) {
+	if _, err := (workloadtls.Identity{Cluster: cluster, Role: "gatewayd"}).URI(); err != nil {
+		return nil, err
 	}
-	caPEM, err := os.ReadFile(caCert)
-	if err != nil {
-		return nil, fmt.Errorf("read gateway node mTLS CA: %w", err)
+	if trustPath == "" || bundlePath == "" {
+		return nil, fmt.Errorf("workload trust and bundle are required")
 	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("parse gateway node mTLS CA %q", caCert)
-	}
-	return &Dialer{
-		conns: make(map[string]*grpc.ClientConn),
-		obs:   obs,
-		creds: credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, Certificates: []tls.Certificate{cert}, ServerName: serverName}),
-	}, nil
+	return &Dialer{conns: make(map[nodeEndpoint]*grpc.ClientConn), obs: obs, trustPath: trustPath, bundlePath: bundlePath, cluster: cluster}, nil
 }
 
 func (d *Dialer) Close() error {
@@ -56,15 +45,20 @@ func (d *Dialer) Close() error {
 	return first
 }
 
-func (d *Dialer) client(ctx context.Context, target string) (nodesandboxv1.NodeSandboxClient, error) {
+func (d *Dialer) client(ctx context.Context, target, nodeID string) (nodesandboxv1.NodeSandboxClient, error) {
+	identity := workloadtls.Identity{Cluster: d.cluster, Role: "axnoded", NodeID: nodeID}
+	if _, err := identity.URI(); err != nil {
+		return nil, err
+	}
+	endpoint := nodeEndpoint{target, nodeID}
 	d.mu.Lock()
-	conn := d.conns[target]
+	conn := d.conns[endpoint]
 	d.mu.Unlock()
 	if conn == nil {
 		dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		var err error
-		options := []grpc.DialOption{grpc.WithTransportCredentials(d.creds.Clone())}
+		options := []grpc.DialOption{grpc.WithTransportCredentials(&workloadtls.Credentials{BundlePath: d.bundlePath, TrustPath: d.trustPath, Local: workloadtls.Identity{Cluster: d.cluster, Role: "gatewayd"}, Peer: identity}), grpc.WithNoProxy()}
 		if d.obs != nil {
 			options = append(options, d.obs.GRPCDialOptions()...)
 		}
@@ -73,23 +67,23 @@ func (d *Dialer) client(ctx context.Context, target string) (nodesandboxv1.NodeS
 			return nil, err
 		}
 		d.mu.Lock()
-		if existing := d.conns[target]; existing != nil {
+		if existing := d.conns[endpoint]; existing != nil {
 			_ = conn.Close()
 			conn = existing
 		} else {
-			d.conns[target] = conn
+			d.conns[endpoint] = conn
 		}
 		d.mu.Unlock()
 	}
 	return nodesandboxv1.NewNodeSandboxClient(conn), nil
 }
 
-func (d *Dialer) NodeSandbox(ctx context.Context, target string) (nodesandboxv1.NodeSandboxClient, error) {
-	return d.client(ctx, target)
+func (d *Dialer) NodeSandbox(ctx context.Context, target, nodeID string) (nodesandboxv1.NodeSandboxClient, error) {
+	return d.client(ctx, target, nodeID)
 }
 
-func (d *Dialer) Process(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ProcessClient, error) {
-	client, err := d.client(ctx, target)
+func (d *Dialer) Process(ctx context.Context, target, nodeID string) (nodesandboxv1.NodeSandbox_ProcessClient, error) {
+	client, err := d.client(ctx, target, nodeID)
 	if err != nil {
 		return nil, err
 	}

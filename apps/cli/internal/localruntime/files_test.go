@@ -41,7 +41,7 @@ func TestGeneratedIdentityFilesAreValidAndPrivate(t *testing.T) {
 	if err := ensureSSH(ssh); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(certs, "gatewayd.crt"))
+	data, err := os.ReadFile(filepath.Join(certs, "gatewayd.pem"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,30 +82,22 @@ func TestValidSSHPrivateKeyAcceptsOpenSSHEd25519(t *testing.T) {
 	}
 }
 
-func TestValidCertificateSetAcceptsPKCS8RSAKey(t *testing.T) {
+func TestCertificateSetRejectsLostSigningAuthority(t *testing.T) {
 	dir := t.TempDir()
 	if err := ensurePKI(dir); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "ca.key")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	block, _ := pem.Decode(data)
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: encoded}), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	if !validCertificateSet(dir) {
-		t.Fatal("certificate set with PKCS#8 RSA CA key was rejected")
+		t.Fatal("new certificate set rejected")
+	}
+	if err := os.Remove(filepath.Join(dir, "private", "signer.pem")); err != nil {
+		t.Fatal(err)
+	}
+	if validCertificateSet(dir) {
+		t.Fatal("missing authority accepted")
+	}
+	if err := ensurePKI(dir); err == nil {
+		t.Fatal("lost authority silently replaced")
 	}
 }
 

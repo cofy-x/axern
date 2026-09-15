@@ -3,6 +3,7 @@ package pgrun
 import (
 	"context"
 	"fmt"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"strings"
 	"time"
 
@@ -32,11 +33,11 @@ func (s *Store) WatchAllocationAccessGrants(ctx context.Context, nodeID string, 
 
 func (s *Store) loadAllocationAccessGrants(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*accessgrantkernel.Record, int64, error) {
 	var current int64
-	if err := s.db.Pool().QueryRow(ctx, `SELECT revision FROM control_revisions WHERE name = $1`, accessGrantRevisionName).Scan(&current); err != nil {
+	if err := s.db.Pool().QueryRow(ctx, `SELECT COALESCE((SELECT revision FROM node_access_grant_cursors WHERE node_id = $1), 0)`, nodeID).Scan(&current); err != nil {
 		return nil, 0, fmt.Errorf("load allocation access grant revision: %w", err)
 	}
 	rows, err := s.db.Pool().Query(ctx, `
-		SELECT grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash
+		SELECT grant_id, allocation_id, node_id, expires_at, revision, revoked, token_hash, purpose
 		FROM allocation_access_grants
 		WHERE node_id = $1 AND revision > $2 AND revision <= $3
 		ORDER BY revision ASC, grant_id ASC
@@ -48,9 +49,11 @@ func (s *Store) loadAllocationAccessGrants(ctx context.Context, nodeID string, a
 	grants := make([]*accessgrantkernel.Record, 0)
 	for rows.Next() {
 		grant := &accessgrantkernel.Record{}
-		if err := rows.Scan(&grant.GrantID, &grant.AllocationID, &grant.NodeID, &grant.ExpiresAt, &grant.Revision, &grant.Revoked, &grant.ValidationTokenHash); err != nil {
+		var purpose string
+		if err := rows.Scan(&grant.GrantID, &grant.AllocationID, &grant.NodeID, &grant.ExpiresAt, &grant.Revision, &grant.Revoked, &grant.ValidationTokenHash, &purpose); err != nil {
 			return nil, 0, err
 		}
+		grant.Purpose = gatewayv1.AllocationAccessPurpose(gatewayv1.AllocationAccessPurpose_value[purpose])
 		if accessgrantkernel.IsExpired(grant, now) {
 			grant.Revoked = true
 		}

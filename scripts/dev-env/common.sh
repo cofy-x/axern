@@ -270,6 +270,7 @@ ensure_state_dirs() {
     "${K8S_STATE_DIR}/certs" \
     "${K8S_STATE_DIR}/ssh" \
     "${K8S_STATE_DIR}/logs"
+  chmod 700 "${COMPOSE_STATE_DIR}" "${K8S_STATE_DIR}"
 }
 
 lock_dir_for() {
@@ -445,9 +446,9 @@ secrets_master_key_file() {
   printf '%s/%s\n' "${STATE_ROOT}/${env_name}" "${SECRETS_MASTER_KEY_FILE_NAME}"
 }
 
-node_credential_file() {
+enrollment_token_file() {
 	local env_name="$1"
-	printf '%s/%s\n' "${STATE_ROOT}/${env_name}" "node-credential"
+	printf '%s/%s\n' "${STATE_ROOT}/${env_name}" "enrollment-token"
 }
 
 cli_env_file() {

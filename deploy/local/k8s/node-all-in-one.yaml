@@ -12,6 +12,15 @@ spec:
       labels:
         app: node-all-in-one
     spec:
+      # The local bootstrap replaces this exact-host constraint before apply.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchFields:
+                  - key: metadata.name
+                    operator: In
+                    values: ["local-bootstrap-must-select-node"]
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -55,17 +64,17 @@ spec:
               value: controld.axern-local.svc.cluster.local:24000
             - name: AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL
               value: 1s
+            - name: AXERN_WORKLOAD_CLUSTER
+              value: axern.local
+            - name: AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET
+              value: controld:24002
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_CERT
-              value: /certs/node.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_KEY
-              value: /certs/node.key
-            - name: AXNODED_CONTROL_PLANE_NODE_CREDENTIAL
+            - name: AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: node-credential
-                  key: node-credential
+                  name: enrollment-token
+                  key: enrollment-token
             # Match the verification runtime's local-only 1 GiB reserve:
             # a 512 MiB conformance charge must coexist with node daemons.
             # Production deployments must use a measured qualification receipt.
@@ -103,6 +112,10 @@ spec:
         - name: certs
           secret:
             secretName: controld-pki
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
         - name: shared-run
           emptyDir: {}
         - name: axnoded-state

@@ -14,6 +14,11 @@ spec:
       labels:
         {{- include "axern.componentSelectorLabels" (dict "root" . "component" "tunneld") | nindent 8 }}
     spec:
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65534
+        runAsNonRoot: true
+        fsGroup: 65534
       {{- with .Values.global.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -43,16 +48,16 @@ spec:
             - {{ include "axern.controldTarget" . | quote }}
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/tunneld.crt
-            - -tls-key
-            - /certs/tunneld.key
+            - -workload-cluster
+            - {{ .Values.pki.trustDomain | quote }}
+            - -workload-bundle
+            - /certs/tunneld.pem
             - -relay-id
             - {{ .Values.tunneld.relayID | quote }}
             - -relay-tls-cert
-            - /certs/tunneld.crt
+            - /certs/tunneld.pem
             - -relay-tls-key
-            - /certs/tunneld.key
+            - /certs/tunneld.pem
           env:
             {{- include "axern.otelEnv" . | nindent 12 }}
           ports:
@@ -65,6 +70,12 @@ spec:
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
+            defaultMode: 288
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tunneld.pem
+                path: tunneld.pem
 ---
 apiVersion: v1
 kind: Service

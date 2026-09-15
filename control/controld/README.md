@@ -13,7 +13,7 @@
 - controld-managed secret metadata, encryption, and resolution
 - read-only operational debug HTTP surfaces
 
-`controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here. Node lifecycle dispatch uses the dedicated `controld` workload certificate and verifies the stable node server name `axern-node`; axnoded accepts that identity only for `NodeLifecycle`.
+`controld` does not own realtime exec or terminal streaming. Realtime execution goes to selected nodes through the current SDK path, and `gatewayd` owns external control/data-plane forwarding after resolving routes here. Node lifecycle dispatch uses the dedicated `controld` workload certificate and verifies the exact bound Node URI; axnoded accepts that identity only for `NodeLifecycle`.
 
 Run creation freezes the Environment source and resolved runtime input, then persists the Run, its single resource-charged Allocation, required Secret references, capability requirements, and node-create intent in one transaction. It returns before node startup. The reusable Environment row may later be physically deleted without changing execution or recovery for admitted Runs. Periodic Run, node, tunnel, and capability maintenance executes in independent, non-overlapping component loops. Allocation creation uses a bounded timeout per lifecycle item so cold image preparation cannot consume unrelated work budgets. On shutdown, active calls are canceled before the application waits for workers.
 
@@ -67,8 +67,10 @@ go run ./control/controld/cmd/controld \
   -summary-freshness-window 15s \
   -resource-cpu-overcommit-ratio 1.0 \
   -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/controld.crt \
-  -tls-key .dev/certs/controld.key \
+  -workload-cluster axern.local \
+  -workload-bundle .dev/certs/controld.pem \
+  -workload-signer-bundle .dev/certs/private/signer.pem \
+  -enrollment-address 127.0.0.1:24002 \
   -secrets-master-key "local-only-master-key-32-bytes!!" \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
 ```
@@ -194,3 +196,30 @@ flowchart LR
 - `internal/testutil/controldtest` owns focused test doubles and Postgres test harness helpers.
 
 Before changing package boundaries or feature placement rules, read [Agent Contract](AGENTS.md). `make -C control/controld check-architecture` enforces the main direction rules: API/application/kernel packages must not import Postgres adapters, Postgres adapters must not reintroduce alias bridges, and catch-all helper files should not return under `internal/postgres`.
+
+## Allocation Output And Access Grants
+
+The first Allocation cleanup transition freezes a 15-minute output expiry in PostgreSQL. EnsureAbsent delivers that same deadline to axnoded; release does not extend it. Terminal Run retention waits for output expiry. Gateway resolution issues an exact-purpose grant under the Allocation row lock: interactive grants require ACTIVE, while output-only grants can read an unexpired cleanup snapshot. Grant issue/revoke and a per-Node delivery cursor commit together. Revocation publishes all of an Allocation's tokens in one update; other Nodes do not contend on a global grant cursor. The node ignores stale revisions and cannot use output grants for interactive operations.
+
+## Node Identity Ownership And Recovery
+
+| Fact | Owner |
+| --- | --- |
+| Node admission, retirement and initial token hash | PostgreSQL Node row; audited admin transaction |
+| One CSR registration and retry response | Enrollment receipt, committed under the Node lock |
+| Node private key and accepted certificate | Node root `identity/node.pem`; mode 0600 atomic bundle |
+| Pending registration key and CSR | Node `identity/node.pem.pending`, removed after durable publication |
+| Signing authority | Deployment private signer bundle, mounted only by controld |
+| Allocation execution lifetime | ExecutionLease, independent of certificate lifetime |
+
+The dedicated TLS enrollment listener exposes only EnrollNode and RenewNodeCertificate. Initial enrollment authenticates the server URI before transmitting the token. The transaction locks the admitted Node, checks database time against admission plus one hour, validates the token hash, and signs only the first CSR. Exact retries return the committed certificate; another CSR is rejected. Signing failures roll back. Retention removes expired receipts, but the immutable admission deadline prevents replay after removal.
+
+Renewal requires the exact verified Node URI and an active Node row locked against retirement. Existing TLS connections are checked again at RPC time, including certificate-chain expiry. Normal NodeControl requests contain no enrollment token and must match the authenticated Node ID. Watches periodically recheck admission and terminate on expiry. Retirement revokes every certificate for that Node; it requires an idle, disconnected Node with no remaining execution or access obligations. For a compromised live host, isolate it, cancel its Allocations and wait for finite leases and cleanup before retiring it; retirement does not bypass lifecycle safety.
+
+Nodes register their own keys, retry registration using the persisted CSR after response loss, and renew 24-hour certificates when eight hours remain. Renewal never changes Node or Allocation identity. A corrupt, expired or mismatched existing bundle does not fall back to enrollment. The maintenance loop does not gate runtime recovery or the execution-lease watchdog.
+
+### Deployment Rotation
+
+Use `axern admin pki bootstrap --directory <private-directory> --cluster <domain>` to initialize deployment authority. Serialize operations on that directory and back it up. The tool never generates Node keys. Service certificates last 90 days; `--renew-services` rotates their leaves without changing the CA or administrator fingerprint. Republish the role Secret and restart service connections. Compose single-file bind mounts require container recreation after atomic host-file replacement; Kubernetes Secret volumes must not use subPath for reloadable credentials.
+
+CA replacement is explicit: provision a new private directory, publish old-plus-new trust to every peer first, then publish the new signer and service bundles. Keep old trust for at least a full Node certificate lifetime after the last old issuance and confirm Node renewal before removing it. Reload failures fail closed. Do not rerun bootstrap over an overlapping trust bundle or silently replace a missing CA. Administrator credentials belong to AccessAdmin and must be rotated explicitly before their expiry; service renewal never changes their fingerprint.

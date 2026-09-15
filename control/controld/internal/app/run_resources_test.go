@@ -513,10 +513,9 @@ func reportReadyNodeSummary(t *testing.T, app *App, nodeID string, _ time.Time, 
 	ensureTestNodeAdmitted(t, app, nodeID)
 	node := app.NodeV1Handler()
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:         nodeID,
-		NodeTarget:     "127.0.0.1:25000",
-		NodeCredential: testNodeCredential,
-		Summary:        summary,
+		NodeID:     nodeID,
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}

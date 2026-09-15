@@ -33,14 +33,14 @@ func (s *Store) AdmitNode(ctx context.Context, req adminkernel.AdmitNodeRequest)
 	}
 	defer tx.Rollback(ctx)
 
-	credentialHash := sha256.Sum256([]byte(req.NodeCredential))
+	tokenHash := sha256.Sum256([]byte(req.EnrollmentToken))
 	command, err := tx.Exec(ctx, `
 		INSERT INTO nodes (
-			node_id, node_target, node_credential_hash, admitted_at,
+			node_id, node_target, enrollment_token_hash, admitted_at,
 			last_heartbeat_at, lifecycle_status
 		) VALUES ($1, '', $2, $3, NULL, 'active')
 		ON CONFLICT (node_id) DO NOTHING
-	`, req.NodeID, hex.EncodeToString(credentialHash[:]), req.Now)
+	`, req.NodeID, hex.EncodeToString(tokenHash[:]), req.Now)
 	if err != nil {
 		return nil, fmt.Errorf("admit node: %w", err)
 	}
@@ -65,7 +65,7 @@ func (s *Store) AdmitNode(ctx context.Context, req adminkernel.AdmitNodeRequest)
 }
 
 // BootstrapNode creates the initial node identity before controld starts. It is
-// idempotent only when the existing identity has the same credential and is
+// idempotent only when the existing identity has the same enrollment token and is
 // still active; bootstrap never rotates or revives an identity.
 func (s *Store) BootstrapNode(ctx context.Context, req adminkernel.AdmitNodeRequest) error {
 	req = adminkernel.NormalizeAdmitNodeRequest(req)
@@ -78,11 +78,11 @@ func (s *Store) BootstrapNode(ctx context.Context, req adminkernel.AdmitNodeRequ
 	}
 	defer tx.Rollback(ctx)
 
-	credentialHash := sha256.Sum256([]byte(req.NodeCredential))
-	wantHash := hex.EncodeToString(credentialHash[:])
+	tokenHash := sha256.Sum256([]byte(req.EnrollmentToken))
+	wantHash := hex.EncodeToString(tokenHash[:])
 	command, err := tx.Exec(ctx, `
 		INSERT INTO nodes (
-			node_id, node_target, node_credential_hash, admitted_at,
+			node_id, node_target, enrollment_token_hash, admitted_at,
 			last_heartbeat_at, lifecycle_status
 		) VALUES ($1, '', $2, $3, NULL, 'active')
 		ON CONFLICT (node_id) DO NOTHING
@@ -92,11 +92,11 @@ func (s *Store) BootstrapNode(ctx context.Context, req adminkernel.AdmitNodeRequ
 	}
 	if command.RowsAffected() == 0 {
 		var existingHash, lifecycle string
-		if err := tx.QueryRow(ctx, `SELECT node_credential_hash, lifecycle_status FROM nodes WHERE node_id = $1`, req.NodeID).Scan(&existingHash, &lifecycle); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT enrollment_token_hash, lifecycle_status FROM nodes WHERE node_id = $1`, req.NodeID).Scan(&existingHash, &lifecycle); err != nil {
 			return fmt.Errorf("load bootstrapped node: %w", err)
 		}
 		if subtle.ConstantTimeCompare([]byte(existingHash), []byte(wantHash)) != 1 || lifecycle != string(nodekernel.LifecycleActive) {
-			return grpcstatus.Error(codes.FailedPrecondition, "existing node identity does not match bootstrap credential or lifecycle")
+			return grpcstatus.Error(codes.FailedPrecondition, "existing node identity does not match bootstrap enrollment token or lifecycle")
 		}
 		return tx.Commit(ctx)
 	}

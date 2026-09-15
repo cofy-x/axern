@@ -14,7 +14,12 @@ func (s *Store) ResolveResourceNamespace(ctx context.Context, resourceType, reso
 		"environment": `SELECT namespace FROM environments WHERE environment_id=$1`,
 		"run":         `SELECT namespace FROM runs WHERE run_id=$1`,
 		"secret":      `SELECT namespace FROM secrets WHERE secret_id=$1`,
-		"tunnel":      `SELECT namespace FROM tunnel_sessions WHERE session_id=$1`,
+		"tunnel": `
+			SELECT r.namespace
+			FROM tunnel_sessions t
+			JOIN allocations a ON a.allocation_id = t.allocation_id
+			JOIN runs r ON r.run_id = a.run_id
+			WHERE t.session_id = $1`,
 		"allocation": `
 			SELECT r.namespace
 			FROM allocations a

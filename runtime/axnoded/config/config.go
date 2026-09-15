@@ -35,9 +35,11 @@ type PluginConfig struct {
 	ResourceConfig `toml:"resource" json:"resource"`
 
 	ControlPlaneTarget             string                      `toml:"control_plane_target" json:"controlPlaneTarget"`
+	ControlPlaneEnrollmentTarget   string                      `toml:"control_plane_enrollment_target" json:"controlPlaneEnrollmentTarget"`
+	WorkloadCluster                string                      `toml:"workload_cluster" json:"workloadCluster"`
 	ControlPlaneNodeID             string                      `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
 	ControlPlaneNodeTarget         string                      `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
-	ControlPlaneNodeCredential     string                      `toml:"control_plane_node_credential" json:"controlPlaneNodeCredential"`
+	ControlPlaneEnrollmentToken    string                      `toml:"control_plane_enrollment_token" json:"-"`
 	ControlPlaneHeartbeatInterval  string                      `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
 	ControlPlaneNodeState          string                      `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
 	NodeExtensionCapabilities      []ExtensionCapabilityConfig `toml:"node_extension_capabilities" json:"nodeExtensionCapabilities"`
@@ -45,8 +47,6 @@ type PluginConfig struct {
 	ControlPlaneNodeResourceSource string                      `toml:"control_plane_node_resource_source" json:"controlPlaneNodeResourceSource"`
 	ControlPlaneKubernetesNodeName string                      `toml:"control_plane_kubernetes_node_name" json:"controlPlaneKubernetesNodeName"`
 	ControlPlaneTLSCACert          string                      `toml:"control_plane_tls_ca_cert" json:"controlPlaneTlsCaCert"`
-	ControlPlaneTLSCert            string                      `toml:"control_plane_tls_cert" json:"controlPlaneTlsCert"`
-	ControlPlaneTLSKey             string                      `toml:"control_plane_tls_key" json:"controlPlaneTlsKey"`
 }
 
 type ExtensionCapabilityConfig struct {
@@ -195,20 +195,12 @@ func (c PluginConfig) ControlPlaneNodeTargetValue() string {
 	return strings.TrimSpace(c.ControlPlaneNodeTarget)
 }
 
-func (c PluginConfig) ControlPlaneNodeCredentialValue() string {
-	return strings.TrimSpace(c.ControlPlaneNodeCredential)
+func (c PluginConfig) ControlPlaneEnrollmentTokenValue() string {
+	return strings.TrimSpace(c.ControlPlaneEnrollmentToken)
 }
 
 func (c PluginConfig) ControlPlaneTLSCACertValue() string {
 	return strings.TrimSpace(c.ControlPlaneTLSCACert)
-}
-
-func (c PluginConfig) ControlPlaneTLSCertValue() string {
-	return strings.TrimSpace(c.ControlPlaneTLSCert)
-}
-
-func (c PluginConfig) ControlPlaneTLSKeyValue() string {
-	return strings.TrimSpace(c.ControlPlaneTLSKey)
 }
 
 func (c PluginConfig) ControlPlaneHeartbeatIntervalDuration() (time.Duration, error) {

@@ -36,13 +36,13 @@ If either path is wrong or not writable, startup, restart recovery, and containe
 | `control_plane_target` | `controld` node-control endpoint. | Empty disables the reporter. |
 | `control_plane_node_id` | Stable node identity reported to `controld`. | Empty falls back to hostname. |
 | `control_plane_node_target` | Internal address that `gatewayd` and `controld` can use to reach this node. | Needed when gateway forwarding crosses host boundaries. |
-| `control_plane_node_credential` | Node credential for control-plane reports and lifecycle coordination. | Required by secured control-plane deployments. |
+| `control_plane_enrollment_token` | One-time token for initial CSR registration only. | Valid for one hour after admission; never used in normal RPCs. |
+| `control_plane_enrollment_target` | Dedicated controld enrollment listener. | Required for node registration and renewal. |
+| `workload_cluster` | Exact URI trust domain. | Must match controld and deployment PKI. |
 | `control_plane_heartbeat_interval` | Node report interval. | Empty or non-positive falls back to `5s`. |
 | `control_plane_node_resource_source` | Source for reported node capacity, allocatable resources, and placement labels. | Use `kubernetes` in Kubernetes deployments so axnoded reports Node API `status.capacity`, `status.allocatable`, and `metadata.labels`; use `host` for local or bare-metal nodes. |
 | `control_plane_kubernetes_node_name` | Kubernetes Node object name used when `control_plane_node_resource_source = "kubernetes"`. | In Helm deployments this is populated from `spec.nodeName`; otherwise empty falls back to `control_plane_node_id`. |
 | `control_plane_tls_ca_cert` | CA certificate path for control-plane TLS. | Use with secured `controld` endpoints. |
-| `control_plane_tls_cert` | Client certificate path. | Pair with `control_plane_tls_key`. |
-| `control_plane_tls_key` | Client private key path. | Pair with `control_plane_tls_cert`. |
 | `control_plane_node_state` | Advertised scheduling state. | Valid values are `ready`, `draining`, and `disabled`; invalid values normalize to `ready`. |
 | `[[node_extension_capabilities]]` | Exact-match extension facts using `name` and optional `value`. | Names must use `<dns-domain>/<name>`; Axern-owned domains are rejected. Platform capabilities cannot be configured. |
 | `[plugin.control_plane_node_labels]` | Explicit placement labels. | Empty keys are ignored and values are trimmed. Explicit labels override labels collected from the Kubernetes Node object. |

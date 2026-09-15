@@ -88,18 +88,13 @@ func TestNewConsistencySnapshotJSON(t *testing.T) {
 			Issues:                     1,
 		},
 		Issues: []*adminv1.ConsistencyIssue{{
-			Code:             adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION,
-			Severity:         adminv1.ConsistencyIssueSeverity_CONSISTENCY_ISSUE_SEVERITY_ERROR,
-			AllocationID:     "alloc-a",
-			RepairOwner:      adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_RUN_CONTROLLER,
-			RepairAction:     adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_RUN_CLEANUP,
-			RepairTargetType: adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_ALLOCATION,
-			RepairTargetID:   "alloc-a",
-			AutomaticRepair:  false,
+			Code:         adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION,
+			Severity:     adminv1.ConsistencyIssueSeverity_CONSISTENCY_ISSUE_SEVERITY_ERROR,
+			AllocationID: "alloc-a",
 		}},
 		Truncated: true,
 	})
-	if got == nil || got.Status != "inconsistent" || got.Counts.Issues != 1 || len(got.Issues) != 1 || got.Issues[0].Code != "active-access-grant-on-ended-allocation" || got.Issues[0].RepairOwner != "run-controller" || got.Issues[0].RepairAction != "run-cleanup" || got.Issues[0].RepairTargetType != "allocation" || got.Issues[0].RepairTargetID != "alloc-a" || !got.Truncated {
+	if got == nil || got.Status != "inconsistent" || got.Counts.Issues != 1 || len(got.Issues) != 1 || got.Issues[0].Code != "active-access-grant-on-ended-allocation" || !got.Truncated {
 		t.Fatalf("NewConsistencySnapshotJSON() = %+v", got)
 	}
 }

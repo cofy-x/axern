@@ -35,7 +35,7 @@ func TestAdmitAdminNodeForwardsIdentityAndCredential(t *testing.T) {
 	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: time.Minute, NodeSummaryWindow: time.Minute})
 
 	resp, err := srv.AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
-		NodeID: " node-a ", NodeCredential: "0123456789abcdef0123456789abcdef", OperatorReason: " add worker ",
+		NodeID: " node-a ", EnrollmentToken: "0123456789abcdef0123456789abcdef", OperatorReason: " add worker ",
 	})
 	if err != nil {
 		t.Fatalf("AdmitAdminNode() error = %v", err)

@@ -46,9 +46,8 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 				return fmt.Errorf("complete allocation release: %w", err)
 			}
 		}
-		if err := s.revokeAllocationAccessGrants(ctx, tx, allocationID, now); err != nil {
-			return err
-		}
+		// Termination already revoked execution access. Output-only grants issued
+		// since then remain valid until their bounded retention deadline.
 		tag, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id = $1 AND claim_owner = $2`, allocationID, strings.TrimSpace(claimOwner))
 		if err != nil {
 			return fmt.Errorf("delete reconcile item: %w", err)
@@ -126,58 +125,6 @@ func (s *Store) LoadStartAllocation(ctx context.Context, allocationID string) (*
 		return nil
 	})
 	return out, err
-}
-
-func (s *Store) nextAccessGrantRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
-	var revision int64
-	if err := tx.QueryRow(ctx, `
-		UPDATE control_revisions
-		SET revision = revision + 1
-		WHERE name = $1
-		RETURNING revision
-	`, accessGrantRevisionName).Scan(&revision); err != nil {
-		return 0, fmt.Errorf("next allocation access grant revision: %w", err)
-	}
-	return revision, nil
-}
-
-func (s *Store) revokeAllocationAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string, now time.Time) error {
-	rows, err := tx.Query(ctx, `
-		SELECT grant_id
-		FROM allocation_access_grants
-		WHERE allocation_id = $1 AND revoked = false
-		FOR UPDATE
-	`, strings.TrimSpace(allocationID))
-	if err != nil {
-		return fmt.Errorf("query allocation access grants for revoke: %w", err)
-	}
-	defer rows.Close()
-	grantIDs := make([]string, 0)
-	for rows.Next() {
-		var grantID string
-		if err := rows.Scan(&grantID); err != nil {
-			return err
-		}
-		grantIDs = append(grantIDs, grantID)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, grantID := range grantIDs {
-		revision, err := s.nextAccessGrantRevision(ctx, tx)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE allocation_access_grants
-			SET revoked = true, revision = $2
-			WHERE grant_id = $1
-		`, grantID, revision); err != nil {
-			return fmt.Errorf("revoke allocation access grant %s: %w", grantID, err)
-		}
-	}
-	_ = now
-	return nil
 }
 
 func (s *Store) ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, claimTTL time.Duration) ([]allocationkernel.ReconcileItem, error) {

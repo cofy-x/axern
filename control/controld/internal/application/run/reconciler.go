@@ -180,7 +180,7 @@ func (r *reconciler) reconcileStart(ctx context.Context, item allocationkernel.R
 }
 
 func (r *reconciler) reconcileDeleteRetry(ctx context.Context, item allocationkernel.ReconcileItem) error {
-	err := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID)
+	err := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputExpiresAt)
 	if err != nil {
 		actionNow := r.now().UTC()
 		updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, err.Error(), actionNow), item.ClaimOwner, actionNow)

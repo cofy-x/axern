@@ -81,17 +81,14 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	return cloneCapabilityConditionSet(resp.GetCapabilityVerification()), nil
 }
 
-func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string) error {
-	return b.DeleteResolvedAllocation(ctx, target, allocationID, nodeID)
-}
-
-func (b *Bridge) DeleteResolvedAllocation(ctx context.Context, target, allocationID string, nodeID string) error {
+func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputExpiresAt *time.Time) error {
 	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
 	_, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
-		AllocationID:   allocationID,
-		NodeID:         nodeID,
-		TimeoutSeconds: 10,
+		AllocationID:            allocationID,
+		NodeID:                  nodeID,
+		TimeoutSeconds:          10,
+		OutputExpiresAtUnixNano: outputExpiryNanos(outputExpiresAt),
 	})
 	if grpcstatus.Code(err) == codes.NotFound {
 		return nil
@@ -151,4 +148,11 @@ func nodeLifecycleErrorClass(err error) string {
 		return strings.ToLower(code.String())
 	}
 	return "error"
+}
+
+func outputExpiryNanos(deadline *time.Time) int64 {
+	if deadline == nil {
+		return 0
+	}
+	return deadline.UnixNano()
 }

@@ -244,7 +244,7 @@ type fakeProcessStreamer struct {
 	tokens  []string
 }
 
-func (f *fakeProcessStreamer) Process(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ProcessClient, error) {
+func (f *fakeProcessStreamer) Process(ctx context.Context, target, nodeID string) (nodesandboxv1.NodeSandbox_ProcessClient, error) {
 	f.targets = append(f.targets, target)
 	md, _ := metadata.FromOutgoingContext(ctx)
 	values := md.Get(nodekernel.AllocationAccessGrantTokenMetadata)

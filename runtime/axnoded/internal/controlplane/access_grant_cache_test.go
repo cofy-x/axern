@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"testing"
 	"time"
 
@@ -17,11 +18,11 @@ func TestAccessGrantCacheWaitValidateWakesForExactToken(t *testing.T) {
 	defer cancel()
 	result := make(chan bool, 1)
 	go func() {
-		valid, _ := cache.WaitValidate(ctx, "alloc-1", "token-1", time.Now)
+		valid, _ := cache.WaitValidate(ctx, "alloc-1", "token-1", gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, time.Now)
 		result <- valid
 	}()
 
-	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		GrantID:             "grant-1",
 		AllocationID:        "alloc-1",
 		ValidationTokenHash: accessGrantTokenHash("token-1"),
@@ -37,7 +38,7 @@ func TestAccessGrantCacheWaitValidateRejectsKnownRevokedToken(t *testing.T) {
 	t.Parallel()
 
 	cache := NewAccessGrantCache()
-	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		GrantID:             "grant-1",
 		AllocationID:        "alloc-1",
 		ValidationTokenHash: accessGrantTokenHash("token-1"),
@@ -45,7 +46,7 @@ func TestAccessGrantCacheWaitValidateRejectsKnownRevokedToken(t *testing.T) {
 		Revoked:             true,
 	}})
 
-	if valid, _ := cache.WaitValidate(context.Background(), "alloc-1", "token-1", time.Now); valid {
+	if valid, _ := cache.WaitValidate(context.Background(), "alloc-1", "token-1", gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, time.Now); valid {
 		t.Fatal("WaitValidate() = true, want false")
 	}
 }
@@ -56,7 +57,7 @@ func TestAccessGrantCacheWaitValidateStopsWithContext(t *testing.T) {
 	cache := NewAccessGrantCache()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if valid, _ := cache.WaitValidate(ctx, "alloc-1", "unknown-token", time.Now); valid {
+	if valid, _ := cache.WaitValidate(ctx, "alloc-1", "unknown-token", gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, time.Now); valid {
 		t.Fatal("WaitValidate() = true, want false")
 	}
 }
@@ -65,12 +66,12 @@ func TestAccessGrantCacheApplyPrunesExpiredTokens(t *testing.T) {
 	t.Parallel()
 
 	cache := NewAccessGrantCache()
-	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		AllocationID:        "alloc-expired",
 		ValidationTokenHash: accessGrantTokenHash("expired-token"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(-time.Second)),
 	}})
-	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		AllocationID:        "alloc-live",
 		ValidationTokenHash: accessGrantTokenHash("live-token"),
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
@@ -87,13 +88,14 @@ func TestAccessGrantCacheApplyReplacesRotatedToken(t *testing.T) {
 	t.Parallel()
 
 	cache := NewAccessGrantCache()
-	grant := &nodev1.NodeAllocationAccessGrant{
+	grant := &nodev1.NodeAllocationAccessGrant{Revision: 1, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		GrantID:      "grant-1",
 		AllocationID: "alloc-1",
 		ExpiresAt:    timestamppb.New(time.Now().Add(time.Minute)),
 	}
 	grant.ValidationTokenHash = accessGrantTokenHash("old-token")
 	cache.Apply([]*nodev1.NodeAllocationAccessGrant{grant})
+	grant.Revision = 2
 	grant.ValidationTokenHash = accessGrantTokenHash("new-token")
 	cache.Apply([]*nodev1.NodeAllocationAccessGrant{grant})
 
@@ -102,5 +104,27 @@ func TestAccessGrantCacheApplyReplacesRotatedToken(t *testing.T) {
 	}
 	if !cache.Validate("alloc-1", "new-token", time.Now()) {
 		t.Fatal("Validate(new-token) = false after rotation")
+	}
+}
+
+func TestAccessGrantRejectsStaleRevocationAndWrongPurpose(t *testing.T) {
+	cache := NewAccessGrantCache()
+	g := &nodev1.NodeAllocationAccessGrant{GrantID: "g", AllocationID: "a", ValidationTokenHash: accessGrantTokenHash("token"), Revision: 2, Revoked: true, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{g})
+	g.Revision = 1
+	g.Revoked = false
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{g})
+	if valid, _ := cache.WaitValidate(context.Background(), "a", "token", gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, time.Now); valid {
+		t.Fatal("old update resurrected revoked token")
+	}
+	g.GrantID = "other"
+	g.ValidationTokenHash = accessGrantTokenHash("output-only")
+	g.Revision = 3
+	cache.Apply([]*nodev1.NodeAllocationAccessGrant{g})
+	if cache.Validate("a", "output-only", time.Now()) {
+		t.Fatal("output token authorized interactive access")
+	}
+	if valid, _ := cache.WaitValidate(context.Background(), "a", "output-only", gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, time.Now); !valid {
+		t.Fatal("output token rejected")
 	}
 }

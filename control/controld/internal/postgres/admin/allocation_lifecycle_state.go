@@ -130,7 +130,7 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	if tag.RowsAffected() == 0 {
 		return grpcstatus.Errorf(codes.FailedPrecondition, "run allocation lifecycle retry %q cannot be failed because the run is already terminal", item.AllocationID)
 	}
-	if err := revokeActiveAllocationAccessGrants(ctx, tx, item.AllocationID); err != nil {
+	if err := pgallocation.RevokeAccessGrants(ctx, tx, item.AllocationID); err != nil {
 		return err
 	}
 	if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{
@@ -150,57 +150,6 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 		return fmt.Errorf("schedule cleanup after failed allocation create: %w", err)
 	}
 	return nil
-}
-
-func revokeActiveAllocationAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) error {
-	rows, err := tx.Query(ctx, `
-		SELECT grant_id
-		FROM allocation_access_grants
-		WHERE allocation_id = $1 AND revoked = FALSE
-		FOR UPDATE
-	`, strings.TrimSpace(allocationID))
-	if err != nil {
-		return fmt.Errorf("query active allocation access grants: %w", err)
-	}
-	defer rows.Close()
-	grantIDs := make([]string, 0)
-	for rows.Next() {
-		var grantID string
-		if err := rows.Scan(&grantID); err != nil {
-			return err
-		}
-		grantIDs = append(grantIDs, grantID)
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	for _, grantID := range grantIDs {
-		revision, err := nextAccessGrantRevision(ctx, tx)
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE allocation_access_grants
-			SET revoked = TRUE, revision = $2
-			WHERE grant_id = $1
-		`, grantID, revision); err != nil {
-			return fmt.Errorf("revoke allocation access grant %s: %w", grantID, err)
-		}
-	}
-	return nil
-}
-
-func nextAccessGrantRevision(ctx context.Context, tx pgx.Tx) (int64, error) {
-	var revision int64
-	if err := tx.QueryRow(ctx, `
-		UPDATE control_revisions
-		SET revision = revision + 1
-		WHERE name = $1
-		RETURNING revision
-	`, accessGrantRevisionName).Scan(&revision); err != nil {
-		return 0, fmt.Errorf("next allocation access grant revision: %w", err)
-	}
-	return revision, nil
 }
 
 func deleteLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string) error {

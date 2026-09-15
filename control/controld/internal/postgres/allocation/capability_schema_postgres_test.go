@@ -60,7 +60,7 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 		"ephemeral_storage_request_bytes",
 		"created_at",
 		"updated_at",
-		"node_active_at",
+		"node_active_at", "output_expires_at",
 	}
 	if !slices.Equal(allocationColumns, wantColumns) {
 		t.Fatalf("allocation columns = %v, want %v", allocationColumns, wantColumns)
@@ -90,7 +90,7 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
-		INSERT INTO nodes (node_id, node_target, node_credential_hash, admitted_at, last_heartbeat_at, lifecycle_status)
+		INSERT INTO nodes (node_id, node_target, enrollment_token_hash, admitted_at, last_heartbeat_at, lifecycle_status)
 		VALUES ($1, '127.0.0.1:1', repeat('0', 64), $2, $2, 'active')
 	`, nodeID, now); err != nil {
 		t.Fatal(err)

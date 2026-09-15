@@ -1,23 +1,34 @@
 {{- $memorySystemReserveValue := required "node.memorySystemReserveBytes must be set from a memory qualification receipt" .Values.node.memorySystemReserveBytes -}}
 {{- $memorySystemReserve := toString $memorySystemReserveValue -}}
-{{- $nodeCredentialSecret := required "node.credential.existingSecret must name a Secret containing one credential per admitted node ID" .Values.node.credential.existingSecret -}}
+{{- $enrollmentTokenSecret := required "node.enrollment.existingSecret must name a Secret containing one short-lived enrollment token per admitted Node ID" .Values.node.enrollment.existingSecret -}}
 {{- if not (regexMatch "^[1-9][0-9]*$" $memorySystemReserve) -}}
 {{- fail "node.memorySystemReserveBytes must be a positive decimal integer" -}}
 {{- end }}
+{{- $root := . -}}
+{{- $nodes := required "node.enrollment.nodes must explicitly list Kubernetes node names" .Values.node.enrollment.nodes -}}
+{{- $seen := dict -}}
+{{- range $nodeName := $nodes }}
+{{- if hasKey $seen $nodeName }}{{ fail "duplicate node.enrollment.nodes entry" }}{{ end -}}
+{{- $_ := set $seen $nodeName true -}}
+{{- $deploymentKey := trunc 16 (sha256sum $nodeName) -}}
+{{- with $root }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: node-all-in-one
+  name: node-all-in-one-{{ $deploymentKey }}
   labels:
     {{- include "axern.componentLabels" (dict "root" . "component" "node") | nindent 4 }}
 spec:
   selector:
     matchLabels:
       {{- include "axern.componentSelectorLabels" (dict "root" . "component" "node") | nindent 6 }}
+      axern.io/node-deployment: {{ $deploymentKey | quote }}
   template:
     metadata:
       labels:
         {{- include "axern.componentSelectorLabels" (dict "root" . "component" "node") | nindent 8 }}
+        axern.io/node-deployment: {{ $deploymentKey | quote }}
     spec:
       {{- $nodeResourceSource := include "axern.nodeResourceSource" . }}
       {{- if or (eq $nodeResourceSource "kubernetes") .Values.node.serviceAccount.create .Values.node.serviceAccount.name }}
@@ -28,6 +39,15 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- include "axern.scheduling" (dict "root" . "profile" "runtime" "component" "node" "spread" false) | nindent 6 }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchFields:
+                  - key: metadata.name
+                    operator: In
+                    values:
+                      - {{ $nodeName | quote }}
       containers:
         - name: node
           image: {{ include "axern.image" (dict "root" . "image" .Values.node.image) | quote }}
@@ -116,12 +136,12 @@ spec:
               value: {{ .Values.node.network.ebpf.snatDatagramIdleTimeout | quote }}
             - name: BPFNET_UPLINK_DEVICES
               value: {{ join "," .Values.node.network.ebpf.uplinkDevices | quote }}
+            - name: AXERN_WORKLOAD_CLUSTER
+              value: {{ .Values.pki.trustDomain | quote }}
+            - name: AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET
+              value: controld:24002
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_CERT
-              value: /certs/node.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_KEY
-              value: /certs/node.key
             {{- if .Values.node.registryAuth.existingSecret }}
             - name: REGISTRY_AUTHS_SOURCE
               value: /registry-auth/{{ .Values.node.registryAuth.dockerConfigKey }}
@@ -136,12 +156,12 @@ spec:
               {{- end }}
               export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
-              credential_path="/node-credentials/${AXNODED_CONTROL_PLANE_NODE_ID}"
-              if [ ! -s "${credential_path}" ]; then
-                echo "missing admitted node credential at ${credential_path}" >&2
+              enrollment_token_path="/enrollment-tokens/${AXNODED_CONTROL_PLANE_NODE_ID}"
+              if [ ! -s "${enrollment_token_path}" ]; then
+                echo "missing Node enrollment token at ${enrollment_token_path}" >&2
                 exit 1
               fi
-              export AXNODED_CONTROL_PLANE_NODE_CREDENTIAL="$(cat "${credential_path}")"
+              export AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN="$(cat "${enrollment_token_path}")"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
             - containerPort: 24010
@@ -156,8 +176,8 @@ spec:
             - name: certs
               mountPath: /certs
               readOnly: true
-            - name: node-credentials
-              mountPath: /node-credentials
+            - name: enrollment-tokens
+              mountPath: /enrollment-tokens
               readOnly: true
             - name: shared-run
               mountPath: /shared/run
@@ -181,9 +201,17 @@ spec:
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
-        - name: node-credentials
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: enrollment-tokens
           secret:
-            secretName: {{ $nodeCredentialSecret }}
+            secretName: {{ $enrollmentTokenSecret }}
+            defaultMode: 384
+            items:
+              - key: {{ printf "node-%s" $nodeName | quote }}
+                path: {{ printf "node-%s" $nodeName | quote }}
         - name: shared-run
           emptyDir: {}
         - name: axnoded-state
@@ -214,3 +242,6 @@ spec:
               - key: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
                 path: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
         {{- end }}
+
+{{- end }}
+{{- end }}

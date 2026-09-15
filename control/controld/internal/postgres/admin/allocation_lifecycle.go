@@ -20,8 +20,6 @@ type Store struct {
 	db *postgres.DB
 }
 
-const accessGrantRevisionName = "allocation_access_grants"
-
 func NewStore(db *postgres.DB) *Store {
 	return &Store{db: db}
 }
