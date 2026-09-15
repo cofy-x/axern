@@ -11,6 +11,19 @@ fi
 
 fail=0
 
+# Empty directories are not Git objects and may survive a local deletion. Only
+# source-bearing package trees may satisfy the architecture contract.
+source_children() {
+	rg --files "$1" -g '*.go' | awk -v root="$1/" '
+		index($0, root) == 1 {
+			path = substr($0, length(root) + 1)
+			if (index(path, "/")) {
+				split(path, components, "/")
+				print root components[1]
+			}
+		}' | sort -u
+}
+
 check_empty() {
 	local description=$1
 	local command=$2
@@ -50,7 +63,6 @@ runtime/axnoded/internal/bpfnetstatus
 runtime/axnoded/internal/cgroup
 runtime/axnoded/internal/container
 runtime/axnoded/internal/controlplane
-runtime/axnoded/internal/demo
 runtime/axnoded/internal/egress
 runtime/axnoded/internal/environmentcache
 runtime/axnoded/internal/hostlinux
@@ -68,13 +80,12 @@ runtime/axnoded/internal/storetest'
 
 check_equals \
 	"axnoded internal top-level packages must stay intentional" \
-	"find runtime/axnoded/internal -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/internal" \
 	"$expected_internal_packages"
 
 expected_service_subpackages='runtime/axnoded/internal/service/allocation
 runtime/axnoded/internal/service/allocationoutput
 runtime/axnoded/internal/service/controlplane
-runtime/axnoded/internal/service/imageprocess
 runtime/axnoded/internal/service/networking
 runtime/axnoded/internal/service/process
 runtime/axnoded/internal/service/sandboxaccess
@@ -84,7 +95,7 @@ runtime/axnoded/internal/service/startplan'
 
 check_equals \
 	"service subpackages must stay focused domain packages" \
-	"find runtime/axnoded/internal/service -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/internal/service" \
 	"$expected_service_subpackages"
 
 expected_cmd_packages='runtime/axnoded/cmd/axern-sandboxd
@@ -109,7 +120,7 @@ runtime/axnoded/cmd/verify-startup'
 
 check_equals \
 	"cmd packages must stay explicit executable entrypoints" \
-	"find runtime/axnoded/cmd -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/cmd" \
 	"$expected_cmd_packages"
 
 expected_pkg_packages='runtime/axnoded/pkg/errord
@@ -120,7 +131,7 @@ runtime/axnoded/pkg/truncindex'
 
 check_equals \
 	"pkg packages must stay limited to reusable support utilities" \
-	"find runtime/axnoded/pkg -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/pkg" \
 	"$expected_pkg_packages"
 
 check_empty \

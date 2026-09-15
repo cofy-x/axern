@@ -99,6 +99,7 @@ release-check: ## Verify release versions and package contracts
 	bash $(ROOTDIR)/scripts/dev-env/docker-build-cache-test.sh
 	$(MAKE) cli-e2e-environment-contract
 	python3 $(ROOTDIR)/scripts/verification/network-policy-readiness-test.py
+	bash $(ROOTDIR)/scripts/verification/architecture-source-test.sh
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
 	bash $(ROOTDIR)/scripts/proxy-env-contract-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
