@@ -16,9 +16,8 @@ type NamespaceListJSON struct {
 
 type NamespaceJSON struct {
 	Namespace string `json:"namespace"`
-	Version   int64  `json:"version"`
 	CreatedAt string `json:"created_at,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
+	DeletedAt string `json:"deleted_at,omitempty"`
 }
 
 func PrintNamespaceJSON(w io.Writer, namespace *namespacev1.Namespace) error {
@@ -42,8 +41,7 @@ func NewNamespaceJSON(namespace *namespacev1.Namespace) *NamespaceJSON {
 	}
 	return &NamespaceJSON{
 		Namespace: namespace.GetNamespace(),
-		Version:   namespace.GetVersion(),
 		CreatedAt: FormatProtoTimestamp(namespace.GetCreatedAt()),
-		UpdatedAt: FormatProtoTimestamp(namespace.GetUpdatedAt()),
+		DeletedAt: FormatProtoTimestamp(namespace.GetDeletedAt()),
 	}
 }

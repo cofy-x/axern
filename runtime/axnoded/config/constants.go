@@ -7,9 +7,6 @@ import (
 // RuntimeNameRunsc is the name of runsc runtime
 const RuntimeNameRunsc = "runsc"
 
-// RuntimeNameRunc is the name of runc runtime.
-const RuntimeNameRunc = "runc"
-
 const (
 	FilestoreModeExisting        = "existing"
 	FilestoreModeLoopbackDev     = "loopback_dev"
@@ -17,25 +14,18 @@ const (
 	CgroupEnforcementDisabledDev = "disabled_dev"
 )
 
-// Sandbox service related constants.
-const (
-	UnknownVersion = "unknown"
-
-	SandboxServiceName = "sandbox"
-)
+const UnknownVersion = "unknown"
 
 const (
-	SandboxContainerPrefix = "axctl"
-	ContainerSpecFile      = "config.json"
-	ContainerMetaFile      = "meta.pb"
-	ContainerStatusFile    = "status"
+	ContainerSpecFile   = "config.json"
+	ContainerMetaFile   = "meta.pb"
+	ContainerStatusFile = "status.pb"
 )
 
 const (
 	RecycleBin = "_recycle"
 
-	CheckpointSuffix = "_checkpoint.img"
-	NotifyFile       = "/ready.signal"
+	NotifyFile = "/ready.signal"
 )
 
 const (
@@ -56,17 +46,11 @@ const (
 	BridgeIPBucket = "network_interfaces"
 	// AllocationStateBucket stores one durable record per active allocation.
 	AllocationStateBucket = "allocations"
-	// AllocationStatusOutboxBucket stores terminal allocation observations until
+	// AllocationLifecycleOutboxBucket stores terminal allocation observations until
 	// controld has acknowledged the corresponding status-report RPC. Resource
 	// cleanup may remove the container checkpoint before that acknowledgement,
 	// so the reporting barrier requires its own durable ownership record.
-	AllocationStatusOutboxBucket = "allocation_status_outbox"
-	// DNATRulesBucket stores the active DNAT rule snapshot.
-	DNATRulesBucket = "dnat_rules"
-	// MemoryObservationSequenceBucket stores the reserved high watermark for
-	// allocation memory observation revisions. Sequence blocks are persisted
-	// before use so an axnoded restart can skip values but never reuse them.
-	MemoryObservationSequenceBucket = "memory_observation_sequence"
+	AllocationLifecycleOutboxBucket = "allocation_lifecycle_outbox"
 )
 
 const (
@@ -84,8 +68,7 @@ const (
 )
 
 const (
-	SandboxEnvKey          = "RUNTIME_ENV_ID"
-	SandboxFunctionNameKey = "RUNTIME_FUNCTION_NAME"
+	SandboxEnvKey = "RUNTIME_ENV_ID"
 
 	SandboxContainerOverlayfsLowerDirLabel  = "io.sandbox.container.overlayfs.lowerDir"
 	SandboxContainerOverlayfsTargetDirLabel = "io.sandbox.container.overlayfs.targetDir"
@@ -95,89 +78,6 @@ const (
 )
 
 const (
-	NetAcRule = `{
-		"Version": "",
-		"AppName": "",
-		"StartTime": "0001-01-01T00:00:00Z",
-		"RuleSetName": "",
-		"DnsRuleSet": null,
-		"IngressRuleSet": null,
-		"EgressRuleSet": [
-		  {
-			"RuleName": "function gateway whitelist",
-			"ip_version": 4,
-			"dst_ports": [
-			  {
-				"protocol": "tcp",
-				"first": 8081,
-				"last": 8081
-			  }
-			],
-			"dst_net": [
-			  "11.166.47.237/32"
-			],
-			"dst_domain": "",
-			"Log": true,
-			"Action": "pass",
-			"Priority": 3,
-			"FuseEnable": false,
-			"FuseConfig": {
-			  "TimeDuration": 0,
-			  "Threshold": 0,
-			  "Version": ""
-			}
-		  },
-		  {
-			"RuleName": "function instance blacklist",
-			"ip_version": 4,
-			"dst_ports": [
-			  {
-				"protocol": "all",
-				"first": -1,
-				"last": -1
-			  }
-			],
-			"dst_net": [
-			  "172.17.0.1/16"
-			],
-			"dst_domain": "",
-			"Log": true,
-			"Action": "drop",
-			"Priority": 2,
-			"FuseEnable": false,
-			"FuseConfig": {
-			  "TimeDuration": 0,
-			  "Threshold": 0,
-			  "Version": ""
-			}
-		  },
-		  {
-			"RuleName": "function vpc blacklist",
-			"ip_version": 4,
-			"dst_ports": [
-			  {
-				"protocol": "all",
-				"first": -1,
-				"last": -1
-			  }
-			],
-			"dst_net": [
-			  "6.0.0.0/8"
-			],
-			"dst_domain": "",
-			"Log": true,
-			"Action": "drop",
-			"Priority": 1,
-			"FuseEnable": false,
-			"FuseConfig": {
-			  "TimeDuration": 0,
-			  "Threshold": 0,
-			  "Version": ""
-			}
-		  }
-		]
-	  }`
-
 	NetAcBlockAll = `{
 		"Version": "",
 		"AppName": "",
@@ -187,7 +87,7 @@ const (
 		"IngressRuleSet": null,
 		"EgressRuleSet": [
 		  {
-			"RuleName": "function proxy whitelist",
+			"RuleName": "sandbox proxy whitelist",
 			"ip_version": 4,
 			"dst_ports": [
 			  {

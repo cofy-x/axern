@@ -25,33 +25,6 @@ func TestDaemon_BuildMountArgs(t *testing.T) {
 			contains: []string{"--node-id", "node-test", "--nydus-readahead-workers", "2", "--nydus-readahead-window-bytes", "33554432", "--nydus-decoded-cache-bytes", "8388608"},
 		},
 		{
-			name: "OSS daemon",
-			daemon: &Daemon{
-				nodeID: "node-test",
-				meta: DaemonMeta{
-					ID:            "oss-daemon",
-					Name:          "test-oss",
-					MountPoint:    "/mnt/oss",
-					DaemonLogPath: "/var/log/daemon.log",
-					PidFilePath:   "/var/run/daemon.pid",
-					CachePath:     "/var/cache/daemon",
-					CfgPath:       "/etc/daemon/config.json",
-					ChunkDBDir:    "/var/chunkdb",
-					ImageMetaDir:  "/var/meta",
-					SourceType:    "oss",
-				},
-			},
-			contains: []string{
-				"mount",
-				"--daemon",
-				"--src", "oss",
-				"--cache-file", "/var/cache/daemon",
-				"--name", "test-oss",
-				"--mountpoint", "/mnt/oss",
-			},
-			notContains: []string{"--bootstrap", "--cache-dir"},
-		},
-		{
 			name: "Nydus daemon",
 			daemon: &Daemon{
 				nodeID: "node-test",
@@ -79,28 +52,6 @@ func TestDaemon_BuildMountArgs(t *testing.T) {
 				"--mountpoint", "/mnt/nydus",
 			},
 			notContains: []string{"--cache-file"},
-		},
-		{
-			name: "Default to OSS when SourceType empty",
-			daemon: &Daemon{
-				nodeID: "node-test",
-				meta: DaemonMeta{
-					Name:          "default-daemon",
-					MountPoint:    "/mnt/default",
-					DaemonLogPath: "/var/log/daemon.log",
-					PidFilePath:   "/var/run/daemon.pid",
-					CachePath:     "/var/cache/daemon",
-					CfgPath:       "/etc/daemon/config.json",
-					ChunkDBDir:    "/var/chunkdb",
-					ImageMetaDir:  "/var/meta",
-					SourceType:    "",
-				},
-			},
-			contains: []string{
-				"--src", "oss",
-				"--cache-file", "/var/cache/daemon",
-			},
-			notContains: []string{"--bootstrap"},
 		},
 	}
 

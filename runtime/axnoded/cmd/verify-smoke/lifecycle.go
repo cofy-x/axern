@@ -23,7 +23,7 @@ func runVerifySmoke(cfg verifySmokeConfig) error {
 
 	startCtx, cancelStart := context.WithTimeout(context.Background(), startTimeout)
 	defer cancelStart()
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(cfg.runtimeID), spec)
+	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(cfg.environmentID), spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}
@@ -60,7 +60,7 @@ func waitAndDelete(handle *verifyutil.SandboxHandle, expectedExit int) error {
 	if err != nil {
 		return fmt.Errorf("wait sandbox: %w", err)
 	}
-	if waitResp.GetExitCode() != int32(expectedExit) {
+	if waitResp.ExitCode == nil || waitResp.GetExitCode() != int32(expectedExit) {
 		return fmt.Errorf("unexpected exit code: %d", waitResp.GetExitCode())
 	}
 

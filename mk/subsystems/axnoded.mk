@@ -31,22 +31,13 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-node-warm-pool-e2e \
 	axnoded-verify-node-oci-e2e \
 	axnoded-verify-node-nydus-e2e \
-	axnoded-verify-node-oss-e2e \
 	axnoded-build-python311-runtime-image \
 	axnoded-build-server-base-runtime-image \
 	axnoded-build-coding-base-runtime-image \
-	axnoded-build-claude-code-bundle-image \
-	axnoded-build-codex-bundle-image \
 	axnoded-verify-docker-runsc \
 	axnoded-verify-docker-runsc-debug \
-	axnoded-verify-docker-runc \
-	axnoded-verify-docker-runc-debug \
 	axnoded-verify-docker-conformance \
-	axnoded-benchmark-startup-matrix \
-	axnoded-run-nginx-demo \
-	axnoded-stop-nginx-demo \
-	axnoded-run-dashboard-nginx-demo \
-	axnoded-stop-dashboard-nginx-demo
+	axnoded-benchmark-startup-matrix
 
 axnoded-help: ## Show axnoded targets
 	@$(call run_subsystem_make,$(AXNODED_DIR),help)
@@ -114,7 +105,7 @@ axnoded-verify-node-startup-matrix-smoke: ## Run the axnoded startup matrix smok
 axnoded-verify-network-policy-linux-smoke: ## Run representative native-Linux network-policy data-plane truth
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-network-policy-linux-smoke)
 
-axnoded-verify-network-policy-linux-matrix: ## Run the full native-Linux 32-cell network-policy correctness matrix
+axnoded-verify-network-policy-linux-matrix: ## Run the full native-Linux runsc network-policy correctness matrix
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-network-policy-linux-matrix)
 
 axnoded-verify-node-bundle-template-e2e: ## Run the axnoded node all-in-one bundle template end-to-end verification
@@ -123,7 +114,7 @@ axnoded-verify-node-bundle-template-e2e: ## Run the axnoded node all-in-one bund
 axnoded-verify-node-python-runtime-e2e: ## Run the axnoded node all-in-one programmable Python runtime verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-python-runtime-e2e)
 
-axnoded-verify-node-retention-e2e: ## Run the axnoded node all-in-one runtime retention end-to-end verification
+axnoded-verify-node-retention-e2e: ## Run the axnoded node all-in-one environment retention end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-retention-e2e)
 
 axnoded-verify-node-locality-e2e: ## Run the axnoded node all-in-one locality signals end-to-end verification
@@ -138,9 +129,6 @@ axnoded-verify-node-oci-e2e: ## Run the axnoded node all-in-one OCI end-to-end v
 axnoded-verify-node-nydus-e2e: ## Run the axnoded node all-in-one Nydus end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-nydus-e2e)
 
-axnoded-verify-node-oss-e2e: ## Run the axnoded node all-in-one OSS end-to-end verification
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-oss-e2e)
-
 axnoded-build-python311-runtime-image: ## Build the official axnoded Python 3.11 runtime image
 	@$(call run_subsystem_make,$(AXNODED_DIR),build-python311-runtime-image)
 
@@ -150,38 +138,14 @@ axnoded-build-server-base-runtime-image: ## Build the official axnoded server-ba
 axnoded-build-coding-base-runtime-image: ## Build the official axnoded coding-base runtime image
 	@$(call run_subsystem_make,$(AXNODED_DIR),build-coding-base-runtime-image)
 
-axnoded-build-claude-code-bundle-image: ## Build the axnoded Claude Code image mount bundle
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-claude-code-bundle-image)
-
-axnoded-build-codex-bundle-image: ## Build the axnoded Codex image mount bundle
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-codex-bundle-image)
-
 axnoded-verify-docker-runsc: ## Run axnoded privileged Docker verification against runsc
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc)
 
 axnoded-verify-docker-runsc-debug: ## Run axnoded privileged Docker verification against runsc with diagnostics
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc-debug)
 
-axnoded-verify-docker-runc: ## Run axnoded privileged Docker verification against runc
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runc)
-
-axnoded-verify-docker-runc-debug: ## Run axnoded privileged Docker verification against runc with diagnostics
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runc-debug)
-
 axnoded-verify-docker-conformance: ## Run production cgroup and serialized runtime certification truth
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-conformance)
 
 axnoded-benchmark-startup-matrix: ## Run the axnoded startup quantile matrix benchmark
 	@$(call run_subsystem_make,$(AXNODED_DIR),benchmark-startup-matrix)
-
-axnoded-run-nginx-demo: ## Run the axnoded nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),run-nginx-demo)
-
-axnoded-stop-nginx-demo: ## Stop the axnoded nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),stop-nginx-demo)
-
-axnoded-run-dashboard-nginx-demo: ## Run the axnoded dashboard nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),run-dashboard-nginx-demo)
-
-axnoded-stop-dashboard-nginx-demo: ## Stop the axnoded dashboard nginx demo
-	@$(call run_subsystem_make,$(AXNODED_DIR),stop-dashboard-nginx-demo)

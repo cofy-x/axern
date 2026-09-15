@@ -13,7 +13,7 @@ import (
 
 func TestLocalLifecycleSurface(t *testing.T) {
 	cmd := Command(command.Runtime{}, "1.2.3")
-	for _, name := range []string{"up", "status", "logs", "doctor", "down", "reset", "upgrade", "path", "image"} {
+	for _, name := range []string{"up", "status", "logs", "doctor", "down", "reset", "path", "image"} {
 		found, _, err := cmd.Find([]string{name})
 		if err != nil || found == cmd {
 			t.Fatalf("local subcommand %q is missing: %v", name, err)
@@ -23,7 +23,7 @@ func TestLocalLifecycleSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"probe", "dns-query-name", "check-timeout", "probe-timeout", "template-id", "runtime-class"} {
+	for _, name := range []string{"probe", "dns-query-name", "check-timeout", "probe-timeout", "template-id"} {
 		if doctor.Flags().Lookup(name) == nil {
 			t.Fatalf("local doctor flag --%s is missing", name)
 		}

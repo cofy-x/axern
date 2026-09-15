@@ -10,7 +10,7 @@ cd "${AXNODED_DIR}"
 
 make release-binary
 
-for binary in axnoded axnoded-runtime-runner axern-sandboxd; do
+for binary in axnoded axern-sandboxd; do
   path="${AXNODED_DIR}/output/${binary}"
   if [[ ! -x "${path}" ]]; then
     echo "sandboxd_packaging_failed=true reason=missing_or_not_executable binary=${binary} path=${path}" >&2

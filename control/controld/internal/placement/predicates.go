@@ -7,7 +7,7 @@ import (
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func containsRuntime(runtimes []string, runtimeName string) bool {
@@ -73,34 +73,26 @@ func requiresNodeDataplane(req *placementkernel.Request) bool {
 	return req != nil && req.GetNetwork() != "host"
 }
 
-func requiresPortsCapability(req *placementkernel.Request) bool {
-	return req != nil && (req.GetRequiresHostPort() || len(req.GetPorts()) > 0)
-}
-
 func hasAvailableCPU(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {
 	if requested <= 0 {
 		return true
 	}
-	used := summary.GetResources().GetAxnodedCommittedMilli()
-	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{CPUMilli: used}, resourcekernel.Claim{CPUMilli: requested})
+	// The registry pass only removes nodes whose physical capacity cannot ever
+	// satisfy the request. Durable Allocation charges are read while the node
+	// row is locked by PostgreSQL admission.
+	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{}, resourcekernel.Claim{CPUMilli: requested})
 }
 
 func hasAvailableMemory(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {
 	if requested <= 0 {
 		return true
 	}
-	// The node-local capacity manager is the only node commitment ledger.
-	// resources.axnoded_committed_bytes is a diagnostic inventory aggregate and
-	// must not become a third admission account beside DB reservations and the
-	// durable node-local commitment.
-	used := summary.GetMemoryBudget().GetLocalCommitmentBytes()
-	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{MemoryBytes: used}, resourcekernel.Claim{MemoryBytes: requested})
+	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{}, resourcekernel.Claim{MemoryBytes: requested})
 }
 
 func hasAvailableEphemeralStorage(policy resourcekernel.AdmissionPolicy, summary *nodev1.NodeSummary, requested int64) bool {
 	if requested <= 0 {
 		return true
 	}
-	used := summary.GetResources().GetAxnodedEphemeralStorageCommittedBytes()
-	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{EphemeralStorageBytes: used}, resourcekernel.Claim{EphemeralStorageBytes: requested})
+	return policy.Fits(summary.GetAllocatable(), resourcekernel.Claim{}, resourcekernel.Claim{EphemeralStorageBytes: requested})
 }

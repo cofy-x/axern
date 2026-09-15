@@ -51,8 +51,8 @@ func PrepareList(quotas []*quotav1.NamespaceQuota, options ListOptions) ([]*quot
 			if quotaConstrained(a) != quotaConstrained(b) {
 				return quotaConstrained(a)
 			}
-			if quotaReserved(a) != quotaReserved(b) {
-				return quotaReserved(a)
+			if quotaUsed(a) != quotaUsed(b) {
+				return quotaUsed(a)
 			}
 		case "updated":
 			if quotaUpdatedUnix(a) != quotaUpdatedUnix(b) {
@@ -78,23 +78,23 @@ func quotaConstrained(quota *quotav1.NamespaceQuota) bool {
 	return quota.GetCpuMilliLimit() != nil || quota.GetMemoryBytesLimit() != nil || quota.GetEphemeralStorageBytesLimit() != nil
 }
 
-func quotaReserved(quota *quotav1.NamespaceQuota) bool {
-	return quota.GetReservedCpuMilli() > 0 || quota.GetReservedMemoryBytes() > 0 || quota.GetReservedEphemeralStorageBytes() > 0
+func quotaUsed(quota *quotav1.NamespaceQuota) bool {
+	return quota.GetUsedCpuMilli() > 0 || quota.GetUsedMemoryBytes() > 0 || quota.GetUsedEphemeralStorageBytes() > 0
 }
 
 func quotaPressurePercent(quota *quotav1.NamespaceQuota) int64 {
 	return max(
-		quotaUsagePercent(quota.GetReservedCpuMilli(), quota.GetCpuMilliLimit()),
-		quotaUsagePercent(quota.GetReservedMemoryBytes(), quota.GetMemoryBytesLimit()),
-		quotaUsagePercent(quota.GetReservedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
+		quotaUsagePercent(quota.GetUsedCpuMilli(), quota.GetCpuMilliLimit()),
+		quotaUsagePercent(quota.GetUsedMemoryBytes(), quota.GetMemoryBytesLimit()),
+		quotaUsagePercent(quota.GetUsedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
 	)
 }
 
-func quotaUsagePercent(reserved int64, limit *wrapperspb.Int64Value) int64 {
-	if limit == nil || limit.GetValue() <= 0 || reserved <= 0 {
+func quotaUsagePercent(used int64, limit *wrapperspb.Int64Value) int64 {
+	if limit == nil || limit.GetValue() <= 0 || used <= 0 {
 		return 0
 	}
-	percent := (reserved * 100) / limit.GetValue()
+	percent := (used * 100) / limit.GetValue()
 	if percent > 100 {
 		return 100
 	}

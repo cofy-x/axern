@@ -54,7 +54,7 @@ func TestBuildEgressPathBenchmarkEBPFIncludesPerTransportDelta(t *testing.T) {
 	}
 	statusAfter := bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			Mode: "ingress-tcp-udp-dnat+egress-snat+localhost-tcp-dnat+iptables-safety-fallback",
+			Mode: bpfnet.ModeEgressSNAT,
 		},
 		Kernel: bpfnet.KernelStats{
 			SNATHits:               25,

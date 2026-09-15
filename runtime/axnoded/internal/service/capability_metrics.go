@@ -42,7 +42,6 @@ func (o *capabilityMetricsObserver) RecordSnapshot(snapshot *capabilityv1.Capabi
 		return
 	}
 	now := time.Now().UTC()
-	metrics.RecordCapabilitySnapshotSequence(snapshot.GetSequence())
 	states, observations := aggregateCapabilityMetrics(snapshot, now)
 	o.mu.Lock()
 	defer o.mu.Unlock()

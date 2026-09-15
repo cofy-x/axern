@@ -13,7 +13,6 @@ func allocateRemotePort(ctx context.Context, tx portQuerier, allocationID string
 		SELECT remote_port
 		FROM tunnel_sessions
 		WHERE allocation_id = $1
-		  AND revoked = FALSE
 		  AND status IN (
 			'TUNNEL_SESSION_STATUS_PENDING',
 			'TUNNEL_SESSION_STATUS_RUNNING',

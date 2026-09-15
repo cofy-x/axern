@@ -10,7 +10,7 @@ import (
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/status"
 )
@@ -23,21 +23,18 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(summary, 1024)
-	summary.Resources.AxnodedCommittedMilli = 900
-	summary.Resources.AxnodedCommittedBytes = 900
-	summary.MemoryBudget.LocalCommitmentBytes = 900
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		record("node-a", []string{"runsc"}, summary, now),
 	})
-	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
+	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now })
 
 	_, err := selector.SelectCandidates(context.Background(), &environmentv1.Environment{ID: "env-1"}, &commonv1.ExecutionConfig{
 		Resources: &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    200,
-				MemoryBytes: 256,
+				CpuMilli:    1200,
+				MemoryBytes: 1280,
 			},
 		},
 	})
@@ -46,7 +43,7 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 	}
 	message := status.Convert(err).Message()
 	for _, want := range []string{
-		"requested cpu_milli=200 memory_bytes=256",
+		"requested cpu_milli=1200 memory_bytes=1280",
 		"insufficient_cpu",
 		"insufficient_memory",
 	} {
@@ -66,22 +63,21 @@ func TestSelectCandidatesNoEligibleErrorIncludesResourceRequestAndReasons(t *tes
 func TestSelectCandidatesNoEligibleMixedFailuresAreNodeSelection(t *testing.T) {
 	now := time.Date(2026, 5, 8, 12, 0, 0, 0, time.UTC)
 	unsupportedLowCapacity := readySummary(now)
+	unsupportedLowCapacity.Labels = map[string]string{"pool": "other"}
 	unsupportedLowCapacity.Allocatable = &commonv1.ResourceQuantity{
 		CpuMilli:    1000,
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(unsupportedLowCapacity, 1024)
-	unsupportedLowCapacity.Resources.AxnodedCommittedMilli = 900
-	unsupportedLowCapacity.Resources.AxnodedCommittedBytes = 900
-	unsupportedLowCapacity.MemoryBudget.LocalCommitmentBytes = 900
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
-		record("unsupported-low-capacity", []string{"runc"}, unsupportedLowCapacity, now),
+		record("unsupported-low-capacity", []string{"other"}, unsupportedLowCapacity, now),
 	})
-	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
+	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now })
 
 	_, err := selector.SelectCandidates(context.Background(), &environmentv1.Environment{ID: "env-1"}, &commonv1.ExecutionConfig{
+		Placement: &commonv1.PlacementConstraints{NodeSelector: map[string]string{"pool": "required"}},
 		Resources: &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{
 				CpuMilli:    200,
@@ -109,24 +105,24 @@ func TestSelectCandidatesNoEligibleCapacityAndSelectionCandidatesAreNodeSelectio
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(lowCapacity, 1024)
-	lowCapacity.Resources.AxnodedCommittedMilli = 900
-	lowCapacity.Resources.AxnodedCommittedBytes = 900
-	lowCapacity.MemoryBudget.LocalCommitmentBytes = 900
 
 	runtimeUnsupported := readySummary(now)
+	lowCapacity.Labels = map[string]string{"pool": "required"}
+	runtimeUnsupported.Labels = map[string]string{"pool": "other"}
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		record("low-capacity", []string{"runsc"}, lowCapacity, now),
-		record("runtime-unsupported", []string{"runc"}, runtimeUnsupported, now),
+		record("runtime-unsupported", []string{"other"}, runtimeUnsupported, now),
 	})
-	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
+	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now })
 
 	_, err := selector.SelectCandidates(context.Background(), &environmentv1.Environment{ID: "env-1"}, &commonv1.ExecutionConfig{
+		Placement: &commonv1.PlacementConstraints{NodeSelector: map[string]string{"pool": "required"}},
 		Resources: &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{
-				CpuMilli:    200,
-				MemoryBytes: 256,
+				CpuMilli:    1200,
+				MemoryBytes: 1280,
 			},
 		},
 	})
@@ -145,6 +141,7 @@ func TestSelectCandidatesNoEligibleCapacityAndSelectionCandidatesAreNodeSelectio
 func TestSelectCandidatesReturnsRetryableNodesForTransientHealthRejections(t *testing.T) {
 	now := time.Date(2026, 5, 13, 6, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
+	summary.Labels = map[string]string{"pool": "other"}
 	summary.Components.Imagemgr.State = nodev1.ComponentState_COMPONENT_STATE_ERROR
 	summary.Components.Imagemgr.Reachable = false
 
@@ -152,7 +149,7 @@ func TestSelectCandidatesReturnsRetryableNodesForTransientHealthRejections(t *te
 	registry.Replace([]*nodekernel.Record{
 		record("node-a", []string{"runsc"}, summary, now),
 	})
-	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
+	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now })
 	observer := &selectionRecorder{}
 	selector.WithObserver(observer)
 
@@ -176,16 +173,18 @@ func TestSelectCandidatesDoesNotRetryMixedHardAndTransientRejections(t *testing.
 
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
-		record("node-a", []string{"runc"}, summary, now),
+		record("node-a", []string{"other"}, summary, now),
 	})
-	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now }, "runsc")
+	selector := NewSelector(registry, NewEngine(Config{}), func() time.Time { return now })
 
-	_, err := selector.SelectCandidates(context.Background(), &environmentv1.Environment{ID: "env-1"}, &commonv1.ExecutionConfig{})
+	_, err := selector.SelectCandidates(context.Background(), &environmentv1.Environment{ID: "env-1"}, &commonv1.ExecutionConfig{
+		Placement: &commonv1.PlacementConstraints{NodeSelector: map[string]string{"pool": "required"}},
+	})
 	if err == nil {
 		t.Fatal("SelectCandidates() returned nil error")
 	}
 	message := status.Convert(err).Message()
-	for _, want := range []string{"runtime_unsupported", "imagemgr_unavailable"} {
+	for _, want := range []string{"node_selector_mismatch", "imagemgr_unavailable"} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("error message %q does not contain %q", message, want)
 		}

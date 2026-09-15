@@ -11,7 +11,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/contract"
@@ -185,6 +184,107 @@ func resolveOCI(ctx context.Context, ref string) (Resolved, error) {
 	return resolved, nil
 }
 
+// CaptureTasks materializes a remote TaskSet payload in Axrun-owned storage
+// and resolves the selected tasks to ordinary local paths. Axern receives only
+// the resulting directory/archive uploads and never observes TaskSet concepts.
+func (r Resolved) CaptureTasks(ctx context.Context, root string, selected []domain.TaskInstance) ([]domain.TaskInstance, error) {
+	if r.DescriptorPath != "" {
+		return append([]domain.TaskInstance(nil), selected...), nil
+	}
+	var payload *PayloadDescriptor
+	for index := range r.Descriptor.Payloads {
+		if r.Descriptor.Payloads[index].Format == "oci" {
+			payload = &r.Descriptor.Payloads[index]
+			break
+		}
+	}
+	if payload == nil {
+		return nil, fmt.Errorf("remote TaskSet requires an OCI payload variant for Axrun capture")
+	}
+	if err := extractPayloadImage(ctx, payload.Reference, filepath.Join(root, "payload")); err != nil {
+		return nil, err
+	}
+	resolvedByID := make(map[string]domain.TaskInstance, len(r.Descriptor.Tasks))
+	for _, task := range resolveDescriptorTasks(r.Descriptor, root) {
+		resolvedByID[task.ID] = task
+	}
+	out := make([]domain.TaskInstance, 0, len(selected))
+	for _, task := range selected {
+		resolved, ok := resolvedByID[task.ID]
+		if !ok {
+			return nil, fmt.Errorf("selected task %q is absent from resolved TaskSet", task.ID)
+		}
+		out = append(out, resolved)
+	}
+	return out, nil
+}
+
+func extractPayloadImage(ctx context.Context, reference, destination string) error {
+	ref, err := name.ParseReference(reference, name.WeakValidation)
+	if err != nil {
+		return fmt.Errorf("parse OCI TaskSet payload reference: %w", err)
+	}
+	image, err := remote.Image(ref, remote.WithContext(ctx), remote.WithAuthFromKeychain(authn.DefaultKeychain))
+	if err != nil {
+		return fmt.Errorf("pull OCI TaskSet payload: %w", err)
+	}
+	layers, err := image.Layers()
+	if err != nil || len(layers) != 1 {
+		return fmt.Errorf("OCI TaskSet payload must contain exactly one layer")
+	}
+	reader, err := layers[0].Uncompressed()
+	if err != nil {
+		return fmt.Errorf("open OCI TaskSet payload: %w", err)
+	}
+	defer reader.Close()
+	if err := os.MkdirAll(destination, 0o755); err != nil {
+		return err
+	}
+	return extractPayloadArchive(reader, destination)
+}
+
+func extractPayloadArchive(reader io.Reader, destination string) error {
+	archive := tar.NewReader(reader)
+	for {
+		header, err := archive.Next()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("read OCI TaskSet payload: %w", err)
+		}
+		clean := filepath.Clean(filepath.FromSlash(strings.TrimPrefix(header.Name, "./")))
+		if clean == "." || filepath.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
+			return fmt.Errorf("OCI TaskSet payload contains unsafe path %q", header.Name)
+		}
+		target := filepath.Join(destination, clean)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, os.FileMode(header.Mode).Perm()); err != nil {
+				return err
+			}
+		case tar.TypeReg, tar.TypeRegA:
+			if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+				return err
+			}
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.FileMode(header.Mode).Perm())
+			if err != nil {
+				return err
+			}
+			_, copyErr := io.Copy(file, archive)
+			closeErr := file.Close()
+			if copyErr != nil {
+				return copyErr
+			}
+			if closeErr != nil {
+				return closeErr
+			}
+		default:
+			return fmt.Errorf("OCI TaskSet payload entry %q has unsupported type %d", header.Name, header.Typeflag)
+		}
+	}
+}
+
 // Registries may preserve an OCI image manifest or normalize the transport
 // envelope to Docker schema 2. The TaskSet contract is enforced by the typed,
 // single descriptor layer below, so accepting both image envelopes keeps
@@ -254,31 +354,13 @@ func resolveDescriptorTasks(descriptor Descriptor, bundleRoot string) []domain.T
 		if instance.InitialState == nil {
 			instance.InitialState = &domain.InitialStateSpec{}
 		}
-		if len(descriptor.Payloads) > 0 {
-			instance.InitialState.Type = "taskset_workspace_image"
-			instance.InitialState.Path = ""
-			instance.InitialState.WorkspaceImage = &domain.WorkspaceImageSourceSpec{
-				SourcePath: task.WorkspaceSubpath,
-				Target:     instance.Sandbox.Workdir,
-			}
-			for _, payload := range orderedPayloads(descriptor.Payloads) {
-				instance.InitialState.WorkspaceImage.Variants = append(
-					instance.InitialState.WorkspaceImage.Variants,
-					domain.WorkspaceImageVariantSpec{
-						Format: payload.Format,
-						Image:  payload.Reference,
-					},
-				)
-			}
-		} else {
-			instance.InitialState.Type = "directory"
-			instance.InitialState.Path = filepath.Join(bundleRoot, "payload", filepath.FromSlash(task.WorkspaceSubpath))
-			for index := range instance.Verifier.Assets {
-				instance.Verifier.Assets[index].Path = filepath.Join(bundleRoot, "payload", filepath.FromSlash(instance.Verifier.Assets[index].Path))
-			}
-			if instance.Oracle != nil && instance.Oracle.Path != "" {
-				instance.Oracle.Path = filepath.Join(bundleRoot, "payload", filepath.FromSlash(instance.Oracle.Path))
-			}
+		instance.InitialState.Type = "directory"
+		instance.InitialState.Path = filepath.Join(bundleRoot, "payload", filepath.FromSlash(task.WorkspaceSubpath))
+		for index := range instance.Verifier.Assets {
+			instance.Verifier.Assets[index].Path = filepath.Join(bundleRoot, "payload", filepath.FromSlash(instance.Verifier.Assets[index].Path))
+		}
+		if instance.Oracle != nil && instance.Oracle.Path != "" {
+			instance.Oracle.Path = filepath.Join(bundleRoot, "payload", filepath.FromSlash(instance.Oracle.Path))
 		}
 		instances = append(instances, instance)
 	}
@@ -296,11 +378,6 @@ func cloneTaskInstanceForResolution(in domain.TaskInstance) domain.TaskInstance 
 		initial := *in.InitialState
 		initial.Files = append([]string(nil), in.InitialState.Files...)
 		initial.ExcludePaths = append([]string(nil), in.InitialState.ExcludePaths...)
-		if in.InitialState.WorkspaceImage != nil {
-			workspace := *in.InitialState.WorkspaceImage
-			workspace.Variants = append([]domain.WorkspaceImageVariantSpec(nil), in.InitialState.WorkspaceImage.Variants...)
-			initial.WorkspaceImage = &workspace
-		}
 		out.InitialState = &initial
 	}
 	if in.Oracle != nil {
@@ -308,20 +385,6 @@ func cloneTaskInstanceForResolution(in domain.TaskInstance) domain.TaskInstance 
 		out.Oracle = &oracle
 	}
 	return out
-}
-
-func orderedPayloads(payloads []PayloadDescriptor) []PayloadDescriptor {
-	ordered := append([]PayloadDescriptor(nil), payloads...)
-	sort.SliceStable(ordered, func(i, j int) bool {
-		priority := func(format string) int {
-			if format == "nydus" {
-				return 0
-			}
-			return 1
-		}
-		return priority(ordered[i].Format) < priority(ordered[j].Format)
-	})
-	return ordered
 }
 
 func validateDescriptor(descriptor Descriptor) error {

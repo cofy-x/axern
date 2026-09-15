@@ -8,20 +8,43 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Access struct{ client adminv1.AccessAdminClient }
 
 func NewAccess(client adminv1.AccessAdminClient) *Access { return &Access{client: client} }
 
-func (a *Access) AddCredential(ctx context.Context, principalID, certificatePath, label string) (*adminv1.AddPrincipalCredentialResponse, error) {
-	der, err := readCertificateDER(certificatePath)
-	if err != nil {
-		return nil, err
+func (a *Access) AddCredential(ctx context.Context, principalID, certificatePath, sshKeyPath, expiry, label string) (*adminv1.AddPrincipalCredentialResponse, error) {
+	if (certificatePath == "") == (sshKeyPath == "") {
+		return nil, errors.New("exactly one of --certificate or --ssh-public-key is required")
 	}
-	return a.client.AddPrincipalCredential(ctx, &adminv1.AddPrincipalCredentialRequest{PrincipalID: strings.TrimSpace(principalID), CertificateDer: der, Label: strings.TrimSpace(label)})
+	req := &adminv1.AddPrincipalCredentialRequest{PrincipalID: strings.TrimSpace(principalID), Label: strings.TrimSpace(label)}
+	if certificatePath != "" {
+		if expiry != "" {
+			return nil, errors.New("certificate expiry cannot be overridden")
+		}
+		der, err := readCertificateDER(certificatePath)
+		if err != nil {
+			return nil, err
+		}
+		req.CertificateDer = der
+	} else {
+		deadline, err := time.Parse(time.RFC3339, expiry)
+		if err != nil {
+			return nil, errors.New("SSH credentials require --expires-at in RFC3339 format")
+		}
+		key, err := os.ReadFile(sshKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("read SSH public key: %w", err)
+		}
+		req.SshPublicKey = string(key)
+		req.ExpiresAt = timestamppb.New(deadline)
+	}
+	return a.client.AddPrincipalCredential(ctx, req)
 }
 
 func readCertificateDER(path string) ([]byte, error) {

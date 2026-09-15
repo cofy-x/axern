@@ -33,7 +33,6 @@ type ListParams struct {
 type CreateParams struct {
 	AllocationID string
 	RemotePort   *int32
-	LocalTarget  string
 	TTL          time.Duration
 	WaitReady    bool
 	ReadyTimeout time.Duration
@@ -47,7 +46,6 @@ func (c Control) Create(ctx context.Context, params CreateParams) (*tunnelv1.Cre
 	return c.client.CreateTunnelSession(ctx, &tunnelv1.CreateTunnelSessionRequest{
 		AllocationID: params.AllocationID,
 		RemotePort:   params.RemotePort,
-		LocalTarget:  params.LocalTarget,
 		Ttl:          durationpb.New(params.TTL),
 		WaitReady:    params.WaitReady,
 		ReadyTimeout: durationpb.New(params.ReadyTimeout),

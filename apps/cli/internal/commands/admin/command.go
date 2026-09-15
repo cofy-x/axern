@@ -2,22 +2,54 @@ package admin
 
 import (
 	"fmt"
+	"os"
+	"strings"
 
 	appadmin "github.com/cofy-x/axern/apps/cli/internal/application/admin"
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"github.com/spf13/cobra"
 )
 
 func Command(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "admin", Short: "Operate audited administrative workflows"}
-	root.AddCommand(principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), serviceCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), storageCommand(runtime), allocationRetryCommand(runtime))
+	root.AddCommand(pkiCommand(), principalCommand(runtime), credentialCommand(runtime), roleBindingCommand(runtime), nodeCommand(runtime), reliabilityCommand(runtime), consistencyCommand(runtime), auditCommand(runtime), allocationRetryCommand(runtime))
 	return root
 }
 
 func nodeCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "node", Short: "Inspect and retire runtime nodes"}
+	root := &cobra.Command{Use: "node", Short: "Admit, inspect, revoke, and retire runtime nodes"}
+	var enrollmentTokenFile, admitReason string
+	admit := &cobra.Command{Use: "admit <node-id>", Short: "Admit a node identity before it may publish observations", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if strings.TrimSpace(enrollmentTokenFile) == "" {
+			return command.Usage(fmt.Errorf("--enrollment-token-file is required"))
+		}
+		if err := appadmin.ValidateOperatorReason(admitReason); err != nil {
+			return command.Usage(err)
+		}
+		credential, err := os.ReadFile(enrollmentTokenFile)
+		if err != nil {
+			return fmt.Errorf("read Node enrollment token: %w", err)
+		}
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).Admit(s.Context, args[0], string(credential), admitReason)
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintAdminNodeJSON(cmd.OutOrStdout(), resp.GetNode())
+		}
+		output.RenderAdminNode(cmd.OutOrStdout(), resp.GetNode())
+		return nil
+	}}
+	admit.Flags().StringVar(&enrollmentTokenFile, "enrollment-token-file", "", "file containing the one-time Node enrollment token")
+	admit.Flags().StringVar(&admitReason, "operator-reason", "", "audit reason")
 	var lifecycle string
 	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
 		if err := appadmin.ValidateNodeLifecycle(lifecycle); err != nil {
@@ -38,7 +70,7 @@ func nodeCommand(runtime command.Runtime) *cobra.Command {
 		output.RenderAdminNodeTable(cmd.OutOrStdout(), resp.GetNodes())
 		return nil
 	}}
-	list.Flags().StringVar(&lifecycle, "status", "", "active or retired")
+	list.Flags().StringVar(&lifecycle, "status", "", "active, revoked or retired")
 	var reason string
 	retire := &cobra.Command{Use: "retire <node-id>", Short: "Permanently retire an idle node identity", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		if err := appadmin.ValidateOperatorReason(reason); err != nil {
@@ -60,7 +92,28 @@ func nodeCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	retire.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	root.AddCommand(list, retire, nodeCapabilityCommand(runtime))
+	var revokeReason string
+	revoke := &cobra.Command{Use: "revoke <node-id>", Short: "Immediately withdraw node authority without declaring resources cleaned", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if err := appadmin.ValidateOperatorReason(revokeReason); err != nil {
+			return command.Usage(err)
+		}
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).Revoke(s.Context, args[0], revokeReason)
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintAdminNodeJSON(cmd.OutOrStdout(), resp.GetNode())
+		}
+		output.RenderAdminNode(cmd.OutOrStdout(), resp.GetNode())
+		return nil
+	}}
+	revoke.Flags().StringVar(&revokeReason, "operator-reason", "", "audit reason")
+	root.AddCommand(admit, list, revoke, retire, nodeCapabilityCommand(runtime))
 	return root
 }
 
@@ -83,54 +136,6 @@ func nodeCapabilityCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 
-	var transitionNodeID string
-	var transitionLimit int
-	transitions := &cobra.Command{Use: "transitions", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if transitionLimit < 0 {
-			return command.Usage(fmt.Errorf("limit must be >= 0"))
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewNode(s.Clients.AdminNode).CapabilityTransitions(s.Context, transitionNodeID, transitionLimit)
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintProtoJSON(cmd.OutOrStdout(), resp)
-		}
-		output.RenderCapabilityTransitions(cmd.OutOrStdout(), resp.GetTransitions())
-		return nil
-	}}
-	transitions.Flags().StringVar(&transitionNodeID, "node-id", "", "node identity filter")
-	transitions.Flags().IntVar(&transitionLimit, "limit", 0, "maximum transitions")
-
-	var backlogNodeID string
-	var backlogLimit int
-	backlog := &cobra.Command{Use: "backlog", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if backlogLimit < 0 {
-			return command.Usage(fmt.Errorf("limit must be >= 0"))
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewNode(s.Clients.AdminNode).CapabilityBacklog(s.Context, backlogNodeID, backlogLimit)
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintProtoJSON(cmd.OutOrStdout(), resp)
-		}
-		output.RenderCapabilityBacklog(cmd.OutOrStdout(), resp.GetItems())
-		return nil
-	}}
-	backlog.Flags().StringVar(&backlogNodeID, "node-id", "", "node identity filter")
-	backlog.Flags().IntVar(&backlogLimit, "limit", 0, "maximum reconcile items")
-
 	allocation := &cobra.Command{Use: "allocation <allocation-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
@@ -147,36 +152,7 @@ func nodeCapabilityCommand(runtime command.Runtime) *cobra.Command {
 		output.RenderAllocationCapabilityDiagnostics(cmd.OutOrStdout(), resp)
 		return nil
 	}}
-	root.AddCommand(snapshot, transitions, backlog, allocation)
-	return root
-}
-
-func serviceCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "service", Short: "Administer services"}
-	var reason string
-	purge := &cobra.Command{Use: "purge <service-id>", Short: "Permanently purge a deleted service", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := appadmin.ValidateOperatorReason(reason); err != nil {
-			return command.Usage(err)
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := s.Clients.AdminService.PurgeService(s.Context, &adminv1.PurgeServiceRequest{ServiceID: args[0], OperatorReason: reason})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintJSON(cmd.OutOrStdout(), struct {
-				ServiceID string `json:"service_id"`
-			}{resp.GetServiceID()})
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "Service purged: %s\n", resp.GetServiceID())
-		return nil
-	}}
-	purge.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	root.AddCommand(purge)
+	root.AddCommand(snapshot, allocation)
 	return root
 }
 
@@ -274,111 +250,17 @@ func auditCommand(runtime command.Runtime) *cobra.Command {
 	return root
 }
 
-func storageCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "storage", Short: "Inspect and repair storage bindings"}
-	var statuses []string
-	var namespace, claim, workload, allocation, node string
-	var limit int
-	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		for _, status := range statuses {
-			if err := appadmin.ValidateVolumeStatus(status); err != nil {
-				return command.Usage(err)
-			}
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewStorage(s.Clients.AdminStorage).ListBindings(s.Context, appadmin.StorageBindingListOptions{Statuses: statuses, Namespace: namespace, ClaimName: claim, WorkloadID: workload, AllocationID: allocation, NodeID: node, Limit: limit})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintStorageBindingListJSON(cmd.OutOrStdout(), resp.GetBindings())
-		}
-		output.RenderStorageBindingTable(cmd.OutOrStdout(), resp.GetBindings())
-		return nil
-	}}
-	f := list.Flags()
-	f.StringArrayVar(&statuses, "status", nil, "status filter; may be repeated")
-	f.StringVar(&namespace, "namespace", "", "namespace filter")
-	f.StringVar(&claim, "claim", "", "claim filter")
-	f.StringVar(&workload, "workload", "", "workload filter")
-	f.StringVar(&allocation, "allocation", "", "allocation filter")
-	f.StringVar(&node, "node", "", "node filter")
-	f.IntVar(&limit, "limit", 0, "maximum rows")
-	var reason string
-	retry := &cobra.Command{Use: "retry <binding-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if err := appadmin.ValidateOperatorReason(reason); err != nil {
-			return command.Usage(err)
-		}
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewStorage(s.Clients.AdminStorage).RetryBinding(s.Context, args[0], reason)
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintStorageBindingJSON(cmd.OutOrStdout(), resp.GetBinding())
-		}
-		output.RenderStorageBinding(cmd.OutOrStdout(), resp.GetBinding())
-		return nil
-	}}
-	retry.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	var reclaimNamespace, reclaimService, reclaimNode string
-	var reclaimLimit int
-	reclaimList := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		s, err := runtime.Open(cmd.Context())
-		if err != nil {
-			return err
-		}
-		defer s.Close()
-		resp, err := appadmin.NewStorage(s.Clients.AdminStorage).ListReclaims(s.Context, appadmin.StorageReclaimListOptions{
-			Namespace: reclaimNamespace, ServiceID: reclaimService, NodeID: reclaimNode, Limit: reclaimLimit,
-		})
-		if err != nil {
-			return err
-		}
-		if runtime.Options.Output == "json" {
-			return output.PrintStorageReclaimListJSON(cmd.OutOrStdout(), resp.GetReclaims())
-		}
-		output.RenderStorageReclaimTable(cmd.OutOrStdout(), resp.GetReclaims())
-		return nil
-	}}
-	reclaimList.Flags().StringVar(&reclaimNamespace, "namespace", "", "namespace filter")
-	reclaimList.Flags().StringVar(&reclaimService, "service", "", "service filter")
-	reclaimList.Flags().StringVar(&reclaimNode, "node", "", "node filter")
-	reclaimList.Flags().IntVar(&reclaimLimit, "limit", 0, "maximum rows")
-	reclaim := &cobra.Command{Use: "reclaim", Short: "Inspect pending physical volume reclamation", Args: command.NoArgs}
-	reclaim.AddCommand(reclaimList)
-	root.AddCommand(list, retry, reclaim)
-	return root
-}
-
 func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 	root := &cobra.Command{Use: "allocation-retry", Short: "Inspect and repair lifecycle retries"}
-	var owner, reason string
 	var due bool
 	var limit int
 	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if err := appadmin.ValidateOwnerType(owner); err != nil {
-			return command.Usage(err)
-		}
-		if reason != "" {
-			if err := appadmin.ValidateRetryReason(reason); err != nil {
-				return command.Usage(err)
-			}
-		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err
 		}
 		defer s.Close()
-		resp, err := appadmin.NewAllocationLifecycle(s.Clients.Admin).ListRetries(s.Context, appadmin.LifecycleRetryListOptions{OwnerType: owner, Reason: reason, DueOnly: due, Limit: limit})
+		resp, err := appadmin.NewAllocationLifecycle(s.Clients.Admin).ListRetries(s.Context, appadmin.LifecycleRetryListOptions{DueOnly: due, Limit: limit})
 		if err != nil {
 			return err
 		}
@@ -389,8 +271,6 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	f := list.Flags()
-	f.StringVar(&owner, "owner", "", "run or service")
-	f.StringVar(&reason, "reason", "", "create or delete")
 	f.BoolVar(&due, "due", false, "only due retries")
 	f.IntVar(&limit, "limit", 0, "maximum rows")
 	root.AddCommand(list, retryWrite(runtime, "force"), retryWrite(runtime, "fail"), retryWrite(runtime, "clear"))
@@ -398,13 +278,8 @@ func allocationRetryCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
-	var reason, operatorReason string
+	var operatorReason string
 	cmd := &cobra.Command{Use: operation + " <allocation-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
-		if operation != "fail" {
-			if err := appadmin.ValidateRetryReason(reason); err != nil {
-				return command.Usage(err)
-			}
-		}
 		if err := appadmin.ValidateOperatorReason(operatorReason); err != nil {
 			return command.Usage(err)
 		}
@@ -414,10 +289,10 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 		}
 		defer s.Close()
 		control := appadmin.NewAllocationLifecycle(s.Clients.Admin)
-		var value *adminv1.AllocationLifecycleRetry
+		var value *privateadminv1.AllocationLifecycleRetry
 		switch operation {
 		case "force":
-			resp, err := control.ForceRetry(s.Context, args[0], reason, operatorReason)
+			resp, err := control.ForceRetry(s.Context, args[0], operatorReason)
 			if err != nil {
 				return err
 			}
@@ -429,7 +304,7 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 			}
 			value = resp.GetFailedRetry()
 		case "clear":
-			resp, err := control.ClearRetry(s.Context, args[0], reason, operatorReason)
+			resp, err := control.ClearRetry(s.Context, args[0], operatorReason)
 			if err != nil {
 				return err
 			}
@@ -441,9 +316,6 @@ func retryWrite(runtime command.Runtime, operation string) *cobra.Command {
 		output.RenderAllocationLifecycleRetry(cmd.OutOrStdout(), value)
 		return nil
 	}}
-	if operation != "fail" {
-		cmd.Flags().StringVar(&reason, "reason", "", "create or delete")
-	}
 	cmd.Flags().StringVar(&operatorReason, "operator-reason", "", "audit reason")
 	return cmd
 }

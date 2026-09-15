@@ -1,39 +1,14 @@
 # gatewayd
 
-`gatewayd` is Axern's external entry point for public control API traffic,
-control-plane-managed services, browser terminal sessions, and optional
-SSH-compatible terminal sessions. It also owns the public tunnel relay entry
-for foreground client peers.
+`gatewayd` is Axern's unified external gateway for public control API traffic, Allocation-bound browser terminal and SSH-compatible sessions, process, file and archive operations, and foreground tunnel client peers.
 
-It does not own placement, lifecycle, or durable state. It resolves service
-routes through `controld`, then forwards traffic directly to the selected
-`axnoded` node using allocation-scoped leases.
+It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped access grants without creating a second control plane. Public `NodeSandbox` messages contain only the Allocation identity and operation input; gatewayd replaces any caller-supplied private access metadata and sends the controld-issued token only on the gateway-to-node gRPC hop.
 
-External CLI and SDK control-plane gRPC traffic should terminate at
-`gatewayd`'s control edge listener, which is enabled by default. `controld`
-stays private inside the cluster; `gatewayd` verifies external client mTLS and
-forwards public control RPCs to the internal `controld` target with the
-dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is
-discarded; gatewayd injects only the fingerprint of the leaf certificate it
-verified. Controld resolves that fingerprint to a durable Principal and applies
-platform or namespace role bindings on every RPC. That identity is also the only certificate
-authorized to call private `ArtifactAccess`; the generic platform client
-certificate cannot resolve download tickets.
+Gateway-to-node traffic uses the gatewayd URI workload identity and verifies the exact Node ID returned by control-plane resolution. Configure `-workload-cluster`, `-workload-bundle` and `-tls-ca-cert`; credentials reload on every new connection. No shared Node certificate or alternate Node identity override exists.
 
-Tunnel foreground clients use the same public control edge. `gatewayd`
-registers `axern.tunnel.v1.TunnelRelay`, resolves the session-bound internal
-relay target through the private `GatewayControl` service, and forwards only
-client peers to `tunneld`. Peer authentication remains bound to the tunnel
-session token; gatewayd does not bypass it or treat the data stream as a public
-resource-management RPC.
-Node peers continue to connect directly to internal `tunneld` targets.
+External CLI and SDK control-plane gRPC traffic should terminate at `gatewayd`'s control edge listener, which is enabled by default. `controld` stays private inside the cluster; `gatewayd` verifies external client mTLS and forwards public control RPCs to the internal `controld` target with the dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is discarded; gatewayd injects only the fingerprint of the leaf certificate it verified. Controld resolves that fingerprint to a durable Principal and applies platform or namespace role bindings on every RPC.
 
-Rollout artifact downloads also terminate at the control edge. The client
-first obtains a short-lived artifact-bound ticket through the public rollout
-API, then calls `ArtifactData.Download`. Gatewayd resolves the ticket through
-controld's private mTLS `ArtifactAccess` API and streams the internal
-presigned object-store response with offset validation and backpressure. It
-does not hold S3 credentials, expose the internal URL, or log tickets.
+Tunnel foreground clients use the same public control edge. `gatewayd` registers `axern.tunnel.v1.TunnelRelay`, resolves the session-bound internal relay target through the private `GatewayControl` service, and forwards only client peers to `tunneld`. Peer authentication remains bound to the tunnel session token; gatewayd does not bypass it or treat the data stream as a public resource-management RPC. Node peers continue to connect directly to internal `tunneld` targets.
 
 ## Run
 
@@ -42,118 +17,50 @@ go run ./gateway/gatewayd \
   -http-address 127.0.0.1:25080 \
   -control-edge-address 127.0.0.1:25000 \
   -control-edge-tls-ca-cert .dev/certs/ca.crt \
-  -control-edge-tls-cert .dev/certs/gatewayd.crt \
-  -control-edge-tls-key .dev/certs/gatewayd.key \
+  -control-edge-tls-cert .dev/certs/gatewayd.pem \
+  -control-edge-tls-key .dev/certs/gatewayd.pem \
   -control-target 127.0.0.1:24000 \
   -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/gatewayd.crt \
-  -tls-key .dev/certs/gatewayd.key \
-  -dev-token axern-local-dev
+  -workload-cluster axern.local \
+  -workload-bundle .dev/certs/gatewayd.pem
 ```
 
-Artifact data-plane limits are configured with
-`-artifact-max-concurrent`, `-artifact-chunk-bytes`,
-`-artifact-upstream-timeout`, and `-artifact-max-bytes`.
-
-Enable the optional SSH-compatible terminal listener by also providing a
-persistent host key and an `authorized_keys` file:
+Enable the optional SSH-compatible terminal listener with a persistent host key. Register client public keys as Principal Credentials using `axern admin credential add --ssh-public-key <file> --expires-at <RFC3339> <principal-id>`; existing Principal namespace roles authorize Allocation access:
 
 ```bash
 go run ./gateway/gatewayd \
   -http-address 127.0.0.1:25080 \
   -control-edge-address 127.0.0.1:25000 \
   -control-edge-tls-ca-cert .dev/certs/ca.crt \
-  -control-edge-tls-cert .dev/certs/gatewayd.crt \
-  -control-edge-tls-key .dev/certs/gatewayd.key \
+  -control-edge-tls-cert .dev/certs/gatewayd.pem \
+  -control-edge-tls-key .dev/certs/gatewayd.pem \
   -ssh-enabled \
   -ssh-address 127.0.0.1:25022 \
   -ssh-host-key .dev/ssh/gateway_host_ed25519 \
-  -ssh-authorized-keys .dev/ssh/authorized_keys \
   -control-target 127.0.0.1:24000 \
   -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/gatewayd.crt \
-  -tls-key .dev/certs/gatewayd.key \
-  -dev-token axern-local-dev
+  -workload-cluster axern.local \
+  -workload-bundle .dev/certs/gatewayd.pem
 ```
 
 ## Routes
 
-- `GET /healthz`
-- `/svc/{namespace}/{service_id}/{port}/...` proxies HTTP traffic to a READY service replica
-- `POST /function/invoke` is the internal Function worker dispatch path used by
-  `controld`; it resolves the worker service route, rewrites to `/invoke`, and
-  forwards through the same node lease proxy as `/svc`
-- `/terminal/allocation/{allocation_id}` opens a WebSocket terminal and requires the dev token
-- `/dashboard` serves the optional lightweight terminal dashboard when enabled and requires the dev token
+- `GET /healthz` is served on the plaintext health listener.
+- `wss://<control-edge>/terminal/allocation/{allocation_id}` requires a verified client X.509 Principal Credential on the shared TLS control listener. Tokens in URLs or headers do not authenticate a terminal.
 
-V1 uses path routing only. `{service_id}` is the existing Axern service id, and
-`{port}` is either `PortSpec.name` or a container port number.
-`/function/invoke` expects `X-Axern-Namespace`,
-`X-Axern-Worker-Service-Id`, and optional `X-Axern-Worker-Port` headers; when a
-dev token is configured it requires `Authorization: Bearer <token>`.
+Gateway data-plane routes are Allocation-bound and resolve their target through the control plane.
 
 ## SSH Terminal
 
-When SSH is enabled, `ssh <allocation_id>@<gateway-host> -p <ssh-port>` opens
-an interactive `/bin/sh` session in the allocation through the same
-allocation-scoped lease and `axnoded` `ExecStream` path used by the browser
-terminal. Use `ssh -t <allocation_id>@<gateway-host> -p <ssh-port> /bin/bash`
-to request a different interactive shell. Container users can be selected by
-sending `AXERN_EXEC_USER` in the SSH environment; the `axern ssh --user` command
-sets this for the common CLI path. The gateway terminates SSH; containers do
-not need to run `sshd`.
+When SSH is enabled, `ssh <allocation_id>@<gateway-host> -p <ssh-port>` opens an interactive `/bin/sh` session in the allocation through the same allocation-scoped `Process` stream used by the browser terminal. Use `ssh -t <allocation_id>@<gateway-host> -p <ssh-port> /bin/bash` to request a different interactive shell. Container users can be selected by sending `AXERN_EXEC_USER` in the SSH environment; the `axern ssh --user` command sets this for the common CLI path. The gateway terminates SSH; containers do not need to run `sshd`.
 
-The SSH surface supports interactive `shell` sessions and non-interactive
-`exec` commands. Shell exec requests such as `/bin/bash` or `/bin/bash -l` are
-started directly; arbitrary exec requests run through `/bin/sh -lc` without a
-TTY unless the client requested one. It does not support SFTP, SCP, SSH agent
-forwarding, X11 forwarding, or SSH TCP forwarding.
-
-## Dashboard
-
-Enable the optional browser dashboard by first downloading untracked xterm
-assets and then starting `gatewayd` with dashboard enabled:
-
-```bash
-make gateway-dashboard-assets
-
-go run ./gateway/gatewayd \
-  -http-address 127.0.0.1:25080 \
-  -dashboard-enabled \
-  -dashboard-vendor-dir gateway/gatewayd/internal/api/http/dashboard/vendor \
-  -control-target 127.0.0.1:24000 \
-  -tls-ca-cert .dev/certs/ca.crt \
-  -tls-cert .dev/certs/gatewayd.crt \
-  -tls-key .dev/certs/gatewayd.key \
-  -dev-token axern-local-dev
-```
-
-Open `http://127.0.0.1:25080/dashboard?token=axern-local-dev`, enter an
-allocation id or service id, and connect. Service ids are resolved in the
-dashboard: one current ready replica connects automatically, while multiple
-current ready replicas are shown as a small allocation picker. The terminal
-connection still uses the existing `/terminal/allocation/{allocation_id}`
-WebSocket path.
+The SSH surface supports interactive `shell` sessions and non-interactive `exec` commands. Shell exec requests such as `/bin/bash` or `/bin/bash -l` are started directly; arbitrary exec requests run through `/bin/sh -lc` without a TTY unless the client requested one. It does not support SFTP, SCP, SSH agent forwarding, X11 forwarding, or SSH TCP forwarding.
 
 ## Observability
 
-Gateway metrics, traces, and logs use the shared OpenTelemetry pipeline. Domain
-metrics cover service proxy stages, route cache and resolve events, upstream
-failures, lease retries, active HTTP requests, and active terminal sessions.
-Artifact metrics cover active downloads, bytes, duration, ticket resolution,
-resume, and bounded rejection/error classes without artifact IDs or tickets.
-The route cache exports bounded route, endpoint, quarantine, and in-flight
-entry gauges. Standard Go runtime metrics report heap, allocation, GC,
-goroutine, and scheduler behavior for long-running stability analysis.
-The deployment Prometheus scrapes the OTel Collector; gatewayd does not expose
-a separate production metrics endpoint.
+Gateway metrics, traces, and logs use the shared OpenTelemetry pipeline. Domain metrics cover allocation target resolution, upstream failures, lease retries, tunnel relay traffic, and active terminal or SSH sessions. Standard Go runtime metrics report heap, allocation, GC, goroutine, and scheduler behavior for long-running stability analysis. The deployment Prometheus scrapes the OTel Collector; gatewayd does not expose a separate production metrics endpoint.
 
-Every request emits a structured access log with method, path, route type,
-status, duration, namespace, service id, port, allocation id, node id, and
-error class. Logs and metrics never include plaintext lease tokens,
-Authorization headers, or terminal stdin/stdout content.
-Artifact tickets, internal object-store URLs, query strings, and upstream
-Authorization headers are also excluded from logs, metrics, and traces.
+Every request emits a structured access log with method, path, route type, status, duration, namespace, allocation id, node id, and error class. Logs and metrics never include plaintext access tokens, Authorization headers, or terminal stdin/stdout content.
 
 ## Terminal Protocol
 
@@ -172,8 +79,7 @@ The server sends JSON text messages:
 - `{"type":"error","message":"..."}`
 - `{"type":"pong"}`
 
-`exit_code:-1` means the runtime finished the interaction but could not report a
-precise process exit status.
+`exit_code:-1` means the runtime finished the interaction but could not report a precise process exit status.
 
 ## Limits
 
@@ -183,43 +89,24 @@ Key flags/env:
 - `-control-edge-tls-ca-cert`, `-control-edge-tls-cert`, `-control-edge-tls-key`
 - `-tunnel-relay-target`
 - `-tunnel-relay-tls-ca-cert`, `-tunnel-relay-tls-server-name`
+- `-workload-cluster`, `-workload-bundle`, `-tls-ca-cert`
 - `-read-header-timeout`, `-read-timeout`, `-write-timeout`, `-idle-timeout`
-- `-service-upstream-timeout`, `-service-max-request-body-bytes`
-- `-route-cache-ttl`, `-route-cache-max-entries`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
-- `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`
-- `-dashboard-enabled`, `-dashboard-vendor-dir`
-- `-lease-retry-attempts`, `-lease-retry-base-delay`
-- `-artifact-max-concurrent`, `-artifact-chunk-bytes`
-- `-artifact-upstream-timeout`, `-artifact-max-bytes`
+- `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`
+- `-access-grant-retry-attempts`, `-access-grant-retry-base-delay`
 
-Service proxy request bodies are capped, while streaming responses remain
-allowed. Terminal sessions enforce read limits, idle timeout, max duration, and
-write deadlines. Browser terminal always requires the dev token. SSH terminal
-requires public key authentication through the configured `authorized_keys`
-file. Service auth remains controlled by `-require-http-auth`.
+Terminal sessions enforce read limits, idle timeout, max duration, and write deadlines. SSH public keys and WebSocket client certificates share Principal Credential revocation and namespace authorization. SSH certificates and multi-key credential inputs are not supported. Existing SSH and WebSocket process sessions revalidate authority every 15 seconds with a 5-second RPC deadline; rejection or inability to confirm authority closes access, not the Allocation. Grant expiry independently bounds the stream. The online revalidation bound is 20 seconds, excluding process scheduling pauses. Public gRPC operations are bounded by their issued grant deadline (normally five minutes); they do not yet share the terminal periodic revalidation path.
 
-Execution lease recovery is request scoped and bounded. A node acknowledges an
-accepted lease before gatewayd consumes terminal/process input, an HTTP request
-body, or archive chunks, and before gatewayd forwards streamed node output.
-An authentication rejection before that boundary invalidates the old authority
-and resolves a fresh lease from controld; gatewayd never retries the same
-rejected token or retries after the node has accepted it. Service
-lease refresh and endpoint failover share `-service-endpoint-retry-attempts` as
-one total attempt budget. Unsafe HTTP requests are retried only for a confirmed
-pre-upstream lease rejection, while the original request body is still
-unconsumed. Endpoint failures continue to retry only replayable idempotent
-requests.
+Allocation access-grant recovery is request scoped and bounded. A node acknowledges an accepted grant before gatewayd consumes terminal/process input or archive chunks, and before gatewayd forwards streamed node output. An authentication rejection before that boundary invalidates the old authority and resolves a fresh grant from controld; gatewayd never retries the same rejected token or retries after the node has accepted it. Allocation target and grant refresh remain request-scoped and may retry only before the node accepts authority or consumes client input.
 
 ## Local Smoke
 
 ```bash
 make local-compose-up
-make local-compose-gateway-smoke
+make local-compose-server-base-smoke
 ```
 
-The smoke creates a temporary Python HTTP service, checks `/svc/...`, verifies a
-terminal WebSocket `echo`, then deletes and purges the service.
+The smoke creates a Run-backed Allocation and verifies allocation target resolution plus terminal behavior. Tunnel behavior is covered separately by `make local-compose-python-sdk-e2e`.
 
 ## Development Checks
 

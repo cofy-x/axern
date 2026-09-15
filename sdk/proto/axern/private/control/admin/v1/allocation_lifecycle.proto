@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package axern.private.control.admin.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1;privateadminv1";
+
+import "google/protobuf/timestamp.proto";
+import "axern/control/common/v1/common.proto";
+
+message AllocationLifecycleRetry {
+  string allocation_id = 1;
+  string run_id = 2;
+  string environment_id = 3;
+  axern.control.common.v1.AllocationLifecycleState lifecycle_state = 4;
+  string node_id = 5;
+  string node_target = 6;
+  int32 reconcile_attempts = 7;
+  string last_error = 8;
+  google.protobuf.Timestamp next_run_at = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  int64 age_seconds = 12;
+  bool due = 13;
+  bool clearable = 14;
+  string clear_blocked_reason = 15;
+}
+
+message AllocationLifecycleRetryFilter {
+  bool due_only = 1;
+}
+
+message ListAllocationLifecycleRetriesRequest {
+  AllocationLifecycleRetryFilter filter = 1;
+  int32 limit = 2;
+}
+
+message ListAllocationLifecycleRetriesResponse {
+  repeated AllocationLifecycleRetry retries = 1;
+}
+
+message ForceAllocationLifecycleRetryRequest {
+  string allocation_id = 1;
+  string operator_reason = 2;
+}
+
+message ForceAllocationLifecycleRetryResponse {
+  AllocationLifecycleRetry retry = 1;
+}
+
+message FailAllocationLifecycleRetryRequest {
+  string allocation_id = 1;
+  string operator_reason = 2;
+}
+
+message FailAllocationLifecycleRetryResponse {
+  AllocationLifecycleRetry failed_retry = 1;
+}
+
+message ClearAllocationLifecycleRetryRequest {
+  string allocation_id = 1;
+  string operator_reason = 2;
+}
+
+message ClearAllocationLifecycleRetryResponse {
+  AllocationLifecycleRetry cleared_retry = 1;
+}
+
+service AllocationLifecycleAdmin {
+  rpc ListAllocationLifecycleRetries(ListAllocationLifecycleRetriesRequest) returns (ListAllocationLifecycleRetriesResponse) {}
+  rpc ForceAllocationLifecycleRetry(ForceAllocationLifecycleRetryRequest) returns (ForceAllocationLifecycleRetryResponse) {}
+  rpc FailAllocationLifecycleRetry(FailAllocationLifecycleRetryRequest) returns (FailAllocationLifecycleRetryResponse) {}
+  rpc ClearAllocationLifecycleRetry(ClearAllocationLifecycleRetryRequest) returns (ClearAllocationLifecycleRetryResponse) {}
+}

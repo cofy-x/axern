@@ -29,7 +29,8 @@ type PrepareBundleOptions struct {
 	ContainerID           string
 	CgroupPath            string
 	RuntimeCgroupPath     string
-	AdditionalAnnotations map[string]string
+	NetworkNamespacePath  string
+	SandboxIP             string
 	ExecutionProfile      *runtimeoci.ExecutionProfile
 	RootfsType            string
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
@@ -46,13 +47,14 @@ func PrepareBundle(options PrepareBundleOptions) (string, *apipb.ContainerMetada
 		ContainerID: options.ContainerID,
 		Request:     options.Request,
 
-		CgroupPath:            runtimeCgroupPath,
-		AdditionalAnnotations: options.AdditionalAnnotations,
-		ExecutionProfile:      options.ExecutionProfile,
+		CgroupPath:           runtimeCgroupPath,
+		NetworkNamespacePath: options.NetworkNamespacePath,
+		SandboxIP:            options.SandboxIP,
+		ExecutionProfile:     options.ExecutionProfile,
 	}
 	bundleOptions.SandboxdInjection = resolveSandboxdInjectionOptions()
 
-	bundlePath, specConf, err := GenerateBundle(options, bundleOptions)
+	bundlePath, _, err := GenerateBundle(options, bundleOptions)
 	if err != nil {
 		return "", nil, fmt.Errorf("generate oci failed because %v", err)
 	}
@@ -65,11 +67,8 @@ func PrepareBundle(options PrepareBundleOptions) (string, *apipb.ContainerMetada
 	}
 
 	return bundlePath, &apipb.ContainerMetadata{
-		ID:             options.ContainerID,
-		RuntimeHandler: options.RuntimeName,
-		Labels:         specConf.Annotations,
-		Stdout:         options.Request.Stdout,
-		Stderr:         options.Request.Stderr,
+		Stdout: options.Request.Stdout,
+		Stderr: options.Request.Stderr,
 	}, nil
 }
 

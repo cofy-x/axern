@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cofy-x/axern/lib/go/agentprofile"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 )
 
 type Profile = agentprofile.Profile
@@ -33,7 +33,7 @@ func ResolveProfile(inline map[string]Profile, configPath, profileName string) (
 
 func ConfigPathHint(configPath string) string {
 	if strings.TrimSpace(configPath) == "" {
-		return "; configure agent_profiles in AXERN_CONFIG or the default Axern user config"
+		return "; configure agent_profiles in AXRUN_CONFIG or the default Axrun user config"
 	}
 	return fmt.Sprintf(" in %s", configPath)
 }

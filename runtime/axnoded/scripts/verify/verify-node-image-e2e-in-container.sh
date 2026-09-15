@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 EXPECT_MOUNT_TYPE="${EXPECT_MOUNT_TYPE:?EXPECT_MOUNT_TYPE is required}"
 PROBE_PATH="${PROBE_PATH:?PROBE_PATH is required}"
@@ -90,7 +91,7 @@ jq -e --arg image_url "${IMAGE_URL}" 'any(.mounts[]?; .image_url == $image_url a
 status="$(post_imagemgr /oci_umount "${payload_2}" "${umount_body}")"
 [ "${status}" = "200" ] || { cat "${umount_body}" >&2; exit 1; }
 
-for runtime_name in runsc runc; do
+for runtime_name in runsc; do
   details_before_runtime="$(mktemp)"
   status="$(get_imagemgr /list_oci_mount_details "${details_before_runtime}")"
   [ "${status}" = "200" ] || { cat "${details_before_runtime}" >&2; exit 1; }
@@ -100,9 +101,8 @@ for runtime_name in runsc runc; do
   fi
 
   /usr/local/bin/verify-smoke \
-    -address "${AXNODED_SOCKET}" \
-    -runtime "${runtime_name}" \
-    -runtime-id "${EXPECT_MOUNT_TYPE}-e2e-${runtime_name}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
+    -environment-id "${EXPECT_MOUNT_TYPE}-e2e-${runtime_name}" \
     -rootfs-src image \
     -image-url "${IMAGE_URL}" \
     -stdout "/tmp/${runtime_name}-${EXPECT_MOUNT_TYPE}.stdout" \
@@ -116,7 +116,7 @@ for runtime_name in runsc runc; do
   metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_total" "counter" "1" \
     "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
   metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
-    "axern.phase=langruntime_lookup" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
+    "axern.phase=environmentcache_lookup" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
   metricsz_assert_value "${metrics_output}" "axern.axnoded_startup_phase_duration_seconds" "histogram" "1" \
     "axern.phase=runtime_launch" "axern.start_class=cold" "axern.runtime=${runtime_name}" "axern.rootfs_type=image" "axern.result=ok"
 

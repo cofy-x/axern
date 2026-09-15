@@ -88,7 +88,7 @@ func (m *Manager) recoverMountTransactions(mountSnapshot managedMountSnapshot) e
 						continue
 					}
 				}
-				rec := &OciMountRecord{
+				rec := &OciMountState{
 					CacheKey:      txn.CacheKey,
 					ImageURL:      txn.ImageURL,
 					MountID:       txn.MountID,

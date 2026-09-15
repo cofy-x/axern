@@ -54,12 +54,9 @@ func (s fileService) archiveClient(options contract.HandlerOptions) (fileClient,
 	return s.clientForCapability(options, wire.CapabilityArchive)
 }
 
-func (s fileService) clientForCapability(options contract.HandlerOptions, capability string) (fileClient, error) {
+func (s fileService) clientForCapability(options contract.HandlerOptions, _ string) (fileClient, error) {
 	if options.ContainerID == "" {
 		return nil, fmt.Errorf("sandboxd file service requires container id: %w", errord.ErrInvalidArgument)
-	}
-	if err := requireCapabilityFromLabels(options.ContainerLabels, capability); err != nil {
-		return nil, err
 	}
 	bundlePath := filepath.Join(s.containerRoot, options.ContainerID)
 	return s.newClient(runtimeoci.SandboxdBundleSocketPath(bundlePath)), nil

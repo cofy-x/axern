@@ -16,16 +16,16 @@ import (
 
 const runtimeEnforcementManifestFile = "runtime-enforcement.pb"
 
-func writeRuntimeEnforcementManifest(bundlePath, runtimeName, filestoreDir string, request *apipb.CreateContainerRequest, options contract.HandlerOptions, overlayArg string, projectID uint32) error {
+func writeRuntimeEnforcementManifest(bundlePath, runtimeName, filestoreDir string, request *apipb.CreateContainerRequest, options contract.HandlerOptions, overlayArg string) error {
 	if request == nil || bundlePath == "" || runtimeName == "" {
 		return fmt.Errorf("runtime enforcement manifest requires bundle, runtime, and request")
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: runtimeName, MemoryLimitBytes: options.MemoryLimitBytes,
+		MemoryLimitBytes:           options.MemoryLimitBytes,
 		EphemeralStorageLimitBytes: request.GetEphemeralStorageLimitBytes(),
 		CgroupPath:                 options.CgroupPath, RuntimeCgroupPath: options.RuntimeCgroupPath,
-		RunscOverlayArg: overlayArg, RuncProjectID: projectID,
-		BundlePath: bundlePath, CreatedAtUnixNano: time.Now().UTC().UnixNano(),
+		RunscOverlayArg: overlayArg,
+		BundlePath:      bundlePath, CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}
 	if options.MemoryLimitBytes > 0 {
 		domain, err := hostlinux.InspectCgroupMemoryDomain(options.CgroupPath, options.RuntimeCgroupPath)
@@ -87,10 +87,6 @@ func readRuntimeEnforcementManifest(bundlePath string) (*apipb.AllocationEnforce
 		return nil, err
 	}
 	return &manifest, nil
-}
-
-func (r *RuncServiceHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
-	return readRuntimeEnforcementManifest(filepath.Join(r.common.ContainerRoot(), containerID))
 }
 
 func (r *RunscServiceHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {

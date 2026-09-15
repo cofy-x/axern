@@ -64,11 +64,11 @@ func TestBuildStartupMatrixReportProducesGateSummary(t *testing.T) {
 			Startup:    testStartupSummary("runsc", "local", "warm", "runtime_launch", 0.03, 10, 9, 1),
 		},
 		{
-			Scenario:   "runc-local",
-			Runtime:    "runc",
+			Scenario:   "runsc-local",
+			Runtime:    "runsc",
 			RootfsType: "local",
 			MountType:  "local",
-			Startup:    testStartupSummary("runc", "local", "warm", "runtime_launch", 0.02, 10, 8, 2),
+			Startup:    testStartupSummary("runsc", "local", "warm", "runtime_launch", 0.02, 10, 8, 2),
 		},
 		{
 			Scenario:   "runsc-oci",

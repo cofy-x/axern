@@ -35,7 +35,12 @@ class AccessRole(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ACCESS_ROLE_NAMESPACE_ADMIN: _ClassVar[AccessRole]
     ACCESS_ROLE_NAMESPACE_EDITOR: _ClassVar[AccessRole]
     ACCESS_ROLE_NAMESPACE_VIEWER: _ClassVar[AccessRole]
-    ACCESS_ROLE_ROLLOUT_EXECUTOR: _ClassVar[AccessRole]
+
+class CredentialKind(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    CREDENTIAL_KIND_UNSPECIFIED: _ClassVar[CredentialKind]
+    CREDENTIAL_KIND_X509: _ClassVar[CredentialKind]
+    CREDENTIAL_KIND_SSH: _ClassVar[CredentialKind]
 PRINCIPAL_KIND_UNSPECIFIED: PrincipalKind
 PRINCIPAL_KIND_HUMAN: PrincipalKind
 PRINCIPAL_KIND_SERVICE: PrincipalKind
@@ -50,16 +55,17 @@ ACCESS_ROLE_PLATFORM_ADMIN: AccessRole
 ACCESS_ROLE_NAMESPACE_ADMIN: AccessRole
 ACCESS_ROLE_NAMESPACE_EDITOR: AccessRole
 ACCESS_ROLE_NAMESPACE_VIEWER: AccessRole
-ACCESS_ROLE_ROLLOUT_EXECUTOR: AccessRole
+CREDENTIAL_KIND_UNSPECIFIED: CredentialKind
+CREDENTIAL_KIND_X509: CredentialKind
+CREDENTIAL_KIND_SSH: CredentialKind
 
 class Principal(_message.Message):
-    __slots__ = ("principal_id", "name", "display_name", "kind", "status", "version", "created_at", "updated_at")
+    __slots__ = ("principal_id", "name", "display_name", "kind", "status", "created_at", "updated_at")
     PRINCIPAL_ID_FIELD_NUMBER: _ClassVar[int]
     NAME_FIELD_NUMBER: _ClassVar[int]
     DISPLAY_NAME_FIELD_NUMBER: _ClassVar[int]
     KIND_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
     principal_id: str
@@ -67,28 +73,29 @@ class Principal(_message.Message):
     display_name: str
     kind: PrincipalKind
     status: PrincipalStatus
-    version: int
     created_at: _timestamp_pb2.Timestamp
     updated_at: _timestamp_pb2.Timestamp
-    def __init__(self, principal_id: _Optional[str] = ..., name: _Optional[str] = ..., display_name: _Optional[str] = ..., kind: _Optional[_Union[PrincipalKind, str]] = ..., status: _Optional[_Union[PrincipalStatus, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, principal_id: _Optional[str] = ..., name: _Optional[str] = ..., display_name: _Optional[str] = ..., kind: _Optional[_Union[PrincipalKind, str]] = ..., status: _Optional[_Union[PrincipalStatus, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class PrincipalCredential(_message.Message):
-    __slots__ = ("credential_id", "principal_id", "fingerprint", "certificate_not_after", "label", "created_at", "revoked_at")
+    __slots__ = ("credential_id", "principal_id", "fingerprint", "expires_at", "label", "created_at", "revoked_at", "kind")
     CREDENTIAL_ID_FIELD_NUMBER: _ClassVar[int]
     PRINCIPAL_ID_FIELD_NUMBER: _ClassVar[int]
     FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
-    CERTIFICATE_NOT_AFTER_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     REVOKED_AT_FIELD_NUMBER: _ClassVar[int]
+    KIND_FIELD_NUMBER: _ClassVar[int]
     credential_id: str
     principal_id: str
     fingerprint: str
-    certificate_not_after: _timestamp_pb2.Timestamp
+    expires_at: _timestamp_pb2.Timestamp
     label: str
     created_at: _timestamp_pb2.Timestamp
     revoked_at: _timestamp_pb2.Timestamp
-    def __init__(self, credential_id: _Optional[str] = ..., principal_id: _Optional[str] = ..., fingerprint: _Optional[str] = ..., certificate_not_after: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., label: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., revoked_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    kind: CredentialKind
+    def __init__(self, credential_id: _Optional[str] = ..., principal_id: _Optional[str] = ..., fingerprint: _Optional[str] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., label: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., revoked_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., kind: _Optional[_Union[CredentialKind, str]] = ...) -> None: ...
 
 class RoleBinding(_message.Message):
     __slots__ = ("binding_id", "principal_id", "scope_type", "namespace", "role", "created_by_principal_id", "created_at", "revoked_by_principal_id", "revoked_at")
@@ -151,14 +158,18 @@ class DisablePrincipalResponse(_message.Message):
     def __init__(self, principal: _Optional[_Union[Principal, _Mapping]] = ...) -> None: ...
 
 class AddPrincipalCredentialRequest(_message.Message):
-    __slots__ = ("principal_id", "certificate_der", "label")
+    __slots__ = ("principal_id", "certificate_der", "label", "ssh_public_key", "expires_at")
     PRINCIPAL_ID_FIELD_NUMBER: _ClassVar[int]
     CERTIFICATE_DER_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
+    SSH_PUBLIC_KEY_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
     principal_id: str
     certificate_der: bytes
     label: str
-    def __init__(self, principal_id: _Optional[str] = ..., certificate_der: _Optional[bytes] = ..., label: _Optional[str] = ...) -> None: ...
+    ssh_public_key: str
+    expires_at: _timestamp_pb2.Timestamp
+    def __init__(self, principal_id: _Optional[str] = ..., certificate_der: _Optional[bytes] = ..., label: _Optional[str] = ..., ssh_public_key: _Optional[str] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class AddPrincipalCredentialResponse(_message.Message):
     __slots__ = ("credential",)

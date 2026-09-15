@@ -9,6 +9,16 @@ ensure_secrets_master_key() {
   fi
 }
 
+ensure_enrollment_token() {
+  local env_name="$1"
+  local credential_file
+  credential_file="$(enrollment_token_file "${env_name}")"
+  if [ ! -s "${credential_file}" ]; then
+    openssl rand -hex 32 > "${credential_file}"
+    chmod 600 "${credential_file}"
+  fi
+}
+
 generate_compose_certs() {
   AXERN_TLS_SERVER_DNS_NAMES="localhost,host.docker.internal,controld,tunneld,gatewayd,mock-provider,registry" \
     AXERN_TLS_SERVER_IPS="127.0.0.1" \
@@ -28,9 +38,8 @@ ensure_compose_ssh_keys() {
   if [ ! -s "${client_key}" ]; then
     ssh-keygen -q -t ed25519 -N "" -f "${client_key}" -C "axern-local-client" >/dev/null
   fi
-  cat "${client_key}.pub" > "${ssh_dir}/authorized_keys"
   chmod 700 "${ssh_dir}"
-  chmod 600 "${host_key}" "${client_key}" "${ssh_dir}/authorized_keys"
+  chmod 600 "${host_key}" "${client_key}"
 }
 
 ensure_k8s_ssh_keys() {
@@ -46,9 +55,8 @@ ensure_k8s_ssh_keys() {
   if [ ! -s "${client_key}" ]; then
     ssh-keygen -q -t ed25519 -N "" -f "${client_key}" -C "axern-${K8S_ENV_NAME}-client" >/dev/null
   fi
-  cat "${client_key}.pub" > "${ssh_dir}/authorized_keys"
   chmod 700 "${ssh_dir}"
-  chmod 600 "${host_key}" "${client_key}" "${ssh_dir}/authorized_keys"
+  chmod 600 "${host_key}" "${client_key}"
 }
 
 generate_k8s_certs() {
@@ -61,27 +69,25 @@ write_cli_env() {
   local env_name="$1"
   local endpoint="$2"
   local cert_dir="${STATE_ROOT}/${env_name}/certs"
-  local service_url ssh_endpoint ssh_identity_file
+  local ssh_endpoint ssh_identity_file
   local config_file
-  service_url="$(axern_context_service_url "${env_name}")"
   ssh_endpoint="$(axern_context_ssh_endpoint "${env_name}")"
   ssh_identity_file="$(axern_context_ssh_identity_file "${env_name}")"
   config_file="$(axern_config_file)"
   cat > "$(cli_env_file "${env_name}")" <<EOF
 export AXERN_CONFIG="${config_file}"
 export AXERN_ENDPOINT="${endpoint}"
-export AXERN_SERVICE_URL="${service_url}"
 export AXERN_SSH_ENDPOINT="${ssh_endpoint}"
 export AXERN_SSH_IDENTITY_FILE="${ssh_identity_file}"
 export AXERN_TLS_CA_CERT="${cert_dir}/ca.crt"
 export AXERN_TLS_CERT="${cert_dir}/client.crt"
 export AXERN_TLS_KEY="${cert_dir}/client.key"
 EOF
-  write_axern_context "${env_name}" "${endpoint}" "${cert_dir}" "${service_url}" "${ssh_endpoint}" "${ssh_identity_file}"
+  write_axern_context "${env_name}" "${endpoint}" "${cert_dir}" "${ssh_endpoint}" "${ssh_identity_file}"
 }
 
 write_axern_context() {
-  upsert_axern_context "$1" "$2" "$3" true "${4:-}" "${5:-}" "${6:-}"
+  upsert_axern_context "$1" "$2" "$3" true "${4:-}" "${5:-}"
 }
 
 upsert_axern_context() {
@@ -89,13 +95,12 @@ upsert_axern_context() {
   local endpoint="$2"
   local cert_dir="$3"
   local set_current="${4:-false}"
-  local service_url="${5:-}"
-  local ssh_endpoint="${6:-}"
-  local ssh_identity_file="${7:-}"
+  local ssh_endpoint="${5:-}"
+  local ssh_identity_file="${6:-}"
   local config_file
   config_file="$(axern_config_file)"
   mkdir -p "$(dirname "${config_file}")"
-  python3 - "${config_file}" "${env_name}" "${endpoint}" "${cert_dir}/ca.crt" "${cert_dir}/client.crt" "${cert_dir}/client.key" "${set_current}" "${service_url}" "${ssh_endpoint}" "${ssh_identity_file}" <<'PY'
+  python3 - "${config_file}" "${env_name}" "${endpoint}" "${cert_dir}/ca.crt" "${cert_dir}/client.crt" "${cert_dir}/client.key" "${set_current}" "${ssh_endpoint}" "${ssh_identity_file}" <<'PY'
 import json
 import pathlib
 import sys
@@ -107,9 +112,8 @@ ca_cert = sys.argv[4]
 client_cert = sys.argv[5]
 client_key = sys.argv[6]
 set_current = sys.argv[7].lower() == "true"
-service_url = sys.argv[8]
-ssh_endpoint = sys.argv[9]
-ssh_identity_file = sys.argv[10]
+ssh_endpoint = sys.argv[8]
+ssh_identity_file = sys.argv[9]
 
 if config_path.exists():
     data = json.loads(config_path.read_text())
@@ -129,8 +133,6 @@ context = {
     },
     "proxy_mode": "direct",
 }
-if service_url:
-    context["service_url"] = service_url
 if ssh_endpoint:
     context["ssh_endpoint"] = ssh_endpoint
 if ssh_identity_file:
@@ -163,27 +165,6 @@ axern_context_endpoint() {
     *)
       echo "unknown axern context environment: $1" >&2
       return 1
-      ;;
-  esac
-}
-
-axern_context_service_url() {
-  case "$1" in
-    compose)
-      printf 'http://127.0.0.1:%s\n' "${COMPOSE_GATEWAY_HTTP_PORT}"
-      ;;
-    kind)
-      if [ "${K8S_ENV_NAME}" = "kind" ]; then
-        printf 'http://127.0.0.1:%s\n' "${K8S_GATEWAY_LOCAL_HTTP_PORT}"
-      else
-        printf 'http://127.0.0.1:%s\n' "$(k8s_default_gateway_local_http_port kind)"
-      fi
-      ;;
-    k8s)
-      printf 'http://127.0.0.1:%s\n' "${K8S_GATEWAY_LOCAL_HTTP_PORT}"
-      ;;
-    *)
-      printf '\n'
       ;;
   esac
 }
@@ -230,7 +211,6 @@ sync_local_axern_contexts() {
 		"$(axern_context_endpoint "${env_name}")" \
 		"${cert_dir}" \
 		false \
-		"$(axern_context_service_url "${env_name}")" \
 		"$(axern_context_ssh_endpoint "${env_name}")" \
 		"$(axern_context_ssh_identity_file "${env_name}")"
     fi

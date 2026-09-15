@@ -19,19 +19,17 @@ func TestServerLifecycle(t *testing.T) {
 	server := NewServer(manager)
 	prepared, err := server.PreparePolicy(context.Background(), &runtimeegressv1.PreparePolicyRequest{
 		AllocationID:        "alloc-1",
-		Attempt:             1,
 		SandboxIp:           "10.0.0.8",
 		Policy:              dnsDeny("Example.COM."),
-		ExecutionRevision:   3,
 		UpstreamNameservers: []string{"192.0.2.53"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prepared.GetAlreadyPrepared() || prepared.GetPolicy().GetPolicyDigest() == "" {
+	if prepared.GetAlreadyPrepared() || prepared.GetPolicy().GetAllocationID() != "alloc-1" {
 		t.Fatalf("unexpected prepare response: %#v", prepared)
 	}
-	got, err := server.GetPolicy(context.Background(), &runtimeegressv1.GetPolicyRequest{AllocationID: "alloc-1", Attempt: 1})
+	got, err := server.GetPolicy(context.Background(), &runtimeegressv1.GetPolicyRequest{AllocationID: "alloc-1"})
 	if err != nil || got.GetPolicy().GetSandboxIp() != "10.0.0.8" {
 		t.Fatalf("GetPolicy = (%#v, %v)", got, err)
 	}
@@ -43,13 +41,13 @@ func TestServerLifecycle(t *testing.T) {
 	if err != nil || health.GetHealth().GetPreparedPolicyCount() != 1 {
 		t.Fatalf("GetEgressManagerHealth = (%#v, %v)", health, err)
 	}
-	deleted, err := server.DeletePolicy(context.Background(), &runtimeegressv1.DeletePolicyRequest{AllocationID: "alloc-1", Attempt: 1})
+	deleted, err := server.DeletePolicy(context.Background(), &runtimeegressv1.DeletePolicyRequest{AllocationID: "alloc-1"})
 	if err != nil || !deleted.GetDeleted() {
 		t.Fatalf("DeletePolicy = (%#v, %v)", deleted, err)
 	}
 }
 
-func TestServerMapsValidationAndFencingStatus(t *testing.T) {
+func TestServerMapsValidationAndImmutableAllocationLifecycleState(t *testing.T) {
 	manager, err := policy.NewManager(nil)
 	if err != nil {
 		t.Fatal(err)
@@ -59,17 +57,16 @@ func TestServerMapsValidationAndFencingStatus(t *testing.T) {
 	if status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("validation status = %s, want InvalidArgument: %v", status.Code(err), err)
 	}
-	request := &runtimeegressv1.PreparePolicyRequest{AllocationID: "alloc", Attempt: 2, SandboxIp: "10.0.0.8", Policy: dnsDeny("example.com"), ExecutionRevision: 1, UpstreamNameservers: []string{"192.0.2.53"}}
+	request := &runtimeegressv1.PreparePolicyRequest{AllocationID: "alloc", SandboxIp: "10.0.0.8", Policy: dnsDeny("example.com"), UpstreamNameservers: []string{"192.0.2.53"}}
 	if _, err := server.PreparePolicy(context.Background(), request); err != nil {
 		t.Fatal(err)
 	}
-	request.Attempt = 1
 	request.SandboxIp = "10.0.0.9"
 	_, err = server.PreparePolicy(context.Background(), request)
 	if status.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("fencing status = %s, want FailedPrecondition: %v", status.Code(err), err)
+		t.Fatalf("immutable allocation policy = %s, want FailedPrecondition: %v", status.Code(err), err)
 	}
-	_, err = server.GetPolicy(context.Background(), &runtimeegressv1.GetPolicyRequest{AllocationID: "missing", Attempt: 1})
+	_, err = server.GetPolicy(context.Background(), &runtimeegressv1.GetPolicyRequest{AllocationID: "missing"})
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("missing status = %s, want NotFound: %v", status.Code(err), err)
 	}

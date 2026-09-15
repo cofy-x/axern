@@ -15,43 +15,39 @@ import (
 )
 
 type runtimeSpyHandler struct {
-	name                 string
-	capabilities         contract.RuntimeCapabilities
-	requirements         contract.RuntimeRequirements
-	waitExitCode         int
-	waitFunc             func(context.Context, contract.HandlerOptions) (contract.Exit, error)
-	createCalls          int
-	deleteCalls          int
-	lastOptions          contract.HandlerOptions
-	lastDeleteOptions    contract.HandlerOptions
-	lastRequest          *apipb.CreateContainerRequest
-	deleteOptionCalls    []contract.HandlerOptions
-	deleteErrors         []error
-	createError          error
-	bundleDuration       time.Duration
-	launchDuration       time.Duration
-	listStates           []*contract.UnionContainerState
-	listError            error
-	listHook             func()
-	containerSpec        *specs.Spec
-	containerSpecError   error
-	createMetadataLabels map[string]string
-	createHook           func()
+	name               string
+	requirements       contract.HostRequirements
+	waitExitCode       int
+	waitFunc           func(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	createCalls        int
+	deleteCalls        int
+	lastOptions        contract.HandlerOptions
+	lastDeleteOptions  contract.HandlerOptions
+	lastRequest        *apipb.CreateContainerRequest
+	deleteOptionCalls  []contract.HandlerOptions
+	deleteErrors       []error
+	createError        error
+	bundleDuration     time.Duration
+	launchDuration     time.Duration
+	listStates         []*contract.UnionContainerState
+	listError          error
+	listHook           func()
+	containerSpec      *specs.Spec
+	containerSpecError error
+	createHook         func()
 }
 
-var _ contract.RuntimeHandler = (*runtimeSpyHandler)(nil)
+var _ contract.SandboxRuntime = (*runtimeSpyHandler)(nil)
 
 func (h *runtimeSpyHandler) Name() string { return h.name }
 
-func (h *runtimeSpyHandler) Capabilities() contract.RuntimeCapabilities { return h.capabilities }
-
-func (h *runtimeSpyHandler) Requirements() contract.RuntimeRequirements { return h.requirements }
+func (h *runtimeSpyHandler) HostRequirements() contract.HostRequirements { return h.requirements }
 
 func (h *runtimeSpyHandler) Version(context.Context) (*apipb.RuntimeVersion, error) {
-	return &apipb.RuntimeVersion{RuntimeName: h.name, RuntimeVersion: "test"}, nil
+	return &apipb.RuntimeVersion{Version: "test"}, nil
 }
 
-func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
+func (h *runtimeSpyHandler) PrepareContainer(_ context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
 	h.createCalls++
 	h.lastOptions = options
 	h.lastRequest = request
@@ -63,29 +59,9 @@ func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.Cr
 	if h.createError != nil {
 		return nil, h.createError
 	}
-	labels := map[string]string{}
-	for k, v := range request.GetLabels() {
-		labels[k] = v
-	}
-	for k, v := range options.AdditionalAnnotations {
-		labels[k] = v
-	}
-	for k, v := range h.createMetadataLabels {
-		labels[k] = v
-	}
-	return &apipb.ContainerMetadata{
-		ID:             options.ContainerID,
-		RuntimeHandler: h.name,
-		Labels:         labels,
-		Stdout:         request.Stdout,
-		Stderr:         request.Stderr,
-	}, nil
-}
-
-func (h *runtimeSpyHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
-	metadata, err := h.CreateContainer(ctx, request, options)
-	if err != nil {
-		return nil, err
+	metadata := &apipb.ContainerMetadata{
+		Stdout: request.Stdout,
+		Stderr: request.Stderr,
 	}
 	return &contract.PreparedContainer{ContainerID: options.ContainerID, BundlePath: "/fake/" + options.ContainerID, Metadata: metadata}, nil
 }
@@ -96,7 +72,6 @@ func (h *runtimeSpyHandler) StartPreparedContainer(_ context.Context, prepared *
 
 func (h *runtimeSpyHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
 	return &apipb.AllocationEnforcementManifest{
-		RuntimeName:       h.Name(),
 		BundlePath:        "/fake/" + containerID,
 		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}, nil
@@ -146,8 +121,6 @@ func (h *runtimeSpyHandler) OpenExecSession(context.Context, *apipb.ExecSessionO
 func (h *runtimeSpyHandler) ProcessService() contract.ProcessService { return nil }
 
 func (h *runtimeSpyHandler) FileService() contract.FileService { return nil }
-
-func (h *runtimeSpyHandler) CheckpointContainer(*apipb.CheckpointRequest) error { return nil }
 
 func (h *runtimeSpyHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
 	if h.waitFunc != nil {

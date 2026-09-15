@@ -32,6 +32,9 @@ type CgroupManager struct {
 	usingID cmap.ConcurrentMap[string, struct{}]
 	idleID  *queue.Queue[string]
 	leases  cmap.ConcurrentMap[string, *apipb.CgroupLease]
+	// allocationLeases is the O(1) owner index over the durable cgroup ledger.
+	// The ledger remains canonical; this index is rebuilt from it on startup.
+	allocationLeases *cmap.ConcurrentMap[string, string]
 
 	// cgroups tracks every allocation and warm object created under the sandbox
 	// root. Assigned objects are one-use: after retirement their IDs are released
@@ -81,6 +84,29 @@ type cgroupRetirementMemory interface {
 }
 
 type hostCgroupRetirementMemory struct{}
+
+func (c *CgroupManager) AllocationResource(allocationID string) (string, bool) {
+	allocationID = strings.TrimSpace(allocationID)
+	if allocationID == "" {
+		return "", false
+	}
+	c.Lock()
+	defer c.Unlock()
+	if c.allocationLeases != nil {
+		return c.allocationLeases.Get(allocationID)
+	}
+	for item := range c.leases.IterBuffered() {
+		lease := item.Val
+		if lease == nil || lease.GetAllocationID() != allocationID {
+			continue
+		}
+		if lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED ||
+			lease.GetState() == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
+			return item.Key, true
+		}
+	}
+	return "", false
+}
 
 func (hostCgroupRetirementMemory) InspectParent(cgroupPath string) (*hostlinux.CgroupMemoryDomain, error) {
 	return hostlinux.InspectCgroupMemoryParent(cgroupPath)
@@ -181,7 +207,7 @@ func (c *CgroupManager) memoryCommitmentLocked(now time.Time) MemoryCommitment {
 		if lease == nil {
 			continue
 		}
-		charge := lease.GetCapacityReservationBytes()
+		charge := lease.GetCapacityChargeBytes()
 		if charge == 0 {
 			charge = lease.GetMemoryRequestBytes()
 		}

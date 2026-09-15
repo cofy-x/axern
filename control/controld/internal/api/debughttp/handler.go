@@ -35,14 +35,6 @@ func New(cfg Config) http.Handler {
 			Policy: policy,
 		})
 	})
-	mux.HandleFunc("/catalogz", func(w http.ResponseWriter, r *http.Request) {
-		resp, err := cfg.ListRuntimeTemplates(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		writeProtoJSON(w, resp)
-	})
 	mux.HandleFunc("/quotasz", func(w http.ResponseWriter, r *http.Request) {
 		resp, err := cfg.ListNamespaceQuotas(r.Context())
 		if err != nil {

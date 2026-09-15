@@ -154,19 +154,9 @@ observability:
         memory: 2Gi
 
 pki:
-  enabled: true
-  existingSecret: ""
-  secretName: controld-pki
-  durationDays: 3650
-  control:
-    extraDNSNames: []
-    extraIPAddresses: []
-  gateway:
-    extraDNSNames: []
-    extraIPAddresses: []
-  tunnel:
-    extraDNSNames: []
-    extraIPAddresses: []
+  trustDomain: axern.local
+  secretName: axern-pki
+  signerSecretName: axern-pki-signer
 
 auth:
   bootstrap:
@@ -178,8 +168,6 @@ secrets:
   existingSecret: ""
   secretName: controld-secrets
   secretsMasterKey: ""
-  rolloutWorkerToken: ""
-  artifactTicketKey: ""
 
 postgres:
   enabled: true
@@ -201,43 +189,11 @@ postgres:
     size: 20Gi
     storageClassName: ""
 
-minio:
-  enabled: false
-  image:
-    repository: minio/minio
-    tag: RELEASE.2025-02-28T09-55-16Z
-    pullPolicy: ""
-  clientImage:
-    repository: minio/mc
-    tag: RELEASE.2025-02-21T16-00-46Z
-    pullPolicy: ""
-  rootUser: minioadmin
-  rootPassword: minioadmin
-  bucket: axern-system
-  endpoint: ""
-  persistence:
-    enabled: true
-    existingClaim: ""
-    size: 40Gi
-    storageClassName: ""
-
-objectStore:
-  enabled: false
-  scheme: https
-  endpoint: ""
-  region: ""
-  bucket: ""
-  accessKey: ""
-  secretKey: ""
-  skipVerify: false
-
 runtimeCatalog:
   python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.6.2
   serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.6.2
   codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.6.2
   desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.6.2
-  claudeCodeBundleImage: ghcr.io/cofy-x/axern/claude-code-bundle:v0.6.2
-  codexBundleImage: ghcr.io/cofy-x/axern/codex-bundle:v0.6.2
 
 controld:
   replicas: 1
@@ -250,28 +206,9 @@ controld:
   summaryFreshnessWindow: 15s
   postgresMaxConnections: 48
   reconcileTimeout: 30s
-  serviceReconcileWorkers: 32
-  serviceAllocationGlobalWorkers: 256
-  serviceAllocationWorkersPerNode: 12
-  volumeReclaimWorkers: 8
-  volumeReclaimWorkersPerNode: 2
-  function:
-    gatewayTimeout: 30s
   retention:
     enabled: true
     replicas: 1
-
-rolloutWorker:
-  enabled: false
-  replicas: 1
-  concurrency: 4
-  outputSizeLimit: 20Gi
-  registryAuth:
-    existingSecret: ""
-    dockerConfigKey: .dockerconfigjson
-
-storaged:
-  replicas: 1
 
 tunneld:
   replicas: 1
@@ -291,6 +228,11 @@ node:
     pullPolicy: ""
   privileged: true
   heartbeatInterval: 1s
+  # Tokens are projected only onto their explicitly selected Kubernetes Node.
+  # No runtime pod receives another Node identity\'s enrollment token.
+  enrollment:
+    existingSecret: ""
+    nodes: [] # Explicit records: {nodeName: worker-a, nodeID: independently-assigned-id}
   runtime:
     idleRetentionTTL: 5m
     idleRetentionMax: 8
@@ -305,15 +247,12 @@ node:
     natBackend: ebpf
     ebpf:
       pinPath: /sys/fs/bpf/axern/bpfnet
-      mapSize: 16384
       snatMapSize: 262144
       snatGcInterval: 1s
       snatTcpIdleTimeout: 5m
       snatTcpClosingTimeout: 2s
       snatDatagramIdleTimeout: 10s
       uplinkDevices: []
-      localOutCompat: true
-      iptablesFallback: true
   serviceAccount:
     create: true
     name: ""
@@ -347,17 +286,6 @@ gatewayd:
     tag: v0.6.2
     digest: ""
     pullPolicy: ""
-  devToken: ""
-  dashboardEnabled: true
-  routeCacheTTL: 3s
-  routeCacheMaxEntries: 8192
-  serviceEndpointRetryAttempts: 4
-  serviceEndpointQuarantineTTL: 30s
-  artifact:
-    maxConcurrent: 16
-    chunkBytes: 262144
-    upstreamTimeout: 30s
-    maxBytes: 8589934592
   controlEdge:
     publicAddress: localhost:25100
   ssh:
@@ -365,7 +293,6 @@ gatewayd:
     existingSecret: ""
     secretName: gatewayd-ssh
     hostKey: ""
-    authorizedKeys: ""
   service:
     type: NodePort
     controlNodePort: 30250

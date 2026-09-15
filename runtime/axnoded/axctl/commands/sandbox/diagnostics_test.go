@@ -13,19 +13,19 @@ import (
 )
 
 type fakeDiagnosticsRPCClient struct {
-	lastSandboxID string
-	lastFull      bool
-	resp          *nodeoperatorv1.GetSandboxDiagnosticsResponse
-	err           error
+	lastAllocationID string
+	lastFull         bool
+	resp             *nodeoperatorv1.GetAllocationDiagnosticsResponse
+	err              error
 }
 
-func (f *fakeDiagnosticsRPCClient) GetSandboxDiagnostics(sandboxID string, full bool) (*nodeoperatorv1.GetSandboxDiagnosticsResponse, error) {
-	f.lastSandboxID = sandboxID
+func (f *fakeDiagnosticsRPCClient) GetAllocationDiagnostics(allocationID string, full bool) (*nodeoperatorv1.GetAllocationDiagnosticsResponse, error) {
+	f.lastAllocationID = allocationID
 	f.lastFull = full
 	if f.resp != nil || f.err != nil {
 		return f.resp, f.err
 	}
-	return &nodeoperatorv1.GetSandboxDiagnosticsResponse{SandboxID: sandboxID, Ready: true}, nil
+	return &nodeoperatorv1.GetAllocationDiagnosticsResponse{AllocationID: allocationID, Ready: true}, nil
 }
 
 func (f *fakeDiagnosticsRPCClient) Close() error { return nil }
@@ -41,7 +41,7 @@ func newDiagnosticsTestApp() *cli.App {
 }
 
 func TestDiagnosticsCommandRequestsFullForJSON(t *testing.T) {
-	fakeClient := &fakeDiagnosticsRPCClient{resp: &nodeoperatorv1.GetSandboxDiagnosticsResponse{RawJson: `{"ready":true}`}}
+	fakeClient := &fakeDiagnosticsRPCClient{resp: &nodeoperatorv1.GetAllocationDiagnosticsResponse{RawJson: `{"ready":true}`}}
 	oldFactory := newDiagnosticsRPCClient
 	newDiagnosticsRPCClient = func(ctx *cli.Context) (diagnosticsRPCClient, error) { return fakeClient, nil }
 	defer func() { newDiagnosticsRPCClient = oldFactory }()
@@ -49,14 +49,14 @@ func TestDiagnosticsCommandRequestsFullForJSON(t *testing.T) {
 	err := newDiagnosticsTestApp().Run([]string{"axctl", "diagnostics", "--json", "axctl-test"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, "axctl-test", fakeClient.lastSandboxID)
+	assert.Equal(t, "axctl-test", fakeClient.lastAllocationID)
 	assert.True(t, fakeClient.lastFull)
 }
 
 func TestRenderSandboxDiagnostics(t *testing.T) {
 	var out bytes.Buffer
-	renderSandboxDiagnostics(&out, &nodeoperatorv1.GetSandboxDiagnosticsResponse{
-		SandboxID:     "demo",
+	renderSandboxDiagnostics(&out, &nodeoperatorv1.GetAllocationDiagnosticsResponse{
+		AllocationID:  "demo",
 		Ready:         true,
 		Detail:        "full",
 		GeneratedAt:   timestamppb.New(time.Date(2026, 5, 27, 10, 0, 0, 0, time.UTC)),
@@ -87,7 +87,7 @@ func TestRenderSandboxDiagnostics(t *testing.T) {
 
 	got := out.String()
 	for _, want := range []string{
-		"Sandbox: demo",
+		"Allocation: demo",
 		"Ready: true",
 		"Generated At: 2026-05-27T10:00:00Z",
 		"Capabilities: health,process",

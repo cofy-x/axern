@@ -10,13 +10,11 @@ type ExecutionConfigJSON struct {
 	Env                             map[string]string                     `json:"env,omitempty"`
 	Cwd                             string                                `json:"cwd,omitempty"`
 	Resources                       *ResourceSpecJSON                     `json:"resources,omitempty"`
-	Ports                           []*PortSpecJSON                       `json:"ports,omitempty"`
 	Network                         *NetworkSpecJSON                      `json:"network,omitempty"`
 	ExtensionCapabilityRequirements []*ExtensionCapabilityRequirementJSON `json:"extension_capability_requirements,omitempty"`
 	Placement                       *PlacementConstraintsJSON             `json:"placement,omitempty"`
 	SecretEnv                       []*SecretEnvVarJSON                   `json:"secret_env,omitempty"`
 	SecretFiles                     []*SecretFileJSON                     `json:"secret_files,omitempty"`
-	VolumeMounts                    []*ServiceVolumeMountJSON             `json:"volume_mounts,omitempty"`
 	ImageMounts                     []*ImageMountJSON                     `json:"image_mounts,omitempty"`
 }
 
@@ -29,13 +27,6 @@ type ResourceQuantityJSON struct {
 type ResourceSpecJSON struct {
 	Requests *ResourceQuantityJSON `json:"requests,omitempty"`
 	Limits   *ResourceQuantityJSON `json:"limits,omitempty"`
-}
-
-type PortSpecJSON struct {
-	Name          string `json:"name,omitempty"`
-	Protocol      string `json:"protocol"`
-	ContainerPort int32  `json:"container_port"`
-	HostPort      int32  `json:"host_port,omitempty"`
 }
 
 type NetworkSpecJSON struct {
@@ -66,13 +57,6 @@ type SecretFileJSON struct {
 	Optional bool   `json:"optional,omitempty"`
 }
 
-type ServiceVolumeMountJSON struct {
-	Name     string   `json:"name"`
-	Target   string   `json:"target"`
-	Readonly bool     `json:"readonly,omitempty"`
-	Options  []string `json:"options,omitempty"`
-}
-
 type ImageMountJSON struct {
 	Image    string `json:"image"`
 	Target   string `json:"target"`
@@ -88,13 +72,11 @@ func NewExecutionConfigJSON(config *commonv1.ExecutionConfig) *ExecutionConfigJS
 		Env:                             cloneStringMap(config.GetEnv()),
 		Cwd:                             config.GetCwd(),
 		Resources:                       newResourceSpecJSON(config.GetResources()),
-		Ports:                           newPortSpecJSONs(config.GetPorts()),
 		Network:                         newNetworkSpecJSON(config.GetNetwork()),
 		ExtensionCapabilityRequirements: newExtensionCapabilityRequirementJSONs(config.GetExtensionCapabilityRequirements()),
 		Placement:                       newPlacementConstraintsJSON(config.GetPlacement()),
 		SecretEnv:                       newSecretEnvVarJSONs(config.GetSecretEnv()),
 		SecretFiles:                     newSecretFileJSONs(config.GetSecretFiles()),
-		VolumeMounts:                    newServiceVolumeMountJSONs(config.GetVolumeMounts()),
 		ImageMounts:                     newImageMountJSONs(config.GetImageMounts()),
 	}
 }
@@ -118,25 +100,6 @@ func newResourceQuantityJSON(quantity *commonv1.ResourceQuantity) *ResourceQuant
 		return nil
 	}
 	return &ResourceQuantityJSON{CPUMilli: quantity.GetCpuMilli(), MemoryBytes: quantity.GetMemoryBytes(), EphemeralStorageBytes: quantity.GetEphemeralStorageBytes()}
-}
-
-func newPortSpecJSONs(ports []*commonv1.PortSpec) []*PortSpecJSON {
-	if len(ports) == 0 {
-		return nil
-	}
-	out := make([]*PortSpecJSON, 0, len(ports))
-	for _, port := range ports {
-		if port == nil {
-			continue
-		}
-		out = append(out, &PortSpecJSON{
-			Name:          port.GetName(),
-			Protocol:      portProtocolLabel(port.GetProtocol()),
-			ContainerPort: port.GetContainerPort(),
-			HostPort:      port.GetHostPort(),
-		})
-	}
-	return out
 }
 
 func newNetworkSpecJSON(network *commonv1.NetworkSpec) *NetworkSpecJSON {
@@ -209,25 +172,6 @@ func newSecretFileJSONs(files []*commonv1.SecretFile) []*SecretFileJSON {
 	return out
 }
 
-func newServiceVolumeMountJSONs(mounts []*commonv1.ServiceVolumeMount) []*ServiceVolumeMountJSON {
-	if len(mounts) == 0 {
-		return nil
-	}
-	out := make([]*ServiceVolumeMountJSON, 0, len(mounts))
-	for _, mount := range mounts {
-		if mount == nil {
-			continue
-		}
-		out = append(out, &ServiceVolumeMountJSON{
-			Name:     mount.GetName(),
-			Target:   mount.GetTarget(),
-			Readonly: mount.GetReadonly(),
-			Options:  append([]string(nil), mount.GetOptions()...),
-		})
-	}
-	return out
-}
-
 func newImageMountJSONs(mounts []*commonv1.ImageMount) []*ImageMountJSON {
 	if len(mounts) == 0 {
 		return nil
@@ -244,17 +188,6 @@ func newImageMountJSONs(mounts []*commonv1.ImageMount) []*ImageMountJSON {
 		})
 	}
 	return out
-}
-
-func portProtocolLabel(protocol commonv1.PortProtocol) string {
-	switch protocol {
-	case commonv1.PortProtocol_PORT_PROTOCOL_UDP:
-		return "udp"
-	case commonv1.PortProtocol_PORT_PROTOCOL_TCP:
-		return "tcp"
-	default:
-		return "unspecified"
-	}
 }
 
 func networkModeLabel(mode commonv1.NetworkMode) string {

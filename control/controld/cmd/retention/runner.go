@@ -12,15 +12,10 @@ import (
 )
 
 const (
-	resourceServiceEvents       = "service_events"
-	resourceTunnelEvents        = "tunnel_events"
-	resourceQuotaEvents         = "quota_events"
-	resourceServiceAllocations  = "service_allocations"
-	resourceTerminalRuns        = "terminal_runs"
-	resourceLeases              = "leases"
-	resourceFunctionEvents      = "function_events"
-	resourceFunctionInvocations = "function_invocations"
-	resourceFunctionIdempotency = "function_idempotency"
+	resourceTunnelEvents = "tunnel_events"
+	resourceQuotaEvents  = "quota_events"
+	resourceTerminalRuns = "terminal_runs"
+	resourceAccessGrants = "allocation_access_grants"
 )
 
 type cleanupController interface {
@@ -63,15 +58,11 @@ func (r *runner) RunOnce(ctx context.Context) error {
 	}
 	op.End(err)
 
-	recordDeleted(ctx, resourceServiceEvents, result.ServiceEventsDeleted)
 	recordDeleted(ctx, resourceTunnelEvents, result.TunnelEventsDeleted)
 	recordDeleted(ctx, resourceQuotaEvents, result.QuotaEventsDeleted)
-	recordDeleted(ctx, resourceServiceAllocations, result.ServiceAllocationsDeleted)
 	recordDeleted(ctx, resourceTerminalRuns, result.TerminalRunsDeleted)
-	recordDeleted(ctx, resourceLeases, result.LeasesDeleted)
-	recordDeleted(ctx, resourceFunctionEvents, result.FunctionEventsDeleted)
-	recordDeleted(ctx, resourceFunctionInvocations, result.FunctionInvocationsDeleted)
-	recordDeleted(ctx, resourceFunctionIdempotency, result.FunctionIdempotencyDeleted)
+	recordDeleted(ctx, resourceAccessGrants, result.AccessGrantsDeleted)
+	recordDeleted(ctx, "node_enrollment_receipts", result.EnrollmentReceiptsDeleted)
 	logResult(result, err)
 	return err
 }
@@ -90,16 +81,12 @@ func recordDeleted(ctx context.Context, resource string, count int64) {
 
 func logResult(result retentionkernel.Result, err error) {
 	fields := logrus.Fields{
-		"events_deleted":               result.ServiceEventsDeleted,
-		"tunnel_events_deleted":        result.TunnelEventsDeleted,
-		"quota_events_deleted":         result.QuotaEventsDeleted,
-		"service_allocations_deleted":  result.ServiceAllocationsDeleted,
-		"runs_deleted":                 result.TerminalRunsDeleted,
-		"leases_deleted":               result.LeasesDeleted,
-		"function_events_deleted":      result.FunctionEventsDeleted,
-		"function_invocations_deleted": result.FunctionInvocationsDeleted,
-		"function_idempotency_deleted": result.FunctionIdempotencyDeleted,
-		"duration":                     result.Duration.String(),
+		"tunnel_events_deleted":       result.TunnelEventsDeleted,
+		"quota_events_deleted":        result.QuotaEventsDeleted,
+		"runs_deleted":                result.TerminalRunsDeleted,
+		"access_grants_deleted":       result.AccessGrantsDeleted,
+		"enrollment_receipts_deleted": result.EnrollmentReceiptsDeleted,
+		"duration":                    result.Duration.String(),
 	}
 	if err != nil {
 		logrus.WithError(err).WithFields(fields).Warn("retention cleanup failed")

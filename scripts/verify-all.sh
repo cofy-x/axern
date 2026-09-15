@@ -8,7 +8,6 @@ from_step=""
 to_step=""
 include_proto_breaking=false
 include_bpfnet_generate_check=false
-include_local_storage=false
 include_axrun=false
 bootstrap_first=false
 
@@ -23,8 +22,6 @@ Options:
   --bootstrap            Run `make bootstrap` before validation.
   --include-bpfnet-generate-check
                          Include slow `make -C network/bpfnet generate-check`.
-  --include-local-storage
-                         Include compose and kind service-volume truth-path smokes.
   --include-axrun
                          Include Axrun tests, vet, and local acceptance gates.
   --list                 List the ordered validation steps and exit.
@@ -40,8 +37,6 @@ Notes:
   - Proto breaking checks are opt-in during the active V1 control-plane reset.
   - `network/bpfnet generate-check` is opt-in because it is slow and only
     relevant when the committed tc artifacts may have changed.
-  - `local-storage-verify` is opt-in because it requires live compose and kind
-    truth environments.
   - `axrun-verify` is opt-in because local acceptance smoke runs are heavier
     than standard workspace unit tests.
   - It intentionally excludes demos, benchmarks, perf profiles, and optional
@@ -58,10 +53,6 @@ while (($# > 0)); do
       ;;
     --include-bpfnet-generate-check)
       include_bpfnet_generate_check=true
-      shift
-      ;;
-    --include-local-storage)
-      include_local_storage=true
       shift
       ;;
     --include-axrun)
@@ -136,7 +127,6 @@ describe_step() {
     bootstrap) echo "Bootstrap repository toolchains and workspace dependencies" ;;
     agent-doc-check) echo "Validate repository Markdown links and module contract indexing" ;;
     axern-cli-check-architecture) echo "Verify product CLI package boundary constraints" ;;
-    axern-cli-dashboard-smoke) echo "Run product CLI dashboard API and UI smoke verification" ;;
     gatewayd-check-architecture) echo "Verify gatewayd package boundary constraints" ;;
     imagemgr-check-architecture) echo "Verify imagemgr package boundary constraints" ;;
     axnoded-check-architecture) echo "Verify axnoded package boundary constraints" ;;
@@ -147,6 +137,7 @@ describe_step() {
     bpfnet-generate-check) echo "Check committed bpfnet tc artifacts for drift" ;;
     build) echo "Build the root language workspaces" ;;
     test) echo "Run the root workspace test suites" ;;
+    controld-postgres-test) echo "Run controld integration tests against ephemeral PostgreSQL" ;;
     bpfnet-test) echo "Run network/bpfnet Go tests" ;;
     axnoded-test)
       if [ "${host_os}" = "Linux" ]; then
@@ -157,26 +148,21 @@ describe_step() {
       ;;
     axern-cli-e2e) echo "Run product CLI end-to-end verification" ;;
     axrun-verify) echo "Run Axrun package tests, vet, formatting, and local acceptance gates" ;;
-    local-storage-verify) echo "Run compose and kind service-volume truth-path smokes" ;;
     axnoded-verify-docker-runsc) echo "Run axnoded Docker truth-path verification for runsc" ;;
     axnoded-verify-docker-runsc-ebpf) echo "Run axnoded Docker truth-path verification for runsc with ebpf NAT" ;;
     axnoded-verify-bpfnetctl-e2e) echo "Run bpfnetctl JSON readiness E2E against the axnoded ebpf dashboard demo" ;;
     axnoded-verify-docker-runsc-debug) echo "Run axnoded Docker truth-path verification for runsc with diagnostics" ;;
-    axnoded-verify-docker-runc) echo "Run axnoded Docker truth-path verification for runc" ;;
-    axnoded-verify-docker-runc-debug) echo "Run axnoded Docker truth-path verification for runc with diagnostics" ;;
     axnoded-verify-node-cli-e2e) echo "Run axnoded node all-in-one axctl CLI E2E" ;;
     axnoded-verify-node-inventory-e2e) echo "Run axnoded node inventory E2E" ;;
     axnoded-verify-node-startup-metrics-e2e) echo "Run axnoded startup metrics E2E" ;;
     axnoded-verify-node-startup-matrix-smoke) echo "Run axnoded startup matrix smoke verification" ;;
     axnoded-verify-node-bundle-template-e2e) echo "Run axnoded bundle-template reuse E2E" ;;
-    axnoded-verify-node-service-volumes-e2e) echo "Run axnoded service node-local volume persistence E2E" ;;
     axnoded-verify-node-python-runtime-e2e) echo "Run axnoded programmable Python runtime E2E" ;;
-    axnoded-verify-node-retention-e2e) echo "Run axnoded runtime retention E2E" ;;
+    axnoded-verify-node-retention-e2e) echo "Run axnoded environment retention E2E" ;;
     axnoded-verify-node-locality-e2e) echo "Run axnoded locality signals E2E" ;;
     axnoded-verify-node-warm-pool-e2e) echo "Run axnoded warm-pool E2E" ;;
     axnoded-verify-node-oci-e2e) echo "Run axnoded OCI image E2E" ;;
     axnoded-verify-node-nydus-e2e) echo "Run axnoded Nydus image E2E" ;;
-    axnoded-verify-node-oss-e2e) echo "Run axnoded OSS image E2E" ;;
     *)
       echo "Unknown step: $1" >&2
       exit 1
@@ -194,9 +180,6 @@ run_step() {
       ;;
     axern-cli-check-architecture)
       run_cmd make axern-cli-check-architecture
-      ;;
-    axern-cli-dashboard-smoke)
-      run_cmd make axern-cli-dashboard-smoke
       ;;
     gatewayd-check-architecture)
       run_cmd make gatewayd-check-architecture
@@ -238,14 +221,14 @@ run_step() {
         run_cmd make -C runtime/axnoded test-host
       fi
       ;;
+    controld-postgres-test)
+      run_cmd make controld-postgres-test
+      ;;
     axern-cli-e2e)
       run_cmd make axern-cli-e2e
       ;;
     axrun-verify)
       run_cmd make axrun-verify
-      ;;
-    local-storage-verify)
-      run_cmd make local-storage-verify
       ;;
     axnoded-verify-docker-runsc)
       run_cmd make -C runtime/axnoded verify-docker-runsc
@@ -258,12 +241,6 @@ run_step() {
       ;;
     axnoded-verify-docker-runsc-debug)
       run_cmd make -C runtime/axnoded verify-docker-runsc-debug
-      ;;
-    axnoded-verify-docker-runc)
-      run_cmd make -C runtime/axnoded verify-docker-runc
-      ;;
-    axnoded-verify-docker-runc-debug)
-      run_cmd make -C runtime/axnoded verify-docker-runc-debug
       ;;
     axnoded-verify-node-cli-e2e)
       run_cmd make -C runtime/axnoded verify-node-cli-e2e
@@ -279,9 +256,6 @@ run_step() {
       ;;
     axnoded-verify-node-bundle-template-e2e)
       run_cmd make -C runtime/axnoded verify-node-bundle-template-e2e
-      ;;
-    axnoded-verify-node-service-volumes-e2e)
-      run_cmd make -C runtime/axnoded verify-node-service-volumes-e2e
       ;;
     axnoded-verify-node-python-runtime-e2e)
       run_cmd make -C runtime/axnoded verify-node-python-runtime-e2e
@@ -301,9 +275,6 @@ run_step() {
     axnoded-verify-node-nydus-e2e)
       run_cmd make -C runtime/axnoded verify-node-nydus-e2e
       ;;
-    axnoded-verify-node-oss-e2e)
-      run_cmd make -C runtime/axnoded verify-node-oss-e2e
-      ;;
     *)
       echo "Unknown step: $1" >&2
       exit 1
@@ -314,7 +285,6 @@ run_step() {
 steps=(
   agent-doc-check
   axern-cli-check-architecture
-  axern-cli-dashboard-smoke
   gatewayd-check-architecture
   imagemgr-check-architecture
   axnoded-check-architecture
@@ -323,7 +293,7 @@ steps=(
   proto-generated-check
 )
 
-if [ "${include_proto_breaking}" = true ] && [ "${skip_proto_breaking}" = false ]; then
+if [ "${include_proto_breaking}" = true ]; then
   steps+=(proto-breaking)
 fi
 
@@ -334,6 +304,7 @@ fi
 steps+=(
   build
   test
+  controld-postgres-test
   bpfnet-test
   axnoded-test
   axern-cli-e2e
@@ -343,30 +314,22 @@ if [ "${include_axrun}" = true ]; then
   steps+=(axrun-verify)
 fi
 
-if [ "${include_local_storage}" = true ]; then
-  steps+=(local-storage-verify)
-fi
-
 steps+=(
   axnoded-verify-docker-runsc
   axnoded-verify-docker-runsc-ebpf
   axnoded-verify-bpfnetctl-e2e
   axnoded-verify-docker-runsc-debug
-  axnoded-verify-docker-runc
-  axnoded-verify-docker-runc-debug
   axnoded-verify-node-cli-e2e
   axnoded-verify-node-inventory-e2e
   axnoded-verify-node-startup-metrics-e2e
   axnoded-verify-node-startup-matrix-smoke
   axnoded-verify-node-bundle-template-e2e
-  axnoded-verify-node-service-volumes-e2e
   axnoded-verify-node-python-runtime-e2e
   axnoded-verify-node-retention-e2e
   axnoded-verify-node-locality-e2e
   axnoded-verify-node-warm-pool-e2e
   axnoded-verify-node-oci-e2e
   axnoded-verify-node-nydus-e2e
-  axnoded-verify-node-oss-e2e
 )
 
 if [ "${bootstrap_first}" = true ]; then

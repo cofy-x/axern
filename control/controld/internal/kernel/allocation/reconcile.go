@@ -1,14 +1,17 @@
 package allocationkernel
 
 import (
+	"errors"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
+var ErrReconcileClaimLost = errors.New("allocation reconcile claim lost")
+
 const (
-	ReconcileReasonCreate     = "create"
-	ReconcileReasonDelete     = "delete"
 	DefaultReconcileLimit     = 20
 	DeleteRetryDelay          = 5 * time.Second
 	CreateRetryInitialDelay   = 2 * time.Second
@@ -16,58 +19,56 @@ const (
 	CreateRetryMaxAttempts    = 5
 	CreateExecutionTimeout    = 10 * time.Minute
 	LifecycleOperationTimeout = 60 * time.Second
+	ReconcileClaimTTL         = 30 * time.Second
+	ReconcileClaimRenewal     = 10 * time.Second
+	ReconcileWorkerCount      = 8
+	ExecutionLeaseTTL         = executionlease.TTL
 )
 
 type ReconcileItem struct {
+	OutputExpiresAt        *time.Time
 	AllocationID           string
-	OwnerID                string
+	RunID                  string
 	EnvironmentID          string
-	Reason                 string
+	LifecycleState         commonv1.AllocationLifecycleState
 	NodeID                 string
 	NodeTarget             string
-	Attempt                int64
 	ReconcileAttempts      int
 	LastReconcileError     string
 	ClaimOwner             string
 	NextRunAt              time.Time
 	EligibleAt             time.Time
-	CapabilityDependencies []*capabilityv1.CapabilityDependency
-}
-
-type CapabilityReconcileItem struct {
-	AllocationID       string
-	NodeID             string
-	NodeTarget         string
-	Attempt            int64
-	Dependencies       []*capabilityv1.CapabilityDependency
-	PendingGenerations map[string]int64
-	Attempts           int
-}
-
-// CapabilityAdmission is the authoritative result of axnoded's post-create
-// capability gate. Dependencies retain the exact selected and transitive
-// evidence; Conditions describe the resulting allocation state.
-type CapabilityAdmission struct {
-	Attempt      int64
-	Dependencies []*capabilityv1.CapabilityDependency
-	ConditionSet *capabilityv1.CapabilityConditionSet
-}
-
-// CapabilityReconciliation is a runtime verification projection. Its
-// dependencies must equal the immutable create admission; only ConditionSet
-// may advance.
-type CapabilityReconciliation struct {
-	Attempt      int64
-	Dependencies []*capabilityv1.CapabilityDependency
-	ConditionSet *capabilityv1.CapabilityConditionSet
+	CapabilityRequirements []*capabilityv1.CapabilityRequirement
 }
 
 type ScheduleReconcileRequest struct {
 	AllocationID       string
-	Reason             string
+	Intent             ReconcileIntent
 	NextRunAt          time.Time
 	LastReconcileError string
 	IncrementAttempts  bool
+}
+
+type ReconcileIntent uint8
+
+const (
+	ReconcileIntentUnspecified ReconcileIntent = iota
+	ReconcileIntentEnsurePresent
+	ReconcileIntentEnsureAbsent
+)
+
+func ReconcileIntentForLifecycle(state commonv1.AllocationLifecycleState) ReconcileIntent {
+	switch state {
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE:
+		return ReconcileIntentEnsurePresent
+	case commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED:
+		return ReconcileIntentEnsureAbsent
+	default:
+		return ReconcileIntentUnspecified
+	}
 }
 
 type CreateRetryPlan struct {
@@ -77,40 +78,33 @@ type CreateRetryPlan struct {
 }
 
 type LifecycleRetryFilter struct {
-	OwnerType string
-	Reason    string
-	DueOnly   bool
-	Limit     int
+	DueOnly bool
+	Limit   int
 }
 
 type ForceLifecycleRetryRequest struct {
 	AllocationID   string
-	Reason         string
 	OperatorReason string
 	RequestedRunAt time.Time
 }
 
 type FailLifecycleRetryRequest struct {
 	AllocationID   string
-	Reason         string
 	OperatorReason string
 }
 
 type ClearLifecycleRetryRequest struct {
 	AllocationID   string
-	Reason         string
 	OperatorReason string
 }
 
 type LifecycleRetryItem struct {
 	AllocationID       string    `json:"allocation_id"`
-	OwnerID            string    `json:"owner_id"`
-	OwnerType          string    `json:"owner_type"`
+	RunID              string    `json:"run_id"`
 	EnvironmentID      string    `json:"environment_id,omitempty"`
-	Reason             string    `json:"reason"`
+	LifecycleState     string    `json:"lifecycle_state"`
 	NodeID             string    `json:"node_id"`
 	NodeTarget         string    `json:"node_target,omitempty"`
-	Attempt            int64     `json:"attempt"`
 	ReconcileAttempts  int       `json:"reconcile_attempts"`
 	LastReconcileError string    `json:"last_error,omitempty"`
 	NextRunAt          time.Time `json:"next_run_at"`
@@ -155,7 +149,7 @@ func ScheduleCreateRetryRequest(allocationID string, currentAttempts int, lastEr
 	}
 	return ScheduleReconcileRequest{
 		AllocationID:       allocationID,
-		Reason:             ReconcileReasonCreate,
+		Intent:             ReconcileIntentEnsurePresent,
 		NextRunAt:          plan.NextRunAt,
 		LastReconcileError: lastError,
 		IncrementAttempts:  true,
@@ -165,7 +159,7 @@ func ScheduleCreateRetryRequest(allocationID string, currentAttempts int, lastEr
 func ScheduleDeleteRetryRequest(allocationID string, lastError string, now time.Time) ScheduleReconcileRequest {
 	return ScheduleReconcileRequest{
 		AllocationID:       allocationID,
-		Reason:             ReconcileReasonDelete,
+		Intent:             ReconcileIntentEnsureAbsent,
 		NextRunAt:          now.Add(DeleteRetryDelay),
 		LastReconcileError: lastError,
 		IncrementAttempts:  true,
@@ -175,13 +169,7 @@ func ScheduleDeleteRetryRequest(allocationID string, lastError string, now time.
 func ScheduleDeleteRequest(allocationID string, now time.Time) ScheduleReconcileRequest {
 	return ScheduleReconcileRequest{
 		AllocationID: allocationID,
-		Reason:       ReconcileReasonDelete,
+		Intent:       ReconcileIntentEnsureAbsent,
 		NextRunAt:    now,
 	}
-}
-
-func ScheduleImmediateDeleteRetryRequest(allocationID string, lastError string, now time.Time) ScheduleReconcileRequest {
-	request := ScheduleDeleteRequest(allocationID, now)
-	request.LastReconcileError = lastError
-	return request
 }

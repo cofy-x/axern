@@ -2,9 +2,9 @@ package proxy
 
 import "github.com/cofy-x/axern/apps/axrun/internal/domain"
 
-// Provider defines LLM-provider-specific behavior needed by Axrun
-// telemetry aggregation. Request forwarding and upstream auth live in
-// lib/go/llmproxy; Axrun owns artifact shaping and result finalization.
+// Provider defines provider-specific response parsing used by Axrun when it
+// imports agent telemetry. Provider authentication and launch configuration are
+// also Axrun concerns; Axern only supplies the Allocation execution boundary.
 type Provider interface {
 	// Name returns the provider identifier (e.g. "anthropic", "openai").
 	Name() string

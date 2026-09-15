@@ -18,6 +18,10 @@ type stateStore interface {
 
 type Manager interface {
 	Allocate(opt AllocateOption) (Resource, error)
+	// AllocationResource returns the resource durably bound to the exact
+	// Allocation identity. Runtime metadata and OCI annotations are not an
+	// ownership source.
+	AllocationResource(allocationID string) (string, bool)
 	// Recycle releases a resource and must be idempotent so a partially
 	// successful multi-resource cleanup can be retried safely.
 	Recycle(id string) error
@@ -31,18 +35,15 @@ type AllocateOption struct {
 	Context            context.Context
 	ContainerID        string
 	EnvID              string
-	FunctionName       string
 	TraceID            string
 	MemoryRequestBytes int64
 	MemoryLimitBytes   int64
-	// CapacityReservationBytes is the admission charge for node-owned work
+	// CapacityChargeBytes is the admission charge for node-owned work
 	// around a sandbox. It normally equals MemoryRequestBytes, but runtime
 	// conformance includes trusted monitor/control overhead outside the workload
 	// hard limit and therefore reserves a larger aggregate envelope.
-	CapacityReservationBytes int64
-	AllocationAttempt        int64
-	RuntimeName              string
-	CgroupOwnerKind          apipb.CgroupLeaseOwnerKind
+	CapacityChargeBytes int64
+	CgroupOwnerKind     apipb.CgroupLeaseOwnerKind
 }
 
 // RetiringMemoryLease is the durable information needed to keep reporting an
@@ -50,16 +51,14 @@ type AllocateOption struct {
 // Kernel identity and usage are sampled from the live cgroup, never trusted
 // from this record.
 type RetiringMemoryLease struct {
-	CgroupID          string
-	AllocationID      string
-	AllocationAttempt int64
-	MemoryRequest     int64
-	MemoryLimit       int64
-	RuntimeName       string
-	BootID            string
-	MountIdentity     string
-	ParentInode       uint64
-	LeafInode         uint64
+	CgroupID      string
+	AllocationID  string
+	MemoryRequest int64
+	MemoryLimit   int64
+	BootID        string
+	MountIdentity string
+	ParentInode   uint64
+	LeafInode     uint64
 }
 
 // resizable extends Manager with pool sizing methods used by the internal resize loop.

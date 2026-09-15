@@ -3,7 +3,6 @@ package observability
 import (
 	"context"
 	"testing"
-	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"go.opentelemetry.io/otel"
@@ -26,17 +25,9 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 		t.Fatalf("Init() error = %v", err)
 	}
 	metrics := NewMetrics(obs)
-	releaseHTTP := metrics.IncActiveHTTP()
 	releaseTerminal := metrics.IncActiveTerminal()
-	metrics.RouteCache("hit")
-	metrics.RouteResolve("ok")
-	metrics.UpstreamFailure("timeout")
-	metrics.LeaseRetry("service")
-	metrics.ObserveServiceProxyStage("route_resolve", "ok", "", "GET", time.Millisecond)
+	metrics.AccessGrantRetry("terminal")
 	metrics.TerminalEvent("open")
-	finishArtifact := metrics.BeginArtifactDownload(true)
-	finishArtifact(128, "ok", "none")
-	releaseHTTP()
 	releaseTerminal()
 
 	var resourceMetrics metricdata.ResourceMetrics
@@ -50,18 +41,9 @@ func TestMetricsUseUnifiedOTelPipeline(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
-		MetricHTTPRequestsCurrent.Name,
 		MetricTerminalSessionsCurrent.Name,
-		MetricRouteResolveTotal.Name,
-		MetricRouteCacheEvents.Name,
-		MetricUpstreamFailureTotal.Name,
-		MetricLeaseRetryTotal.Name,
-		MetricServiceProxyStageDuration.Name,
+		MetricAccessGrantRetryTotal.Name,
 		MetricTerminalEventTotal.Name,
-		MetricArtifactDownloadsCurrent.Name,
-		MetricArtifactDownloadsTotal.Name,
-		MetricArtifactDownloadBytesTotal.Name,
-		MetricArtifactDownloadDuration.Name,
 	} {
 		if !names[want] {
 			t.Fatalf("OTel metrics missing %q: %v", want, names)

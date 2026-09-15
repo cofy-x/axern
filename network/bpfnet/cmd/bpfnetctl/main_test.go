@@ -51,7 +51,7 @@ func TestFlagHelpReturnsSuccess(t *testing.T) {
 
 func TestDumpAcceptsFlagsBeforeMapName(t *testing.T) {
 	var stdout, stderr bytes.Buffer
-	err := run([]string{"dump", "--pin-path", "/tmp/missing", "service_map"}, &stdout, &stderr)
+	err := run([]string{"dump", "--pin-path", "/tmp/missing", "config_map"}, &stdout, &stderr)
 	if err == nil || !strings.Contains(err.Error(), "open pinned map") {
 		t.Fatalf("expected pinned map open error, got %v", err)
 	}

@@ -29,9 +29,7 @@ func run(args []string) error {
 	flags := flag.NewFlagSet("egressdctl", flag.ContinueOnError)
 	socket := flags.String("socket", "/run/egressd/egressd.sock", "egressd Unix socket")
 	allocation := flags.String("allocation", "", "allocation ID")
-	attempt := flags.Int64("attempt", 0, "allocation attempt")
 	ip := flags.String("ip", "", "sandbox source IP")
-	revision := flags.Int64("revision", 1, "execution revision")
 	mode := flags.String("mode", "", "strict or dns-deny")
 	domains := flags.String("domains", "", "comma-separated normalized domain rules")
 	cidrRules := flags.String("cidr-rules", "", "comma-separated protocol@CIDR@port[-end] strict grants")
@@ -56,15 +54,15 @@ func run(args []string) error {
 	case "list":
 		output, err = client.ListPolicies(ctx, &runtimeegressv1.ListPoliciesRequest{AllocationID: *allocation})
 	case "delete":
-		output, err = client.DeletePolicy(ctx, &runtimeegressv1.DeletePolicyRequest{AllocationID: *allocation, Attempt: *attempt})
+		output, err = client.DeletePolicy(ctx, &runtimeegressv1.DeletePolicyRequest{AllocationID: *allocation})
 	case "reconcile":
-		output, err = client.ReconcilePolicies(ctx, &runtimeegressv1.ReconcilePoliciesRequest{})
+		output, err = client.ReconcilePolicies(ctx, &runtimeegressv1.ReconcilePoliciesRequest{AllocationIds: splitCSV(*allocation)})
 	case "prepare":
 		policy, policyErr := commandPolicy(*mode, splitCSV(*domains), splitCSV(*cidrRules))
 		if policyErr != nil {
 			return policyErr
 		}
-		output, err = client.PreparePolicy(ctx, &runtimeegressv1.PreparePolicyRequest{AllocationID: *allocation, Attempt: *attempt, SandboxIp: *ip, Policy: policy, ExecutionRevision: *revision, UpstreamNameservers: splitCSV(*upstreams)})
+		output, err = client.PreparePolicy(ctx, &runtimeegressv1.PreparePolicyRequest{AllocationID: *allocation, SandboxIp: *ip, Policy: policy, UpstreamNameservers: splitCSV(*upstreams)})
 	default:
 		return fmt.Errorf("unknown command %q", flags.Arg(0))
 	}

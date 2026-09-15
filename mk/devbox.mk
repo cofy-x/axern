@@ -1,9 +1,9 @@
 .PHONY: node-dev-prepare node-dev-clean \
 		node-dev-ensure-dlv axnoded-debug-server imagemgr-debug-server \
-		postgres-dev-up postgres-dev-down storaged-dev-run controld-dev-prepare controld-dev-run gatewayd-dev-run \
+		postgres-dev-up postgres-dev-down controld-dev-prepare controld-dev-run gatewayd-dev-run \
 		axern-dev axern-dev-build axctl-dev axctl-dev-build egressd-dev-run \
 		dev-runtime-images-build dev-runtime-images-load \
-		axnoded-dev-run imagemgr-dev-run volumed-dev-run imagefsd-dev-serve-chunk \
+		axnoded-dev-run imagemgr-dev-run imagefsd-dev-serve-chunk \
 		dev-stack-up dev-stack-status dev-stack-down dev-stack-restart dev-stack-logs dev-stack-reset \
 		devbox-image-build devbox-up devbox-status devbox-down devbox-shell \
 		devbox-stack-up devbox-stack-status devbox-stack-down devbox-stack-restart devbox-stack-logs devbox-stack-reset \
@@ -13,12 +13,10 @@ NODE_DEV_DIR := $(ROOTDIR)/.dev
 NODE_DEV_RUN_DIR := $(NODE_DEV_DIR)/run
 AXNODED_DEV_DIR := $(NODE_DEV_DIR)/axnoded
 IMAGEMGR_DEV_DIR := $(NODE_DEV_DIR)/imagemgr
-VOLUMED_DEV_DIR := $(NODE_DEV_DIR)/volumed
 EGRESSD_DEV_DIR := $(NODE_DEV_DIR)/egressd
 IMAGEFSD_DEV_DIR := $(NODE_DEV_DIR)/imagefsd
 AXNODED_DEV_DAP_PORT ?= 43001
 IMAGEMGR_DEV_DAP_PORT ?= 43002
-AXERN_DEV_TOKEN ?= axern-local-dev
 AXERN_SECRETS_MASTER_KEY ?= local-only-master-key-32-bytes!!
 POSTGRES_DSN ?= postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable
 AXERN_DEV_CONTROL_TARGET ?= 127.0.0.1:24000
@@ -116,10 +114,11 @@ controld-dev-run: node-dev-prepare postgres-dev-up ## Run controld in the repo-l
 		-heartbeat-freshness-window 15s \
 		-summary-freshness-window 15s \
 		-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-tls-cert '$(NODE_DEV_DIR)/certs/controld.crt' \
-		-tls-key '$(NODE_DEV_DIR)/certs/controld.key' \
+		-workload-cluster axern.local \
+		-workload-bundle '$(NODE_DEV_DIR)/certs/controld.pem' \
+		-workload-signer-bundle '$(NODE_DEV_DIR)/certs/private/signer.pem' \
+		-enrollment-address 127.0.0.1:24002 \
 		-secrets-master-key '$(AXERN_SECRETS_MASTER_KEY)' \
-		-storaged-target '127.0.0.1:24020' \
 		-tunnel-relays 'default,127.0.0.1:25000,127.0.0.1:24100,1,false' \
 		-postgres-dsn '$(POSTGRES_DSN)'
 
@@ -127,31 +126,20 @@ controld-dev-prepare: node-dev-prepare postgres-dev-up ## Prepare Postgres and m
 	$(call ensure_linux_workspace)
 	bash $(ROOTDIR)/scripts/devbox/stack.sh migrate
 
-storaged-dev-run: node-dev-prepare postgres-dev-up ## Run storaged in the repo-local Linux dev workspace
-	$(call ensure_linux_workspace)
-	exec $(GO) -C $(ROOTDIR)/control/storaged run ./cmd/storaged \
-		-grpc-address 127.0.0.1:24020 \
-		-http-address 127.0.0.1:24021 \
-		-postgres-dsn '$(POSTGRES_DSN)'
-
 gatewayd-dev-run: node-dev-prepare ## Run gatewayd in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)
-	$(MAKE) gateway-dashboard-assets
 	exec $(GO) -C $(ROOTDIR)/gateway/gatewayd run . \
 		-http-address 127.0.0.1:25080 \
 		-control-edge-address 127.0.0.1:25000 \
 		-control-edge-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-control-edge-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.crt' \
-		-control-edge-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.key' \
+		-control-edge-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.pem' \
+		-control-edge-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.pem' \
 		-tunnel-relay-target 127.0.0.1:24100 \
 		-tunnel-relay-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-dashboard-enabled \
-		-dashboard-vendor-dir '$(ROOTDIR)/gateway/gatewayd/internal/api/http/dashboard/vendor' \
 		-control-target 127.0.0.1:24000 \
 		-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
-		-tls-cert '$(NODE_DEV_DIR)/certs/gatewayd.crt' \
-		-tls-key '$(NODE_DEV_DIR)/certs/gatewayd.key' \
-		-dev-token '$(AXERN_DEV_TOKEN)'
+		-workload-cluster axern.local \
+		-workload-bundle '$(NODE_DEV_DIR)/certs/gatewayd.pem'
 
 axern-dev: node-dev-prepare ## Run the product CLI against the standalone control plane, with ARGS='<args>'
 	$(call ensure_linux_workspace)
@@ -186,6 +174,7 @@ axnoded-dev-run: node-dev-prepare ## Run axnoded in the repo-local Linux dev wor
 		exec $(GO) -C $(ROOTDIR)/runtime/axnoded run ./cmd/axnoded \
 			-root '$(AXNODED_DEV_DIR)' \
 			-config '$(AXNODED_DEV_DIR)/config.toml' \
+			-enrollment-token-file '$(NODE_DEV_DIR)/enrollment-token' \
 			-socket '$(NODE_DEV_RUN_DIR)/axnoded.sock' \
 			-grpc-address '127.0.0.1:23000' \
 			-http-address '127.0.0.1:23001' \
@@ -195,6 +184,7 @@ axnoded-dev-run: node-dev-prepare ## Run axnoded in the repo-local Linux dev wor
 		exec env GO='$(GO)' '$(ROOTDIR)/scripts/devbox/sudo-go.sh' -C '$(ROOTDIR)/runtime/axnoded' run ./cmd/axnoded \
 			-root '$(AXNODED_DEV_DIR)' \
 			-config '$(AXNODED_DEV_DIR)/config.toml' \
+			-enrollment-token-file '$(NODE_DEV_DIR)/enrollment-token' \
 			-socket '$(NODE_DEV_RUN_DIR)/axnoded.sock' \
 			-grpc-address '127.0.0.1:23000' \
 			-http-address '127.0.0.1:23001' \
@@ -213,9 +203,7 @@ imagemgr-dev-run: node-dev-prepare imagefsd-build ## Run imagemgr in the repo-lo
 			-debug \
 			-root '$(IMAGEMGR_DEV_DIR)' \
 			-imagefsd_bin '$(ROOTDIR)/target/debug/imagefsd' \
-			-oss_template '$(ROOTDIR)/runtime/imagemgr/configs/oss_backend.json.example' \
 			-nydus_template '$(ROOTDIR)/runtime/imagemgr/configs/nydus_registry.json.example' \
-			-oss_auths_path '$(ROOTDIR)/runtime/imagemgr/oss_auths.json.example' \
 			-registry_auths_path '$(ROOTDIR)/runtime/imagemgr/registry_auths.json.example' \
 			-http_sock '$(NODE_DEV_RUN_DIR)/imagemgr.sock'; \
 	elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then \
@@ -223,23 +211,13 @@ imagemgr-dev-run: node-dev-prepare imagefsd-build ## Run imagemgr in the repo-lo
 			-debug \
 			-root '$(IMAGEMGR_DEV_DIR)' \
 			-imagefsd_bin '$(ROOTDIR)/target/debug/imagefsd' \
-			-oss_template '$(ROOTDIR)/runtime/imagemgr/configs/oss_backend.json.example' \
 			-nydus_template '$(ROOTDIR)/runtime/imagemgr/configs/nydus_registry.json.example' \
-			-oss_auths_path '$(ROOTDIR)/runtime/imagemgr/oss_auths.json.example' \
 			-registry_auths_path '$(ROOTDIR)/runtime/imagemgr/registry_auths.json.example' \
 			-http_sock '$(NODE_DEV_RUN_DIR)/imagemgr.sock'; \
 	else \
 		echo "imagemgr requires passwordless sudo inside the Linux workspace."; \
 		exit 1; \
 	fi
-
-volumed-dev-run: node-dev-prepare ## Run volumed in the repo-local Linux dev workspace
-	$(call ensure_linux_workspace)
-	rm -f '$(NODE_DEV_RUN_DIR)/volumed.sock'
-	exec $(GO) -C $(ROOTDIR)/runtime/volumed run ./cmd/volumed \
-		-root '$(VOLUMED_DEV_DIR)' \
-		-socket '$(NODE_DEV_RUN_DIR)/volumed.sock' \
-		-local-root '$(VOLUMED_DEV_DIR)/local'
 
 egressd-dev-run: node-dev-prepare ## Run egressd in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)

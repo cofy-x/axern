@@ -4,24 +4,17 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
-AXNODED_CONTAINER_ROOT="${AXNODED_CONTAINER_ROOT:-/var/lib/axnoded/root/containers}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
-REQUEST_ONLY_STATUS_FILTER='
-  .ResourceSpec.requests.cpu_milli == 250 and
-  .ResourceSpec.requests.memory_bytes == 134217728 and
-  (.ResourceSpec.limits == null or (.ResourceSpec.limits.cpu_milli == 0 and .ResourceSpec.limits.memory_bytes == 0)) and
-  .LinuxResources.cpu_shares > 0 and
-  (.LinuxResources.memory_limit_in_bytes == null or .LinuxResources.memory_limit_in_bytes == 0)
-'
 
 container_id=""
 mounted_image=""
 
 cleanup() {
   if [ -n "${container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}" >/dev/null 2>&1 || true
   fi
   if [ -n "${mounted_image}" ]; then
     payload="$(jq -cn --arg image_url "${mounted_image}" '{image_url:$image_url,lease_id:"node-inventory-e2e",owner:"verification"}')"
@@ -104,29 +97,9 @@ wait_for_jq() {
   return 1
 }
 
-wait_for_status_file() {
-  local container_id="$1"
-  local max_wait="$2"
-  local status_file="${AXNODED_CONTAINER_ROOT}/${container_id}/status"
-  local started_at="${SECONDS}"
-
-  while [ $((SECONDS - started_at)) -lt "${max_wait}" ]; do
-    if [ -f "${status_file}" ]; then
-      printf '%s\n' "${status_file}"
-      return 0
-    fi
-    sleep 1
-  done
-
-  echo "request-only container status file not found: ${status_file}" >&2
-  echo "--- container root entries ---" >&2
-  find "${AXNODED_CONTAINER_ROOT}" -maxdepth 2 -type f -name status -print >&2 2>/dev/null || true
-  return 1
-}
-
 axnoded_inventory="/tmp/axnoded.inventory.json"
 imagemgr_inventory="/tmp/imagemgr.inventory.json"
-runtime_id="verify-inventory-runsc-$$"
+environment_id="verify-inventory-runsc-$$"
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
@@ -143,9 +116,8 @@ metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HA
 
 container_id="$(
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
-    -runtime runsc \
-    -runtime-id "${runtime_id}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
+    -environment-id "${environment_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
     -limit-cpu-milli 500 \
@@ -162,12 +134,13 @@ container_id="$(
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
-  "axnoded inventory to report a running container" \
+  "axnoded inventory to isolate a running conformance container from Allocation accounting" \
   "${axnoded_inventory}" \
   30 \
-  '.components.axnoded.running_containers >= 1 and .resources.cpu.axnoded_committed_milli > 0 and .resources.memory.axnoded_committed_bytes > 0 and .resources.cpu.axnoded_unbounded_count == 0 and .resources.memory.axnoded_unbounded_count == 0 and .resources.memory.axnoded_used_bytes >= 0 and (.sources.axnoded.status == "ready" or .sources.axnoded.status == "warming" or .sources.axnoded.status == "degraded")'
+  '.components.axnoded.running_containers >= 1 and .pools.cgroup.using >= 1 and .pools.interface.using >= 1 and .resources.cpu.axnoded_committed_milli == 0 and .resources.memory.axnoded_committed_bytes == 0 and .resources.cpu.axnoded_unbounded_count == 0 and .resources.memory.axnoded_unbounded_count == 0 and ((.components.axnoded.active_allocation_ids // []) | index($allocation_id) == null) and ((.components.axnoded.running_allocation_ids // []) | index($allocation_id) == null) and (.sources.axnoded.status == "ready" or .sources.axnoded.status == "warming" or .sources.axnoded.status == "degraded")' \
+  --arg allocation_id "${container_id}"
 
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 fetch_axnoded_inventory "${axnoded_inventory}"
@@ -180,9 +153,8 @@ wait_for_jq \
 request_only_id="verify-inventory-request-only-$$"
 container_id="$(
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
-    -runtime runsc \
-    -runtime-id "${request_only_id}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
+    -environment-id "${request_only_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
     -stdout /tmp/verify-inventory-request-only.stdout \
@@ -195,22 +167,15 @@ container_id="$(
   exit 1
 }
 
-status_file="$(wait_for_status_file "${container_id}" 20)"
-if ! jq -e "${REQUEST_ONLY_STATUS_FILTER}" "${status_file}" >/dev/null; then
-  echo "request-only container status did not match expected resources: ${status_file}" >&2
-  cat "${status_file}" >&2 || true
-  echo >&2
-  exit 1
-fi
-
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
-  "axnoded inventory to account request-only committed resources" \
+  "axnoded inventory to keep request-only conformance resources out of Allocation accounting" \
   "${axnoded_inventory}" \
   30 \
-  '.components.axnoded.running_containers >= 1 and .resources.cpu.axnoded_committed_milli >= 250 and .resources.memory.axnoded_committed_bytes >= 134217728 and .resources.memory.axnoded_unbounded_count == 0'
+  '.components.axnoded.running_containers >= 1 and .pools.cgroup.using >= 1 and .resources.cpu.axnoded_committed_milli == 0 and .resources.memory.axnoded_committed_bytes == 0 and .resources.memory.axnoded_unbounded_count == 0 and ((.components.axnoded.active_allocation_ids // []) | index($allocation_id) == null)' \
+  --arg allocation_id "${container_id}"
 
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 payload="$(jq -cn --arg image_url "${IMAGE_URL}" '{image_url:$image_url,lease_id:"node-inventory-e2e",owner:"verification"}')"

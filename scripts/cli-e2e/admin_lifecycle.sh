@@ -26,9 +26,8 @@ verify_admin_lifecycle() {
 
   deadline=$((SECONDS + 30))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
-    "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin allocation-retry list \
-      --reason create \
-      -o json >"${cli_object_output}" 2>"${cli_error_output}" || {
+		"${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin allocation-retry list \
+			-o json >"${cli_object_output}" 2>"${cli_error_output}" || {
       dump_logs
       exit 1
     }
@@ -42,11 +41,10 @@ verify_admin_lifecycle() {
     dump_logs
     exit 1
   fi
-  assert_allocation_reconcilez_contains "${admin_allocation_id}" "create"
+	assert_allocation_reconcilez_contains "${admin_allocation_id}" "ALLOCATION_LIFECYCLE_STATE_BOUND"
 
-  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin allocation-retry force "${admin_allocation_id}" \
-    --reason create \
-    --operator-reason "cli e2e force allocation lifecycle retry" \
+	"${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin allocation-retry force "${admin_allocation_id}" \
+		--operator-reason "cli e2e force allocation lifecycle retry" \
     -o json >"${cli_object_output}" 2>"${cli_error_output}" || {
     dump_logs
     exit 1
@@ -106,17 +104,19 @@ verify_admin_lifecycle() {
   }
 
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin allocation-retry list \
-    --reason create \
     -o json >"${cli_object_output}" 2>"${cli_error_output}" || {
     dump_logs
     exit 1
   }
-  if grep -q "${admin_allocation_id}" "${cli_object_output}"; then
-    echo "admin lifecycle retry still listed after fail" >&2
+  if ! grep -q "${admin_allocation_id}" "${cli_object_output}" || ! grep -q '"lifecycle_state": "ALLOCATION_LIFECYCLE_STATE_RELEASING"' "${cli_object_output}"; then
+    echo "admin lifecycle cleanup intent was not listed after fail" >&2
     dump_logs
     exit 1
   fi
-  assert_allocation_reconcilez_absent "${admin_allocation_id}"
+  # Failing the unrecoverable create retry terminates the Run, but the
+  # Allocation keeps its resource charge and durable delete debt until the missing
+  # node can confirm cleanup.
+  assert_allocation_reconcilez_contains "${admin_allocation_id}" "ALLOCATION_LIFECYCLE_STATE_RELEASING"
 
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run get "${admin_run_id}" -o json >"${cli_object_output}" 2>"${cli_error_output}" || {
     dump_logs
@@ -145,7 +145,7 @@ import sys
 
 payload = json.load(sys.stdin)
 components = {item.get("component") for item in payload.get("components", [])}
-missing = {"run", "node", "service", "tunnel"} - components
+missing = {"run", "node", "tunnel"} - components
 if missing:
     raise SystemExit(f"reconcilez missing components: {sorted(missing)}")
 ' <<<"${body}" 2>"${cli_error_output}" || {
@@ -157,7 +157,7 @@ if missing:
 
 assert_allocation_reconcilez_contains() {
   local allocation_id="$1"
-  local reason="$2"
+  local lifecycle_state="$2"
   local body
   body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/allocation-reconcilez" 2>"${cli_error_output}")" || {
     echo "allocation-reconcilez debug endpoint is not reachable" >&2
@@ -168,39 +168,44 @@ assert_allocation_reconcilez_contains() {
 import json
 import sys
 
-allocation_id, reason = sys.argv[1], sys.argv[2]
+allocation_id, lifecycle_state = sys.argv[1], sys.argv[2]
 payload = json.load(sys.stdin)
 for item in payload.get("items", []):
-    if item.get("allocation_id") == allocation_id and item.get("reason") == reason:
+    if item.get("allocation_id") == allocation_id and item.get("lifecycle_state") == lifecycle_state:
         raise SystemExit(0)
-raise SystemExit(f"allocation-reconcilez missing {allocation_id} reason={reason}")
-' "${allocation_id}" "${reason}" <<<"${body}" 2>"${cli_error_output}" || {
+raise SystemExit(f"allocation-reconcilez missing {allocation_id} lifecycle_state={lifecycle_state}")
+' "${allocation_id}" "${lifecycle_state}" <<<"${body}" 2>"${cli_error_output}" || {
     echo "allocation-reconcilez did not expose the queued retry" >&2
     dump_logs
     exit 1
   }
 }
 
-assert_allocation_reconcilez_absent() {
-  local allocation_id="$1"
-  local body
-  body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/allocation-reconcilez" 2>"${cli_error_output}")" || {
-    echo "allocation-reconcilez debug endpoint is not reachable" >&2
-    dump_logs
-    exit 1
-  }
-  python3 -c '
-import json
-import sys
-
-allocation_id = sys.argv[1]
-payload = json.load(sys.stdin)
-for item in payload.get("items", []):
-    if item.get("allocation_id") == allocation_id:
-        raise SystemExit(f"allocation-reconcilez still includes {allocation_id}")
-' "${allocation_id}" <<<"${body}" 2>"${cli_error_output}" || {
-    echo "allocation-reconcilez still exposed a completed retry" >&2
-    dump_logs
-    exit 1
-  }
+# Exercise public CLI -> gateway -> controld revocation against a running
+# allocation. The node remains reachable for control-owned cleanup, but cannot
+# renew execution or authenticate new reports.
+verify_node_revocation() {
+  local created run_id allocation_id response state deadline
+  verify_node_identity_recovery
+  created="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach -o json --environment "${environment_id}" -- /bin/sh -lc 'sleep 300')"
+  run_id="$(json_query "revocation run" 'json.load(sys.stdin)["run"]["id"]' "${created}")"
+  allocation_id="$(wait_for_running_run_allocation "${run_id}" "revocation run")"
+  response="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin node revoke "${CONTROL_PLANE_NODE_ID}" --operator-reason "cli e2e revoke busy node" -o json)"
+  [ "$(json_query "revoked node" 'json.load(sys.stdin)["lifecycle_status"]' "${response}")" = revoked ]
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin audit list --operation revoke-node --target-type node --target-id "${CONTROL_PLANE_NODE_ID}" -o json >"${cli_object_output}"
+  grep -q "cli e2e revoke busy node" "${cli_object_output}"
+  [[ "${allocation_id}" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+  deadline=$((SECONDS + 120))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    state="$(docker exec "${POSTGRES_CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Atc "SELECT lifecycle_state FROM allocations WHERE allocation_id='${allocation_id}'")"
+    if [ "${state}" = ALLOCATION_LIFECYCLE_STATE_RELEASED ]; then
+      "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run get "${run_id}" -o json >"${cli_object_output}"
+      grep -q '"status": "failed"' "${cli_object_output}"
+      return
+    fi
+    sleep 1
+  done
+  echo "revoked Node did not safely release its Allocation" >&2
+  dump_logs
+  return 1
 }

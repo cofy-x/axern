@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"flag"
 	"fmt"
@@ -22,29 +20,25 @@ import (
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	controldobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/lib/go/observability/logrusotel"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	functionv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/function/v1"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
-	artifactaccessv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/artifact/v1"
-	workerrolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/rollout/worker/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 )
 
 const (
@@ -53,45 +47,26 @@ const (
 	defaultHeartbeatFreshnessWindow = 15 * time.Second
 	defaultSummaryFreshnessWindow   = 15 * time.Second
 	defaultTLSCACert                = ".dev/certs/ca.crt"
-	defaultTLSCert                  = ".dev/certs/controld.crt"
-	defaultTLSKey                   = ".dev/certs/controld.key"
 	defaultTunnelRelays             = "default,127.0.0.1:25000,127.0.0.1:24100,1,false"
-	defaultStoragedTarget           = "127.0.0.1:24020"
-	defaultFunctionGatewayTimeout   = 30 * time.Second
 )
 
 type options struct {
-	grpcAddress                                            string
-	httpAddress                                            string
-	logLevel                                               string
-	heartbeatFreshnessWindow                               time.Duration
-	summaryFreshnessWindow                                 time.Duration
-	postgresDSN                                            string
-	postgresMaxConnections                                 int
-	secretsMasterKey                                       string
-	reconcileTimeout                                       time.Duration
-	resourceCPUOvercommitRatio                             float64
-	serviceReconcileWorkers                                int
-	serviceAllocationGlobalWorkers                         int
-	serviceAllocationWorkersPerNode                        int
-	tlsCACert                                              string
-	tlsCert                                                string
-	tlsKey                                                 string
-	tunnelRelays                                           string
-	storagedTarget                                         string
-	functionGatewayURL                                     string
-	functionGatewayToken                                   string
-	functionGatewayTimeout                                 time.Duration
-	functionInvocationWorkers                              int
-	volumeReclaimWorkers                                   int
-	volumeReclaimWorkersPerNode                            int
-	functionBundleBaseURL                                  string
-	functionBundleToken                                    string
-	rolloutWorkerToken                                     string
-	artifactS3Endpoint, artifactS3Region, artifactS3Bucket string
-	artifactS3AccessKey, artifactS3SecretKey               string
-	artifactS3UsePathStyle                                 bool
-	artifactTicketSigningKey                               string
+	grpcAddress                string
+	httpAddress                string
+	logLevel                   string
+	heartbeatFreshnessWindow   time.Duration
+	summaryFreshnessWindow     time.Duration
+	postgresDSN                string
+	postgresMaxConnections     int
+	secretsMasterKey           string
+	reconcileTimeout           time.Duration
+	resourceCPUOvercommitRatio float64
+	tlsCACert                  string
+	tunnelRelays               string
+	enrollmentAddress          string
+	workloadCluster            string
+	workloadBundle             string
+	workloadSignerBundle       string
 }
 
 func main() {
@@ -131,37 +106,47 @@ func run() error {
 	defer stop()
 
 	svc, err := app.New(app.Config{
-		LifecycleContext:            ctx,
-		HeartbeatFreshnessWindow:    opts.heartbeatFreshnessWindow,
-		SummaryFreshnessWindow:      opts.summaryFreshnessWindow,
-		PostgresDSN:                 opts.postgresDSN,
-		PostgresMaxConnections:      int32(opts.postgresMaxConnections),
-		SecretsMasterKey:            opts.secretsMasterKey,
-		ReconcileTimeout:            opts.reconcileTimeout,
-		TunnelRelays:                opts.tunnelRelays,
-		StoragedTarget:              opts.storagedTarget,
-		FunctionGatewayURL:          opts.functionGatewayURL,
-		FunctionGatewayToken:        opts.functionGatewayToken,
-		FunctionGatewayTimeout:      opts.functionGatewayTimeout,
-		FunctionInvocationWorkers:   opts.functionInvocationWorkers,
-		VolumeReclaimWorkers:        opts.volumeReclaimWorkers,
-		VolumeReclaimWorkersPerNode: opts.volumeReclaimWorkersPerNode,
-		FunctionBundleBaseURL:       opts.functionBundleBaseURL,
-		FunctionBundleToken:         opts.functionBundleToken,
-		RolloutWorkerToken:          opts.rolloutWorkerToken,
-		ArtifactS3Endpoint:          opts.artifactS3Endpoint, ArtifactS3Region: opts.artifactS3Region, ArtifactS3Bucket: opts.artifactS3Bucket, ArtifactS3AccessKey: opts.artifactS3AccessKey, ArtifactS3SecretKey: opts.artifactS3SecretKey, ArtifactS3UsePathStyle: opts.artifactS3UsePathStyle,
-		ArtifactTicketSigningKey: opts.artifactTicketSigningKey,
+		LifecycleContext:         ctx,
+		HeartbeatFreshnessWindow: opts.heartbeatFreshnessWindow,
+		SummaryFreshnessWindow:   opts.summaryFreshnessWindow,
+		PostgresDSN:              opts.postgresDSN,
+		PostgresMaxConnections:   int32(opts.postgresMaxConnections),
+		SecretsMasterKey:         opts.secretsMasterKey,
+		ReconcileTimeout:         opts.reconcileTimeout,
+		TunnelRelays:             opts.tunnelRelays,
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
 		},
-		ServiceReconcileWorkers:         opts.serviceReconcileWorkers,
-		ServiceAllocationGlobalWorkers:  opts.serviceAllocationGlobalWorkers,
-		ServiceAllocationWorkersPerNode: opts.serviceAllocationWorkersPerNode,
+		NodeTransportCredentials: func(nodeID string) credentials.TransportCredentials {
+			return &workloadtls.Credentials{BundlePath: opts.workloadBundle, TrustPath: opts.tlsCACert, Local: workloadtls.Identity{Cluster: opts.workloadCluster, Role: "controld"}, Peer: workloadtls.Identity{Cluster: opts.workloadCluster, Role: "axnoded", NodeID: nodeID}}
+		},
 	})
 	if err != nil {
 		return err
 	}
 	defer svc.Close()
+	enrollmentHandler, err := svc.NodeEnrollmentHandler(workloadtls.FileIssuer{BundlePath: opts.workloadSignerBundle, Cluster: opts.workloadCluster})
+	if err != nil {
+		return fmt.Errorf("configure node enrollment: %w", err)
+	}
+	enrollmentServer := grpc.NewServer(
+		grpc.Creds(&workloadtls.EnrollmentCredentials{Workload: &workloadtls.Credentials{
+			BundlePath: opts.workloadBundle, TrustPath: opts.tlsCACert,
+			Local: workloadtls.Identity{Cluster: opts.workloadCluster, Role: "controld"},
+		}}),
+		grpc.MaxRecvMsgSize(32<<10),
+		grpc.MaxConcurrentStreams(16),
+		grpc.ConnectionTimeout(10*time.Second),
+		grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 5 * time.Minute, MaxConnectionAgeGrace: 10 * time.Second}),
+		grpc.ChainUnaryInterceptor(enrollmentDeadline, rpcstatus.UnaryServerInterceptor(postgres.IsDependencyUnavailable)),
+	)
+	defer enrollmentServer.Stop()
+	nodev1.RegisterNodeEnrollmentServer(enrollmentServer, enrollmentHandler)
+	enrollmentLis, err := net.Listen("tcp", opts.enrollmentAddress)
+	if err != nil {
+		return fmt.Errorf("listen node enrollment: %w", err)
+	}
+	defer enrollmentLis.Close()
 	hasAdmin, err := svc.HasActivePlatformAdmin(ctx)
 	if err != nil {
 		return fmt.Errorf("check access bootstrap: %w", err)
@@ -169,13 +154,10 @@ func run() error {
 	if !hasAdmin {
 		return errors.New("access bootstrap is incomplete: no active platform administrator")
 	}
-	tlsConfig, err := loadServerTLS(opts)
-	if err != nil {
-		return err
-	}
-	authorization := authz.New(svc.AccessControl())
+	authorization := authz.New(svc.AccessControl(), opts.workloadCluster, svc.RequireActiveNode)
 	grpcOptions := []grpc.ServerOption{
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.Creds(&workloadtls.Credentials{BundlePath: opts.workloadBundle, TrustPath: opts.tlsCACert, Local: workloadtls.Identity{Cluster: opts.workloadCluster, Role: "controld"}}),
+		grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 5 * time.Minute, MaxConnectionAgeGrace: 10 * time.Second}),
 		grpc.ChainUnaryInterceptor(authorization.Unary, rpcstatus.UnaryServerInterceptor(postgres.IsDependencyUnavailable)),
 		grpc.ChainStreamInterceptor(authorization.Stream, rpcstatus.StreamServerInterceptor(postgres.IsDependencyUnavailable)),
 	}
@@ -183,31 +165,18 @@ func run() error {
 		grpcOptions = append(grpcOptions, grpc.StatsHandler(handler))
 	}
 	grpcServer := grpc.NewServer(grpcOptions...)
-	adminv1.RegisterAllocationLifecycleAdminServer(grpcServer, svc.AdminV1Handler())
+	privateadminv1.RegisterAllocationLifecycleAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAdminAuditServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAdminReliabilityServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterNodeAdminServer(grpcServer, svc.AdminV1Handler())
-	adminv1.RegisterStorageAdminServer(grpcServer, svc.AdminV1Handler())
-	adminv1.RegisterServiceAdminServer(grpcServer, svc.AdminV1Handler())
 	adminv1.RegisterAccessAdminServer(grpcServer, svc.AdminV1Handler())
 	identityv1.RegisterIdentityControlServer(grpcServer, svc.IdentityV1Handler())
-	catalogv1.RegisterRuntimeCatalogServer(grpcServer, svc.PublicV1Handler())
 	environmentv1.RegisterEnvironmentControlServer(grpcServer, svc.PublicV1Handler())
 	runv1.RegisterRunControlServer(grpcServer, svc.PublicV1Handler())
 	secretv1.RegisterSecretControlServer(grpcServer, svc.PublicV1Handler())
-	servicev1.RegisterServiceControlServer(grpcServer, svc.PublicV1Handler())
-	functionv1.RegisterFunctionControlServer(grpcServer, svc.PublicV1Handler())
 	tunnelcontrolv1.RegisterTunnelControlServer(grpcServer, svc.PublicV1Handler())
 	namespacev1.RegisterNamespaceControlServer(grpcServer, svc.PublicV1Handler())
 	quotav1.RegisterQuotaControlServer(grpcServer, svc.PublicV1Handler())
-	agentprofilev1.RegisterAgentProfileControlServer(grpcServer, svc.PublicV1Handler())
-	rolloutv1.RegisterRolloutControlServer(grpcServer, svc.PublicV1Handler())
-	if svc.RolloutWorkerV1Handler() != nil {
-		workerrolloutv1.RegisterRolloutWorkerControlServer(grpcServer, svc.RolloutWorkerV1Handler())
-	}
-	if svc.ArtifactAccessV1Handler() != nil {
-		artifactaccessv1.RegisterArtifactAccessServer(grpcServer, svc.ArtifactAccessV1Handler())
-	}
 	tunnelrelaycontrolv1.RegisterTunnelRelayControlServer(grpcServer, svc.RelayV1Handler())
 	if svc.GatewayV1Handler() != nil {
 		gatewayv1.RegisterGatewayControlServer(grpcServer, svc.GatewayV1Handler())
@@ -230,6 +199,8 @@ func run() error {
 	go func() {
 		grpcErrCh <- grpcServer.Serve(grpcLis)
 	}()
+	enrollmentErrCh := make(chan error, 1)
+	go func() { enrollmentErrCh <- enrollmentServer.Serve(enrollmentLis) }()
 
 	httpErrCh := make(chan error, 1)
 	go func() {
@@ -239,6 +210,10 @@ func run() error {
 	var runErr error
 	select {
 	case <-ctx.Done():
+	case err := <-enrollmentErrCh:
+		if err != nil {
+			runErr = fmt.Errorf("node enrollment server exited: %w", err)
+		}
 	case err := <-grpcErrCh:
 		if err != nil {
 			runErr = fmt.Errorf("grpc server exited: %w", err)
@@ -274,12 +249,12 @@ func run() error {
 
 func parseFlags() (options, error) {
 	opts := options{}
-	functionGatewayTimeout, err := durationFromEnv("CONTROLD_FUNCTION_GATEWAY_TIMEOUT", defaultFunctionGatewayTimeout)
-	if err != nil {
-		return options{}, err
-	}
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", defaultGRPCAddress, "controld gRPC listen address")
+	flagSet.StringVar(&opts.enrollmentAddress, "enrollment-address", "127.0.0.1:24002", "TLS-only Node enrollment and renewal listen address")
+	flagSet.StringVar(&opts.workloadCluster, "workload-cluster", os.Getenv("AXERN_WORKLOAD_CLUSTER"), "workload URI trust domain")
+	flagSet.StringVar(&opts.workloadBundle, "workload-bundle", os.Getenv("CONTROLD_WORKLOAD_BUNDLE"), "atomic controld workload certificate and key PEM bundle")
+	flagSet.StringVar(&opts.workloadSignerBundle, "workload-signer-bundle", os.Getenv("CONTROLD_WORKLOAD_SIGNER_BUNDLE"), "control-only workload signing CA certificate and key PEM bundle")
 	flagSet.StringVar(&opts.httpAddress, "http-address", defaultHTTPAddress, "controld HTTP listen address for diagnostics and internal runtime artifacts")
 	flagSet.StringVar(&opts.logLevel, "log-level", "info", "log level: debug|info|warn|error")
 	flagSet.DurationVar(&opts.heartbeatFreshnessWindow, "heartbeat-freshness-window", defaultHeartbeatFreshnessWindow, "heartbeat freshness window")
@@ -288,36 +263,20 @@ func parseFlags() (options, error) {
 	flagSet.IntVar(&opts.postgresMaxConnections, "postgres-max-connections", 0, "controld Postgres connection pool ceiling; 0 uses the application default")
 	flagSet.StringVar(&opts.secretsMasterKey, "secrets-master-key", os.Getenv("AXERN_SECRETS_MASTER_KEY"), "32-byte raw or base64-encoded master key for encrypted secret storage")
 	flagSet.DurationVar(&opts.reconcileTimeout, "reconcile-timeout", 0, "timeout for one background reconcile operation; 0 uses the application default")
-	flagSet.Float64Var(&opts.resourceCPUOvercommitRatio, "resource-cpu-overcommit-ratio", resourcekernel.DefaultCPUOvercommitRatio, "CPU overcommit ratio for request reservation admission")
-	flagSet.IntVar(&opts.serviceReconcileWorkers, "service-reconcile-workers", 0, "global service reconcile workers; 0 uses the application default")
-	flagSet.IntVar(&opts.serviceAllocationGlobalWorkers, "service-allocation-global-workers", 0, "global concurrent service allocation creates; 0 uses the application default")
-	flagSet.IntVar(&opts.serviceAllocationWorkersPerNode, "service-allocation-workers-per-node", 0, "concurrent service allocation creates per node; 0 uses the application default")
+	flagSet.Float64Var(&opts.resourceCPUOvercommitRatio, "resource-cpu-overcommit-ratio", resourcekernel.DefaultCPUOvercommitRatio, "CPU overcommit ratio for request resource admission")
 	flagSet.StringVar(&opts.tlsCACert, "tls-ca-cert", defaultString(os.Getenv("CONTROLD_TLS_CA_CERT"), defaultTLSCACert), "CA certificate used to verify mTLS clients")
-	flagSet.StringVar(&opts.tlsCert, "tls-cert", defaultString(os.Getenv("CONTROLD_TLS_CERT"), defaultTLSCert), "controld server certificate")
-	flagSet.StringVar(&opts.tlsKey, "tls-key", defaultString(os.Getenv("CONTROLD_TLS_KEY"), defaultTLSKey), "controld server private key")
 	flagSet.StringVar(&opts.tunnelRelays, "tunnel-relays", defaultString(os.Getenv("CONTROLD_TUNNEL_RELAYS"), defaultTunnelRelays), "semicolon-separated tunnel relay registry entries: id,client_target,node_target,weight,drain")
-	flagSet.StringVar(&opts.storagedTarget, "storaged-target", defaultString(os.Getenv("CONTROLD_STORAGED_TARGET"), defaultStoragedTarget), "storaged gRPC target for service volume coordination")
-	flagSet.StringVar(&opts.functionGatewayURL, "function-gateway-url", os.Getenv("CONTROLD_FUNCTION_GATEWAY_URL"), "gatewayd base HTTP URL used for Function worker dispatch")
-	flagSet.StringVar(&opts.functionGatewayToken, "function-gateway-token", os.Getenv("CONTROLD_FUNCTION_GATEWAY_TOKEN"), "bearer token sent to gatewayd Function dispatch when configured")
-	flagSet.DurationVar(&opts.functionGatewayTimeout, "function-gateway-timeout", functionGatewayTimeout, "timeout for Function worker dispatch through gatewayd")
-	flagSet.IntVar(&opts.functionInvocationWorkers, "function-invocation-workers", 0, "global asynchronous Function invocation workers; 0 uses the application default")
-	flagSet.IntVar(&opts.volumeReclaimWorkers, "volume-reclaim-workers", 0, "global durable volume reclaim workers; 0 uses the application default")
-	flagSet.IntVar(&opts.volumeReclaimWorkersPerNode, "volume-reclaim-workers-per-node", 0, "per-node durable volume reclaim workers; 0 uses the application default")
-	flagSet.StringVar(&opts.functionBundleBaseURL, "function-bundle-base-url", os.Getenv("CONTROLD_FUNCTION_BUNDLE_BASE_URL"), "base HTTP URL advertised to Function workers for uploaded bundle downloads")
-	flagSet.StringVar(&opts.functionBundleToken, "function-bundle-token", os.Getenv("CONTROLD_FUNCTION_BUNDLE_TOKEN"), "bearer token required for Function bundle downloads when configured")
-	flagSet.StringVar(&opts.rolloutWorkerToken, "rollout-worker-token", os.Getenv("CONTROLD_ROLLOUT_WORKER_TOKEN"), "bootstrap credential for durable rollout workers; empty disables the worker API")
-	flagSet.StringVar(&opts.artifactS3Endpoint, "artifact-s3-endpoint", os.Getenv("CONTROLD_ARTIFACT_S3_ENDPOINT"), "S3-compatible endpoint for rollout artifacts")
-	flagSet.StringVar(&opts.artifactS3Region, "artifact-s3-region", os.Getenv("CONTROLD_ARTIFACT_S3_REGION"), "S3 region for rollout artifacts")
-	flagSet.StringVar(&opts.artifactS3Bucket, "artifact-s3-bucket", os.Getenv("CONTROLD_ARTIFACT_S3_BUCKET"), "S3 bucket for rollout artifacts; empty disables artifact upload")
-	flagSet.StringVar(&opts.artifactS3AccessKey, "artifact-s3-access-key", os.Getenv("CONTROLD_ARTIFACT_S3_ACCESS_KEY"), "S3 access key for rollout artifacts")
-	flagSet.StringVar(&opts.artifactS3SecretKey, "artifact-s3-secret-key", os.Getenv("CONTROLD_ARTIFACT_S3_SECRET_KEY"), "S3 secret key for rollout artifacts")
-	flagSet.BoolVar(&opts.artifactS3UsePathStyle, "artifact-s3-use-path-style", strings.EqualFold(os.Getenv("CONTROLD_ARTIFACT_S3_USE_PATH_STYLE"), "true"), "use path-style S3 addressing")
-	flagSet.StringVar(&opts.artifactTicketSigningKey, "artifact-ticket-signing-key", os.Getenv("CONTROLD_ARTIFACT_TICKET_KEY"), "persistent HMAC key for gateway artifact download tickets")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		return options{}, err
 	}
 	if strings.TrimSpace(opts.postgresDSN) == "" {
 		return options{}, fmt.Errorf("postgres-dsn is required")
+	}
+	if strings.TrimSpace(opts.enrollmentAddress) == "" || strings.TrimSpace(opts.workloadBundle) == "" || strings.TrimSpace(opts.workloadSignerBundle) == "" {
+		return options{}, fmt.Errorf("enrollment-address, workload-bundle and workload-signer-bundle are required")
+	}
+	if _, err := (workloadtls.Identity{Cluster: opts.workloadCluster, Role: "controld"}).URI(); err != nil {
+		return options{}, err
 	}
 	if strings.TrimSpace(opts.secretsMasterKey) == "" {
 		return options{}, fmt.Errorf("secrets-master-key is required")
@@ -331,13 +290,16 @@ func parseFlags() (options, error) {
 	if opts.reconcileTimeout < 0 {
 		return options{}, fmt.Errorf("reconcile-timeout must be >= 0")
 	}
-	if opts.serviceReconcileWorkers < 0 || opts.serviceAllocationGlobalWorkers < 0 || opts.serviceAllocationWorkersPerNode < 0 {
-		return options{}, fmt.Errorf("service worker counts must be >= 0")
-	}
-	if strings.TrimSpace(opts.tlsCACert) == "" || strings.TrimSpace(opts.tlsCert) == "" || strings.TrimSpace(opts.tlsKey) == "" {
-		return options{}, fmt.Errorf("tls-ca-cert, tls-cert, and tls-key are required")
+	if strings.TrimSpace(opts.tlsCACert) == "" {
+		return options{}, fmt.Errorf("tls-ca-cert is required")
 	}
 	return opts, nil
+}
+
+func enrollmentDeadline(ctx context.Context, req any, _ *grpc.UnaryServerInfo, next grpc.UnaryHandler) (any, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	return next(ctx, req)
 }
 
 func defaultString(value, fallback string) string {
@@ -360,27 +322,6 @@ func durationFromEnv(name string, fallback time.Duration) (time.Duration, error)
 		return 0, fmt.Errorf("%s must be > 0", name)
 	}
 	return parsed, nil
-}
-
-func loadServerTLS(opts options) (*tls.Config, error) {
-	cert, err := tls.LoadX509KeyPair(opts.tlsCert, opts.tlsKey)
-	if err != nil {
-		return nil, fmt.Errorf("load tls key pair: %w", err)
-	}
-	caPEM, err := os.ReadFile(opts.tlsCACert)
-	if err != nil {
-		return nil, fmt.Errorf("read tls ca cert: %w", err)
-	}
-	roots := x509.NewCertPool()
-	if !roots.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("parse tls ca cert %q", opts.tlsCACert)
-	}
-	return &tls.Config{
-		MinVersion:   tls.VersionTLS12,
-		Certificates: []tls.Certificate{cert},
-		ClientCAs:    roots,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-	}, nil
 }
 
 func configureLogging(levelName string) error {

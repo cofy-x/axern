@@ -1,22 +1,13 @@
 package sandboxd
 
+import "strings"
+
 type Target struct {
-	Snapshot CapabilitySnapshot
-	Client   *Client
+	SocketPath string
+	Client     *Client
 }
 
-func TargetFromLabels(labels map[string]string, capabilities ...string) (Target, error) {
-	snapshot, err := SnapshotFromLabels(labels)
-	if err != nil {
-		return Target{}, err
-	}
-	for _, capability := range capabilities {
-		if err := snapshot.RequireCapability(capability); err != nil {
-			return Target{}, err
-		}
-	}
-	return Target{
-		Snapshot: snapshot,
-		Client:   NewClient(snapshot.SocketPath),
-	}, nil
+func TargetForSocket(socketPath string) Target {
+	socketPath = strings.TrimSpace(socketPath)
+	return Target{SocketPath: socketPath, Client: NewClient(socketPath)}
 }

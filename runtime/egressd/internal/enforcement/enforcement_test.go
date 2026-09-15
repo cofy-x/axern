@@ -131,12 +131,12 @@ func TestAuthorizationAddressSetIsBounded(t *testing.T) {
 	}
 }
 
-func TestPolicyAttemptChangeClearsIPAuthorization(t *testing.T) {
+func TestPolicyAllocationChangeClearsIPAuthorization(t *testing.T) {
 	engine := NewEngine()
-	first := &runtimeegressv1.PreparedEgressPolicy{AllocationID: "old", Attempt: 1, SandboxIp: "10.0.0.2", PolicyDigest: "sha256:old", Policy: strictPolicy("allowed.example")}
+	first := &runtimeegressv1.PreparedEgressPolicy{AllocationID: "old", SandboxIp: "10.0.0.2", Policy: strictPolicy("allowed.example")}
 	engine.SetPolicies([]*runtimeegressv1.PreparedEgressPolicy{first})
 	engine.authorize("10.0.0.2", "allowed.example", netip.MustParseAddr("192.0.2.10"), 60)
-	second := &runtimeegressv1.PreparedEgressPolicy{AllocationID: "new", Attempt: 2, SandboxIp: "10.0.0.2", PolicyDigest: "sha256:new", Policy: strictPolicy("allowed.example")}
+	second := &runtimeegressv1.PreparedEgressPolicy{AllocationID: "new", SandboxIp: "10.0.0.2", Policy: strictPolicy("allowed.example")}
 	engine.SetPolicies([]*runtimeegressv1.PreparedEgressPolicy{second})
 	if engine.authorized("10.0.0.2", "allowed.example", netip.MustParseAddr("192.0.2.10")) {
 		t.Fatal("IP reuse inherited stale DNS authorization")

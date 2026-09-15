@@ -24,9 +24,6 @@ func NewAllocationLifecycleControl(store AllocationLifecycleStore) AllocationLif
 
 func (c AllocationLifecycleControl) ListAllocationLifecycleRetries(ctx context.Context, filter allocationkernel.LifecycleRetryFilter, now time.Time) ([]allocationkernel.LifecycleRetryItem, error) {
 	filter = allocationkernel.NormalizeLifecycleRetryFilter(filter)
-	if err := allocationkernel.ValidateLifecycleRetryFilter(filter); err != nil {
-		return nil, err
-	}
 	return c.store.ListAllocationLifecycleRetries(ctx, filter, now)
 }
 

@@ -11,17 +11,24 @@ from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern_sdk._internal.errors import sandbox_rpc_error
 from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.errors import SandboxConnectionError
-from axern_sdk.node.async_browser_client import AsyncNodeSandboxBrowserMixin
-from axern_sdk.node.async_capability_client import AsyncNodeSandboxCapabilityMixin
+from axern_sdk.node.async_capability_client import AsyncAllocationCapabilityMixin
 from axern_sdk.node.commands import exec_argv
-from axern_sdk.node.async_file_client import AsyncNodeSandboxFileMixin
+from axern_sdk.node.async_file_client import AsyncAllocationFileMixin
 from axern_sdk.node.async_process import AsyncSandboxProcess
-from axern_sdk.node.async_computer_use_client import AsyncNodeSandboxComputerUseMixin
-from axern_sdk.node.models import ExecCommand, ExecResult, ExecStreamEvent, ImageProcessMount
-from axern_sdk.node.protocol import exec_spec, image_process_spec, text_exec_result
+from axern_sdk.node.async_computer_use_client import AsyncAllocationComputerUseMixin
+from axern_sdk.node.models import ExecCommand, ExecResult, ProcessEvent
+from axern_sdk.node.protocol import exec_spec, text_exec_result
 
 
-class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBrowserMixin, AsyncNodeSandboxComputerUseMixin, AsyncNodeSandboxFileMixin):
+def _process_initial_size(cols: int, rows: int) -> node_pb2.TerminalResize | None:
+    if (cols == 0) != (rows == 0):
+        raise ValueError("initial_cols and initial_rows must both be zero or both be positive")
+    if cols < 0 or rows < 0:
+        raise ValueError("initial_cols and initial_rows must both be positive")
+    return None if cols == 0 else node_pb2.TerminalResize(cols=cols, rows=rows)
+
+
+class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationComputerUseMixin, AsyncAllocationFileMixin):
     """Async command execution client for one sandbox allocation."""
 
     def __init__(
@@ -85,7 +92,7 @@ class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBr
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-    ) -> AsyncIterator[ExecStreamEvent]:
+    ) -> AsyncIterator[ProcessEvent]:
         argv = exec_argv(command, shell=shell)
         stdin = b"" if input is None else input.encode(encoding, errors=errors) if isinstance(input, str) else input
         process = await self.process(
@@ -101,61 +108,6 @@ class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBr
         async for event in self._process_events_with_input(process, stdin):
             yield event
 
-    async def exec_image(
-        self,
-        image: str,
-        command: ExecCommand,
-        *,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        timeout_seconds: int = 0,
-        user: str = "",
-        tty: bool = False,
-        check: bool = False,
-        text: bool = False,
-        encoding: str = "utf-8",
-        errors: str = "strict",
-        shell: bool | None = None,
-        mounts: list[ImageProcessMount] | tuple[ImageProcessMount, ...] | None = None,
-        lease_ttl_seconds: int = 60,
-        rpc_timeout: float | None = None,
-    ) -> ExecResult:
-        argv = exec_argv(command, shell=shell)
-
-        def request_factory() -> node_pb2.ExecImageRequest:
-            return node_pb2.ExecImageRequest(
-                allocation_id=self._allocation_id,
-                spec=image_process_spec(
-                    image,
-                    argv,
-                    env=env,
-                    cwd=cwd,
-                    timeout_seconds=timeout_seconds,
-                    user=user,
-                    tty=tty,
-                    mounts=mounts,
-                ),
-            )
-
-        response = await self._call_unary(
-            "sandbox exec image",
-            "ExecImage",
-            request_factory,
-            lease_ttl_seconds=lease_ttl_seconds,
-            rpc_timeout=rpc_timeout,
-        )
-        result = ExecResult(
-            exit_code=response.exit_code,
-            stdout=bytes(response.stdout),
-            stderr=bytes(response.stderr),
-            stdout_truncated=bool(response.stdout_truncated),
-            stderr_truncated=bool(response.stderr_truncated),
-        )
-        if text:
-            result = text_exec_result(result, encoding=encoding, errors=errors)
-        if check:
-            result.raise_for_status(argv)
-        return result
 
     async def process(
         self,
@@ -166,20 +118,26 @@ class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBr
         timeout_seconds: int = 0,
         user: str = "",
         tty: bool = False,
+        initial_cols: int = 0,
+        initial_rows: int = 0,
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-        ) -> AsyncSandboxProcess:
+    ) -> AsyncSandboxProcess:
         argv = exec_argv(command, shell=shell)
+        initial_size = _process_initial_size(initial_cols, initial_rows)
         channel = self._gateway_channel()
         try:
             call = node_pb2_grpc.NodeSandboxStub(channel).Process(timeout=rpc_timeout)
+            open_payload = node_pb2.ProcessOpen(
+                allocation_id=self._allocation_id,
+                spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
+            )
+            if initial_size is not None:
+                open_payload.initial_size.CopyFrom(initial_size)
             await call.write(
                 node_pb2.ProcessRequest(
-                    open=node_pb2.ProcessOpen(
-                        allocation_id=self._allocation_id,
-                        spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
-                    )
+                    open=open_payload
                 )
             )
             first = await call.read()
@@ -191,63 +149,6 @@ class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBr
             return AsyncSandboxProcess(channel=channel, call=call, prefetched=[first], close_channel=False)
         except grpc.aio.AioRpcError as exc:
             raise sandbox_rpc_error(exc, operation="sandbox process", allocation_id=self._allocation_id) from exc
-
-    async def process_image(
-        self,
-        image: str,
-        command: ExecCommand,
-        *,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        timeout_seconds: int = 0,
-        user: str = "",
-        tty: bool = False,
-        shell: bool | None = None,
-        mounts: list[ImageProcessMount] | tuple[ImageProcessMount, ...] | None = None,
-        lease_ttl_seconds: int = 60,
-        rpc_timeout: float | None = None,
-        ) -> AsyncSandboxProcess:
-        argv = exec_argv(command, shell=shell)
-        channel = self._gateway_channel()
-        try:
-            call = node_pb2_grpc.NodeSandboxStub(channel).ProcessImage(timeout=rpc_timeout)
-            await call.write(
-                node_pb2.ProcessImageRequest(
-                    open=node_pb2.ProcessImageOpen(
-                        allocation_id=self._allocation_id,
-                        spec=image_process_spec(
-                            image,
-                            argv,
-                            env=env,
-                            cwd=cwd,
-                            timeout_seconds=timeout_seconds,
-                            user=user,
-                            tty=tty,
-                            mounts=mounts,
-                        ),
-                    )
-                )
-            )
-            first = await call.read()
-            aio_eof = getattr(grpc.aio, "EOF", object())
-            if first is aio_eof:
-                raise SandboxConnectionError("sandbox image process stream ended before ready")
-            if first.WhichOneof("payload") == "ready":
-                return AsyncSandboxProcess(
-                    channel=channel,
-                    call=call,
-                    request_type=node_pb2.ProcessImageRequest,
-                    close_channel=False,
-                )
-            return AsyncSandboxProcess(
-                channel=channel,
-                call=call,
-                prefetched=[first],
-                request_type=node_pb2.ProcessImageRequest,
-                close_channel=False,
-            )
-        except grpc.aio.AioRpcError as exc:
-            raise sandbox_rpc_error(exc, operation="sandbox image process", allocation_id=self._allocation_id) from exc
 
     async def _call_unary(
         self,
@@ -305,7 +206,7 @@ class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBr
         self,
         process: AsyncSandboxProcess,
         input: bytes,
-    ) -> AsyncIterator[ExecStreamEvent]:
+    ) -> AsyncIterator[ProcessEvent]:
         sender = asyncio.create_task(self._write_process_input(process, input))
         exit_seen = getattr(process, "returncode", None) is not None
         try:

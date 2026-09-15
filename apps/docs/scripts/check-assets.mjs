@@ -5,10 +5,8 @@ const required = [
   ['../public/social-card.png', 10_000],
   ['../public/terminal/axern.gif', 10_000],
   ['../public/terminal/axrun.gif', 10_000],
-  ['../public/terminal/python-service.gif', 10_000],
   ['../vhs/axern.tape', 100],
   ['../vhs/axrun.tape', 100],
-  ['../vhs/python-service.tape', 100],
 ];
 
 for (const [relativePath, minimumBytes] of required) {
@@ -22,7 +20,6 @@ for (const [relativePath, minimumBytes] of required) {
 const recordings = [
   ['axern', 960, 600],
   ['axrun', 960, 600],
-  ['python-service', 960, 380],
 ];
 
 for (const [name, expectedWidth, expectedHeight] of recordings) {

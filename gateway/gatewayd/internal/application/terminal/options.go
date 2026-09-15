@@ -3,8 +3,8 @@ package terminal
 import "time"
 
 type Options struct {
-	IdleTimeout        time.Duration
-	MaxDuration        time.Duration
-	LeaseRetryAttempts int
-	LeaseRetryDelay    time.Duration
+	IdleTimeout              time.Duration
+	MaxDuration              time.Duration
+	AccessGrantRetryAttempts int
+	AccessGrantRetryDelay    time.Duration
 }

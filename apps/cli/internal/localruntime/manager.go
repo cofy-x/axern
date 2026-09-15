@@ -106,14 +106,14 @@ func (ExecRunner) Pipe(ctx context.Context, stdout, stderr io.Writer, source str
 type ImageLoadOptions struct{ Pull bool }
 
 type ImageLoadResult struct {
-	SourceRef        string `json:"source_ref"`
-	CanonicalRef     string `json:"canonical_ref"`
-	ImmutableRef     string `json:"immutable_ref"`
-	GenerationDigest string `json:"generation_digest"`
-	ArchiveDigest    string `json:"archive_digest"`
-	Platform         string `json:"platform"`
-	SizeBytes        int64  `json:"size_bytes"`
-	Reused           bool   `json:"reused"`
+	SourceRef     string `json:"source_ref"`
+	CanonicalRef  string `json:"canonical_ref"`
+	ImmutableRef  string `json:"immutable_ref"`
+	ContentDigest string `json:"content_digest"`
+	ArchiveDigest string `json:"archive_digest"`
+	Platform      string `json:"platform"`
+	SizeBytes     int64  `json:"size_bytes"`
+	Reused        bool   `json:"reused"`
 }
 
 type dockerImageInspect struct {
@@ -165,11 +165,11 @@ func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageL
 	if err := json.Unmarshal(response.Bytes(), &result); err != nil {
 		return nil, fmt.Errorf("decode local image import result: %w", err)
 	}
-	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.GenerationDigest == "" {
-		return nil, fmt.Errorf("local image import returned incomplete generation identity")
+	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.ContentDigest == "" {
+		return nil, fmt.Errorf("local image import returned incomplete content identity")
 	}
-	if err := saveLocalImageReference(m.Dir, result.SourceRef, result.CanonicalRef, result.ImmutableRef, result.GenerationDigest); err != nil {
-		return nil, fmt.Errorf("save local image generation pointer: %w", err)
+	if err := saveLocalImageReference(m.Dir, result.SourceRef, result.CanonicalRef, result.ImmutableRef, result.ContentDigest); err != nil {
+		return nil, fmt.Errorf("save local image content pointer: %w", err)
 	}
 	return &result, nil
 }
@@ -258,7 +258,7 @@ func (m *Manager) Up(ctx context.Context, options UpOptions) error {
 func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	existing, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && existing.Version != m.Version {
-		return fmt.Errorf("local stack version %s does not match CLI version %s; run `axern local upgrade`", existing.Version, m.Version)
+		return fmt.Errorf("local stack version %s does not match CLI version %s; local state is disposable, run `axern local reset --force` and then `axern local up`", existing.Version, m.Version)
 	} else if metadataErr != nil && !errors.Is(metadataErr, os.ErrNotExist) {
 		return metadataErr
 	}
@@ -289,17 +289,17 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		}
 	}
 	fmt.Fprintln(m.Stderr, "Starting Axern local services...")
-	if err := m.composeRun(ctx, options.Profile, "pull", "postgres", "minio", "controld", "tunneld", "node", "gatewayd"); err != nil {
+	if err := m.composeRun(ctx, options.Profile, "pull", "postgres", "controld", "tunneld", "node", "gatewayd"); err != nil {
 		return err
 	}
-	if err := m.composeRun(ctx, options.Profile, "up", "-d", "postgres", "minio"); err != nil {
+	if err := m.composeRun(ctx, options.Profile, "up", "-d", "postgres"); err != nil {
 		return err
 	}
 	_ = m.composeRun(ctx, options.Profile, "rm", "-sf", "controld-migrate", "controld-access-bootstrap")
 	if err := m.composeRun(ctx, options.Profile, "up", "--force-recreate", "--exit-code-from", "controld-access-bootstrap", "controld-access-bootstrap"); err != nil {
 		return err
 	}
-	services := []string{"storaged", "controld", "controld-retention", "tunneld", "node", "gatewayd"}
+	services := []string{"controld", "controld-retention", "tunneld", "node", "gatewayd"}
 	if options.Profile == "observability" {
 		services = append(services, "otel-lgtm", "otel-collector")
 	}
@@ -336,12 +336,12 @@ func (m *Manager) printStartupDiagnostics(profile string) {
 	fmt.Fprintln(m.Stderr, "Axern did not become ready; recent service status follows.")
 	_ = m.composeRun(context.Background(), profile, "ps")
 	fmt.Fprintln(m.Stderr, "Recent core service logs follow.")
-	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "storaged", "controld", "tunneld", "node", "gatewayd")
+	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "controld", "tunneld", "node", "gatewayd")
 }
 
 func (m *Manager) printReady() {
 	fmt.Fprintln(m.Stdout, "Axern local is ready.")
-	fmt.Fprintf(m.Stdout, "Dashboard: http://127.0.0.1:%d\n", GatewayHTTPPort)
+	fmt.Fprintf(m.Stdout, "Gateway:   http://127.0.0.1:%d/healthz\n", GatewayHTTPPort)
 	fmt.Fprintln(m.Stdout, "Context:   local")
 	fmt.Fprintln(m.Stdout, "Next:      axern local image load python:3.12-slim --pull")
 	fmt.Fprintln(m.Stdout, "Then:      axern run python:3.12-slim -- python -c 'print(\"hello from axern\")'")
@@ -385,7 +385,7 @@ func (m *Manager) Reset(ctx context.Context) error {
 		return err
 	}
 	defer release()
-	helperImage := m.backupHelperImage()
+	helperImage := m.cleanupHelperImage()
 	if err := m.down(ctx, true); err != nil {
 		return err
 	}
@@ -483,92 +483,7 @@ func (m *Manager) removeContext() error {
 	return config.Save(m.ConfigPath, cfg)
 }
 
-func (m *Manager) Upgrade(ctx context.Context) error {
-	release, lockErr := m.lock()
-	if lockErr != nil {
-		return lockErr
-	}
-	defer release()
-	existing, err := loadMetadata(m.metadataPath())
-	if errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("local stack is not initialized; run `axern local up`")
-	}
-	if err != nil {
-		return err
-	}
-	if existing.Version == m.Version {
-		fmt.Fprintf(m.Stdout, "Axern local is already at version %s.\n", m.Version)
-		return nil
-	}
-	if versionLess(m.Version, existing.Version) {
-		return fmt.Errorf("downgrade from %s to %s is not supported", existing.Version, m.Version)
-	}
-	if !supportedUpgrade(existing.Version, m.Version) {
-		return fmt.Errorf("no supported local migration path exists from %s to %s; run `axern local reset`", existing.Version, m.Version)
-	}
-	used, _ := directorySize(m.Dir)
-	free, err := availableDisk(m.Dir)
-	if err != nil {
-		return fmt.Errorf("inspect free disk before upgrade: %w", err)
-	}
-	if free < used+(2<<30) {
-		return fmt.Errorf("upgrade requires at least the current data size plus 2 GiB free; need %d bytes, have %d", used+(2<<30), free)
-	}
-	backup := filepath.Join(m.Dir, "backups", time.Now().UTC().Format("20060102T150405Z")+"-"+existing.Version)
-	if err := m.down(ctx, false); err != nil {
-		return err
-	}
-	if err := m.createBackup(ctx, backup); err != nil {
-		_ = m.composeRun(context.Background(), existing.Profile, "up", "-d")
-		return fmt.Errorf("create upgrade backup: %w", err)
-	}
-	if err := os.Remove(m.metadataPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-	if err := m.up(ctx, UpOptions{Profile: existing.Profile}); err != nil {
-		upgradeErr := err
-		_ = m.composeRun(context.Background(), existing.Profile, "down", "--remove-orphans")
-		if restoreErr := m.restoreBackup(backup); restoreErr != nil {
-			return fmt.Errorf("upgrade failed (%v) and automatic restore failed (%v); backup retained at %s", upgradeErr, restoreErr, backup)
-		}
-		if startErr := m.composeRun(context.Background(), existing.Profile, "up", "-d"); startErr != nil {
-			return fmt.Errorf("upgrade failed (%v); old data and deployment were restored at %s but restart failed: %w", upgradeErr, backup, startErr)
-		}
-		return fmt.Errorf("upgrade failed and the previous stack was restored from %s: %w", backup, upgradeErr)
-	}
-	fmt.Fprintf(m.Stdout, "Upgraded Axern local from %s to %s. Backup: %s\n", existing.Version, m.Version, backup)
-	return nil
-}
-
-func (m *Manager) restoreBackup(backup string) error {
-	archive := filepath.Join(backup, "local-snapshot.tar")
-	if _, err := os.Stat(archive); err != nil {
-		return fmt.Errorf("upgrade snapshot is unavailable: %w", err)
-	}
-	image := m.backupHelperImage()
-	script := `set -eu
-for path in /source/* /source/.[!.]* /source/..?*; do
-  [ -e "$path" ] || continue
-  [ "$path" = /source/backups ] || rm -rf "$path"
-done
-tar -xf /backup/local-snapshot.tar -C /source`
-	return m.Runner.Run(context.Background(), m.Stdout, m.Stderr, "docker", "run", "--rm", "--user", "0:0", "--entrypoint", "/bin/sh", "-v", m.Dir+":/source", "-v", backup+":/backup:ro", image, "-c", script)
-}
-
-func (m *Manager) createBackup(ctx context.Context, backup string) error {
-	if err := os.MkdirAll(backup, 0o700); err != nil {
-		return err
-	}
-	image := m.backupHelperImage()
-	owner := fmt.Sprintf("%d:%d", os.Getuid(), os.Getgid())
-	script := `set -eu
-tar --exclude='./backups' -cf /backup/local-snapshot.tar -C /source .
-chown "$1" /backup/local-snapshot.tar
-chmod 0600 /backup/local-snapshot.tar`
-	return m.Runner.Run(ctx, m.Stdout, m.Stderr, "docker", "run", "--rm", "--user", "0:0", "--entrypoint", "/bin/sh", "-v", m.Dir+":/source:ro", "-v", backup+":/backup", image, "-c", script, "backup", owner)
-}
-
-func (m *Manager) backupHelperImage() string {
+func (m *Manager) cleanupHelperImage() string {
 	data, err := os.ReadFile(m.envPath())
 	if err == nil {
 		for _, line := range strings.Split(string(data), "\n") {
@@ -582,77 +497,6 @@ func (m *Manager) backupHelperImage() string {
 		}
 	}
 	return localbundle.ImageReferences(m.Version)["POSTGRES_IMAGE"]
-}
-
-func versionLess(left, right string) bool {
-	type parsedVersion struct {
-		core       [3]int
-		prerelease []string
-	}
-	parse := func(value string) parsedVersion {
-		value = strings.TrimPrefix(strings.SplitN(value, "+", 2)[0], "v")
-		parts := strings.SplitN(value, "-", 2)
-		var result parsedVersion
-		for i, item := range strings.Split(parts[0], ".") {
-			if i >= len(result.core) {
-				break
-			}
-			result.core[i], _ = strconv.Atoi(item)
-		}
-		if len(parts) == 2 {
-			result.prerelease = strings.Split(parts[1], ".")
-		}
-		return result
-	}
-	l, r := parse(left), parse(right)
-	for i := range l.core {
-		if l.core[i] != r.core[i] {
-			return l.core[i] < r.core[i]
-		}
-	}
-	if len(l.prerelease) == 0 || len(r.prerelease) == 0 {
-		return len(l.prerelease) > 0 && len(r.prerelease) == 0
-	}
-	for i := 0; i < len(l.prerelease) && i < len(r.prerelease); i++ {
-		if l.prerelease[i] == r.prerelease[i] {
-			continue
-		}
-		leftNumber, leftErr := strconv.Atoi(l.prerelease[i])
-		rightNumber, rightErr := strconv.Atoi(r.prerelease[i])
-		switch {
-		case leftErr == nil && rightErr == nil:
-			return leftNumber < rightNumber
-		case leftErr == nil:
-			return true
-		case rightErr == nil:
-			return false
-		default:
-			return l.prerelease[i] < r.prerelease[i]
-		}
-	}
-	return len(l.prerelease) < len(r.prerelease)
-}
-
-func supportedUpgrade(from, to string) bool {
-	parseCore := func(value string) [3]int {
-		value = strings.TrimPrefix(strings.SplitN(strings.SplitN(value, "+", 2)[0], "-", 2)[0], "v")
-		var core [3]int
-		for i, item := range strings.Split(value, ".") {
-			if i >= len(core) {
-				break
-			}
-			core[i], _ = strconv.Atoi(item)
-		}
-		return core
-	}
-	current, target := parseCore(from), parseCore(to)
-	if current == target {
-		return true
-	}
-	if target[0] == 0 {
-		return current[0] == 0 && (current[1] == target[1] || current[1]+1 == target[1])
-	}
-	return current[0] == target[0] && current[1] <= target[1]
 }
 
 func (m *Manager) Logs(ctx context.Context, options LogOptions) error {
@@ -671,7 +515,7 @@ func (m *Manager) Logs(ctx context.Context, options LogOptions) error {
 }
 
 func (m *Manager) Status(ctx context.Context) (Status, error) {
-	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, DashboardURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432, "minio_api": 29000, "minio_console": 29001}}
+	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432}}
 	metadata, err := loadMetadata(m.metadataPath())
 	if err == nil {
 		status.StackVersion, status.Profile = metadata.Version, metadata.Profile
@@ -821,7 +665,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 	}
 	metadata, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && metadata.Version != m.Version {
-		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local upgrade`")
+		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local reset --force` and then `axern local up`")
 	} else {
 		add("stack_version", true, "stack_version_compatible", "stack_version_incompatible", "local stack version is compatible", "")
 	}
@@ -847,7 +691,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 			default:
 				stackRunning = true
 				add("stack_runtime", true, "stack_runtime_healthy", "stack_runtime_unhealthy", "all local components are healthy", "")
-				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, status.DashboardURL+"/healthz", nil)
+				request, _ := http.NewRequestWithContext(ctx, http.MethodGet, status.GatewayHTTPURL+"/healthz", nil)
 				response, gatewayErr := (&http.Client{Timeout: 3 * time.Second}).Do(request)
 				gatewayOK := gatewayErr == nil && response != nil && response.StatusCode == http.StatusOK
 				if response != nil {
@@ -859,11 +703,11 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 				}
 				add("gateway_connectivity", gatewayOK, "gateway_connectivity_reachable", "gateway_connectivity_unreachable", gatewayMessage, "inspect `axern local logs gatewayd` and verify local firewall settings")
 				nodeOK, nodeReason := m.nodeReadiness(ctx, &http.Client{Timeout: 3 * time.Second}, m.doctorNodeID(), localDefaultWorkloadCapabilities)
-				nodeMessage := "local node is registered with fresh heartbeat and inventory"
+				nodeMessage := "local node has reported fresh heartbeat and inventory"
 				if !nodeOK {
 					nodeMessage = nodeReason
 				}
-				add("node_registration", nodeOK, "node_registration_healthy", "node_registration_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
+				add("node_observation", nodeOK, "node_observation_healthy", "node_observation_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
 			}
 		}
 	}
@@ -898,7 +742,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 }
 
 func (m *Manager) materialize(profile string) error {
-	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "minio"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "data", "volumed"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
+	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
@@ -935,7 +779,7 @@ func (m *Manager) writeEnv(profile string) error {
 		}
 		secretValues["master"] = value
 	}
-	for _, key := range []string{"postgres", "minio_user", "minio_password", "dev_token", "node_token"} {
+	for _, key := range []string{"postgres", "enrollment_token"} {
 		if secretValues[key] == "" {
 			value, err := randomHex(24)
 			if err != nil {
@@ -948,8 +792,11 @@ func (m *Manager) writeEnv(profile string) error {
 	if err := writeAtomic(secretsPath, append(secretData, '\n'), 0o600); err != nil {
 		return err
 	}
+	if err := writeAtomic(filepath.Join(m.Dir, "enrollment-token"), []byte(secretValues["enrollment_token"]+"\n"), 0o600); err != nil {
+		return err
+	}
 	images := localbundle.ImageReferences(m.Version)
-	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,storaged,gatewayd,tunneld,node,postgres,minio,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 	httpProxy := containerProxy(os.Getenv("HTTP_PROXY"))
 	httpsProxy := containerProxy(os.Getenv("HTTPS_PROXY"))
 	otelEnabled, otelEndpoint := "false", ""
@@ -957,14 +804,14 @@ func (m *Manager) writeEnv(profile string) error {
 		otelEnabled, otelEndpoint = "true", "http://otel-collector:4317"
 	}
 	values := map[string]string{
-		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "MINIO_IMAGE": images["MINIO_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"], "MINIO_ROOT_USER": secretValues["minio_user"], "MINIO_ROOT_PASSWORD": secretValues["minio_password"],
+		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
 		"CONTROLD_IMAGE": images["CONTROLD_IMAGE"], "TUNNELD_IMAGE": images["TUNNELD_IMAGE"], "GATEWAYD_IMAGE": images["GATEWAYD_IMAGE"], "NODE_ALL_IN_ONE_IMAGE": images["NODE_ALL_IN_ONE_IMAGE"],
-		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"], "CLAUDE_CODE_BUNDLE_IMAGE": images["CLAUDE_CODE_BUNDLE_IMAGE"], "CODEX_BUNDLE_IMAGE": images["CODEX_BUNDLE_IMAGE"],
-		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"], "LOCAL_DEV_TOKEN": secretValues["dev_token"], "NODE_AUTH_TOKEN": secretValues["node_token"],
+		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"],
+		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"],
 		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
 		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
 		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),
-		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "MINIO_API_PORT": "29000", "MINIO_CONSOLE_PORT": "29001", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
+		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {
@@ -1015,7 +862,7 @@ func (m *Manager) writeContext(use bool) error {
 	if err != nil {
 		return err
 	}
-	cfg.Contexts[ContextName] = &clientconfig.Context{Endpoint: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), ServiceURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), SSHEndpoint: fmt.Sprintf("127.0.0.1:%d", GatewaySSHPort), SSHIdentityFile: filepath.Join(m.Dir, "ssh", "gateway_client_ed25519"), TLS: clientconfig.TLS{CACert: filepath.Join(m.Dir, "certs", "ca.crt"), Cert: filepath.Join(m.Dir, "certs", "client.crt"), Key: filepath.Join(m.Dir, "certs", "client.key")}, ProxyMode: clientconfig.ProxyModeDirect}
+	cfg.Contexts[ContextName] = &clientconfig.Context{Endpoint: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), SSHEndpoint: fmt.Sprintf("127.0.0.1:%d", GatewaySSHPort), SSHIdentityFile: filepath.Join(m.Dir, "ssh", "gateway_client_ed25519"), TLS: clientconfig.TLS{CACert: filepath.Join(m.Dir, "certs", "ca.crt"), Cert: filepath.Join(m.Dir, "certs", "client.crt"), Key: filepath.Join(m.Dir, "certs", "client.key")}, ProxyMode: clientconfig.ProxyModeDirect}
 	if cfg.CurrentContext == "" || use {
 		cfg.CurrentContext = ContextName
 	}
@@ -1088,6 +935,7 @@ type localNodeReadinessPayload struct {
 		Fresh        bool   `json:"fresh"`
 		SummaryFresh bool   `json:"summary_fresh"`
 		Summary      struct {
+			Sequence   uint64 `json:"sequence"`
 			Components struct {
 				Axnoded struct {
 					Ready bool `json:"ready"`
@@ -1102,7 +950,6 @@ type localNodeReadinessPayload struct {
 				} `json:"runtime_slots"`
 			} `json:"pools"`
 			CapabilitySnapshot struct {
-				Sequence     uint64                       `json:"sequence"`
 				Observations []localCapabilityObservation `json:"observations"`
 			} `json:"capability_snapshot"`
 		} `json:"summary"`
@@ -1168,8 +1015,8 @@ func evaluateLocalNodeReadiness(payload localNodeReadinessPayload, expectedNodeI
 		if len(requiredCapabilities) == 0 {
 			return true, ""
 		}
-		if node.Summary.CapabilitySnapshot.Sequence == 0 {
-			return false, "local capability snapshot is warming"
+		if node.Summary.Sequence == 0 {
+			return false, "local node observation is warming"
 		}
 		observations := make(map[capabilityv1.PlatformCapability]localCapabilityObservation, len(node.Summary.CapabilitySnapshot.Observations))
 		for _, observation := range node.Summary.CapabilitySnapshot.Observations {
@@ -1187,7 +1034,7 @@ func evaluateLocalNodeReadiness(payload localNodeReadinessPayload, expectedNodeI
 		}
 		return true, ""
 	}
-	return false, fmt.Sprintf("local node %q is not registered", expectedNodeID)
+	return false, fmt.Sprintf("local node %q has not reported", expectedNodeID)
 }
 
 func localCapabilityUnavailableReason(capability capabilityv1.PlatformCapability, observation localCapabilityObservation, present bool, observations map[capabilityv1.PlatformCapability]localCapabilityObservation) string {

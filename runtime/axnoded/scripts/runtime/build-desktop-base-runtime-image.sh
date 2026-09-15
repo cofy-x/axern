@@ -36,6 +36,7 @@ axern_docker_build \
   --build-arg "no_proxy=${NO_PROXY_BUILD}" \
   --build-arg "APT_MIRROR_SOURCE=${APT_MIRROR_SOURCE}" \
   --build-arg "PLAYWRIGHT_VERSION=${PLAYWRIGHT_VERSION}" \
+  --build-arg "PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST:-}" \
   --build-arg "SERVER_BASE_RUNTIME_IMAGE=${SERVER_BASE_RUNTIME_IMAGE}" \
   -f "${DOCKERFILE}" \
   -t "${IMAGE_REF}" \

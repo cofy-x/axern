@@ -1,48 +1,13 @@
 # egressd
 
-`egressd` is Axern's trusted node-local sandbox egress policy daemon. It listens
-on `/run/egressd/egressd.sock` and stores crash-recoverable policy lifecycle
-state under `/var/lib/egressd`.
+`egressd` is Axern's trusted node-local sandbox egress policy daemon. It listens on `/run/egressd/egressd.sock` and stores crash-recoverable policy lifecycle state under `/var/lib/egressd`.
 
-The private gRPC API supports prepare, delete, get, list, reconcile, and health.
-Records are fenced by allocation ID and attempt and include the sandbox IP,
-canonical policy digest, execution revision, and recovery state. A prepare is
-idempotent only when all enforcement inputs match. Reconciliation retains only
-records backed by an exact active-allocation proof and removes orphaned or
-mismatched records.
+The private gRPC API supports prepare, delete, get, list, reconcile, and health. Egressd owns one complete crash-recoverable record per globally unique Allocation ID: sandbox IP, normalized policy, and verified upstream nameservers. A prepare is idempotent only when those enforcement inputs match. Reconciliation receives the Allocation IDs present in axnoded's durable `AllocationState` store and removes every other record. Axnoded does not persist a second digest, revision, recovery flag, or policy proof.
 
-The Linux executor owns an isolated `inet axern_egress` nftables table. Rules
-are keyed only by sandbox source IP and use conntrack-backed REDIRECT for
-conventional DNS and strict HTTP/HTTPS traffic;
-the L7 inspectors recover the original TCP destination from conntrack.
-Explicit strict CIDR/transport/port grants return to the ordinary bridge or
-bpfnet forwarding path, so egressd does not take ownership of either backend's
-SNAT/DNAT state. Proxy upstream sockets never enter the workload namespace.
+The Linux executor owns an isolated `inet axern_egress` nftables table. Rules are keyed only by sandbox source IP and use conntrack-backed REDIRECT for conventional DNS and strict HTTP/HTTPS traffic; the L7 inspectors recover the original TCP destination from conntrack. Explicit strict CIDR/transport/port grants return to the ordinary bridge or bpfnet forwarding path, so egressd does not take ownership of either backend's egress-SNAT state. Proxy upstream sockets never enter the workload namespace.
 
-The DNS forwarder accepts only the same non-loopback IP nameservers verified by
-axnoded while constructing the workload resolver configuration. It supports
-UDP and TCP, preserves the query and DNSSEC/EDNS wire representation, rejects
-denied questions or CNAME targets with `REFUSED`, and derives strict per-domain
-destination authorizations from A/AAAA TTLs with a ten-minute safety cap. It
-has no public resolver fallback. Strict HTTP parses and checks every request,
-including keep-alive and pipelined messages, and rechecks policy and DNS TTL
-before forwarding each message. Standard HTTP framing streams bodies without
-inspection; header, request, response-write and idle timeouts are bounded.
-Strict TLS reassembles one bounded ClientHello and checks SNI.
-CONNECT, HTTP protocol upgrades, direct-IP Host, ECH, missing SNI, parser timeout/overflow, and a
-domain/IP authorization mismatch fail closed. Traffic is then relayed without
-TLS interception or application-body inspection. HTTPS authorization is SNI
-authorization, not inspection of encrypted HTTP Host/`:authority` fields.
+The DNS forwarder accepts only the same non-loopback IP nameservers verified by axnoded while constructing the workload resolver configuration. It supports UDP and TCP, preserves the query and DNSSEC/EDNS wire representation, rejects denied questions or CNAME targets with `REFUSED`, and derives strict per-domain destination authorizations from A/AAAA TTLs with a ten-minute safety cap. It has no public resolver fallback. Strict HTTP parses and checks every request, including keep-alive and pipelined messages, and rechecks policy and DNS TTL before forwarding each message. Standard HTTP framing streams bodies without inspection; header, request, response-write and idle timeouts are bounded. Strict TLS reassembles one bounded ClientHello and checks SNI. CONNECT, HTTP protocol upgrades, direct-IP Host, ECH, missing SNI, parser timeout/overflow, and a domain/IP authorization mismatch fail closed. Traffic is then relayed without TLS interception or application-body inspection. HTTPS authorization is SNI authorization, not inspection of encrypted HTTP Host/`:authority` fields.
 
-Health reports DNS and strict self-test readiness plus the applied enforcement
-revision. Axnoded derives workload capabilities from these exact facts, checks
-the prepared allocation/attempt/IP/policy/revision proof immediately before OCI
-start, reconciles active proofs after restart, and uses its existing fail-stop
-capability-loss path if enforcement disappears. Telemetry exposes only mode,
-action, protocol, result, latency, rule count, and allocation ID; query names,
-Host, SNI, remote addresses, and full policy values are not dimensions.
+Health reports DNS and strict self-test readiness plus the applied enforcement revision of the live nftables projection. Axnoded derives workload capabilities from these facts, checks the prepared Allocation ID/IP/policy immediately before OCI start, reconciles admitted Allocation IDs after restart, and uses its fail-stop capability-loss path if enforcement disappears. Telemetry exposes only mode, action, protocol, result, latency, rule count, and Allocation ID; query names, Host, SNI, remote addresses, and full policy values are not dimensions.
 
-Performance and sustained-reliability evidence is produced by the separate
-[sandbox network-policy qualification](docs/qualification.md). Its full
-runc/runsc, bridge/ebpf, and IPv4/IPv6 matrix uses immutable environment
-provenance and relative budgets; correctness tests never depend on host timing.
+Performance and sustained-reliability evidence is produced by the separate [sandbox network-policy qualification](docs/qualification.md). Its full runsc, bridge/ebpf, and IPv4/IPv6 matrix uses immutable environment provenance and relative budgets; correctness tests never depend on host timing.

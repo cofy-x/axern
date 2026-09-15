@@ -28,25 +28,15 @@ type Reliability interface {
 	Health(ctx context.Context, now time.Time) (adminkernel.ReliabilityHealth, error)
 }
 
-type Storage interface {
-	ListStorageBindings(ctx context.Context, filter adminkernel.StorageBindingFilter) ([]adminkernel.StorageBinding, error)
-	ListStorageReclaims(ctx context.Context, filter adminkernel.StorageReclaimFilter) ([]adminkernel.StorageReclaim, error)
-	RetryStorageBinding(ctx context.Context, req adminkernel.RetryStorageBindingRequest) (*adminkernel.StorageBinding, error)
-}
-
-type Services interface {
-	PurgeService(ctx context.Context, serviceID, operatorReason string, now time.Time) (string, error)
-}
-
 type Nodes interface {
+	AdmitNode(ctx context.Context, nodeID, enrollmentToken, operatorReason string, now time.Time) (*nodekernel.Record, error)
 	ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error)
+	RevokeNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error)
 	RetireNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error)
 }
 
 type CapabilityDiagnostics interface {
 	GetNodeCapabilitySnapshot(context.Context, string) (*capabilityv1.CapabilitySnapshot, error)
-	ListNodeCapabilityTransitions(context.Context, string, int32) ([]adminkernel.CapabilityTransition, error)
-	ListCapabilityReconcileQueue(context.Context, string, int32) ([]adminkernel.CapabilityReconcileItem, error)
 	GetAllocationCapabilityDiagnostics(context.Context, string) (*adminkernel.AllocationCapabilityDiagnostics, error)
 }
 
@@ -54,7 +44,7 @@ type Access interface {
 	CreatePrincipal(ctx context.Context, name, displayName string, kind accesskernel.PrincipalKind) (accesskernel.Principal, error)
 	ListPrincipals(ctx context.Context) ([]accesskernel.Principal, error)
 	DisablePrincipal(ctx context.Context, id string) (accesskernel.Principal, error)
-	AddCredential(ctx context.Context, principalID, label string, der []byte) (accesskernel.Credential, error)
+	AddCredential(ctx context.Context, principalID, label string, der []byte, sshKey string, expiresAt time.Time) (accesskernel.Credential, error)
 	ListCredentials(ctx context.Context, principalID string) ([]accesskernel.Credential, error)
 	RevokeCredential(ctx context.Context, id string) (accesskernel.Credential, error)
 	GrantBinding(ctx context.Context, principalID string, scope accesskernel.ScopeType, namespace string, role accesskernel.Role) (accesskernel.Binding, error)
@@ -67,8 +57,6 @@ type Dependencies struct {
 	AllocationLifecycleRetries AllocationLifecycleRetries
 	AdminAuditEvents           AdminAuditEvents
 	Reliability                Reliability
-	Storage                    Storage
-	Services                   Services
 	Nodes                      Nodes
 	CapabilityDiagnostics      CapabilityDiagnostics
 	NodeHeartbeatWindow        time.Duration

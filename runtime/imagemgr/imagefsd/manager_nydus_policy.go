@@ -36,7 +36,7 @@ func (p nydusRuntimePolicy) apply(meta *DaemonMeta) {
 // stale process-level tuning after an imagemgr rollout. An active daemon must
 // stop before its immutable launch arguments can be replaced.
 func (mgr *manager) reconcileNydusRuntimePolicy(d *Daemon) error {
-	if normalizeSourceType(d.meta.SourceType) != SourceTypeNydus {
+	if d.meta.SourceType != SourceTypeNydus {
 		return nil
 	}
 

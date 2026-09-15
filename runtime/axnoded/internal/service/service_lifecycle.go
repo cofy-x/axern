@@ -4,13 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
-	"time"
 
-	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/sirupsen/logrus"
 )
 
@@ -25,23 +20,20 @@ func (h *sandboxService) Run(ctx context.Context) error {
 		h.capabilityReconcileCancel()
 	}
 	h.capabilityReconcileCtx, h.capabilityReconcileCancel = context.WithCancel(context.Background())
-	if err := h.controlPlaneReports.ReplayDurableAllocationStatuses(); err != nil {
-		return fmt.Errorf("replay durable allocation status outbox: %w", err)
+	if err := h.controlPlaneReports.ReplayDurableAllocationLifecycles(); err != nil {
+		return fmt.Errorf("replay durable allocation lifecycle outbox: %w", err)
+	}
+	if err := h.startOutputRetention(ctx); err != nil {
+		return err
 	}
 	h.inventoryCollector.Start()
+	h.startNodeIdentity(ctx)
 	h.controlPlaneReports.Start()
-	for allocationID, manifest := range h.allocationController().CapabilityConditionManifests() {
-		h.controlPlaneReports.ReportCapabilityConditions(allocationID, manifest.Attempt, manifest.Set)
-	}
+	h.startExecutionLeaseWatchdog(ctx)
 	h.startCapabilityRefresh(ctx)
 	h.startPeriodicCapabilityAudit()
-	h.lrtManager.Start()
+	h.environmentCache.Start()
 	go h.containerManager.Start()
-	go func() {
-		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		defer cancel()
-		_ = h.nodeVolumes().Reconcile(ctx)
-	}()
 	return nil
 }
 
@@ -55,86 +47,56 @@ func (h *sandboxService) Shutdown(ctx context.Context) error {
 func (h *sandboxService) shutdown(ctx context.Context) error {
 	logrus.Info("sandbox service shutting down")
 	h.ready.Store(false)
+	if h.nodeIdentityCancel != nil {
+		h.nodeIdentityCancel()
+	}
+	h.nodeIdentityWG.Wait()
+	if h.executionLeaseCancel != nil {
+		h.executionLeaseCancel()
+	}
+	h.executionLeaseWG.Wait()
+	if h.outputRetentionCancel != nil {
+		h.outputRetentionCancel()
+	}
+	h.outputRetentionWG.Wait()
 	h.stopCapabilityRefresh()
 	if h.capabilityReconcileCancel != nil {
 		h.capabilityReconcileCancel()
 	}
 	h.capabilityReconcileWG.Wait()
-	h.stopAllReadinessWorkers()
-	h.stopAllLivenessWorkers()
+	// Service shutdown is not an Allocation lifecycle transition. Preserve live
+	// runsc sandboxes and their durable resource bindings so the next axnoded
+	// process can recover them. Only an explicit control-plane DeleteAllocation
+	// or an expired execution authorization may tear them down.
+	var shutdownErr error
 
-	containers := h.containerManager.List()
-	deleteErr := h.deleteAllocationsForShutdown(ctx, containers)
-
-	for _, handler := range h.containerManager.Handlers() {
-		handler.ShutDown()
+	if h.runscHandler != nil {
+		h.runscHandler.ShutDown()
 	}
 
-	h.lrtManager.DrainRetained(ctx, langrtmanager.RetentionReasonShutdown)
-	h.lrtManager.Close()
-	h.closeVolume()
+	h.environmentCache.DrainRetained(ctx, environmentcache.RetentionReasonShutdown)
+	h.environmentCache.Close()
 	h.closeEgress()
 	if err := h.containerManager.Stop(ctx); err != nil {
-		deleteErr = errors.Join(deleteErr, fmt.Errorf("stop container manager: %w", err))
+		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("stop container manager: %w", err))
 		// A monitor may still be checkpointing terminal state or invoking the
 		// control-plane reporter. Keep the reporter and node-state store open;
 		// the process supervisor will terminate after this bounded one-shot
 		// shutdown failure, but this process must not close dependencies under
 		// live users.
-		logrus.WithError(deleteErr).Warn("sandbox service shutdown retained reporting and node state after container manager join failure")
-		return deleteErr
+		logrus.WithError(shutdownErr).Warn("sandbox service shutdown retained reporting and node state after container manager join failure")
+		return shutdownErr
 	}
 	h.inventoryCollector.Stop()
 	h.controlPlaneReports.Stop()
 	if err := h.store.Close(); err != nil {
-		deleteErr = errors.Join(deleteErr, fmt.Errorf("close node state database: %w", err))
+		shutdownErr = errors.Join(shutdownErr, fmt.Errorf("close node state database: %w", err))
 	}
 
-	if h.config.RuntimeConfig.FilestoreDir != "" {
-		if err := hostlinux.CleanupFilestore(h.config.RuntimeConfig.FilestoreDir, h.config.RuntimeConfig.FilestoreMode, h.config.RuntimeConfig.FilestoreLoopbackImage); err != nil {
-			logrus.Warnf("shutdown: failed to clean runtime filestore: %v", err)
-			deleteErr = errors.Join(deleteErr, fmt.Errorf("cleanup runtime filestore: %w", err))
-		}
-	}
-	if deleteErr != nil {
-		logrus.WithError(deleteErr).Warn("sandbox service shutdown completed with errors")
-		return deleteErr
+	if shutdownErr != nil {
+		logrus.WithError(shutdownErr).Warn("sandbox service shutdown completed with errors")
+		return shutdownErr
 	}
 	logrus.Info("sandbox service shutdown complete")
 	return nil
-}
-
-func (h *sandboxService) deleteAllocationsForShutdown(ctx context.Context, containers []*container.Container) error {
-	const workers = 8
-	jobs := make(chan string)
-	var wg sync.WaitGroup
-	var errMu sync.Mutex
-	var result error
-
-	workerCount := min(workers, len(containers))
-	for range workerCount {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for id := range jobs {
-				if _, err := h.allocationController().Delete(ctx, &runtime.DeleteRequest{ID: id}); err != nil {
-					wrapped := fmt.Errorf("delete container %s: %w", id, err)
-					logrus.WithError(err).Warnf("shutdown: failed to delete container %s", id)
-					errMu.Lock()
-					result = errors.Join(result, wrapped)
-					errMu.Unlock()
-				}
-			}
-		}()
-	}
-
-	for _, item := range containers {
-		if item == nil || item.Metadata == nil || item.Metadata.ID == "" {
-			continue
-		}
-		jobs <- item.Metadata.ID
-	}
-	close(jobs)
-	wg.Wait()
-	return result
 }

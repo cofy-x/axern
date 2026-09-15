@@ -189,7 +189,7 @@ func TestPinLocalEnvironmentImage(t *testing.T) {
     "demo:dev": {
       "canonical_ref": "index.docker.io/library/demo:dev",
       "immutable_ref": "index.docker.io/library/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      "generation_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "content_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "updated_at": "2026-08-16T00:00:00Z"
     }
   }

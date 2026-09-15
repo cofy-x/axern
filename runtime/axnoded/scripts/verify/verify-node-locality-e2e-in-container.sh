@@ -3,6 +3,7 @@ set -euo pipefail
 
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 AXNODED_HTTP_URL="${AXNODED_HTTP_URL:-http://127.0.0.1:23001}"
 OCI_IMAGE_URL="${OCI_IMAGE_URL:?OCI_IMAGE_URL is required}"
 NYDUS_IMAGE_URL="${NYDUS_IMAGE_URL:?NYDUS_IMAGE_URL is required}"
@@ -18,7 +19,7 @@ log_phase() {
 
 dump_locality_context() {
   local phase="$1"
-  local runtime_id="$2"
+  local environment_id="$2"
   local image_url="$3"
   local stdout_path="$4"
   local stderr_path="$5"
@@ -26,7 +27,7 @@ dump_locality_context() {
 
   echo "--- locality failure context ---" >&2
   echo "phase=${phase}" >&2
-  echo "runtime_id=${runtime_id}" >&2
+  echo "environment_id=${environment_id}" >&2
   echo "image_url=${image_url}" >&2
   echo "create_timeout=${CREATE_SANDBOX_TIMEOUT}" >&2
   echo "--- verify-cli output ---" >&2
@@ -48,10 +49,10 @@ dump_locality_context() {
 
 cleanup() {
   if [ -n "${oci_container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${oci_container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${oci_container_id}" >/dev/null 2>&1 || true
   fi
   if [ -n "${nydus_container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${nydus_container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${nydus_container_id}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -119,16 +120,15 @@ wait_for_jq() {
 
 start_container() {
   local phase="$1"
-  local runtime_id="$2"
+  local environment_id="$2"
   local image_url="$3"
   local stdout_path="$4"
   local stderr_path="$5"
-  local create_output_path="/tmp/${runtime_id}.create.out"
+  local create_output_path="/tmp/${environment_id}.create.out"
 
   if ! verify-cli \
-    -address "${AXNODED_SOCKET}" \
-    -runtime runsc \
-    -runtime-id "${runtime_id}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
+    -environment-id "${environment_id}" \
     -rootfs-src image \
     -image-url "${image_url}" \
     -stdout "${stdout_path}" \
@@ -136,14 +136,14 @@ start_container() {
     -create-timeout "${CREATE_SANDBOX_TIMEOUT}" \
     -shell-command "sleep 300" \
     >"${create_output_path}" 2>&1; then
-    dump_locality_context "${phase}" "${runtime_id}" "${image_url}" "${stdout_path}" "${stderr_path}" "${create_output_path}"
+    dump_locality_context "${phase}" "${environment_id}" "${image_url}" "${stdout_path}" "${stderr_path}" "${create_output_path}"
     return 1
   fi
 
   local container_id=""
   container_id="$(awk -F= '/^container_id=/{print $2}' "${create_output_path}")"
   if [ -z "${container_id}" ]; then
-    dump_locality_context "${phase}" "${runtime_id}" "${image_url}" "${stdout_path}" "${stderr_path}" "${create_output_path}"
+    dump_locality_context "${phase}" "${environment_id}" "${image_url}" "${stdout_path}" "${stderr_path}" "${create_output_path}"
     return 1
   fi
   printf '%s\n' "${container_id}"
@@ -161,13 +161,13 @@ oci_locality_key="image:$(resolve_image_cache_key "${OCI_IMAGE_URL}")"
 nydus_locality_key="image:$(resolve_image_cache_key "${NYDUS_IMAGE_URL}")"
 
 log_phase "oci-start"
-oci_runtime_id="locality-oci-$$"
-oci_container_id="$(start_container "oci-start" "${oci_runtime_id}" "${OCI_IMAGE_URL}" "/tmp/locality-oci.stdout" "/tmp/locality-oci.stderr")"
+oci_environment_id="locality-oci-$$"
+oci_container_id="$(start_container "oci-start" "${oci_environment_id}" "${OCI_IMAGE_URL}" "/tmp/locality-oci.stdout" "/tmp/locality-oci.stderr")"
 [ -n "${oci_container_id}" ] || {
   echo "OCI locality start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${oci_container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${oci_container_id}"
 oci_container_id=""
 
 log_phase "oci-retention-assert"
@@ -176,12 +176,12 @@ wait_for_jq \
   "OCI locality entry with retention heat" \
   "${inventory_file}" \
   40 \
-  'any(.heat.locality[]?; .key == $locality_key and .mount_type == "oci" and .mounted == true and .retained_runtime_count >= 1 and .retained_rootfs_count >= 1)' \
+  'any(.heat.locality[]?; .key == $locality_key and .mount_type == "oci" and .mounted == true and .retained_environment_count >= 1 and .retained_rootfs_count >= 1)' \
   --arg locality_key "${oci_locality_key}"
 
 log_phase "nydus-start"
-nydus_runtime_id="locality-nydus-$$"
-nydus_container_id="$(start_container "nydus-start" "${nydus_runtime_id}" "${NYDUS_IMAGE_URL}" "/tmp/locality-nydus.stdout" "/tmp/locality-nydus.stderr")"
+nydus_environment_id="locality-nydus-$$"
+nydus_container_id="$(start_container "nydus-start" "${nydus_environment_id}" "${NYDUS_IMAGE_URL}" "/tmp/locality-nydus.stdout" "/tmp/locality-nydus.stderr")"
 [ -n "${nydus_container_id}" ] || {
   echo "Nydus locality start did not return a container id" >&2
   exit 1
@@ -196,7 +196,7 @@ wait_for_jq \
   'any(.heat.locality[]?; .key == $locality_key and .mount_type == "nydus" and .mounted == true and .nydus_daemon_alive == true and .chunkdb_total_chunks >= 0 and .peer_healthy_count >= 0 and .peer_hinted_count >= 0)' \
   --arg locality_key "${nydus_locality_key}"
 
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${nydus_container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${nydus_container_id}"
 nydus_container_id=""
 
 echo "verify_node_locality_e2e_ok=true"

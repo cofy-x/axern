@@ -16,10 +16,6 @@ func (s *Store) Resolve(ctx context.Context, id string) (*secretkernel.ResolvedS
 	return s.resolveRecord(ctx, getRecordTx, id)
 }
 
-func (s *Store) ResolveProfileCredential(ctx context.Context, id string) (*secretkernel.ResolvedSecret, bool, error) {
-	return s.resolveRecord(ctx, getProfileCredentialRecordTx, id)
-}
-
 func (s *Store) resolveRecord(ctx context.Context, read func(context.Context, rowQuery, string) (*secretv1.Secret, []byte, error), id string) (*secretkernel.ResolvedSecret, bool, error) {
 	secret, ciphertext, err := read(ctx, s.db.Pool(), strings.TrimSpace(id))
 	if err != nil {

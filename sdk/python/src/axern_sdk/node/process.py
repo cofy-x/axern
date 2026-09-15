@@ -12,7 +12,7 @@ import grpc
 
 from axern.node.sandbox.v1 import node_pb2
 from axern_sdk.errors import SandboxConnectionError
-from axern_sdk.node.models import ExecStreamEvent
+from axern_sdk.node.models import ProcessEvent
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +71,7 @@ class SandboxProcess:
     def signal(self, signal: str) -> None:
         self._send(self._request_type(signal=node_pb2.ProcessSignal(signal=signal)))
 
-    def events(self) -> Iterator[ExecStreamEvent]:
+    def events(self) -> Iterator[ProcessEvent]:
         exit_seen = self._exit is not None
         try:
             while self._prefetched:
@@ -126,15 +126,15 @@ class SandboxProcess:
             raise RuntimeError("sandbox process is closed")
         self._requests.put(request)
 
-    def _event_from_response(self, response) -> ExecStreamEvent | None:
+    def _event_from_response(self, response) -> ProcessEvent | None:
         payload = response.WhichOneof("payload")
         if payload == "stdout":
-            return ExecStreamEvent(stream="stdout", data=bytes(response.stdout))
+            return ProcessEvent(stream="stdout", data=bytes(response.stdout))
         if payload == "stderr":
-            return ExecStreamEvent(stream="stderr", data=bytes(response.stderr))
+            return ProcessEvent(stream="stderr", data=bytes(response.stderr))
         if payload == "exit":
             self._exit = ProcessResult(exit_code=response.exit.exit_code, message=response.exit.message)
-            return ExecStreamEvent(stream="exit", exit_code=response.exit.exit_code, message=response.exit.message)
+            return ProcessEvent(stream="exit", exit_code=response.exit.exit_code, message=response.exit.message)
         return None
 
     def _close_requests(self) -> None:

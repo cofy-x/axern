@@ -198,7 +198,7 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		logrus.Warnf("failed to reconcile OCI metadata at startup: %v", err)
 	}
 	if err := mgr.reconcileImportedState(); err != nil {
-		logrus.Warnf("failed to reconcile imported OCI generations at startup: %v", err)
+		logrus.Warnf("failed to reconcile imported OCI content at startup: %v", err)
 	}
 
 	go mgr.pruneImagesLoop()
@@ -247,17 +247,17 @@ func (m *Manager) ListMountedImageURLs() ([]string, error) {
 }
 
 // ListMountedDetails returns detailed metadata of all currently mounted OCI images.
-func (m *Manager) ListMountedDetails() ([]OciMountRecord, error) {
+func (m *Manager) ListMountedDetails() ([]OciMountState, error) {
 	records, err := m.store.listMounts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list oci mounts: %w", err)
 	}
-	details := make([]OciMountRecord, 0, len(records))
+	details := make([]OciMountState, 0, len(records))
 	for _, rec := range records {
 		if rec == nil || rec.ImageURL == "" {
 			continue
 		}
-		details = append(details, OciMountRecord{
+		details = append(details, OciMountState{
 			CacheKey:      rec.CacheKey,
 			ImageURL:      rec.ImageURL,
 			MountID:       rec.MountID,

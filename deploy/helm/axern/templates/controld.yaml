@@ -58,24 +58,10 @@ spec:
             - {{ .Values.auth.bootstrap.credentialLabel | quote }}
             - -certificate
             - /certs/client.crt
-            - -rollout-worker-certificate
-            - /certs/rollout-worker.crt
           volumeMounts:
             - name: certs
               mountPath: /certs
               readOnly: true
-        - name: wait-storaged
-          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
-          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
-          command:
-            - /bin/sh
-            - -ec
-          args:
-            - |
-              until curl -fsS http://storaged.{{ .Release.Namespace }}.svc.cluster.local:24021/healthz >/dev/null; do
-                echo "waiting for storaged"
-                sleep 2
-              done
       containers:
         - name: controld
           image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
@@ -84,6 +70,14 @@ spec:
             - configMapRef:
                 name: local-proxy-env
           args:
+            - -workload-bundle
+            - /certs/controld.pem
+            - -workload-cluster
+            - {{ .Values.pki.trustDomain | quote }}
+            - -workload-signer-bundle
+            - /signer/signer.pem
+            - -enrollment-address
+            - 0.0.0.0:24002
             - -grpc-address
             - 0.0.0.0:24000
             - -http-address
@@ -92,62 +86,26 @@ spec:
             - {{ .Values.controld.heartbeatFreshnessWindow | quote }}
             - -summary-freshness-window
             - {{ .Values.controld.summaryFreshnessWindow | quote }}
-            - -service-reconcile-workers
-            - {{ .Values.controld.serviceReconcileWorkers | quote }}
-            - -service-allocation-global-workers
-            - {{ .Values.controld.serviceAllocationGlobalWorkers | quote }}
-            - -service-allocation-workers-per-node
-            - {{ .Values.controld.serviceAllocationWorkersPerNode | quote }}
-            - -volume-reclaim-workers
-            - {{ .Values.controld.volumeReclaimWorkers | quote }}
-            - -volume-reclaim-workers-per-node
-            - {{ .Values.controld.volumeReclaimWorkersPerNode | quote }}
             - -postgres-max-connections
             - {{ .Values.controld.postgresMaxConnections | quote }}
             - -reconcile-timeout
             - {{ .Values.controld.reconcileTimeout | quote }}
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/controld.crt
-            - -tls-key
-            - /certs/controld.key
-            - -storaged-target
-            - storaged.{{ .Release.Namespace }}.svc.cluster.local:24020
-            - -function-gateway-url
-            - http://gatewayd.{{ .Release.Namespace }}.svc.cluster.local:25080
-            - -function-gateway-timeout
-            - {{ .Values.controld.function.gatewayTimeout | quote }}
-            - -function-bundle-base-url
-            - http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001
           env:
             - name: CONTROLD_POSTGRES_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "axern.postgresSecretName" . }}
                   key: {{ .Values.postgres.dsnKey }}
-            - name: CONTROLD_FUNCTION_GATEWAY_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: GATEWAYD_DEV_TOKEN
-            - name: CONTROLD_FUNCTION_BUNDLE_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: GATEWAYD_DEV_TOKEN
-            - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE
               value: {{ .Values.runtimeCatalog.python311Image | quote }}
-            - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.serverBaseImage | quote }}
-            - name: AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.codingBaseImage | quote }}
-            - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE
               value: {{ .Values.runtimeCatalog.desktopBaseImage | quote }}
-            - name: AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE
-              value: {{ .Values.runtimeCatalog.claudeCodeBundleImage | quote }}
-            - name: AXERN_AGENT_BUNDLE_CODEX_IMAGE
-              value: {{ .Values.runtimeCatalog.codexBundleImage | quote }}
             - name: CONTROLD_TUNNEL_RELAYS
               value: {{ include "axern.tunnelRelays" . | quote }}
             - name: AXERN_SECRETS_MASTER_KEY
@@ -155,46 +113,14 @@ spec:
                 secretKeyRef:
                   name: {{ include "axern.secretsSecretName" . }}
                   key: AXERN_SECRETS_MASTER_KEY
-            - name: CONTROLD_ROLLOUT_WORKER_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: CONTROLD_ROLLOUT_WORKER_TOKEN
-            - name: CONTROLD_ARTIFACT_TICKET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: CONTROLD_ARTIFACT_TICKET_KEY
-            {{- if .Values.minio.enabled }}
-            - name: CONTROLD_ARTIFACT_S3_ENDPOINT
-              value: {{ printf "http://minio.%s.svc.cluster.local:9000" .Release.Namespace | quote }}
-            - name: CONTROLD_ARTIFACT_S3_REGION
-              value: "us-east-1"
-            - name: CONTROLD_ARTIFACT_S3_BUCKET
-              value: {{ .Values.minio.bucket | quote }}
-            - name: CONTROLD_ARTIFACT_S3_ACCESS_KEY
-              value: {{ .Values.minio.rootUser | quote }}
-            - name: CONTROLD_ARTIFACT_S3_SECRET_KEY
-              value: {{ .Values.minio.rootPassword | quote }}
-            - name: CONTROLD_ARTIFACT_S3_USE_PATH_STYLE
-              value: "true"
-            {{- else if .Values.objectStore.enabled }}
-            - name: CONTROLD_ARTIFACT_S3_ENDPOINT
-              value: {{ printf "%s://%s" .Values.objectStore.scheme .Values.objectStore.endpoint | quote }}
-            - name: CONTROLD_ARTIFACT_S3_REGION
-              value: {{ .Values.objectStore.region | quote }}
-            - name: CONTROLD_ARTIFACT_S3_BUCKET
-              value: {{ .Values.objectStore.bucket | quote }}
-            - name: CONTROLD_ARTIFACT_S3_ACCESS_KEY
-              value: {{ .Values.objectStore.accessKey | quote }}
-            - name: CONTROLD_ARTIFACT_S3_SECRET_KEY
-              value: {{ .Values.objectStore.secretKey | quote }}
-            {{- end }}
             {{- include "axern.otelEnv" . | nindent 12 }}
           ports:
             - containerPort: 24000
             - containerPort: 24001
           volumeMounts:
+            - name: signer
+              mountPath: /signer
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -205,9 +131,21 @@ spec:
             initialDelaySeconds: 2
             periodSeconds: 2
       volumes:
+        - name: signer
+          secret:
+            secretName: {{ .Values.pki.signerSecretName }}
+            defaultMode: 384
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: controld.pem
+                path: controld.pem
+              - key: client.crt
+                path: client.crt
 ---
 apiVersion: v1
 kind: Service
@@ -219,6 +157,9 @@ spec:
   selector:
     {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld") | nindent 4 }}
   ports:
+    - name: enrollment
+      port: 24002
+      targetPort: 24002
     - name: grpc
       port: 24000
       targetPort: 24000

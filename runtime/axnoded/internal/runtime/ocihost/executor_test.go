@@ -56,13 +56,13 @@ func (m *mockExecutor) getOutput(cmd string) []byte {
 func TestCommonRunUsesConfiguredExecutor(t *testing.T) {
 	executor := &mockExecutor{
 		SuccessMap: map[string]bool{
-			"runc --root": true,
+			"runsc --root": true,
 		},
 		OutputMap: map[string]string{
-			"runc --root": "mock output",
+			"runsc --root": "mock output",
 		},
 	}
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "runc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(executor)
 
@@ -70,12 +70,12 @@ func TestCommonRunUsesConfiguredExecutor(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, "mock output", string(output))
-	assert.Equal(t, "runc", executor.lastCommand)
+	assert.Equal(t, "runsc", executor.lastCommand)
 	assert.Equal(t, []string{"--root", common.runtimeRoot, "list"}, executor.lastArgs)
 }
 
 func TestCommonSetExecutorNilRestoresDefault(t *testing.T) {
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runc", RuntimeBinary: "runc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(&mockExecutor{})
 

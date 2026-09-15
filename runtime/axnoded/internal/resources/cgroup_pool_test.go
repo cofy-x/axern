@@ -88,7 +88,7 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	}
 
 	resource, err := manager.Allocate(AllocateOption{
-		ContainerID: "lazy-create", AllocationAttempt: 7, RuntimeName: "runsc",
+		ContainerID:        "lazy-create",
 		MemoryRequestBytes: 512, MemoryLimitBytes: 1024,
 	})
 	assert.NoError(t, err)
@@ -96,10 +96,8 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	assert.Equal(t, 1, driver.createCalls)
 	assert.Equal(t, 1, manager.UsingNum())
 	lease, _ := manager.leases.Get(resource.ToString())
-	assert.Equal(t, int64(7), lease.GetAllocationAttempt())
-	assert.Equal(t, int64(512), lease.GetCapacityReservationBytes())
+	assert.Equal(t, int64(512), lease.GetCapacityChargeBytes())
 	assert.Equal(t, int64(1024), lease.GetMemoryLimitBytes())
-	assert.Equal(t, "runsc", lease.GetRuntimeName())
 	assert.Equal(t, apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD, lease.GetOwnerKind())
 }
 
@@ -227,7 +225,7 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 	manager.cgroups.Set(id, struct{}{})
 	manager.leases.Set(id, &apipb.CgroupLease{
 		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-a", AllocationAttempt: 3, RuntimeName: "runc",
+		AllocationID:       "alloc-a",
 		MemoryRequestBytes: 1024, MemoryLimitBytes: 2048, AssignedAtUnixNano: 1,
 		CgroupBootID: "boot-a", CgroupMountIdentity: "mount-a", CgroupParentInode: 11, CgroupLeafInode: 12,
 	})
@@ -249,8 +247,8 @@ func TestCgroupManagerRecycleIsOneWayIntoRetirement(t *testing.T) {
 		t.Fatalf("idempotent Recycle() error = %v", err)
 	}
 	retiring := manager.RetiringMemoryLeases()
-	if len(retiring) != 1 || retiring[0].AllocationID != "alloc-a" || retiring[0].AllocationAttempt != 3 ||
-		retiring[0].RuntimeName != "runc" || retiring[0].MemoryRequest != 1024 || retiring[0].MemoryLimit != 2048 ||
+	if len(retiring) != 1 || retiring[0].AllocationID != "alloc-a" ||
+		retiring[0].MemoryRequest != 1024 || retiring[0].MemoryLimit != 2048 ||
 		retiring[0].BootID != "boot-a" || retiring[0].MountIdentity != "mount-a" ||
 		retiring[0].ParentInode != 11 || retiring[0].LeafInode != 12 {
 		t.Fatalf("RetiringMemoryLeases() = %+v", retiring)
@@ -357,7 +355,7 @@ func TestCgroupManagerRecycleChargesRequestOnlyAllocationCurrentMemory(t *testin
 	manager.cgroups.Set(id, struct{}{})
 	manager.leases.Set(id, &apipb.CgroupLease{
 		CgroupID: id, State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-request-only", AllocationAttempt: 5, RuntimeName: "runsc",
+		AllocationID:       "alloc-request-only",
 		MemoryRequestBytes: 1024, AssignedAtUnixNano: 1,
 	})
 
@@ -405,7 +403,7 @@ func TestBindMemoryDomainIsDurableAndIdentityImmutable(t *testing.T) {
 func TestValidateCgroupLeaseRejectsPartialMemoryIdentity(t *testing.T) {
 	err := validateCgroupLease(&apipb.CgroupLease{
 		CgroupID: "/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "alloc-a", RuntimeName: "runc", MemoryLimitBytes: 2048, AssignedAtUnixNano: 1, CgroupBootID: "boot-a",
+		AllocationID: "alloc-a", MemoryLimitBytes: 2048, AssignedAtUnixNano: 1, CgroupBootID: "boot-a",
 		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 	})
 	if err == nil {
@@ -456,12 +454,12 @@ func TestReconcileCgroupLeasesForRootPreservesStaleOwnership(t *testing.T) {
 	for _, lease := range []*apipb.CgroupLease{
 		{
 			CgroupID: "/old/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-			AllocationID: "allocation-a", RuntimeName: "runc", AssignedAtUnixNano: 1,
+			AllocationID: "allocation-a", AssignedAtUnixNano: 1,
 			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 		},
 		{
 			CgroupID: "/old/sandbox/retiring", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
-			AllocationID: "allocation-b", RuntimeName: "runsc", AssignedAtUnixNano: 1, RetiringAtUnixNano: 2,
+			AllocationID: "allocation-b", AssignedAtUnixNano: 1, RetiringAtUnixNano: 2,
 			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
 		},
 	} {
@@ -484,7 +482,7 @@ func TestReconcileCgroupLeasesForRootDiscardsStaleInternalConformance(t *testing
 	} {
 		lease := &apipb.CgroupLease{
 			CgroupID: "/old/sandbox/conformance", State: state,
-			AllocationID: "self-test", RuntimeName: "runsc", AssignedAtUnixNano: 1,
+			AllocationID: "self-test", AssignedAtUnixNano: 1,
 			OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
 		}
 		if state == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {

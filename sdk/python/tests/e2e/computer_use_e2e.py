@@ -1,4 +1,4 @@
-"""Compose E2E for NodeSandbox computer-use status and screenshot APIs."""
+"""Compose E2E for Allocation computer-use status and screenshot APIs."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import json
 import os
 import sys
 import time
-import urllib.parse
 
 os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
 os.environ.setdefault("GLOG_minloglevel", "2")
@@ -35,7 +34,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tls-ca-cert", required=True)
     parser.add_argument("--tls-cert", required=True)
     parser.add_argument("--tls-key", required=True)
-    parser.add_argument("--runtime-class", default="runsc")
     parser.add_argument("--node-container", required=True)
     parser.add_argument("--desktop-template-id", default="desktop-base")
     parser.add_argument("--headless-template-id", default="server-base")
@@ -58,11 +56,10 @@ def main() -> int:
         with Sandbox(
             client=client,
             template_id=args.desktop_template_id,
-            runtime_class=args.runtime_class,
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
-            desktop_service_id = sandbox.service_id
+            desktop_service_id = sandbox.run_id
             phase = "desktop-status"
             status = wait_for_computer_use_ready(sandbox)
             if not status.available:
@@ -177,59 +174,14 @@ def main() -> int:
                 timeout_seconds=60,
             )
 
-            phase = "desktop-browser-status"
-            browser_status = sandbox.browser_status(timeout_seconds=30)
-            if not browser_status.available:
-                raise SystemExit(f"desktop browser status unavailable: {browser_status}")
-            if "chrom" not in browser_status.command:
-                raise SystemExit(
-                    f"desktop browser command = {browser_status.command!r}, want chromium"
-                )
-
-            phase = "desktop-browser-open"
-            browser_page = urllib.parse.quote(
-                "<!doctype html>"
-                "<html><body>"
-                "<input id='q' autofocus style='font-size:32px;margin:40px' />"
-                "<button style='font-size:32px'>Go</button>"
-                "</body></html>",
-                safe="",
-            )
-            browser_url = f"data:text/html,{browser_page}"
-            browser_status = sandbox.browser_open(browser_url, timeout_seconds=30)
-            if not browser_status.running:
-                raise SystemExit(
-                    f"desktop browser did not report running after open: {browser_status}"
-                )
-            if browser_status.url != browser_url:
-                raise SystemExit(f"desktop browser url not tracked: {browser_status}")
-            wait_for_png_screenshot(sandbox)
-
-            phase = "desktop-browser-operations"
-            browser_status = sandbox.browser_resize(1024, 768, timeout_seconds=30)
-            if not browser_status.running:
-                raise SystemExit(f"desktop browser resize stopped session: {browser_status}")
-            sandbox.browser_click(120, 120, timeout_seconds=30)
-            sandbox.browser_type("axern-browser-e2e", delay_ms=1, timeout_seconds=30)
-            sandbox.browser_wait(timeout_ms=100, timeout_seconds=30)
-            wait_for_png_screenshot(sandbox)
-
-            phase = "desktop-browser-close"
-            browser_status = sandbox.browser_close(timeout_seconds=30)
-            if browser_status.running:
-                raise SystemExit(
-                    f"desktop browser still reported running after close: {browser_status}"
-                )
-
         phase = "headless-start"
         with Sandbox(
             client=client,
             template_id=args.headless_template_id,
-            runtime_class=args.runtime_class,
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
-            headless_service_id = sandbox.service_id
+            headless_service_id = sandbox.run_id
             diagnostics = sandboxd_diagnostics(sandbox)
             phase = "headless-precondition"
             try:
@@ -240,16 +192,8 @@ def main() -> int:
                 raise SystemExit(
                     "headless runtime unexpectedly exposed computer_use status"
                 )
-            try:
-                sandbox.browser_status(timeout_seconds=30)
-            except SandboxPreconditionError as exc:
-                assert_capability_precondition(exc, "browser")
-            else:
-                raise SystemExit("headless runtime unexpectedly exposed browser status")
-
         print(
             "node_computer_use_e2e_ok=true "
-            f"runtime_class={args.runtime_class} "
             f"desktop_service_id={desktop_service_id} headless_service_id={headless_service_id}"
         )
         return 0
@@ -388,7 +332,7 @@ def log_e2e_failure(
 ) -> None:
     print(
         "node_computer_use_e2e_failed=true "
-        f"runtime_class={args.runtime_class} phase={phase} "
+		f"phase={phase} "
         f"desktop_service_id={desktop_service_id or '-'} headless_service_id={headless_service_id or '-'} "
         f"node_container={args.node_container} "
         f"error_type={type(exc).__name__} error={exc}",

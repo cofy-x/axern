@@ -30,7 +30,5 @@ else
   echo "mounted_images=0"
   echo "imagemgr_ready_nodes=0"
   echo "imagefsd_ready_nodes=0"
-  echo "volumed_ready_nodes=0"
-  echo "volumed_error_nodes=0"
   echo "imported_images=0"
 fi

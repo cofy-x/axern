@@ -79,6 +79,6 @@ func inspectProgram(pinPath, name string) ObjectInfo {
 }
 
 func countEntries(m *ebpf.Map, name string) (int, error) {
-	entries, _, err := dumpEntries(m, name, 0, highChurnMaps[name] || name == MapHostNetNS)
+	entries, _, err := dumpEntries(m, name, 0, highChurnMaps[name])
 	return len(entries), err
 }

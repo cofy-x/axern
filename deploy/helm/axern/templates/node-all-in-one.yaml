@@ -1,22 +1,40 @@
 {{- $memorySystemReserveValue := required "node.memorySystemReserveBytes must be set from a memory qualification receipt" .Values.node.memorySystemReserveBytes -}}
 {{- $memorySystemReserve := toString $memorySystemReserveValue -}}
+{{- $enrollmentTokenSecret := required "node.enrollment.existingSecret must name a Secret containing one short-lived enrollment token per admitted Node ID" .Values.node.enrollment.existingSecret -}}
 {{- if not (regexMatch "^[1-9][0-9]*$" $memorySystemReserve) -}}
 {{- fail "node.memorySystemReserveBytes must be a positive decimal integer" -}}
 {{- end }}
+{{- $root := . -}}
+{{- $nodes := required "node.enrollment.nodes must explicitly bind nodeID to nodeName" .Values.node.enrollment.nodes -}}
+{{- $seen := dict -}}
+{{- $identities := dict -}}
+{{- range $node := $nodes }}
+{{- $nodeName := required "nodeName is required" $node.nodeName -}}
+{{- $nodeID := required "nodeID is required" $node.nodeID -}}
+{{- if or (not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]*$" $nodeID)) (gt (len $nodeID) 253) }}{{ fail "invalid nodeID" }}{{ end -}}
+{{- if hasKey $identities $nodeID }}{{ fail "duplicate nodeID" }}{{ end -}}
+{{- $_ := set $identities $nodeID true -}}
+{{- if hasKey $seen $nodeName }}{{ fail "duplicate node.enrollment.nodes entry" }}{{ end -}}
+{{- $_ := set $seen $nodeName true -}}
+{{- $deploymentKey := trunc 16 (sha256sum $nodeName) -}}
+{{- with $root }}
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: node-all-in-one
+  name: node-all-in-one-{{ $deploymentKey }}
   labels:
     {{- include "axern.componentLabels" (dict "root" . "component" "node") | nindent 4 }}
 spec:
   selector:
     matchLabels:
       {{- include "axern.componentSelectorLabels" (dict "root" . "component" "node") | nindent 6 }}
+      axern.io/node-deployment: {{ $deploymentKey | quote }}
   template:
     metadata:
       labels:
         {{- include "axern.componentSelectorLabels" (dict "root" . "component" "node") | nindent 8 }}
+        axern.io/node-deployment: {{ $deploymentKey | quote }}
     spec:
       {{- $nodeResourceSource := include "axern.nodeResourceSource" . }}
       {{- if or (eq $nodeResourceSource "kubernetes") .Values.node.serviceAccount.create .Values.node.serviceAccount.name }}
@@ -27,6 +45,15 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- include "axern.scheduling" (dict "root" . "profile" "runtime" "component" "node" "spread" false) | nindent 6 }}
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchFields:
+                  - key: metadata.name
+                    operator: In
+                    values:
+                      - {{ $nodeName | quote }}
       containers:
         - name: node
           image: {{ include "axern.image" (dict "root" . "image" .Values.node.image) | quote }}
@@ -71,10 +98,10 @@ spec:
               value: {{ .Values.node.imageDistribution.nydus.decodedCacheBytes | quote }}
             - name: AXNODED_SOCKET
               value: /shared/run/axnoded.sock
+            - name: AXNODED_NETWORK_SOCKET
+              value: /shared/run/axnoded-network.sock
             - name: IMAGEMGR_SOCKET
               value: /run/imagemgr/imagemgr.sock
-            - name: VOLUMED_SOCKET
-              value: /run/volumed/volumed.sock
             - name: EGRESSD_SOCKET
               value: /run/egressd/egressd.sock
             - name: AXNODED_GRPC_ADDRESS
@@ -85,9 +112,9 @@ spec:
               value: {{ include "axern.controldTarget" . | quote }}
             - name: AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL
               value: {{ .Values.node.heartbeatInterval | quote }}
-            - name: AXNODED_IDLE_RUNTIME_RETENTION_TTL
+            - name: AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL
               value: {{ .Values.node.runtime.idleRetentionTTL | quote }}
-            - name: AXNODED_IDLE_RUNTIME_RETENTION_MAX
+            - name: AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX
               value: {{ .Values.node.runtime.idleRetentionMax | quote }}
             - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
               value: {{ $memorySystemReserve | quote }}
@@ -103,8 +130,6 @@ spec:
               value: {{ .Values.node.network.natBackend | quote }}
             - name: BPFNET_PIN_PATH
               value: {{ .Values.node.network.ebpf.pinPath | quote }}
-            - name: BPFNET_MAP_SIZE
-              value: {{ .Values.node.network.ebpf.mapSize | quote }}
             - name: BPFNET_SNAT_MAP_SIZE
               value: {{ .Values.node.network.ebpf.snatMapSize | quote }}
             - name: BPFNET_SNAT_GC_INTERVAL
@@ -117,32 +142,12 @@ spec:
               value: {{ .Values.node.network.ebpf.snatDatagramIdleTimeout | quote }}
             - name: BPFNET_UPLINK_DEVICES
               value: {{ join "," .Values.node.network.ebpf.uplinkDevices | quote }}
-            - name: BPFNET_LOCAL_OUT_COMPAT
-              value: {{ .Values.node.network.ebpf.localOutCompat | quote }}
-            - name: BPFNET_IPTABLES_FALLBACK
-              value: {{ .Values.node.network.ebpf.iptablesFallback | quote }}
+            - name: AXERN_WORKLOAD_CLUSTER
+              value: {{ .Values.pki.trustDomain | quote }}
+            - name: AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET
+              value: controld:24002
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_CERT
-              value: /certs/node.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_KEY
-              value: /certs/node.key
-            - name: OBJECT_STORE_ENABLED
-              value: {{ .Values.objectStore.enabled | quote }}
-            - name: OBJECT_STORE_SCHEME
-              value: {{ .Values.objectStore.scheme | quote }}
-            - name: OBJECT_STORE_ENDPOINT
-              value: {{ .Values.objectStore.endpoint | quote }}
-            - name: OBJECT_STORE_REGION
-              value: {{ .Values.objectStore.region | quote }}
-            - name: OBJECT_STORE_BUCKET
-              value: {{ .Values.objectStore.bucket | quote }}
-            - name: OBJECT_STORE_ACCESS_KEY
-              value: {{ .Values.objectStore.accessKey | quote }}
-            - name: OBJECT_STORE_SECRET_KEY
-              value: {{ .Values.objectStore.secretKey | quote }}
-            - name: OBJECT_STORE_SKIP_VERIFY
-              value: {{ .Values.objectStore.skipVerify | quote }}
             {{- if .Values.node.registryAuth.existingSecret }}
             - name: REGISTRY_AUTHS_SOURCE
               value: /registry-auth/{{ .Values.node.registryAuth.dockerConfigKey }}
@@ -155,9 +160,9 @@ spec:
               {{- if .Values.node.sysctls.userMaxUserNamespaces }}
               echo {{ .Values.node.sysctls.userMaxUserNamespaces | quote }} > /proc/sys/user/max_user_namespaces
               {{- end }}
-              export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
+              export AXNODED_CONTROL_PLANE_NODE_ID={{ $nodeID | quote }}
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
-              export AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN="node-${NODE_NAME}-local-token"
+              export AXNODED_ENROLLMENT_TOKEN_FILE="/enrollment-tokens/${AXNODED_CONTROL_PLANE_NODE_ID}"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
             - containerPort: 24010
@@ -172,14 +177,15 @@ spec:
             - name: certs
               mountPath: /certs
               readOnly: true
+            - name: enrollment-tokens
+              mountPath: /enrollment-tokens
+              readOnly: true
             - name: shared-run
               mountPath: /shared/run
             - name: axnoded-state
               mountPath: /var/lib/axnoded
             - name: imagemgr-state
               mountPath: /var/lib/imagemgr
-            - name: volumed-state
-              mountPath: /var/lib/volumed
             - name: egressd-state
               mountPath: /var/lib/egressd
             {{- if .Values.node.registryAuth.existingSecret }}
@@ -196,6 +202,18 @@ spec:
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+        - name: enrollment-tokens
+          secret:
+            secretName: {{ $enrollmentTokenSecret }}
+            optional: true
+            defaultMode: 384
+            items:
+              - key: {{ $nodeID | quote }}
+                path: {{ $nodeID | quote }}
         - name: shared-run
           emptyDir: {}
         - name: axnoded-state
@@ -205,10 +223,6 @@ spec:
         - name: imagemgr-state
           hostPath:
             path: {{ printf "%s/imagemgr" .Values.node.state.hostPathRoot | quote }}
-            type: DirectoryOrCreate
-        - name: volumed-state
-          hostPath:
-            path: {{ printf "%s/volumed" .Values.node.state.hostPathRoot | quote }}
             type: DirectoryOrCreate
         - name: egressd-state
           hostPath:
@@ -230,3 +244,6 @@ spec:
               - key: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
                 path: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
         {{- end }}
+
+{{- end }}
+{{- end }}

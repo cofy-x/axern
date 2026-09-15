@@ -20,10 +20,9 @@ func TestDaemon_SaveAndLoadMeta(t *testing.T) {
 		DaemonLogPath: "/tmp/daemon/log",
 		PidFilePath:   "/tmp/daemon/pid",
 		CfgPath:       "/tmp/daemon/cfg",
-		CachePath:     "/tmp/daemon/cache",
 		ImageMetaDir:  "/tmp/meta",
 		ChunkDBDir:    "/tmp/chunkdb",
-		SourceType:    "oss",
+		SourceType:    "nydus",
 	}
 
 	d := &Daemon{

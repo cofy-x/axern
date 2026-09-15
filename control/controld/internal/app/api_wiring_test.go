@@ -38,17 +38,13 @@ func TestAuthoritativeProfileBuildsCompleteAPIs(t *testing.T) {
 		app.registry,
 		app.placement,
 		func() time.Time { return app.now() },
-		defaultSandboxRuntime,
 	)
 	profile := app.authoritativeProfile(selector)
-	if profile.public.environments == nil || profile.public.runs == nil || profile.public.services == nil || profile.public.functions == nil {
+	if profile.public.environments == nil || profile.public.runs == nil {
 		t.Fatal("authoritative profile did not build a complete public API dependency set")
 	}
 	if profile.node.allocations == nil {
 		t.Fatal("authoritative profile did not build node allocation control")
-	}
-	if profile.serviceReconciler == nil {
-		t.Fatal("authoritative profile did not expose a service reconciler")
 	}
 	if app.nodeReconciler == nil {
 		t.Fatal("New(authoritative) did not build a node availability reconciler")

@@ -36,7 +36,6 @@ export AXERN_TARGET_GOARCH="${arch}"
 export DOCKER_DEFAULT_PLATFORM="linux/${arch}"
 export VERIFY_DOCKER_PLATFORM="linux/${arch}"
 export RUNSC_SOURCE=remote
-export MC_SOURCE=remote
 if [ "${mode}" = "push" ]; then
   export AXERN_DOCKER_PUSH_AFTER_BUILD=1
 else

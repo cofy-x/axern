@@ -46,7 +46,6 @@ func main() {
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:        client,
 		TemplateID:    "python311",
-		RuntimeClass:  "runsc",
 		RequestCPU:    "100m",
 		RequestMemory: "512MiB",
 		ReadyTimeout:  3 * time.Minute,
@@ -68,9 +67,9 @@ func main() {
 	}
 	metadata, err := sandbox.Metadata()
 	check(err)
-	check(os.WriteFile(filepath.Join(handshake, "go.service-id"), []byte(metadata.ServiceID), 0o600))
+	check(os.WriteFile(filepath.Join(handshake, "go.run-id"), []byte(metadata.RunID), 0o600))
 	waitVerified(filepath.Join(handshake, "go.verified"))
-	fmt.Printf("sdk_data_plane=go service_id=%s ok=true\n", metadata.ServiceID)
+	fmt.Printf("sdk_data_plane=go run_id=%s ok=true\n", metadata.RunID)
 	check(sandbox.Close(context.Background()))
 	closed = true
 }
@@ -85,7 +84,7 @@ func waitVerified(path string) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	panic("CLI did not verify the Go SDK service")
+	panic("CLI did not verify the Go SDK Run")
 }
 
 func required(name string) string {

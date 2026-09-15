@@ -12,6 +12,15 @@ spec:
       labels:
         app: node-all-in-one
     spec:
+      # The local bootstrap replaces this exact-host constraint before apply.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchFields:
+                  - key: metadata.name
+                    operator: In
+                    values: ["local-bootstrap-must-select-node"]
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -39,10 +48,10 @@ spec:
                   fieldPath: status.podIP
             - name: AXNODED_SOCKET
               value: /shared/run/axnoded.sock
+            - name: AXNODED_NETWORK_SOCKET
+              value: /shared/run/axnoded-network.sock
             - name: IMAGEMGR_SOCKET
               value: /run/imagemgr/imagemgr.sock
-            - name: VOLUMED_SOCKET
-              value: /run/volumed/volumed.sock
             - name: EGRESSD_SOCKET
               value: /run/egressd/egressd.sock
             - name: AXERN_SANDBOXD_BINARY
@@ -55,32 +64,25 @@ spec:
               value: controld.axern-local.svc.cluster.local:24000
             - name: AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL
               value: 1s
+            - name: AXERN_WORKLOAD_CLUSTER
+              value: axern.local
+            - name: AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET
+              value: controld:24002
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_CERT
-              value: /certs/node.crt
-            - name: AXNODED_CONTROL_PLANE_TLS_KEY
-              value: /certs/node.key
+            - name: AXNODED_ENROLLMENT_TOKEN_FILE
+              value: /bootstrap/enrollment-token
             # Match the verification runtime's local-only 1 GiB reserve:
-            # a 512 MiB conformance reservation must coexist with node daemons.
+            # a 512 MiB conformance charge must coexist with node daemons.
             # Production deployments must use a measured qualification receipt.
             - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
               value: "1073741824"
-            - name: MINIO_ENDPOINT
-              value: minio.axern-local.svc.cluster.local:9000
-            - name: MINIO_ACCESS_KEY
-              value: minioadmin
-            - name: MINIO_SECRET_KEY
-              value: minioadmin
-            - name: MINIO_BUCKET
-              value: axern-local
           command:
             - /bin/bash
             - -lc
             - |
-              export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
+              export AXNODED_CONTROL_PLANE_NODE_ID="node-k8s-local"
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
-              export AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN="node-${NODE_NAME}-local-token"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
             - containerPort: 24010
@@ -92,6 +94,9 @@ spec:
             initialDelaySeconds: 4
             periodSeconds: 3
           volumeMounts:
+            - name: enrollment-token
+              mountPath: /bootstrap
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -101,14 +106,21 @@ spec:
               mountPath: /var/lib/axnoded
             - name: imagemgr-state
               mountPath: /var/lib/imagemgr
-            - name: volumed-state
-              mountPath: /var/lib/volumed
             - name: egressd-state
               mountPath: /var/lib/egressd
       volumes:
+        - name: enrollment-token
+          secret:
+            secretName: enrollment-token
+            optional: true
+            defaultMode: 384
         - name: certs
           secret:
             secretName: controld-pki
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
         - name: shared-run
           emptyDir: {}
         - name: axnoded-state
@@ -118,10 +130,6 @@ spec:
         - name: imagemgr-state
           hostPath:
             path: /var/lib/axern/node/imagemgr
-            type: DirectoryOrCreate
-        - name: volumed-state
-          hostPath:
-            path: /var/lib/axern/node/volumed
             type: DirectoryOrCreate
         - name: egressd-state
           hostPath:

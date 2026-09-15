@@ -1,6 +1,7 @@
 package localstore
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -16,10 +17,21 @@ type CapturedInputs struct {
 	Tasks []domain.TaskInstance
 }
 
-func (s Store) CaptureInputs(run RunLayout, input *domain.InputSpec, tasks []domain.TaskInstance, resolvedTaskSet *taskset.Resolved) (CapturedInputs, error) {
+func (s Store) CaptureInputs(ctx context.Context, run RunLayout, input *domain.InputSpec, tasks []domain.TaskInstance, resolvedTaskSet *taskset.Resolved) (CapturedInputs, error) {
 	capturedInput, err := captureTaskSetDescriptor(run, input, resolvedTaskSet)
 	if err != nil {
 		return CapturedInputs{}, err
+	}
+	if resolvedTaskSet != nil && resolvedTaskSet.DescriptorPath == "" {
+		stage, err := os.MkdirTemp(run.InputsDir, ".taskset-payload-")
+		if err != nil {
+			return CapturedInputs{}, err
+		}
+		defer func() { _ = os.RemoveAll(stage) }()
+		tasks, err = resolvedTaskSet.CaptureTasks(ctx, stage, tasks)
+		if err != nil {
+			return CapturedInputs{}, err
+		}
 	}
 	capturedTasks := make([]domain.TaskInstance, 0, len(tasks))
 	for _, task := range tasks {

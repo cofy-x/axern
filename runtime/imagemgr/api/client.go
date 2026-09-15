@@ -36,41 +36,6 @@ func NewHttpClient(sockPath string) *HttpClient {
 	return &HttpClient{clt: client}
 }
 
-func (c *HttpClient) MountOSS(req *OSSMountRequest) (*MountInfo, error) {
-	body, _ := json.Marshal(req)
-	resp, err := c.clt.Post("http://unix/oss_mount", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return nil, fmt.Errorf("failed to mount oss: %s, err: %v", req, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		errMsg, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to mount oss: %s, err: %s", req, string(errMsg))
-	}
-	mi := &MountInfo{}
-	if err = json.NewDecoder(resp.Body).Decode(mi); err != nil {
-		return nil, fmt.Errorf("invalid reply body format: %v", err)
-	}
-	if mi.MountPath == "" {
-		return nil, fmt.Errorf("mount_path not found in response")
-	}
-	return mi, nil
-}
-
-func (c *HttpClient) UmountOSS(req *OSSUmountRequest) error {
-	body, _ := json.Marshal(req)
-	resp, err := c.clt.Post("http://unix/oss_umount", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("failed to umount oss: %s, err: %v", req, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		errMsg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to umount oss: %s, err: %s", req, string(errMsg))
-	}
-	return nil
-}
-
 func (c *HttpClient) MountOCI(req *OCIMountRequest) (*OCIMountResponse, error) {
 	body, _ := json.Marshal(req)
 	resp, err := c.clt.Post("http://unix/oci_mount", "application/json", bytes.NewReader(body))
@@ -139,8 +104,8 @@ func (c *HttpClient) ImportOCI(imageRef string, archive io.Reader) (*OCIImportRe
 	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("invalid reply body format: %v", err)
 	}
-	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.GenerationDigest == "" {
-		return nil, fmt.Errorf("canonical_ref, immutable_ref, or generation_digest not found in response")
+	if result.CanonicalRef == "" || result.ImmutableRef == "" || result.ContentDigest == "" {
+		return nil, fmt.Errorf("canonical_ref, immutable_ref, or content_digest not found in response")
 	}
 	return &result, nil
 }

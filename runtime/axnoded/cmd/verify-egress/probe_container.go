@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func runProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, runtimeID, stdoutPath, stderrPath string, command []string) ([]byte, []byte, error) {
-	handle, err := startProbeContainer(clients, baseSpec, runtimeID, stdoutPath, stderrPath, command)
+func runProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, environmentID, stdoutPath, stderrPath string, command []string) ([]byte, []byte, error) {
+	handle, err := startProbeContainer(clients, baseSpec, environmentID, stdoutPath, stderrPath, command)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -22,13 +22,13 @@ func runProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev1.
 }
 
 type probeContainerHandle struct {
-	handle     *verifyutil.SandboxHandle
-	runtimeID  string
-	stdoutPath string
-	stderrPath string
+	handle        *verifyutil.SandboxHandle
+	environmentID string
+	stdoutPath    string
+	stderrPath    string
 }
 
-func startProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, runtimeID, stdoutPath, stderrPath string, command []string) (*probeContainerHandle, error) {
+func startProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, environmentID, stdoutPath, stderrPath string, command []string) (*probeContainerHandle, error) {
 	_ = os.Remove(stdoutPath)
 	_ = os.Remove(stderrPath)
 
@@ -36,18 +36,17 @@ func startProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev
 	spec.Argv = append([]string(nil), command...)
 	spec.StdoutPath = stdoutPath
 	spec.StderrPath = stderrPath
-	spec.LinuxCapabilities = []string{"CAP_NET_RAW"}
 	startCtx, cancelStart := context.WithTimeout(context.Background(), startTimeout)
 	defer cancelStart()
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(runtimeID), spec)
+	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(environmentID), spec)
 	if err != nil {
-		return nil, fmt.Errorf("create egress probe sandbox %s: %w", runtimeID, err)
+		return nil, fmt.Errorf("create egress probe sandbox %s: %w", environmentID, err)
 	}
 	return &probeContainerHandle{
-		handle:     handle,
-		runtimeID:  runtimeID,
-		stdoutPath: stdoutPath,
-		stderrPath: stderrPath,
+		handle:        handle,
+		environmentID: environmentID,
+		stdoutPath:    stdoutPath,
+		stderrPath:    stderrPath,
 	}, nil
 }
 
@@ -59,25 +58,25 @@ func (h *probeContainerHandle) wait(timeout time.Duration) ([]byte, []byte, erro
 	defer cancelWait()
 	waitResp, err := h.handle.Wait(waitCtx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("wait egress probe sandbox %s: %w", h.runtimeID, err)
+		return nil, nil, fmt.Errorf("wait egress probe sandbox %s: %w", h.environmentID, err)
 	}
 
 	stdoutData, stdoutErr := os.ReadFile(h.stdoutPath)
 	stderrData, stderrErr := os.ReadFile(h.stderrPath)
-	if waitResp.GetExitCode() != 0 {
+	if waitResp.ExitCode == nil || waitResp.GetExitCode() != 0 {
 		return stdoutData, stderrData, fmt.Errorf(
 			"unexpected egress probe exit code %d for %s (stdout=%q stderr=%q)",
 			waitResp.GetExitCode(),
-			h.runtimeID,
+			h.environmentID,
 			strings.TrimSpace(string(stdoutData)),
 			strings.TrimSpace(string(stderrData)),
 		)
 	}
 	if stdoutErr != nil {
-		return nil, nil, fmt.Errorf("read egress probe stdout for %s: %w", h.runtimeID, stdoutErr)
+		return nil, nil, fmt.Errorf("read egress probe stdout for %s: %w", h.environmentID, stdoutErr)
 	}
 	if stderrErr != nil {
-		return nil, nil, fmt.Errorf("read egress probe stderr for %s: %w", h.runtimeID, stderrErr)
+		return nil, nil, fmt.Errorf("read egress probe stderr for %s: %w", h.environmentID, stderrErr)
 	}
 	return stdoutData, stderrData, nil
 }

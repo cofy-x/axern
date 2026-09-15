@@ -34,10 +34,20 @@ class NodeAdminStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.AdmitAdminNode = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/AdmitAdminNode',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.AdmitAdminNodeRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.AdmitAdminNodeResponse.FromString,
+                _registered_method=True)
         self.ListAdminNodes = channel.unary_unary(
                 '/axern.control.admin.v1.NodeAdmin/ListAdminNodes',
                 request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesResponse.FromString,
+                _registered_method=True)
+        self.RevokeAdminNode = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/RevokeAdminNode',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeResponse.FromString,
                 _registered_method=True)
         self.RetireAdminNode = channel.unary_unary(
                 '/axern.control.admin.v1.NodeAdmin/RetireAdminNode',
@@ -49,16 +59,6 @@ class NodeAdminStub:
                 request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotResponse.FromString,
                 _registered_method=True)
-        self.ListNodeCapabilityTransitions = channel.unary_unary(
-                '/axern.control.admin.v1.NodeAdmin/ListNodeCapabilityTransitions',
-                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsResponse.FromString,
-                _registered_method=True)
-        self.ListCapabilityReconcileQueue = channel.unary_unary(
-                '/axern.control.admin.v1.NodeAdmin/ListCapabilityReconcileQueue',
-                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueRequest.SerializeToString,
-                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueResponse.FromString,
-                _registered_method=True)
         self.GetAllocationCapabilityDiagnostics = channel.unary_unary(
                 '/axern.control.admin.v1.NodeAdmin/GetAllocationCapabilityDiagnostics',
                 request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetAllocationCapabilityDiagnosticsRequest.SerializeToString,
@@ -69,7 +69,19 @@ class NodeAdminStub:
 class NodeAdminServicer:
     """Missing associated documentation comment in .proto file."""
 
+    def AdmitAdminNode(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def ListAdminNodes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RevokeAdminNode(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -87,18 +99,6 @@ class NodeAdminServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ListNodeCapabilityTransitions(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ListCapabilityReconcileQueue(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def GetAllocationCapabilityDiagnostics(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
@@ -108,10 +108,20 @@ class NodeAdminServicer:
 
 def add_NodeAdminServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'AdmitAdminNode': grpc.unary_unary_rpc_method_handler(
+                    servicer.AdmitAdminNode,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.AdmitAdminNodeRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.AdmitAdminNodeResponse.SerializeToString,
+            ),
             'ListAdminNodes': grpc.unary_unary_rpc_method_handler(
                     servicer.ListAdminNodes,
                     request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesRequest.FromString,
                     response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesResponse.SerializeToString,
+            ),
+            'RevokeAdminNode': grpc.unary_unary_rpc_method_handler(
+                    servicer.RevokeAdminNode,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeResponse.SerializeToString,
             ),
             'RetireAdminNode': grpc.unary_unary_rpc_method_handler(
                     servicer.RetireAdminNode,
@@ -122,16 +132,6 @@ def add_NodeAdminServicer_to_server(servicer, server):
                     servicer.GetNodeCapabilitySnapshot,
                     request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotRequest.FromString,
                     response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotResponse.SerializeToString,
-            ),
-            'ListNodeCapabilityTransitions': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListNodeCapabilityTransitions,
-                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsRequest.FromString,
-                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsResponse.SerializeToString,
-            ),
-            'ListCapabilityReconcileQueue': grpc.unary_unary_rpc_method_handler(
-                    servicer.ListCapabilityReconcileQueue,
-                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueRequest.FromString,
-                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueResponse.SerializeToString,
             ),
             'GetAllocationCapabilityDiagnostics': grpc.unary_unary_rpc_method_handler(
                     servicer.GetAllocationCapabilityDiagnostics,
@@ -150,6 +150,33 @@ class NodeAdmin:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
+    def AdmitAdminNode(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/AdmitAdminNode',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.AdmitAdminNodeRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.AdmitAdminNodeResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def ListAdminNodes(request,
             target,
             options=(),
@@ -166,6 +193,33 @@ class NodeAdmin:
             '/axern.control.admin.v1.NodeAdmin/ListAdminNodes',
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesRequest.SerializeToString,
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RevokeAdminNode(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/RevokeAdminNode',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -220,60 +274,6 @@ class NodeAdmin:
             '/axern.control.admin.v1.NodeAdmin/GetNodeCapabilitySnapshot',
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotRequest.SerializeToString,
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.GetNodeCapabilitySnapshotResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListNodeCapabilityTransitions(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.control.admin.v1.NodeAdmin/ListNodeCapabilityTransitions',
-            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsRequest.SerializeToString,
-            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListNodeCapabilityTransitionsResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ListCapabilityReconcileQueue(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.control.admin.v1.NodeAdmin/ListCapabilityReconcileQueue',
-            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueRequest.SerializeToString,
-            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListCapabilityReconcileQueueResponse.FromString,
             options,
             channel_credentials,
             insecure,

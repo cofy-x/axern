@@ -13,7 +13,7 @@ import (
 
 func TestPrepareNormalizesAndIsIdempotent(t *testing.T) {
 	mustManager := newTestManager(t, nil)
-	record, already, err := mustManager.Prepare(context.Background(), " alloc-1 ", 1, "10.0.0.8", dnsDeny("BÜCHER.Example.", "xn--bcher-kva.example"), 7, testDNSUpstreams)
+	record, already, err := mustManager.Prepare(context.Background(), " alloc-1 ", "10.0.0.8", dnsDeny("BÜCHER.Example.", "xn--bcher-kva.example"), testDNSUpstreams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,46 +23,31 @@ func TestPrepareNormalizesAndIsIdempotent(t *testing.T) {
 	if got := record.GetPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "xn--bcher-kva.example" {
 		t.Fatalf("unexpected normalized domains: %v", got)
 	}
-	if !strings.HasPrefix(record.GetPolicyDigest(), "sha256:") {
-		t.Fatalf("unexpected digest: %q", record.GetPolicyDigest())
-	}
-
-	retry, already, err := mustManager.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("xn--bcher-kva.example"), 7, testDNSUpstreams)
+	retry, already, err := mustManager.Prepare(context.Background(), "alloc-1", "10.0.0.8", dnsDeny("xn--bcher-kva.example"), testDNSUpstreams)
 	if err != nil || !already {
 		t.Fatalf("idempotent prepare = (%v, %v), want success/already", err, already)
 	}
-	if retry.GetPolicyDigest() != record.GetPolicyDigest() {
-		t.Fatalf("digest changed: %q != %q", retry.GetPolicyDigest(), record.GetPolicyDigest())
+	if !proto.Equal(retry, record) {
+		t.Fatal("idempotent retry changed the durable record")
 	}
 }
 
-func TestPrepareFencesContentAttemptAndIPReuse(t *testing.T) {
+func TestPrepareFencesContentAndIPReuse(t *testing.T) {
 	m := newTestManager(t, nil)
-	prepare(t, m, "alloc-1", 2, "10.0.0.8", 1, dnsDeny("example.com"))
+	prepare(t, m, "alloc-1", "10.0.0.8", 1, dnsDeny("example.com"))
 
-	if _, _, err := m.Prepare(context.Background(), "alloc-1", 2, "10.0.0.9", dnsDeny("example.com"), 1, testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "different content") {
-		t.Fatalf("same-attempt drift error = %v", err)
+	if _, _, err := m.Prepare(context.Background(), "alloc-1", "10.0.0.9", dnsDeny("example.com"), testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "different content") {
+		t.Fatalf("allocation content drift error = %v", err)
 	}
-	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.9", dnsDeny("example.com"), 1, testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "stale") {
-		t.Fatalf("stale attempt error = %v", err)
-	}
-	if _, _, err := m.Prepare(context.Background(), "alloc-2", 1, "10.0.0.8", dnsDeny("other.example"), 1, testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "already owned") {
+	if _, _, err := m.Prepare(context.Background(), "alloc-2", "10.0.0.8", dnsDeny("other.example"), testDNSUpstreams); err == nil || !strings.Contains(err.Error(), "already owned") {
 		t.Fatalf("IP reuse error = %v", err)
-	}
-
-	prepare(t, m, "alloc-1", 3, "10.0.0.8", 2, dnsDeny("new.example"))
-	if _, ok := m.Get("alloc-1", 2); ok {
-		t.Fatal("superseded attempt remained present")
-	}
-	if deleted, err := m.Delete(context.Background(), "alloc-1", 2); err == nil || deleted || !strings.Contains(err.Error(), "stale") {
-		t.Fatalf("stale delete = (%v, %v)", deleted, err)
 	}
 }
 
 func TestPrepareRejectsUnsafeSandboxIPs(t *testing.T) {
 	m := newTestManager(t, nil)
 	for _, ip := range []string{"127.0.0.1", "169.254.1.1", "::1", "fe80::1", "not-an-ip"} {
-		if _, _, err := m.Prepare(context.Background(), "alloc", 1, ip, dnsDeny("example.com"), 1); err == nil {
+		if _, _, err := m.Prepare(context.Background(), "alloc", ip, dnsDeny("example.com")); err == nil {
 			t.Fatalf("Prepare accepted unsafe sandbox IP %q", ip)
 		}
 	}
@@ -70,32 +55,38 @@ func TestPrepareRejectsUnsafeSandboxIPs(t *testing.T) {
 
 func TestPrepareRequiresUpstreamsOnlyForDNSForwardingPolicies(t *testing.T) {
 	m := newTestManager(t, nil)
-	if _, _, err := m.Prepare(context.Background(), "dns", 1, "10.0.0.8", dnsDeny("example.com"), 1); err == nil || !strings.Contains(err.Error(), "upstream") {
+	if _, _, err := m.Prepare(context.Background(), "dns", "10.0.0.8", dnsDeny("example.com")); err == nil || !strings.Contains(err.Error(), "upstream") {
 		t.Fatalf("DNS forwarding policy without upstream error = %v", err)
 	}
-	if _, _, err := m.Prepare(context.Background(), "loopback", 1, "10.0.0.8", dnsDeny("example.com"), 1, []string{"127.0.0.1"}); err == nil || !strings.Contains(err.Error(), "usable node resolver") {
+	if _, _, err := m.Prepare(context.Background(), "loopback", "10.0.0.8", dnsDeny("example.com"), []string{"127.0.0.1"}); err == nil || !strings.Contains(err.Error(), "usable node resolver") {
 		t.Fatalf("DNS forwarding policy with loopback upstream error = %v", err)
 	}
 	if len(m.List("")) != 0 {
 		t.Fatal("rejected DNS forwarding policy changed manager state")
 	}
-	denyAll := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}
-	record, _, err := m.Prepare(context.Background(), "deny-all", 1, "10.0.0.9", denyAll, 1, []string{"invalid"})
+	cidrOnly := &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{
+		AllowedCidrs: []*commonv1.CIDREgressRule{{
+			Cidr:     "192.0.2.0/24",
+			Protocol: commonv1.EgressProtocol_EGRESS_PROTOCOL_TCP,
+			Ports:    []*commonv1.PortRange{{Start: 443, End: 443}},
+		}},
+	}}}
+	record, _, err := m.Prepare(context.Background(), "cidr-only", "10.0.0.9", cidrOnly, []string{"invalid"})
 	if err != nil {
-		t.Fatalf("strict deny-all unexpectedly depended on DNS: %v", err)
+		t.Fatalf("CIDR-only strict policy unexpectedly depended on DNS: %v", err)
 	}
 	if len(record.GetUpstreamNameservers()) != 0 {
-		t.Fatalf("strict deny-all persisted unused upstreams: %v", record.GetUpstreamNameservers())
+		t.Fatalf("CIDR-only strict policy persisted unused upstreams: %v", record.GetUpstreamNameservers())
 	}
 }
 
 func TestPrepareCanonicalizesMappedIPv4BeforeIPFencing(t *testing.T) {
 	m := newTestManager(t, nil)
-	record := prepare(t, m, "alloc-1", 1, "::ffff:10.0.0.8", 1, dnsDeny("example.com"))
+	record := prepare(t, m, "alloc-1", "::ffff:10.0.0.8", 1, dnsDeny("example.com"))
 	if record.GetSandboxIp() != "10.0.0.8" {
 		t.Fatalf("sandbox IP = %q, want canonical IPv4", record.GetSandboxIp())
 	}
-	if _, _, err := m.Prepare(context.Background(), "alloc-2", 1, "10.0.0.8", dnsDeny("example.net"), 1, testDNSUpstreams); err == nil {
+	if _, _, err := m.Prepare(context.Background(), "alloc-2", "10.0.0.8", dnsDeny("example.net"), testDNSUpstreams); err == nil {
 		t.Fatal("canonical IP collision was accepted")
 	}
 }
@@ -104,48 +95,44 @@ func TestPersistenceRecoveryAndAtomicMutation(t *testing.T) {
 	root := t.TempDir()
 	store := NewJSONStore(root)
 	m := newTestManager(t, store)
-	record := prepare(t, m, "alloc-1", 1, "10.0.0.8", 9, dnsDeny("example.com"))
+	record := prepare(t, m, "alloc-1", "10.0.0.8", 9, dnsDeny("example.com"))
 
 	restarted := newTestManager(t, store)
-	recovered, ok := restarted.Get("alloc-1", 1)
-	if !ok || recovered.GetRecoveryState() != runtimeegressv1.EgressPolicyRecoveryState_EGRESS_POLICY_RECOVERY_STATE_RECOVERED {
+	recovered, ok := restarted.Get("alloc-1")
+	if !ok {
 		t.Fatalf("recovered record = %#v, %v", recovered, ok)
 	}
-	if recovered.GetPolicyDigest() != record.GetPolicyDigest() || restarted.Health().GetRecoveredPolicyCount() != 1 {
-		t.Fatal("recovery did not preserve digest and health count")
+	if !proto.Equal(recovered, record) {
+		t.Fatal("recovery did not preserve the authoritative record")
 	}
 
 	failing := &memoryStore{records: restarted.List("")}
 	failedManager := newTestManager(t, failing)
 	failing.saveErr = errors.New("disk full")
-	if deleted, err := failedManager.Delete(context.Background(), "alloc-1", 1); err == nil || deleted {
+	if deleted, err := failedManager.Delete(context.Background(), "alloc-1"); err == nil || deleted {
 		t.Fatalf("delete with failed persistence = (%v, %v)", deleted, err)
 	}
-	if _, ok := failedManager.Get("alloc-1", 1); !ok {
+	if _, ok := failedManager.Get("alloc-1"); !ok {
 		t.Fatal("failed persistence changed in-memory state")
 	}
 }
 
-func TestReconcileRequiresExactProofAndCollectsOrphans(t *testing.T) {
+func TestReconcileUsesAllocationOwnershipAndCollectsOrphans(t *testing.T) {
 	m := newTestManager(t, nil)
-	one := prepare(t, m, "alloc-1", 1, "10.0.0.8", 4, dnsDeny("one.example"))
-	prepare(t, m, "alloc-2", 1, "10.0.0.9", 5, dnsDeny("two.example"))
+	prepare(t, m, "alloc-1", "10.0.0.8", 4, dnsDeny("one.example"))
+	prepare(t, m, "alloc-2", "10.0.0.9", 5, dnsDeny("two.example"))
 
-	result, err := m.Reconcile(context.Background(), []*runtimeegressv1.ActiveEgressPolicy{
-		activeProof(one),
-		{AllocationID: "alloc-2", Attempt: 1, SandboxIp: "10.0.0.9", PolicyDigest: "sha256:wrong", ExecutionRevision: 5},
-		{AllocationID: "", Attempt: 1},
-	})
+	result, err := m.Reconcile(context.Background(), []string{"alloc-1", ""})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.ActivePolicyCount != 2 || result.RetainedCount != 1 || result.DeletedCount != 1 || result.StalePolicyCount != 1 || result.InvalidActivePolicyCount != 1 {
+	if result.ActivePolicyCount != 1 || result.RetainedCount != 1 || result.DeletedCount != 1 || result.StalePolicyCount != 1 || result.InvalidActivePolicyCount != 1 {
 		t.Fatalf("unexpected reconcile result: %+v", result)
 	}
-	if _, ok := m.Get("alloc-1", 1); !ok {
-		t.Fatal("exact record was not retained")
+	if _, ok := m.Get("alloc-1"); !ok {
+		t.Fatal("owned record was not retained")
 	}
-	if _, ok := m.Get("alloc-2", 1); ok {
+	if _, ok := m.Get("alloc-2"); ok {
 		t.Fatal("mismatched record was not collected")
 	}
 	health := m.Health()
@@ -157,12 +144,12 @@ func TestReconcileRequiresExactProofAndCollectsOrphans(t *testing.T) {
 func TestReconcileSaveFailureDoesNotPublishNewState(t *testing.T) {
 	store := &memoryStore{}
 	m := newTestManager(t, store)
-	prepare(t, m, "alloc-1", 1, "10.0.0.8", 1, dnsDeny("example.com"))
+	prepare(t, m, "alloc-1", "10.0.0.8", 1, dnsDeny("example.com"))
 	store.saveErr = errors.New("disk full")
 	if _, err := m.Reconcile(context.Background(), nil); err == nil {
 		t.Fatal("Reconcile succeeded despite persistence failure")
 	}
-	if _, ok := m.Get("alloc-1", 1); !ok {
+	if _, ok := m.Get("alloc-1"); !ok {
 		t.Fatal("failed reconcile changed in-memory state")
 	}
 	if m.Health().GetStatus() != runtimeegressv1.EgressManagerStatus_EGRESS_MANAGER_STATUS_ERROR {
@@ -178,7 +165,7 @@ func TestPersistenceFailureRestoresPreviousDataplane(t *testing.T) {
 		t.Fatal(err)
 	}
 	store.saveErr = errors.New("disk full")
-	if _, _, err := m.Prepare(context.Background(), "alloc-1", 1, "10.0.0.8", dnsDeny("example.com"), 1, testDNSUpstreams); err == nil {
+	if _, _, err := m.Prepare(context.Background(), "alloc-1", "10.0.0.8", dnsDeny("example.com"), testDNSUpstreams); err == nil {
 		t.Fatal("Prepare succeeded despite persistence failure")
 	}
 	if len(executor.generations) != 3 || len(executor.generations[0]) != 0 || len(executor.generations[1]) != 1 || len(executor.generations[2]) != 0 {
@@ -227,9 +214,9 @@ func newTestManager(t *testing.T, store Store) *Manager {
 	return m
 }
 
-func prepare(t *testing.T, m *Manager, allocationID string, attempt int64, ip string, revision int64, input *commonv1.NetworkEgressPolicy) *runtimeegressv1.PreparedEgressPolicy {
+func prepare(t *testing.T, m *Manager, allocationID string, ip string, revision int64, input *commonv1.NetworkEgressPolicy) *runtimeegressv1.PreparedEgressPolicy {
 	t.Helper()
-	record, _, err := m.Prepare(context.Background(), allocationID, attempt, ip, input, revision, testDNSUpstreams)
+	record, _, err := m.Prepare(context.Background(), allocationID, ip, input, testDNSUpstreams)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,16 +228,6 @@ func dnsDeny(domains ...string) *commonv1.NetworkEgressPolicy {
 }
 
 var testDNSUpstreams = []string{"192.0.2.53"}
-
-func activeProof(record *runtimeegressv1.PreparedEgressPolicy) *runtimeegressv1.ActiveEgressPolicy {
-	return &runtimeegressv1.ActiveEgressPolicy{
-		AllocationID:      record.GetAllocationID(),
-		Attempt:           record.GetAttempt(),
-		SandboxIp:         record.GetSandboxIp(),
-		PolicyDigest:      record.GetPolicyDigest(),
-		ExecutionRevision: record.GetExecutionRevision(),
-	}
-}
 
 func cloneRecords(records []*runtimeegressv1.PreparedEgressPolicy) []*runtimeegressv1.PreparedEgressPolicy {
 	out := make([]*runtimeegressv1.PreparedEgressPolicy, 0, len(records))

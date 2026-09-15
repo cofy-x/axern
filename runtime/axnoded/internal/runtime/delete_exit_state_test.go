@@ -2,7 +2,6 @@ package runtime
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -17,10 +16,9 @@ import (
 )
 
 func TestRuntimeDeleteAbsentStillCompletesOwnedCleanup(t *testing.T) {
-	handler, err := NewRuncServiceHandler(
+	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunc,
-		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runc"},
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
 	if err != nil {
@@ -36,7 +34,6 @@ func TestRuntimeDeleteAbsentStillCompletesOwnedCleanup(t *testing.T) {
 func TestRunscDeleteRemovesPersistedExitState(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -54,7 +51,6 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 	rootDir := t.TempDir()
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: rootDir},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -83,7 +79,6 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 func TestRunscForceDeleteWaitsForForegroundExitState(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -129,7 +124,6 @@ func TestRunscForceDeleteWaitsForForegroundExitState(t *testing.T) {
 func TestRunscForceDeleteDoesNotDeleteBeforeForegroundExit(t *testing.T) {
 	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunsc,
 		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
@@ -150,29 +144,11 @@ func TestRunscForceDeleteDoesNotDeleteBeforeForegroundExit(t *testing.T) {
 	}
 }
 
-func TestRuncDeleteRemovesPersistedExitState(t *testing.T) {
-	handler, err := NewRuncServiceHandler(
-		config.Config{RootDir: t.TempDir()},
-		config.RuntimeNameRunc,
-		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runc"},
-		nil,
-	)
-	if err != nil {
-		t.Fatalf("NewRuncServiceHandler() error = %v", err)
-	}
-	handler.common.SetExecutor(&recordingExecutor{})
-	assertDeleteRemovesExitState(t, handler.common.RuntimeExitStatePath("alloc-a"), func() error {
-		_, err := handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
-		return err
-	}, handler.persistExitState)
-}
-
-func TestRuncDeleteWaitsForInitMonitorBeforeReleasingOwnedStorage(t *testing.T) {
+func TestDeleteReleasesWritableChargeWhenExitStateRemovalFails(t *testing.T) {
 	rootDir := t.TempDir()
-	handler, err := NewRuncServiceHandler(
+	handler, err := NewRunscServiceHandler(
 		config.Config{RootDir: rootDir},
-		config.RuntimeNameRunc,
-		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runc"},
+		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"},
 		nil,
 	)
 	if err != nil {
@@ -184,76 +160,7 @@ func TestRuncDeleteWaitsForInitMonitorBeforeReleasingOwnedStorage(t *testing.T) 
 		t.Fatal(err)
 	}
 	handler.writableCapacity = manager
-	if err := manager.Reserve("alloc-a", config.RuntimeNameRunc, 1, 1); err != nil {
-		t.Fatal(err)
-	}
-	handler.common.SetExecutor(&recordingExecutor{})
-	readyPath := handler.common.InitMonitorReadyStatePath("alloc-a")
-	if err := os.MkdirAll(filepath.Dir(readyPath), 0755); err != nil {
-		t.Fatal(err)
-	}
-	readyPayload, err := json.Marshal(map[string]any{
-		"ready": true, "initPid": 321, "observedAt": time.Now().UTC(),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(readyPath, readyPayload, 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	callerCtx, cancelCaller := context.WithCancel(context.Background())
-	cancelCaller()
-	done := make(chan error, 1)
-	go func() {
-		_, err := handler.DeleteContainer(callerCtx, &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
-		done <- err
-	}()
-	select {
-	case err := <-done:
-		t.Fatalf("DeleteContainer() returned before init monitor persisted exit state: %v", err)
-	case <-time.After(50 * time.Millisecond):
-	}
-	if !hasWritableReservation(manager, "alloc-a") {
-		t.Fatal("writable reservation released before init monitor persistence barrier")
-	}
-	if err := handler.persistExitState("alloc-a", contract.Exit{Timestamp: time.Now().UTC(), Status: 137}); err != nil {
-		t.Fatal(err)
-	}
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Fatalf("DeleteContainer() error = %v", err)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("DeleteContainer() did not continue after init monitor persistence")
-	}
-	if hasWritableReservation(manager, "alloc-a") {
-		t.Fatal("writable reservation retained after ordered delete completed")
-	}
-	if _, err := os.Stat(readyPath); !os.IsNotExist(err) {
-		t.Fatalf("monitor ready state stat error = %v, want not exist", err)
-	}
-}
-
-func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T) {
-	rootDir := t.TempDir()
-	handler, err := NewRuncServiceHandler(
-		config.Config{RootDir: rootDir},
-		config.RuntimeNameRunc,
-		config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runc"},
-		nil,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	filestore := t.TempDir()
-	manager, err := sharedWritableCapacityManager(filestore, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-	handler.writableCapacity = manager
-	if err := manager.Reserve("alloc-a", config.RuntimeNameRunc, 1, 1); err != nil {
+	if err := manager.Charge("alloc-a", config.RuntimeNameRunsc, 1, 1); err != nil {
 		t.Fatal(err)
 	}
 	handler.common.SetExecutor(&recordingExecutor{})
@@ -262,12 +169,12 @@ func TestDeleteReleasesWritableReservationWhenExitStateRemovalFails(t *testing.T
 		t.Fatal(err)
 	}
 
-	_, err = handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{ContainerID: "alloc-a"})
+	_, err = handler.DeleteContainer(context.Background(), &apipb.DeleteContainerRequest{Timeout: 1}, contract.HandlerOptions{ContainerID: "alloc-a"})
 	if err == nil {
 		t.Fatal("expected exit-state removal error")
 	}
-	if hasWritableReservation(manager, "alloc-a") {
-		t.Fatal("writable reservation must be released after rootfs cleanup succeeds")
+	if hasWritableCharge(manager, "alloc-a") {
+		t.Fatal("writable charge must be released after rootfs cleanup succeeds")
 	}
 }
 
@@ -287,4 +194,14 @@ func assertDeleteRemovesExitState(
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("exit state stat error = %v, want not exist", err)
 	}
+}
+
+func hasWritableCharge(manager *writableCapacityManager, containerID string) bool {
+	if manager == nil {
+		return false
+	}
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	_, found := manager.charges[containerID]
+	return found
 }

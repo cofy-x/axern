@@ -316,7 +316,6 @@ spec:
       task:
         sandbox:
           backend: local
-          runtime_class: ""
           workdir: /workspace
         verifier:
           type: shell

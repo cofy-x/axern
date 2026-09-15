@@ -5,30 +5,41 @@ import (
 	"time"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
-func TestAcceptsObservationRejectsStaleAndEnded(t *testing.T) {
-	obs := &nodev1.AllocationStatusObservation{
+func TestAcceptsObservationRejectsEndedAndWrongNode(t *testing.T) {
+	obs := &nodev1.AllocationLifecycleObservation{
 		AllocationID: "alloc-a",
-		Attempt:      1,
-		Status:       commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING,
+		State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 	}
-	if !AcceptsObservation(commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND, 1, "node-a", "node-a", obs) {
+	if !AcceptsObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND, "node-a", "node-a", obs) {
 		t.Fatal("expected current observation to be accepted")
 	}
-	if AcceptsObservation(commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND, 2, "node-a", "node-a", obs) {
-		t.Fatal("expected old attempt to be rejected")
-	}
-	if AcceptsObservation(commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, 1, "node-a", "node-a", obs) {
+	if AcceptsObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING, "node-a", "node-a", obs) {
 		t.Fatal("expected ended allocation to reject active observation")
 	}
-	if AcceptsObservation(commonv1.AllocationStatus_ALLOCATION_STATUS_RELEASING, 1, "node-a", "node-a", obs) {
+	if AcceptsObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING, "node-a", "node-a", obs) {
 		t.Fatal("expected releasing allocation to reject observation")
 	}
-	if AcceptsObservation(commonv1.AllocationStatus_ALLOCATION_STATUS_BOUND, 1, "node-a", "node-b", obs) {
+	if AcceptsObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND, "node-a", "node-b", obs) {
 		t.Fatal("expected observation from another node to be rejected")
+	}
+	starting := &nodev1.AllocationLifecycleObservation{AllocationID: "alloc-a", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING}
+	if AcceptsObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, "node-a", "node-a", starting) {
+		t.Fatal("expected stale STARTING observation not to regress ACTIVE allocation")
+	}
+}
+
+func TestValidateObservationBindingRequiresExactNonEmptyNode(t *testing.T) {
+	if err := ValidateObservationBinding(" node-a ", "node-a"); err != nil {
+		t.Fatalf("ValidateObservationBinding() error = %v", err)
+	}
+	for _, reportingNode := range []string{"", "node-b"} {
+		if err := ValidateObservationBinding("node-a", reportingNode); err == nil {
+			t.Fatalf("ValidateObservationBinding(node-a, %q) succeeded", reportingNode)
+		}
 	}
 }
 
@@ -54,24 +65,26 @@ func TestMissingFromNodeInventory(t *testing.T) {
 		ActiveAllocationIDs: []string{"alloc-active", " "},
 		CollectedAt:         snapshotAt,
 	}, []NodeInventoryExpectation{
-		{AllocationID: "alloc-active", Attempt: 1, NodeActiveAt: snapshotAt.Add(-time.Second)},
-		{AllocationID: "alloc-missing", Attempt: 2, NodeActiveAt: snapshotAt.Add(-time.Second)},
-		{AllocationID: "alloc-too-new", Attempt: 3, NodeActiveAt: snapshotAt.Add(time.Second)},
-		{AllocationID: "alloc-not-active-yet", Attempt: 4},
+		{AllocationID: "alloc-active", NodeActiveAt: snapshotAt.Add(-time.Second)},
+		{AllocationID: "alloc-missing", NodeActiveAt: snapshotAt.Add(-time.Second)},
+		{AllocationID: "alloc-too-new", NodeActiveAt: snapshotAt.Add(time.Second)},
+		{AllocationID: "alloc-not-active-yet"},
 	})
 	if len(got) != 1 {
 		t.Fatalf("missing = %#v, want one allocation", got)
 	}
-	if got[0].AllocationID != "alloc-missing" || got[0].Attempt != 2 {
-		t.Fatalf("missing[0] = %#v, want alloc-missing attempt 2", got[0])
+	if got[0].AllocationID != "alloc-missing" {
+		t.Fatalf("missing[0] = %#v, want alloc-missing", got[0])
 	}
 }
 
-func TestRunStatusFromAllocation(t *testing.T) {
-	if got := RunStatusFromAllocation(commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, 0); got != runv1.RunStatus_RUN_STATUS_SUCCEEDED {
+func TestRunStatusFromObservation(t *testing.T) {
+	exitZero := int32(0)
+	if got := RunStatusFromObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, &exitZero, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); got != runv1.RunStatus_RUN_STATUS_SUCCEEDED {
 		t.Fatalf("exit 0 mapped to %s", got)
 	}
-	if got := RunStatusFromAllocation(commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED, 1); got != runv1.RunStatus_RUN_STATUS_FAILED {
+	exitOne := int32(1)
+	if got := RunStatusFromObservation(commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, &exitOne, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); got != runv1.RunStatus_RUN_STATUS_FAILED {
 		t.Fatalf("exit 1 mapped to %s", got)
 	}
 }
@@ -86,78 +99,46 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 		{
 			name: "active allocation blocks clear",
 			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING.String(),
-				OwnerType:        OwnerRun,
+				AllocationState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(),
 			},
-			blockedFor: "allocation status is ALLOCATION_STATUS_RUNNING",
+			blockedFor: "allocation lifecycle state is ALLOCATION_LIFECYCLE_STATE_ACTIVE",
 		},
 		{
-			name: "active reservation blocks terminal allocation",
+			name: "active access grant blocks terminal allocation",
 			in: LifecycleRetryClearanceInput{
-				AllocationStatus:     commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:            OwnerRun,
-				HasActiveReservation: true,
+				AllocationState:      commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
+				HasActiveAccessGrant: true,
 			},
-			blockedFor: "active reservations",
-		},
-		{
-			name: "active lease blocks terminal allocation",
-			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
-				HasActiveLease:   true,
-			},
-			blockedFor: "active leases",
+			blockedFor: "active allocation access grants",
 		},
 		{
 			name: "active tunnel blocks terminal allocation",
 			in: LifecycleRetryClearanceInput{
-				AllocationStatus:       commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:              OwnerRun,
+				AllocationState:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
 				HasActiveTunnelSession: true,
 			},
 			blockedFor: "active tunnel sessions",
 		},
 		{
-			name: "nonterminal run owner blocks clear",
+			name: "nonterminal run blocks clear",
 			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
-				OwnerRunStatus:   runv1.RunStatus_RUN_STATUS_RUNNING.String(),
+				AllocationState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
+				RunStatus:       runv1.RunStatus_RUN_STATUS_RUNNING.String(),
 			},
-			blockedFor: "owner run status is RUN_STATUS_RUNNING",
+			blockedFor: "run status is RUN_STATUS_RUNNING",
 		},
 		{
-			name: "terminal run owner is clearable",
+			name: "terminal run is clearable",
 			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
-				OwnerRunStatus:   runv1.RunStatus_RUN_STATUS_FAILED.String(),
+				AllocationState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
+				RunStatus:       runv1.RunStatus_RUN_STATUS_FAILED.String(),
 			},
 			clearable: true,
 		},
 		{
-			name: "missing run owner is clearable",
+			name: "missing run is clearable",
 			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerRun,
-			},
-			clearable: true,
-		},
-		{
-			name: "referenced service owner blocks clear",
-			in: LifecycleRetryClearanceInput{
-				AllocationStatus:                 commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:                        OwnerService,
-				OwnerServiceReferencesAllocation: true,
-			},
-			blockedFor: "owner service still references allocation",
-		},
-		{
-			name: "unreferenced service owner is clearable",
-			in: LifecycleRetryClearanceInput{
-				AllocationStatus: commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED.String(),
-				OwnerType:        OwnerService,
+				AllocationState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
 			},
 			clearable: true,
 		},
@@ -178,7 +159,7 @@ func TestScheduleCreateRetryRequest(t *testing.T) {
 	if !ok {
 		t.Fatal("ScheduleCreateRetryRequest returned ok=false for first failure")
 	}
-	if req.AllocationID != "alloc-a" || req.Reason != ReconcileReasonCreate || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
+	if req.AllocationID != "alloc-a" || req.Intent != ReconcileIntentEnsurePresent || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
 		t.Fatalf("request = %#v, want create retry request for alloc-a", req)
 	}
 	if want := now.Add(CreateRetryDelay(1)); !req.NextRunAt.Equal(want) {
@@ -194,18 +175,15 @@ func TestScheduleCreateRetryRequest(t *testing.T) {
 func TestScheduleDeleteRetryRequest(t *testing.T) {
 	now := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
 	req := ScheduleDeleteRetryRequest("alloc-a", "node unavailable", now)
-	if req.AllocationID != "alloc-a" || req.Reason != ReconcileReasonDelete || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
+	if req.AllocationID != "alloc-a" || req.Intent != ReconcileIntentEnsureAbsent || req.LastReconcileError != "node unavailable" || !req.IncrementAttempts {
 		t.Fatalf("request = %#v, want delete retry request for alloc-a", req)
 	}
 	if want := now.Add(DeleteRetryDelay); !req.NextRunAt.Equal(want) {
 		t.Fatalf("NextRunAt = %v, want %v", req.NextRunAt, want)
 	}
 
-	req = ScheduleImmediateDeleteRetryRequest("alloc-a", "node unavailable", now)
-	if req.AllocationID != "alloc-a" || req.Reason != ReconcileReasonDelete || req.LastReconcileError != "node unavailable" || req.IncrementAttempts {
-		t.Fatalf("immediate request = %#v, want non-incrementing delete retry request for alloc-a", req)
-	}
-	if !req.NextRunAt.Equal(now) {
-		t.Fatalf("immediate NextRunAt = %v, want %v", req.NextRunAt, now)
+	immediate := ScheduleDeleteRequest("alloc-a", now)
+	if immediate.AllocationID != "alloc-a" || immediate.Intent != ReconcileIntentEnsureAbsent || immediate.LastReconcileError != "" || immediate.IncrementAttempts {
+		t.Fatalf("immediate request = %#v, want fresh delete intent for alloc-a", immediate)
 	}
 }

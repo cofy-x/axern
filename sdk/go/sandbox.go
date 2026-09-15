@@ -7,13 +7,12 @@ import (
 	"sync"
 	"time"
 
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
 var defaultSandboxArgv = []string{"/bin/sh", "-lc", "sleep infinity"}
 
-// SandboxOptions describes the service-backed sandbox to create or attach to.
+// SandboxOptions describes the allocation-backed sandbox to create or attach to.
 type SandboxOptions struct {
 	Client                  *Client
 	TemplateID              string
@@ -23,12 +22,9 @@ type SandboxOptions struct {
 	Argv                    []string
 	Env                     map[string]string
 	Cwd                     string
-	RuntimeClass            string
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
-	Volumes                 []VolumeMount
 	ImageMounts             []ImageMount
-	WorkspaceImage          *WorkspaceImageSource
 	RequestCPU              ResourceQuantity
 	RequestMemory           ResourceQuantity
 	RequestEphemeralStorage ResourceQuantity
@@ -41,14 +37,14 @@ type SandboxOptions struct {
 	RootFSReadonly          bool
 }
 
-// Sandbox is an SDK-owned programmable sandbox backed by an Axern service
+// Sandbox is an SDK-owned programmable sandbox backed by an Axern run
 // allocation.
 type Sandbox struct {
 	client             *Client
 	options            SandboxOptions
 	createdEnvironment bool
 	environmentID      string
-	serviceID          string
+	runID              string
 	state              SandboxState
 	started            bool
 	tunnelsMu          sync.Mutex
@@ -59,16 +55,13 @@ type Sandbox struct {
 
 // SandboxState is the lightweight runtime identity for a started sandbox.
 type SandboxState struct {
-	EnvironmentID         string
-	ServiceID             string
-	AllocationID          string
-	NodeID                string
-	Attempt               int64
-	StartedAt             time.Time
-	TunnelSessionID       string
-	BoundAddr             string
-	WorkspacePreparation  *commonv1.WorkspacePreparationFacts
-	VerifierMaterializeMs int64
+	EnvironmentID   string
+	RunID           string
+	AllocationID    string
+	NodeID          string
+	StartedAt       time.Time
+	TunnelSessionID string
+	BoundAddr       string
 }
 
 // NewSandbox constructs a sandbox handle. Call Start before using runtime APIs.
@@ -79,8 +72,8 @@ func NewSandbox(options SandboxOptions) (*Sandbox, error) {
 	return &Sandbox{client: options.Client, options: options}, nil
 }
 
-// Start creates the backing environment/service when needed and waits for a
-// ready allocation.
+// Start creates the backing environment/run when needed and waits for a
+// running allocation.
 func (s *Sandbox) Start(ctx context.Context) error {
 	if s.started {
 		return nil
@@ -102,18 +95,15 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		s.environmentID = environment.GetID()
 		environmentID = s.environmentID
 	}
-	service, err := s.client.CreateService(ctx, CreateServiceOptions{
+	run, err := s.client.CreateRun(ctx, CreateRunOptions{
 		Namespace:               s.options.Namespace,
 		EnvironmentID:           environmentID,
 		Argv:                    sandboxArgv(s.options.Argv),
 		Env:                     s.options.Env,
 		Cwd:                     s.options.Cwd,
-		RuntimeClass:            s.options.RuntimeClass,
 		NetworkPolicy:           s.options.NetworkPolicy,
 		ExtensionCapabilities:   append([]ExtensionCapability(nil), s.options.ExtensionCapabilities...),
-		Volumes:                 s.options.Volumes,
 		ImageMounts:             s.options.ImageMounts,
-		WorkspaceImage:          s.options.WorkspaceImage,
 		RequestCPU:              s.options.RequestCPU,
 		RequestMemory:           s.options.RequestMemory,
 		RequestEphemeralStorage: s.options.RequestEphemeralStorage,
@@ -126,27 +116,25 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		_ = s.Close(ctx)
 		return err
 	}
-	s.serviceID = service.GetID()
-	replica, err := s.waitReadyReplica(ctx, s.serviceID, defaultDuration(s.options.ReadyTimeout, 3*time.Minute))
+	s.runID = run.GetID()
+	run, err = s.waitRunning(ctx, s.runID, defaultDuration(s.options.ReadyTimeout, 3*time.Minute))
 	if err != nil {
 		_ = s.Close(ctx)
 		return err
 	}
 	s.state = SandboxState{
-		EnvironmentID:        environmentID,
-		ServiceID:            service.GetID(),
-		AllocationID:         replica.GetID(),
-		NodeID:               replica.GetNodeID(),
-		Attempt:              replica.GetAttempt(),
-		StartedAt:            time.Now(),
-		WorkspacePreparation: replica.GetWorkspacePreparation(),
+		EnvironmentID: environmentID,
+		RunID:         run.GetID(),
+		AllocationID:  run.GetAllocationID(),
+		NodeID:        run.GetNodeID(),
+		StartedAt:     time.Now(),
 	}
 	s.started = true
 	return nil
 }
 
 // Close closes SDK-owned processes and tunnels, then deletes SDK-owned
-// service/environment resources.
+// run/environment resources.
 func (s *Sandbox) Close(ctx context.Context) error {
 	var firstErr error
 	if err := s.closeProcesses(); err != nil {
@@ -157,13 +145,13 @@ func (s *Sandbox) Close(ctx context.Context) error {
 			firstErr = err
 		}
 	}
-	if s.serviceID != "" {
-		if err := s.client.DeleteService(ctx, s.serviceID); err != nil {
+	if s.runID != "" {
+		if err := s.client.CancelRun(ctx, s.runID); err != nil {
 			if firstErr == nil {
 				firstErr = err
 			}
 		}
-		s.serviceID = ""
+		s.runID = ""
 	}
 	if s.createdEnvironment && s.environmentID != "" {
 		if err := s.client.DeleteEnvironment(ctx, s.environmentID); err != nil && firstErr == nil {
@@ -194,11 +182,11 @@ func (s *Sandbox) Exec(ctx context.Context, command any, options ExecOptions) (E
 	return node.Exec(ctx, command, options)
 }
 
-func (s *Sandbox) nodeClient() (*NodeSandboxClient, error) {
+func (s *Sandbox) nodeClient() (*AllocationClient, error) {
 	if !s.started {
 		return nil, ErrSandboxNotStarted
 	}
-	return s.client.NodeSandbox(s.state.AllocationID)
+	return s.client.Allocation(s.state.AllocationID)
 }
 
 func (s *Sandbox) registerTunnel(tunnel *SandboxTunnel) {
@@ -265,56 +253,44 @@ func (s *Sandbox) closeTunnels(ctx context.Context) error {
 	return firstErr
 }
 
-func (s *Sandbox) waitReadyReplica(ctx context.Context, serviceID string, timeout time.Duration) (*servicev1.ServiceReplica, error) {
+func (s *Sandbox) waitRunning(ctx context.Context, runID string, timeout time.Duration) (*runv1.Run, error) {
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	watch, err := s.client.WatchService(waitCtx, serviceID, 0)
+	watch, err := s.client.WatchRun(waitCtx, runID, 0)
 	if err != nil {
 		return nil, err
 	}
-	defer watch.Close()
-	var last []*servicev1.ServiceReplica
+	var last *runv1.Run
 	for {
-		service, err := watch.Recv()
+		run, err := watch.Recv()
 		if err != nil {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
 			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-				return nil, readyReplicaTimeoutError(serviceID, timeout, last)
+				return nil, sandboxRunTimeoutError(runID, timeout, last)
 			}
 			return nil, err
 		}
-		replicas, err := s.client.ListServiceReplicas(waitCtx, serviceID)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil, ctx.Err()
-			}
-			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-				return nil, readyReplicaTimeoutError(serviceID, timeout, last)
-			}
-			return nil, err
+		last = run
+		if run.GetStatus() == runv1.RunStatus_RUN_STATUS_RUNNING && run.GetAllocationID() != "" {
+			return run, nil
 		}
-		last = replicas
-		for _, replica := range replicas {
-			if replica.GetReady() &&
-				!replica.GetEnded() &&
-				!replica.GetOutdated() &&
-				replica.GetStatus() == commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING {
-				return replica, nil
-			}
-		}
-		switch service.GetStatus() {
-		case servicev1.ServiceStatus_SERVICE_STATUS_FAILED,
-			servicev1.ServiceStatus_SERVICE_STATUS_DELETING,
-			servicev1.ServiceStatus_SERVICE_STATUS_DELETED:
-			return nil, fmt.Errorf("service %s became %s before a sandbox replica was ready: %s", serviceID, service.GetStatus(), service.GetMessage())
+		switch run.GetStatus() {
+		case runv1.RunStatus_RUN_STATUS_SUCCEEDED,
+			runv1.RunStatus_RUN_STATUS_FAILED,
+			runv1.RunStatus_RUN_STATUS_CANCELLED:
+			return nil, fmt.Errorf("run %s became %s before its sandbox allocation was running: %s", runID, run.GetStatus(), run.GetMessage())
 		}
 	}
 }
 
-func readyReplicaTimeoutError(serviceID string, timeout time.Duration, replicas []*servicev1.ServiceReplica) error {
-	return fmt.Errorf("service %s did not produce a ready sandbox replica within %s: %s", serviceID, timeout, replicaDetails(replicas))
+func sandboxRunTimeoutError(runID string, timeout time.Duration, run *runv1.Run) error {
+	detail := "no state observed"
+	if run != nil {
+		detail = fmt.Sprintf("%s: %s", run.GetStatus(), run.GetMessage())
+	}
+	return fmt.Errorf("run %s did not reach a running sandbox allocation within %s: %s", runID, timeout, detail)
 }
 
 func sandboxLabels(labels map[string]string) map[string]string {
@@ -365,25 +341,5 @@ func validateSandboxOptions(options SandboxOptions) error {
 	if err := validateImageMounts(options.ImageMounts); err != nil {
 		return err
 	}
-	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
-		return err
-	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts, options.Volumes); err != nil {
-		return err
-	}
 	return nil
-}
-
-func replicaDetails(replicas []*servicev1.ServiceReplica) string {
-	if len(replicas) == 0 {
-		return "no replicas"
-	}
-	details := ""
-	for index, replica := range replicas {
-		if index > 0 {
-			details += ", "
-		}
-		details += fmt.Sprintf("%s:%s:%s", replica.GetID(), replica.GetStatus(), replica.GetMessage())
-	}
-	return details
 }

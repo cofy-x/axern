@@ -12,11 +12,10 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
 
-var _ contract.RuntimeHandler = &RunscServiceHandler{}
+var _ contract.SandboxRuntime = &RunscServiceHandler{}
 var _ contract.AllocationCapabilityVerifier = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {
-	name                              string
 	common                            *ocihost.Common
 	ignoreCgroups                     bool
 	allowSUID                         bool
@@ -42,10 +41,6 @@ var (
 	runscWaitRetryTimeout     = 200 * time.Millisecond
 	runscForceStopTimeout     = 5 * time.Second
 )
-
-func (r *RunscServiceHandler) Name() string {
-	return r.name
-}
 
 func (r *RunscServiceHandler) FileService() contract.FileService {
 	return r.services.file
@@ -73,8 +68,7 @@ func (r *RunscServiceHandler) Version(ctx context.Context) (*runtimeapi.RuntimeV
 		return nil, err
 	}
 	return &runtimeapi.RuntimeVersion{
-		RuntimeName:    r.Name(),
-		RuntimeVersion: version,
+		Version: version,
 	}, nil
 }
 

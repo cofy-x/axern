@@ -9,7 +9,7 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -22,6 +22,66 @@ type CreateEnvironmentOptions struct {
 	RegistryCredentialID string
 	RootFSReadonly       bool
 	Labels               map[string]string
+}
+
+// CreateRunOptions configures a single allocation-backed execution.
+type CreateRunOptions struct {
+	Namespace               string
+	EnvironmentID           string
+	Argv                    []string
+	Env                     map[string]string
+	Cwd                     string
+	NetworkPolicy           *NetworkPolicy
+	ExtensionCapabilities   []ExtensionCapability
+	ImageMounts             []ImageMount
+	RequestCPU              ResourceQuantity
+	RequestMemory           ResourceQuantity
+	RequestEphemeralStorage ResourceQuantity
+	LimitCPU                ResourceQuantity
+	LimitMemory             ResourceQuantity
+	LimitEphemeralStorage   ResourceQuantity
+	Labels                  map[string]string
+}
+
+// CreateRun creates a single Axern allocation.
+func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv1.Run, error) {
+	if options.EnvironmentID == "" {
+		return nil, requiredError("environment_id")
+	}
+	if err := validateImageMounts(options.ImageMounts); err != nil {
+		return nil, err
+	}
+	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
+	if err != nil {
+		return nil, err
+	}
+	response, err := c.runs.CreateRun(ctx, &runv1.CreateRunRequest{
+		Namespace:     defaultString(options.Namespace, "default"),
+		EnvironmentID: options.EnvironmentID,
+		Config: &commonv1.ExecutionConfig{
+			Argv:                            append([]string(nil), options.Argv...),
+			Env:                             cloneMap(options.Env),
+			Cwd:                             options.Cwd,
+			Network:                         networkSpec(options.NetworkPolicy),
+			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
+			ImageMounts:                     executionImageMounts(options.ImageMounts),
+			Resources:                       resources,
+		},
+		Labels: cloneMap(options.Labels),
+	})
+	if err != nil {
+		return nil, mapRPCError(err, "create run", "")
+	}
+	return response.GetRun(), nil
+}
+
+// CancelRun releases the allocation owned by runID.
+func (c *Client) CancelRun(ctx context.Context, runID string) error {
+	if runID == "" {
+		return requiredError("run_id")
+	}
+	_, err := c.runs.CancelRun(ctx, &runv1.CancelRunRequest{RunID: runID})
+	return mapRPCError(err, "cancel run", runID)
 }
 
 // CreateEnvironment creates an Axern environment from a template or image.
@@ -57,70 +117,6 @@ func (c *Client) DeleteEnvironment(ctx context.Context, environmentID string) er
 	return mapRPCError(err, "delete environment", "")
 }
 
-// CreateServiceOptions configures a single-replica service for sandbox use.
-type CreateServiceOptions struct {
-	Namespace               string
-	EnvironmentID           string
-	Argv                    []string
-	Env                     map[string]string
-	Cwd                     string
-	RuntimeClass            string
-	NetworkPolicy           *NetworkPolicy
-	ExtensionCapabilities   []ExtensionCapability
-	Volumes                 []VolumeMount
-	ImageMounts             []ImageMount
-	WorkspaceImage          *WorkspaceImageSource
-	RequestCPU              ResourceQuantity
-	RequestMemory           ResourceQuantity
-	RequestEphemeralStorage ResourceQuantity
-	LimitCPU                ResourceQuantity
-	LimitMemory             ResourceQuantity
-	LimitEphemeralStorage   ResourceQuantity
-	Labels                  map[string]string
-}
-
-// CreateService creates an Axern service.
-func (c *Client) CreateService(ctx context.Context, options CreateServiceOptions) (*servicev1.Service, error) {
-	if options.EnvironmentID == "" {
-		return nil, requiredError("environment_id")
-	}
-	if err := validateImageMounts(options.ImageMounts); err != nil {
-		return nil, err
-	}
-	if err := validateWorkspaceImage(options.WorkspaceImage); err != nil {
-		return nil, err
-	}
-	if err := validateWorkspaceImageMounts(options.WorkspaceImage, options.ImageMounts, options.Volumes); err != nil {
-		return nil, err
-	}
-	resources, err := buildResourceSpec(options.RequestCPU, options.RequestMemory, options.RequestEphemeralStorage, options.LimitCPU, options.LimitMemory, options.LimitEphemeralStorage)
-	if err != nil {
-		return nil, err
-	}
-	response, err := c.services.CreateService(ctx, &servicev1.CreateServiceRequest{
-		Namespace:     defaultString(options.Namespace, "default"),
-		EnvironmentID: options.EnvironmentID,
-		Replicas:      1,
-		Config: &commonv1.ExecutionConfig{
-			Argv:                            append([]string(nil), options.Argv...),
-			Env:                             cloneMap(options.Env),
-			Cwd:                             options.Cwd,
-			RuntimeClass:                    options.RuntimeClass,
-			Network:                         networkSpec(options.NetworkPolicy),
-			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
-			VolumeMounts:                    serviceVolumeMounts(options.Volumes),
-			ImageMounts:                     executionImageMounts(options.ImageMounts),
-			WorkspaceImage:                  executionWorkspaceImage(options.WorkspaceImage),
-			Resources:                       resources,
-		},
-		Labels: cloneMap(options.Labels),
-	})
-	if err != nil {
-		return nil, mapRPCError(err, "create service", "")
-	}
-	return response.GetService(), nil
-}
-
 func networkSpec(policy *NetworkPolicy) *commonv1.NetworkSpec {
 	if policy == nil {
 		return nil
@@ -143,127 +139,11 @@ func extensionCapabilityRequirements(values []ExtensionCapability) []*capability
 	return result
 }
 
-// VolumeMount describes a service volume claim mounted into a sandbox.
-type VolumeMount struct {
-	Name     string
-	Target   string
-	Readonly bool
-	Options  []string
-}
-
 // ImageMount describes a read-only OCI image mounted into the workload rootfs.
 type ImageMount struct {
 	Image    string
 	Target   string
 	Readonly bool
-}
-
-// WorkspaceImageSource describes an immutable TaskSet payload mounted through
-// an allocation-local copy-on-write view. Variants are ordered by preference.
-type WorkspaceImageSource struct {
-	Variants   []WorkspaceImageVariant
-	SourcePath string
-	Target     string
-}
-
-type WorkspaceImageVariant struct{ Format, Image string }
-
-func executionWorkspaceImage(source *WorkspaceImageSource) *commonv1.WorkspaceImageSource {
-	if source == nil {
-		return nil
-	}
-	out := &commonv1.WorkspaceImageSource{SourcePath: source.SourcePath, Target: defaultString(source.Target, "/workspace")}
-	for _, variant := range source.Variants {
-		out.Variants = append(out.Variants, &commonv1.WorkspaceImageVariant{Format: variant.Format, Image: variant.Image})
-	}
-	return out
-}
-
-func validateWorkspaceImage(source *WorkspaceImageSource) error {
-	if source == nil {
-		return nil
-	}
-	if len(source.Variants) == 0 {
-		return validationError("workspace_image.variants", "must not be empty")
-	}
-	seenFormats := map[string]bool{}
-	for _, variant := range source.Variants {
-		if variant.Format != "nydus" && variant.Format != "oci" {
-			return validationError("workspace_image.variants.format", "must be nydus or oci")
-		}
-		if strings.TrimSpace(variant.Image) == "" {
-			return validationError("workspace_image.variants.image", "is required")
-		}
-		if !isImmutableSHA256Reference(variant.Image) {
-			return validationError("workspace_image.variants.image", "must use an immutable sha256 digest reference")
-		}
-		if seenFormats[variant.Format] {
-			return validationError("workspace_image.variants.format", "must not be duplicated")
-		}
-		seenFormats[variant.Format] = true
-	}
-	sourcePath := path.Clean(strings.TrimSpace(source.SourcePath))
-	parts := strings.Split(sourcePath, "/")
-	if len(parts) != 3 || parts[0] != "tasks" || parts[1] == "" || parts[2] != "workspace" || pathHasParentReference(source.SourcePath) {
-		return validationError("workspace_image.source_path", "must select tasks/<id>/workspace")
-	}
-	target := path.Clean(defaultString(source.Target, "/workspace"))
-	if target == "/" || !strings.HasPrefix(target, "/") || pathHasParentReference(source.Target) {
-		return validationError("workspace_image.target", "must be an absolute path below /")
-	}
-	if protectedImageMountTarget(target) {
-		return validationError("workspace_image.target", "is a protected system path")
-	}
-	return nil
-}
-
-func isImmutableSHA256Reference(value string) bool {
-	_, digest, ok := strings.Cut(strings.TrimSpace(value), "@sha256:")
-	if !ok || len(digest) != 64 {
-		return false
-	}
-	for _, r := range digest {
-		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
-func validateWorkspaceImageMounts(source *WorkspaceImageSource, imageMounts []ImageMount, volumeMounts []VolumeMount) error {
-	if source == nil {
-		return nil
-	}
-	target := path.Clean(defaultString(source.Target, "/workspace"))
-	for _, mount := range imageMounts {
-		mountTarget := path.Clean(strings.TrimSpace(mount.Target))
-		if target == mountTarget || strings.HasPrefix(target, mountTarget+"/") || strings.HasPrefix(mountTarget, target+"/") {
-			return validationError("workspace_image.target", "must not overlap image_mounts")
-		}
-	}
-	for _, mount := range volumeMounts {
-		mountTarget := path.Clean(strings.TrimSpace(mount.Target))
-		if target == mountTarget || strings.HasPrefix(target, mountTarget+"/") || strings.HasPrefix(mountTarget, target+"/") {
-			return validationError("workspace_image.target", "must not overlap volume mounts")
-		}
-	}
-	return nil
-}
-
-func serviceVolumeMounts(mounts []VolumeMount) []*commonv1.ServiceVolumeMount {
-	if len(mounts) == 0 {
-		return nil
-	}
-	out := make([]*commonv1.ServiceVolumeMount, 0, len(mounts))
-	for _, mount := range mounts {
-		out = append(out, &commonv1.ServiceVolumeMount{
-			Name:     mount.Name,
-			Target:   mount.Target,
-			Readonly: mount.Readonly,
-			Options:  append([]string(nil), mount.Options...),
-		})
-	}
-	return out
 }
 
 func executionImageMounts(mounts []ImageMount) []*commonv1.ImageMount {
@@ -375,33 +255,9 @@ func buildResourceSpec(requestCPUValue, requestMemoryValue, requestEphemeralStor
 	return resources, nil
 }
 
-// DeleteService deletes a service by id.
-func (c *Client) DeleteService(ctx context.Context, serviceID string) error {
-	_, err := c.services.DeleteService(ctx, &servicev1.DeleteServiceRequest{ServiceID: serviceID})
-	return mapRPCError(err, "delete service", "")
-}
-
-// ListServiceReplicas returns the current replicas for a service.
-func (c *Client) ListServiceReplicas(ctx context.Context, serviceID string) ([]*servicev1.ServiceReplica, error) {
-	if strings.TrimSpace(serviceID) == "" {
-		return nil, requiredError("service_id")
-	}
-	response, err := c.services.ListServiceReplicas(ctx, &servicev1.ListServiceReplicasRequest{
-		ServiceID: serviceID,
-		Filter: &servicev1.ServiceReplicaListFilter{
-			View: servicev1.ServiceReplicaView_SERVICE_REPLICA_VIEW_CURRENT,
-		},
-	})
-	if err != nil {
-		return nil, mapRPCError(err, "list service replicas", "")
-	}
-	return response.GetReplicas(), nil
-}
-
 // CreateTunnelSessionOptions configures a control-plane tunnel session.
 type CreateTunnelSessionOptions struct {
 	AllocationID string
-	LocalTarget  string
 	RemotePort   int32
 	TTL          time.Duration
 	WaitReady    bool
@@ -419,9 +275,6 @@ func (c *Client) CreateTunnelSession(ctx context.Context, options CreateTunnelSe
 	if options.AllocationID == "" {
 		return CreateTunnelSessionResult{}, requiredError("allocation_id")
 	}
-	if isBlank(options.LocalTarget) {
-		return CreateTunnelSessionResult{}, requiredError("local_target")
-	}
 	if options.RemotePort < 0 {
 		return CreateTunnelSessionResult{}, positiveIntError("remote_port")
 	}
@@ -433,7 +286,6 @@ func (c *Client) CreateTunnelSession(ctx context.Context, options CreateTunnelSe
 	}
 	request := &tunnelcontrolv1.CreateTunnelSessionRequest{
 		AllocationID: options.AllocationID,
-		LocalTarget:  options.LocalTarget,
 		WaitReady:    options.WaitReady,
 		Ttl:          durationpb.New(options.TTL),
 		ReadyTimeout: durationpb.New(options.ReadyTimeout),

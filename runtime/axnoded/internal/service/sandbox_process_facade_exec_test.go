@@ -9,7 +9,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
@@ -56,41 +55,31 @@ func (s *execStreamServerStub) Recv() (*runtime.ExecStreamRequest, error) {
 
 func storeRunningExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
-	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{
-		ID:             id,
-		RuntimeHandler: runtimeName,
-		Labels:         sandboxdReadyTestLabels(),
-	})
+	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, id)
 	time.Sleep(200 * time.Millisecond)
-}
-
-func sandboxdReadyTestLabels() map[string]string {
-	return map[string]string{
-		runtimesandboxd.LabelReady:        "true",
-		runtimesandboxd.LabelSocket:       "/tmp/sandboxd.sock",
-		runtimesandboxd.LabelCapabilities: "archive,browser,computer_use,desktop,file,probe,process,pty",
-	}
 }
 
 func storeExitedExecContainer(t *testing.T, s *sandboxService, runtimeName string, id string) {
 	t.Helper()
 	storeRunningExecContainer(t, s, runtimeName, id)
-	assert.NoError(t, s.containerManager.SetExit(id, 0, true, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
+	exitCode := int32(0)
+	assert.NoError(t, s.containerManager.SetExit(id, &exitCode, time.Now().UTC(), "", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED))
 }
 
 func TestExecRejectsInvalidArgument(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{name: "runsc", capabilities: contract.RuntimeCapabilities{CanExecDirect: true}},
-	})
+	s := newTestService(t,
+		&runtimeSpyHandler{name: "runsc"},
+	)
 
 	_, err := s.Exec(context.Background(), &runtime.ExecRequest{})
 	assert.Equal(t, codes.InvalidArgument, status.Code(err))
 }
 
 func TestExecRejectsExitedContainer(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{name: "runsc", capabilities: contract.RuntimeCapabilities{CanExecDirect: true}},
-	})
+	s := newTestService(t,
+		&runtimeSpyHandler{name: "runsc"},
+	)
 
 	storeExitedExecContainer(t, s, "runsc", "axctl-exec-exited")
 
@@ -101,31 +90,16 @@ func TestExecRejectsExitedContainer(t *testing.T) {
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 }
 
-func TestExecRequiresRuntimeCapability(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{name: "runsc"},
-	})
-
-	storeRunningExecContainer(t, s, "runsc", "axctl-exec-unsupported")
-
-	_, err := s.Exec(context.Background(), &runtime.ExecRequest{
-		ID:      "axctl-exec-unsupported",
-		Command: []string{"/bin/true"},
-	})
-	assert.Equal(t, codes.Unimplemented, status.Code(err))
-}
-
 func TestExecReturnsRuntimeExitCodeAndOutput(t *testing.T) {
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
+		name: "runsc",
 		execResponse: &apipb.ExecContainerResponse{
 			ExitCode: 7,
 			Stdout:   []byte("ok\n"),
 			Stderr:   []byte("warn\n"),
 		},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-exec-ok")
 
 	resp, err := s.Exec(context.Background(), &runtime.ExecRequest{
@@ -137,13 +111,12 @@ func TestExecReturnsRuntimeExitCodeAndOutput(t *testing.T) {
 	assert.Equal(t, []byte("ok\n"), resp.GetStdout())
 	assert.Equal(t, []byte("warn\n"), resp.GetStderr())
 	assert.Equal(t, "axctl-exec-ok", handler.lastExecOptions.ContainerID)
-	assert.Equal(t, "true", handler.lastExecOptions.ContainerLabels[runtimesandboxd.LabelReady])
 }
 
 func TestExecStreamRequiresOpenFrame(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": &runtimeSpyHandler{name: "runsc", capabilities: contract.RuntimeCapabilities{CanExecDirect: true}},
-	})
+	s := newTestService(t,
+		&runtimeSpyHandler{name: "runsc"},
+	)
 
 	stream := &execStreamServerStub{
 		requests: []*runtime.ExecStreamRequest{
@@ -165,11 +138,10 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 		recvEOFWait: inputDone,
 	}
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
-		execSession:  session,
+		name:        "runsc",
+		execSession: session,
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-exec-stream")
 
 	stream := &execStreamServerStub{
@@ -195,21 +167,19 @@ func TestExecStreamForwardsNonTTYStdinAndExit(t *testing.T) {
 		assert.False(t, handler.lastSessionOpen.GetTty())
 	}
 	assert.Equal(t, "axctl-exec-stream", handler.lastSessionOptions.ContainerID)
-	assert.Equal(t, "true", handler.lastSessionOptions.ContainerLabels[runtimesandboxd.LabelReady])
 	assert.Equal(t, [][]byte{[]byte("payload")}, session.writesSnapshot())
 	assert.True(t, session.isStdinClosed())
 }
 
 func TestExecStreamForwardsChunksAndExit(t *testing.T) {
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
+		name: "runsc",
 		execSession: &execSessionStub{
 			chunks: []contract.Chunk{{Stdout: []byte("hello")}},
 			exit:   contract.Exit{Status: 0},
 		},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-exec-stream-ok")
 
 	stream := &execStreamServerStub{
@@ -232,14 +202,13 @@ func TestExecStreamForwardsChunksAndExit(t *testing.T) {
 
 func TestExecStreamPropagatesSessionErrors(t *testing.T) {
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
+		name: "runsc",
 		execSession: &execSessionStub{
 			exit: contract.Exit{},
 			err:  errord.ErrUnavailable,
 		},
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-exec-stream-fail")
 
 	stream := &execStreamServerStub{

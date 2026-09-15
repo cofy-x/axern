@@ -56,7 +56,7 @@ func (r availabilityReconciler) ReconcileUnavailableNodes(ctx context.Context, n
 		if r.lifecycle != nil {
 			r.lifecycle.SyncLifecycle(node.NodeID, node.Lifecycle, node.RetiredAt, node.RetiredReason)
 		}
-		if !node.Active() || nodekernel.HeartbeatFresh(node.UpdatedAt, now, r.heartbeatWindow) {
+		if node.Lifecycle == nodekernel.LifecycleRetired || node.Active() && nodekernel.HeartbeatFresh(node.LastHeartbeatAt, now, r.heartbeatWindow) {
 			continue
 		}
 		err := r.allocations.ReconcileNodeUnavailable(ctx, node.NodeID, now)

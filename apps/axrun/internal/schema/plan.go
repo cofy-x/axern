@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 func validateRolloutPlan(problems *collector, runDir string, run domain.RolloutRun, tasks taskIndex, episodes []domain.Episode) *domain.RolloutPlan {

@@ -29,7 +29,7 @@ if namespace != "doctor-e2e":
 checks = {item.get("name"): item for item in report.get("checks", [])}
 expected = {
     "configuration", "tls_material", "tls_expiry", "tls_key_permissions",
-    "gateway", "identity", "authorization", "namespace", "catalog", "data_plane",
+    "gateway", "identity", "authorization", "namespace", "data_plane",
 }
 if set(checks) != expected:
     raise SystemExit(f"unexpected doctor checks: {sorted(checks)}")
@@ -49,7 +49,6 @@ payload = json.load(sys.stdin)
 active = [
     item for item in payload.get("environments", [])
     if item.get("labels", {}).get("axern.doctor") == "probe"
-    and str(item.get("status", "")).lower() not in {"deleted", "environment_status_deleted"}
 ]
 if active:
     raise SystemExit(f"doctor left active probe environments: {active}")

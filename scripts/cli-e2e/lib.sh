@@ -6,8 +6,6 @@ source "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
 AXERN_BIN="${AXERN_BIN:-${AXERN_ROOT}/bin/axern}"
 CONTROLD_GRPC_ADDRESS="${CONTROLD_GRPC_ADDRESS:-127.0.0.1:24100}"
 CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_ADDRESS:-127.0.0.1:24101}"
-STORAGED_GRPC_ADDRESS="${STORAGED_GRPC_ADDRESS:-127.0.0.1:24020}"
-STORAGED_HTTP_ADDRESS="${STORAGED_HTTP_ADDRESS:-127.0.0.1:24021}"
 NODE_GRPC_ADDRESS="${NODE_GRPC_ADDRESS:-127.0.0.1:24010}"
 NODE_HTTP_ADDRESS="${NODE_HTTP_ADDRESS:-0.0.0.0:23001}"
 GATEWAY_HTTP_ADDRESS="${GATEWAY_HTTP_ADDRESS:-127.0.0.1:25080}"
@@ -18,7 +16,7 @@ AXNODED_SOCKET="${AXNODED_SOCKET:-/shared/run/axnoded.sock}"
 # Docker's default 172.17.0.0/16 bridge so host-gateway traffic stays on eth0.
 AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-axern-cli-e2e}"
-CONTROL_PLANE_NODE_AUTH_TOKEN="${CONTROL_PLANE_NODE_AUTH_TOKEN:-node-axern-cli-e2e-token}"
+CONTROL_PLANE_ENROLLMENT_TOKEN="${CONTROL_PLANE_ENROLLMENT_TOKEN:-node-axern-cli-e2e-credential-00000000}"
 PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axern-cli-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axern-cli-e2e-net}"
@@ -34,19 +32,15 @@ export VERIFY_DOCKER_PLATFORM
 shared_run_dir="$(mktemp -d)"
 cert_dir="$(mktemp -d)"
 controld_log="$(mktemp)"
-storaged_log="$(mktemp)"
 gatewayd_log="$(mktemp)"
 cli_config_dir="$(mktemp -d)"
 cli_config_file="${cli_config_dir}/config.json"
-cli_catalog_output="$(mktemp)"
-cli_template_output="$(mktemp)"
 cli_object_output="$(mktemp)"
 cli_wait_output="$(mktemp)"
 cli_error_output="$(mktemp)"
 docker_secret_file="$(mktemp)"
 ssh_dir="$(mktemp -d)"
 CONTROLD_PID=""
-STORAGED_PID=""
 GATEWAYD_PID=""
 AXERN_CLI_E2E_KEEP_ON_FAILURE="${AXERN_CLI_E2E_KEEP_ON_FAILURE:-0}"
 AXERN_CLI_E2E_REBUILD_IMAGES="${AXERN_CLI_E2E_REBUILD_IMAGES:-0}"
@@ -62,7 +56,6 @@ failed_e2e_step=""
 export AXERN_CONFIG="${cli_config_file}"
 unset AXERN_CONTEXT
 unset AXERN_ENDPOINT
-unset AXERN_SERVICE_URL
 unset AXERN_SSH_ENDPOINT
 unset AXERN_SSH_IDENTITY_FILE
 
@@ -93,13 +86,7 @@ reserve_e2e_ports() {
   CONTROLD_HTTP_PORT="$(reserve_host_port "${CONTROLD_HTTP_HOST}" "${CONTROLD_HTTP_PORT}")"
   CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}"
 
-  split_into_vars "${STORAGED_GRPC_ADDRESS}" STORAGED_GRPC_HOST STORAGED_GRPC_PORT
-  STORAGED_GRPC_PORT="$(reserve_host_port "${STORAGED_GRPC_HOST}" "${STORAGED_GRPC_PORT}")"
-  STORAGED_GRPC_ADDRESS="${STORAGED_GRPC_HOST}:${STORAGED_GRPC_PORT}"
 
-  split_into_vars "${STORAGED_HTTP_ADDRESS}" STORAGED_HTTP_HOST STORAGED_HTTP_PORT
-  STORAGED_HTTP_PORT="$(reserve_host_port "${STORAGED_HTTP_HOST}" "${STORAGED_HTTP_PORT}")"
-  STORAGED_HTTP_ADDRESS="${STORAGED_HTTP_HOST}:${STORAGED_HTTP_PORT}"
 
   split_into_vars "${NODE_GRPC_ADDRESS}" NODE_GRPC_HOST NODE_GRPC_PORT
   NODE_GRPC_PORT="$(reserve_host_port "${NODE_GRPC_HOST}" "${NODE_GRPC_PORT}")"
@@ -118,6 +105,9 @@ reserve_e2e_ports() {
   GATEWAY_SSH_ADDRESS="${GATEWAY_SSH_HOST}:${GATEWAY_SSH_PORT}"
 
   POSTGRES_HOST_PORT="$(reserve_host_port "127.0.0.1" "${POSTGRES_HOST_PORT}")"
+  CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0 \
+    "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}" \
+    "${GATEWAY_HTTP_PORT}" "${GATEWAY_CONTROL_PORT}" "${GATEWAY_SSH_PORT}" "${POSTGRES_HOST_PORT}")"
   CONTROLD_POSTGRES_DSN="${CONTROLD_POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1:${POSTGRES_HOST_PORT}/${POSTGRES_DB}?sslmode=disable}"
 }
 
@@ -136,10 +126,6 @@ cleanup() {
     kill "${CONTROLD_PID}" >/dev/null 2>&1 || true
     wait "${CONTROLD_PID}" >/dev/null 2>&1 || true
   fi
-  if [ -n "${STORAGED_PID}" ]; then
-    kill "${STORAGED_PID}" >/dev/null 2>&1 || true
-    wait "${STORAGED_PID}" >/dev/null 2>&1 || true
-  fi
   if [ -n "${GATEWAYD_PID}" ]; then
     kill "${GATEWAYD_PID}" >/dev/null 2>&1 || true
     wait "${GATEWAYD_PID}" >/dev/null 2>&1 || true
@@ -147,7 +133,7 @@ cleanup() {
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
-  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${storaged_log}" "${gatewayd_log}" "${cli_config_dir}" "${cli_catalog_output}" "${cli_template_output}" "${cli_object_output}" "${cli_wait_output}" "${cli_error_output}" "${docker_secret_file}" "${ssh_dir}"
+  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${gatewayd_log}" "${cli_config_dir}" "${cli_object_output}" "${cli_wait_output}" "${cli_error_output}" "${docker_secret_file}" "${ssh_dir}"
 }
 
 dump_logs() {
@@ -162,8 +148,6 @@ dump_logs() {
   cat "${cli_object_output}" >&2 || true
   echo "--- controld log ---" >&2
   cat "${controld_log}" >&2 || true
-  echo "--- storaged log ---" >&2
-  cat "${storaged_log}" >&2 || true
   dump_controld_endpoint "nodesz"
   dump_controld_endpoint "resourcez"
   dump_controld_endpoint "reconcilez"
@@ -175,6 +159,7 @@ dump_logs() {
   docker logs "${NODE_CONTAINER_NAME}" >&2 || true
   dump_node_control_plane_route
   dump_node_log_tail "axnoded" "/var/log/axnoded/axnoded.log" 160
+  dump_node_log_tail "imagefsd" "/var/lib/imagemgr/logs/imagefsd.log" 80
   dump_node_log_tail "imagemgr" "/var/lib/imagemgr/logs/imagemgr.log" 120
   dump_node_log_tail "node-tunneld" "/var/log/axnoded/node-tunneld.log" 120
 }
@@ -191,7 +176,7 @@ dump_node_log_tail() {
   local path="$2"
   local lines="$3"
   echo "--- ${label} log tail ---" >&2
-  docker exec "${NODE_CONTAINER_NAME}" sh -lc "test -f '${path}' && tail -n '${lines}' '${path}'" >&2 || true
+  docker cp "${NODE_CONTAINER_NAME}:${path}" - | tar -xOf - | tail -n "${lines}" >&2 || true
 }
 
 node_control_plane_tcp_ready() {
@@ -223,8 +208,8 @@ dump_node_control_plane_route() {
           -connect "host.docker.internal:${AXERN_E2E_CONTROL_PLANE_PORT}" \
           -servername host.docker.internal \
           -CAfile /shared/certs/ca.crt \
-          -cert /shared/certs/node.crt \
-          -key /shared/certs/node.key \
+          -cert /var/lib/axnoded/root/identity/node.pem \
+          -key /var/lib/axnoded/root/identity/node.pem \
           -verify_return_error \
           -verify_hostname host.docker.internal \
           -brief </dev/null
@@ -274,11 +259,11 @@ json_query() {
   printf '%s\n' "${result}"
 }
 
-wait_for_ready_service_allocation() {
-  local service_id="$1"
+wait_for_running_run_allocation() {
+  local run_id="$1"
   local label="$2"
   local timeout_seconds="${3:-120}"
-  local deadline service_get_json replicas_json allocation_id
+  local deadline run_get_json allocation_id
   if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]]; then
     echo "${label} wait timeout must be numeric seconds, got ${timeout_seconds}" >&2
     dump_logs
@@ -286,54 +271,22 @@ wait_for_ready_service_allocation() {
   fi
   deadline=$((SECONDS + timeout_seconds))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
-    service_get_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service get "${service_id}" -o json 2>/dev/null || true)"
-    if [ -n "${service_get_json}" ] && python3 -c 'import json,sys; data=json.load(sys.stdin); svc=data["service"]; sys.exit(0 if svc.get("ready_replicas", 0) >= 1 else 1)' <<<"${service_get_json}" >/dev/null 2>&1; then
-      replicas_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service replicas "${service_id}" --view current -o json 2>/dev/null || true)"
-      allocation_id="$(python3 -c '
-import json, sys
-payload = json.load(sys.stdin)
-for replica in payload.get("replicas", []):
-    if replica.get("ready") and not replica.get("terminal") and not replica.get("outdated"):
-        print(replica["id"])
-        raise SystemExit(0)
-raise SystemExit(1)
-' <<<"${replicas_json}" 2>/dev/null || true)"
+    run_get_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run get "${run_id}" -o json 2>/dev/null || true)"
+    if [ -n "${run_get_json}" ] && python3 -c 'import json,sys; run=json.load(sys.stdin)["run"]; sys.exit(0 if run.get("status") == "running" and run.get("allocation_id") else 1)' <<<"${run_get_json}" >/dev/null 2>&1; then
+      allocation_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["allocation_id"])' <<<"${run_get_json}")"
       if [ -n "${allocation_id}" ]; then
         printf '%s\n' "${allocation_id}"
         return 0
       fi
     fi
-    sleep 2
-  done
-  echo "${label} did not surface a ready allocation in time" >&2
-  dump_logs
-  return 1
-}
-
-wait_for_service_deleted() {
-  local service_id="$1"
-  local label="$2"
-  local timeout_seconds="${3:-120}"
-  local deadline services_json
-  if ! [[ "${timeout_seconds}" =~ ^[0-9]+$ ]]; then
-    echo "${label} wait timeout must be numeric seconds, got ${timeout_seconds}" >&2
-    dump_logs
-    return 1
-  fi
-  deadline=$((SECONDS + timeout_seconds))
-  while [ "${SECONDS}" -lt "${deadline}" ]; do
-    services_json="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" service list -o json 2>/dev/null || true)"
-    if [ -n "${services_json}" ] && python3 -c '
-import json, sys
-service_id = sys.argv[1]
-payload = json.load(sys.stdin)
-raise SystemExit(1 if any(service.get("id") == service_id for service in payload.get("services", [])) else 0)
-' "${service_id}" <<<"${services_json}" >/dev/null 2>&1; then
-      return 0
+    if [ -n "${run_get_json}" ] && python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["run"].get("status") in ("failed", "succeeded", "cancelled") else 1)' <<<"${run_get_json}" >/dev/null 2>&1; then
+      echo "${label} reached a terminal state before running: ${run_get_json}" >&2
+      dump_logs
+      return 1
     fi
     sleep 2
   done
-  echo "${label} was not fully deleted in time" >&2
+  echo "${label} did not surface a running allocation in time" >&2
   dump_logs
   return 1
 }

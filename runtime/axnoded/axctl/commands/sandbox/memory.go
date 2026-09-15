@@ -7,14 +7,14 @@ import (
 	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/axctl/client"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/urfave/cli"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type memoryRPCClient interface {
-	GetSandboxMemory(sandboxID string) (*nodeoperatorv1.GetSandboxMemoryResponse, error)
+	GetAllocationMemory(allocationID string) (*nodeoperatorv1.GetAllocationMemoryResponse, error)
 	Close() error
 }
 
@@ -24,13 +24,13 @@ var newMemoryRPCClient = func(ctx *cli.Context) (memoryRPCClient, error) {
 
 var MemoryCmd = cli.Command{
 	Name:  "memory",
-	Usage: "Inspect the host cgroup memory domain for a sandbox",
+	Usage: "Inspect the host cgroup memory domain for an Allocation",
 	Flags: []cli.Flag{
 		cli.BoolFlag{Name: "json", Usage: "print the structured memory observation as JSON"},
 	},
 	Action: func(context *cli.Context) error {
 		if context.NArg() != 1 {
-			return fmt.Errorf("exactly one sandbox id must be specified")
+			return fmt.Errorf("exactly one allocation id must be specified")
 		}
 		opsClient, err := newMemoryRPCClient(context)
 		if err != nil {
@@ -38,13 +38,13 @@ var MemoryCmd = cli.Command{
 		}
 		defer opsClient.Close()
 
-		resp, err := opsClient.GetSandboxMemory(context.Args().First())
+		resp, err := opsClient.GetAllocationMemory(context.Args().First())
 		if err != nil {
 			return err
 		}
 		observation := resp.GetObservation()
 		if observation == nil {
-			return fmt.Errorf("sandbox memory observation is unavailable")
+			return fmt.Errorf("allocation memory observation is unavailable")
 		}
 		if context.Bool("json") {
 			encoded, err := (protojson.MarshalOptions{Indent: "  ", UseProtoNames: true}).Marshal(observation)
@@ -63,9 +63,8 @@ func renderSandboxMemory(w io.Writer, memory *controlnodev1.AllocationMemoryObse
 	if memory == nil {
 		return
 	}
-	fmt.Fprintf(w, "  Allocation: %s (attempt %d)\n", memory.GetAllocationID(), memory.GetAttempt())
-	fmt.Fprintf(w, "  Runtime: %s\n", fallbackString(memory.GetRuntime(), "-"))
-	fmt.Fprintf(w, "  Observed At: %s (revision %d)\n", formatTimestamp(memory.GetObservedAt()), memory.GetRevision())
+	fmt.Fprintf(w, "  Allocation: %s\n", memory.GetAllocationID())
+	fmt.Fprintf(w, "  Observed At: %s\n", formatTimestamp(memory.GetObservedAt()))
 	fmt.Fprintf(w, "  Request / Limit: %d / %d bytes\n", memory.GetRequestBytes(), memory.GetLimitBytes())
 	peakSource := "sampled current"
 	if memory.GetPeakAvailable() {

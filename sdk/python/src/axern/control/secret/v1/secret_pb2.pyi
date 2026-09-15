@@ -20,7 +20,7 @@ SECRET_TYPE_OPAQUE: SecretType
 SECRET_TYPE_DOCKER_CONFIG_JSON: SecretType
 
 class Secret(_message.Message):
-    __slots__ = ("id", "namespace", "type", "data_keys", "labels", "version", "created_at", "updated_at")
+    __slots__ = ("id", "namespace", "type", "data_keys", "labels", "created_at")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -33,18 +33,14 @@ class Secret(_message.Message):
     TYPE_FIELD_NUMBER: _ClassVar[int]
     DATA_KEYS_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
-    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
     type: SecretType
     data_keys: _containers.RepeatedScalarFieldContainer[str]
     labels: _containers.ScalarMap[str, str]
-    version: int
     created_at: _timestamp_pb2.Timestamp
-    updated_at: _timestamp_pb2.Timestamp
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., type: _Optional[_Union[SecretType, str]] = ..., data_keys: _Optional[_Iterable[str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., type: _Optional[_Union[SecretType, str]] = ..., data_keys: _Optional[_Iterable[str]] = ..., labels: _Optional[_Mapping[str, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class SecretListFilter(_message.Message):
     __slots__ = ("namespace", "type", "labels", "cursor", "page_size")

@@ -29,39 +29,17 @@ export interface ExecResult {
   stderrText(encoding?: BufferEncoding): string;
 }
 
-export interface ImageProcessMount {
-  sandboxPath: string;
-  targetPath: string;
-  readonly?: boolean;
-  options?: readonly string[];
-}
-
-export interface VolumeMount {
-  name: string;
-  target: string;
-  readonly?: boolean;
-  options?: readonly string[];
-}
-
-export function workspaceMount(path = "/workspace"): ImageProcessMount {
-  return { sandboxPath: path, targetPath: path };
-}
-
-export interface ImageExecOptions extends ExecOptions {
-  mounts?: readonly ImageProcessMount[];
-}
-
 export type ProcessEvent =
   | { kind: "ready" }
   | { kind: "stdout"; data: Buffer }
   | { kind: "stderr"; data: Buffer }
   | { kind: "exit"; exitCode: number; message: string };
 
-export interface ProcessOptions extends Omit<ExecOptions, "check"> {}
-
-export interface ImageProcessOptions extends ProcessOptions {
-  mounts?: readonly ImageProcessMount[];
+export interface ProcessOptions extends Omit<ExecOptions, "check"> {
+  initialCols?: number;
+  initialRows?: number;
 }
+
 
 export interface ProcessResult {
   exitCode: number;
@@ -156,7 +134,7 @@ export interface TunnelMetadata {
   proxyPort: number;
 }
 
-export interface CapabilityDependencyStatus {
+export interface CapabilityProviderDependencyStatus {
   name: string;
   available: boolean;
   reason: string;
@@ -169,7 +147,7 @@ export interface CapabilityProviderStatus {
   capabilities: string[];
   backend: string;
   reason: string;
-  dependencies: CapabilityDependencyStatus[];
+  dependencies: CapabilityProviderDependencyStatus[];
 }
 
 export interface CapabilityProviderSummary {

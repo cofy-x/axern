@@ -95,9 +95,8 @@ func sendExecExit(stream ExecStream, result waitResult) (StreamResult, error) {
 		message = result.err.Error()
 	}
 	if err := stream.Send(&runtime.ExecStreamResponse{Payload: &runtime.ExecStreamResponse_Exit{Exit: &runtime.ExecExit{
-		ExitCode:           int32(result.exit.Status),
-		Message:            message,
-		ManagedProxyReport: result.exit.ManagedProxyReport,
+		ExitCode: int32(result.exit.Status),
+		Message:  message,
 	}}}); err != nil {
 		return StreamResultNone, err
 	}
@@ -113,9 +112,8 @@ func sendProcessExit(stream ProcessStream, result waitResult) (StreamResult, err
 		message = result.err.Error()
 	}
 	if err := stream.Send(&runtime.ProcessResponse{Payload: &runtime.ProcessResponse_Exit{Exit: &runtime.ExecExit{
-		ExitCode:           int32(result.exit.Status),
-		Message:            message,
-		ManagedProxyReport: result.exit.ManagedProxyReport,
+		ExitCode: int32(result.exit.Status),
+		Message:  message,
 	}}}); err != nil {
 		return StreamResultNone, err
 	}

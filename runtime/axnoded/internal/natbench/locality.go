@@ -26,13 +26,6 @@ func ImageRootfsKey(imageURL string) string {
 	return "image:" + strings.TrimSpace(imageURL)
 }
 
-func S3RootfsKey(endpoint, bucket, object string) string {
-	endpoint = strings.TrimSpace(endpoint)
-	bucket = strings.TrimSpace(bucket)
-	object = strings.TrimSpace(object)
-	return "s3:" + endpoint + "/" + bucket + "/" + object
-}
-
 func CaptureLocalitySummary(inventoryURL, key string) (*LocalitySummary, error) {
 	if inventoryURL == "" {
 		return nil, nil
@@ -81,8 +74,8 @@ func RankLocalityEntries(entries []nodeinventory.LocalityHeatEntry) []nodeinvent
 			return a.Mounted
 		case a.RetainedRootfsCount != b.RetainedRootfsCount:
 			return a.RetainedRootfsCount > b.RetainedRootfsCount
-		case a.RetainedRuntimeCount != b.RetainedRuntimeCount:
-			return a.RetainedRuntimeCount > b.RetainedRuntimeCount
+		case a.RetainedEnvironmentCount != b.RetainedEnvironmentCount:
+			return a.RetainedEnvironmentCount > b.RetainedEnvironmentCount
 		case a.NydusDaemonAlive != b.NydusDaemonAlive:
 			return a.NydusDaemonAlive
 		case localityAgeSortValue(a.ChunkDBRecentAccessAgeSecs) != localityAgeSortValue(b.ChunkDBRecentAccessAgeSecs):

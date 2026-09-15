@@ -18,7 +18,7 @@ func TestImportKubernetesSecretWritesPrivateCertificates(t *testing.T) {
 	})
 	if err := ImportKubernetesSecret(payload, KubernetesImportParams{
 		Name: "local", ConfigPath: configPath, CertDir: certDir,
-		Endpoint: "127.0.0.1:25100", ServiceURL: "http://127.0.0.1:25101",
+		Endpoint:    "127.0.0.1:25100",
 		SSHEndpoint: "127.0.0.1:25122", ProxyMode: "direct", Current: true,
 	}); err != nil {
 		t.Fatal(err)

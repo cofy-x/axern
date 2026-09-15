@@ -23,12 +23,12 @@ const maxInventoryResponseBytes = 8 << 20
 
 var errNodeInventoryWarming = errors.New("node capability inventory is warming")
 
-// prepareCapabilityDependencies makes the repository verification clients act
+// prepareCapabilityRequirements makes the repository verification clients act
 // like controld: they select a single published node snapshot, derive typed
-// requirements with the shared catalog, and bind every requirement to its
+// requirements with the shared capability contract, and bind every requirement to its
 // proof. The production lifecycle gate remains fail-closed and has no
 // verification-only RPC bypass.
-func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, spec *privatenodev1.ResolvedExecutionConfig) (*privatenodev1.ResolvedExecutionConfig, error) {
+func prepareCapabilityRequirements(ctx context.Context, clients *NodeClients, spec *privatenodev1.ResolvedExecutionConfig) (*privatenodev1.ResolvedExecutionConfig, error) {
 	if clients == nil || clients.httpClient == nil || strings.TrimSpace(clients.inventoryURL) == "" {
 		return nil, fmt.Errorf("node inventory client is unavailable")
 	}
@@ -41,7 +41,7 @@ func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, sp
 		return nil, fmt.Errorf("normalize network policy: %w", err)
 	}
 	prepared.Network = normalizedNetwork
-	if len(prepared.GetCapabilityDependencies()) != 0 {
+	if len(prepared.GetCapabilityRequirements()) != 0 {
 		return prepared, nil
 	}
 
@@ -65,8 +65,6 @@ func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, sp
 	resources := prepared.GetResources()
 	requiresDNSPolicy, requiresStrictPolicy := policyCapabilityRequirements(normalizedNetwork)
 	requirements, err := capabilitycontract.DeriveRequirements(capabilitycontract.RequirementInput{
-		RuntimeName:                     prepared.GetRuntimeClass(),
-		HasPorts:                        len(prepared.GetPorts()) > 0,
 		NetworkMode:                     networkMode(normalizedNetwork),
 		NetworkBackend:                  backend,
 		RequiresDNSPolicyEnforcement:    requiresDNSPolicy,
@@ -80,11 +78,11 @@ func prepareCapabilityDependencies(ctx context.Context, clients *NodeClients, sp
 	if err != nil {
 		return nil, fmt.Errorf("derive requirements: %w", err)
 	}
-	dependencies, err := capabilitycontract.ResolveDependencies(snapshot, requirements, now)
+	dependencies, err := capabilitycontract.ResolveRequirements(snapshot, requirements, now)
 	if err != nil {
 		return nil, fmt.Errorf("resolve requirements from node snapshot: %w", err)
 	}
-	prepared.CapabilityDependencies = dependencies
+	prepared.CapabilityRequirements = dependencies
 	return prepared, nil
 }
 

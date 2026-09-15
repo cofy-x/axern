@@ -564,7 +564,7 @@ func TestValidateRunRejectsNonFinalAgentResult(t *testing.T) {
 	}
 }
 
-func TestValidateRunAcceptsMountedBundleLauncherKind(t *testing.T) {
+func TestValidateRunAcceptsMountedAgentImageLauncherKind(t *testing.T) {
 	runDir := createSchemaFixture(t)
 	agentPath := filepath.Join(runDir, "episodes", "episode_test-run_task_1", "agent.json")
 	var agent domain.AgentResult
@@ -724,73 +724,6 @@ func TestValidateRunRejectsInfrastructureFailureWithoutInfraReward(t *testing.T)
 	}
 	if result.Valid() || !containsProblem(result, "failure_class", "infrastructure episode requires infra_failed reward") {
 		t.Fatalf("result = %#v", result)
-	}
-}
-
-func TestValidateRunAcceptsRemoteTaskSetAssetPathsWithoutLocalFiles(t *testing.T) {
-	runDir := createSchemaFixture(t)
-	taskPath := filepath.Join(runDir, "tasks", "task", "task.json")
-	var task domain.TaskInstance
-	readSchemaJSON(t, taskPath, &task)
-	task.InitialState = &domain.InitialStateSpec{
-		Type: "taskset_workspace_image",
-		WorkspaceImage: &domain.WorkspaceImageSourceSpec{
-			Variants: []domain.WorkspaceImageVariantSpec{{
-				Format: "oci",
-				Image:  "registry.example.com/tasksets/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-			}},
-			SourcePath: "tasks/task/workspace",
-			Target:     "/workspace",
-		},
-	}
-	task.Verifier = domain.VerifierSpec{
-		Type:    domain.VerifierTypeShell,
-		Command: "/workspace/.axrun/verifier/check.sh",
-		Assets: []domain.VerifierAssetSpec{{
-			Path:       "tasks/task/verifier/check.sh",
-			TargetPath: "/workspace/.axrun/verifier/check.sh",
-		}},
-	}
-	task.Oracle = &domain.OracleSpec{Path: "tasks/task/oracle/answer.txt"}
-	writeSchemaJSON(t, taskPath, task)
-
-	result, err := ValidateRun(Params{RunDir: runDir})
-	if err != nil || !result.Valid() {
-		t.Fatalf("ValidateRun() = (%#v, %v), want valid remote TaskSet asset paths", result, err)
-	}
-}
-
-func TestValidateRunRejectsRemoteTaskSetAssetOutsideTaskPrefix(t *testing.T) {
-	runDir := createSchemaFixture(t)
-	taskPath := filepath.Join(runDir, "tasks", "task", "task.json")
-	var task domain.TaskInstance
-	readSchemaJSON(t, taskPath, &task)
-	task.InitialState = &domain.InitialStateSpec{
-		Type: "taskset_workspace_image",
-		WorkspaceImage: &domain.WorkspaceImageSourceSpec{
-			Variants: []domain.WorkspaceImageVariantSpec{
-				{
-					Format: "oci",
-					Image:  "registry.example.com/tasksets/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				},
-			},
-			SourcePath: "tasks/task/workspace",
-			Target:     "/workspace",
-		},
-	}
-	task.Verifier = domain.VerifierSpec{
-		Type:    domain.VerifierTypeShell,
-		Command: "/workspace/.axrun/verifier/check.sh",
-		Assets: []domain.VerifierAssetSpec{{
-			Path:       "tasks/other/verifier/check.sh",
-			TargetPath: "/workspace/.axrun/verifier/check.sh",
-		}},
-	}
-	writeSchemaJSON(t, taskPath, task)
-
-	result, err := ValidateRun(Params{RunDir: runDir})
-	if err == nil || result.Valid() || !containsProblem(result, "verifier.assets[0].path", "must be inside TaskSet payload prefix") {
-		t.Fatalf("ValidateRun() = (%#v, %v), want TaskSet task-prefix error", result, err)
 	}
 }
 

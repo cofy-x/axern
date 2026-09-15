@@ -21,28 +21,10 @@ func NormalizeConfig(in *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	}
 	out.Resources = NormalizeResources(out.GetResources())
 	out.ImageMounts = NormalizeImageMounts(out.GetImageMounts())
-	out.WorkspaceImage = NormalizeWorkspaceImage(out.GetWorkspaceImage())
 	if network, err := networkpolicy.Normalize(out.GetNetwork()); err == nil {
 		out.Network = network
 	}
 	out.ExtensionCapabilityRequirements = normalizeExtensionCapabilityRequirements(out.GetExtensionCapabilityRequirements())
-	return out
-}
-
-func NormalizeWorkspaceImage(in *commonv1.WorkspaceImageSource) *commonv1.WorkspaceImageSource {
-	if in == nil {
-		return nil
-	}
-	out := &commonv1.WorkspaceImageSource{SourcePath: strings.TrimSpace(in.GetSourcePath()), Target: path.Clean(strings.TrimSpace(in.GetTarget()))}
-	if out.Target == "." {
-		out.Target = "/workspace"
-	}
-	for _, variant := range in.GetVariants() {
-		if variant == nil {
-			continue
-		}
-		out.Variants = append(out.Variants, &commonv1.WorkspaceImageVariant{Format: strings.ToLower(strings.TrimSpace(variant.GetFormat())), Image: strings.TrimSpace(variant.GetImage())})
-	}
 	return out
 }
 

@@ -20,7 +20,7 @@ metricsz_wait_capability_snapshot() {
   local snapshot
   for _ in $(seq 1 160); do
     if snapshot="$(curl -fsS "${url}" 2>/dev/null)" && \
-      jq -e '(.node.capability_snapshot.sequence // 0) > 0' >/dev/null <<<"${snapshot}"; then
+      jq -e '(.node.capability_snapshot.collected_at // "") != "" and ((.node.capability_snapshot.observations // []) | length > 0)' >/dev/null <<<"${snapshot}"; then
       return 0
     fi
     sleep 1

@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"path"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,13 +15,13 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/workloadidentity"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
-	allocationMemoryMetricRuntimes = []string{"runc", "runsc"}
+	allocationMemoryMetricRuntimes = []string{"runsc"}
 	allocationMemoryMetricKinds    = []string{
 		"current", "peak", "swap_current", "anon", "file", "shmem", "kernel", "file_dirty", "file_writeback",
 		"event_high", "event_max", "event_oom", "event_oom_kill", "event_oom_group_kill",
@@ -48,13 +46,24 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 	}
 	snapshot.Components.Axnoded.RunningContainers = len(runningContainers)
 	snapshot.Components.Axnoded.RunningAllocationIDs = make([]string, 0, len(runningContainers))
-	snapshot.Components.Axnoded.ActiveAllocationIDs = make([]string, 0, len(allContainers))
+	snapshot.Components.Axnoded.ActiveAllocationIDs = make([]string, 0)
+	admittedAllocations := make(map[string]struct{})
+	if s.allocationIDs != nil {
+		for _, allocationID := range s.allocationIDs() {
+			allocationID = strings.TrimSpace(allocationID)
+			if allocationID == "" {
+				continue
+			}
+			admittedAllocations[allocationID] = struct{}{}
+			snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
+		}
+	}
 	if s.runtimeCount != nil {
 		snapshot.Components.Axnoded.RegisteredRuntimes = s.runtimeCount()
 	}
-	if s.langRuntime != nil {
-		retentionStats := s.langRuntime.RetentionStats()
-		snapshot.Heat.RetainedRuntimeCount = retentionStats.RetainedRuntimeCount
+	if s.preparedEnvironment != nil {
+		retentionStats := s.preparedEnvironment.RetentionStats()
+		snapshot.Heat.RetainedEnvironmentCount = retentionStats.RetainedEnvironmentCount
 		snapshot.Heat.RetainedRootfsCount = retentionStats.RetainedRootfsCount
 		s.collectAxnodedLocality(snapshot, runningContainers)
 	}
@@ -63,14 +72,13 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 		if c == nil || c.Metadata == nil {
 			continue
 		}
-		allocationID := strings.TrimSpace(c.Metadata.ID)
+		allocationID := strings.TrimSpace(c.ID)
 		if allocationID == "" {
 			continue
 		}
-		// Active means axnoded still owns lifecycle or resource state, not that
-		// the runtime process is currently running. An exited allocation remains
-		// active until ordered Delete removes its durable local record.
-		snapshot.Components.Axnoded.ActiveAllocationIDs = append(snapshot.Components.Axnoded.ActiveAllocationIDs, allocationID)
+		if _, admitted := admittedAllocations[allocationID]; !admitted {
+			continue
+		}
 		if c.Status == nil {
 			continue
 		}
@@ -85,15 +93,27 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 			s.unackedStatusIDs()...,
 		)
 	}
-	for _, c := range runningContainers {
-		status := c.Status.Get()
-		res := status.LinuxResources
-		if committedMilli, bounded := cpuCommitmentMilli(status.ResourceSpec, res); bounded {
+	allocationContainers := make([]*container.Container, 0, len(allContainers))
+	runningAllocations := make([]*container.Container, 0, len(runningContainers))
+	for _, c := range allContainers {
+		if c == nil {
+			continue
+		}
+		if _, admitted := admittedAllocations[strings.TrimSpace(c.ID)]; admitted {
+			allocationContainers = append(allocationContainers, c)
+			if c.Status != nil && c.Status.Get().State() == runtimeapi.ContainerState_CONTAINER_RUNNING {
+				runningAllocations = append(runningAllocations, c)
+			}
+		}
+	}
+	for _, c := range runningAllocations {
+		spec := s.allocationResourceSpecFor(c.ID)
+		if committedMilli, bounded := cpuCommitmentMilli(spec); bounded {
 			snapshot.Resources.CPU.AxnodedCommittedMilli += committedMilli
 		} else {
 			snapshot.Resources.CPU.AxnodedUnboundedCount++
 		}
-		if committedBytes, bounded := memoryCommitmentBytes(status.ResourceSpec, res); bounded {
+		if committedBytes, bounded := memoryCommitmentBytes(spec); bounded {
 			snapshot.Resources.Memory.AxnodedCommittedBytes += committedBytes
 		} else {
 			snapshot.Resources.Memory.AxnodedUnboundedCount++
@@ -125,7 +145,7 @@ func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInv
 	}
 	snapshot.Pools.RuntimeSlots = s.runtimeSlotInventory(len(allContainers), snapshot.Pools)
 
-	status, componentStatus, componentError := s.collectAxnodedActualUsage(now, runningContainers, allContainers, snapshot)
+	status, componentStatus, componentError := s.collectAxnodedActualUsage(now, runningAllocations, allocationContainers, snapshot)
 	snapshot.Sources["axnoded"] = status
 	snapshot.Components.Axnoded.Status = componentStatus
 	snapshot.Components.Axnoded.Error = componentError
@@ -219,7 +239,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		// A runtime may therefore report the delegated root (commonly "/") as
 		// its cgroup path. Sampling that shared domain once per allocation would
 		// fabricate attribution and double-count host usage. Keep the durable
-		// reservation totals above, but publish no per-allocation usage or CPU
+		// Allocation charge totals above, but publish no per-allocation usage or CPU
 		// sample unless the production cgroup ownership contract is enforced.
 		s.sampleMu.Lock()
 		s.prevCPUSamples = make(map[string]cpuUsageSample)
@@ -240,21 +260,6 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 	warming := false
 	successes := 0
 	memoryByRuntime := newAllocationMemoryMetricSet()
-	var memoryObservationRevision int64
-	nextMemoryRevision := func() (int64, error) {
-		if memoryObservationRevision > 0 {
-			return memoryObservationRevision, nil
-		}
-		if s.memoryObservationRevision == nil {
-			return 0, fmt.Errorf("durable observation revision provider is unavailable")
-		}
-		revision, err := s.memoryObservationRevision()
-		if err != nil {
-			return 0, fmt.Errorf("allocate durable observation revision: %w", err)
-		}
-		memoryObservationRevision = revision
-		return revision, nil
-	}
 	memoryObservationIDs := make(map[string]struct{})
 	appendMemoryObservation := func(observation *nodev1.AllocationMemoryObservation) {
 		allocationID := strings.TrimSpace(observation.GetAllocationID())
@@ -265,7 +270,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		memoryObservationIDs[allocationID] = struct{}{}
 		snapshot.AllocationMemoryObservations = append(snapshot.AllocationMemoryObservations, observation)
 		snapshot.Resources.Memory.AxnodedUsedBytes = saturatingInt64Add(snapshot.Resources.Memory.AxnodedUsedBytes, observation.GetCurrentBytes())
-		runtimeName := observation.GetRuntime()
+		runtimeName := "runsc"
 		if memoryByRuntime[runtimeName] == nil {
 			memoryByRuntime[runtimeName] = make(map[string]float64)
 		}
@@ -297,46 +302,45 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 		if c == nil || c.Metadata == nil {
 			continue
 		}
-		if _, retiring := retiringAllocations[strings.TrimSpace(c.Metadata.ID)]; retiring {
-			errs = append(errs, fmt.Sprintf("%s memory: running container also has retiring cgroup ownership", c.Metadata.ID))
+		if _, retiring := retiringAllocations[strings.TrimSpace(c.ID)]; retiring {
+			errs = append(errs, fmt.Sprintf("%s memory: running container also has retiring cgroup ownership", c.ID))
 			continue
 		}
-		cgroupPath, err := s.container.RuntimeCgroupPath(c.Metadata.ID)
+		cgroupPath, err := s.container.RuntimeCgroupPath(c.ID)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.Metadata.ID, err))
+			errs = append(errs, fmt.Sprintf("%s: %v", c.ID, err))
 			continue
 		}
 		stats, err := s.loadCgroupStats(cgroupPath)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s: %v", c.Metadata.ID, err))
+			errs = append(errs, fmt.Sprintf("%s: %v", c.ID, err))
 			continue
 		}
 		statusValue := c.Status.Get()
-		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
-		if s.memoryBudgetEnabled && allocationAttempt(c) > 0 {
-			revision, revisionErr := nextMemoryRevision()
-			if revisionErr != nil {
-				errs = append(errs, fmt.Sprintf("%s memory: %v", c.Metadata.ID, revisionErr))
+		resourceSpec := s.allocationResourceSpecFor(c.ID)
+		memoryLimit := resourceSpec.GetLimits().GetMemoryBytes()
+		if s.memoryBudgetEnabled {
+			parentPath, parentErr := s.container.AllocationCgroupPath(c.ID)
+			if parentErr != nil {
+				errs = append(errs, fmt.Sprintf("%s memory binding: %v", c.ID, parentErr))
 				continue
 			}
-			observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, revision, now)
+			observation, observationErr := allocationMemoryObservation(c, parentPath, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
 			if observationErr != nil {
-				errs = append(errs, fmt.Sprintf("%s memory: %v", c.Metadata.ID, observationErr))
+				errs = append(errs, fmt.Sprintf("%s memory: %v", c.ID, observationErr))
 				continue
 			}
 			if s.memoryPIDRolesVerifier != nil {
 				observation.PidRolesVerified = s.memoryPIDRolesVerifier(
-					c.Metadata.ID,
-					c.Metadata.GetRuntimeHandler(),
+					c.ID,
 					cgroupPath,
 					statusValue.Pid,
 				) == nil
 			}
 			appendMemoryObservation(observation)
 		} else {
-			// Node-local and development containers are included in aggregate
-			// host usage, but only control-plane allocations carry the durable
-			// attempt identity required by the public observation contract.
+			// Containers are included in aggregate host usage when detailed
+			// allocation memory reporting is disabled.
 			memoryUsage := int64(stats.MemoryUsage)
 			if stats.MemoryUsage > math.MaxInt64 {
 				memoryUsage = math.MaxInt64
@@ -344,10 +348,10 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 			snapshot.Resources.Memory.AxnodedUsedBytes = saturatingInt64Add(snapshot.Resources.Memory.AxnodedUsedBytes, memoryUsage)
 		}
 		successes++
-		currentSamples[c.Metadata.ID] = cpuUsageSample{UsageNs: stats.CPUUsageTotal, CollectedAt: now}
+		currentSamples[c.ID] = cpuUsageSample{UsageNs: stats.CPUUsageTotal, CollectedAt: now}
 
 		s.sampleMu.Lock()
-		prev, ok := s.prevCPUSamples[c.Metadata.ID]
+		prev, ok := s.prevCPUSamples[c.ID]
 		s.sampleMu.Unlock()
 		if !ok || !prev.CollectedAt.Before(now) {
 			warming = true
@@ -370,39 +374,39 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 	runningIDs := make(map[string]struct{}, len(runningContainers))
 	for _, c := range runningContainers {
 		if c != nil && c.Metadata != nil {
-			runningIDs[c.Metadata.ID] = struct{}{}
+			runningIDs[c.ID] = struct{}{}
 		}
 	}
 	for _, c := range allocationContainers {
 		if c == nil || c.Metadata == nil || c.Status == nil {
 			continue
 		}
-		if _, running := runningIDs[c.Metadata.ID]; running {
+		if _, running := runningIDs[c.ID]; running {
 			continue
 		}
-		if _, retiring := retiringAllocations[strings.TrimSpace(c.Metadata.ID)]; retiring {
+		if _, retiring := retiringAllocations[strings.TrimSpace(c.ID)]; retiring {
 			// Recycle durably changes ownership before the container record is
 			// removed. The retiring ledger is authoritative in that window.
 			continue
 		}
-		statusValue := c.Status.Get()
-		memoryLimit := statusValue.ResourceSpec.GetLimits().GetMemoryBytes()
-		if !s.memoryBudgetEnabled || allocationAttempt(c) <= 0 {
+		resourceSpec := s.allocationResourceSpecFor(c.ID)
+		memoryLimit := resourceSpec.GetLimits().GetMemoryBytes()
+		if !s.memoryBudgetEnabled {
 			continue
 		}
-		cgroupPath, err := s.container.RuntimeCgroupPath(c.Metadata.ID)
+		cgroupPath, err := s.container.RuntimeCgroupPath(c.ID)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.Metadata.ID, err))
+			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, err))
 			continue
 		}
-		revision, revisionErr := nextMemoryRevision()
-		if revisionErr != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.Metadata.ID, revisionErr))
+		parentPath, parentErr := s.container.AllocationCgroupPath(c.ID)
+		if parentErr != nil {
+			errs = append(errs, fmt.Sprintf("%s exited memory binding: %v", c.ID, parentErr))
 			continue
 		}
-		observation, observationErr := allocationMemoryObservation(c, cgroupPath, memoryLimit, revision, now)
+		observation, observationErr := allocationMemoryObservation(c, parentPath, cgroupPath, resourceSpec.GetRequests().GetMemoryBytes(), memoryLimit, now)
 		if observationErr != nil {
-			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.Metadata.ID, observationErr))
+			errs = append(errs, fmt.Sprintf("%s exited memory: %v", c.ID, observationErr))
 			continue
 		}
 		// No live runtime PID role is expected after terminal exit. Control and
@@ -414,12 +418,7 @@ func (s *AxnodedSource) collectAxnodedActualUsage(now time.Time, runningContaine
 	}
 
 	for _, lease := range retiringLeases {
-		revision, revisionErr := nextMemoryRevision()
-		if revisionErr != nil {
-			errs = append(errs, fmt.Sprintf("%s retiring memory: %v", lease.AllocationID, revisionErr))
-			continue
-		}
-		observation, observationErr := retiringMemoryObservation(s.cgroupDriver, lease, revision, now)
+		observation, observationErr := retiringMemoryObservation(s.cgroupDriver, lease, now)
 		if observationErr != nil {
 			if errors.Is(observationErr, os.ErrNotExist) {
 				continue
@@ -489,8 +488,8 @@ func saturatingInt64Add(current, delta int64) int64 {
 	return current + delta
 }
 
-func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.RetiringMemoryLease, revision int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
-	if driver == nil || lease.CgroupID == "" || lease.AllocationID == "" || lease.AllocationAttempt <= 0 || lease.MemoryRequest < 0 || lease.MemoryLimit < 0 || revision <= 0 {
+func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.RetiringMemoryLease, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
+	if driver == nil || lease.CgroupID == "" || lease.AllocationID == "" || lease.MemoryRequest < 0 || lease.MemoryLimit < 0 {
 		return nil, fmt.Errorf("retiring allocation memory metadata is incomplete")
 	}
 	if lease.MemoryLimit > 0 && lease.MemoryRequest > lease.MemoryLimit {
@@ -532,21 +531,18 @@ func retiringMemoryObservation(driver os2.CgroupDriver, lease resources.Retiring
 		return nil, err
 	}
 	return memoryObservationFromKernel(
-		lease.AllocationID, lease.AllocationAttempt, lease.MemoryRequest, lease.MemoryLimit, lease.RuntimeName,
-		nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, revision, now, domain, usage, bounded, leafControlsVerified,
+		lease.AllocationID, lease.MemoryRequest, lease.MemoryLimit,
+		nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, now, domain, usage, bounded, leafControlsVerified,
 	), nil
 }
 
-func allocationMemoryObservation(c *container.Container, workloadPath string, limitBytes, revision int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
-	if c == nil || c.Metadata == nil || c.Status == nil || limitBytes < 0 || revision <= 0 {
+func allocationMemoryObservation(c *container.Container, parentPath, workloadPath string, requestBytes, limitBytes int64, now time.Time) (*nodev1.AllocationMemoryObservation, error) {
+	if c == nil || c.Metadata == nil || c.Status == nil || limitBytes < 0 {
 		return nil, fmt.Errorf("allocation memory metadata is incomplete")
 	}
-	parentPath := ""
-	if c.Spec != nil {
-		parentPath = strings.TrimSpace(c.Spec.Annotations[resources.ResourceAnnotationKeyPrefix+string(resources.CgroupResourceName)])
-	}
+	parentPath = strings.TrimSpace(parentPath)
 	if parentPath == "" {
-		parentPath = path.Dir(strings.TrimSpace(workloadPath))
+		return nil, fmt.Errorf("allocation cgroup binding is empty")
 	}
 	domain, err := hostlinux.InspectCgroupMemoryDomain(parentPath, workloadPath)
 	if err != nil {
@@ -563,43 +559,32 @@ func allocationMemoryObservation(c *container.Container, workloadPath string, li
 	if err != nil {
 		return nil, err
 	}
-	attempt := allocationAttempt(c)
-	if attempt <= 0 {
-		return nil, fmt.Errorf("allocation attempt is unavailable")
-	}
-	requestBytes := c.Status.Get().ResourceSpec.GetRequests().GetMemoryBytes()
 	if requestBytes < 0 || (bounded && requestBytes > limitBytes) {
 		return nil, fmt.Errorf("allocation memory request is inconsistent with its limit")
 	}
 	return memoryObservationFromKernel(
-		c.Metadata.ID, attempt, requestBytes, limitBytes, c.Metadata.GetRuntimeHandler(), nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, revision, now, domain, usage, bounded, bounded,
+		c.ID, requestBytes, limitBytes, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, now, domain, usage, bounded, bounded,
 	), nil
 }
 
-func allocationAttempt(c *container.Container) int64 {
-	if c == nil || c.Metadata == nil {
-		return 0
+func (s *AxnodedSource) allocationResourceSpecFor(allocationID string) *commonv1.ResourceSpec {
+	if s == nil || s.allocationResourceSpec == nil {
+		return nil
 	}
-	attempt, err := strconv.ParseInt(strings.TrimSpace(c.Metadata.Labels[workloadidentity.LabelKeyAllocationAttempt]), 10, 64)
-	if err != nil || attempt <= 0 {
-		return 0
-	}
-	return attempt
+	return s.allocationResourceSpec(allocationID)
 }
 
 func memoryObservationFromKernel(
 	allocationID string,
-	attempt, requestBytes, limitBytes int64,
-	runtimeName string,
+	requestBytes, limitBytes int64,
 	cleanupState nodev1.AllocationMemoryCleanupState,
-	revision int64,
 	now time.Time,
 	domain *hostlinux.CgroupMemoryDomain,
 	usage *hostlinux.CgroupMemoryObservation,
 	parentControlsVerified, leafControlsVerified bool,
 ) *nodev1.AllocationMemoryObservation {
 	return &nodev1.AllocationMemoryObservation{
-		AllocationID: allocationID, Attempt: attempt, Revision: revision, ObservedAt: timestamppb.New(now),
+		AllocationID: allocationID, ObservedAt: timestamppb.New(now),
 		RequestBytes: requestBytes, LimitBytes: limitBytes, CurrentBytes: usage.CurrentBytes, PeakBytes: usage.PeakBytes, PeakAvailable: usage.PeakAvailable,
 		SwapCurrentBytes: usage.SwapCurrent, AnonBytes: usage.Stat["anon"], FileBytes: usage.Stat["file"],
 		ShmemBytes: usage.Stat["shmem"], KernelBytes: usage.Stat["kernel"], DirtyBytes: usage.Stat["file_dirty"],
@@ -607,9 +592,9 @@ func memoryObservationFromKernel(
 		EventOom: usage.Events["oom"], EventOomKill: usage.Events["oom_kill"], EventOomGroupKill: usage.Events["oom_group_kill"],
 		PsiSomeAvg10: usage.PSISomeAvg10, PsiFullAvg10: usage.PSIFullAvg10,
 		PsiSomeTotalUsec: usage.PSISomeTotal, PsiFullTotalUsec: usage.PSIFullTotal,
-		PsiAvailable:   usage.PSIAvailable,
-		CgroupIdentity: fmt.Sprintf("boot=%s:%s:%d:%d", domain.BootID, domain.MountIdentity, domain.ParentInode, domain.LeafInode),
-		Runtime:        runtimeName, ParentControlsVerified: parentControlsVerified, LeafControlsVerified: leafControlsVerified,
+		PsiAvailable:           usage.PSIAvailable,
+		CgroupIdentity:         fmt.Sprintf("boot=%s:%s:%d:%d", domain.BootID, domain.MountIdentity, domain.ParentInode, domain.LeafInode),
+		ParentControlsVerified: parentControlsVerified, LeafControlsVerified: leafControlsVerified,
 		CleanupState: cleanupState,
 	}
 }

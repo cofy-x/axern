@@ -46,55 +46,27 @@ spec:
             - -control-edge-tls-ca-cert
             - /certs/ca.crt
             - -control-edge-tls-cert
-            - /certs/gatewayd.crt
+            - /certs/gatewayd.pem
             - -control-edge-tls-key
-            - /certs/gatewayd.key
+            - /certs/gatewayd.pem
             {{- if .Values.gatewayd.ssh.enabled }}
             - -ssh-enabled
             - -ssh-address
             - 0.0.0.0:25022
             - -ssh-host-key
             - /ssh/gateway_host_ed25519
-            - -ssh-authorized-keys
-            - /ssh/authorized_keys
             {{- end }}
-            {{- if .Values.gatewayd.dashboardEnabled }}
-            - -dashboard-enabled
-            {{- end }}
+            - -workload-bundle
+            - /certs/gatewayd.pem
+            - -workload-cluster
+            - {{ .Values.pki.trustDomain | quote }}
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/gatewayd.crt
-            - -tls-key
-            - /certs/gatewayd.key
             - -tunnel-relay-target
             - {{ include "axern.tunneldTarget" . | quote }}
             - -tunnel-relay-tls-ca-cert
             - /certs/ca.crt
-            - -route-cache-ttl
-            - {{ .Values.gatewayd.routeCacheTTL | quote }}
-            - -route-cache-max-entries
-            - {{ .Values.gatewayd.routeCacheMaxEntries | quote }}
-            - -service-endpoint-retry-attempts
-            - {{ .Values.gatewayd.serviceEndpointRetryAttempts | quote }}
-            - -service-endpoint-quarantine-ttl
-            - {{ .Values.gatewayd.serviceEndpointQuarantineTTL | quote }}
-            - -artifact-max-concurrent
-            - {{ .Values.gatewayd.artifact.maxConcurrent | quote }}
-            - -artifact-chunk-bytes
-            - {{ .Values.gatewayd.artifact.chunkBytes | quote }}
-            - -artifact-upstream-timeout
-            - {{ .Values.gatewayd.artifact.upstreamTimeout | quote }}
-            - -artifact-max-bytes
-            - {{ .Values.gatewayd.artifact.maxBytes | int64 | quote }}
           env:
-            - name: AXERN_GATEWAY_DEV_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.secretsSecretName" . }}
-                  key: GATEWAYD_DEV_TOKEN
-            - name: GATEWAYD_DASHBOARD_ENABLED
-              value: {{ ternary "true" "false" .Values.gatewayd.dashboardEnabled | quote }}
             {{- include "axern.otelEnv" . | nindent 12 }}
           ports:
             - containerPort: 25000
@@ -121,6 +93,12 @@ spec:
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: gatewayd.pem
+                path: gatewayd.pem
         {{- if .Values.gatewayd.ssh.enabled }}
         - name: ssh
           secret:

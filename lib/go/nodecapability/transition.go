@@ -4,6 +4,7 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 const missingObservationReason = "capability observation is absent from the current snapshot"
@@ -39,7 +40,7 @@ func EvaluateObservation(snapshot *capabilityv1.CapabilitySnapshot, observation 
 		return EvaluatedObservation{
 			State:      capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED,
-			Reason:     "capability observation or one of its dependency proofs is no longer current",
+			Reason:     "capability observation or one of its definition dependencies is no longer current",
 		}
 	}
 	return EvaluatedObservation{
@@ -75,13 +76,13 @@ func EvaluateObservationTransition(
 	}
 	changed := evaluation.Previous.State != evaluation.Current.State ||
 		evaluation.Previous.ReasonCode != evaluation.Current.ReasonCode ||
-		evidenceID(previous) != evidenceID(current)
+		!proto.Equal(observationEvidence(previous), observationEvidence(current))
 	return evaluation, changed
 }
 
-func evidenceID(observation *capabilityv1.CapabilityObservation) string {
+func observationEvidence(observation *capabilityv1.CapabilityObservation) *capabilityv1.CapabilityEvidence {
 	if observation == nil || observation.GetEvidence() == nil {
-		return ""
+		return nil
 	}
-	return observation.GetEvidence().GetEvidenceID()
+	return observation.GetEvidence()
 }

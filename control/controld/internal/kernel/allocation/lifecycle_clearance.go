@@ -4,18 +4,16 @@ import (
 	"fmt"
 	"strings"
 
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 )
 
 type LifecycleRetryClearanceInput struct {
-	AllocationID                     string
-	AllocationStatus                 string
-	OwnerType                        string
-	OwnerRunStatus                   string
-	OwnerServiceReferencesAllocation bool
-	HasActiveReservation             bool
-	HasActiveLease                   bool
-	HasActiveTunnelSession           bool
+	AllocationID           string
+	AllocationState        string
+	RunStatus              string
+	HasActiveAccessGrant   bool
+	HasActiveTunnelSession bool
 }
 
 type LifecycleRetryClearance struct {
@@ -24,41 +22,28 @@ type LifecycleRetryClearance struct {
 }
 
 func EvaluateLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleRetryClearance {
-	allocationStatus := strings.TrimSpace(in.AllocationStatus)
-	if !IsEnded(ParseStatus(allocationStatus)) {
-		return blockedLifecycleRetryClearance("allocation status is %s", statusOrUnknown(allocationStatus))
+	allocationState := strings.TrimSpace(in.AllocationState)
+	if ParseLifecycleState(allocationState) != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
+		return blockedLifecycleRetryClearance("allocation lifecycle state is %s", statusOrUnknown(allocationState))
 	}
-	if in.HasActiveReservation {
-		return blockedLifecycleRetryClearance("active reservations")
-	}
-	if in.HasActiveLease {
-		return blockedLifecycleRetryClearance("active leases")
+	if in.HasActiveAccessGrant {
+		return blockedLifecycleRetryClearance("active allocation access grants")
 	}
 	if in.HasActiveTunnelSession {
 		return blockedLifecycleRetryClearance("active tunnel sessions")
 	}
-	switch strings.TrimSpace(in.OwnerType) {
-	case OwnerRun:
-		return evaluateRunLifecycleRetryClearance(in)
-	case OwnerService:
-		if in.OwnerServiceReferencesAllocation {
-			return blockedLifecycleRetryClearance("owner service still references allocation")
-		}
-		return LifecycleRetryClearance{Clearable: true}
-	default:
-		return blockedLifecycleRetryClearance("unsupported owner type %s", statusOrUnknown(in.OwnerType))
-	}
+	return evaluateRunLifecycleRetryClearance(in)
 }
 
 func evaluateRunLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleRetryClearance {
-	status := strings.TrimSpace(in.OwnerRunStatus)
+	status := strings.TrimSpace(in.RunStatus)
 	if status == "" {
 		return LifecycleRetryClearance{Clearable: true}
 	}
 	if isTerminalRunStatus(status) {
 		return LifecycleRetryClearance{Clearable: true}
 	}
-	return blockedLifecycleRetryClearance("owner run status is %s", statusOrUnknown(status))
+	return blockedLifecycleRetryClearance("run status is %s", statusOrUnknown(status))
 }
 
 func isTerminalRunStatus(value string) bool {

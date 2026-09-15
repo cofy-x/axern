@@ -13,59 +13,13 @@ import (
 )
 
 var pinnedMapNames = []string{
-	serviceMapName,
 	statsMapName,
-	localAddrMapName,
-	revNatMapName,
 	configMapName,
-	hostNetnsCookieMapName,
 	uplinkAddrMapName,
 	nativeRouteMapName,
 	snatFwdMapName,
 	snatRevMapName,
 	snatRevMarkerMapName,
-	localhostSockMapName,
-}
-
-func (d *linuxDataplane) UpsertService(service Service) error {
-	if !d.loaded {
-		return nil
-	}
-
-	proto, ok := serviceProtocolNumber(service.Protocol)
-	if !ok {
-		return nil
-	}
-
-	key := tcprog.DataplaneServiceKey{
-		Proto:    proto,
-		HostPort: service.HostPort,
-	}
-	value := tcprog.DataplaneServiceValue{
-		TargetIp:   ipv4ToUint32(service.TargetIP),
-		TargetPort: service.TargetPort,
-	}
-	return d.objects.ServiceMap.Update(key, value, ebpf.UpdateAny)
-}
-
-func (d *linuxDataplane) DeleteService(service Service) error {
-	if !d.loaded {
-		return nil
-	}
-
-	proto, ok := serviceProtocolNumber(service.Protocol)
-	if !ok {
-		return nil
-	}
-
-	key := tcprog.DataplaneServiceKey{
-		Proto:    proto,
-		HostPort: service.HostPort,
-	}
-	if err := d.objects.ServiceMap.Delete(key); err != nil && !isMapKeyNotExist(err) {
-		return err
-	}
-	return nil
 }
 
 func (d *linuxDataplane) loadObjects() error {
@@ -78,17 +32,11 @@ func (d *linuxDataplane) loadObjects() error {
 		return fmt.Errorf("create bpfnet pin path: %w", err)
 	}
 
-	mapSize := d.cfg.MapSize
 	snatMapSize := d.cfg.SNATMapSize
-	if snatMapSize <= 0 {
-		snatMapSize = mapSize
-	}
 	for name, specMap := range spec.Maps {
 		switch name {
 		case snatFwdMapName, snatRevMapName, snatRevMarkerMapName:
 			specMap.MaxEntries = uint32(snatMapSize)
-		case serviceMapName, revNatMapName, localhostSockMapName:
-			specMap.MaxEntries = uint32(mapSize)
 		}
 		specMap.Pinning = ebpf.PinByName
 	}
@@ -128,11 +76,8 @@ func (d *linuxDataplane) pinPrograms() error {
 	}
 
 	pins := map[string]*ebpf.Program{
-		filepath.Join(programDir, "ingress"):            d.objects.DataplaneIngress,
-		filepath.Join(programDir, "egress"):             d.objects.DataplaneEgress,
-		filepath.Join(programDir, "localhost-connect4"): d.objects.LocalhostConnect4,
-		filepath.Join(programDir, "localhost-getpeer4"): d.objects.LocalhostGetpeername4,
-		filepath.Join(programDir, "localhost-release"):  d.objects.LocalhostSockRelease,
+		filepath.Join(programDir, "ingress"): d.objects.DataplaneIngress,
+		filepath.Join(programDir, "egress"):  d.objects.DataplaneEgress,
 	}
 	for path, program := range pins {
 		if program == nil {

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -15,8 +14,8 @@ import (
 // NoEligibleNodeError renders the canonical placement rejection used both by
 // optimistic candidate selection and by durable admission after node rows are
 // locked. Keeping this at the policy boundary prevents the transaction path
-// from misclassifying a refreshed eligibility failure as reservation capacity.
-func NoEligibleNodeError(req *Request, rejected []*nodev1.PlacementCandidate) error {
+// from misclassifying a refreshed eligibility failure as resource capacity.
+func NoEligibleNodeError(req *Request, rejected []*Evaluation) error {
 	reasons := CandidateRejectionReasons(rejected)
 	reason := admissionReason(rejected)
 	st := grpcstatus.New(codes.FailedPrecondition, noEligibleNodeMessage(req, reasons))
@@ -37,9 +36,9 @@ func NoEligibleNodeError(req *Request, rejected []*nodev1.PlacementCandidate) er
 	return withDetails.Err()
 }
 
-func CandidateRejectionReasons(candidates []*nodev1.PlacementCandidate) []nodev1.PlacementRejectionReason {
-	seen := make(map[nodev1.PlacementRejectionReason]struct{})
-	reasons := make([]nodev1.PlacementRejectionReason, 0)
+func CandidateRejectionReasons(candidates []*Evaluation) []RejectionReason {
+	seen := make(map[RejectionReason]struct{})
+	reasons := make([]RejectionReason, 0)
 	for _, candidate := range candidates {
 		for _, reason := range candidate.GetRejectionReasons() {
 			if _, ok := seen[reason]; ok {
@@ -52,10 +51,10 @@ func CandidateRejectionReasons(candidates []*nodev1.PlacementCandidate) []nodev1
 	return reasons
 }
 
-func RejectionReasonLabels(reasons []nodev1.PlacementRejectionReason) []string {
+func RejectionReasonLabels(reasons []RejectionReason) []string {
 	out := make([]string, 0, len(reasons))
 	for _, reason := range reasons {
-		label := strings.ToLower(strings.TrimPrefix(reason.String(), "PLACEMENT_REJECTION_REASON_"))
+		label := reason.String()
 		if label == "" || label == "unspecified" {
 			continue
 		}
@@ -65,7 +64,7 @@ func RejectionReasonLabels(reasons []nodev1.PlacementRejectionReason) []string {
 	return out
 }
 
-func admissionReason(rejected []*nodev1.PlacementCandidate) resourcekernel.AdmissionRejectionReason {
+func admissionReason(rejected []*Evaluation) resourcekernel.AdmissionRejectionReason {
 	if len(rejected) == 0 {
 		return resourcekernel.AdmissionRejectionNodeSelection
 	}
@@ -77,15 +76,15 @@ func admissionReason(rejected []*nodev1.PlacementCandidate) resourcekernel.Admis
 	return resourcekernel.AdmissionRejectionPlacementCapacity
 }
 
-func capacityOnlyRejection(reasons []nodev1.PlacementRejectionReason) bool {
+func capacityOnlyRejection(reasons []RejectionReason) bool {
 	hasCapacityReason := false
 	for _, reason := range reasons {
 		switch reason {
-		case nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU,
-			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY,
-			nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_EPHEMERAL_STORAGE:
+		case RejectionReasonInsufficientCPU,
+			RejectionReasonInsufficientMemory,
+			RejectionReasonInsufficientEphemeralStorage:
 			hasCapacityReason = true
-		case nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_UNSPECIFIED:
+		case RejectionReasonUnspecified:
 		default:
 			return false
 		}
@@ -93,7 +92,7 @@ func capacityOnlyRejection(reasons []nodev1.PlacementRejectionReason) bool {
 	return hasCapacityReason
 }
 
-func noEligibleNodeMessage(req *Request, reasons []nodev1.PlacementRejectionReason) string {
+func noEligibleNodeMessage(req *Request, reasons []RejectionReason) string {
 	message := fmt.Sprintf("no eligible node: requested cpu_milli=%d memory_bytes=%d ephemeral_storage_bytes=%d", req.GetRequestedCpuMilli(), req.GetRequestedMemoryBytes(), req.GetRequestedEphemeralStorageBytes())
 	labels := RejectionReasonLabels(reasons)
 	if len(labels) > 0 {

@@ -8,10 +8,8 @@ import (
 	"time"
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -62,28 +60,8 @@ func FormatRelativeAge(from, to time.Time) string {
 	}
 }
 
-func ServiceStatusLabel(status servicev1.ServiceStatus) string {
-	return trimEnumPrefix(status.String(), "SERVICE_STATUS_")
-}
-
-func ServiceDeletionPhaseLabel(phase servicev1.ServiceDeletionPhase) string {
-	return trimEnumPrefix(phase.String(), "SERVICE_DELETION_PHASE_")
-}
-
-func ServiceVolumeDispositionLabel(disposition servicev1.ServiceVolumeDisposition) string {
-	return trimEnumPrefix(disposition.String(), "SERVICE_VOLUME_DISPOSITION_")
-}
-
-func AllocationStatusLabel(status commonv1.AllocationStatus) string {
-	return trimEnumPrefix(status.String(), "ALLOCATION_STATUS_")
-}
-
 func RunStatusLabel(status runv1.RunStatus) string {
 	return trimEnumPrefix(status.String(), "RUN_STATUS_")
-}
-
-func EnvironmentStatusLabel(status environmentv1.EnvironmentStatus) string {
-	return trimEnumPrefix(status.String(), "ENVIRONMENT_STATUS_")
 }
 
 func SecretTypeLabel(secretType secretv1.SecretType) string {
@@ -92,18 +70,6 @@ func SecretTypeLabel(secretType secretv1.SecretType) string {
 
 func WorkloadDiagnosticCodeLabel(code commonv1.WorkloadDiagnosticCode) string {
 	return trimEnumPrefix(code.String(), "WORKLOAD_DIAGNOSTIC_CODE_")
-}
-
-func ServiceRolloutPhaseLabel(phase servicev1.ServiceRolloutPhase) string {
-	return trimEnumPrefix(phase.String(), "SERVICE_ROLLOUT_PHASE_")
-}
-
-func ServiceEventTypeLabel(eventType servicev1.ServiceEventType) string {
-	return trimEnumPrefix(eventType.String(), "SERVICE_EVENT_TYPE_")
-}
-
-func ServiceAutoscalingActionLabel(action servicev1.ServiceAutoscalingAction) string {
-	return trimEnumPrefix(action.String(), "SERVICE_AUTOSCALING_ACTION_")
 }
 
 func ShortMessage(value string, limit int) string {

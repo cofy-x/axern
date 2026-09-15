@@ -12,9 +12,10 @@ func RenderNamespace(w io.Writer, namespace *namespacev1.Namespace) {
 		return
 	}
 	fmt.Fprintf(w, "Namespace: %s\n", namespace.GetNamespace())
-	fmt.Fprintf(w, "Version: %d\n", namespace.GetVersion())
 	fmt.Fprintf(w, "Created At: %s\n", FormatProtoTimestamp(namespace.GetCreatedAt()))
-	fmt.Fprintf(w, "Updated At: %s\n", FormatProtoTimestamp(namespace.GetUpdatedAt()))
+	if namespace.GetDeletedAt() != nil {
+		fmt.Fprintf(w, "Deleted At: %s\n", FormatProtoTimestamp(namespace.GetDeletedAt()))
+	}
 }
 
 func RenderNamespaceTable(w io.Writer, namespaces []*namespacev1.Namespace) {
@@ -25,9 +26,8 @@ func RenderNamespaceTable(w io.Writer, namespaces []*namespacev1.Namespace) {
 		}
 		rows = append(rows, []string{
 			namespace.GetNamespace(),
-			fmt.Sprintf("%d", namespace.GetVersion()),
-			FormatProtoTimestamp(namespace.GetUpdatedAt()),
+			FormatProtoTimestamp(namespace.GetCreatedAt()),
 		})
 	}
-	RenderTable(w, []string{"NAMESPACE", "VERSION", "UPDATED AT"}, rows)
+	RenderTable(w, []string{"NAMESPACE", "CREATED AT"}, rows)
 }

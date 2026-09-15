@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -30,11 +29,10 @@ if not any(item[0] in (socket.AF_INET, socket.AF_INET6) for item in results):
 `
 
 type DNSProbeOptions struct {
-	QueryName    string
-	TemplateID   string
-	RuntimeClass string
-	Timeout      time.Duration
-	CleanupWait  time.Duration
+	QueryName   string
+	TemplateID  string
+	Timeout     time.Duration
+	CleanupWait time.Duration
 }
 
 func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Check {
@@ -100,8 +98,7 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 			Namespace:     namespace,
 			EnvironmentID: environmentID,
 			Config: &commonv1.ExecutionConfig{
-				Argv:         []string{"python", "-c", dnsProbeScript},
-				RuntimeClass: strings.TrimSpace(options.RuntimeClass),
+				Argv: []string{"python", "-c", dnsProbeScript},
 				Resources: &commonv1.ResourceSpec{
 					Requests: &commonv1.ResourceQuantity{CpuMilli: 50, MemoryBytes: 64 * 1024 * 1024},
 					Limits:   &commonv1.ResourceQuantity{CpuMilli: 250},
@@ -116,9 +113,9 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 			runID = response.GetRun().GetID()
 			final, waitErr := apprun.New(session.Run).Wait(probeCtx, runID, apprun.WaitTargetTerminal, options.Timeout, nil)
 			switch {
-			case final != nil && final.GetExitCodeKnown() && (final.GetExitCode() == 20 || final.GetExitCode() == 21):
+			case final != nil && final.ExitCode != nil && (final.GetExitCode() == 20 || final.GetExitCode() == 21):
 				probeCode, probeMessage = "runtime_dns_sandbox_query_failed", "isolated sandbox could not resolve the configured DNS query"
-			case waitErr != nil || final == nil || !final.GetExitCodeKnown():
+			case waitErr != nil || final == nil || final.ExitCode == nil:
 				probeCode, probeMessage = "runtime_dns_sandbox_probe_failed", "sandbox DNS probe did not complete"
 			case final.GetExitCode() != 0:
 				probeCode, probeMessage = "runtime_dns_sandbox_probe_failed", "sandbox DNS probe exited unexpectedly"
@@ -159,11 +156,9 @@ func cleanupDNSProbe(parent context.Context, session *Session, namespace, secret
 		}
 	}
 	if environmentID != "" {
-		response, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
+		_, err := session.Environment.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
 		if err != nil && grpcstatus.Code(err) != codes.NotFound {
 			result = errors.Join(result, err)
-		} else if err == nil && (response == nil || response.GetEnvironment().GetStatus() != environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED) {
-			result = errors.Join(result, fmt.Errorf("environment deletion did not reach deleted state"))
 		}
 	}
 	if secretID != "" {

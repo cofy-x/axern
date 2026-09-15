@@ -2,6 +2,7 @@ package adminv1
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,16 +10,14 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	"google.golang.org/grpc/codes"
-	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeNodeAdmin{records: []*nodekernel.Record{{
 		NodeID: "node-a", Lifecycle: nodekernel.LifecycleActive,
-		RegisteredAt: now.Add(-time.Hour), UpdatedAt: now.Add(-5 * time.Second),
+		AdmittedAt: now.Add(-time.Hour), LastHeartbeatAt: now.Add(-5 * time.Second),
 	}}}
 	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: 15 * time.Second, NodeSummaryWindow: 15 * time.Second})
 
@@ -28,6 +27,25 @@ func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
 	}
 	if nodes.filter.Lifecycle != nodekernel.LifecycleActive || len(resp.GetNodes()) != 1 || !resp.GetNodes()[0].GetHeartbeatFresh() {
 		t.Fatalf("filter = %+v, response = %+v", nodes.filter, resp)
+	}
+}
+
+func TestAdmitAdminNodeForwardsIdentityAndCredential(t *testing.T) {
+	now := time.Date(2026, 7, 26, 11, 0, 0, 0, time.UTC)
+	nodes := &fakeNodeAdmin{}
+	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: time.Minute, NodeSummaryWindow: time.Minute})
+
+	resp, err := srv.AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
+		NodeID: " node-a ", EnrollmentToken: strings.Repeat("0123456789abcdef", 2), OperatorReason: " add worker ",
+	})
+	if err != nil {
+		t.Fatalf("AdmitAdminNode() error = %v", err)
+	}
+	if nodes.nodeID != "node-a" || nodes.credential != strings.Repeat("0123456789abcdef", 2) || nodes.reason != "add worker" {
+		t.Fatalf("forwarded identity = node=%q credential=%q reason=%q", nodes.nodeID, nodes.credential, nodes.reason)
+	}
+	if resp.GetNode().GetNodeID() != "node-a" || !resp.GetNode().GetAdmittedAt().AsTime().Equal(now) {
+		t.Fatalf("response = %+v", resp)
 	}
 }
 
@@ -45,25 +63,12 @@ func TestRetireAdminNodeForwardsNormalizedRequest(t *testing.T) {
 	}
 }
 
-func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
+func TestGetAllocationCapabilityDiagnostics(t *testing.T) {
 	admittedAt := time.Date(2026, 7, 26, 12, 1, 0, 0, time.UTC)
 	diagnostics := &fakeCapabilityDiagnostics{allocation: &adminkernel.AllocationCapabilityDiagnostics{
-		AllocationID:              "allocation-a",
-		NodeID:                    "node-a",
-		Attempt:                   7,
-		CreateAdmissionRecorded:   true,
-		CreateDependencySetDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		CreateAdmittedAt:          &admittedAt,
-		ConditionSet:              &capabilityv1.CapabilityConditionSet{Revision: 3},
-		MemoryAdmission: &adminkernel.AllocationMemoryAdmission{
-			SandboxMemoryRequestBytes: 128 << 20,
-			SandboxMemoryLimitBytes:   256 << 20,
-			NodeMemoryBudget:          &nodev1.NodeMemoryBudget{EffectiveAllocatableBytes: 8 << 30},
-			SummaryCollectedAt:        admittedAt.Add(-time.Second),
-			NodeLocalCommitmentBytes:  512 << 20,
-			AdmittedAt:                admittedAt,
-		},
-		LatestMemoryObservation: &nodev1.AllocationMemoryObservation{Revision: 9, CurrentBytes: 64 << 20},
+		AllocationID: "allocation-a",
+		NodeID:       "node-a",
+		ConditionSet: &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(admittedAt)},
 	}}
 	srv := New(Dependencies{CapabilityDiagnostics: diagnostics})
 
@@ -71,51 +76,25 @@ func TestGetAllocationCapabilityDiagnosticsPreservesAttemptFence(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetAllocationCapabilityDiagnostics() error = %v", err)
 	}
-	if diagnostics.allocationID != "allocation-a" || resp.GetAllocationAttempt() != 7 || resp.GetConditionSet().GetRevision() != 3 ||
-		!resp.GetCreateAdmissionRecorded() || resp.GetCreateDependencySetDigest() != diagnostics.allocation.CreateDependencySetDigest ||
-		!resp.GetCreateAdmittedAt().AsTime().Equal(admittedAt) ||
-		resp.GetMemoryAdmission().GetSandboxMemoryRequestBytes() != 128<<20 ||
-		resp.GetLatestMemoryObservation().GetRevision() != 9 {
+	if diagnostics.allocationID != "allocation-a" || !resp.GetConditionSet().GetObservedAt().AsTime().Equal(admittedAt) {
 		t.Fatalf("allocationID = %q, response = %+v", diagnostics.allocationID, resp)
 	}
 }
 
-func TestCapabilityDiagnosticListsRejectNegativeLimit(t *testing.T) {
-	srv := New(Dependencies{CapabilityDiagnostics: &fakeCapabilityDiagnostics{}})
-	tests := []struct {
-		name string
-		call func() error
-	}{
-		{
-			name: "transitions",
-			call: func() error {
-				_, err := srv.ListNodeCapabilityTransitions(context.Background(), &adminv1.ListNodeCapabilityTransitionsRequest{Limit: -1})
-				return err
-			},
-		},
-		{
-			name: "backlog",
-			call: func() error {
-				_, err := srv.ListCapabilityReconcileQueue(context.Background(), &adminv1.ListCapabilityReconcileQueueRequest{Limit: -1})
-				return err
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := tt.call(); grpcstatus.Code(err) != codes.InvalidArgument {
-				t.Fatalf("error = %v, want InvalidArgument", err)
-			}
-		})
-	}
+type fakeNodeAdmin struct {
+	filter     adminkernel.NodeListFilter
+	records    []*nodekernel.Record
+	record     *nodekernel.Record
+	nodeID     string
+	credential string
+	reason     string
 }
 
-type fakeNodeAdmin struct {
-	filter  adminkernel.NodeListFilter
-	records []*nodekernel.Record
-	record  *nodekernel.Record
-	nodeID  string
-	reason  string
+func (f *fakeNodeAdmin) AdmitNode(_ context.Context, nodeID, credential string, reason string, now time.Time) (*nodekernel.Record, error) {
+	f.nodeID = nodeID
+	f.credential = credential
+	f.reason = reason
+	return &nodekernel.Record{NodeID: nodeID, Lifecycle: nodekernel.LifecycleActive, AdmittedAt: now}, nil
 }
 
 func (f *fakeNodeAdmin) ListNodes(_ context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error) {
@@ -138,15 +117,11 @@ func (*fakeCapabilityDiagnostics) GetNodeCapabilitySnapshot(context.Context, str
 	return nil, nil
 }
 
-func (*fakeCapabilityDiagnostics) ListNodeCapabilityTransitions(context.Context, string, int32) ([]adminkernel.CapabilityTransition, error) {
-	return nil, nil
-}
-
-func (*fakeCapabilityDiagnostics) ListCapabilityReconcileQueue(context.Context, string, int32) ([]adminkernel.CapabilityReconcileItem, error) {
-	return nil, nil
-}
-
 func (f *fakeCapabilityDiagnostics) GetAllocationCapabilityDiagnostics(_ context.Context, allocationID string) (*adminkernel.AllocationCapabilityDiagnostics, error) {
 	f.allocationID = allocationID
 	return f.allocation, nil
+}
+
+func (f *fakeNodeAdmin) RevokeNode(ctx context.Context, nodeID, reason string, now time.Time) (*nodekernel.Record, error) {
+	return f.RetireNode(ctx, nodeID, reason, now)
 }

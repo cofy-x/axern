@@ -89,17 +89,17 @@ done
 ctl() { "${EGRESSDCTL_BIN}" -socket "${STATE_ROOT}/run/egressd.sock" "$@"; }
 ns() { ip netns exec "${NETNS}" env -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY "$@"; }
 
-if ctl -allocation no-upstream -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -domains allowed.test prepare >/dev/null 2>&1; then
+if ctl -allocation no-upstream -ip 10.77.0.2 -mode strict -domains allowed.test prepare >/dev/null 2>&1; then
   echo "strict domain policy started without an explicit DNS upstream" >&2; exit 1
 fi
-if ctl -allocation invalid-upstream -attempt 1 -ip 10.77.0.2 -revision 1 -mode dns-deny -domains denied.test -upstreams 127.0.0.1 prepare >/dev/null 2>&1; then
+if ctl -allocation invalid-upstream -ip 10.77.0.2 -mode dns-deny -domains denied.test -upstreams 127.0.0.1 prepare >/dev/null 2>&1; then
   echo "DNS policy started with an unusable loopback upstream" >&2; exit 1
 fi
 if ctl list | grep -Eq 'no-upstream|invalid-upstream'; then
   echo "rejected DNS policy changed durable state" >&2; exit 1
 fi
 
-ctl -allocation strict -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
+ctl -allocation strict -ip 10.77.0.2 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --expect-rcode 0
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --tcp --expect-rcode 0
 ns curl --fail --silent --max-time 3 --resolve allowed.test:80:93.184.216.34 http://allowed.test/ >/dev/null
@@ -120,8 +120,8 @@ if ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --port 
   echo "strict policy allowed an alternate DNS destination" >&2; exit 1
 fi
 
-ctl -allocation strict -attempt 1 delete >/dev/null
-ctl -allocation strict-v6 -attempt 1 -ip fd77::2 -revision 1 -mode strict -domains allowed-v6.test -upstreams 10.77.0.1:5356 prepare >/dev/null
+ctl -allocation strict delete >/dev/null
+ctl -allocation strict-v6 -ip fd77::2 -mode strict -domains allowed-v6.test -upstreams 10.77.0.1:5356 prepare >/dev/null
 if ! ns python3 "${FIXTURES}/dns_query.py" allowed-v6.test --server fd77::1 --aaaa --expect-rcode 0; then
   diagnose
   exit 1
@@ -130,32 +130,32 @@ ns curl --fail --silent --max-time 3 --resolve 'allowed-v6.test:80:[2001:db8::34
 if ns curl --fail --silent --max-time 2 'http://[2001:db8::34]/' >/dev/null; then
   echo "strict IPv6 policy allowed a direct-IP HTTP request" >&2; exit 1
 fi
-ctl -allocation strict-v6 -attempt 1 delete >/dev/null
+ctl -allocation strict-v6 delete >/dev/null
 
-ctl -allocation cidr -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -cidr-rules tcp@93.184.216.34/32@8080,udp@93.184.216.34/32@5354 prepare >/dev/null
+ctl -allocation cidr -ip 10.77.0.2 -mode strict -cidr-rules tcp@93.184.216.34/32@8080,udp@93.184.216.34/32@5354 prepare >/dev/null
 ns curl --fail --silent --max-time 3 http://93.184.216.34:8080/ >/dev/null
 if ns curl --fail --silent --max-time 2 http://93.184.216.34:8081/ >/dev/null; then
   echo "strict CIDR rule allowed an undeclared TCP port" >&2; exit 1
 fi
 ns python3 "${FIXTURES}/udp_probe.py" --address 93.184.216.34 --port 5354
 ns python3 "${FIXTURES}/udp_probe.py" --address 93.184.216.34 --port 5355 --expect-timeout
-ctl -allocation cidr -attempt 1 delete >/dev/null
+ctl -allocation cidr delete >/dev/null
 
-ctl -allocation deny-all -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict prepare >/dev/null
+ctl -allocation deny-all -ip 10.77.0.2 -mode strict prepare >/dev/null
 if ns curl --fail --silent --max-time 2 http://93.184.216.34:8080/ >/dev/null; then
   echo "strict deny-all allowed direct egress" >&2; exit 1
 fi
-ctl -allocation deny-all -attempt 1 delete >/dev/null
+ctl -allocation deny-all delete >/dev/null
 
-ctl -allocation dns-soft -attempt 1 -ip 10.77.0.2 -revision 1 -mode dns-deny -domains denied.test -upstreams 10.77.0.1:5353 prepare >/dev/null
+ctl -allocation dns-soft -ip 10.77.0.2 -mode dns-deny -domains denied.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 ns python3 "${FIXTURES}/dns_query.py" denied.test --server 10.77.0.1 --expect-rcode 5
 ns python3 "${FIXTURES}/dns_query.py" denied.test --server 10.77.0.1 --tcp --expect-rcode 5
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --expect-rcode 0
 ns python3 "${FIXTURES}/dns_query.py" allowed.test --server 10.77.0.1 --tcp --expect-rcode 0
 ns curl --fail --silent --max-time 3 http://93.184.216.34/ >/dev/null
-ctl -allocation dns-soft -attempt 1 delete >/dev/null
+ctl -allocation dns-soft delete >/dev/null
 
-ctl -allocation recovery -attempt 7 -ip 10.77.0.2 -revision 3 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
+ctl -allocation recovery -ip 10.77.0.2 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 REDIRECT_HANDLE="$(nft -a list chain inet axern_egress proxy_redirect | awk '/10\.77\.0\.2 tcp dport 80 .*redirect to :1080/ { print $NF; exit }')"
 if [[ -z "${REDIRECT_HANDLE}" ]]; then
   echo "could not identify the strict HTTP interception rule" >&2; exit 1
@@ -191,7 +191,7 @@ if ctl list | grep -q '"allocation_id"'; then
   echo "orphan policy survived reconcile" >&2; exit 1
 fi
 
-ctl -allocation crash -attempt 1 -ip 10.77.0.2 -revision 1 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
+ctl -allocation crash -ip 10.77.0.2 -mode strict -domains allowed.test -upstreams 10.77.0.1:5353 prepare >/dev/null
 kill "${EGRESSD_PID}"
 wait "${EGRESSD_PID}" 2>/dev/null || true
 EGRESSD_PID=""

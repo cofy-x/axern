@@ -10,8 +10,8 @@ import (
 
 func TestValidateAgentSelection(t *testing.T) {
 	registry := agentcatalog.DefaultRegistry()
-	claudeImage := "axern/claude-code-bundle@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	codexImage := "axern/codex-bundle@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	claudeImage := "example.com/claude-code-agent@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	codexImage := "example.com/codex-agent@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 	tests := []struct {
 		name      string
@@ -30,7 +30,7 @@ func TestValidateAgentSelection(t *testing.T) {
 		{"local agent-image", agent.Selection{Name: "claude-code", RuntimeType: domain.AgentRuntimeTypeAgentImage, Image: claudeImage, Profile: "deepseek", BackendName: "local"}, true},
 		{"codex missing image", agent.Selection{Name: "codex", RuntimeType: domain.AgentRuntimeTypeAgentImage, BackendName: "axern"}, true},
 		{"codex missing profile", agent.Selection{Name: "codex", RuntimeType: domain.AgentRuntimeTypeAgentImage, Image: codexImage, BackendName: "axern"}, true},
-		{"mutable image", agent.Selection{Name: "codex", RuntimeType: domain.AgentRuntimeTypeAgentImage, Image: "axern/codex-bundle:dev", Profile: "codex-smoke", BackendName: "axern"}, true},
+		{"mutable image", agent.Selection{Name: "codex", RuntimeType: domain.AgentRuntimeTypeAgentImage, Image: "example.com/codex-agent:dev", Profile: "codex-smoke", BackendName: "axern"}, true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

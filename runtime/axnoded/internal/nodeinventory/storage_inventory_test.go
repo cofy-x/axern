@@ -17,12 +17,12 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 			t.Fatal(err)
 		}
 	}
-	requireDir(filepath.Join(filestore, "runc", "sandbox", "upper"))
-	requireDir(filepath.Join(filestore, "reservations"))
-	if err := os.WriteFile(filepath.Join(filestore, "runc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
+	requireDir(filepath.Join(filestore, "runsc", "sandbox", "upper"))
+	requireDir(filepath.Join(filestore, "allocation-charges"))
+	if err := os.WriteFile(filepath.Join(filestore, "runsc", "sandbox", "upper", "data"), make([]byte, 8192), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(filestore, "reservations", "sandbox.json"), []byte(`{"runtime_name":"runsc","request_bytes":4096}`), 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(filestore, "allocation-charges", "sandbox.json"), []byte(`{"container_id":"sandbox","request_bytes":4096,"limit_bytes":8192}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	source := NewAxnodedSource(AxnodedSourceOptions{
@@ -38,7 +38,7 @@ func TestWritableStorageInventorySeparatesFilesystemAndAllocationUsage(t *testin
 		t.Fatalf("allocation usage = %d, filesystem usage = %d", entry.AllocationUsedBytes, entry.UsedBytes)
 	}
 	if !entry.UnlinkedBackingUsageUnknown {
-		t.Fatal("runsc reservation should expose possible unlinked backing usage")
+		t.Fatal("runsc Allocation charge should expose possible unlinked backing usage")
 	}
 	if snapshot.Resources.EphemeralStorage.AxnodedUsedBytes != entry.AllocationUsedBytes {
 		t.Fatalf("ephemeral storage resource usage = %d, want %d", snapshot.Resources.EphemeralStorage.AxnodedUsedBytes, entry.AllocationUsedBytes)
@@ -122,8 +122,8 @@ func TestCollectStorageInventoryReportsErrorWhenAllTargetsFail(t *testing.T) {
 
 func TestNormalizeStorageTargetsDefaultsAndDeduplicates(t *testing.T) {
 	defaults := normalizeStorageTargets(nil)
-	if len(defaults) != 4 {
-		t.Fatalf("default storage targets len = %d, want 4", len(defaults))
+	if len(defaults) != 3 {
+		t.Fatalf("default storage targets len = %d, want 3", len(defaults))
 	}
 	if defaults[0].Target != StorageTargetRootFS || defaults[0].Path != DefaultRootFSPath {
 		t.Fatalf("unexpected first default target: %#v", defaults[0])
@@ -136,7 +136,7 @@ func TestNormalizeStorageTargetsDefaultsAndDeduplicates(t *testing.T) {
 		{Target: " ", Path: "/skip"},
 		{Target: StorageTargetAxnodedState, Path: "/state-a"},
 		{Target: StorageTargetAxnodedState, Path: "/state-b"},
-		{Target: StorageTargetVolumeData, Path: " "},
+		{Target: StorageTargetRuntimeFilestore, Path: " "},
 		{Target: StorageTargetImageCache, Path: "/images"},
 	})
 	if len(targets) != 2 {

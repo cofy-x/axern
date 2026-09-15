@@ -31,7 +31,7 @@ const (
 	multiClientBenchmarkPhaseDelay = 5 * time.Second
 )
 
-func runBenchmarkReport(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, runtimeID, stdoutPath, stderrPath, runtimeName, natBackend, bpfnetPinPath, rootfs, tcpAddress, udpAddress, externalAddress, expectedSourceIP string, timeout time.Duration, requests, concurrency, warmupRequests, clientCount int, snatPostGCWait time.Duration, benchmarkTransports string) (natbench.Report, error) {
+func runBenchmarkReport(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, environmentID, stdoutPath, stderrPath, runtimeName, natBackend, bpfnetPinPath, rootfs, tcpAddress, udpAddress, externalAddress, expectedSourceIP string, timeout time.Duration, requests, concurrency, warmupRequests, clientCount int, snatPostGCWait time.Duration, benchmarkTransports string) (natbench.Report, error) {
 	report := natbench.Report{
 		Runtime:    runtimeName,
 		NATBackend: natBackend,
@@ -47,7 +47,7 @@ func runBenchmarkReport(clients *verifyutil.NodeClients, baseSpec *privatenodev1
 	verifyOutput, verifyErrOutput, err := runProbeContainer(
 		clients,
 		baseSpec,
-		runtimeID+"-verify",
+		environmentID+"-verify",
 		verifyStdout,
 		verifyStderr,
 		buildProbeCommand("verify", "", "", tcpAddress, udpAddress, externalAddress, expectedSourceIP, timeout, 0, 0, 0, 0),
@@ -113,7 +113,7 @@ func runBenchmarkReport(clients *verifyutil.NodeClients, baseSpec *privatenodev1
 		streamHandle, err := startProbeContainer(
 			clients,
 			baseSpec,
-			runtimeID+"-suite",
+			environmentID+"-suite",
 			streamStdout,
 			streamStderr,
 			buildProbeCommand("benchmark-suite-stream", "", streamTransportArg, tcpAddress, udpAddress, externalAddress, expectedSourceIP, timeout, requests, concurrency, warmupRequests, defaultBenchmarkPhaseDelay),
@@ -147,7 +147,7 @@ func runBenchmarkReport(clients *verifyutil.NodeClients, baseSpec *privatenodev1
 	} else {
 		paths = make([]natbench.PathBenchmark, 0, len(specs))
 		for _, spec := range specs {
-			path, err := runMultiClientBenchmarkPath(clients, baseSpec, runtimeID, stdoutPath, stderrPath, natBackend, bpfnetPinPath, tcpAddress, udpAddress, externalAddress, expectedSourceIP, timeout, requests, concurrency, warmupRequests, clientCount, snatPostGCWait, spec)
+			path, err := runMultiClientBenchmarkPath(clients, baseSpec, environmentID, stdoutPath, stderrPath, natBackend, bpfnetPinPath, tcpAddress, udpAddress, externalAddress, expectedSourceIP, timeout, requests, concurrency, warmupRequests, clientCount, snatPostGCWait, spec)
 			if err != nil {
 				return natbench.Report{}, err
 			}
@@ -312,7 +312,7 @@ type multiClientStreamResult struct {
 	clientSamples uint64
 }
 
-func runMultiClientBenchmarkPath(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, runtimeID, stdoutPath, stderrPath, natBackend, bpfnetPinPath, tcpAddress, udpAddress, externalAddress, expectedSourceIP string, timeout time.Duration, requests, concurrency, warmupRequests, clientCount int, snatPostGCWait time.Duration, spec benchmarkTransportSpec) (natbench.PathBenchmark, error) {
+func runMultiClientBenchmarkPath(clients *verifyutil.NodeClients, baseSpec *privatenodev1.ResolvedExecutionConfig, environmentID, stdoutPath, stderrPath, natBackend, bpfnetPinPath, tcpAddress, udpAddress, externalAddress, expectedSourceIP string, timeout time.Duration, requests, concurrency, warmupRequests, clientCount int, snatPostGCWait time.Duration, spec benchmarkTransportSpec) (natbench.PathBenchmark, error) {
 	if spec.Transport != "tcp-short" {
 		return natbench.PathBenchmark{}, fmt.Errorf("multi-client benchmark only supports tcp-short; got %s", spec.Transport)
 	}
@@ -355,7 +355,7 @@ func runMultiClientBenchmarkPath(clients *verifyutil.NodeClients, baseSpec *priv
 		handle, err := startProbeContainer(
 			clients,
 			baseSpec,
-			fmt.Sprintf("%s-suite-%s", runtimeID, suffix),
+			fmt.Sprintf("%s-suite-%s", environmentID, suffix),
 			appendTransportSuffix(stdoutPath, suffix),
 			appendTransportSuffix(stderrPath, suffix),
 			buildProbeCommand("benchmark-suite-stream", "", spec.Transport, tcpAddress, udpAddress, externalAddress, expectedSourceIP, timeout, requestsByClient[i], concurrencyByClient[i], warmupByClient[i], multiClientBenchmarkPhaseDelay),

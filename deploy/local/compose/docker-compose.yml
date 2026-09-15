@@ -48,22 +48,16 @@ services:
       - local-client
       - -certificate
       - /certs/client.crt
-      - -rollout-worker-certificate
-      - /certs/rollout-worker.crt
+      - -ssh-public-key
+      - /ssh/gateway_client_ed25519.pub
+      - -node-id
+      - ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
+      - -enrollment-token-file
+      - /run/secrets/enrollment-token
     volumes:
-      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
-
-  minio:
-    image: minio/minio:RELEASE.2025-02-28T09-55-16Z
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
-    ports:
-      - "127.0.0.1:${MINIO_API_PORT}:9000"
-      - "127.0.0.1:${MINIO_CONSOLE_PORT}:9001"
-    volumes:
-      - "${COMPOSE_STATE_DIR}/minio:/data"
+      - "${COMPOSE_STATE_DIR}/certs/client.crt:/certs/client.crt:ro"
+      - "${COMPOSE_STATE_DIR}/ssh/gateway_client_ed25519.pub:/ssh/gateway_client_ed25519.pub:ro"
+      - "${COMPOSE_STATE_DIR}/enrollment-token:/run/secrets/enrollment-token:ro"
 
   dns-fixture:
     image: ${NODE_ALL_IN_ONE_IMAGE}
@@ -76,21 +70,6 @@ services:
       timeout: 3s
       retries: 20
 
-  storaged:
-    image: ${CONTROLD_IMAGE}
-    depends_on:
-      postgres:
-        condition: service_healthy
-    restart: unless-stopped
-    entrypoint: ["/usr/local/bin/storaged"]
-    command:
-      - -grpc-address
-      - 0.0.0.0:24020
-      - -http-address
-      - 0.0.0.0:24021
-      - -postgres-dsn
-      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-
   controld:
     image: ${CONTROLD_IMAGE}
     depends_on:
@@ -98,28 +77,20 @@ services:
         condition: service_completed_successfully
       controld-access-bootstrap:
         condition: service_completed_successfully
-      storaged:
-        condition: service_started
     restart: unless-stopped
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE: ${PYTHON311_RUNTIME_IMAGE}
-      AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE: ${SERVER_BASE_RUNTIME_IMAGE}
-      AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE: ${CODING_BASE_RUNTIME_IMAGE}
-      AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE: ${DESKTOP_BASE_RUNTIME_IMAGE}
-      AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE: ${CLAUDE_CODE_BUNDLE_IMAGE}
-      AXERN_AGENT_BUNDLE_CODEX_IMAGE: ${CODEX_BUNDLE_IMAGE}
+      AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE: ${PYTHON311_RUNTIME_IMAGE}
+      AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE: ${SERVER_BASE_RUNTIME_IMAGE}
+      AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE: ${CODING_BASE_RUNTIME_IMAGE}
+      AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE: ${DESKTOP_BASE_RUNTIME_IMAGE}
       CONTROLD_POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
       AXERN_SECRETS_MASTER_KEY: ${AXERN_SECRETS_MASTER_KEY}
       CONTROLD_TLS_CA_CERT: /certs/ca.crt
-      CONTROLD_TLS_CERT: /certs/controld.crt
-      CONTROLD_TLS_KEY: /certs/controld.key
-      CONTROLD_STORAGED_TARGET: storaged:24020
-      CONTROLD_FUNCTION_GATEWAY_URL: http://gatewayd:25080
-      CONTROLD_FUNCTION_GATEWAY_TOKEN: axern-local-dev
-      CONTROLD_FUNCTION_BUNDLE_BASE_URL: http://host.docker.internal:${CONTROLD_HTTP_PORT}
-      CONTROLD_FUNCTION_BUNDLE_TOKEN: axern-local-dev
+      AXERN_WORKLOAD_CLUSTER: axern.local
+      CONTROLD_WORKLOAD_BUNDLE: /certs/controld.pem
+      CONTROLD_WORKLOAD_SIGNER_BUNDLE: /signer/signer.pem
       HTTP_PROXY: ${CONTAINER_HTTP_PROXY}
       HTTPS_PROXY: ${CONTAINER_HTTPS_PROXY}
       NO_PROXY: ${CONTAINER_NO_PROXY}
@@ -132,6 +103,8 @@ services:
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
     command:
+      - -enrollment-address
+      - 0.0.0.0:24002
       - -grpc-address
       - 0.0.0.0:24000
       - -http-address
@@ -144,18 +117,14 @@ services:
       - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
       - -tls-ca-cert
       - /certs/ca.crt
-      - -tls-cert
-      - /certs/controld.crt
-      - -tls-key
-      - /certs/controld.key
       - -tunnel-relays
       - default,127.0.0.1:${GATEWAY_CONTROL_PORT},tunneld:24100,1,false
-      - -storaged-target
-      - storaged:24020
     ports:
       - "127.0.0.1:${CONTROLD_HTTP_PORT}:24001"
     volumes:
-      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/certs/private/signer.pem:/signer/signer.pem:ro"
+      - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
+      - "${COMPOSE_STATE_DIR}/certs/controld.pem:/certs/controld.pem:ro"
 
   tunneld:
     image: ${TUNNELD_IMAGE}
@@ -170,18 +139,17 @@ services:
       - controld:24000
       - -tls-ca-cert
       - /certs/ca.crt
-      - -tls-cert
-      - /certs/tunneld.crt
-      - -tls-key
-      - /certs/tunneld.key
+      - -workload-bundle
+      - /certs/tunneld.pem
       - -relay-id
       - default
       - -relay-tls-cert
-      - /certs/tunneld.crt
+      - /certs/tunneld.pem
       - -relay-tls-key
-      - /certs/tunneld.key
+      - /certs/tunneld.pem
     volumes:
-      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
+      - "${COMPOSE_STATE_DIR}/certs/tunneld.pem:/certs/tunneld.pem:ro"
 
   controld-retention:
     image: ${CONTROLD_IMAGE}
@@ -208,16 +176,14 @@ services:
     depends_on:
       controld:
         condition: service_started
-      minio:
-        condition: service_started
       dns-fixture:
         condition: service_healthy
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
       AXNODED_SOCKET: /shared/run/axnoded.sock
+      AXNODED_NETWORK_SOCKET: /shared/run/axnoded-network.sock
       IMAGEMGR_SOCKET: /run/imagemgr/imagemgr.sock
-      VOLUMED_SOCKET: /run/volumed/volumed.sock
       EGRESSD_SOCKET: /run/egressd/egressd.sock
       AXERN_SANDBOXD_BINARY: /usr/local/libexec/axnoded/axern-sandboxd
       AXNODED_GRPC_ADDRESS: 0.0.0.0:24010
@@ -225,11 +191,11 @@ services:
       AXNODED_CONTROL_PLANE_TARGET: controld:24000
       AXNODED_CONTROL_PLANE_NODE_ID: ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
       AXNODED_CONTROL_PLANE_NODE_TARGET: node:24010
-      AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN: node-compose-local-dev-token
+      AXNODED_ENROLLMENT_TOKEN_FILE: /bootstrap/enrollment-token
       AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL: 1s
       AXNODED_CONTROL_PLANE_TLS_CA_CERT: /certs/ca.crt
-      AXNODED_CONTROL_PLANE_TLS_CERT: /certs/node.crt
-      AXNODED_CONTROL_PLANE_TLS_KEY: /certs/node.key
+      AXERN_WORKLOAD_CLUSTER: axern.local
+      AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET: controld:24002
       AXNODED_DNS_NAMESERVERS: ${AXNODED_DNS_NAMESERVERS:-}
       # Local Compose runs inside the Docker VM without a production cgroup
       # delegation contract. Linux hard-limit qualification uses dedicated
@@ -239,20 +205,16 @@ services:
       REGISTRY_PROXY_URL: ${REGISTRY_PROXY_URL}
       REGISTRY_NO_PROXY: ${CONTAINER_NO_PROXY}
       IMAGEMGR_INSECURE_REGISTRIES: ${IMAGEMGR_INSECURE_REGISTRIES}
-      MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-      MINIO_BUCKET: axern-local
       AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_INSECURE: "true"
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES},axern.node_id=${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
     volumes:
       - "${COMPOSE_STATE_DIR}/run:/shared/run"
-      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/enrollment-token:/bootstrap/enrollment-token:ro"
+      - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
       - "${COMPOSE_STATE_DIR}/axnoded:/var/lib/axnoded"
       - "node-imagemgr-state:/var/lib/imagemgr"
-      - "${COMPOSE_STATE_DIR}/volumed:/var/lib/volumed"
       - "${COMPOSE_STATE_DIR}/egressd:/var/lib/egressd"
 
   gatewayd:
@@ -265,20 +227,17 @@ services:
       GATEWAYD_CONTROL_TARGET: controld:24000
       GATEWAYD_CONTROL_EDGE_ADDRESS: 0.0.0.0:25000
       GATEWAYD_CONTROL_EDGE_TLS_CA_CERT: /certs/ca.crt
-      GATEWAYD_CONTROL_EDGE_TLS_CERT: /certs/gatewayd.crt
-      GATEWAYD_CONTROL_EDGE_TLS_KEY: /certs/gatewayd.key
+      GATEWAYD_CONTROL_EDGE_TLS_CERT: /certs/gatewayd.pem
+      GATEWAYD_CONTROL_EDGE_TLS_KEY: /certs/gatewayd.pem
       GATEWAYD_TUNNEL_RELAY_TARGET: tunneld:24100
       GATEWAYD_TUNNEL_RELAY_TLS_CA_CERT: /certs/ca.crt
       GATEWAYD_HTTP_ADDRESS: 0.0.0.0:25080
       GATEWAYD_SSH_ENABLED: "true"
       GATEWAYD_SSH_ADDRESS: 0.0.0.0:25022
       GATEWAYD_SSH_HOST_KEY: /ssh/gateway_host_ed25519
-      GATEWAYD_SSH_AUTHORIZED_KEYS: /ssh/authorized_keys
-      GATEWAYD_DASHBOARD_ENABLED: "true"
       GATEWAYD_TLS_CA_CERT: /certs/ca.crt
-      GATEWAYD_TLS_CERT: /certs/gatewayd.crt
-      GATEWAYD_TLS_KEY: /certs/gatewayd.key
-      AXERN_GATEWAY_DEV_TOKEN: axern-local-dev
+      AXERN_WORKLOAD_CLUSTER: axern.local
+      GATEWAYD_WORKLOAD_BUNDLE: /certs/gatewayd.pem
       AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_INSECURE: "true"
@@ -291,9 +250,9 @@ services:
       - -control-edge-tls-ca-cert
       - /certs/ca.crt
       - -control-edge-tls-cert
-      - /certs/gatewayd.crt
+      - /certs/gatewayd.pem
       - -control-edge-tls-key
-      - /certs/gatewayd.key
+      - /certs/gatewayd.pem
       - -tunnel-relay-target
       - tunneld:24100
       - -tunnel-relay-tls-ca-cert
@@ -305,23 +264,15 @@ services:
       - 0.0.0.0:25022
       - -ssh-host-key
       - /ssh/gateway_host_ed25519
-      - -ssh-authorized-keys
-      - /ssh/authorized_keys
-      - -dashboard-enabled
       - -tls-ca-cert
       - /certs/ca.crt
-      - -tls-cert
-      - /certs/gatewayd.crt
-      - -tls-key
-      - /certs/gatewayd.key
-      - -dev-token
-      - axern-local-dev
     ports:
       - "127.0.0.1:${GATEWAY_CONTROL_PORT}:25000"
       - "127.0.0.1:${GATEWAY_HTTP_PORT}:25080"
       - "127.0.0.1:${GATEWAY_SSH_PORT}:25022"
     volumes:
-      - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
+      - "${COMPOSE_STATE_DIR}/certs/gatewayd.pem:/certs/gatewayd.pem:ro"
       - "${COMPOSE_STATE_DIR}/ssh:/ssh:ro"
 
   otel-collector:

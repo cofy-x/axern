@@ -8,11 +8,11 @@ import (
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 )
 
-func renderSandboxDiagnostics(w io.Writer, diagnostics *nodeoperatorv1.GetSandboxDiagnosticsResponse) {
+func renderSandboxDiagnostics(w io.Writer, diagnostics *nodeoperatorv1.GetAllocationDiagnosticsResponse) {
 	if diagnostics == nil {
 		return
 	}
-	fmt.Fprintf(w, "Sandbox: %s\n", diagnostics.GetSandboxID())
+	fmt.Fprintf(w, "Allocation: %s\n", diagnostics.GetAllocationID())
 	fmt.Fprintf(w, "Ready: %t\n", diagnostics.GetReady())
 	fmt.Fprintf(w, "Detail: %s\n", fallbackString(diagnostics.GetDetail(), "summary"))
 	fmt.Fprintf(w, "Generated At: %s\n", formatTimestamp(diagnostics.GetGeneratedAt()))

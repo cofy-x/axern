@@ -4,53 +4,17 @@ import (
 	"maps"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
-func cloneRuntimeExecutionProfile(in *catalogv1.RuntimeExecutionProfile) *catalogv1.RuntimeExecutionProfile {
+func cloneOciExecutionProfile(in *environmentv1.OciExecutionProfile) *environmentv1.OciExecutionProfile {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*catalogv1.RuntimeExecutionProfile)
-}
-
-func cloneResolvedProbe(in *servicev1.ServiceProbe) *privatenodev1.ResolvedProbe {
-	if in == nil {
-		return nil
-	}
-	out := &privatenodev1.ResolvedProbe{
-		SuccessThreshold: in.GetSuccessThreshold(),
-		FailureThreshold: in.GetFailureThreshold(),
-	}
-	if in.GetInitialDelay() != nil {
-		out.InitialDelay = proto.Clone(in.GetInitialDelay()).(*durationpb.Duration)
-	}
-	if in.GetPeriod() != nil {
-		out.Period = proto.Clone(in.GetPeriod()).(*durationpb.Duration)
-	}
-	if in.GetTimeout() != nil {
-		out.Timeout = proto.Clone(in.GetTimeout()).(*durationpb.Duration)
-	}
-	if http := in.GetHttp(); http != nil {
-		out.Action = &privatenodev1.ResolvedProbe_Http{
-			Http: &privatenodev1.ResolvedHttpProbe{
-				Port:   http.GetPort(),
-				Path:   http.GetPath(),
-				Scheme: privatenodev1.HttpProbeScheme(http.GetScheme()),
-			},
-		}
-	}
-	if tcp := in.GetTcp(); tcp != nil {
-		out.Action = &privatenodev1.ResolvedProbe_Tcp{
-			Tcp: &privatenodev1.ResolvedTcpProbe{Port: tcp.GetPort()},
-		}
-	}
-	return out
+	return proto.Clone(in).(*environmentv1.OciExecutionProfile)
 }
 
 func cloneStringSlice(in []string) []string {
@@ -83,20 +47,6 @@ func mergeStringMaps(base, override map[string]string) map[string]string {
 	return out
 }
 
-func clonePortSpecs(in []*commonv1.PortSpec) []*commonv1.PortSpec {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*commonv1.PortSpec, 0, len(in))
-	for _, port := range in {
-		if port == nil {
-			continue
-		}
-		out = append(out, proto.Clone(port).(*commonv1.PortSpec))
-	}
-	return out
-}
-
 func cloneNetworkSpec(in *commonv1.NetworkSpec) *commonv1.NetworkSpec {
 	if in == nil {
 		return nil
@@ -118,14 +68,14 @@ func cloneExtensionCapabilityRequirements(in []*capabilityv1.ExtensionCapability
 	return out
 }
 
-func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
+func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
 	if len(in) == 0 {
 		return nil
 	}
-	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+	out := make([]*capabilityv1.CapabilityRequirement, 0, len(in))
 	for _, dependency := range in {
 		if dependency != nil {
-			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityRequirement))
 		}
 	}
 	return out

@@ -2,12 +2,6 @@ package hostlinux
 
 import "math"
 
-const (
-	AllocationProjectIDMin  uint32 = 10_000
-	AllocationProjectIDMax  uint32 = 1_999_999_999
-	FilestoreProbeProjectID uint32 = 2_100_000_000
-)
-
 func StatfsBytes(blocks uint64, blockSize int64) int64 {
 	if blocks == 0 || blockSize <= 0 {
 		return 0

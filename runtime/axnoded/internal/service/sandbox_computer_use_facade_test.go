@@ -11,8 +11,7 @@ import (
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
+	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -22,8 +21,8 @@ import (
 func TestComputerUseStatusAndScreenshot(t *testing.T) {
 	socketPath, shutdown := startComputerUseTestServer(t)
 	defer shutdown()
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": &runtimeSpyHandler{name: "runsc"}})
-	storeRunningComputerUseContainer(t, s, "axctl-computer-use", socketPath, "health,status,supervisor,file,process,pty,computer_use")
+	s := newTestService(t, &runtimeSpyHandler{name: "runsc"})
+	storeRunningComputerUseContainer(t, s, "axctl-computer-use", socketPath)
 
 	statusResp, err := s.ComputerUseStatus(context.Background(), &apipb.ComputerUseStatusRequest{ID: "axctl-computer-use"})
 	assert.NoError(t, err)
@@ -47,28 +46,24 @@ func TestComputerUseStatusAndScreenshot(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestComputerUseRequiresCapabilityLabel(t *testing.T) {
+func TestComputerUseRequiresLiveProviderCapability(t *testing.T) {
 	socketPath, shutdown := startUnavailableProviderTestServer(t, sandboxaccess.CapabilityComputerUse, `screenshot_tool unavailable: import failed`)
 	defer shutdown()
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": &runtimeSpyHandler{name: "runsc"}})
-	storeRunningComputerUseContainer(t, s, "axctl-computer-use-missing", socketPath, "health,status,supervisor,file,process,pty")
+	s := newTestService(t, &runtimeSpyHandler{name: "runsc"})
+	storeRunningComputerUseContainer(t, s, "axctl-computer-use-missing", socketPath)
 
 	_, err := s.ComputerUseStatus(context.Background(), &apipb.ComputerUseStatusRequest{ID: "axctl-computer-use-missing"})
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 	assert.Contains(t, err.Error(), "screenshot_tool unavailable")
 }
 
-func storeRunningComputerUseContainer(t *testing.T, s *sandboxService, id string, socketPath string, capabilities string) {
+func storeRunningComputerUseContainer(t *testing.T, s *sandboxService, id string, socketPath string) {
 	t.Helper()
-	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{
-		ID:             id,
-		RuntimeHandler: "runsc",
-		Labels: map[string]string{
-			runtimesandboxd.LabelReady:        "true",
-			runtimesandboxd.LabelSocket:       socketPath,
-			runtimesandboxd.LabelCapabilities: capabilities,
-		},
-	})
+	derivedSocket := runtimeoci.SandboxdBundleSocketPath(filepath.Join(s.config.RootDir, "containers", id))
+	assert.NoError(t, os.MkdirAll(filepath.Dir(derivedSocket), 0o755))
+	assert.NoError(t, os.Symlink(socketPath, derivedSocket))
+	s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, id)
 	time.Sleep(200 * time.Millisecond)
 }
 

@@ -9,18 +9,6 @@ import (
 func TestNewManager(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ossConfig := BackendConfig{
-		BackendType: "oss",
-		Oss: &OssConfig{
-			ObjectStoreCommon: ObjectStoreCommon{
-				Endpoint:     "oss-default.aliyuncs.com",
-				BucketName:   "default-bucket",
-				ObjectPrefix: "default/",
-			},
-		},
-	}
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", ossConfig)
-
 	nydusConfig := BackendConfig{
 		BackendType: "registry",
 		Registry: &RegistryConfig{
@@ -31,7 +19,6 @@ func TestNewManager(t *testing.T) {
 	}
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", nydusConfig)
 
-	ossAuthsPath := createTestOSSAuthsFile(t, tmpDir)
 	registryAuthsPath := createTestRegistryAuthsFile(t, tmpDir)
 
 	tests := []struct {
@@ -44,10 +31,8 @@ func TestNewManager(t *testing.T) {
 			config: &ManagerConfig{
 				NodeID:            "node-test",
 				Root:              tmpDir,
-				OSSCfgPath:        ossCfgPath,
 				NydusCfgPath:      nydusCfgPath,
 				BinPath:           "/usr/local/bin/imagefsd",
-				OSSAuthsPath:      ossAuthsPath,
 				RegistryAuthsPath: registryAuthsPath,
 			},
 			wantErr: false,
@@ -56,10 +41,8 @@ func TestNewManager(t *testing.T) {
 			name: "missing node ID",
 			config: &ManagerConfig{
 				Root:              tmpDir,
-				OSSCfgPath:        ossCfgPath,
 				NydusCfgPath:      nydusCfgPath,
 				BinPath:           "/usr/local/bin/imagefsd",
-				OSSAuthsPath:      ossAuthsPath,
 				RegistryAuthsPath: registryAuthsPath,
 			},
 			wantErr: true,
@@ -70,27 +53,12 @@ func TestNewManager(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "missing OSS config",
-			config: &ManagerConfig{
-				NodeID:            "node-test",
-				Root:              tmpDir,
-				OSSCfgPath:        "",
-				NydusCfgPath:      nydusCfgPath,
-				BinPath:           "/usr/local/bin/imagefsd",
-				OSSAuthsPath:      ossAuthsPath,
-				RegistryAuthsPath: registryAuthsPath,
-			},
-			wantErr: true,
-		},
-		{
 			name: "missing Nydus config",
 			config: &ManagerConfig{
 				NodeID:            "node-test",
 				Root:              tmpDir,
-				OSSCfgPath:        ossCfgPath,
 				NydusCfgPath:      "",
 				BinPath:           "/usr/local/bin/imagefsd",
-				OSSAuthsPath:      ossAuthsPath,
 				RegistryAuthsPath: registryAuthsPath,
 			},
 			wantErr: true,

@@ -9,55 +9,37 @@ const (
 	DefaultControlTarget      = "127.0.0.1:24000"
 	DefaultTunnelRelayTarget  = "127.0.0.1:24100"
 	DefaultTLSCACert          = ".dev/certs/ca.crt"
-	DefaultTLSCert            = ".dev/certs/gatewayd.crt"
-	DefaultTLSKey             = ".dev/certs/gatewayd.key"
-	DefaultControlEdgeTLSCert = ".dev/certs/gatewayd.crt"
-	DefaultControlEdgeTLSKey  = ".dev/certs/gatewayd.key"
-	DefaultDashboardVendorDir = "/usr/local/share/axern/gatewayd/dashboard/vendor"
+	DefaultControlEdgeTLSCert = ".dev/certs/gatewayd.pem"
+	DefaultControlEdgeTLSKey  = ".dev/certs/gatewayd.pem"
 )
 
 type Config struct {
-	HTTPAddress                  string
-	ControlEdgeAddress           string
-	ControlEdgeTLSCACert         string
-	ControlEdgeTLSCert           string
-	ControlEdgeTLSKey            string
-	TunnelRelayTarget            string
-	TunnelRelayTLSCACert         string
-	TunnelRelayTLSServerName     string
-	ControlTarget                string
-	TLSCACert                    string
-	TLSCert                      string
-	TLSKey                       string
-	DevToken                     string
-	RequireHTTPAuth              bool
-	SSHEnabled                   bool
-	SSHAddress                   string
-	SSHHostKey                   string
-	SSHAuthorizedKeys            string
-	DashboardEnabled             bool
-	DashboardVendorDir           string
-	RouteCacheTTL                time.Duration
-	RouteCacheMaxEntries         int
-	ControlDialTimeout           time.Duration
-	ReadHeaderTimeout            time.Duration
-	ReadTimeout                  time.Duration
-	WriteTimeout                 time.Duration
-	IdleTimeout                  time.Duration
-	ServiceUpstreamTimeout       time.Duration
-	ServiceMaxRequestBodyBytes   int64
-	ServiceEndpointRetryAttempts int
-	ServiceEndpointQuarantineTTL time.Duration
-	TerminalIdleTimeout          time.Duration
-	TerminalMaxDuration          time.Duration
-	TerminalMaxMessageBytes      int64
-	LeaseRetryAttempts           int
-	LeaseRetryBaseDelay          time.Duration
-	ArtifactMaxConcurrent        int
-	ArtifactChunkBytes           int
-	ArtifactUpstreamTimeout      time.Duration
-	ArtifactMaxBytes             int64
-	LogLevel                     string
+	WorkloadBundle            string
+	WorkloadCluster           string
+	HTTPAddress               string
+	ControlEdgeAddress        string
+	ControlEdgeTLSCACert      string
+	ControlEdgeTLSCert        string
+	ControlEdgeTLSKey         string
+	TunnelRelayTarget         string
+	TunnelRelayTLSCACert      string
+	TunnelRelayTLSServerName  string
+	ControlTarget             string
+	TLSCACert                 string
+	SSHEnabled                bool
+	SSHAddress                string
+	SSHHostKey                string
+	ControlDialTimeout        time.Duration
+	ReadHeaderTimeout         time.Duration
+	ReadTimeout               time.Duration
+	WriteTimeout              time.Duration
+	IdleTimeout               time.Duration
+	TerminalIdleTimeout       time.Duration
+	TerminalMaxDuration       time.Duration
+	TerminalMaxMessageBytes   int64
+	AccessGrantRetryAttempts  int
+	AccessGrantRetryBaseDelay time.Duration
+	LogLevel                  string
 }
 
 func Parse(args []string) (Config, error) {

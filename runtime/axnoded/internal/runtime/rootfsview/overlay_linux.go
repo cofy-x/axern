@@ -173,17 +173,6 @@ func inspectBackingLayer(path string) (RootfsBackingLayerFacts, error) {
 	}, nil
 }
 
-func verifyMountedOverlay(path string) error {
-	info, err := mountInfoForPath(path)
-	if err != nil {
-		return err
-	}
-	if info.mountpoint != filepath.Clean(path) || info.fsType != "overlay" {
-		return fmt.Errorf("%s is not an active OverlayFS mount", path)
-	}
-	return nil
-}
-
 func mountInfoForPath(path string) (mountInfoEntry, error) {
 	data, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {

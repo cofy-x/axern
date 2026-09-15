@@ -18,8 +18,13 @@ func NewExecutor() *Executor {
 
 type Target struct {
 	ID      string
-	Labels  map[string]string
-	Handler contract.RuntimeHandler
+	Handler Runtime
+}
+
+type Runtime interface {
+	ExecContainer(context.Context, *apipb.ExecContainerRequest, contract.HandlerOptions) (*apipb.ExecContainerResponse, error)
+	OpenExecSession(context.Context, *apipb.ExecSessionOpen, contract.HandlerOptions) (contract.Session, error)
+	ProcessService() contract.ProcessService
 }
 
 type StreamResult int
@@ -45,27 +50,24 @@ func (e *Executor) Exec(ctx context.Context, target Target, request *runtime.Exe
 		return nil, errord.ErrInvalidContainer
 	}
 	resp, err := target.Handler.ExecContainer(ctx, &apipb.ExecContainerRequest{
-		ID:           request.GetID(),
-		Command:      request.GetCommand(),
-		Tty:          false,
-		Envs:         startplan.KeyValuesFromStringMap(request.GetEnv()),
-		Cwd:          request.GetCwd(),
-		User:         request.GetUser(),
-		ManagedProxy: request.GetManagedProxy(),
+		ID:      request.GetID(),
+		Command: request.GetCommand(),
+		Tty:     false,
+		Envs:    startplan.KeyValuesFromStringMap(request.GetEnv()),
+		Cwd:     request.GetCwd(),
+		User:    request.GetUser(),
 	}, contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &runtime.ExecResponse{
-		ExitCode:           resp.GetExitCode(),
-		Stdout:             resp.GetStdout(),
-		Stderr:             resp.GetStderr(),
-		StdoutTruncated:    resp.GetStdoutTruncated(),
-		StderrTruncated:    resp.GetStderrTruncated(),
-		ManagedProxyReport: resp.GetManagedProxyReport(),
+		ExitCode:        resp.GetExitCode(),
+		Stdout:          resp.GetStdout(),
+		Stderr:          resp.GetStderr(),
+		StdoutTruncated: resp.GetStdoutTruncated(),
+		StderrTruncated: resp.GetStderrTruncated(),
 	}, nil
 }
 
@@ -74,17 +76,15 @@ func (e *Executor) OpenExec(ctx context.Context, target Target, open *runtime.Ex
 		return nil, errord.ErrInvalidContainer
 	}
 	return target.Handler.OpenExecSession(ctx, &apipb.ExecSessionOpen{
-		ID:           open.GetID(),
-		Command:      open.GetCommand(),
-		Tty:          open.GetTty(),
-		Envs:         startplan.KeyValuesFromStringMap(open.GetEnv()),
-		Cwd:          open.GetCwd(),
-		User:         open.GetUser(),
-		InitialSize:  open.GetInitialSize(),
-		ManagedProxy: open.GetManagedProxy(),
+		ID:          open.GetID(),
+		Command:     open.GetCommand(),
+		Tty:         open.GetTty(),
+		Envs:        startplan.KeyValuesFromStringMap(open.GetEnv()),
+		Cwd:         open.GetCwd(),
+		User:        open.GetUser(),
+		InitialSize: open.GetInitialSize(),
 	}, contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	})
 }
 
@@ -93,16 +93,15 @@ func (e *Executor) OpenProcess(ctx context.Context, target Target, open *runtime
 		return nil, errord.ErrInvalidContainer
 	}
 	return target.Handler.ProcessService().OpenProcess(ctx, &apipb.ProcessOpen{
-		ID:           open.GetID(),
-		Command:      open.GetCommand(),
-		Tty:          open.GetTty(),
-		Timeout:      open.GetTimeout(),
-		Env:          open.GetEnv(),
-		Cwd:          open.GetCwd(),
-		User:         open.GetUser(),
-		ManagedProxy: open.GetManagedProxy(),
+		ID:          open.GetID(),
+		Command:     open.GetCommand(),
+		Tty:         open.GetTty(),
+		Timeout:     open.GetTimeout(),
+		Env:         open.GetEnv(),
+		Cwd:         open.GetCwd(),
+		User:        open.GetUser(),
+		InitialSize: open.GetInitialSize(),
 	}, contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	})
 }

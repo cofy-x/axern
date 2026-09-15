@@ -33,10 +33,6 @@ func (h *sandboxService) Kill(ctx context.Context, request *runtime.KillRequest)
 	return resp, errord.ToGRPC(err)
 }
 
-func (h *sandboxService) Checkpoint(ctx context.Context, request *runtime.CheckpointRequest) (*runtime.CheckpointResponse, error) {
-	return h.sandboxControl().Checkpoint(ctx, request)
-}
-
 func (h *sandboxService) sandboxControlOptions() sandboxcontrol.Options {
 	return sandboxcontrol.Options{
 		ListContainers: func(options ...container.ListOption) []*container.Container {

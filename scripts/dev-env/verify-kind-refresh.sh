@@ -58,8 +58,6 @@ run_with_retry 2 make kind-refresh
 
 log "running kind smoke suite"
 run_with_retry 2 make kind-smoke
-run_with_retry 2 make kind-gateway-smoke
-run_with_retry 2 make kind-service-volume-smoke
 run_with_retry 2 make kind-run-smoke
 run_with_retry 2 make kind-server-base-smoke
 run_with_retry 2 make kind-quota-smoke
@@ -67,18 +65,6 @@ run_with_retry 2 make kind-quota-smoke
 log "checking kind admin reliability"
 run_cmd bash -lc 'export K8S_ENV_NAME=kind; source scripts/dev-env/lib.sh; local_smoke_report_reliability "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}"'
 
-if [ "${KIND_REFRESH_TUNNEL_E2E:-0}" = "1" ] || [ "${KIND_REFRESH_TUNNEL_E2E:-0}" = "true" ]; then
-  run_with_retry 2 make kind-tunnel-e2e
-fi
-if [ "${KIND_REFRESH_TUNNEL_RELAY_E2E:-0}" = "1" ] || [ "${KIND_REFRESH_TUNNEL_RELAY_E2E:-0}" = "true" ]; then
-  run_with_retry 2 make kind-tunnel-relay-e2e
-fi
-if [ "${KIND_REFRESH_TUNNEL_MULTIRELAY_E2E:-0}" = "1" ] || [ "${KIND_REFRESH_TUNNEL_MULTIRELAY_E2E:-0}" = "true" ]; then
-  run_with_retry 2 make kind-tunnel-multirelay-e2e
-fi
-if [ "${KIND_REFRESH_IMAGE_SERVICE_SMOKE:-0}" = "1" ] || [ "${KIND_REFRESH_IMAGE_SERVICE_SMOKE:-0}" = "true" ]; then
-  run_with_retry 2 make kind-image-service-smoke
-fi
 if [ "${KIND_REFRESH_REGISTRY_IMAGE_SMOKE:-0}" = "1" ] || [ "${KIND_REFRESH_REGISTRY_IMAGE_SMOKE:-0}" = "true" ]; then
   run_with_retry 2 make kind-axern-registry-image-smoke
 fi

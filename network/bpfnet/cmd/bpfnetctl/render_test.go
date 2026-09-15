@@ -9,28 +9,19 @@ import (
 	"github.com/cofy-x/axern/network/bpfnet/internal/inspect"
 )
 
-func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
+func TestWriteStatusHumanIncludesFailureAndSNATState(t *testing.T) {
 	status := bpfnet.Status{
 		State: bpfnet.DataplaneState{
-			Mode:             bpfnet.ModeIPTablesFullFallback,
+			Mode:             bpfnet.ModeAttachFailed,
 			PinPath:          "/tmp/pins",
 			IPRange:          "172.17.0.1/16",
 			SNATPortMin:      bpfnet.SNATAllocatorPortMin,
 			SNATPortMax:      bpfnet.SNATAllocatorPortMax,
 			SNATPortAttempts: bpfnet.SNATAllocatorPortAttempts,
-			FullFallback:     true,
 			LastAttachError:  "attach failed",
 			LastTCProbeError: "tc probe failed",
 		},
-		Services: []bpfnet.Service{{
-			Protocol:   "tcp",
-			HostPort:   18080,
-			TargetIP:   "172.17.0.2",
-			TargetPort: 80,
-		}},
-		Stats: bpfnet.Stats{Fallbacks: 1, AttachErrors: 1},
 		Kernel: bpfnet.KernelStats{
-			ServiceHits:                        3,
 			SNATAllocExhausted:                 11,
 			SNATTCPNonSynMisses:                13,
 			SNATTCPNonSynMissFINs:              2,
@@ -82,13 +73,10 @@ func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
 	}
 	out := buf.String()
 	for _, want := range []string{
-		"mode: iptables-full-fallback",
-		"localhost_compat_fallback: no",
+		"mode: attach-failed",
 		"snat_port_range: 10000-65535",
 		"snat_port_attempts: 256",
-		"full_fallback: yes",
 		"last_attach_error: attach failed",
-		"tcp host:18080 -> 172.17.0.2:80",
 		"fwd_entries: 4",
 		"fwd_tcp_entries: 1",
 		"fwd_udp_entries: 2",
@@ -109,7 +97,6 @@ func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
 		"rev_full_closing_entries: 2",
 		"translated_ports_used: 3",
 		"udp_translated_ports_used: 2",
-		"service_hits: 3",
 		"snat_alloc_exhausted: 11",
 		"snat_tcp_non_syn_misses: 13",
 		"snat_tcp_non_syn_miss_fins: 2",
@@ -139,8 +126,8 @@ func TestWriteStatusHumanIncludesFallbackAndServices(t *testing.T) {
 func TestWriteObjectsHumanIncludesMissingMap(t *testing.T) {
 	objects := []inspect.ObjectInfo{{
 		Kind:    "map",
-		Name:    "service_map",
-		Path:    "/tmp/pins/service_map",
+		Name:    "snat_fwd_map",
+		Path:    "/tmp/pins/snat_fwd_map",
 		Present: false,
 		Error:   "missing",
 	}}
@@ -150,18 +137,18 @@ func TestWriteObjectsHumanIncludesMissingMap(t *testing.T) {
 		t.Fatalf("write objects: %v", err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "service_map") || !strings.Contains(out, "missing") {
+	if !strings.Contains(out, "snat_fwd_map") || !strings.Contains(out, "missing") {
 		t.Fatalf("unexpected objects output:\n%s", out)
 	}
 }
 
 func TestWriteDumpHuman(t *testing.T) {
 	dump := inspect.Dump{
-		MapName: "service_map",
+		MapName: "snat_fwd_map",
 		Limit:   1,
 		Entries: []inspect.Entry{{
-			Key:   map[string]any{"protocol": "tcp", "host_port": 18080},
-			Value: map[string]any{"target_ip": "172.17.0.2", "target_port": 80},
+			Key:   map[string]any{"protocol": "tcp", "source_port": 18080},
+			Value: map[string]any{"translated_source_port": 28080},
 		}},
 	}
 
@@ -170,7 +157,7 @@ func TestWriteDumpHuman(t *testing.T) {
 		t.Fatalf("write dump: %v", err)
 	}
 	out := buf.String()
-	if !strings.Contains(out, "map: service_map") || !strings.Contains(out, "172.17.0.2") {
+	if !strings.Contains(out, "map: snat_fwd_map") || !strings.Contains(out, "28080") {
 		t.Fatalf("unexpected dump output:\n%s", out)
 	}
 }

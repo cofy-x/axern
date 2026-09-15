@@ -4,7 +4,7 @@ import (
 	"context"
 )
 
-func (n *NodeSandboxClient) Stat(ctx context.Context, path string) (SandboxFileInfo, error) {
+func (n *AllocationClient) Stat(ctx context.Context, path string) (SandboxFileInfo, error) {
 	if err := n.validate(); err != nil {
 		return SandboxFileInfo{}, err
 	}
@@ -18,7 +18,7 @@ func (n *NodeSandboxClient) Stat(ctx context.Context, path string) (SandboxFileI
 	return sandboxFileInfo(info), nil
 }
 
-func (n *NodeSandboxClient) ListDir(ctx context.Context, path string) ([]SandboxFileInfo, error) {
+func (n *AllocationClient) ListDir(ctx context.Context, path string) ([]SandboxFileInfo, error) {
 	if err := n.validate(); err != nil {
 		return nil, err
 	}
@@ -32,7 +32,7 @@ func (n *NodeSandboxClient) ListDir(ctx context.Context, path string) ([]Sandbox
 	return sandboxFileInfos(entries), nil
 }
 
-func (n *NodeSandboxClient) ReadFile(ctx context.Context, path string) ([]byte, error) {
+func (n *AllocationClient) ReadFile(ctx context.Context, path string) ([]byte, error) {
 	if err := n.validate(); err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (n *NodeSandboxClient) ReadFile(ctx context.Context, path string) ([]byte, 
 	return data, nil
 }
 
-func (n *NodeSandboxClient) WriteFile(ctx context.Context, path string, data []byte, options WriteFileOptions) error {
+func (n *AllocationClient) WriteFile(ctx context.Context, path string, data []byte, options WriteFileOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (n *NodeSandboxClient) WriteFile(ctx context.Context, path string, data []b
 	return mapRPCError(err, "sandbox write file", n.allocationID)
 }
 
-func (n *NodeSandboxClient) Exists(ctx context.Context, path string) (bool, error) {
+func (n *AllocationClient) Exists(ctx context.Context, path string) (bool, error) {
 	if err := n.validate(); err != nil {
 		return false, err
 	}
@@ -71,7 +71,7 @@ func (n *NodeSandboxClient) Exists(ctx context.Context, path string) (bool, erro
 	return exists, nil
 }
 
-func (n *NodeSandboxClient) Mkdir(ctx context.Context, path string, options MkdirOptions) error {
+func (n *AllocationClient) Mkdir(ctx context.Context, path string, options MkdirOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -82,7 +82,7 @@ func (n *NodeSandboxClient) Mkdir(ctx context.Context, path string, options Mkdi
 	return mapRPCError(err, "sandbox make directory", n.allocationID)
 }
 
-func (n *NodeSandboxClient) Remove(ctx context.Context, path string, options RemoveOptions) error {
+func (n *AllocationClient) Remove(ctx context.Context, path string, options RemoveOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (n *NodeSandboxClient) Remove(ctx context.Context, path string, options Rem
 	return mapRPCError(err, "sandbox remove", n.allocationID)
 }
 
-func (n *NodeSandboxClient) Copy(ctx context.Context, srcPath, dstPath string, options CopyOptions) error {
+func (n *AllocationClient) Copy(ctx context.Context, srcPath, dstPath string, options CopyOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func (n *NodeSandboxClient) Copy(ctx context.Context, srcPath, dstPath string, o
 	return mapRPCError(err, "sandbox copy", n.allocationID)
 }
 
-func (n *NodeSandboxClient) Move(ctx context.Context, srcPath, dstPath string, options MoveOptions) error {
+func (n *AllocationClient) Move(ctx context.Context, srcPath, dstPath string, options MoveOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -115,7 +115,7 @@ func (n *NodeSandboxClient) Move(ctx context.Context, srcPath, dstPath string, o
 	return mapRPCError(err, "sandbox move", n.allocationID)
 }
 
-func (n *NodeSandboxClient) Chmod(ctx context.Context, path string, mode uint32, options ChmodOptions) error {
+func (n *AllocationClient) Chmod(ctx context.Context, path string, mode uint32, options ChmodOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func (n *NodeSandboxClient) Chmod(ctx context.Context, path string, mode uint32,
 	return mapRPCError(err, "sandbox chmod", n.allocationID)
 }
 
-func (n *NodeSandboxClient) Touch(ctx context.Context, path string, options TouchOptions) error {
+func (n *AllocationClient) Touch(ctx context.Context, path string, options TouchOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}

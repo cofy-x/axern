@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 )
 
-func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token string, _ *nodeoperatorv1.ResolveSandboxNetworkResponse) error {
-	edgeTarget := session.GetNodeEdgeTarget()
+func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string, _ *nodenetworkv1.ResolveAllocationNetworkResponse) error {
+	edgeTarget := strings.TrimSpace(nodeEdgeTarget)
 	if edgeTarget == "" {
-		return fmt.Errorf("session node_edge_target is required")
+		return fmt.Errorf("node tunnel relay target is required")
 	}
 	sandboxEdgeTarget, err := resolveSandboxReachableTarget(edgeTarget)
 	if err != nil {
@@ -37,11 +37,10 @@ func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1
 		return err
 	}
 	_, _ = d.node.ReportTunnelSessionStatus(ctx, &nodev1.ReportTunnelSessionStatusRequest{
-		NodeID:        d.nodeID,
-		NodeAuthToken: d.nodeAuthToken,
-		SessionID:     session.GetSessionID(),
-		Status:        tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
-		BoundAddr:     addr,
+		NodeID:    d.nodeID,
+		SessionID: session.GetSessionID(),
+		Status:    tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+		BoundAddr: addr,
 	})
 	select {
 	case <-ctx.Done():

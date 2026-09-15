@@ -11,9 +11,13 @@ import (
 )
 
 var DeleteCmd = cli.Command{
-	Name:  "delete",
-	Usage: "Force-delete a sandbox from the current node as a local operator action",
+	Name:  "force-cleanup",
+	Usage: "Break glass: force terminal cleanup through the Allocation recovery path",
 	Flags: []cli.Flag{
+		cli.StringFlag{
+			Name:  "reason",
+			Usage: "required audited reason for the break-glass action",
+		},
 		cli.DurationFlag{
 			Name:  "timeout",
 			Value: config.StopTimeout,
@@ -22,7 +26,11 @@ var DeleteCmd = cli.Command{
 	},
 	Action: func(context *cli.Context) error {
 		if context.NArg() == 0 {
-			return fmt.Errorf("no sandbox id specified")
+			return fmt.Errorf("no allocation id specified")
+		}
+		reason := context.String("reason")
+		if reason == "" {
+			return fmt.Errorf("--reason is required")
 		}
 
 		opsClient, err := client.New(context)
@@ -31,9 +39,9 @@ var DeleteCmd = cli.Command{
 		}
 		defer opsClient.Close()
 
-		for _, sandboxID := range context.Args() {
-			if _, err := opsClient.DeleteSandbox(sandboxID, deleteTimeoutSeconds(context.Duration("timeout"))); err != nil {
-				return fmt.Errorf("delete sandbox %s: %v", sandboxID, err)
+		for _, allocationID := range context.Args() {
+			if _, err := opsClient.ForceCleanupAllocation(allocationID, reason, deleteTimeoutSeconds(context.Duration("timeout"))); err != nil {
+				return fmt.Errorf("force cleanup allocation %s: %v", allocationID, err)
 			}
 		}
 		return nil

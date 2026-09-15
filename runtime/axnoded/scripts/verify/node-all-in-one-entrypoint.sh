@@ -5,9 +5,9 @@ export AXNODED_CONTROL_PLANE_NODE_ID="${AXNODED_CONTROL_PLANE_NODE_ID:-node-veri
 # Verification runs inside Docker's network namespace. Keep the nested sandbox
 # bridge off Docker's default 172.17.0.0/16 bridge so host and peer routes work.
 export AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
+export AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 
 VERIFY_ROOTFS_IMAGE="${VERIFY_ROOTFS_IMAGE:-/var/lib/axnoded/verify-rootfs.ext4}"
-VERIFY_NGINX_ROOTFS_IMAGE="${VERIFY_NGINX_ROOTFS_IMAGE:-/var/lib/axnoded/verify-nginx-rootfs.ext4}"
 child_pid=""
 staging_dir=""
 
@@ -17,12 +17,11 @@ cleanup() {
     wait "${child_pid}" >/dev/null 2>&1 || true
   fi
   umount /opt/sample-rootfs >/dev/null 2>&1 || true
-  umount /opt/nginx-rootfs >/dev/null 2>&1 || true
   if [ -n "${staging_dir}" ]; then
     umount "${staging_dir}" >/dev/null 2>&1 || true
     rmdir "${staging_dir}" >/dev/null 2>&1 || true
   fi
-  rm -f "${VERIFY_ROOTFS_IMAGE}" "${VERIFY_NGINX_ROOTFS_IMAGE}"
+  rm -f "${VERIFY_ROOTFS_IMAGE}"
 }
 trap cleanup EXIT
 trap 'exit 143' TERM INT
@@ -51,8 +50,6 @@ mount_readonly_fixture() {
 
 mkdir -p /var/lib/axnoded
 mount_readonly_fixture /opt/sample-rootfs "${VERIFY_ROOTFS_IMAGE}" 134217728
-mount_readonly_fixture /opt/nginx-rootfs "${VERIFY_NGINX_ROOTFS_IMAGE}" 536870912
-
 # Verification containers run the same fail-closed production entrypoint but
 # use an explicit test-only reserve. The reserve must cover both the fixed
 # 512 MiB aggregate runtime-conformance cgroup and the complete node-all-in-one

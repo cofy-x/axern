@@ -10,9 +10,9 @@ import (
 func TestPrepareListFiltersAndSortsPressure(t *testing.T) {
 	quotas := []*quotav1.NamespaceQuota{
 		{Namespace: "unlimited"},
-		{Namespace: "medium", CpuMilliLimit: wrapperspb.Int64(1000), ReservedCpuMilli: 500},
-		{Namespace: "hot", CpuMilliLimit: wrapperspb.Int64(1000), ReservedCpuMilli: 900},
-		{Namespace: "memory-hot", MemoryBytesLimit: wrapperspb.Int64(1000), ReservedMemoryBytes: 950},
+		{Namespace: "medium", CpuMilliLimit: wrapperspb.Int64(1000), UsedCpuMilli: 500},
+		{Namespace: "hot", CpuMilliLimit: wrapperspb.Int64(1000), UsedCpuMilli: 900},
+		{Namespace: "memory-hot", MemoryBytesLimit: wrapperspb.Int64(1000), UsedMemoryBytes: 950},
 	}
 	got, err := PrepareList(quotas, ListOptions{PressureOnly: true, Sort: "pressure"})
 	if err != nil {

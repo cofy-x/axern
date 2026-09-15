@@ -28,18 +28,14 @@ pnpm install
 make sdk-typescript-verify
 ```
 
-The SDK dynamically loads Axern proto definitions from `sdk/proto`. Set
-`AXERN_PROTO_ROOT` when running from a different layout.
+The SDK dynamically loads Axern proto definitions from `sdk/proto`. Set `AXERN_PROTO_ROOT` when running from a different layout.
 
 ## Basic Usage
 
 ```ts
 import { AxernClient, Sandbox } from "@cofy-x/axern-sdk";
 
-const client = AxernClient.fromContext(
-  process.env.AXERN_CONFIG ?? `${process.env.HOME}/.config/axern/config.json`,
-  process.env.AXERN_CONTEXT,
-);
+const client = AxernClient.fromContext(process.env.AXERN_CONFIG ?? `${process.env.HOME}/.config/axern/config.json`, process.env.AXERN_CONTEXT);
 
 const sandbox = await new Sandbox({
   client,
@@ -70,9 +66,7 @@ try {
 
 ## Network Policies
 
-Omitting `networkPolicy` keeps unrestricted v0.5 behavior. Strict policies are
-fail-closed; `denyDns` only refuses matching traditional UDP/TCP DNS queries and
-does not block direct IP traffic, DoH, DoT, or already-resolved addresses.
+Omitting `networkPolicy` requests unrestricted networking. Strict policies are fail-closed; `denyDns` only refuses matching traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved addresses.
 
 ```ts
 import { NetworkPolicy, Sandbox } from "@cofy-x/axern-sdk";
@@ -80,26 +74,13 @@ import { NetworkPolicy, Sandbox } from "@cofy-x/axern-sdk";
 const sandbox = await new Sandbox({
   client,
   image: "docker.io/library/python:3.12-slim",
-  networkPolicy: NetworkPolicy.denyDns(
-    "github.com",
-    "*.github.com",
-    "githubusercontent.com",
-    "*.githubusercontent.com",
-  ),
+  networkPolicy: NetworkPolicy.denyDns("github.com", "*.github.com", "githubusercontent.com", "*.githubusercontent.com"),
 }).start();
 ```
 
-`NetworkPolicy.allowDomains("example.com", "*.example.com")` allows only
-strict HTTP/HTTPS destinations validated by DNS plus HTTP Host or TLS SNI.
-`NetworkPolicy.strict({ cidrRules: [...] })` adds explicit TCP/UDP CIDR and port
-grants; `NetworkPolicy.denyAll()` allows no egress.
+`NetworkPolicy.allowDomains("example.com", "*.example.com")` allows only strict HTTP/HTTPS destinations validated by DNS plus HTTP Host or TLS SNI. `NetworkPolicy.strict({ cidrRules: [...] })` adds explicit TCP/UDP CIDR and port grants; `NetworkPolicy.denyAll()` allows no egress.
 
-Run a tool from a separate image with `execImage` or `processImage`. OCI and
-Nydus refs use the same image field. When `mounts` is omitted, the SDK requests
-`/workspace -> /workspace`; pass `mounts: []` for no shared paths. Use
-`new Sandbox({ image })` when the image should be the sandbox rootfs with normal
-files, exec, process, tunnel, and lifecycle APIs; image-backed processes are
-temporary side processes attached to an existing sandbox.
+Run a tool from a separate image with `execImage` or `processImage`. OCI and Nydus refs use the same image field. When `mounts` is omitted, the SDK requests `/workspace -> /workspace`; pass `mounts: []` for no shared paths. Use `new Sandbox({ image })` when the image should be the sandbox rootfs with normal files, exec, process, tunnel, and lifecycle APIs; image-backed processes are temporary side processes attached to an existing sandbox.
 
 ```ts
 import { workspaceMount } from "@cofy-x/axern-sdk";
@@ -111,58 +92,40 @@ const result = await sandbox.execImage("ghcr.io/cofy-x/agent:latest", "tool run"
 console.log(result.stdoutText());
 ```
 
-`AxernClient` requires an explicit endpoint. Use `AxernClient.fromContext()` in
-interactive examples or `AxernClient.fromEnv()` in environment-driven
-automation. Neither the client constructor nor `Sandbox` silently reads the
-user directory.
+`AxernClient` requires an explicit endpoint. Use `AxernClient.fromContext()` in interactive examples or `AxernClient.fromEnv()` in environment-driven automation. Neither the client constructor nor `Sandbox` silently reads the user directory.
 
 ## Configuration
 
-`Sandbox` requires exactly one source: `templateId`, `image`, or
-`environmentId`.
+`Sandbox` requires exactly one source: `templateId`, `image`, or `environmentId`.
 
 Common options:
 
 - `namespace`: control-plane namespace, default `default`
 - `client`: explicit `AxernClient` shared by the sandbox
 - `argv`, `env`, `cwd`: initial sandbox process configuration
-- `runtimeClass`: runtime selector, for example `runsc` or `runc`
-- `requestCpu`, `requestMemory`, `requestEphemeralStorage`: scheduler resource
-  requests such as `500m`, `512MiB`, and `1GiB`; numeric CPU values are cores
-  and numeric memory/storage values are bytes
-- `limitCpu`, `limitMemory`, `limitEphemeralStorage`: runtime hard limits;
-  numeric CPU values are cores and numeric memory/storage values are bytes
-- `readyTimeoutMs`: service replica readiness timeout
+- `requestCpu`, `requestMemory`, `requestEphemeralStorage`: scheduler resource requests such as `500m`, `512MiB`, and `1GiB`; numeric CPU values are cores and numeric memory/storage values are bytes
+- `limitCpu`, `limitMemory`, `limitEphemeralStorage`: runtime hard limits; numeric CPU values are cores and numeric memory/storage values are bytes
+- `readyTimeoutMs`: Run allocation startup timeout
 
 Tunnel options:
 
-- `tunnel.upstream`: local TCP address reached by the SDK connector, for
-  example `127.0.0.1:8080`
+- `tunnel.upstream`: local TCP address reached by the SDK connector, for example `127.0.0.1:8080`
 - `tunnel.proxyPort`: sandbox-local port bound by Axern, default `8786`
 - `tunnel.ttlSeconds`: control-plane tunnel session TTL, renewed by the SDK
 
-Tunnel traffic reuses the client gateway endpoint, mTLS identity, server name,
-and proxy policy.
+Tunnel traffic reuses the client gateway endpoint, mTLS identity, server name, and proxy policy.
 
-After `start()`, use `sandbox.metadata.tunnel?.boundAddr` from inside the
-sandbox, for example `http://127.0.0.1:8786`.
+After `start()`, use `sandbox.metadata.tunnel?.boundAddr` from inside the sandbox, for example `http://127.0.0.1:8786`.
 
 ## Sandbox API
 
 - Lifecycle: `start()`, `close()`, `state`, `metadata`
 - Execution: `exec(command, options)`, `process(command, options)`
-- Agent sandbox: `capabilityStatus`, `computerUseStatus`,
-  `computerUseScreenshot`, `computerUseDisplay`, `computerUseMouse`,
-  `computerUseKeyboard`
-- Files: `readFile`, `readText`, `writeFile`, `writeText`, `stat`, `listDir`,
-  `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch`
-- Directories: `uploadDir(localPath, remotePath)`,
-  `downloadDir(remotePath, localPath)`
-- Tunnel: `new Sandbox({ tunnel: { upstream, proxyPort } })`,
-  `metadata.tunnel`
-- Errors: `AxernRpcError`, `SandboxExecError`, `SandboxStateError`,
-  `SandboxValidationError`, `isNotFound`, `isPermissionDenied`, `isTimeout`,
-  `rpcCode`
+- Agent sandbox: `capabilityStatus`, `computerUseStatus`, `computerUseScreenshot`, `computerUseDisplay`, `computerUseMouse`, `computerUseKeyboard`
+- Files: `readFile`, `readText`, `writeFile`, `writeText`, `stat`, `listDir`, `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch`
+- Directories: `uploadDir(localPath, remotePath)`, `downloadDir(remotePath, localPath)`
+- Tunnel: `new Sandbox({ tunnel: { upstream, proxyPort } })`, `metadata.tunnel`
+- Errors: `AxernRpcError`, `SandboxExecError`, `SandboxStateError`, `SandboxValidationError`, `isNotFound`, `isPermissionDenied`, `isTimeout`, `rpcCode`
 
 ## Local Smoke
 
@@ -173,9 +136,7 @@ pnpm --filter @cofy-x/axern-sdk run smoke:local
 pnpm --filter @cofy-x/axern-sdk run smoke:tunnel
 ```
 
-The smoke loads `deploy/local/state/compose/axern.env` when present. It uses the
-`python311` template by default; set `AXERN_TS_SMOKE_IMAGE` to verify an image
-source instead.
+The smoke loads `deploy/local/state/compose/axern.env` when present. It uses the `python311` template by default; set `AXERN_TS_SMOKE_IMAGE` to verify an image source instead.
 
 Check package contents with:
 
@@ -185,12 +146,12 @@ pnpm --filter @cofy-x/axern-sdk run pack:dry-run
 
 ## Proto Boundary
 
-The SDK loads protobuf definitions through `@grpc/proto-loader`. Dynamic proto
-access remains isolated under `src/generated`; public callers depend only on
-the stable TypeScript DTOs and error types.
+The SDK loads protobuf definitions through `@grpc/proto-loader`. Dynamic proto access remains isolated under `src/generated`; public callers depend only on the stable TypeScript DTOs and error types.
 
 ## Scope
 
-This SDK is Node.js-first. The higher-level Browser API, generated TypeScript
-proto stubs, and full control-plane administration APIs remain outside the
-v0.2 public contract.
+This SDK is Node.js-first. Browser automation runs as caller-owned workload software through process and Computer Use operations; generated TypeScript proto stubs and full control-plane administration APIs remain outside its public contract.
+
+## Run Output Retention
+
+Run output reads expose Allocation-local stdout/stderr after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. The combined readable limit is 64 MiB, with an explicit truncation signal. Node-process restart preserves sealed output; node-disk loss does not. Ordinary writable files still require explicit download before termination. No durable output object or persistent workspace is created.

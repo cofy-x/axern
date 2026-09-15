@@ -133,7 +133,6 @@ func runAssemble(args []string, stdout io.Writer) error {
 	buildDigest := flags.String("subject-build-digest", "", "candidate build-set sha256 digest")
 	dirty := flags.Bool("subject-dirty", false, "mark the candidate checkout dirty")
 	hostIdentityDigest := flags.String("host-identity-digest", "", "sha256 digest of the stable Linux host identity")
-	runcBinary := flags.String("runc-binary", "", "runc binary used by the matrix")
 	runscBinary := flags.String("runsc-binary", "", "runsc binary used by the matrix")
 	samples := flags.Int("samples", 0, "samples per latency distribution")
 	recoverySamples := flags.Int("recovery-samples", 0, "independent recovery observation count")
@@ -144,14 +143,14 @@ func runAssemble(args []string, stdout io.Writer) error {
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if flags.NArg() != 0 || *samplesDir == "" || *commit == "" || *buildDigest == "" || *hostIdentityDigest == "" || *runcBinary == "" || *runscBinary == "" {
+	if flags.NArg() != 0 || *samplesDir == "" || *commit == "" || *buildDigest == "" || *hostIdentityDigest == "" || *runscBinary == "" {
 		return errors.New("assemble requires scenarios, subject identity, host identity digest, and both runtime binaries")
 	}
 	ruleScaleCounts, err := parseRuleScaleCounts(*ruleScaleRaw)
 	if err != nil {
 		return err
 	}
-	environment, err := captureEnvironment(*hostIdentityDigest, map[string]string{"runc": *runcBinary, "runsc": *runscBinary})
+	environment, err := captureEnvironment(*hostIdentityDigest, map[string]string{"runsc": *runscBinary})
 	if err != nil {
 		return err
 	}

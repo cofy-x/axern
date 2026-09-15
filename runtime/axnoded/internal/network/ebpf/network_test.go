@@ -2,7 +2,6 @@ package ebpf
 
 import (
 	"errors"
-	"net"
 	"sync"
 	"testing"
 	"time"
@@ -13,21 +12,15 @@ import (
 )
 
 type fakeController struct {
-	mu           sync.Mutex
-	ensureErr    error
-	upsertErr    error
-	deleteErr    error
-	cleanupErr   error
-	gcErr        error
-	fullFallback map[string]bool
-	localCompat  map[string]bool
-	upserts      int
-	deletes      int
-	ensureCalls  int
-	gcCalls      int
-	gcPolicy     bpfnet.SNATGCPolicy
-	status       bpfnet.Status
-	statusErr    error
+	mu          sync.Mutex
+	ensureErr   error
+	cleanupErr  error
+	gcErr       error
+	ensureCalls int
+	gcCalls     int
+	gcPolicy    bpfnet.SNATGCPolicy
+	status      bpfnet.Status
+	statusErr   error
 }
 
 func (f *fakeController) EnsureAttached(string) error {
@@ -37,28 +30,6 @@ func (f *fakeController) EnsureAttached(string) error {
 
 func (f *fakeController) Cleanup() error {
 	return f.cleanupErr
-}
-
-func (f *fakeController) UpsertService(string, uint16, string, uint16) error {
-	f.upserts++
-	return f.upsertErr
-}
-
-func (f *fakeController) DeleteService(string, uint16, string, uint16) error {
-	f.deletes++
-	return f.deleteErr
-}
-
-func (f *fakeController) NeedsSNATFallback() bool {
-	return f.fullFallback["snat"]
-}
-
-func (f *fakeController) NeedsFullDNATFallback(protocol string) bool {
-	return f.fullFallback[protocol]
-}
-
-func (f *fakeController) NeedsLocalhostCompat(protocol string) bool {
-	return f.localCompat[protocol]
 }
 
 func (f *fakeController) CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error) {
@@ -79,25 +50,22 @@ func (f *fakeController) gcSnapshot() (int, bpfnet.SNATGCPolicy) {
 	return f.gcCalls, f.gcPolicy
 }
 
-func TestProbeHealthAcceptsLocalhostCompatibilityFallback(t *testing.T) {
+func TestProbeHealthDependsOnlyOnTCDataPlane(t *testing.T) {
 	manager := &BPFNetworkManager{controller: &fakeController{status: bpfnet.Status{State: bpfnet.DataplaneState{
-		TCReady:            true,
-		LocalhostCompat:    true,
-		LastLocalhostError: "read host netns cookie: protocol not available",
+		TCReady: true,
 	}}}}
 
 	health, err := manager.ProbeHealth("")
 	if err != nil {
 		t.Fatalf("ProbeHealth() error = %v", err)
 	}
-	if !health.PortForwardingReady || !health.NativeDataplaneReady {
-		t.Fatalf("ProbeHealth() = %#v, want port forwarding and native dataplane ready", health)
+	if !health.NativeDataplaneReady {
+		t.Fatalf("ProbeHealth() = %#v, want TC dataplane available", health)
 	}
 }
 
-func TestProbeHealthReportsFullFallbackAsNonNative(t *testing.T) {
+func TestProbeHealthReportsFailedAttachAsUnavailable(t *testing.T) {
 	manager := &BPFNetworkManager{controller: &fakeController{status: bpfnet.Status{State: bpfnet.DataplaneState{
-		FullFallback:     true,
 		LastAttachError:  "tc attach failed",
 		LastTCProbeError: "tc probe failed",
 	}}}}
@@ -106,8 +74,8 @@ func TestProbeHealthReportsFullFallbackAsNonNative(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ProbeHealth() error = %v", err)
 	}
-	if !health.PortForwardingReady || health.NativeDataplaneReady {
-		t.Fatalf("ProbeHealth() = %#v, want fallback port forwarding without native dataplane", health)
+	if health.NativeDataplaneReady {
+		t.Fatalf("ProbeHealth() = %#v, want unavailable dataplane", health)
 	}
 }
 
@@ -118,53 +86,6 @@ func TestProbeHealthReturnsStatusReadError(t *testing.T) {
 		t.Fatal("ProbeHealth() error = nil, want status read error")
 	}
 }
-
-type fakeFallback struct {
-	setupSNATCalls     int
-	cleanupSNATCalls   int
-	setupDNATCalls     int
-	setupCompatCalls   int
-	cleanupDNATCalls   int
-	cleanupCompatCalls int
-	setupDNATErr       error
-	setupCompatErr     error
-	health             networkmanager.Health
-}
-
-func (f *fakeFallback) SetupSNATRules(string) error {
-	f.setupSNATCalls++
-	return nil
-}
-
-func (f *fakeFallback) CleanupSNATRules(string) error {
-	f.cleanupSNATCalls++
-	return nil
-}
-
-func (f *fakeFallback) SetupNetworkRulesForActivating(net.IP, string) error { return nil }
-func (f *fakeFallback) CleanupNetworkRulesForActivating(net.IP) error       { return nil }
-
-func (f *fakeFallback) SetupDNATRule(string, uint16, string, uint16) error {
-	f.setupDNATCalls++
-	return f.setupDNATErr
-}
-
-func (f *fakeFallback) SetupDNATCompatRule(string, uint16, string, uint16) error {
-	f.setupCompatCalls++
-	return f.setupCompatErr
-}
-
-func (f *fakeFallback) CleanupDNATRule(string, uint16, string, uint16) error {
-	f.cleanupDNATCalls++
-	return nil
-}
-
-func (f *fakeFallback) CleanupDNATCompatRule(string, uint16, string, uint16) error {
-	f.cleanupCompatCalls++
-	return nil
-}
-
-func (f *fakeFallback) ProbeHealth(string) (networkmanager.Health, error) { return f.health, nil }
 
 func TestConfigureRegistersBackend(t *testing.T) {
 	resetControllerFactoryForTest()
@@ -184,78 +105,35 @@ func TestConfigureRegistersBackend(t *testing.T) {
 	}
 }
 
-func TestSetupDNATRuleRollsBackControllerOnFallbackFailure(t *testing.T) {
-	ctrl := &fakeController{fullFallback: map[string]bool{"tcp": true}}
-	fallback := &fakeFallback{setupDNATErr: errors.New("boom")}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
+func TestIPv6FailsClosedWithoutAttachingBPF(t *testing.T) {
+	ctrl := &fakeController{}
+	manager := &BPFNetworkManager{controller: ctrl}
 
-	err := manager.SetupDNATRule("tcp", 18080, "172.17.0.2", 80)
-	if err == nil {
-		t.Fatalf("expected error")
+	if err := manager.SetupSNATRules("fd31::1/64"); err == nil {
+		t.Fatal("setup IPv6 SNAT rules succeeded, want unsupported error")
 	}
-	if ctrl.deletes != 1 {
-		t.Fatalf("expected controller rollback, got %d delete calls", ctrl.deletes)
+	if ctrl.ensureCalls != 0 {
+		t.Fatalf("IPv6 setup attached BPF dataplane: ensure=%d", ctrl.ensureCalls)
+	}
+	if _, err := manager.ProbeHealth("fd31::1/64"); err == nil {
+		t.Fatal("IPv6 health succeeded, want unsupported error")
 	}
 }
 
-func TestSetupSNATRulesUsesFallbackWhenEnabled(t *testing.T) {
-	ctrl := &fakeController{fullFallback: map[string]bool{"snat": true}}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
+func TestSetupSNATRulesUsesBPFDataplane(t *testing.T) {
+	ctrl := &fakeController{}
+	manager := &BPFNetworkManager{controller: ctrl}
 
 	if err := manager.SetupSNATRules("172.17.0.1/16"); err != nil {
 		t.Fatalf("setup snat rules: %v", err)
 	}
 	if ctrl.ensureCalls != 1 {
 		t.Fatalf("expected 1 ensure call, got %d", ctrl.ensureCalls)
-	}
-	if fallback.setupSNATCalls != 1 {
-		t.Fatalf("expected 1 fallback snat call, got %d", fallback.setupSNATCalls)
-	}
-}
-
-func TestIPv6UsesBridgeCompatibilityWithoutAttachingBPF(t *testing.T) {
-	ctrl := &fakeController{fullFallback: map[string]bool{}}
-	fallback := &fakeFallback{health: networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: true}}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.SetupSNATRules("fd31::1/64"); err != nil {
-		t.Fatalf("setup IPv6 SNAT rules: %v", err)
-	}
-	if ctrl.ensureCalls != 0 || fallback.setupSNATCalls != 1 || !manager.ipv6Compat.Load() {
-		t.Fatalf("unexpected IPv6 path: ensure=%d fallback=%d compat=%v", ctrl.ensureCalls, fallback.setupSNATCalls, manager.ipv6Compat.Load())
-	}
-	health, err := manager.ProbeHealth("fd31::1/64")
-	if err != nil || !health.NativeDataplaneReady {
-		t.Fatalf("IPv6 compatibility health = %#v, %v", health, err)
-	}
-	if err := manager.SetupDNATRule("tcp", 8443, "fd31::2", 443); err != nil {
-		t.Fatalf("setup IPv6 DNAT: %v", err)
-	}
-	if ctrl.upserts != 0 || fallback.setupDNATCalls != 1 {
-		t.Fatalf("unexpected IPv6 DNAT path: upserts=%d fallback=%d", ctrl.upserts, fallback.setupDNATCalls)
-	}
-}
-
-func TestSetupSNATRulesSkipsFallbackWhenDataplaneIsReady(t *testing.T) {
-	ctrl := &fakeController{fullFallback: map[string]bool{}}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.SetupSNATRules("172.17.0.1/16"); err != nil {
-		t.Fatalf("setup snat rules: %v", err)
-	}
-	if ctrl.ensureCalls != 1 {
-		t.Fatalf("expected 1 ensure call, got %d", ctrl.ensureCalls)
-	}
-	if fallback.setupSNATCalls != 0 {
-		t.Fatalf("expected fallback snat helper to stay idle, got %d calls", fallback.setupSNATCalls)
 	}
 }
 
 func TestSetupSNATRulesStartsSNATGCWhenDataplaneIsReady(t *testing.T) {
-	ctrl := &fakeController{fullFallback: map[string]bool{}}
-	fallback := &fakeFallback{}
+	ctrl := &fakeController{}
 	policy := bpfnet.SNATGCPolicy{
 		TCPIdleTimeout:      time.Minute,
 		TCPClosingTimeout:   time.Second,
@@ -263,7 +141,6 @@ func TestSetupSNATRulesStartsSNATGCWhenDataplaneIsReady(t *testing.T) {
 	}
 	manager := &BPFNetworkManager{
 		controller: ctrl,
-		fallback:   fallback,
 		gcInterval: time.Millisecond,
 		gcPolicy:   policy,
 	}
@@ -298,122 +175,5 @@ func TestSNATGCSettingsParsesDurations(t *testing.T) {
 	}
 	if interval != 2*time.Second || policy.TCPIdleTimeout != 3*time.Minute || policy.TCPClosingTimeout != 4*time.Second || policy.DatagramIdleTimeout != 5*time.Second {
 		t.Fatalf("unexpected snat gc settings: interval=%v policy=%#v", interval, policy)
-	}
-}
-
-func TestSetupDNATRuleUsesCompatOnlyWhenIngressDatapathIsReady(t *testing.T) {
-	ctrl := &fakeController{localCompat: map[string]bool{"tcp": true}}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.SetupDNATRule("tcp", 18080, "172.17.0.2", 80); err != nil {
-		t.Fatalf("setup dnat rule: %v", err)
-	}
-	if fallback.setupDNATCalls != 0 {
-		t.Fatalf("expected PREROUTING/FORWARD fallback to stay disabled, got %d calls", fallback.setupDNATCalls)
-	}
-	if fallback.setupCompatCalls != 1 {
-		t.Fatalf("expected localhost compat helper to be called once, got %d", fallback.setupCompatCalls)
-	}
-}
-
-func TestSetupDNATRuleSkipsCompatWhenLocalhostEBPFPathIsReady(t *testing.T) {
-	ctrl := &fakeController{
-		fullFallback: map[string]bool{},
-		localCompat:  map[string]bool{},
-	}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.SetupDNATRule("tcp", 18080, "172.17.0.2", 80); err != nil {
-		t.Fatalf("setup dnat rule: %v", err)
-	}
-	if fallback.setupDNATCalls != 0 {
-		t.Fatalf("expected tcp PREROUTING/FORWARD fallback to stay disabled, got %d calls", fallback.setupDNATCalls)
-	}
-	if fallback.setupCompatCalls != 0 {
-		t.Fatalf("expected tcp localhost compat helper to stay disabled, got %d calls", fallback.setupCompatCalls)
-	}
-}
-
-func TestSetupDNATRuleSkipsFallbackForUDPWhenDatapathIsReady(t *testing.T) {
-	ctrl := &fakeController{
-		fullFallback: map[string]bool{},
-		localCompat:  map[string]bool{},
-	}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.SetupDNATRule("udp", 15353, "172.17.0.3", 1053); err != nil {
-		t.Fatalf("setup udp dnat rule: %v", err)
-	}
-	if fallback.setupDNATCalls != 0 {
-		t.Fatalf("expected udp PREROUTING/FORWARD fallback to stay disabled, got %d calls", fallback.setupDNATCalls)
-	}
-	if fallback.setupCompatCalls != 0 {
-		t.Fatalf("expected udp localhost compat helper to stay disabled, got %d calls", fallback.setupCompatCalls)
-	}
-}
-
-func TestCleanupDNATRuleUsesFullFallbackForUDPWhenDatapathIsNotReady(t *testing.T) {
-	ctrl := &fakeController{fullFallback: map[string]bool{"udp": true}}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	if err := manager.CleanupDNATRule("udp", 15353, "172.17.0.3", 1053); err != nil {
-		t.Fatalf("cleanup udp dnat rule: %v", err)
-	}
-	if fallback.cleanupDNATCalls != 1 {
-		t.Fatalf("expected udp cleanup to use full fallback once, got %d calls", fallback.cleanupDNATCalls)
-	}
-	if fallback.cleanupCompatCalls != 0 {
-		t.Fatalf("expected udp cleanup to skip localhost compat, got %d calls", fallback.cleanupCompatCalls)
-	}
-}
-
-func TestReconcileDNATRulesRemovesOrphansAndEnsuresDesiredState(t *testing.T) {
-	ctrl := &fakeController{
-		localCompat: map[string]bool{"tcp": true},
-		status: bpfnet.Status{Services: []bpfnet.Service{
-			{Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80},
-			{Protocol: "tcp", HostPort: 19090, TargetIP: "172.17.0.9", TargetPort: 90},
-		}},
-	}
-	fallback := &fakeFallback{}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: fallback}
-
-	err := manager.ReconcileDNATRules([]networkmanager.DNATRule{
-		{Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80},
-		{Protocol: "tcp", HostPort: 17070, TargetIP: "172.17.0.7", TargetPort: 70},
-	})
-	if err != nil {
-		t.Fatalf("reconcile dnat rules: %v", err)
-	}
-	if ctrl.deletes != 1 || fallback.cleanupCompatCalls != 1 {
-		t.Fatalf("expected one orphan cleanup, deletes=%d compat_cleanups=%d", ctrl.deletes, fallback.cleanupCompatCalls)
-	}
-	if ctrl.upserts != 1 || fallback.setupCompatCalls != 1 {
-		t.Fatalf("expected one desired rule setup, upserts=%d compat_setups=%d", ctrl.upserts, fallback.setupCompatCalls)
-	}
-}
-
-func TestReconcileDNATRulesDoesNotUpsertOverFailedCleanup(t *testing.T) {
-	ctrl := &fakeController{
-		deleteErr:   errors.New("delete failed"),
-		localCompat: map[string]bool{"tcp": true},
-		status: bpfnet.Status{Services: []bpfnet.Service{{
-			Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.2", TargetPort: 80,
-		}}},
-	}
-	manager := &BPFNetworkManager{controller: ctrl, fallback: &fakeFallback{}}
-
-	err := manager.ReconcileDNATRules([]networkmanager.DNATRule{{
-		Protocol: "tcp", HostPort: 18080, TargetIP: "172.17.0.9", TargetPort: 80,
-	}})
-	if err == nil {
-		t.Fatal("expected cleanup failure")
-	}
-	if ctrl.upserts != 0 {
-		t.Fatalf("expected conflicting upsert to be skipped, got %d", ctrl.upserts)
 	}
 }

@@ -20,26 +20,6 @@ func LoadBPFNetStatus(pinPath string) (bpfnet.Status, error) {
 	return status, nil
 }
 
-func FindBPFNetService(status bpfnet.Status, protocol string, listenPort uint16) (bpfnet.Service, error) {
-	return bpfnetstatus.FindService(status, protocol, listenPort)
-}
-
-func AssertIptablesRule(table, chain, needle string) error {
-	output, err := exec.Command("iptables", "-t", table, "-S", chain).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("iptables -t %s -S %s failed: %w: %s", table, chain, err, strings.TrimSpace(string(output)))
-	}
-	return validateIptablesRuleOutput(string(output), table, chain, needle, true)
-}
-
-func AssertIptablesRuleAbsent(table, chain, needle string) error {
-	output, err := exec.Command("iptables", "-t", table, "-S", chain).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("iptables -t %s -S %s failed: %w: %s", table, chain, err, strings.TrimSpace(string(output)))
-	}
-	return validateIptablesRuleOutput(string(output), table, chain, needle, false)
-}
-
 func AssertTCFiltersAttached(uplinks []string) error {
 	for _, uplink := range uplinks {
 		if err := AssertTCFilter(uplink, "ingress"); err != nil {
@@ -58,17 +38,6 @@ func AssertTCFilter(device, direction string) error {
 		return fmt.Errorf("tc filter show dev %s %s failed: %w: %s", device, direction, err, strings.TrimSpace(string(output)))
 	}
 	return validateTCFilterOutput(string(output), device, direction)
-}
-
-func validateIptablesRuleOutput(output, table, chain, needle string, shouldContain bool) error {
-	contains := strings.Contains(output, needle)
-	if shouldContain && !contains {
-		return fmt.Errorf("iptables %s/%s missing rule containing %q: %s", table, chain, needle, strings.TrimSpace(output))
-	}
-	if !shouldContain && contains {
-		return fmt.Errorf("iptables %s/%s unexpectedly contained %q: %s", table, chain, needle, strings.TrimSpace(output))
-	}
-	return nil
 }
 
 func validateTCFilterOutput(output, device, direction string) error {

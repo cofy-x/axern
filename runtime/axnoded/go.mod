@@ -4,14 +4,17 @@ go 1.25.12
 
 replace github.com/cofy-x/axern/network/bpfnet => ../../network/bpfnet
 
-replace github.com/cofy-x/axern/lib/go/agentbundle => ../../lib/go/agentbundle
-
 replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
 replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
 
+replace github.com/cofy-x/axern/lib/go/networkpolicy => ../../lib/go/networkpolicy
+
+replace github.com/cofy-x/axern/lib/go/executionlease => ../../lib/go/executionlease
+
 require (
-	github.com/cofy-x/axern/lib/go/agentbundle v0.0.0
+	github.com/cofy-x/axern/lib/go/executionlease v0.0.0
+	github.com/cofy-x/axern/lib/go/networkpolicy v0.0.0
 	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
 	github.com/cofy-x/axern/network/bpfnet v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
@@ -45,7 +48,6 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cilium/ebpf v0.9.3 // indirect
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
-	github.com/cofy-x/axern/lib/go/llmproxy v0.0.0
 	github.com/cofy-x/axern/lib/go/observability v0.0.0
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
@@ -78,7 +80,5 @@ require (
 )
 
 replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
-
-replace github.com/cofy-x/axern/lib/go/llmproxy => ../../lib/go/llmproxy
 
 replace github.com/cofy-x/axern/lib/go/observability => ../../lib/go/observability

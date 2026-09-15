@@ -1,9 +1,7 @@
 import datetime
 
-from axern.control.catalog.v1 import catalog_pb2 as _catalog_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
-from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
 from collections.abc import Iterable as _Iterable, Mapping as _Mapping
@@ -11,32 +9,85 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class EnvironmentStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    ENVIRONMENT_STATUS_UNSPECIFIED: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_PENDING: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_READY: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_FAILED: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_DELETING: _ClassVar[EnvironmentStatus]
-    ENVIRONMENT_STATUS_DELETED: _ClassVar[EnvironmentStatus]
-ENVIRONMENT_STATUS_UNSPECIFIED: EnvironmentStatus
-ENVIRONMENT_STATUS_PENDING: EnvironmentStatus
-ENVIRONMENT_STATUS_READY: EnvironmentStatus
-ENVIRONMENT_STATUS_FAILED: EnvironmentStatus
-ENVIRONMENT_STATUS_DELETING: EnvironmentStatus
-ENVIRONMENT_STATUS_DELETED: EnvironmentStatus
+class EnvironmentMount(_message.Message):
+    __slots__ = ("type", "source", "target", "options")
+    TYPE_FIELD_NUMBER: _ClassVar[int]
+    SOURCE_FIELD_NUMBER: _ClassVar[int]
+    TARGET_FIELD_NUMBER: _ClassVar[int]
+    OPTIONS_FIELD_NUMBER: _ClassVar[int]
+    type: str
+    source: str
+    target: str
+    options: _containers.RepeatedScalarFieldContainer[str]
+    def __init__(self, type: _Optional[str] = ..., source: _Optional[str] = ..., target: _Optional[str] = ..., options: _Optional[_Iterable[str]] = ...) -> None: ...
+
+class OciImageDescriptor(_message.Message):
+    __slots__ = ("digest", "media_type", "size_bytes", "annotations")
+    class AnnotationsEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    DIGEST_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    ANNOTATIONS_FIELD_NUMBER: _ClassVar[int]
+    digest: str
+    media_type: str
+    size_bytes: int
+    annotations: _containers.ScalarMap[str, str]
+    def __init__(self, digest: _Optional[str] = ..., media_type: _Optional[str] = ..., size_bytes: _Optional[int] = ..., annotations: _Optional[_Mapping[str, str]] = ...) -> None: ...
+
+class OciBaselinePolicy(_message.Message):
+    __slots__ = ("capabilities", "no_file_limit")
+    CAPABILITIES_FIELD_NUMBER: _ClassVar[int]
+    NO_FILE_LIMIT_FIELD_NUMBER: _ClassVar[int]
+    capabilities: _containers.RepeatedScalarFieldContainer[str]
+    no_file_limit: int
+    def __init__(self, capabilities: _Optional[_Iterable[str]] = ..., no_file_limit: _Optional[int] = ...) -> None: ...
+
+class OciExecutionProfile(_message.Message):
+    __slots__ = ("baseline",)
+    BASELINE_FIELD_NUMBER: _ClassVar[int]
+    baseline: OciBaselinePolicy
+    def __init__(self, baseline: _Optional[_Union[OciBaselinePolicy, _Mapping]] = ...) -> None: ...
+
+class ResolvedEnvironmentSpec(_message.Message):
+    __slots__ = ("rootfs_readonly", "image_default_argv", "default_cwd", "default_env", "mounts", "image_descriptor", "execution_profile")
+    class DefaultEnvEntry(_message.Message):
+        __slots__ = ("key", "value")
+        KEY_FIELD_NUMBER: _ClassVar[int]
+        VALUE_FIELD_NUMBER: _ClassVar[int]
+        key: str
+        value: str
+        def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
+    ROOTFS_READONLY_FIELD_NUMBER: _ClassVar[int]
+    IMAGE_DEFAULT_ARGV_FIELD_NUMBER: _ClassVar[int]
+    DEFAULT_CWD_FIELD_NUMBER: _ClassVar[int]
+    DEFAULT_ENV_FIELD_NUMBER: _ClassVar[int]
+    MOUNTS_FIELD_NUMBER: _ClassVar[int]
+    IMAGE_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
+    EXECUTION_PROFILE_FIELD_NUMBER: _ClassVar[int]
+    rootfs_readonly: bool
+    image_default_argv: _containers.RepeatedScalarFieldContainer[str]
+    default_cwd: str
+    default_env: _containers.ScalarMap[str, str]
+    mounts: _containers.RepeatedCompositeFieldContainer[EnvironmentMount]
+    image_descriptor: OciImageDescriptor
+    execution_profile: OciExecutionProfile
+    def __init__(self, rootfs_readonly: _Optional[bool] = ..., image_default_argv: _Optional[_Iterable[str]] = ..., default_cwd: _Optional[str] = ..., default_env: _Optional[_Mapping[str, str]] = ..., mounts: _Optional[_Iterable[_Union[EnvironmentMount, _Mapping]]] = ..., image_descriptor: _Optional[_Union[OciImageDescriptor, _Mapping]] = ..., execution_profile: _Optional[_Union[OciExecutionProfile, _Mapping]] = ...) -> None: ...
 
 class EnvironmentImageSource(_message.Message):
-    __slots__ = ("ref", "digest", "rootfs_readonly", "registry_credential_id")
+    __slots__ = ("ref", "rootfs_readonly", "registry_credential_id")
     REF_FIELD_NUMBER: _ClassVar[int]
-    DIGEST_FIELD_NUMBER: _ClassVar[int]
     ROOTFS_READONLY_FIELD_NUMBER: _ClassVar[int]
     REGISTRY_CREDENTIAL_ID_FIELD_NUMBER: _ClassVar[int]
     ref: str
-    digest: str
     rootfs_readonly: bool
     registry_credential_id: str
-    def __init__(self, ref: _Optional[str] = ..., digest: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., registry_credential_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, ref: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., registry_credential_id: _Optional[str] = ...) -> None: ...
 
 class EnvironmentSpec(_message.Message):
     __slots__ = ("namespace", "template_id", "template_version", "image")
@@ -51,7 +102,7 @@ class EnvironmentSpec(_message.Message):
     def __init__(self, namespace: _Optional[str] = ..., template_id: _Optional[str] = ..., template_version: _Optional[str] = ..., image: _Optional[_Union[EnvironmentImageSource, _Mapping]] = ...) -> None: ...
 
 class Environment(_message.Message):
-    __slots__ = ("id", "namespace", "status", "spec", "spec_hash", "resolved_template", "labels", "version", "created_at", "updated_at", "message")
+    __slots__ = ("id", "namespace", "spec", "resolved_spec", "labels", "created_at")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -61,30 +112,20 @@ class Environment(_message.Message):
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     ID_FIELD_NUMBER: _ClassVar[int]
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    STATUS_FIELD_NUMBER: _ClassVar[int]
     SPEC_FIELD_NUMBER: _ClassVar[int]
-    SPEC_HASH_FIELD_NUMBER: _ClassVar[int]
-    RESOLVED_TEMPLATE_FIELD_NUMBER: _ClassVar[int]
+    RESOLVED_SPEC_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
-    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
-    MESSAGE_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
-    status: EnvironmentStatus
     spec: EnvironmentSpec
-    spec_hash: str
-    resolved_template: _catalog_pb2.RuntimeTemplate
+    resolved_spec: ResolvedEnvironmentSpec
     labels: _containers.ScalarMap[str, str]
-    version: int
     created_at: _timestamp_pb2.Timestamp
-    updated_at: _timestamp_pb2.Timestamp
-    message: str
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., status: _Optional[_Union[EnvironmentStatus, str]] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., spec_hash: _Optional[str] = ..., resolved_template: _Optional[_Union[_catalog_pb2.RuntimeTemplate, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., message: _Optional[str] = ...) -> None: ...
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., spec: _Optional[_Union[EnvironmentSpec, _Mapping]] = ..., resolved_spec: _Optional[_Union[ResolvedEnvironmentSpec, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class ListFilter(_message.Message):
-    __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")
+    __slots__ = ("namespace", "labels", "cursor", "page_size")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -93,16 +134,14 @@ class ListFilter(_message.Message):
         value: str
         def __init__(self, key: _Optional[str] = ..., value: _Optional[str] = ...) -> None: ...
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    STATUSES_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
     CURSOR_FIELD_NUMBER: _ClassVar[int]
     PAGE_SIZE_FIELD_NUMBER: _ClassVar[int]
     namespace: str
-    statuses: _containers.RepeatedScalarFieldContainer[EnvironmentStatus]
     labels: _containers.ScalarMap[str, str]
     cursor: str
     page_size: int
-    def __init__(self, namespace: _Optional[str] = ..., statuses: _Optional[_Iterable[_Union[EnvironmentStatus, str]]] = ..., labels: _Optional[_Mapping[str, str]] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
+    def __init__(self, namespace: _Optional[str] = ..., labels: _Optional[_Mapping[str, str]] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
 
 class CreateEnvironmentRequest(_message.Message):
     __slots__ = ("spec", "labels")

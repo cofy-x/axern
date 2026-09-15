@@ -75,7 +75,7 @@ func terminalConnectorError(err error) bool {
 func runConnectorOnce(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, localTarget string, cfg RelayDialConfig, connectorCfg ConnectorConfig, dialer RelayPeerDialer) error {
 	target := session.GetClientEdgeTarget()
 	if target == "" {
-		target = session.GetEdgeTarget()
+		return fmt.Errorf("tunnel session %s has no client relay target", session.GetSessionID())
 	}
 	stream, closer, err := dialer(ctx, target, cfg)
 	if err != nil {

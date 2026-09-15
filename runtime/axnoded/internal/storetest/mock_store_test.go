@@ -10,14 +10,14 @@ import (
 
 func TestMockStore(t *testing.T) {
 	mockDB := NewMockStore()
-	fooData := &apipb.Map{Items: map[string]string{"key1": "value1", "key2": "value2"}}
+	fooData := &apipb.ContainerMetadata{Stdout: "value1", Stderr: "value2"}
 	assert.NoError(t, mockDB.SaveSnapshot("foo", fooData))
-	var missing apipb.Map
+	var missing apipb.ContainerMetadata
 	assert.ErrorIs(t, mockDB.LoadSnapshot("missing", &missing), errord.ErrNotFound)
-	var got apipb.Map
+	var got apipb.ContainerMetadata
 	assert.NoError(t, mockDB.LoadSnapshot("foo", &got))
 	assert.Equal(t, fooData.String(), got.String())
-	assert.Error(t, mockDB.SaveSnapshot("bar", &apipb.Slice{Items: []string{"failed"}}))
+	assert.Error(t, mockDB.SaveSnapshot("bar", &apipb.NetworkLedger{Leases: []*apipb.NetworkLease{{AllocationID: "failed"}}}))
 	assert.NoError(t, mockDB.DeleteRecord("foo", "state"))
 	assert.ErrorIs(t, mockDB.LoadSnapshot("foo", &got), errord.ErrNotFound)
 }

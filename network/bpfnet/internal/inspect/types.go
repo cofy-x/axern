@@ -3,56 +3,37 @@ package inspect
 import "strings"
 
 const (
-	MapService       = "service_map"
-	MapLocalAddr     = "local_addr_map"
-	MapRevNAT        = "rev_nat_map"
 	MapConfig        = "config_map"
-	MapHostNetNS     = "host_netns_cookie_map"
 	MapUplinkAddr    = "uplink_addr_map"
 	MapNativeRoute   = "native_route_map"
 	MapSNATFwd       = "snat_fwd_map"
 	MapSNATRev       = "snat_rev_map"
 	MapSNATRevMarker = "snat_rev_marker_map"
-	MapLocalhostSock = "localhost_sock_map"
 	MapStats         = "stats_map"
 )
 
 var knownMaps = []string{
-	MapService,
 	MapStats,
-	MapLocalAddr,
-	MapRevNAT,
 	MapConfig,
-	MapHostNetNS,
 	MapUplinkAddr,
 	MapNativeRoute,
 	MapSNATFwd,
 	MapSNATRev,
 	MapSNATRevMarker,
-	MapLocalhostSock,
 }
 
 var highChurnMaps = map[string]bool{
-	MapRevNAT:        true,
 	MapSNATFwd:       true,
 	MapSNATRev:       true,
 	MapSNATRevMarker: true,
-	MapLocalhostSock: true,
 }
 
 var programPins = []string{
 	"ingress",
 	"egress",
-	"localhost-connect4",
-	"localhost-getpeer4",
-	"localhost-release",
 }
 
-var linkPins = []string{
-	"localhost-connect4",
-	"localhost-getpeer4",
-	"localhost-release",
-}
+var linkPins = []string{}
 
 type ObjectInfo struct {
 	Kind       string `json:"kind"`
@@ -111,10 +92,6 @@ func isKnownMap(name string) bool {
 var statNames = []string{
 	"attach_success",
 	"attach_error",
-	"service_hit",
-	"rev_nat_hit",
-	"fallback_hit",
-	"map_conflict",
 	"snat_hit",
 	"snat_rev_hit",
 	"snat_fwd_hit",
@@ -144,7 +121,4 @@ var statNames = []string{
 	"snat_tcp_rev_miss_ack",
 	"snat_tcp_rev_miss_other",
 	"native_route_skip",
-	"localhost_connect_hit",
-	"localhost_getpeer_hit",
-	"localhost_fallback_hit",
 }

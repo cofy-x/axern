@@ -71,27 +71,16 @@ run_with_retry 2 env AXERN_SKIP_LOCAL_IMAGES_BUILD=1 make local-compose-reset
 
 log "running compose smoke suite"
 run_with_retry 2 make local-compose-smoke
-run_with_retry 2 make local-compose-gateway-smoke
-run_with_retry 2 make local-compose-service-volume-smoke
 run_with_retry 2 make local-compose-run-smoke
 run_with_retry 2 make local-compose-server-base-smoke
 run_with_retry 2 make local-compose-quota-smoke
-run_with_retry 2 make local-compose-tunnel-e2e
 run_with_retry 2 make local-compose-python-sdk-e2e
-run_with_retry 2 make tunnel-benchmark-compose
-run_with_retry 2 make local-compose-image-service-smoke
 
 log "running kind smoke suite"
 run_with_retry 2 make kind-smoke
-run_with_retry 2 make kind-gateway-smoke
-run_with_retry 2 make kind-service-volume-smoke
 run_with_retry 2 make kind-run-smoke
 run_with_retry 2 make kind-server-base-smoke
 run_with_retry 2 make kind-quota-smoke
-run_with_retry 2 make kind-tunnel-e2e
-run_with_retry 2 make kind-tunnel-relay-e2e
-run_with_retry 2 make kind-tunnel-multirelay-e2e
-run_with_retry 2 make kind-image-service-smoke
 
 log "local truth verification completed"
 print_status

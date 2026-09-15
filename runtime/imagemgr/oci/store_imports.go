@@ -7,17 +7,17 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-func (s *metadataStore) putImport(ref *importedRefRecord, generation *importedGenerationRecord) error {
+func (s *metadataStore) putImport(ref *importedRefRecord, content *importedContentRecord) error {
 	refData, err := json.Marshal(ref)
 	if err != nil {
 		return fmt.Errorf("marshal imported ref: %w", err)
 	}
-	generationData, err := json.Marshal(generation)
+	contentData, err := json.Marshal(content)
 	if err != nil {
-		return fmt.Errorf("marshal imported generation: %w", err)
+		return fmt.Errorf("marshal imported content: %w", err)
 	}
 	return s.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(importGenerationsBucket).Put([]byte(generation.GenerationDigest), generationData); err != nil {
+		if err := tx.Bucket(importContentsBucket).Put([]byte(content.ContentDigest), contentData); err != nil {
 			return err
 		}
 		return tx.Bucket(importRefsBucket).Put([]byte(ref.ImageURL), refData)
@@ -35,35 +35,35 @@ func (s *metadataStore) getImport(imageURL string) (*ImportedImageRecord, error)
 		if err := json.Unmarshal(v, &ref); err != nil {
 			return err
 		}
-		generation, err := getImportGenerationTx(tx, ref.GenerationDigest)
-		if err != nil || generation == nil {
+		content, err := getImportContentTx(tx, ref.ContentDigest)
+		if err != nil || content == nil {
 			if err == nil {
-				err = fmt.Errorf("imported ref %s points to missing generation %s", imageURL, ref.GenerationDigest)
+				err = fmt.Errorf("imported ref %s points to missing content %s", imageURL, ref.ContentDigest)
 			}
 			return err
 		}
-		record = joinImportedRecord(ref.ImageURL, generation)
+		record = joinImportedRecord(ref.ImageURL, content)
 		return nil
 	})
 	return record, err
 }
 
-func (s *metadataStore) getImportGeneration(digest string) (*importedGenerationRecord, error) {
-	var record *importedGenerationRecord
+func (s *metadataStore) getImportContent(digest string) (*importedContentRecord, error) {
+	var record *importedContentRecord
 	err := s.db.View(func(tx *bolt.Tx) error {
 		var err error
-		record, err = getImportGenerationTx(tx, digest)
+		record, err = getImportContentTx(tx, digest)
 		return err
 	})
 	return record, err
 }
 
-func getImportGenerationTx(tx *bolt.Tx, digest string) (*importedGenerationRecord, error) {
-	v := tx.Bucket(importGenerationsBucket).Get([]byte(digest))
+func getImportContentTx(tx *bolt.Tx, digest string) (*importedContentRecord, error) {
+	v := tx.Bucket(importContentsBucket).Get([]byte(digest))
 	if v == nil {
 		return nil, nil
 	}
-	var record importedGenerationRecord
+	var record importedContentRecord
 	if err := json.Unmarshal(v, &record); err != nil {
 		return nil, err
 	}
@@ -78,35 +78,35 @@ func (s *metadataStore) listImports() ([]*ImportedImageRecord, error) {
 			if err := json.Unmarshal(v, &ref); err != nil {
 				return err
 			}
-			generation, err := getImportGenerationTx(tx, ref.GenerationDigest)
+			content, err := getImportContentTx(tx, ref.ContentDigest)
 			if err != nil {
 				return err
 			}
-			if generation == nil {
-				return fmt.Errorf("imported ref %s points to missing generation %s", ref.ImageURL, ref.GenerationDigest)
+			if content == nil {
+				return fmt.Errorf("imported ref %s points to missing content %s", ref.ImageURL, ref.ContentDigest)
 			}
-			records = append(records, joinImportedRecord(ref.ImageURL, generation))
+			records = append(records, joinImportedRecord(ref.ImageURL, content))
 			return nil
 		})
 	})
 	return records, err
 }
 
-func joinImportedRecord(imageURL string, generation *importedGenerationRecord) *ImportedImageRecord {
+func joinImportedRecord(imageURL string, content *importedContentRecord) *ImportedImageRecord {
 	return &ImportedImageRecord{
-		ImageURL: imageURL, GenerationDigest: generation.GenerationDigest,
-		ArchivePath: generation.ArchivePath, ArchiveDigest: generation.ArchiveDigest,
-		PlatformOS: generation.PlatformOS, PlatformArch: generation.PlatformArch,
-		PlatformVariant: generation.PlatformVariant, SizeBytes: generation.SizeBytes,
-		ImportedAtUnix: generation.ImportedAtUnix,
+		ImageURL: imageURL, ContentDigest: content.ContentDigest,
+		ArchivePath: content.ArchivePath, ArchiveDigest: content.ArchiveDigest,
+		PlatformOS: content.PlatformOS, PlatformArch: content.PlatformArch,
+		PlatformVariant: content.PlatformVariant, SizeBytes: content.SizeBytes,
+		ImportedAtUnix: content.ImportedAtUnix,
 	}
 }
 
-func (s *metadataStore) listImportGenerations() ([]*importedGenerationRecord, error) {
-	records := make([]*importedGenerationRecord, 0, 16)
+func (s *metadataStore) listImportContents() ([]*importedContentRecord, error) {
+	records := make([]*importedContentRecord, 0, 16)
 	err := s.db.View(func(tx *bolt.Tx) error {
-		return tx.Bucket(importGenerationsBucket).ForEach(func(_, value []byte) error {
-			var record importedGenerationRecord
+		return tx.Bucket(importContentsBucket).ForEach(func(_, value []byte) error {
+			var record importedContentRecord
 			if err := json.Unmarshal(value, &record); err != nil {
 				return err
 			}
@@ -117,7 +117,7 @@ func (s *metadataStore) listImportGenerations() ([]*importedGenerationRecord, er
 	return records, err
 }
 
-func (s *metadataStore) importGenerationReferenced(digest string) (bool, error) {
+func (s *metadataStore) importContentReferenced(digest string) (bool, error) {
 	referenced := false
 	err := s.db.View(func(tx *bolt.Tx) error {
 		return tx.Bucket(importRefsBucket).ForEach(func(_, value []byte) error {
@@ -125,7 +125,7 @@ func (s *metadataStore) importGenerationReferenced(digest string) (bool, error) 
 			if err := json.Unmarshal(value, &record); err != nil {
 				return err
 			}
-			if record.GenerationDigest == digest {
+			if record.ContentDigest == digest {
 				referenced = true
 			}
 			return nil
@@ -134,6 +134,6 @@ func (s *metadataStore) importGenerationReferenced(digest string) (bool, error) 
 	return referenced, err
 }
 
-func (s *metadataStore) deleteImportGeneration(digest string) error {
-	return s.db.Update(func(tx *bolt.Tx) error { return tx.Bucket(importGenerationsBucket).Delete([]byte(digest)) })
+func (s *metadataStore) deleteImportContent(digest string) error {
+	return s.db.Update(func(tx *bolt.Tx) error { return tx.Bucket(importContentsBucket).Delete([]byte(digest)) })
 }

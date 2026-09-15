@@ -146,7 +146,7 @@ python3 -c 'import json,sys
 run=json.load(sys.stdin)["run"]
 if run["status"] != "succeeded":
     raise SystemExit("run status = %s, want succeeded" % run["status"])
-if run.get("exit_code_known") and run.get("exit_code") != 0:
+if run.get("exit_code") is not None and run.get("exit_code") != 0:
     raise SystemExit("run exit_code = %s, want 0" % run.get("exit_code"))
 ' <<<"${run_json}"
 run_id=""

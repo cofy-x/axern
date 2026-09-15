@@ -9,10 +9,10 @@ import (
 
 func TestSandboxdProviderFailureDetailIncludesDependencies(t *testing.T) {
 	detail := SandboxdProviderFailureDetail(wire.CapabilityProvider{
-		Name:      "browser",
+		Name:      "computer_use",
 		State:     "unavailable",
 		Available: false,
-		Reason:    "browser command unavailable",
+		Reason:    "computer_use command unavailable",
 		Dependencies: []wire.ProviderDependency{
 			{Name: "chromium", Available: false, Reason: "not found"},
 			{Name: "display", Available: true},
@@ -20,8 +20,8 @@ func TestSandboxdProviderFailureDetailIncludesDependencies(t *testing.T) {
 	})
 
 	for _, want := range []string{
-		"browser provider unavailable",
-		"browser command unavailable",
+		"computer_use provider unavailable",
+		"computer_use command unavailable",
 		"missing dependencies: chromium (not found)",
 	} {
 		if !strings.Contains(detail, want) {

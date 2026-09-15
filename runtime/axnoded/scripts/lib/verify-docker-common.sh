@@ -13,14 +13,11 @@ GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
 GOSUMDB="${GOSUMDB:-sum.golang.org}"
 BASE_IMAGE="${BASE_IMAGE:-ubuntu:24.04}"
 GO_IMAGE="${GO_IMAGE:-golang:1.25.12}"
-NGINX_IMAGE="${NGINX_IMAGE:-nginx:1.15}"
 RUST_IMAGE="${RUST_IMAGE:-rust:1.89.0}"
 NODE_RUNTIME_BASE_IMAGE_TAG="${NODE_RUNTIME_BASE_IMAGE_TAG:-axern/local-node-runtime-base:dev}"
 VERIFY_DOCKER_BUILDKIT="${VERIFY_DOCKER_BUILDKIT:-1}"
 RUNSC_SOURCE="${RUNSC_SOURCE:-auto}"
 RUNSC_CACHE_ARCH="${RUNSC_CACHE_ARCH:-}"
-MC_SOURCE="${MC_SOURCE:-auto}"
-MC_CACHE_ARCH="${MC_CACHE_ARCH:-}"
 
 VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-}"
 PERF_KERNEL_RELEASE="${PERF_KERNEL_RELEASE:-}"
@@ -33,16 +30,6 @@ normalize_runsc_source() {
     auto|remote|local) echo "$1" ;;
     *)
       echo "unsupported RUNSC_SOURCE: $1 (expected one of: auto, remote, local)" >&2
-      return 1
-      ;;
-  esac
-}
-
-normalize_mc_source() {
-  case "$1" in
-    auto|remote|local) echo "$1" ;;
-    *)
-      echo "unsupported MC_SOURCE: $1 (expected one of: auto, remote, local)" >&2
       return 1
       ;;
   esac
@@ -71,7 +58,6 @@ normalize_cargo_registry_source() {
 APT_MIRROR_SOURCE="$(normalize_apt_mirror_source "${APT_MIRROR_SOURCE}")"
 CARGO_REGISTRY_SOURCE="$(normalize_cargo_registry_source "${CARGO_REGISTRY_SOURCE}")"
 RUNSC_SOURCE="$(normalize_runsc_source "${RUNSC_SOURCE}")"
-MC_SOURCE="$(normalize_mc_source "${MC_SOURCE}")"
 
 normalize_verify_docker_variant() {
   case "$1" in
@@ -103,17 +89,6 @@ normalize_gvisor_arch() {
     amd64|x86_64) echo "x86_64" ;;
     *)
       echo "unsupported gVisor arch: $1" >&2
-      return 1
-      ;;
-  esac
-}
-
-normalize_mc_arch() {
-  case "$1" in
-    arm64|aarch64) echo "arm64" ;;
-    amd64|x86_64) echo "amd64" ;;
-    *)
-      echo "unsupported mc arch: $1" >&2
       return 1
       ;;
   esac
@@ -177,45 +152,6 @@ resolve_runsc_source() {
   esac
 }
 
-resolve_mc_cache_arch() {
-  if [ -n "${MC_CACHE_ARCH:-}" ]; then
-    normalize_mc_arch "${MC_CACHE_ARCH}"
-    return 0
-  fi
-
-  local docker_arch=""
-  if [ -n "${VERIFY_DOCKER_PLATFORM:-}" ]; then
-    docker_arch="${VERIFY_DOCKER_PLATFORM##*/}"
-  fi
-  if [ -z "${docker_arch}" ]; then
-    docker_arch="$(docker version --format '{{.Server.Arch}}' 2>/dev/null || true)"
-  fi
-  if [ -z "${docker_arch}" ]; then
-    docker_arch="$(uname -m)"
-  fi
-  normalize_mc_arch "${docker_arch}"
-}
-
-resolve_mc_source() {
-  case "${MC_SOURCE}" in
-    local|remote)
-      printf '%s\n' "${MC_SOURCE}"
-      return 0
-      ;;
-    auto)
-      local cache_arch
-      cache_arch="$(resolve_mc_cache_arch)"
-      MC_CACHE_ARCH="${cache_arch}"
-      if MC_CACHE_ARCH="${MC_CACHE_ARCH}" "${ROOT_DIR}/scripts/cache/cache-minio-mc.sh" >/dev/null 2>&1; then
-        printf '%s\n' "local"
-        return 0
-      fi
-      printf '%s\n' "remote"
-      return 0
-      ;;
-  esac
-}
-
 resolve_perf_kernel_release() {
   if [ -n "${PERF_KERNEL_RELEASE:-}" ]; then
     printf '%s\n' "${PERF_KERNEL_RELEASE}"
@@ -239,10 +175,6 @@ resolve_perf_kernel_release() {
 RUNSC_SOURCE="$(resolve_runsc_source)"
 if [ -z "${RUNSC_CACHE_ARCH}" ]; then
   RUNSC_CACHE_ARCH="$(resolve_runsc_cache_arch)"
-fi
-MC_SOURCE="$(resolve_mc_source)"
-if [ -z "${MC_CACHE_ARCH}" ]; then
-  MC_CACHE_ARCH="$(resolve_mc_cache_arch)"
 fi
 
 resolve_docker_daemon_proxy() {
@@ -572,7 +504,7 @@ resolve_runtime_registry_proxy() {
 
 resolve_runtime_registry_no_proxy() {
   local base_no_proxy=""
-  local defaults="localhost,127.0.0.1,127.0.0.0/8,::1,host.docker.internal,oss"
+  local defaults="localhost,127.0.0.1,127.0.0.0/8,::1,host.docker.internal"
   base_no_proxy="$(resolve_build_no_proxy)"
   if [ -n "${base_no_proxy}" ]; then
     printf '%s,%s\n' "${base_no_proxy}" "${defaults}"
@@ -608,7 +540,6 @@ build_verify_image() {
     -f "${dockerfile_path}"
     --build-arg GO_IMAGE="${GO_IMAGE}"
     --build-arg BASE_IMAGE="${BASE_IMAGE}"
-    --build-arg NGINX_IMAGE="${NGINX_IMAGE}"
     --build-arg NODE_RUNTIME_BASE_IMAGE="${NODE_RUNTIME_BASE_IMAGE_TAG}"
     --build-arg APT_MIRROR_SOURCE="${apt_mirror_source}"
     --build-arg CARGO_REGISTRY_SOURCE="${cargo_registry_source}"
@@ -616,8 +547,6 @@ build_verify_image() {
     --build-arg GOSUMDB="${GOSUMDB}"
     --build-arg RUNSC_SOURCE="${RUNSC_SOURCE}"
     --build-arg RUNSC_CACHE_ARCH="${RUNSC_CACHE_ARCH}"
-    --build-arg MC_SOURCE="${MC_SOURCE}"
-    --build-arg MC_CACHE_ARCH="${MC_CACHE_ARCH}"
     --build-arg AXERN_GIT_REVISION="${AXERN_GIT_REVISION:-development}"
     -t "${IMAGE_TAG}"
   )
@@ -702,8 +631,6 @@ build_node_runtime_base_image() {
     --build-arg GOSUMDB="${GOSUMDB}"
     --build-arg RUNSC_SOURCE="${RUNSC_SOURCE}"
     --build-arg RUNSC_CACHE_ARCH="${RUNSC_CACHE_ARCH}"
-    --build-arg MC_SOURCE="${MC_SOURCE}"
-    --build-arg MC_CACHE_ARCH="${MC_CACHE_ARCH}"
     -t "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   )
   if [ -n "${build_http_proxy}" ]; then
@@ -812,7 +739,6 @@ run_verify_container() {
     --privileged
   )
   local passthrough_envs=(
-    RUNTIME_UNDER_TEST
     RUNTIME_BINARY
     SOCKET_ADDRESS
     REGISTRY_PROXY_URL
@@ -824,6 +750,7 @@ run_verify_container() {
     AXNODED_VERIFY_CGROUP_ENFORCEMENT
     AXNODED_VERIFY_MEMORY_SYSTEM_RESERVE_BYTES
     VERIFY_SKIP_LOCALHOST
+    VERIFY_BPFNETCTL
     BENCHMARK_REQUESTS
     BENCHMARK_CONCURRENCY
     BENCHMARK_WARMUP_REQUESTS

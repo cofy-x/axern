@@ -45,12 +45,12 @@ func TestSandboxCapabilityInfo(t *testing.T) {
 	err := mapRPCError(
 		status.Error(
 			codes.FailedPrecondition,
-			"sandboxd browser status failed: sandboxd /browser/status returned status 503 "+
-				"(unavailable): browser crashed; sandboxd user process state=running; "+
-				"providers 1/1 available; browser provider degraded: browser crashed; "+
+			"sandboxd computer_use status failed: sandboxd /computer-use/status returned status 503 "+
+				"(unavailable): computer_use crashed; sandboxd user process state=running; "+
+				"providers 1/1 available; computer_use provider degraded: computer_use crashed; "+
 				"missing dependencies: chromium (not found)",
 		),
-		"sandbox browser status",
+		"sandbox computer-use status",
 		"alloc-1",
 	)
 	var rpcErr *RPCError
@@ -58,10 +58,10 @@ func TestSandboxCapabilityInfo(t *testing.T) {
 		t.Fatalf("error is not RPCError: %v", err)
 	}
 	want := &SandboxCapabilityErrorInfo{
-		Capability:          "browser",
-		Provider:            "browser",
+		Capability:          "computer_use",
+		Provider:            "computer_use",
 		ProviderState:       "degraded",
-		Reason:              "browser crashed",
+		Reason:              "computer_use crashed",
 		MissingDependencies: []string{"chromium (not found)"},
 	}
 	if !reflect.DeepEqual(rpcErr.Capability, want) {

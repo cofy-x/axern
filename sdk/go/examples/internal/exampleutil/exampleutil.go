@@ -21,7 +21,6 @@ type Config struct {
 	TLSKey        string
 	TLSServerName string
 	TemplateID    string
-	RuntimeClass  string
 	ProxyMode     string
 	resolved      bool
 }
@@ -36,7 +35,6 @@ func Flags() *Config {
 		TLSKey:        os.Getenv("AXERN_TLS_KEY"),
 		TLSServerName: os.Getenv("AXERN_TLS_SERVER_NAME"),
 		TemplateID:    env("AXERN_TEMPLATE_ID", "python311"),
-		RuntimeClass:  os.Getenv("AXERN_RUNTIME_CLASS"),
 		ProxyMode:     env("AXERN_PROXY_MODE", clientconfig.ProxyModeEnv),
 	}
 	flag.StringVar(&config.ConfigPath, "config", config.ConfigPath, "path to the local axern CLI config file")
@@ -47,7 +45,6 @@ func Flags() *Config {
 	flag.StringVar(&config.TLSKey, "tls-key", config.TLSKey, "control plane TLS client key")
 	flag.StringVar(&config.TLSServerName, "tls-server-name", config.TLSServerName, "control plane TLS server name")
 	flag.StringVar(&config.TemplateID, "template-id", config.TemplateID, "sandbox template id")
-	flag.StringVar(&config.RuntimeClass, "runtime-class", config.RuntimeClass, "sandbox runtime class")
 	flag.StringVar(&config.ProxyMode, "proxy-mode", config.ProxyMode, "gRPC proxy mode: env or direct")
 	return config
 }
@@ -71,7 +68,6 @@ func StartSandbox(ctx context.Context, client *axern.Client, config *Config) (*a
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:       client,
 		TemplateID:   config.TemplateID,
-		RuntimeClass: config.RuntimeClass,
 		ReadyTimeout: 3 * time.Minute,
 	})
 	if err != nil {
@@ -89,7 +85,7 @@ func PrintMetadata(sandbox *axern.Sandbox) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("service=%s allocation=%s node=%s\n", metadata.ServiceID, metadata.AllocationID, metadata.NodeID)
+	fmt.Printf("run=%s allocation=%s node=%s\n", metadata.RunID, metadata.AllocationID, metadata.NodeID)
 	return nil
 }
 

@@ -22,14 +22,14 @@ func (s *nodeSandboxServer) UploadArchive(stream nodesandboxv1.NodeSandbox_Uploa
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetAttempt(), open.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID())
 	if err != nil {
 		return err
 	}
 	if err := validateArchiveRequest(open.GetPath(), open.GetFormat(), open.GetSymlinkPolicy()); err != nil {
 		return err
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	_, err = s.svc.UploadArchive(stream.Context(), &runtimev1.UploadArchiveRequest{
@@ -47,14 +47,14 @@ func (s *nodeSandboxServer) UploadArchive(stream nodesandboxv1.NodeSandbox_Uploa
 }
 
 func (s *nodeSandboxServer) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stream nodesandboxv1.NodeSandbox_DownloadArchiveServer) error {
-	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID(), req.GetAttempt(), req.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), req.GetAllocationID())
 	if err != nil {
 		return err
 	}
 	if err := validateArchiveRequest(req.GetPath(), req.GetFormat(), req.GetSymlinkPolicy()); err != nil {
 		return err
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	_, err = s.svc.DownloadArchive(stream.Context(), &runtimev1.DownloadArchiveRequest{

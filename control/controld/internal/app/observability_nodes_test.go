@@ -7,7 +7,7 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -17,9 +17,9 @@ func TestObserveNodeStorageReportsReadyNodeTargets(t *testing.T) {
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		{
-			NodeID:    "node-a",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now,
+			NodeID:          "node-a",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now,
 			Summary: readyNodeSummary(now, []*nodev1.NodeStorageSummary{
 				{
 					Target:          "axnoded_state",
@@ -39,9 +39,9 @@ func TestObserveNodeStorageReportsReadyNodeTargets(t *testing.T) {
 			}),
 		},
 		{
-			NodeID:    "node-stale",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now.Add(-time.Minute),
+			NodeID:          "node-stale",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now.Add(-time.Minute),
 			Summary: readyNodeSummary(now.Add(-time.Minute), []*nodev1.NodeStorageSummary{
 				{Target: "volume_data", CapacityBytes: 999, Collected: true},
 			}),
@@ -84,24 +84,20 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 	registry := nodekernel.NewRegistry()
 	registry.Replace([]*nodekernel.Record{
 		{
-			NodeID:    "node-a",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now,
+			NodeID:          "node-a",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now,
 			Summary: readyNodeSummaryWithBPFNet(now, &nodev1.BpfNetSummary{
-				Enabled:               true,
-				Ready:                 true,
-				NeedsSnatFallback:     false,
-				NeedsFullDnatFallback: false,
-				NeedsLocalhostCompat:  true,
+				Enabled: true,
+				Ready:   true,
 			}),
 		},
 		{
-			NodeID:    "node-stale",
-			Lifecycle: nodekernel.LifecycleActive,
-			UpdatedAt: now.Add(-time.Minute),
+			NodeID:          "node-stale",
+			Lifecycle:       nodekernel.LifecycleActive,
+			LastHeartbeatAt: now.Add(-time.Minute),
 			Summary: readyNodeSummaryWithBPFNet(now.Add(-time.Minute), &nodev1.BpfNetSummary{
-				Enabled:               true,
-				NeedsFullDnatFallback: true,
+				Enabled: true,
 			}),
 		},
 	})
@@ -120,16 +116,7 @@ func TestObserveNodeBPFNetReportsReadyNodeState(t *testing.T) {
 	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "ready"}]; !ok || value != 1 {
 		t.Fatalf("ready metric = %d/%v, want 1/true", value, ok)
 	}
-	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "snat_fallback"}]; !ok || value != 0 {
-		t.Fatalf("snat fallback metric = %d/%v, want 0/true", value, ok)
-	}
-	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "full_dnat_fallback"}]; !ok || value != 0 {
-		t.Fatalf("full fallback metric = %d/%v, want 0/true", value, ok)
-	}
-	if value, ok := got[stateMetricKey{nodeID: "node-a", state: "localhost_compat"}]; !ok || value != 1 {
-		t.Fatalf("localhost compat metric = %d/%v, want 1/true", value, ok)
-	}
-	if _, ok := got[stateMetricKey{nodeID: "node-stale", state: "full_dnat_fallback"}]; ok {
+	if _, ok := got[stateMetricKey{nodeID: "node-stale", state: "enabled"}]; ok {
 		t.Fatalf("stale node bpfnet metric was reported: %#v", got)
 	}
 }
@@ -143,7 +130,7 @@ func readyNodeSummary(collectedAt time.Time, storage []*nodev1.NodeStorageSummar
 				Ready: true,
 			},
 		},
-		Storage: storage,
+		Diagnostics: &nodev1.NodeDiagnostics{Storage: storage},
 	}
 }
 

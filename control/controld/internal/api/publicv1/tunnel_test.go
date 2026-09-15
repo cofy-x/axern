@@ -50,7 +50,6 @@ func (f *fakeTunnelControl) Revoke(_ context.Context, sessionID, reason string, 
 	return &tunnelv1.TunnelSession{
 		SessionID: sessionID,
 		Status:    tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED,
-		Revoked:   true,
 		Reason:    reason,
 	}, nil
 }

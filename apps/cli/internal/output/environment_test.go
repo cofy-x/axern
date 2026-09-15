@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 )
 
@@ -13,17 +12,15 @@ func TestRenderEnvironmentImageBacked(t *testing.T) {
 	RenderEnvironment(&b, &environmentv1.Environment{
 		ID:        "env-1",
 		Namespace: "default",
-		Status:    environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
 		Spec: &environmentv1.EnvironmentSpec{
 			Image: &environmentv1.EnvironmentImageSource{
 				Ref:                  "index.docker.io/library/nginx:1.27",
-				Digest:               "sha256:abc",
 				RegistryCredentialID: "sec-regcred",
 				RootfsReadonly:       true,
 			},
 		},
-		ResolvedTemplate: &catalogv1.RuntimeTemplate{
-			ImageDescriptor: &catalogv1.OciImageDescriptor{
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
+			ImageDescriptor: &environmentv1.OciImageDescriptor{
 				Digest:      "sha256:abc",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "index.docker.io/library/nginx:1.27"},
 			},
@@ -48,22 +45,20 @@ func TestRenderEnvironmentTable(t *testing.T) {
 	var b strings.Builder
 	RenderEnvironmentTable(&b, []*environmentv1.Environment{
 		{
-			ID:     "env-template",
-			Status: environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
+			ID: "env-template",
 			Spec: &environmentv1.EnvironmentSpec{
 				TemplateID:      "python311",
 				TemplateVersion: "sha256:template",
 			},
 		},
 		{
-			ID:     "env-image",
-			Status: environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
+			ID: "env-image",
 			Spec: &environmentv1.EnvironmentSpec{
 				Image: &environmentv1.EnvironmentImageSource{
-					Ref:    "index.docker.io/library/nginx:1.27",
-					Digest: "sha256:image",
+					Ref: "index.docker.io/library/nginx:1.27",
 				},
 			},
+			ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{Digest: "sha256:image"}},
 		},
 	})
 	out := b.String()

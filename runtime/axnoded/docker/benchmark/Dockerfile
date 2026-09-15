@@ -1,6 +1,5 @@
 ARG GO_IMAGE=golang:1.25.12
 ARG BASE_IMAGE=ubuntu:24.04
-ARG NGINX_IMAGE=nginx:1.15
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
 
@@ -18,22 +17,22 @@ WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
-COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
+COPY lib/go/executionlease/go.mod /workspace/lib/go/executionlease/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
-COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
+COPY lib/go/networkpolicy/go.mod lib/go/networkpolicy/go.sum /workspace/lib/go/networkpolicy/
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
 go 1.25.12
 
 use (
-	./lib/go/agentbundle
+	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref
-	./lib/go/llmproxy
 	./lib/go/nodecapability
+	./lib/go/networkpolicy
 	./lib/go/observability
 	./network/bpfnet
 	./runtime/axnoded
@@ -54,15 +53,10 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     mkdir -p /out && \
     cd /workspace/runtime/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
-    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded-runtime-runner ./cmd/axnoded-runtime-runner && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-egress ./cmd/verify-egress && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-nginx ./cmd/verify-nginx && \
-    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/verify-udp ./cmd/verify-udp
-
-FROM ${NGINX_IMAGE} AS nginx-rootfs
+	GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke
 
 FROM ${BASE_IMAGE} AS benchmark-base
 COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
@@ -93,8 +87,8 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && \
-    apt-get install -y \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
     bash \
     bzip2 \
     busybox-static \
@@ -116,7 +110,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fi; \
     done && \
     if [ -n "${kernel_tools}" ]; then \
-      apt-get install -y ${kernel_tools}; \
+      apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y ${kernel_tools}; \
     fi && \
     perf_bin="" && \
     if [ -x "/usr/lib/linux-tools/${kernel_release}/perf" ]; then \
@@ -169,22 +163,14 @@ RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/pr
 
 RUN mkdir -p /opt/axern/runtime-selftest && cp -a /opt/sample-rootfs /opt/axern/runtime-selftest/rootfs
 
-COPY --from=nginx-rootfs / /opt/nginx-rootfs
-
-RUN mkdir -p /opt/nginx-rootfs/dev /opt/nginx-rootfs/proc /opt/nginx-rootfs/sys /opt/nginx-rootfs/tmp /opt/nginx-rootfs/mnt
-
 WORKDIR /workspace
 
 COPY runtime/axnoded/scripts/ /workspace/scripts/
 RUN find /workspace/scripts -type f -name '*.sh' -exec chmod +x {} +
 
 COPY --from=axnoded-builder /out/axnoded /usr/local/bin/axnoded
-COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/verify-egress /usr/local/bin/verify-egress
 COPY --from=axnoded-builder /out/verify-smoke /usr/local/bin/verify-smoke
-COPY --from=axnoded-builder /out/verify-nginx /usr/local/bin/verify-nginx
-COPY --from=axnoded-builder /out/verify-udp /usr/local/bin/verify-udp
-COPY --from=axnoded-builder /out/verify-udp /usr/local/libexec/axnoded/verify-udp
 
 CMD ["/bin/bash"]

@@ -5,56 +5,6 @@ import (
 	"testing"
 )
 
-func TestRuntimeConfigNormalizedRuntimeConfigs(t *testing.T) {
-	cfg := RuntimeConfig{
-		RuntimeBinary: map[string]string{
-			RuntimeNameRunsc: "/legacy/runsc",
-			"runc":           "/legacy/runc",
-		},
-		BasicSpec: map[string]string{
-			RuntimeNameRunsc: "/legacy/runsc.json",
-		},
-		Runtimes: map[string]RuntimeInstanceConfig{
-			RuntimeNameRunsc: {
-				Binary: "/new/runsc",
-			},
-			"crun": {
-				Binary:   "/usr/bin/crun",
-				BaseSpec: "/etc/axnoded/crun.json",
-			},
-		},
-	}
-
-	runtimes := cfg.NormalizedRuntimeConfigs()
-	if len(runtimes) != 3 {
-		t.Fatalf("expected 3 runtimes, got %d", len(runtimes))
-	}
-
-	runsc := runtimes[RuntimeNameRunsc]
-	if runsc.Binary != "/new/runsc" {
-		t.Fatalf("expected new binary to win, got %q", runsc.Binary)
-	}
-	if runsc.BaseSpec != "/legacy/runsc.json" {
-		t.Fatalf("expected legacy base spec fallback, got %q", runsc.BaseSpec)
-	}
-	if !runsc.Options.AllowSUIDEnabled(true) {
-		t.Fatalf("expected runsc allow_suid default to remain enabled")
-	}
-
-	runc := runtimes["runc"]
-	if runc.Binary != "/legacy/runc" {
-		t.Fatalf("expected legacy runtime binary, got %q", runc.Binary)
-	}
-
-	crun := runtimes["crun"]
-	if crun.Binary != "/usr/bin/crun" {
-		t.Fatalf("expected explicit crun binary, got %q", crun.Binary)
-	}
-	if crun.BaseSpec != "/etc/axnoded/crun.json" {
-		t.Fatalf("expected explicit crun base spec, got %q", crun.BaseSpec)
-	}
-}
-
 func TestNetworkConfigNormalizedCanonicalizesSemanticSetsAndDurations(t *testing.T) {
 	input := DefaultConfig().PluginConfig.NetworkConfig
 	input.NatBackend = " EBPF "
@@ -78,9 +28,10 @@ func TestNetworkConfigNormalizedCanonicalizesSemanticSetsAndDurations(t *testing
 	}
 }
 
-func TestNetworkConfigNormalizedAcceptsIPv6Range(t *testing.T) {
+func TestNetworkConfigNormalizedAcceptsIPv6WithIptablesAndRejectsEBPF(t *testing.T) {
 	input := DefaultConfig().PluginConfig.NetworkConfig
 	input.IPRange = "fd31:0:0:0::1/64"
+	input.NatBackend = NatBackendIptables
 
 	got, err := input.Normalized()
 	if err != nil {
@@ -89,9 +40,9 @@ func TestNetworkConfigNormalizedAcceptsIPv6Range(t *testing.T) {
 	if got.IPRange != "fd31::1/64" {
 		t.Fatalf("normalized IPv6 range = %q", got.IPRange)
 	}
-	got.NatBackend = NatBackendEBPF
-	if got.CapabilityBackend() != NatBackendIptables {
-		t.Fatalf("IPv6 ebpf capability backend = %q", got.CapabilityBackend())
+	input.NatBackend = NatBackendEBPF
+	if _, err := input.Normalized(); err == nil {
+		t.Fatal("IPv6 ebpf configuration was accepted")
 	}
 }
 
@@ -177,37 +128,9 @@ func TestDefaultConfigSetsImageManagerSocket(t *testing.T) {
 	}
 }
 
-func TestDefaultConfigSetsVolumeManagerSocket(t *testing.T) {
-	cfg := DefaultConfig()
-	if cfg.PluginConfig.RuntimeConfig.VolumeManagerSocket != DefaultVolumeManagerSocket {
-		t.Fatalf("expected volume manager socket %q, got %q", DefaultVolumeManagerSocket, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocket)
-	}
-	if cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath() != DefaultVolumeManagerSocket {
-		t.Fatalf("expected volume manager socket path %q, got %q", DefaultVolumeManagerSocket, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath())
-	}
-	if cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath() != DefaultEgressManagerSocket {
-		t.Fatalf("expected egress manager socket path %q, got %q", DefaultEgressManagerSocket, cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
-	}
-}
-
-func TestDefaultConfigSetsRuntimeRunnerBinary(t *testing.T) {
-	cfg := DefaultConfig()
-	if cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinary != DefaultRuntimeRunnerBinary {
-		t.Fatalf("expected runtime runner binary %q, got %q",
-			DefaultRuntimeRunnerBinary, cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinary)
-	}
-	if cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinaryPath() != DefaultRuntimeRunnerBinary {
-		t.Fatalf("expected runtime runner binary path %q, got %q",
-			DefaultRuntimeRunnerBinary, cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinaryPath())
-	}
-}
-
 func TestDefaultConfigEnablesRunscSUID(t *testing.T) {
 	cfg := DefaultConfig()
-	runsc, ok := cfg.PluginConfig.RuntimeConfig.NormalizedRuntimeConfig(RuntimeNameRunsc)
-	if !ok {
-		t.Fatal("expected default runsc runtime")
-	}
+	runsc := cfg.PluginConfig.RuntimeConfig.Runsc
 	if !runsc.Options.AllowSUIDEnabled(false) {
 		t.Fatal("expected default runsc runtime to enable setuid binaries")
 	}
@@ -245,25 +168,25 @@ func TestRuntimeConfigImageManagerEnabledValue(t *testing.T) {
 	})
 }
 
-func TestDefaultConfigSetsIdleRuntimeRetentionDefaults(t *testing.T) {
+func TestDefaultConfigSetsIdleEnvironmentRetentionDefaults(t *testing.T) {
 	cfg := DefaultConfig()
-	if cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTL != DefaultIdleRuntimeRetentionTTL {
-		t.Fatalf("expected idle runtime retention ttl %q, got %q",
-			DefaultIdleRuntimeRetentionTTL, cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTL)
+	if cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTL != DefaultIdleEnvironmentRetentionTTL {
+		t.Fatalf("expected idle environment retention ttl %q, got %q",
+			DefaultIdleEnvironmentRetentionTTL, cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTL)
 	}
-	if cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMax == nil {
-		t.Fatal("expected default idle runtime retention max pointer to be populated")
+	if cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMax == nil {
+		t.Fatal("expected default idle environment retention max pointer to be populated")
 	}
-	if *cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMax != DefaultIdleRuntimeRetentionMax {
-		t.Fatalf("expected idle runtime retention max %d, got %d",
-			DefaultIdleRuntimeRetentionMax, *cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMax)
+	if *cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMax != DefaultIdleEnvironmentRetentionMax {
+		t.Fatalf("expected idle environment retention max %d, got %d",
+			DefaultIdleEnvironmentRetentionMax, *cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMax)
 	}
-	ttl, err := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTLDuration()
+	ttl, err := cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTLDuration()
 	if err != nil {
-		t.Fatalf("parse default idle runtime retention ttl: %v", err)
+		t.Fatalf("parse default idle environment retention ttl: %v", err)
 	}
 	if ttl <= 0 {
-		t.Fatalf("expected positive idle runtime retention ttl, got %v", ttl)
+		t.Fatalf("expected positive idle environment retention ttl, got %v", ttl)
 	}
 }
 
@@ -307,8 +230,8 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	if got := cfg.ControlPlaneTargetValue(); got != "127.0.0.1:24000" {
 		t.Fatalf("ControlPlaneTargetValue() = %q, want %q", got, "127.0.0.1:24000")
 	}
-	if got := cfg.ControlPlaneNodeIDValue("host-a"); got != "host-a" {
-		t.Fatalf("ControlPlaneNodeIDValue() = %q, want host-a", got)
+	if err := cfg.ValidateNodeIdentity(); err == nil {
+		t.Fatal("missing explicit node identity accepted")
 	}
 	interval, err := cfg.ControlPlaneHeartbeatIntervalDuration()
 	if err != nil {
@@ -356,16 +279,18 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	if source != ControlPlaneNodeResourceSourceKubernetes {
 		t.Fatalf("ControlPlaneNodeResourceSourceValue() = %q, want kubernetes", source)
 	}
-	if got := cfg.ControlPlaneKubernetesNodeNameValue("fallback"); got != "node-a" {
-		t.Fatalf("ControlPlaneKubernetesNodeNameValue() = %q, want node-a", got)
-	}
+
 	cfg.ControlPlaneNodeResourceSource = "unknown"
 	if _, err := cfg.ControlPlaneNodeResourceSourceValue(); err == nil {
 		t.Fatal("expected unknown ControlPlaneNodeResourceSourceValue() to fail")
 	}
-	cfg.ControlPlaneKubernetesNodeName = ""
-	if got := cfg.ControlPlaneKubernetesNodeNameValue("fallback"); got != "fallback" {
-		t.Fatalf("fallback ControlPlaneKubernetesNodeNameValue() = %q, want fallback", got)
+
+}
+
+func TestControlPlaneHeartbeatIntervalRejectsUnsafeExecutionLeaseCadence(t *testing.T) {
+	cfg := PluginConfig{ControlPlaneHeartbeatInterval: "11s"}
+	if _, err := cfg.ControlPlaneHeartbeatIntervalDuration(); err == nil {
+		t.Fatal("ControlPlaneHeartbeatIntervalDuration() error = nil, want unsafe cadence rejection")
 	}
 }
 
@@ -380,11 +305,11 @@ func TestResourcePoolReconcileIntervalDurationSupportsExplicitZero(t *testing.T)
 	}
 }
 
-func TestRuntimeConfigIdleRuntimeRetentionMaxValueSupportsExplicitZero(t *testing.T) {
+func TestRuntimeConfigIdleEnvironmentRetentionMaxValueSupportsExplicitZero(t *testing.T) {
 	disabled := 0
-	cfg := RuntimeConfig{IdleRuntimeRetentionMax: &disabled}
-	if got := cfg.IdleRuntimeRetentionMaxValue(); got != 0 {
-		t.Fatalf("IdleRuntimeRetentionMaxValue() = %d, want 0", got)
+	cfg := RuntimeConfig{IdleEnvironmentRetentionMax: &disabled}
+	if got := cfg.IdleEnvironmentRetentionMaxValue(); got != 0 {
+		t.Fatalf("IdleEnvironmentRetentionMaxValue() = %d, want 0", got)
 	}
 }
 
@@ -393,10 +318,6 @@ func TestDefaultConfigSetsBPFNetDefaults(t *testing.T) {
 	if cfg.PluginConfig.NetworkConfig.BPFNet.PinPath != DefaultBPFNetPinPath {
 		t.Fatalf("expected default bpfnet pin path %q, got %q",
 			DefaultBPFNetPinPath, cfg.PluginConfig.NetworkConfig.BPFNet.PinPath)
-	}
-	if cfg.PluginConfig.NetworkConfig.BPFNet.MapSize != DefaultBPFNetMapSize {
-		t.Fatalf("expected default bpfnet map size %d, got %d",
-			DefaultBPFNetMapSize, cfg.PluginConfig.NetworkConfig.BPFNet.MapSize)
 	}
 	if cfg.PluginConfig.NetworkConfig.BPFNet.SNATMapSize != DefaultBPFNetSNATMapSize {
 		t.Fatalf("expected default bpfnet snat map size %d, got %d",
@@ -417,12 +338,6 @@ func TestDefaultConfigSetsBPFNetDefaults(t *testing.T) {
 	if cfg.PluginConfig.NetworkConfig.BPFNet.SNATDatagramIdleTimeout != DefaultBPFNetSNATDatagramIdleTimeout {
 		t.Fatalf("expected default bpfnet snat datagram idle timeout %q, got %q",
 			DefaultBPFNetSNATDatagramIdleTimeout, cfg.PluginConfig.NetworkConfig.BPFNet.SNATDatagramIdleTimeout)
-	}
-	if !cfg.PluginConfig.NetworkConfig.BPFNet.LocalOutCompat {
-		t.Fatalf("expected local_out_compat to default to true")
-	}
-	if !cfg.PluginConfig.NetworkConfig.BPFNet.IptablesFallback {
-		t.Fatalf("expected iptables_fallback to default to true")
 	}
 	if interval, err := cfg.PluginConfig.NetworkConfig.BPFNet.SNATGCIntervalDuration(); err != nil || interval.String() != DefaultBPFNetSNATGCInterval {
 		t.Fatalf("SNATGCIntervalDuration() = %v, %v; want %s", interval, err, DefaultBPFNetSNATGCInterval)

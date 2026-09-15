@@ -1,6 +1,7 @@
 package container
 
 import (
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 )
@@ -20,9 +21,10 @@ func (m *Manager) SyncRuntimeIdentityFromState(id string, state *contract.UnionC
 		return nil
 	}
 	return container.Status.UpdateSync(func(status Status) (Status, error) {
-		if status.FinishedAt != "" || state.Status != contract.ContainerStatusRunning {
+		if status.RuntimeState == apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED || state.Status != contract.ContainerStatusRunning {
 			return status, nil
 		}
+		status.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING
 		if state.InitProcessPid > 0 {
 			status.Pid = state.InitProcessPid
 		}

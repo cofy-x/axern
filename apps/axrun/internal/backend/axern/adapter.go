@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agent"
-	"github.com/cofy-x/axern/apps/axrun/internal/agentbundle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentimage"
 	"github.com/cofy-x/axern/apps/axrun/internal/backend"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/rollout"
@@ -29,7 +29,6 @@ type Adapter struct {
 
 var _ backend.AgentPreflight = Adapter{}
 var _ backend.ProviderPreflight = Adapter{}
-var _ backend.ProviderProfilePreflight = Adapter{}
 var _ backend.TaskPreflight = Adapter{}
 
 type Option func(*Adapter)
@@ -137,14 +136,6 @@ func (a Adapter) PreflightProvider(ctx context.Context, agentSpec domain.AgentSp
 	return backend.PreflightHarnessProvider(ctx, harness, agentSpec, model)
 }
 
-func (a Adapter) PreflightProviderProfile(agentSpec domain.AgentSpec) error {
-	harness, err := a.agentHarness(agentSpec)
-	if err != nil {
-		return err
-	}
-	return backend.PreflightHarnessProfile(harness, agentSpec)
-}
-
 func (a Adapter) Execute(request backend.ExecuteRequest) (episode domain.Episode, runErr error) {
 	if err := a.PreflightAgent(request.Episode.Agent); err != nil {
 		return request.Episode, err
@@ -196,7 +187,7 @@ func (a Adapter) runtimeForRequest(request backend.ExecuteRequest) (sandbox.Runt
 		return nil, err
 	}
 	if request.Episode.Agent.Runtime != nil && request.Episode.Agent.Runtime.Type == domain.AgentRuntimeTypeAgentImage {
-		config.ImageMounts = append(config.ImageMounts, agentBundleImageMount(request.Episode.Agent))
+		config.ImageMounts = append(config.ImageMounts, agentImageMount(request.Episode.Agent))
 	}
 	return sandboxaxern.NewRuntime(config), nil
 }
@@ -204,29 +195,12 @@ func (a Adapter) runtimeForRequest(request backend.ExecuteRequest) (sandbox.Runt
 func (a Adapter) configForTask(task domain.TaskInstance) (Config, error) {
 	config := a.Config
 	if resources := task.Resources; resources != nil {
-		if strings.TrimSpace(resources.Disk) != "" {
-			return Config{}, fmt.Errorf("task resources disk is not supported by the Axern sandbox API")
-		}
 		config.RequestCPU = strings.TrimSpace(resources.RequestCPU)
 		config.RequestMemory = strings.TrimSpace(resources.RequestMemory)
+		config.RequestEphemeralStorage = strings.TrimSpace(resources.RequestEphemeralStorage)
 		config.LimitCPU = strings.TrimSpace(resources.LimitCPU)
 		config.LimitMemory = strings.TrimSpace(resources.LimitMemory)
-	}
-	if task.InitialState != nil && task.InitialState.WorkspaceImage != nil {
-		workspace := task.InitialState.WorkspaceImage
-		config.WorkspaceImage = &axernsdk.WorkspaceImageSource{SourcePath: workspace.SourcePath, Target: workspace.Target}
-		for _, variant := range workspace.Variants {
-			config.WorkspaceImage.Variants = append(
-				config.WorkspaceImage.Variants,
-				axernsdk.WorkspaceImageVariant{
-					Format: variant.Format,
-					Image:  variant.Image,
-				},
-			)
-		}
-	}
-	if runtimeClass := strings.TrimSpace(task.Sandbox.RuntimeClass); runtimeClass != "" {
-		config.RuntimeClass = runtimeClass
+		config.LimitEphemeralStorage = strings.TrimSpace(resources.LimitEphemeralStorage)
 	}
 	if task.Sandbox.RuntimeSource != nil {
 		switch task.Sandbox.RuntimeSource.Type {
@@ -261,7 +235,7 @@ func (a Adapter) agentHarness(spec domain.AgentSpec) (agent.Harness, error) {
 	}
 	if spec.Runtime != nil && spec.Runtime.Type == domain.AgentRuntimeTypeAgentImage {
 		if setter, ok := h.(agent.LauncherSetter); ok {
-			setter.SetLauncher(agent.MountedBundleLauncher{})
+			setter.SetLauncher(agent.MountedAgentImageLauncher{})
 		} else {
 			return nil, fmt.Errorf("agent %q runtime agent-image requires backend launcher support", spec.Name)
 		}
@@ -269,14 +243,14 @@ func (a Adapter) agentHarness(spec domain.AgentSpec) (agent.Harness, error) {
 	return h, nil
 }
 
-func agentBundleImageMount(spec domain.AgentSpec) axernsdk.ImageMount {
+func agentImageMount(spec domain.AgentSpec) axernsdk.ImageMount {
 	image := ""
 	if spec.Runtime != nil {
 		image = spec.Runtime.Image
 	}
 	return axernsdk.ImageMount{
 		Image:    image,
-		Target:   agentbundle.ImageMountTargetForSpec(spec),
+		Target:   agentimage.MountTargetForSpec(spec),
 		Readonly: true,
 	}
 }

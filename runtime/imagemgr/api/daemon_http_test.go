@@ -48,7 +48,7 @@ func TestHttpWorker_ListDaemons(t *testing.T) {
 			ID:         "daemon-1",
 			Name:       "test-daemon-1",
 			MountPoint: "/mnt/daemon-1",
-			SourceType: "oss",
+			SourceType: "nydus",
 			IsAlive:    true,
 		},
 		{
@@ -259,14 +259,12 @@ func TestHttpWorker_InventoryLocalityDegradesWhenStatsUnavailable(t *testing.T) 
 	mgr := &mockManager{
 		listDaemonsFunc: func() []imagefsd.DaemonInfo {
 			return []imagefsd.DaemonInfo{{
-				ID:           "daemon-1",
-				Name:         "rootfs.raw",
-				MountPoint:   "/mnt/daemon-1",
-				SourceType:   "oss",
-				Endpoint:     "minio:9000",
-				Bucket:       "dist",
-				ObjectPrefix: "images/",
-				IsAlive:      false,
+				ID:         "daemon-1",
+				Name:       "nydus-image",
+				ImageURL:   "registry.example/image:nydus",
+				MountPoint: "/mnt/daemon-1",
+				SourceType: "nydus",
+				IsAlive:    false,
 			}}
 		},
 		localityStatsFunc: func() (*imagefsd.LocalityStats, error) {
@@ -287,7 +285,7 @@ func TestHttpWorker_InventoryLocalityDegradesWhenStatsUnavailable(t *testing.T) 
 	if resp.LocalityError == "" {
 		t.Fatalf("Inventory() locality_error is empty")
 	}
-	if resp.Locality[0].Key != "s3:minio:9000/dist/images/rootfs.raw" {
+	if resp.Locality[0].Key != "image:registry.example/image:nydus" {
 		t.Fatalf("Inventory() locality key = %s", resp.Locality[0].Key)
 	}
 	if resp.Locality[0].ChunkDBTotalChunks != 0 {

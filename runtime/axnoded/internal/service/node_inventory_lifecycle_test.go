@@ -12,7 +12,7 @@ import (
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 )
 
 func TestCurrentCapabilitySnapshotReportsWarmingWithoutRunningProviders(t *testing.T) {
@@ -46,34 +46,32 @@ func TestNodeResourceProviderRejectsUnknownSource(t *testing.T) {
 }
 
 func TestValidateRuntimeResourceConfigurationRejectsRequiredDisabledPool(t *testing.T) {
-	registry := handlerregistry.New(config.Config{})
-	registry.Set("runsc", &runtimeSpyHandler{
+	handler := &runtimeSpyHandler{
 		name: "runsc",
-		requirements: contract.RuntimeRequirements{
+		requirements: contract.HostRequirements{
 			Resources: []resources.ResourceName{resources.InterfaceResourceName},
 		},
-	})
+	}
 
-	err := validateRuntimeResourceConfiguration(registry, config.ResourceConfig{
+	err := validateRuntimeResourceConfiguration(handler, config.ResourceConfig{
 		MaxInstanceNum:     8,
 		CgroupCacheSize:    8,
 		InterfaceCacheSize: 0,
 	})
-	if err == nil || !strings.Contains(err.Error(), `runtime "runsc" requires disabled resource pool "interface"`) {
+	if err == nil || !strings.Contains(err.Error(), `runsc requires disabled resource pool "interface"`) {
 		t.Fatalf("validateRuntimeResourceConfiguration() error = %v", err)
 	}
 }
 
 func TestValidateRuntimeResourceConfigurationAllowsUnusedDisabledPool(t *testing.T) {
-	registry := handlerregistry.New(config.Config{})
-	registry.Set("runsc", &runtimeSpyHandler{
+	handler := &runtimeSpyHandler{
 		name: "runsc",
-		requirements: contract.RuntimeRequirements{
+		requirements: contract.HostRequirements{
 			Resources: []resources.ResourceName{resources.InterfaceResourceName},
 		},
-	})
+	}
 
-	if err := validateRuntimeResourceConfiguration(registry, config.ResourceConfig{
+	if err := validateRuntimeResourceConfiguration(handler, config.ResourceConfig{
 		MaxInstanceNum:     8,
 		CgroupCacheSize:    0,
 		InterfaceCacheSize: 8,
@@ -83,15 +81,14 @@ func TestValidateRuntimeResourceConfigurationAllowsUnusedDisabledPool(t *testing
 }
 
 func TestValidateRuntimeResourceConfigurationAllowsRequiredCgroupWithoutPrewarming(t *testing.T) {
-	registry := handlerregistry.New(config.Config{})
-	registry.Set("runsc", &runtimeSpyHandler{
+	handler := &runtimeSpyHandler{
 		name: "runsc",
-		requirements: contract.RuntimeRequirements{
+		requirements: contract.HostRequirements{
 			Resources: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
 		},
-	})
+	}
 
-	if err := validateRuntimeResourceConfiguration(registry, config.ResourceConfig{
+	if err := validateRuntimeResourceConfiguration(handler, config.ResourceConfig{
 		MaxInstanceNum:     8,
 		CgroupCacheSize:    0,
 		InterfaceCacheSize: 8,
@@ -101,7 +98,7 @@ func TestValidateRuntimeResourceConfigurationAllowsRequiredCgroupWithoutPrewarmi
 }
 
 func TestValidateRuntimeResourceConfigurationRejectsCapacityAboveContainerLimit(t *testing.T) {
-	err := validateRuntimeResourceConfiguration(handlerregistry.New(config.Config{}), config.ResourceConfig{
+	err := validateRuntimeResourceConfiguration(runtimetest.NewFakeSandboxRuntime(), config.ResourceConfig{
 		MaxInstanceNum: container.MaxContainerNum + 1,
 	})
 	if err == nil || !strings.Contains(err.Error(), "exceeds container hard limit") {
@@ -133,7 +130,7 @@ func TestValidateRuntimeResourceConfigurationRejectsInvalidPoolSizes(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateRuntimeResourceConfiguration(handlerregistry.New(config.Config{}), tt.cfg)
+			err := validateRuntimeResourceConfiguration(runtimetest.NewFakeSandboxRuntime(), tt.cfg)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("validateRuntimeResourceConfiguration() error = %v, want %q", err, tt.want)
 			}

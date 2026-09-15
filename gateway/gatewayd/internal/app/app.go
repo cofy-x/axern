@@ -6,21 +6,14 @@ import (
 	"net/http"
 	"time"
 
-	artifactadapter "github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/artifact"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/controlplane"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/adapters/nodebridge"
-	artifactapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/artifact"
 	controlapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/control"
 	httpapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/http"
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/dashboard"
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/api/http/serviceproxy"
 	nodeapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/node"
 	sshapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/ssh"
 	tunnelapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/tunnel"
-	artifactapp "github.com/cofy-x/axern/gateway/gatewayd/internal/application/artifact"
-	appservice "github.com/cofy-x/axern/gateway/gatewayd/internal/application/service"
 	term "github.com/cofy-x/axern/gateway/gatewayd/internal/application/terminal"
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/config"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
@@ -36,25 +29,27 @@ type App struct {
 }
 
 func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, error) {
-	controlClient, err := controlplane.Dial(ctx, cfg.ControlTarget, cfg.TLSCACert, cfg.TLSCert, cfg.TLSKey, cfg.ControlDialTimeout, obs.GRPCDialOptions()...)
+	controlClient, err := controlplane.Dial(ctx, cfg.ControlTarget, cfg.TLSCACert, cfg.WorkloadBundle, cfg.WorkloadCluster, cfg.ControlDialTimeout, obs.GRPCDialOptions()...)
 	if err != nil {
 		return nil, err
 	}
-	nodes := nodebridge.NewDialer(obs)
-	token := auth.DevToken{Token: cfg.DevToken}
+	nodes, err := nodebridge.NewDialer(cfg.TLSCACert, cfg.WorkloadBundle, cfg.WorkloadCluster, obs)
+	if err != nil {
+		_ = controlClient.Close()
+		return nil, err
+	}
+	closeDependencies := func() {
+		_ = nodes.Close()
+		_ = controlClient.Close()
+	}
 	metrics := observability.NewMetrics(obs)
-	routeCache := appservice.NewCache(controlClient, appservice.Options{
-		TTL:                   cfg.RouteCacheTTL,
-		MaxEntries:            cfg.RouteCacheMaxEntries,
-		EndpointQuarantineTTL: cfg.ServiceEndpointQuarantineTTL,
-	}, metrics, obs)
 	terminalManager := term.NewManager(controlClient, nodes, terminalOptions(cfg), metrics, obs)
-	proxyHandler := serviceproxy.New(nodes, serviceProxyOptions(cfg), metrics, obs)
-	terminal := httpapi.NewTerminal(token, terminalManager, httpTerminalOptions(cfg), metrics)
+	terminal := httpapi.NewTerminal(terminalManager, httpTerminalOptions(cfg), metrics)
 	var sshServer *sshapi.Server
 	if cfg.SSHEnabled {
-		sshServer, err = sshapi.New(cfg.SSHAddress, cfg.SSHHostKey, cfg.SSHAuthorizedKeys, terminalManager, metrics, obs)
+		sshServer, err = sshapi.New(cfg.SSHAddress, cfg.SSHHostKey, terminalManager, metrics, obs)
 		if err != nil {
+			closeDependencies()
 			return nil, err
 		}
 	}
@@ -65,6 +60,10 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 		Key:     cfg.ControlEdgeTLSKey,
 	}, obs)
 	if err != nil {
+		if sshServer != nil {
+			_ = sshServer.Close()
+		}
+		closeDependencies()
 		return nil, err
 	}
 	tunnelServer, err := tunnelapi.New(tunnelapi.Options{
@@ -76,20 +75,17 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 		DialOptions: obs.GRPCDialOptions(),
 	})
 	if err != nil {
+		controlServer.Close()
+		if sshServer != nil {
+			_ = sshServer.Close()
+		}
+		closeDependencies()
 		return nil, err
 	}
 	controlServer.RegisterTunnelRelay(tunnelServer)
 	controlServer.RegisterNodeSandbox(nodeapi.New(controlClient, nodes, nodeOptions(cfg), metrics))
-	artifactService := artifactapp.New(controlClient, artifactadapter.New(cfg.ArtifactUpstreamTimeout), artifactapp.Options{MaxConcurrent: cfg.ArtifactMaxConcurrent, ChunkBytes: cfg.ArtifactChunkBytes, MaxBytes: cfg.ArtifactMaxBytes, Observer: metrics})
-	controlServer.RegisterArtifactData(artifactapi.New(artifactService))
-	var dashboardHandler *dashboard.Handler
-	if cfg.DashboardEnabled {
-		dashboardHandler, err = dashboard.New(token, cfg.DashboardVendorDir, dashboard.NewServiceReplicaResolver(controlClient.Gateway))
-		if err != nil {
-			return nil, err
-		}
-	}
-	handler := httpapi.New(routeCache, proxyHandler, terminal, dashboardHandler, token, cfg.RequireHTTPAuth, metrics)
+	controlServer.RegisterHTTP(obs.HTTPHandler(httpapi.New(terminal), "gatewayd.terminal"))
+	handler := httpapi.New(nil)
 	wrappedHandler := obs.HTTPHandler(handler, "gatewayd.http")
 	return &App{
 		control: controlClient,

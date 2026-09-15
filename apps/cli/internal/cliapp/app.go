@@ -6,20 +6,15 @@ import (
 
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	admincmd "github.com/cofy-x/axern/apps/cli/internal/commands/admin"
-	agentcmd "github.com/cofy-x/axern/apps/cli/internal/commands/agent"
-	"github.com/cofy-x/axern/apps/cli/internal/commands/catalog"
 	contextcmd "github.com/cofy-x/axern/apps/cli/internal/commands/context"
-	"github.com/cofy-x/axern/apps/cli/internal/commands/dashboard"
 	doctorcmd "github.com/cofy-x/axern/apps/cli/internal/commands/doctor"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
-	functioncmd "github.com/cofy-x/axern/apps/cli/internal/commands/function"
 	identitycmd "github.com/cofy-x/axern/apps/cli/internal/commands/identity"
 	localcmd "github.com/cofy-x/axern/apps/cli/internal/commands/local"
 	namespacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/namespace"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/quota"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/run"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/secret"
-	"github.com/cofy-x/axern/apps/cli/internal/commands/service"
 	sshcmd "github.com/cofy-x/axern/apps/cli/internal/commands/ssh"
 	tunnelcmd "github.com/cofy-x/axern/apps/cli/internal/commands/tunnel"
 	"github.com/cofy-x/axern/apps/cli/internal/config"
@@ -73,18 +68,13 @@ func New(version string) *cobra.Command {
 		admincmd.Command(runtime),
 		identitycmd.Command(runtime),
 		localcmd.Command(runtime, version),
-		catalog.Command(runtime),
 		environment.Command(runtime),
-		functioncmd.Command(runtime),
 		namespacecmd.Command(runtime),
 		secret.Command(runtime),
 		run.Command(runtime),
-		service.Command(runtime),
 		quota.Command(runtime),
 		tunnelcmd.Command(runtime),
 		sshcmd.Command(runtime),
-		dashboard.Command(runtime),
-		agentcmd.Command(runtime),
 	)
 	root.InitDefaultCompletionCmd()
 	return root

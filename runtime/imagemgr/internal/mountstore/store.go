@@ -21,9 +21,6 @@ type Record struct {
 	MountType     string `json:"mount_type"`
 	NydusImageURL string `json:"nydus_image_url,omitempty"`
 	MountPoint    string `json:"mount_point"`
-	Endpoint      string `json:"endpoint,omitempty"`
-	Bucket        string `json:"bucket,omitempty"`
-	Object        string `json:"object,omitempty"`
 }
 
 // Lease is one durable consumer of a mount resource.

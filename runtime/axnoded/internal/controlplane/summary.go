@@ -4,7 +4,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -12,17 +12,6 @@ import (
 func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary {
 	summary := &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(snapshot.Node.CollectedAt),
-		Resources: &nodev1.ResourcesSummary{
-			AxnodedCommittedMilli:                 snapshot.Resources.CPU.AxnodedCommittedMilli,
-			AxnodedUsedMilli:                      snapshot.Resources.CPU.AxnodedUsedMilli,
-			AxnodedCpuUnboundedCount:              snapshot.Resources.CPU.AxnodedUnboundedCount,
-			AxnodedCommittedBytes:                 snapshot.Resources.Memory.AxnodedCommittedBytes,
-			AxnodedUsedBytes:                      snapshot.Resources.Memory.AxnodedUsedBytes,
-			AxnodedMemoryUnboundedCount:           snapshot.Resources.Memory.AxnodedUnboundedCount,
-			AxnodedEphemeralStorageCommittedBytes: snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes,
-			AxnodedEphemeralStorageUsedBytes:      snapshot.Resources.EphemeralStorage.AxnodedUsedBytes,
-			AxnodedEphemeralStorageUnboundedCount: snapshot.Resources.EphemeralStorage.AxnodedUnboundedCount,
-		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.RuntimeSlots.Using),
@@ -30,18 +19,28 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 				Capacity:    int32(snapshot.Pools.RuntimeSlots.Capacity),
 				Unavailable: int32(snapshot.Pools.RuntimeSlots.Unavailable),
 			},
-			Cgroup: &nodev1.PoolState{
+		},
+		Diagnostics: &nodev1.NodeDiagnostics{
+			CgroupPool: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.Cgroup.Using),
 				Idle:        int32(snapshot.Pools.Cgroup.Idle),
 				Capacity:    int32(snapshot.Pools.Cgroup.Capacity),
 				Unavailable: int32(snapshot.Pools.Cgroup.Unavailable),
 			},
-			Interface: &nodev1.PoolState{
+			InterfacePool: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.Interface.Using),
 				Idle:        int32(snapshot.Pools.Interface.Idle),
 				Capacity:    int32(snapshot.Pools.Interface.Capacity),
 				Unavailable: int32(snapshot.Pools.Interface.Unavailable),
 			},
+			Memory: &nodev1.NodeMemoryDiagnostics{
+				LocalCommitmentBytes:     snapshot.Node.MemoryBudget.LocalCommitmentBytes,
+				CleanupDebtBytes:         snapshot.Node.MemoryBudget.CleanupDebtBytes,
+				InternalCurrentBytes:     snapshot.Node.MemoryBudget.InternalCurrentBytes,
+				RetiringCgroupCount:      int32(snapshot.Node.MemoryBudget.RetiringCgroupCount),
+				OldestRetiringAgeSeconds: snapshot.Node.MemoryBudget.OldestRetiringAgeSeconds,
+			},
+			Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
 		},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded: &nodev1.AxnodedSummary{
@@ -67,24 +66,10 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 				ChunkdbUsagePercent: snapshot.Components.Imagefsd.ChunkDBUsagePercent,
 			},
 			Bpfnet: &nodev1.BpfNetSummary{
-				State:                 componentStateFromString(snapshot.Components.BPFNet.Status),
-				Enabled:               snapshot.Components.BPFNet.Enabled,
-				Ready:                 snapshot.Components.BPFNet.Ready,
-				Mode:                  snapshot.Components.BPFNet.Mode,
-				NeedsSnatFallback:     snapshot.Components.BPFNet.NeedsSNATFallback,
-				NeedsFullDnatFallback: snapshot.Components.BPFNet.NeedsFullDNATFallback,
-				NeedsLocalhostCompat:  snapshot.Components.BPFNet.NeedsLocalhostCompat,
-			},
-			Volumed: &nodev1.VolumedSummary{
-				State:                              componentStateFromString(snapshot.Components.Volumed.Status),
-				Reachable:                          snapshot.Components.Volumed.Reachable,
-				PublishedVolumeCount:               int32(snapshot.Components.Volumed.PublishedVolumeCount),
-				LastReconcileError:                 snapshot.Components.Volumed.LastReconcileError,
-				LastReconcileRetainedCount:         int32(snapshot.Components.Volumed.LastReconcileRetainedCount),
-				LastReconcileUnpublishedCount:      int32(snapshot.Components.Volumed.LastReconcileUnpublishedCount),
-				LastReconcileActiveAllocationCount: int32(snapshot.Components.Volumed.LastReconcileActiveAllocationCount),
-				LastReconcileStaleAllocationCount:  int32(snapshot.Components.Volumed.LastReconcileStaleAllocationCount),
-				LastReconcileInvalidVolumeCount:    int32(snapshot.Components.Volumed.LastReconcileInvalidVolumeCount),
+				State:   componentStateFromString(snapshot.Components.BPFNet.Status),
+				Enabled: snapshot.Components.BPFNet.Enabled,
+				Ready:   snapshot.Components.BPFNet.Ready,
+				Mode:    snapshot.Components.BPFNet.Mode,
 			},
 		},
 		Locality:           make([]*nodev1.LocalitySummary, 0, len(snapshot.Heat.Locality)),
@@ -99,29 +84,18 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			CpuMilli: snapshot.Node.Allocatable.CpuMilli, MemoryBytes: snapshot.Node.Allocatable.MemoryBytes,
 			EphemeralStorageBytes: snapshot.Node.Allocatable.EphemeralStorageBytes,
 		},
-		Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
 		MemoryBudget: &nodev1.NodeMemoryBudget{
-			PhysicalCapacityBytes:     snapshot.Node.MemoryBudget.PhysicalCapacityBytes,
-			SourceAllocatableBytes:    snapshot.Node.MemoryBudget.SourceAllocatableBytes,
-			DelegatedRootLimitBytes:   snapshot.Node.MemoryBudget.DelegatedRootLimitBytes,
-			DelegatedRootLimitFinite:  snapshot.Node.MemoryBudget.DelegatedRootLimitFinite,
-			SystemReserveBytes:        snapshot.Node.MemoryBudget.SystemReserveBytes,
-			EffectiveAllocatableBytes: snapshot.Node.MemoryBudget.EffectiveAllocatableBytes,
-			LocalCommitmentBytes:      snapshot.Node.MemoryBudget.LocalCommitmentBytes,
-			CleanupDebtBytes:          snapshot.Node.MemoryBudget.CleanupDebtBytes,
-			InternalCurrentBytes:      snapshot.Node.MemoryBudget.InternalCurrentBytes,
-			CapacityIdentity:          snapshot.Node.MemoryBudget.CapacityIdentity,
-			Mode:                      memoryBudgetModeToProto(snapshot.Node.MemoryBudget.Mode),
-			RetiringCgroupCount:       int32(snapshot.Node.MemoryBudget.RetiringCgroupCount),
-			OldestRetiringAgeSeconds:  snapshot.Node.MemoryBudget.OldestRetiringAgeSeconds,
-			SystemReserveExhausted:    snapshot.Node.MemoryBudget.SystemReserveExhausted,
+			SourceAllocatableBytes:   snapshot.Node.MemoryBudget.SourceAllocatableBytes,
+			DelegatedRootLimitBytes:  snapshot.Node.MemoryBudget.DelegatedRootLimitBytes,
+			DelegatedRootLimitFinite: snapshot.Node.MemoryBudget.DelegatedRootLimitFinite,
+			SystemReserveBytes:       snapshot.Node.MemoryBudget.SystemReserveBytes,
+			CapacityIdentity:         snapshot.Node.MemoryBudget.CapacityIdentity,
+			Mode:                     memoryBudgetModeToProto(snapshot.Node.MemoryBudget.Mode),
+			SystemReserveExhausted:   snapshot.Node.MemoryBudget.SystemReserveExhausted,
 		},
 	}
 	if !snapshot.Node.MemoryBudget.SampledAt.IsZero() {
 		summary.MemoryBudget.SampledAt = timestamppb.New(snapshot.Node.MemoryBudget.SampledAt)
-	}
-	if !snapshot.Components.Volumed.LastReconcileAt.IsZero() {
-		summary.Components.Volumed.LastReconcileAt = timestamppb.New(snapshot.Components.Volumed.LastReconcileAt)
 	}
 	for _, entry := range snapshot.Heat.Locality {
 		summary.Locality = append(summary.Locality, &nodev1.LocalitySummary{
@@ -129,7 +103,7 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			RootfsType:                 rootfsTypeToProto(entry.RootfsType),
 			MountType:                  mountTypeToProto(entry.MountType),
 			Mounted:                    entry.Mounted,
-			RetainedRuntimeCount:       int32(entry.RetainedRuntimeCount),
+			RetainedEnvironmentCount:   int32(entry.RetainedEnvironmentCount),
 			RetainedRootfsCount:        int32(entry.RetainedRootfsCount),
 			RunningContainerCount:      int32(entry.RunningContainerCount),
 			NydusDaemonAlive:           entry.NydusDaemonAlive,
@@ -142,7 +116,7 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 		})
 	}
 	for _, entry := range snapshot.Storage {
-		summary.Storage = append(summary.Storage, &nodev1.NodeStorageSummary{
+		summary.Diagnostics.Storage = append(summary.Diagnostics.Storage, &nodev1.NodeStorageSummary{
 			Target:                      entry.Target,
 			CapacityBytes:               entry.CapacityBytes,
 			UsedBytes:                   entry.UsedBytes,
@@ -153,9 +127,9 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			Collected:                   entry.Collected,
 			Error:                       entry.Error,
 			SystemReserveBytes:          entry.SystemReserveBytes,
-			ReservedBytes:               entry.ReservedBytes,
+			ChargedBytes:                entry.ChargedBytes,
 			AllocatableBytes:            entry.AllocatableBytes,
-			ActiveReservations:          entry.ActiveReservations,
+			ActiveAllocations:           entry.ActiveAllocations,
 			FilesystemType:              entry.FilesystemType,
 			MountIdentity:               entry.MountIdentity,
 			AllocationUsedBytes:         entry.AllocationUsedBytes,
@@ -230,8 +204,6 @@ func rootfsTypeToProto(rootfsType string) nodev1.RootfsType {
 		return nodev1.RootfsType_ROOTFS_TYPE_LOCAL
 	case "image":
 		return nodev1.RootfsType_ROOTFS_TYPE_IMAGE
-	case "s3":
-		return nodev1.RootfsType_ROOTFS_TYPE_S3
 	default:
 		return nodev1.RootfsType_ROOTFS_TYPE_UNSPECIFIED
 	}
@@ -245,8 +217,6 @@ func mountTypeToProto(mountType string) nodev1.MountType {
 		return nodev1.MountType_MOUNT_TYPE_OCI
 	case "nydus":
 		return nodev1.MountType_MOUNT_TYPE_NYDUS
-	case "oss":
-		return nodev1.MountType_MOUNT_TYPE_OSS
 	case "erofs":
 		return nodev1.MountType_MOUNT_TYPE_EROFS
 	default:

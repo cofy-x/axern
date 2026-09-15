@@ -15,28 +15,11 @@ message ExecSpec {
   int64 timeout_seconds = 4;
   bool tty = 5;
   string user = 6;
-  ManagedProxySpec managed_proxy = 7;
-}
-
-message ManagedProxySpec {
-  string provider = 1;
-  string upstream_base_url = 2;
-  string upstream_bearer_token = 3;
-}
-
-message ManagedProxyReport {
-  string provider = 1;
-  int32 request_count = 2;
-  int32 response_count = 3;
-  int32 error_count = 4;
-  bytes report_json = 5;
 }
 
 message ExecRequest {
-  ExecSpec spec = 3;
-  string allocation_id = 4;
-  int64 attempt = 5;
-  string execution_lease_token = 6;
+  ExecSpec spec = 1;
+  string allocation_id = 2;
 }
 
 message ExecResponse {
@@ -45,15 +28,6 @@ message ExecResponse {
   bytes stderr = 3;
   bool stdout_truncated = 4;
   bool stderr_truncated = 5;
-  ManagedProxyReport managed_proxy_report = 6;
-}
-
-message ExecStreamOpen {
-  ExecSpec spec = 3;
-  string allocation_id = 4;
-  int64 attempt = 5;
-  string execution_lease_token = 6;
-  TerminalResize initial_size = 7;
 }
 
 message TerminalResize {
@@ -61,34 +35,15 @@ message TerminalResize {
   uint32 rows = 2;
 }
 
-message ExecStreamRequest {
-  oneof payload {
-    ExecStreamOpen open = 1;
-    bytes stdin = 2;
-    TerminalResize resize = 3;
-    bool close_stdin = 4;
-  }
-}
-
 message ExecExit {
   int32 exit_code = 1;
   string message = 2;
-  ManagedProxyReport managed_proxy_report = 3;
-}
-
-message ExecStreamResponse {
-  oneof payload {
-    bytes stdout = 1;
-    bytes stderr = 2;
-    ExecExit exit = 3;
-  }
 }
 
 message ProcessOpen {
-  ExecSpec spec = 3;
-  string allocation_id = 4;
-  int64 attempt = 5;
-  string execution_lease_token = 6;
+  ExecSpec spec = 1;
+  string allocation_id = 2;
+  TerminalResize initial_size = 3;
 }
 
 message ProcessSignal {
@@ -116,89 +71,6 @@ message ProcessResponse {
   }
 }
 
-message ImageProcessMount {
-  string sandbox_path = 1;
-  string target_path = 2;
-  bool readonly = 3;
-  repeated string options = 4;
-}
-
-message ImageProcessSpec {
-  string image = 1;
-  repeated string argv = 2;
-  map<string, string> env = 3;
-  string cwd = 4;
-  int64 timeout_seconds = 5;
-  bool tty = 6;
-  string user = 7;
-  repeated ImageProcessMount mounts = 8;
-  ManagedProxySpec managed_proxy = 9;
-}
-
-message ExecImageRequest {
-  ImageProcessSpec spec = 3;
-  string allocation_id = 4;
-  int64 attempt = 5;
-  string execution_lease_token = 6;
-}
-
-message ExecImageResponse {
-  int32 exit_code = 1;
-  bytes stdout = 2;
-  bytes stderr = 3;
-  bool stdout_truncated = 4;
-  bool stderr_truncated = 5;
-  ManagedProxyReport managed_proxy_report = 6;
-}
-
-message ProcessImageOpen {
-  ImageProcessSpec spec = 3;
-  string allocation_id = 4;
-  int64 attempt = 5;
-  string execution_lease_token = 6;
-}
-
-message ProcessImageRequest {
-  oneof payload {
-    ProcessImageOpen open = 1;
-    bytes stdin = 2;
-    TerminalResize resize = 3;
-    bool close_stdin = 4;
-    ProcessSignal signal = 5;
-  }
-}
-
-message ProcessImageResponse {
-  oneof payload {
-    bytes stdout = 1;
-    bytes stderr = 2;
-    ExecExit exit = 3;
-    ProcessReady ready = 4;
-  }
-}
-
-// Lifecycle
-
-enum SandboxProcessState {
-  SANDBOX_PROCESS_STATE_UNSPECIFIED = 0;
-  SANDBOX_PROCESS_STATE_RUNNING = 1;
-  SANDBOX_PROCESS_STATE_EXITED = 2;
-  SANDBOX_PROCESS_STATE_UNKNOWN = 3;
-}
-
-message WaitSandboxRequest {
-  string allocation_id = 3;
-  int64 attempt = 4;
-  string execution_lease_token = 5;
-}
-
-message WaitSandboxResponse {
-  SandboxProcessState state = 1;
-  int32 exit_code = 2;
-  bool exit_code_known = 3;
-  string message = 4;
-}
-
 enum OutputStream {
   OUTPUT_STREAM_UNSPECIFIED = 0;
   OUTPUT_STREAM_STDOUT = 1;
@@ -207,10 +79,8 @@ enum OutputStream {
 
 message ReadOutputRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string cursor = 4;
-  bool follow = 5;
+  string cursor = 2;
+  bool follow = 3;
 }
 
 message ReadOutputResponse {
@@ -226,11 +96,9 @@ message ReadOutputResponse {
 
 message CapabilityStatusRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
 }
 
-message CapabilityDependencyStatus {
+message CapabilityProviderDependencyStatus {
   string name = 1;
   bool available = 2;
   string reason = 3;
@@ -243,7 +111,7 @@ message CapabilityProviderStatus {
   repeated string capabilities = 4;
   string backend = 5;
   string reason = 6;
-  repeated CapabilityDependencyStatus dependencies = 7;
+  repeated CapabilityProviderDependencyStatus dependencies = 7;
 }
 
 message CapabilityProviderSummary {
@@ -260,59 +128,11 @@ message CapabilityStatusResponse {
   CapabilityProviderSummary provider_summary = 4;
 }
 
-// HTTP proxying
-
-message ProxyHTTPHeader {
-  string key = 1;
-  string value = 2;
-}
-
-message ProxyHTTPOpen {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  int32 port = 4;
-  string method = 5;
-  string path = 6;
-  string query = 7;
-  repeated ProxyHTTPHeader headers = 8;
-  bool has_body = 9;
-  int64 content_length = 10;
-}
-
-message ProxyHTTPResponseHead {
-  int32 status_code = 1;
-  repeated ProxyHTTPHeader headers = 2;
-}
-
-message ProxyHTTPTrailers {
-  repeated ProxyHTTPHeader headers = 1;
-}
-
-message ProxyHTTPRequest {
-  oneof payload {
-    ProxyHTTPOpen open = 1;
-    bytes body = 2;
-    bool close_body = 3;
-  }
-}
-
-message ProxyHTTPResponse {
-  oneof payload {
-    ProxyHTTPResponseHead head = 1;
-    bytes body = 2;
-    ProxyHTTPTrailers trailers = 3;
-    string error = 4;
-  }
-}
-
 // Files
 
 message StatFileRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
+  string path = 2;
 }
 
 message StatFileResponse {
@@ -321,9 +141,7 @@ message StatFileResponse {
 
 message ListDirRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
+  string path = 2;
 }
 
 message ListDirResponse {
@@ -332,9 +150,7 @@ message ListDirResponse {
 
 message ReadFileRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
+  string path = 2;
 }
 
 message ReadFileResponse {
@@ -343,60 +159,33 @@ message ReadFileResponse {
 
 message WriteFileRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  bytes data = 5;
-  bool create_parents = 6;
+  string path = 2;
+  bytes data = 3;
+  bool create_parents = 4;
 }
 
 message WriteFileResponse {}
 
-enum TaskAssetKind {
-  TASK_ASSET_KIND_UNSPECIFIED = 0;
-  TASK_ASSET_KIND_VERIFIER = 1;
-  TASK_ASSET_KIND_ORACLE = 2;
-}
-
-message MaterializeTaskAssetsRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string source_path = 4;
-  string target = 5;
-  TaskAssetKind kind = 6;
-}
-
-message MaterializeTaskAssetsResponse {
-  int64 duration_ms = 1;
-}
-
 message MkdirRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  bool parents = 5;
+  string path = 2;
+  bool parents = 3;
 }
 
 message MkdirResponse {}
 
 message RemoveRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  bool recursive = 5;
-  bool force = 6;
+  string path = 2;
+  bool recursive = 3;
+  bool force = 4;
 }
 
 message RemoveResponse {}
 
 message ExistsRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
+  string path = 2;
 }
 
 message ExistsResponse {
@@ -405,58 +194,48 @@ message ExistsResponse {
 
 message CopyRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string src_path = 4;
-  string dst_path = 5;
-  bool recursive = 6;
-  bool overwrite = 7;
+  string src_path = 2;
+  string dst_path = 3;
+  bool recursive = 4;
+  bool overwrite = 5;
 }
 
 message CopyResponse {}
 
 message MoveRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string src_path = 4;
-  string dst_path = 5;
-  bool overwrite = 6;
+  string src_path = 2;
+  string dst_path = 3;
+  bool overwrite = 4;
 }
 
 message MoveResponse {}
 
 message ChmodRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  uint32 mode = 5;
-  bool recursive = 6;
+  string path = 2;
+  uint32 mode = 3;
+  bool recursive = 4;
 }
 
 message ChmodResponse {}
 
 message TouchRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  bool create = 5;
-  int64 mtime_ns = 6;
+  string path = 2;
+  bool create = 3;
+  int64 mtime_ns = 4;
 }
 
 message TouchResponse {}
 
 message UploadArchiveOpen {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  axern.common.file.v1.SandboxArchiveFormat format = 5;
-  bool create_parents = 6;
-  bool overwrite = 7;
-  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 8;
+  string path = 2;
+  axern.common.file.v1.SandboxArchiveFormat format = 3;
+  bool create_parents = 4;
+  bool overwrite = 5;
+  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 6;
 }
 
 message UploadArchiveRequest {
@@ -470,11 +249,9 @@ message UploadArchiveResponse {}
 
 message DownloadArchiveRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string path = 4;
-  axern.common.file.v1.SandboxArchiveFormat format = 5;
-  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 6;
+  string path = 2;
+  axern.common.file.v1.SandboxArchiveFormat format = 3;
+  axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 4;
 }
 
 message DownloadArchiveResponse {
@@ -485,8 +262,6 @@ message DownloadArchiveResponse {
 
 message ComputerUseStatusRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
 }
 
 message ComputerUseStatusResponse {
@@ -512,13 +287,11 @@ message ComputerUseRegion {
 
 message ComputerUseScreenshotRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  bool show_cursor = 4;
-  ComputerUseRegion region = 5;
-  string format = 6;
-  int32 quality = 7;
-  double scale = 8;
+  bool show_cursor = 2;
+  ComputerUseRegion region = 3;
+  string format = 4;
+  int32 quality = 5;
+  double scale = 6;
 }
 
 message ComputerUseScreenshotResponse {
@@ -528,8 +301,6 @@ message ComputerUseScreenshotResponse {
 
 message ComputerUseDisplayRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
 }
 
 message ComputerUseDisplayResponse {
@@ -541,116 +312,37 @@ message ComputerUseDisplayResponse {
 
 message ComputerUseMouseRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string action = 4;
-  int32 x = 5;
-  int32 y = 6;
-  int32 to_x = 7;
-  int32 to_y = 8;
-  string button = 9;
-  string direction = 10;
-  int32 amount = 11;
+  string action = 2;
+  int32 x = 3;
+  int32 y = 4;
+  int32 to_x = 5;
+  int32 to_y = 6;
+  string button = 7;
+  string direction = 8;
+  int32 amount = 9;
 }
 
 message ComputerUseMouseResponse {}
 
 message ComputerUseKeyboardRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string text = 4;
-  string key = 5;
-  repeated string keys = 6;
-  int32 delay_ms = 7;
+  string text = 2;
+  string key = 3;
+  repeated string keys = 4;
+  int32 delay_ms = 5;
 }
 
 message ComputerUseKeyboardResponse {}
 
-// Browser
-
-message BrowserStatusRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-}
-
-message BrowserStatusResponse {
-  bool available = 1;
-  string command = 2;
-  bool running = 3;
-  int32 pid = 4;
-  string url = 5;
-  string reason = 6;
-}
-
-message BrowserOpenRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string url = 4;
-}
-
-message BrowserCloseRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-}
-
-message BrowserNavigateRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string url = 4;
-}
-
-message BrowserResizeRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  int32 width = 4;
-  int32 height = 5;
-}
-
-message BrowserClickRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  int32 x = 4;
-  int32 y = 5;
-  string button = 6;
-}
-
-message BrowserTypeRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  string text = 4;
-  int32 delay_ms = 5;
-}
-
-message BrowserWaitRequest {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string execution_lease_token = 3;
-  int32 timeout_ms = 4;
-}
-
 service NodeSandbox {
   rpc Exec(ExecRequest) returns (ExecResponse) {}
-  rpc ExecStream(stream ExecStreamRequest) returns (stream ExecStreamResponse) {}
   rpc Process(stream ProcessRequest) returns (stream ProcessResponse) {}
-  rpc ExecImage(ExecImageRequest) returns (ExecImageResponse) {}
-  rpc ProcessImage(stream ProcessImageRequest) returns (stream ProcessImageResponse) {}
-  rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
   rpc CapabilityStatus(CapabilityStatusRequest) returns (CapabilityStatusResponse) {}
-  rpc ProxyHTTP(stream ProxyHTTPRequest) returns (stream ProxyHTTPResponse) {}
   rpc StatFile(StatFileRequest) returns (StatFileResponse) {}
   rpc ListDir(ListDirRequest) returns (ListDirResponse) {}
   rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {}
   rpc WriteFile(WriteFileRequest) returns (WriteFileResponse) {}
-  rpc MaterializeTaskAssets(MaterializeTaskAssetsRequest) returns (MaterializeTaskAssetsResponse) {}
   rpc Mkdir(MkdirRequest) returns (MkdirResponse) {}
   rpc Remove(RemoveRequest) returns (RemoveResponse) {}
   rpc Exists(ExistsRequest) returns (ExistsResponse) {}
@@ -665,12 +357,4 @@ service NodeSandbox {
   rpc ComputerUseDisplay(ComputerUseDisplayRequest) returns (ComputerUseDisplayResponse) {}
   rpc ComputerUseMouse(ComputerUseMouseRequest) returns (ComputerUseMouseResponse) {}
   rpc ComputerUseKeyboard(ComputerUseKeyboardRequest) returns (ComputerUseKeyboardResponse) {}
-  rpc BrowserStatus(BrowserStatusRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserOpen(BrowserOpenRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserClose(BrowserCloseRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserNavigate(BrowserNavigateRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserResize(BrowserResizeRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserClick(BrowserClickRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserType(BrowserTypeRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserWait(BrowserWaitRequest) returns (BrowserStatusResponse) {}
 }

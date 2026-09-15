@@ -40,7 +40,7 @@ const sdk = await import(pathToFileURL(path.join(prefix, "node_modules/@cofy-x/a
 if (sdk.AXERN_VERSION !== expected || sdk.platformName() !== "axern") {
   throw new Error(`unexpected TypeScript SDK metadata: ${sdk.AXERN_VERSION}`);
 }
-for (const symbol of ["AxernClient", "Sandbox", "NodeSandboxClient", "NetworkPolicy"]) {
+for (const symbol of ["AxernClient", "Sandbox", "AllocationClient", "NetworkPolicy"]) {
   if (typeof sdk[symbol] !== "function") {
     throw new Error(`missing TypeScript SDK export ${symbol}`);
   }

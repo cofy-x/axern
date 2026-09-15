@@ -26,6 +26,11 @@ type InterfaceManager struct {
 	allInterfaces   []net.Interface
 	interfaces      *queue.Queue[string]
 	usingInterfaces cmap.ConcurrentMap[string, struct{}]
+	// allocationLeases is keyed by the globally unique Allocation ID. It is the
+	// durable network ownership ledger; usingInterfaces remains only a pool
+	// index keyed by the serialized resource.
+	allocationLeases *cmap.ConcurrentMap[string, string]
+	leaseMu          sync.Mutex
 
 	bridgeLink netlink.Link
 
@@ -50,13 +55,14 @@ type InterfaceManager struct {
 	validateDeviceFunc              func(*NetResource) error
 	validateDeviceConfigurationFunc func(*NetResource) error
 	deleteNeighborFunc              func(net.IP) error
+}
 
-	// storeMark is used to mark whether the cgroup id need to be stored.
-	// If it's true, manager should not exit.
-	storeMark atomic.Bool
-	storeStop chan struct{}
-	storeDone chan struct{}
-	storeOnce sync.Once
+func (m *InterfaceManager) ensureLeaseIndexLocked() {
+	if m.allocationLeases != nil {
+		return
+	}
+	index := cmap.New[string]()
+	m.allocationLeases = &index
 }
 
 func (m *InterfaceManager) MaxSizeLimit() int {
@@ -169,10 +175,6 @@ func (m *InterfaceManager) waitForBuild(ctx context.Context, observedGeneration 
 func (m *InterfaceManager) ShutDown() error {
 	if m.poolController != nil {
 		m.poolController.shutdown()
-	}
-	m.stopStoreLoop()
-	if m.storeMark.Load() {
-		m.store()
 	}
 	m.cleanup()
 	return nil

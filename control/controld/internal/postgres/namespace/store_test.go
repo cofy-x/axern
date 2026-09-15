@@ -8,9 +8,8 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
-	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -28,9 +27,6 @@ func TestStoreCreatesGetsAndListsNamespaces(t *testing.T) {
 	}
 	if created.GetNamespace() != "team-a" {
 		t.Fatalf("namespace = %q, want team-a", created.GetNamespace())
-	}
-	if created.GetVersion() != 1 {
-		t.Fatalf("version = %d, want 1", created.GetVersion())
 	}
 
 	got, err := store.GetNamespace(ctx, "team-a")
@@ -73,6 +69,9 @@ func TestStoreDeletesNamespaceWhenInactive(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
 
+	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
+		t.Fatalf("CreateNamespace() error = %v", err)
+	}
 	if _, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli: wrapperspb.Int64(1000),
 	}, now); err != nil {
@@ -91,9 +90,12 @@ func TestStoreDeletesNamespaceWhenInactive(t *testing.T) {
 	if _, err := store.Get(ctx, "team-a"); grpcstatus.Code(err) != codes.NotFound {
 		t.Fatalf("Get quota code = %v, want NotFound err=%v", grpcstatus.Code(err), err)
 	}
+	if _, err := store.CreateNamespace(ctx, "team-a", now.Add(time.Second)); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("recreate deleted namespace code = %v, want FailedPrecondition err=%v", grpcstatus.Code(err), err)
+	}
 }
 
-func TestStoreDeleteNamespaceRejectsActiveReservation(t *testing.T) {
+func TestStoreDeleteNamespaceRejectsActiveAllocation(t *testing.T) {
 	db := newNamespaceTestDB(t)
 	store := NewStore(db)
 	ctx := context.Background()
@@ -102,7 +104,7 @@ func TestStoreDeleteNamespaceRejectsActiveReservation(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	insertReservation(t, db, "active-a", "alloc-active-a", "team-a", 100, 128<<20, false, now)
+	insertAllocationCharge(t, db, "active-a", "alloc-active-a", "team-a", 100, 128<<20, false, now)
 	if _, err := store.DeleteNamespace(ctx, "team-a", now); grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("DeleteNamespace() code = %v, want FailedPrecondition err=%v", grpcstatus.Code(err), err)
 	}
@@ -117,7 +119,7 @@ func TestStoreDeleteNamespaceRejectsActiveRoleBinding(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	if _, err := db.Pool().Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at) VALUES('prn-viewer','viewer','Viewer','human','active',1,$1,$1)`, now); err != nil {
+	if _, err := db.Pool().Exec(ctx, `INSERT INTO principals(principal_id,name,display_name,kind,status,created_at,updated_at) VALUES('prn-viewer','viewer','Viewer','human','active',$1,$1)`, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `INSERT INTO role_bindings(binding_id,principal_id,scope_type,namespace,role,created_at) VALUES('rb-viewer','prn-viewer','namespace','team-a','namespace_viewer',$1)`, now); err != nil {
@@ -150,7 +152,7 @@ func TestStoreDeleteNamespaceRejectsLiveEnvironment(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	insertEnvironment(t, db, "env-a", "team-a", environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY, now)
+	insertEnvironment(t, db, "env-a", "team-a", false, now)
 	if _, err := store.DeleteNamespace(ctx, "team-a", now); grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("DeleteNamespace() code = %v, want FailedPrecondition err=%v", grpcstatus.Code(err), err)
 	}
@@ -165,7 +167,7 @@ func TestStoreDeleteNamespaceAllowsDeletedEnvironment(t *testing.T) {
 	if _, err := store.CreateNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("CreateNamespace() error = %v", err)
 	}
-	insertEnvironment(t, db, "env-a", "team-a", environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_DELETED, now)
+	insertEnvironment(t, db, "env-a", "team-a", true, now)
 	if _, err := store.DeleteNamespace(ctx, "team-a", now); err != nil {
 		t.Fatalf("DeleteNamespace() error = %v", err)
 	}
@@ -194,6 +196,7 @@ func TestStoreReportsActiveUsageAndNullableLimits(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a", "team-b")
 
 	quota, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(1000),
@@ -208,19 +211,19 @@ func TestStoreReportsActiveUsageAndNullableLimits(t *testing.T) {
 	if quota.GetCpuMilliLimit().GetValue() != 1000 {
 		t.Fatalf("cpu limit = %d, want 1000", quota.GetCpuMilliLimit().GetValue())
 	}
-	insertReservation(t, db, "active-a", "alloc-active-a", "team-a", 300, 256<<20, false, now)
-	insertReservation(t, db, "active-b", "alloc-active-b", "team-a", 200, 128<<20, false, now)
-	insertReservation(t, db, "released-a", "alloc-released-a", "team-a", 900, 512<<20, true, now)
+	insertAllocationCharge(t, db, "active-a", "alloc-active-a", "team-a", 300, 256<<20, false, now)
+	insertAllocationCharge(t, db, "active-b", "alloc-active-b", "team-a", 200, 128<<20, false, now)
+	insertAllocationCharge(t, db, "released-a", "alloc-released-a", "team-a", 900, 512<<20, true, now)
 
 	quota, err = store.Get(ctx, "team-a")
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
-	if quota.GetReservedCpuMilli() != 500 {
-		t.Fatalf("reserved cpu = %d, want 500", quota.GetReservedCpuMilli())
+	if quota.GetUsedCpuMilli() != 500 {
+		t.Fatalf("used cpu = %d, want 500", quota.GetUsedCpuMilli())
 	}
-	if quota.GetReservedMemoryBytes() != 384<<20 {
-		t.Fatalf("reserved memory = %d, want %d", quota.GetReservedMemoryBytes(), int64(384<<20))
+	if quota.GetUsedMemoryBytes() != 384<<20 {
+		t.Fatalf("used memory = %d, want %d", quota.GetUsedMemoryBytes(), int64(384<<20))
 	}
 	if quota.GetAvailableCpuMilli().GetValue() != 500 {
 		t.Fatalf("available cpu = %d, want 500", quota.GetAvailableCpuMilli().GetValue())
@@ -246,13 +249,14 @@ func TestStoreUnsetReturnsUnlimitedQuota(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a")
 	if _, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(1000),
 		MemoryBytes: wrapperspb.Int64(1 << 30),
 	}, now); err != nil {
 		t.Fatalf("Set() error = %v", err)
 	}
-	insertReservation(t, db, "active-a", "alloc-active-a", "team-a", 300, 256<<20, false, now)
+	insertAllocationCharge(t, db, "active-a", "alloc-active-a", "team-a", 300, 256<<20, false, now)
 
 	quota, err := store.Unset(ctx, "team-a", now.Add(time.Second))
 	if err != nil {
@@ -264,8 +268,8 @@ func TestStoreUnsetReturnsUnlimitedQuota(t *testing.T) {
 	if quota.GetAvailableCpuMilli() != nil || quota.GetAvailableMemoryBytes() != nil {
 		t.Fatalf("available should be nil after clear: cpu=%v memory=%v", quota.GetAvailableCpuMilli(), quota.GetAvailableMemoryBytes())
 	}
-	if quota.GetReservedCpuMilli() != 300 || quota.GetReservedMemoryBytes() != 256<<20 {
-		t.Fatalf("reserved after clear = cpu %d memory %d, want cpu 300 memory %d", quota.GetReservedCpuMilli(), quota.GetReservedMemoryBytes(), int64(256<<20))
+	if quota.GetUsedCpuMilli() != 300 || quota.GetUsedMemoryBytes() != 256<<20 {
+		t.Fatalf("used after clear = cpu %d memory %d, want cpu 300 memory %d", quota.GetUsedCpuMilli(), quota.GetUsedMemoryBytes(), int64(256<<20))
 	}
 }
 
@@ -274,13 +278,14 @@ func TestStoreAllowsLoweringQuotaBelowActiveUsage(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a")
 	if _, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(4000),
 		MemoryBytes: wrapperspb.Int64(4 << 30),
 	}, now); err != nil {
 		t.Fatalf("initial Set() error = %v", err)
 	}
-	insertReservation(t, db, "active-a", "alloc-active-a", "team-a", 1200, 2<<30, false, now)
+	insertAllocationCharge(t, db, "active-a", "alloc-active-a", "team-a", 1200, 2<<30, false, now)
 
 	quota, err := store.Set(ctx, "team-a", &quotav1.NamespaceQuotaLimits{
 		CpuMilli:    wrapperspb.Int64(1000),
@@ -289,14 +294,14 @@ func TestStoreAllowsLoweringQuotaBelowActiveUsage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Set() error = %v", err)
 	}
-	if quota.GetReservedCpuMilli() != 1200 {
-		t.Fatalf("reserved cpu = %d, want 1200", quota.GetReservedCpuMilli())
+	if quota.GetUsedCpuMilli() != 1200 {
+		t.Fatalf("used cpu = %d, want 1200", quota.GetUsedCpuMilli())
 	}
 	if quota.GetAvailableCpuMilli().GetValue() != 0 {
 		t.Fatalf("available cpu = %d, want 0", quota.GetAvailableCpuMilli().GetValue())
 	}
-	if quota.GetReservedMemoryBytes() != 2<<30 {
-		t.Fatalf("reserved memory = %d, want %d", quota.GetReservedMemoryBytes(), int64(2<<30))
+	if quota.GetUsedMemoryBytes() != 2<<30 {
+		t.Fatalf("used memory = %d, want %d", quota.GetUsedMemoryBytes(), int64(2<<30))
 	}
 	if quota.GetAvailableMemoryBytes().GetValue() != 0 {
 		t.Fatalf("available memory = %d, want 0", quota.GetAvailableMemoryBytes().GetValue())
@@ -308,6 +313,7 @@ func TestStoreSetWaitsForNamespaceQuotaLock(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 5, 8, 10, 0, 0, 0, time.UTC)
+	createNamespaceFixtures(t, store, now, "team-a")
 
 	tx, err := db.Pool().Begin(ctx)
 	if err != nil {
@@ -355,7 +361,6 @@ func truncateNamespaceTestTables(t *testing.T, db *postgres.DB) {
 			principals,
 			runs,
 			environments,
-			workload_reservations,
 			namespace_resource_quotas,
 			namespaces
 		CASCADE
@@ -364,42 +369,55 @@ func truncateNamespaceTestTables(t *testing.T, db *postgres.DB) {
 	}
 }
 
-func insertReservation(t *testing.T, db *postgres.DB, reservationID, allocationID, namespace string, cpuMilli, memoryBytes int64, released bool, now time.Time) {
+func createNamespaceFixtures(t *testing.T, store *Store, now time.Time, namespaces ...string) {
 	t.Helper()
-	var releasedAt any
-	if released {
-		releasedAt = now.Add(time.Minute)
-	}
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO workload_reservations (
-			reservation_id, allocation_id, namespace, owner_type, owner_id, node_id,
-			cpu_milli, sandbox_memory_request_bytes, created_at, released_at
-		) VALUES ($1, $2, $3, 'run', $4, 'node-a', $5, $6, $7, $8)
-	`, reservationID, allocationID, namespace, allocationID, cpuMilli, memoryBytes, now, releasedAt); err != nil {
-		t.Fatalf("insert reservation %s: %v", reservationID, err)
+	for _, namespace := range namespaces {
+		if _, err := store.CreateNamespace(context.Background(), namespace, now); err != nil {
+			t.Fatalf("create namespace fixture %q: %v", namespace, err)
+		}
 	}
 }
 
-func insertEnvironment(t *testing.T, db *postgres.DB, environmentID, namespace string, status environmentv1.EnvironmentStatus, now time.Time) {
+func insertAllocationCharge(t *testing.T, db *postgres.DB, chargeID, allocationID, namespace string, cpuMilli, memoryBytes int64, released bool, now time.Time) {
 	t.Helper()
+	_ = chargeID
+	lifecycleState := commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String()
+	if released {
+		lifecycleState = commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO nodes (node_id, node_target, enrollment_token_hash, admitted_at, last_heartbeat_at, lifecycle_status)
+		VALUES ('node-a', '127.0.0.1:24010', repeat('0', 64), $1, $1, 'active')
+		ON CONFLICT (node_id) DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("insert allocation-charge node: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, $2, 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3, $3)
+	`, allocationID, namespace, now); err != nil {
+		t.Fatalf("insert allocation-charge Run: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO allocations (
+			allocation_id, run_id, node_id, lifecycle_state,
+			cpu_request_milli, sandbox_memory_request_bytes, created_at, updated_at
+		) VALUES ($1, $1, 'node-a', $2, $3, $4, $5, $5)
+	`, allocationID, lifecycleState, cpuMilli, memoryBytes, now); err != nil {
+		t.Fatalf("insert allocation resource charge: %v", err)
+	}
+}
+
+func insertEnvironment(t *testing.T, db *postgres.DB, environmentID, namespace string, deleted bool, now time.Time) {
+	t.Helper()
+	if deleted {
+		return
+	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO environments (
-			environment_id, namespace, status, spec_hash, spec, resolved_template,
-			labels, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $5, $5)
-	`, environmentID, namespace, status.String(), environmentID+"-hash", now); err != nil {
+			environment_id, namespace, spec, resolved_spec, labels, created_at
+		) VALUES ($1, $2, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $3)
+	`, environmentID, namespace, now); err != nil {
 		t.Fatalf("insert environment %s: %v", environmentID, err)
-	}
-}
-
-func insertRun(t *testing.T, db *postgres.DB, runID, namespace, environmentID, allocationID string, status runv1.RunStatus, now time.Time) {
-	t.Helper()
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO runs (
-			run_id, namespace, environment_id, allocation_id, status, config,
-			labels, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, '{}'::jsonb, '{}'::jsonb, $6, $6)
-	`, runID, namespace, environmentID, allocationID, status.String(), now); err != nil {
-		t.Fatalf("insert run %s: %v", runID, err)
 	}
 }

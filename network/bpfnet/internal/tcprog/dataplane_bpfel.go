@@ -19,21 +19,6 @@ type DataplaneConfigValue struct {
 	NativeRoutesEnabled uint32
 }
 
-type DataplaneLocalAddrKey struct{ Addr uint32 }
-
-type DataplaneLocalAddrValue struct {
-	Present uint8
-	Pad     [3]uint8
-}
-
-type DataplaneLocalhostSockKey struct{ Cookie uint64 }
-
-type DataplaneLocalhostSockValue struct {
-	HostIp   uint32
-	HostPort uint16
-	Pad0     uint16
-}
-
 type DataplaneNativeRouteKey struct {
 	Prefixlen uint32
 	Addr      uint32
@@ -42,33 +27,6 @@ type DataplaneNativeRouteKey struct {
 type DataplaneNativeRouteValue struct {
 	Present uint8
 	Pad     [3]uint8
-}
-
-type DataplaneRevNatKey struct {
-	SrcIp   uint32
-	DstIp   uint32
-	SrcPort uint16
-	DstPort uint16
-	Proto   uint8
-	Pad     [3]uint8
-}
-
-type DataplaneRevNatValue struct {
-	HostIp   uint32
-	HostPort uint16
-	Pad0     uint16
-}
-
-type DataplaneServiceKey struct {
-	Proto    uint8
-	Pad0     uint8
-	HostPort uint16
-}
-
-type DataplaneServiceValue struct {
-	TargetIp   uint32
-	TargetPort uint16
-	Pad0       uint16
 }
 
 type DataplaneSnatFwdKey struct {
@@ -155,29 +113,21 @@ type DataplaneSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type DataplaneProgramSpecs struct {
-	DataplaneEgress       *ebpf.ProgramSpec `ebpf:"dataplane_egress"`
-	DataplaneIngress      *ebpf.ProgramSpec `ebpf:"dataplane_ingress"`
-	LocalhostConnect4     *ebpf.ProgramSpec `ebpf:"localhost_connect4"`
-	LocalhostGetpeername4 *ebpf.ProgramSpec `ebpf:"localhost_getpeername4"`
-	LocalhostSockRelease  *ebpf.ProgramSpec `ebpf:"localhost_sock_release"`
+	DataplaneEgress  *ebpf.ProgramSpec `ebpf:"dataplane_egress"`
+	DataplaneIngress *ebpf.ProgramSpec `ebpf:"dataplane_ingress"`
 }
 
 // DataplaneMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type DataplaneMapSpecs struct {
-	ConfigMap          *ebpf.MapSpec `ebpf:"config_map"`
-	HostNetnsCookieMap *ebpf.MapSpec `ebpf:"host_netns_cookie_map"`
-	LocalAddrMap       *ebpf.MapSpec `ebpf:"local_addr_map"`
-	LocalhostSockMap   *ebpf.MapSpec `ebpf:"localhost_sock_map"`
-	NativeRouteMap     *ebpf.MapSpec `ebpf:"native_route_map"`
-	RevNatMap          *ebpf.MapSpec `ebpf:"rev_nat_map"`
-	ServiceMap         *ebpf.MapSpec `ebpf:"service_map"`
-	SnatFwdMap         *ebpf.MapSpec `ebpf:"snat_fwd_map"`
-	SnatRevMap         *ebpf.MapSpec `ebpf:"snat_rev_map"`
-	SnatRevMarkerMap   *ebpf.MapSpec `ebpf:"snat_rev_marker_map"`
-	StatsMap           *ebpf.MapSpec `ebpf:"stats_map"`
-	UplinkAddrMap      *ebpf.MapSpec `ebpf:"uplink_addr_map"`
+	ConfigMap        *ebpf.MapSpec `ebpf:"config_map"`
+	NativeRouteMap   *ebpf.MapSpec `ebpf:"native_route_map"`
+	SnatFwdMap       *ebpf.MapSpec `ebpf:"snat_fwd_map"`
+	SnatRevMap       *ebpf.MapSpec `ebpf:"snat_rev_map"`
+	SnatRevMarkerMap *ebpf.MapSpec `ebpf:"snat_rev_marker_map"`
+	StatsMap         *ebpf.MapSpec `ebpf:"stats_map"`
+	UplinkAddrMap    *ebpf.MapSpec `ebpf:"uplink_addr_map"`
 }
 
 // DataplaneObjects contains all objects after they have been loaded into the kernel.
@@ -199,29 +149,19 @@ func (o *DataplaneObjects) Close() error {
 //
 // It can be passed to LoadDataplaneObjects or ebpf.CollectionSpec.LoadAndAssign.
 type DataplaneMaps struct {
-	ConfigMap          *ebpf.Map `ebpf:"config_map"`
-	HostNetnsCookieMap *ebpf.Map `ebpf:"host_netns_cookie_map"`
-	LocalAddrMap       *ebpf.Map `ebpf:"local_addr_map"`
-	LocalhostSockMap   *ebpf.Map `ebpf:"localhost_sock_map"`
-	NativeRouteMap     *ebpf.Map `ebpf:"native_route_map"`
-	RevNatMap          *ebpf.Map `ebpf:"rev_nat_map"`
-	ServiceMap         *ebpf.Map `ebpf:"service_map"`
-	SnatFwdMap         *ebpf.Map `ebpf:"snat_fwd_map"`
-	SnatRevMap         *ebpf.Map `ebpf:"snat_rev_map"`
-	SnatRevMarkerMap   *ebpf.Map `ebpf:"snat_rev_marker_map"`
-	StatsMap           *ebpf.Map `ebpf:"stats_map"`
-	UplinkAddrMap      *ebpf.Map `ebpf:"uplink_addr_map"`
+	ConfigMap        *ebpf.Map `ebpf:"config_map"`
+	NativeRouteMap   *ebpf.Map `ebpf:"native_route_map"`
+	SnatFwdMap       *ebpf.Map `ebpf:"snat_fwd_map"`
+	SnatRevMap       *ebpf.Map `ebpf:"snat_rev_map"`
+	SnatRevMarkerMap *ebpf.Map `ebpf:"snat_rev_marker_map"`
+	StatsMap         *ebpf.Map `ebpf:"stats_map"`
+	UplinkAddrMap    *ebpf.Map `ebpf:"uplink_addr_map"`
 }
 
 func (m *DataplaneMaps) Close() error {
 	return _DataplaneClose(
 		m.ConfigMap,
-		m.HostNetnsCookieMap,
-		m.LocalAddrMap,
-		m.LocalhostSockMap,
 		m.NativeRouteMap,
-		m.RevNatMap,
-		m.ServiceMap,
 		m.SnatFwdMap,
 		m.SnatRevMap,
 		m.SnatRevMarkerMap,
@@ -234,20 +174,14 @@ func (m *DataplaneMaps) Close() error {
 //
 // It can be passed to LoadDataplaneObjects or ebpf.CollectionSpec.LoadAndAssign.
 type DataplanePrograms struct {
-	DataplaneEgress       *ebpf.Program `ebpf:"dataplane_egress"`
-	DataplaneIngress      *ebpf.Program `ebpf:"dataplane_ingress"`
-	LocalhostConnect4     *ebpf.Program `ebpf:"localhost_connect4"`
-	LocalhostGetpeername4 *ebpf.Program `ebpf:"localhost_getpeername4"`
-	LocalhostSockRelease  *ebpf.Program `ebpf:"localhost_sock_release"`
+	DataplaneEgress  *ebpf.Program `ebpf:"dataplane_egress"`
+	DataplaneIngress *ebpf.Program `ebpf:"dataplane_ingress"`
 }
 
 func (p *DataplanePrograms) Close() error {
 	return _DataplaneClose(
 		p.DataplaneEgress,
 		p.DataplaneIngress,
-		p.LocalhostConnect4,
-		p.LocalhostGetpeername4,
-		p.LocalhostSockRelease,
 	)
 }
 

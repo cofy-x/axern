@@ -3,7 +3,6 @@ package sandboxd
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -27,11 +26,10 @@ func WaitReadyForContainer(ctx context.Context, bundlePath string, meta *apipb.C
 	}
 	socketPath := runtimeoci.SandboxdBundleSocketPath(bundlePath)
 	client := NewClient(socketPath)
-	snapshot, err := client.WaitReady(ctx, DefaultReadyTimeout, DefaultPollInterval)
+	_, err := client.WaitReady(ctx, DefaultReadyTimeout, DefaultPollInterval)
 	if err != nil {
 		return fmt.Errorf("sandboxd ready check failed for %s: %w", socketPath, err)
 	}
-	meta.Labels = EnrichLabels(meta.Labels, socketPath, snapshot)
 	return nil
 }
 
@@ -86,16 +84,4 @@ func readySnapshotFromDiagnostics(diagnostics wire.DiagnosticsResponse) wire.Rea
 			Summary:         diagnostics.ProviderSummary,
 		},
 	}
-}
-
-func EnrichLabels(labels map[string]string, socketPath string, snapshot wire.ReadySnapshot) map[string]string {
-	if labels == nil {
-		labels = map[string]string{}
-	}
-	capabilities := SnapshotFromReady(socketPath, snapshot).CapabilityList()
-	labels[LabelReady] = "true"
-	labels[LabelSocket] = socketPath
-	labels[LabelCapabilities] = strings.Join(capabilities, ",")
-	labels[LabelUserState] = snapshot.Status.UserProcess.State
-	return labels
 }

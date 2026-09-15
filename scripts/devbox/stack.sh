@@ -8,7 +8,6 @@ RUN_DIR="${DEV_DIR}/run"
 LOG_DIR="${STACK_DIR}/logs"
 PID_DIR="${STACK_DIR}/pids"
 BIN_DIR="${STACK_DIR}/bin"
-GATEWAY_DASHBOARD_VENDOR_DIR="${ROOT_DIR}/gateway/gatewayd/internal/api/http/dashboard/vendor"
 POSTGRES_DATA_DIR="${STACK_DIR}/postgres"
 
 POSTGRES_HOST="${POSTGRES_HOST:-127.0.0.1}"
@@ -21,8 +20,6 @@ POSTGRES_DSN="${POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@$
 AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
-AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN="${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN:-axern-local-node-token}"
-AXERN_DEV_TOKEN="${AXERN_DEV_TOKEN:-axern-local-dev}"
 AXERN_SECRETS_MASTER_KEY="${AXERN_SECRETS_MASTER_KEY:-local-only-master-key-32-bytes!!}"
 
 usage() {
@@ -41,12 +38,12 @@ Usage:
 Start Axern's standalone dev stack inside the Linux devbox.
 
 Services:
-  postgres, storaged, controld, tunneld, imagefsd, imagemgr, volumed, egressd, axnoded, node-tunneld, gatewayd
+  postgres, controld, tunneld, imagefsd, imagemgr, egressd, axnoded, node-tunneld, gatewayd
 EOF
 }
 
 services() {
-  printf '%s\n' postgres storaged controld tunneld imagefsd imagemgr volumed egressd axnoded node-tunneld gatewayd
+  printf '%s\n' postgres controld tunneld imagefsd imagemgr egressd axnoded node-tunneld gatewayd
 }
 
 ensure_linux() {
@@ -136,9 +133,6 @@ service_health() {
     controld)
       printf '%s %s' "$(tcp_status 127.0.0.1 24000)" "$(tcp_status 127.0.0.1 24001)"
       ;;
-    storaged)
-      printf '%s %s' "$(tcp_status 127.0.0.1 24020)" "$(tcp_status 127.0.0.1 24021)"
-      ;;
     tunneld)
       tcp_status 127.0.0.1 24100
       ;;
@@ -147,9 +141,6 @@ service_health() {
       ;;
     imagemgr)
       unix_socket_status "${RUN_DIR}/imagemgr.sock" "${state}"
-      ;;
-    volumed)
-      unix_socket_status "${RUN_DIR}/volumed.sock" "${state}"
       ;;
     egressd)
       unix_socket_status "${RUN_DIR}/egressd.sock" "${state}"
@@ -230,7 +221,7 @@ stop_matching_processes() {
 
 normalize_service() {
   case "${1:-}" in
-    postgres|storaged|controld|tunneld|imagefsd|imagemgr|axnoded|node-tunneld|gatewayd)
+    postgres|controld|tunneld|imagefsd|imagemgr|egressd|axnoded|node-tunneld|gatewayd)
       printf '%s\n' "$1"
       ;;
     "")
@@ -291,23 +282,19 @@ stop_runtime_services() {
   stop_service imagefsd
   stop_service tunneld
   stop_service controld
-  stop_service storaged
   stop_matching_processes "${ROOT_DIR}/gateway/gatewayd.*go.*run"
   stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/node-tunneld"
   stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/tunneld"
   stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
-  stop_matching_processes "${ROOT_DIR}/runtime/volumed.*cmd/volumed"
   stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
   stop_matching_processes "${ROOT_DIR}/runtime/imagemgr.*cmd/imagemgr"
-  stop_matching_processes "${ROOT_DIR}/control/storaged.*cmd/storaged"
   stop_matching_processes "${ROOT_DIR}/control/controld.*cmd/controld"
   stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd.*serve-chunk"
   stop_matching_processes "127.0.0.1:24000"
-  stop_matching_processes "127.0.0.1:24020"
   stop_matching_processes "127.0.0.1:24100"
   stop_matching_processes "127.0.0.1:25080"
   stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
-  stop_matching_processes "${ROOT_DIR}/.dev/run/volumed.sock"
+  stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-network.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
@@ -315,7 +302,7 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd"
   rm -f \
     "${RUN_DIR}/axnoded.sock" \
-    "${RUN_DIR}/volumed.sock" \
+    "${RUN_DIR}/axnoded-network.sock" \
     "${RUN_DIR}/egressd.sock" \
     "${RUN_DIR}/imagemgr.sock" \
     "${RUN_DIR}/imagefsd-chunk.sock"
@@ -326,13 +313,11 @@ prepare_workspace_config() {
   AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET}" \
   AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
   AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET}" \
-  AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN="${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN}" \
   bash "${ROOT_DIR}/scripts/devbox/node-dev-prepare.sh"
 }
 
 build_runtime_artifacts() {
   make -C "${ROOT_DIR}" imagefsd-build >/dev/null
-  CGO_ENABLED=0 go -C "${ROOT_DIR}/runtime/axnoded" build -o "${BIN_DIR}/axnoded-runtime-runner" ./cmd/axnoded-runtime-runner
   CGO_ENABLED=0 go -C "${ROOT_DIR}/runtime/tunneld" build -o "${BIN_DIR}/tunnel-agent" ./cmd/tunnel-agent
 }
 
@@ -359,15 +344,8 @@ run_access_bootstrap() {
     -display-name "Local Administrator" \
     -credential-label local-client \
     -certificate "${DEV_DIR}/certs/client.crt" \
-    -rollout-worker-certificate "${DEV_DIR}/certs/rollout-worker.crt"
-}
-
-start_storaged() {
-  start_service storaged "exec go -C '${ROOT_DIR}/control/storaged' run ./cmd/storaged \
-    -grpc-address 127.0.0.1:24020 \
-    -http-address 127.0.0.1:24021 \
-    -postgres-dsn '${POSTGRES_DSN}'"
-  wait_tcp 127.0.0.1 24020 storaged
+    -node-id "${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
+    -enrollment-token-file "${DEV_DIR}/enrollment-token"
 }
 
 start_controld() {
@@ -377,14 +355,11 @@ start_controld() {
     -heartbeat-freshness-window 15s \
     -summary-freshness-window 15s \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/controld.crt' \
-    -tls-key '${DEV_DIR}/certs/controld.key' \
+    -workload-bundle '${DEV_DIR}/certs/controld.pem' \
+    -workload-signer-bundle '${DEV_DIR}/certs/private/signer.pem' \
+    -workload-cluster axern.local \
+    -enrollment-address '0.0.0.0:24002' \
     -secrets-master-key '${AXERN_SECRETS_MASTER_KEY}' \
-    -storaged-target 127.0.0.1:24020 \
-    -function-gateway-url http://127.0.0.1:25080 \
-    -function-gateway-token '${AXERN_DEV_TOKEN}' \
-    -function-bundle-base-url http://127.0.0.1:24001 \
-    -function-bundle-token '${AXERN_DEV_TOKEN}' \
     -tunnel-relays 'default,127.0.0.1:25000,127.0.0.1:24100,1,false' \
     -postgres-dsn '${POSTGRES_DSN}'"
   wait_tcp 127.0.0.1 24000 controld
@@ -395,10 +370,9 @@ start_tunneld() {
     -listen 127.0.0.1:24100 \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/tunneld.crt' \
-    -tls-key '${DEV_DIR}/certs/tunneld.key' \
-    -relay-tls-cert '${DEV_DIR}/certs/tunneld.crt' \
-    -relay-tls-key '${DEV_DIR}/certs/tunneld.key'"
+    -workload-bundle '${DEV_DIR}/certs/tunneld.pem' \
+    -relay-tls-cert '${DEV_DIR}/certs/tunneld.pem' \
+    -relay-tls-key '${DEV_DIR}/certs/tunneld.pem'"
   wait_tcp 127.0.0.1 24100 tunneld
 }
 
@@ -418,20 +392,10 @@ start_imagemgr() {
     -root '${DEV_DIR}/imagemgr' \
     -node_id 'node-devbox' \
     -imagefsd_bin '${ROOT_DIR}/target/debug/imagefsd' \
-    -oss_template '${ROOT_DIR}/runtime/imagemgr/configs/oss_backend.json.example' \
     -nydus_template '${ROOT_DIR}/runtime/imagemgr/configs/nydus_registry.json.example' \
-    -oss_auths_path '${ROOT_DIR}/runtime/imagemgr/oss_auths.json.example' \
     -registry_auths_path '${ROOT_DIR}/runtime/imagemgr/registry_auths.json.example' \
     -http_sock '${RUN_DIR}/imagemgr.sock'"
   wait_unix_socket "${RUN_DIR}/imagemgr.sock" imagemgr
-}
-
-start_volumed() {
-  start_service volumed "exec go -C '${ROOT_DIR}/runtime/volumed' run ./cmd/volumed \
-    -root '${DEV_DIR}/volumed' \
-    -socket '${RUN_DIR}/volumed.sock' \
-    -local-root '${DEV_DIR}/volumed/local'"
-  wait_unix_socket "${RUN_DIR}/volumed.sock" volumed
 }
 
 start_egressd() {
@@ -446,57 +410,43 @@ start_axnoded() {
     -C '${ROOT_DIR}/runtime/axnoded' run ./cmd/axnoded \
     -root '${DEV_DIR}/axnoded' \
     -config '${DEV_DIR}/axnoded/config.toml' \
+    -enrollment-token-file '${DEV_DIR}/enrollment-token' \
     -socket '${RUN_DIR}/axnoded.sock' \
+    -network-socket '${RUN_DIR}/axnoded-network.sock' \
     -grpc-address 127.0.0.1:23000 \
     -http-address 127.0.0.1:23001 \
     -log-level debug \
     -log-file '${LOG_DIR}/axnoded-inner.log'"
   wait_tcp 127.0.0.1 23000 axnoded
   wait_unix_socket "${RUN_DIR}/axnoded.sock" axnoded
+  wait_unix_socket "${RUN_DIR}/axnoded-network.sock" axnoded-network
 }
 
 start_node_tunneld() {
-  start_service node-tunneld "exec go -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
+  start_service node-tunneld "exec '${ROOT_DIR}/scripts/devbox/sudo-go.sh' -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
     -node-id '${AXERN_DEV_CONTROL_PLANE_NODE_ID}' \
-    -node-auth-token '${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN}' \
     -control-target 127.0.0.1:24000 \
-    -operator-socket '${RUN_DIR}/axnoded.sock' \
+    -network-socket '${RUN_DIR}/axnoded-network.sock' \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/node.crt' \
-    -tls-key '${DEV_DIR}/certs/node.key' \
+    -identity-bundle '${DEV_DIR}/axnoded/root/identity/node.pem' \
+    -workload-cluster axern.local \
     -relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -runsc-root '${DEV_DIR}/axnoded/root/runsc' \
     -agent-binary '${BIN_DIR}/tunnel-agent'"
 }
 
-ensure_gateway_dashboard_assets() {
-  if [ -s "${GATEWAY_DASHBOARD_VENDOR_DIR}/xterm.js" ] &&
-    [ -s "${GATEWAY_DASHBOARD_VENDOR_DIR}/xterm.css" ] &&
-    [ -s "${GATEWAY_DASHBOARD_VENDOR_DIR}/addon-fit.js" ]; then
-    return
-  fi
-
-  echo "preparing gateway dashboard assets"
-  make -C "${ROOT_DIR}" gateway-dashboard-assets
-}
-
 start_gatewayd() {
-  ensure_gateway_dashboard_assets
   start_service gatewayd "exec go -C '${ROOT_DIR}/gateway/gatewayd' run . \
     -http-address 127.0.0.1:25080 \
     -control-edge-address 127.0.0.1:25000 \
     -control-edge-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -control-edge-tls-cert '${DEV_DIR}/certs/gatewayd.crt' \
-    -control-edge-tls-key '${DEV_DIR}/certs/gatewayd.key' \
+    -control-edge-tls-cert '${DEV_DIR}/certs/gatewayd.pem' \
+    -control-edge-tls-key '${DEV_DIR}/certs/gatewayd.pem' \
     -tunnel-relay-target 127.0.0.1:24100 \
     -tunnel-relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -dashboard-enabled \
-    -dashboard-vendor-dir '${GATEWAY_DASHBOARD_VENDOR_DIR}' \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -tls-cert '${DEV_DIR}/certs/gatewayd.crt' \
-    -tls-key '${DEV_DIR}/certs/gatewayd.key' \
-    -dev-token '${AXERN_DEV_TOKEN}'"
+    -workload-bundle '${DEV_DIR}/certs/gatewayd.pem'"
   wait_tcp 127.0.0.1 25000 gatewayd
   wait_tcp 127.0.0.1 25080 gatewayd
 }
@@ -510,12 +460,10 @@ start_all() {
   run_migrations
   run_access_bootstrap
 
-  start_storaged
   start_controld
   start_tunneld
   start_imagefsd
   start_imagemgr
-  start_volumed
   start_egressd
   start_axnoded
   start_node_tunneld
@@ -524,7 +472,6 @@ start_all() {
   echo "Axern dev stack is running."
   echo "Control HTTP: http://127.0.0.1:24001/healthz"
   echo "Gateway HTTP: http://127.0.0.1:25080/healthz"
-  echo "Gateway dashboard: http://127.0.0.1:25080/dashboard?token=${AXERN_DEV_TOKEN}"
   echo "Logs: ${LOG_DIR}"
 }
 
@@ -535,10 +482,6 @@ stop_service_deep() {
     controld)
       stop_matching_processes "127.0.0.1:24000"
       stop_matching_processes "${ROOT_DIR}/control/controld.*cmd/controld"
-      ;;
-    storaged)
-      stop_matching_processes "127.0.0.1:24020"
-      stop_matching_processes "${ROOT_DIR}/control/storaged.*cmd/storaged"
       ;;
     tunneld)
       stop_matching_processes "127.0.0.1:24100"
@@ -553,11 +496,6 @@ stop_service_deep() {
       stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
       stop_matching_processes "${ROOT_DIR}/.dev/imagemgr"
       ;;
-    volumed)
-      stop_matching_processes "${ROOT_DIR}/runtime/volumed.*cmd/volumed"
-      stop_matching_processes "${ROOT_DIR}/.dev/run/volumed.sock"
-      stop_matching_processes "${ROOT_DIR}/.dev/volumed"
-      ;;
     egressd)
       stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
       stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
@@ -566,6 +504,7 @@ stop_service_deep() {
     axnoded)
       stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
       stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
+      stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-network.sock"
       ;;
     node-tunneld)
       stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/node-tunneld"
@@ -591,12 +530,10 @@ restart_service() {
       stop_postgres
       start_postgres
       run_migrations
-      start_storaged
       start_controld
       start_tunneld
       start_imagefsd
       start_imagemgr
-      start_volumed
       start_egressd
       start_axnoded
       start_node_tunneld
@@ -609,22 +546,8 @@ restart_service() {
       stop_service_deep controld
       start_postgres
       run_migrations
-      start_storaged
       start_controld
       start_tunneld
-      start_node_tunneld
-      start_gatewayd
-      ;;
-    storaged)
-      stop_service_deep gatewayd
-      stop_service_deep node-tunneld
-      stop_service_deep axnoded
-      stop_service_deep controld
-      stop_service_deep storaged
-      start_postgres
-      start_storaged
-      start_controld
-      start_axnoded
       start_node_tunneld
       start_gatewayd
       ;;
@@ -659,14 +582,6 @@ restart_service() {
       stop_service_deep axnoded
       stop_service_deep imagemgr
       start_imagemgr
-      start_axnoded
-      start_node_tunneld
-      ;;
-    volumed)
-      stop_service_deep node-tunneld
-      stop_service_deep axnoded
-      stop_service_deep volumed
-      start_volumed
       start_axnoded
       start_node_tunneld
       ;;

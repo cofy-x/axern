@@ -40,3 +40,10 @@ func TestValidateMemoryBoundaryConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigureServiceCollaboratorsRequiresInitializedRuntime(t *testing.T) {
+	err := (&sandboxService{}).configureServiceCollaborators()
+	if err == nil || !strings.Contains(err.Error(), "runsc handler is required") {
+		t.Fatalf("configureServiceCollaborators() error = %v, want missing runsc handler", err)
+	}
+}

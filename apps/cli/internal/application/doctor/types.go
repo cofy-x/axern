@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	identityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1"
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
@@ -67,10 +66,9 @@ type TLSConfig struct {
 }
 
 type ProbeOptions struct {
-	TemplateID   string
-	RuntimeClass string
-	Timeout      time.Duration
-	CleanupWait  time.Duration
+	TemplateID  string
+	Timeout     time.Duration
+	CleanupWait time.Duration
 }
 
 type Options struct {
@@ -94,10 +92,6 @@ type SecretClient interface {
 	DeleteSecret(context.Context, *secretv1.DeleteSecretRequest, ...grpc.CallOption) (*secretv1.DeleteSecretResponse, error)
 }
 
-type CatalogClient interface {
-	ListRuntimeTemplates(context.Context, *catalogv1.ListRuntimeTemplatesRequest, ...grpc.CallOption) (*catalogv1.ListRuntimeTemplatesResponse, error)
-}
-
 type IdentityClient interface {
 	WhoAmI(context.Context, *identityv1.WhoAmIRequest, ...grpc.CallOption) (*identityv1.WhoAmIResponse, error)
 }
@@ -119,7 +113,6 @@ type Session struct {
 	Identity    IdentityClient
 	Namespace   NamespaceClient
 	Secret      SecretClient
-	Catalog     CatalogClient
 	Environment EnvironmentClient
 	Run         RunClient
 	Close       func() error

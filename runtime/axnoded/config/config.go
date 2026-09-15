@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
+
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
@@ -33,9 +36,10 @@ type PluginConfig struct {
 	ResourceConfig `toml:"resource" json:"resource"`
 
 	ControlPlaneTarget             string                      `toml:"control_plane_target" json:"controlPlaneTarget"`
+	ControlPlaneEnrollmentTarget   string                      `toml:"control_plane_enrollment_target" json:"controlPlaneEnrollmentTarget"`
+	WorkloadCluster                string                      `toml:"workload_cluster" json:"workloadCluster"`
 	ControlPlaneNodeID             string                      `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
 	ControlPlaneNodeTarget         string                      `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
-	ControlPlaneNodeAuthToken      string                      `toml:"control_plane_node_auth_token" json:"controlPlaneNodeAuthToken"`
 	ControlPlaneHeartbeatInterval  string                      `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
 	ControlPlaneNodeState          string                      `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
 	NodeExtensionCapabilities      []ExtensionCapabilityConfig `toml:"node_extension_capabilities" json:"nodeExtensionCapabilities"`
@@ -43,8 +47,6 @@ type PluginConfig struct {
 	ControlPlaneNodeResourceSource string                      `toml:"control_plane_node_resource_source" json:"controlPlaneNodeResourceSource"`
 	ControlPlaneKubernetesNodeName string                      `toml:"control_plane_kubernetes_node_name" json:"controlPlaneKubernetesNodeName"`
 	ControlPlaneTLSCACert          string                      `toml:"control_plane_tls_ca_cert" json:"controlPlaneTlsCaCert"`
-	ControlPlaneTLSCert            string                      `toml:"control_plane_tls_cert" json:"controlPlaneTlsCert"`
-	ControlPlaneTLSKey             string                      `toml:"control_plane_tls_key" json:"controlPlaneTlsKey"`
 }
 
 type ExtensionCapabilityConfig struct {
@@ -52,22 +54,13 @@ type ExtensionCapabilityConfig struct {
 	Value string `toml:"value" json:"value"`
 }
 
-// RuntimeConfig binary path of the runtime
+// RuntimeConfig defines runsc and shared node execution policy.
 type RuntimeConfig struct {
-	Runtimes map[string]RuntimeInstanceConfig `toml:"runtimes" json:"runtimes"`
-
-	RuntimeBinary map[string]string `toml:"runtime_binary" json:"runtimeBinary"`
+	Runsc RuntimeInstanceConfig `toml:"runsc" json:"runsc"`
 
 	// CgroupEnforcement is "required" in production. "disabled_dev" is an
 	// explicit development mode and rejects hard memory limits.
 	CgroupEnforcement string `toml:"cgroup_enforcement" json:"cgroupEnforcement"`
-
-	// BasicSpec is the basic spec file for different runtime type.
-	BasicSpec map[string]string `toml:"basic_spec" json:"basicSpec"`
-
-	// RuntimeRunnerBinary is the axnoded-owned helper that runs one OCI runtime
-	// invocation and persists its exit state.
-	RuntimeRunnerBinary string `toml:"runtime_runner_binary" json:"runtimeRunnerBinary"`
 
 	// ImageLibDir is the file to store image lib. Read image line by line.
 	ImageLibDir string `toml:"image_lib_dir" json:"imageLibDir"`
@@ -100,21 +93,18 @@ type RuntimeConfig struct {
 	// node's resolver configuration.
 	DNS RuntimeDNSConfig `toml:"dns" json:"dns"`
 
-	// VolumeManagerSocket points to the local volumed Unix socket.
-	VolumeManagerSocket string `toml:"volume_manager_socket" json:"volumeManagerSocket"`
-
 	// EgressManagerSocket points to the trusted node-local egressd Unix socket.
-	// Connectivity is observed as a capability and is not required for legacy
-	// unrestricted workloads.
+	// Connectivity is observed as a capability and is required only when a Run
+	// declares an enforced egress policy.
 	EgressManagerSocket string `toml:"egress_manager_socket" json:"egressManagerSocket"`
 
-	// IdleRuntimeRetentionTTL controls how long temporary idle runtimes and
-	// their rootfs should remain retained after the last container exits.
-	IdleRuntimeRetentionTTL string `toml:"idle_runtime_retention_ttl" json:"idleRuntimeRetentionTtl"`
+	// IdleEnvironmentRetentionTTL controls how long prepared environments and
+	// their rootfs remain retained after the last Allocation exits.
+	IdleEnvironmentRetentionTTL string `toml:"idle_environment_retention_ttl" json:"idleEnvironmentRetentionTtl"`
 
-	// IdleRuntimeRetentionMax limits the number of retained idle runtimes kept
+	// IdleEnvironmentRetentionMax limits the number of prepared environments kept
 	// warm at once. When <= 0, idle retention is disabled.
-	IdleRuntimeRetentionMax *int `toml:"idle_runtime_retention_max" json:"idleRuntimeRetentionMax"`
+	IdleEnvironmentRetentionMax *int `toml:"idle_environment_retention_max" json:"idleEnvironmentRetentionMax"`
 }
 
 type RuntimeInstanceConfig struct {
@@ -151,38 +141,6 @@ func (o RuntimeOptions) AllowSUIDEnabled(defaultValue bool) bool {
 	return *o.AllowSUID
 }
 
-func (c RuntimeConfig) NormalizedRuntimeConfigs() map[string]RuntimeInstanceConfig {
-	out := make(map[string]RuntimeInstanceConfig)
-
-	for name, runtimeCfg := range c.Runtimes {
-		out[name] = runtimeCfg
-	}
-
-	for name, binary := range c.RuntimeBinary {
-		runtimeCfg := out[name]
-		if runtimeCfg.Binary == "" {
-			runtimeCfg.Binary = binary
-		}
-		out[name] = runtimeCfg
-	}
-
-	for name, baseSpec := range c.BasicSpec {
-		runtimeCfg := out[name]
-		if runtimeCfg.BaseSpec == "" {
-			runtimeCfg.BaseSpec = baseSpec
-		}
-		out[name] = runtimeCfg
-	}
-
-	return out
-}
-
-func (c RuntimeConfig) NormalizedRuntimeConfig(name string) (RuntimeInstanceConfig, bool) {
-	runtimes := c.NormalizedRuntimeConfigs()
-	runtimeCfg, ok := runtimes[name]
-	return runtimeCfg, ok
-}
-
 func (c RuntimeConfig) ImageManagerEnabledValue() bool {
 	return c.ImageManagerEnabled == nil || *c.ImageManagerEnabled
 }
@@ -198,28 +156,12 @@ func (c RuntimeConfig) ImageManagerSocketPath() string {
 	return sockPath
 }
 
-func (c RuntimeConfig) RuntimeRunnerBinaryPath() string {
-	value := strings.TrimSpace(c.RuntimeRunnerBinary)
+func (c RuntimeConfig) IdleEnvironmentRetentionTTLDuration() (time.Duration, error) {
+	value := strings.TrimSpace(c.IdleEnvironmentRetentionTTL)
 	if value == "" {
-		return DefaultRuntimeRunnerBinary
-	}
-	return value
-}
-
-func (c RuntimeConfig) IdleRuntimeRetentionTTLDuration() (time.Duration, error) {
-	value := strings.TrimSpace(c.IdleRuntimeRetentionTTL)
-	if value == "" {
-		value = DefaultIdleRuntimeRetentionTTL
+		value = DefaultIdleEnvironmentRetentionTTL
 	}
 	return time.ParseDuration(value)
-}
-
-func (c RuntimeConfig) VolumeManagerSocketPath() string {
-	value := strings.TrimSpace(c.VolumeManagerSocket)
-	if value == "" {
-		return DefaultVolumeManagerSocket
-	}
-	return value
 }
 
 func (c RuntimeConfig) EgressManagerSocketPath() string {
@@ -230,43 +172,37 @@ func (c RuntimeConfig) EgressManagerSocketPath() string {
 	return value
 }
 
-func (c RuntimeConfig) IdleRuntimeRetentionMaxValue() int {
-	if c.IdleRuntimeRetentionMax == nil {
-		return DefaultIdleRuntimeRetentionMax
+func (c RuntimeConfig) IdleEnvironmentRetentionMaxValue() int {
+	if c.IdleEnvironmentRetentionMax == nil {
+		return DefaultIdleEnvironmentRetentionMax
 	}
-	return *c.IdleRuntimeRetentionMax
+	return *c.IdleEnvironmentRetentionMax
 }
 
 func (c PluginConfig) ControlPlaneTargetValue() string {
 	return strings.TrimSpace(c.ControlPlaneTarget)
 }
 
-func (c PluginConfig) ControlPlaneNodeIDValue(defaultValue string) string {
-	value := strings.TrimSpace(c.ControlPlaneNodeID)
-	if value == "" {
-		return defaultValue
+// ValidateNodeIdentity rejects implicit identity for a control-plane-connected node.
+func (c PluginConfig) ValidateNodeIdentity() error {
+	if c.ControlPlaneTargetValue() == "" {
+		return nil
 	}
-	return value
+	if _, err := (workloadtls.Identity{Cluster: c.WorkloadCluster, Role: "axnoded", NodeID: c.ControlPlaneNodeID}).URI(); err != nil {
+		return fmt.Errorf("explicit node identity required: %w", err)
+	}
+	if c.ControlPlaneEnrollmentTarget == "" || c.ControlPlaneTLSCACertValue() == "" {
+		return fmt.Errorf("node enrollment endpoint and trust bundle are required")
+	}
+	return nil
 }
 
 func (c PluginConfig) ControlPlaneNodeTargetValue() string {
 	return strings.TrimSpace(c.ControlPlaneNodeTarget)
 }
 
-func (c PluginConfig) ControlPlaneNodeAuthTokenValue() string {
-	return strings.TrimSpace(c.ControlPlaneNodeAuthToken)
-}
-
 func (c PluginConfig) ControlPlaneTLSCACertValue() string {
 	return strings.TrimSpace(c.ControlPlaneTLSCACert)
-}
-
-func (c PluginConfig) ControlPlaneTLSCertValue() string {
-	return strings.TrimSpace(c.ControlPlaneTLSCert)
-}
-
-func (c PluginConfig) ControlPlaneTLSKeyValue() string {
-	return strings.TrimSpace(c.ControlPlaneTLSKey)
 }
 
 func (c PluginConfig) ControlPlaneHeartbeatIntervalDuration() (time.Duration, error) {
@@ -280,6 +216,9 @@ func (c PluginConfig) ControlPlaneHeartbeatIntervalDuration() (time.Duration, er
 	}
 	if d <= 0 {
 		return time.ParseDuration(DefaultControlPlaneHeartbeatInterval)
+	}
+	if d > executionlease.MaxRenewalInterval {
+		return 0, fmt.Errorf("control-plane heartbeat interval %s exceeds execution lease renewal maximum %s", d, executionlease.MaxRenewalInterval)
 	}
 	return d, nil
 }
@@ -359,14 +298,6 @@ func (c PluginConfig) ControlPlaneNodeResourceSourceValue() (string, error) {
 			c.ControlPlaneNodeResourceSource,
 		)
 	}
-}
-
-func (c PluginConfig) ControlPlaneKubernetesNodeNameValue(defaultValue string) string {
-	value := strings.TrimSpace(c.ControlPlaneKubernetesNodeName)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }
 
 func (c ResourceConfig) ResourcePoolReconcileIntervalDuration() (time.Duration, error) {
@@ -450,7 +381,7 @@ func (c ResourceConfig) CgroupRootNameValue() (string, error) {
 type NetworkConfig struct {
 	IPRange string `toml:"ip_range" json:"ipRange"`
 
-	// NatBackend selects the NAT implementation used for SNAT/DNAT rules.
+	// NatBackend selects the sandbox egress NAT implementation.
 	// The generic build supports "iptables" and "ebpf".
 	NatBackend string `toml:"nat_backend" json:"natBackend"`
 
@@ -462,8 +393,6 @@ type BPFNetConfig struct {
 
 	PinPath string `toml:"pin_path" json:"pinPath"`
 
-	MapSize int `toml:"map_size" json:"mapSize"`
-
 	SNATMapSize int `toml:"snat_map_size" json:"snatMapSize"`
 
 	SNATGCInterval string `toml:"snat_gc_interval" json:"snatGcInterval"`
@@ -474,25 +403,7 @@ type BPFNetConfig struct {
 
 	SNATDatagramIdleTimeout string `toml:"snat_datagram_idle_timeout" json:"snatDatagramIdleTimeout"`
 
-	LocalOutCompat bool `toml:"local_out_compat" json:"localOutCompat"`
-
 	NativeRoutingCIDRs []string `toml:"native_routing_cidrs" json:"nativeRoutingCidrs"`
-
-	// IptablesFallback allows axnoded to fall back to the legacy full
-	// iptables DNAT path when tc attach or feature probing fails.
-	IptablesFallback bool `toml:"iptables_fallback" json:"iptablesFallback"`
-}
-
-// CapabilityBackend returns the effective dataplane identity published to
-// workload placement. Native bpfnet is IPv4-only, so an IPv6 pool selected
-// with the ebpf configuration is truthfully represented by its bridge
-// compatibility backend.
-func (c NetworkConfig) CapabilityBackend() string {
-	prefix, err := netip.ParsePrefix(strings.TrimSpace(c.IPRange))
-	if err == nil && prefix.Addr().Is6() && strings.EqualFold(strings.TrimSpace(c.NatBackend), NatBackendEBPF) {
-		return NatBackendIptables
-	}
-	return strings.ToLower(strings.TrimSpace(c.NatBackend))
 }
 
 // Normalized returns the exact network configuration consumed by the runtime
@@ -512,14 +423,17 @@ func (c NetworkConfig) Normalized() (NetworkConfig, error) {
 		return NetworkConfig{}, fmt.Errorf("network ip_range must be a valid IPv4 or IPv6 prefix: %q", c.IPRange)
 	}
 	c.IPRange = ipRange.String()
+	if c.NatBackend == NatBackendEBPF && ipRange.Addr().Is6() {
+		return NetworkConfig{}, fmt.Errorf("ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range")
+	}
 
 	c.BPFNet.PinPath = filepath.Clean(strings.TrimSpace(c.BPFNet.PinPath))
 	if c.NatBackend == NatBackendEBPF {
 		if !filepath.IsAbs(c.BPFNet.PinPath) {
 			return NetworkConfig{}, fmt.Errorf("ebpf pin_path must be absolute: %q", c.BPFNet.PinPath)
 		}
-		if c.BPFNet.MapSize <= 0 || c.BPFNet.SNATMapSize <= 0 {
-			return NetworkConfig{}, fmt.Errorf("ebpf map_size and snat_map_size must be positive")
+		if c.BPFNet.SNATMapSize <= 0 {
+			return NetworkConfig{}, fmt.Errorf("ebpf snat_map_size must be positive")
 		}
 	}
 
@@ -591,7 +505,7 @@ func normalizeCIDRs(values []string) ([]string, error) {
 
 // DefaultConfig returns default configurations of cri plugin.
 func DefaultConfig() Config {
-	defaultIdleRuntimeRetentionMax := DefaultIdleRuntimeRetentionMax
+	defaultIdleEnvironmentRetentionMax := DefaultIdleEnvironmentRetentionMax
 	return Config{
 		PluginConfig: PluginConfig{
 			NetworkConfig: NetworkConfig{
@@ -599,41 +513,28 @@ func DefaultConfig() Config {
 				IPRange:    DefaultIPRange,
 				BPFNet: BPFNetConfig{
 					PinPath:                 DefaultBPFNetPinPath,
-					MapSize:                 DefaultBPFNetMapSize,
 					SNATMapSize:             DefaultBPFNetSNATMapSize,
 					SNATGCInterval:          DefaultBPFNetSNATGCInterval,
 					SNATTCPIdleTimeout:      DefaultBPFNetSNATTCPIdleTimeout,
 					SNATTCPClosingTimeout:   DefaultBPFNetSNATTCPClosingTimeout,
 					SNATDatagramIdleTimeout: DefaultBPFNetSNATDatagramIdleTimeout,
-					LocalOutCompat:          true,
-					IptablesFallback:        true,
 				},
 			},
 			RuntimeConfig: RuntimeConfig{
-				Runtimes: map[string]RuntimeInstanceConfig{
-					RuntimeNameRunsc: {
-						Binary:   DefaultRunscBinary,
-						BaseSpec: "/etc/axnoded/runsc-config.json",
-						Options: RuntimeOptions{
-							AllowSUID: boolPtr(true),
-						},
+				Runsc: RuntimeInstanceConfig{
+					Binary:   DefaultRunscBinary,
+					BaseSpec: "/etc/axnoded/runsc-config.json",
+					Options: RuntimeOptions{
+						AllowSUID: boolPtr(true),
 					},
 				},
-				RuntimeBinary: map[string]string{
-					RuntimeNameRunsc: DefaultRunscBinary,
-				},
-				CgroupEnforcement: CgroupEnforcementRequired,
-				BasicSpec: map[string]string{
-					RuntimeNameRunsc: "/etc/axnoded/runsc-config.json",
-				},
+				CgroupEnforcement:                 CgroupEnforcementRequired,
 				ImageLibDir:                       DefaultImageLibDir,
-				RuntimeRunnerBinary:               DefaultRuntimeRunnerBinary,
 				ImageManagerEnabled:               boolPtr(true),
 				ImageManagerSocket:                DefaultImageManagerSocket,
-				VolumeManagerSocket:               DefaultVolumeManagerSocket,
 				EgressManagerSocket:               DefaultEgressManagerSocket,
-				IdleRuntimeRetentionTTL:           DefaultIdleRuntimeRetentionTTL,
-				IdleRuntimeRetentionMax:           &defaultIdleRuntimeRetentionMax,
+				IdleEnvironmentRetentionTTL:       DefaultIdleEnvironmentRetentionTTL,
+				IdleEnvironmentRetentionMax:       &defaultIdleEnvironmentRetentionMax,
 				FilestoreMode:                     FilestoreModeExisting,
 				EphemeralStorageDefaultLimitBytes: 256 << 20,
 			},

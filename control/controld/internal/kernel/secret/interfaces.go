@@ -32,7 +32,7 @@ func NormalizeMasterKey(raw string) ([]byte, error) {
 
 type MetadataReader interface {
 	Get(ctx context.Context, id string) (*secretv1.Secret, bool, error)
-	List(ctx context.Context, filter *secretv1.SecretListFilter) ([]*secretv1.Secret, error)
+	List(ctx context.Context, filter *secretv1.SecretListFilter) ([]*secretv1.Secret, string, error)
 }
 
 type Mutator interface {
@@ -42,13 +42,6 @@ type Mutator interface {
 
 type ValueResolver interface {
 	Resolve(ctx context.Context, id string) (*ResolvedSecret, bool, error)
-}
-
-// ProfileCredentialResolver is intentionally separate from ValueResolver.
-// Hidden Profile-owned credentials must never become addressable through a
-// generic workload Secret reference.
-type ProfileCredentialResolver interface {
-	ResolveProfileCredential(ctx context.Context, id string) (*ResolvedSecret, bool, error)
 }
 
 type DockerConfigResolver interface {

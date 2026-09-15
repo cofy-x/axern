@@ -6,17 +6,17 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;run
 
 import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
+import "axern/control/environment/v1/environment.proto";
 import "google/protobuf/timestamp.proto";
 
 enum RunStatus {
   RUN_STATUS_UNSPECIFIED = 0;
-  RUN_STATUS_QUEUED = 1;
-  RUN_STATUS_PLACED = 2;
-  RUN_STATUS_STARTING = 3;
-  RUN_STATUS_RUNNING = 4;
-  RUN_STATUS_SUCCEEDED = 5;
-  RUN_STATUS_FAILED = 6;
-  RUN_STATUS_CANCELLED = 7;
+  RUN_STATUS_PLACED = 1;
+  RUN_STATUS_STARTING = 2;
+  RUN_STATUS_RUNNING = 3;
+  RUN_STATUS_SUCCEEDED = 4;
+  RUN_STATUS_FAILED = 5;
+  RUN_STATUS_CANCELLED = 6;
 }
 
 message Run {
@@ -24,21 +24,25 @@ message Run {
   string namespace = 2;
   string environment_id = 3;
   string allocation_id = 4;
-  int64 attempt = 5;
-  RunStatus status = 6;
-  axern.control.common.v1.ExecutionConfig config = 7;
-  map<string, string> labels = 8;
-  int64 version = 9;
-  google.protobuf.Timestamp created_at = 10;
-  google.protobuf.Timestamp updated_at = 11;
-  int32 exit_code = 12;
-  bool exit_code_known = 13;
-  string message = 14;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 15;
-	// Full, monotonically revised allocation capability condition projection.
-	// It is independent from run lifecycle status and message.
-	axern.control.capability.v1.CapabilityConditionSet capability_conditions = 16;
-  reserved 17 to 18;
+  RunStatus status = 5;
+  axern.control.common.v1.ExecutionConfig config = 6;
+  map<string, string> labels = 7;
+  int64 version = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  optional int32 exit_code = 11;
+  string message = 12;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 13;
+  // Latest allocation capability condition projection. It is independent
+  // from Run lifecycle status and message.
+  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 14;
+  string node_id = 15;
+  // Immutable Environment input frozen atomically with Run admission. The
+  // source record may be deleted after this Run is created.
+  axern.control.environment.v1.EnvironmentSpec environment_spec = 16;
+  axern.control.environment.v1.ResolvedEnvironmentSpec resolved_environment_spec = 17;
+  // Node-local stdout/stderr availability deadline; node loss may make bytes unavailable earlier.
+  google.protobuf.Timestamp output_expires_at = 18;
 }
 
 message RunListFilter {

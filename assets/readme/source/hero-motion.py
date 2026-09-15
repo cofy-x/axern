@@ -19,8 +19,8 @@ ALPHA_THRESHOLD = 128
 
 COMMANDS = [
     ("axern run python:3.12-slim -- python app.py", 140, "hello from axern", 168, "#7d8290"),
-    ("axern service create --file api.yaml --wait", 212, "service api ready", 240, "check"),
-    ("axern service tunnel api --to 127.0.0.1:8080", 284, "forwarding 127.0.0.1:8080 → api:8080", 312, "#7d8290"),
+    ("axern run --detach eval:latest -- ./evaluate", 212, "run accepted", 240, "check"),
+    ("axern tunnel open --allocation-id alloc-...", 284, "reverse tunnel ready", 312, "#7d8290"),
 ]
 FINAL_Y = 352
 
@@ -83,7 +83,7 @@ def terminal_group(state: dict) -> str:
 
     return f"""  <g id="terminal-proof">
     <rect x="632" y="56" width="504" height="308" rx="14" fill="#10131a" stroke="#262c3a"/>
-    <text x="656" y="92" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">sandbox → service → tunnel</text>
+    <text x="656" y="92" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">environment → run → allocation</text>
     <line x1="632" y1="104" x2="1136" y2="104" stroke="#1e2330"/>
     <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">{session_xml}{final_xml}</g>
   </g>

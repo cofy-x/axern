@@ -17,16 +17,20 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 		return fmt.Errorf("dial axnoded: %w", err)
 	}
 	defer clients.Close()
+	if cfg.deleteAllocationID != "" {
+		deleteTimeout := cfg.deleteTimeout
+		if deleteTimeout <= 0 {
+			deleteTimeout = 2 * time.Minute
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
+		defer cancel()
+		return verifyutil.DeleteAllocation(ctx, clients, cfg.deleteAllocationID, 0)
+	}
 
 	rootfsSpec, err := verifyutil.BuildRootfsSpec(
 		cfg.rootfsSrc,
 		cfg.rootfsPath,
 		cfg.imageURL,
-		cfg.s3Endpoint,
-		cfg.s3Bucket,
-		cfg.s3Object,
-		cfg.s3AccessKeyID,
-		cfg.s3AccessKeySecret,
 	)
 	if err != nil {
 		return fmt.Errorf("build rootfs spec: %w", err)
@@ -46,23 +50,22 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 	defer cancel()
 
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: cfg.runtime,
-		Argv:         []string{"/bin/sh", "-c", cfg.shellCommand},
-		Cwd:          "/",
-		Env:          userEnvs,
-		Mounts:       mounts,
-		Resources:    startResources,
-		StdoutPath:   cfg.stdoutPath,
-		StderrPath:   cfg.stderrPath,
+		Argv:       []string{"/bin/sh", "-c", cfg.shellCommand},
+		Cwd:        "/",
+		Env:        userEnvs,
+		Mounts:     mounts,
+		Resources:  startResources,
+		StdoutPath: cfg.stdoutPath,
+		StderrPath: cfg.stderrPath,
 	}
 	rootfsSpec.Apply(spec)
 
-	handle, err := verifyutil.CreateAllocationWithAttempt(ctx, clients, verifyutil.NewSandboxID(cfg.runtimeID), cfg.allocationAttempt, spec)
+	allocationID := verifyutil.NewSandboxID(cfg.environmentID)
+	handle, err := verifyutil.CreateAllocation(ctx, clients, allocationID, spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}
 
 	fmt.Printf("container_id=%s\n", handle.SandboxID)
-	fmt.Printf("allocation_attempt=%d\n", handle.Attempt)
 	return nil
 }

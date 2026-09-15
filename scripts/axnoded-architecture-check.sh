@@ -11,6 +11,19 @@ fi
 
 fail=0
 
+# Empty directories are not Git objects and may survive a local deletion. Only
+# source-bearing package trees may satisfy the architecture contract.
+source_children() {
+	rg --files "$1" -g '*.go' | awk -v root="$1/" '
+		index($0, root) == 1 {
+			path = substr($0, length(root) + 1)
+			if (index(path, "/")) {
+				split(path, components, "/")
+				print root components[1]
+			}
+		}' | sort -u
+}
+
 check_empty() {
 	local description=$1
 	local command=$2
@@ -35,6 +48,14 @@ check_equals() {
 
 production_go="-g '*.go' -g '!*_test.go'"
 
+check_empty \
+	"allocation networking must not reintroduce node-global endpoint or DNAT state" \
+	"rg -n 'PortSpec|PORT_FORWARDING|SetupDNAT|CleanupDNAT|DnatRule|DNATRulesBucket' runtime/axnoded sdk/proto/axern/private/node sdk/proto/axern/control/common sdk/proto/axern/control/capability -g '*.go' -g '*.proto' || true"
+
+check_empty \
+	"bpfnet must remain an egress-only dataplane" \
+	"rg -n 'UpsertService|DeleteService|service_map|rev_nat_map|localhost_(connect|getpeername|sock_release)' network/bpfnet -g '*.go' -g '*.c' -g '*.h' || true"
+
 expected_internal_packages='runtime/axnoded/internal/api
 runtime/axnoded/internal/apipb
 runtime/axnoded/internal/app
@@ -42,10 +63,9 @@ runtime/axnoded/internal/bpfnetstatus
 runtime/axnoded/internal/cgroup
 runtime/axnoded/internal/container
 runtime/axnoded/internal/controlplane
-runtime/axnoded/internal/demo
 runtime/axnoded/internal/egress
+runtime/axnoded/internal/environmentcache
 runtime/axnoded/internal/hostlinux
-runtime/axnoded/internal/langruntime
 runtime/axnoded/internal/natbench
 runtime/axnoded/internal/network
 runtime/axnoded/internal/nodecapability
@@ -56,35 +76,30 @@ runtime/axnoded/internal/resources
 runtime/axnoded/internal/runtime
 runtime/axnoded/internal/sandboxd
 runtime/axnoded/internal/service
-runtime/axnoded/internal/storetest
-runtime/axnoded/internal/volume'
+runtime/axnoded/internal/storetest'
 
 check_equals \
 	"axnoded internal top-level packages must stay intentional" \
-	"find runtime/axnoded/internal -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/internal" \
 	"$expected_internal_packages"
 
 expected_service_subpackages='runtime/axnoded/internal/service/allocation
 runtime/axnoded/internal/service/allocationoutput
 runtime/axnoded/internal/service/controlplane
-runtime/axnoded/internal/service/imageprocess
 runtime/axnoded/internal/service/networking
-runtime/axnoded/internal/service/probes
 runtime/axnoded/internal/service/process
 runtime/axnoded/internal/service/sandboxaccess
 runtime/axnoded/internal/service/sandboxcontrol
 runtime/axnoded/internal/service/sandboxtarget
-runtime/axnoded/internal/service/startplan
-runtime/axnoded/internal/service/volumes'
+runtime/axnoded/internal/service/startplan'
 
 check_equals \
 	"service subpackages must stay focused domain packages" \
-	"find runtime/axnoded/internal/service -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/internal/service" \
 	"$expected_service_subpackages"
 
 expected_cmd_packages='runtime/axnoded/cmd/axern-sandboxd
 runtime/axnoded/cmd/axnoded
-runtime/axnoded/cmd/axnoded-runtime-runner
 runtime/axnoded/cmd/dns-fixture
 runtime/axnoded/cmd/dns-probe
 runtime/axnoded/cmd/egress-probe
@@ -98,16 +113,14 @@ runtime/axnoded/cmd/protoc-gen-go-fieldpath
 runtime/axnoded/cmd/verify-cli
 runtime/axnoded/cmd/verify-egress
 runtime/axnoded/cmd/verify-network-policy-qualification
-runtime/axnoded/cmd/verify-nginx
 runtime/axnoded/cmd/verify-sandboxd-oci
 runtime/axnoded/cmd/verify-sandboxd-provider
 runtime/axnoded/cmd/verify-smoke
-runtime/axnoded/cmd/verify-startup
-runtime/axnoded/cmd/verify-udp'
+runtime/axnoded/cmd/verify-startup'
 
 check_equals \
 	"cmd packages must stay explicit executable entrypoints" \
-	"find runtime/axnoded/cmd -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/cmd" \
 	"$expected_cmd_packages"
 
 expected_pkg_packages='runtime/axnoded/pkg/errord
@@ -118,7 +131,7 @@ runtime/axnoded/pkg/truncindex'
 
 check_equals \
 	"pkg packages must stay limited to reusable support utilities" \
-	"find runtime/axnoded/pkg -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children runtime/axnoded/pkg" \
 	"$expected_pkg_packages"
 
 check_empty \
@@ -143,15 +156,15 @@ check_empty \
 
 check_empty \
 	"cmd/axnoded must remain a thin entrypoint over internal/app" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(api|service|container|resources|langruntime|controlplane)(/|\")' runtime/axnoded/cmd/axnoded ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(api|service|container|resources|environmentcache|controlplane)(/|\")' runtime/axnoded/cmd/axnoded ${production_go} || true"
 
 check_empty \
 	"internal/app must not implement API handlers or sandbox lifecycle behavior" \
-	"rg -n 'func .*\\(.*\\) (CreateAllocation|DeleteAllocation|Exec|ExecStream|WaitSandbox|ListSandboxes|ResolveSandboxNetwork|Start|Delete|Kill|PortForward)\\(' runtime/axnoded/internal/app ${production_go} || true"
+	"rg -n 'func .*\\(.*\\) (CreateAllocation|DeleteAllocation|Exec|ExecStream|Wait|ListAllocations|ResolveAllocationNetwork|ForceTerminateAllocation|ForceCleanupAllocation|Start|Delete|Kill|PortForward)\\(' runtime/axnoded/internal/app ${production_go} || true"
 
 check_empty \
 	"API adapters must not import app or concrete low-level runtime packages" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|container|resources|langruntime)(/|\")' runtime/axnoded/internal/api ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|container|resources|environmentcache)(/|\")' runtime/axnoded/internal/api ${production_go} || true"
 
 check_empty \
 	"service layer must not import app or API adapters" \
@@ -163,7 +176,7 @@ check_empty \
 
 check_empty \
 	"observability must not depend on daemon composition, adapters, or lifecycle orchestration" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|api|service|container|resources|langruntime|runtime|controlplane)(/|\")' runtime/axnoded/internal/observability ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|api|service|container|resources|environmentcache|runtime|controlplane)(/|\")' runtime/axnoded/internal/observability ${production_go} || true"
 
 check_empty \
 	"maintained runtime code must not use cross-package type aliases" \

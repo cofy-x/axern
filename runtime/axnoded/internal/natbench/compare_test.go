@@ -401,7 +401,6 @@ func testReport(backend string, throughput, p95 float64, mappings uint64, cpu fl
 				},
 				Attachment: bpfnet.AttachmentReadiness{
 					UplinkDevices:     []string{"eth0"},
-					LocalAddresses:    []string{"192.168.215.2"},
 					IngressTCAttached: true,
 					EgressTCAttached:  true,
 					PinnedMapsReady:   true,

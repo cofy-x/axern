@@ -6,7 +6,6 @@ type ContextListRow struct {
 	Active      bool
 	Name        string
 	Endpoint    string
-	ServiceURL  string
 	SSHEndpoint string
 	ProxyMode   string
 }
@@ -22,10 +21,9 @@ func RenderContextTable(w io.Writer, contexts []ContextListRow) {
 			active,
 			context.Name,
 			firstNonEmpty(context.Endpoint, "-"),
-			firstNonEmpty(context.ServiceURL, "-"),
 			firstNonEmpty(context.SSHEndpoint, "-"),
 			firstNonEmpty(context.ProxyMode, "env"),
 		})
 	}
-	RenderTable(w, []string{"ACTIVE", "NAME", "ENDPOINT", "SERVICE_URL", "SSH_ENDPOINT", "PROXY_MODE"}, rows)
+	RenderTable(w, []string{"ACTIVE", "NAME", "ENDPOINT", "SSH_ENDPOINT", "PROXY_MODE"}, rows)
 }

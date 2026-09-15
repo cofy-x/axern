@@ -7,7 +7,6 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/sirupsen/logrus"
 )
 
@@ -61,20 +60,6 @@ func acceptExitBeforeReady(runtimeName, containerID, bundlePath string, meta *ap
 	if !ok {
 		return false, nil
 	}
-	markExitedBeforeReady(meta, runtimeoci.SandboxdBundleSocketPath(bundlePath))
 	logrus.WithField("exit_code", exit.Status).Debugf("%s workload %s exited before sandboxd readiness was observed", runtimeName, containerID)
 	return true, nil
-}
-
-func markExitedBeforeReady(meta *apipb.ContainerMetadata, socketPath string) {
-	if meta == nil {
-		return
-	}
-	if meta.Labels == nil {
-		meta.Labels = map[string]string{}
-	}
-	meta.Labels[LabelReady] = "false"
-	meta.Labels[LabelSocket] = socketPath
-	meta.Labels[LabelCapabilities] = ""
-	meta.Labels[LabelUserState] = "exited"
 }

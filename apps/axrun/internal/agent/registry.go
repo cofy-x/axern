@@ -6,8 +6,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 type ProviderType = agentprofile.ProviderType
@@ -189,7 +189,7 @@ func (r *Registry) ValidateSelection(selection Selection) error {
 		return fmt.Errorf("unsupported agent runtime %q", selection.RuntimeType)
 	}
 	if selection.RuntimeType == domain.AgentRuntimeTypeAgentImage && strings.TrimSpace(selection.Image) == "" {
-		return fmt.Errorf("agent runtime agent-image requires agent bundle image")
+		return fmt.Errorf("agent runtime agent-image requires agent image")
 	}
 	reg := r.entries[selection.Name]
 	if selection.RuntimeType != "" {

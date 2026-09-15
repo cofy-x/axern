@@ -9,7 +9,7 @@ import (
 
 func TestValidateEnforcementManifestRejectsCrossRuntimeAndMutableBackingState(t *testing.T) {
 	valid := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", EphemeralStorageLimitBytes: 2048,
+		EphemeralStorageLimitBytes:    2048,
 		FilestoreMountIdentity:        "42:/dev/loop0:/filestore",
 		RunscOverlayArg:               "root:dir=/filestore/runsc,size=2048",
 		RunscBackingDirectory:         "/filestore/runsc",
@@ -25,7 +25,6 @@ func TestValidateEnforcementManifestRejectsCrossRuntimeAndMutableBackingState(t 
 			m.RunscOverlayArg = "root:dir=/filestore/runsc,size=4096"
 		},
 		"missing backing identity": func(m *apipb.AllocationEnforcementManifest) { m.RunscBackingDirectoryIdentity = "" },
-		"cross-runtime project":    func(m *apipb.AllocationEnforcementManifest) { m.RuncProjectID = 9 },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {

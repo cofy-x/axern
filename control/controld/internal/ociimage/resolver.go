@@ -11,7 +11,7 @@ import (
 
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	"github.com/cofy-x/axern/lib/go/imageref"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
@@ -41,7 +41,7 @@ func (r *Resolver) Resolve(ctx context.Context, imageRef string, opts environmen
 	if digestRef, ok := ref.(name.Digest); ok {
 		return &environmentkernel.ResolvedImage{
 			Ref: digestRef.Name(),
-			Descriptor: &catalogv1.OciImageDescriptor{
+			Descriptor: &environmentv1.OciImageDescriptor{
 				Digest: digestRef.DigestStr(),
 				Annotations: map[string]string{
 					"org.opencontainers.image.ref.name": digestRef.Name(),
@@ -63,7 +63,7 @@ func (r *Resolver) Resolve(ctx context.Context, imageRef string, opts environmen
 	}
 	return &environmentkernel.ResolvedImage{
 		Ref: ref.Name(),
-		Descriptor: &catalogv1.OciImageDescriptor{
+		Descriptor: &environmentv1.OciImageDescriptor{
 			Digest:    desc.Digest.String(),
 			MediaType: string(desc.MediaType),
 			SizeBytes: desc.Size,

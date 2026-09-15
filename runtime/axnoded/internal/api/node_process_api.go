@@ -18,14 +18,14 @@ func (s *nodeSandboxServer) Process(stream nodesandboxv1.NodeSandbox_ProcessServ
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID(), open.GetAttempt(), open.GetExecutionLeaseToken())
+	target, err := s.validateDirectAuth(stream.Context(), open.GetAllocationID())
 	if err != nil {
 		return err
 	}
 	if open.GetSpec() == nil || len(open.GetSpec().GetArgv()) == 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "spec.argv is required")
 	}
-	if err := acknowledgeExecutionLease(stream); err != nil {
+	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
 	}
 	return s.svc.Process(&processAdapter{
@@ -67,14 +67,14 @@ func convertProcessRequest(in *nodesandboxv1.ProcessRequest, targetID string) (*
 		return &runtimev1.ProcessRequest{
 			Payload: &runtimev1.ProcessRequest_Open{
 				Open: &runtimev1.ProcessOpen{
-					ID:           targetID,
-					Command:      append([]string(nil), payload.Open.GetSpec().GetArgv()...),
-					Tty:          payload.Open.GetSpec().GetTty(),
-					Timeout:      payload.Open.GetSpec().GetTimeoutSeconds(),
-					Env:          cloneStringMap(payload.Open.GetSpec().GetEnv()),
-					Cwd:          payload.Open.GetSpec().GetCwd(),
-					User:         payload.Open.GetSpec().GetUser(),
-					ManagedProxy: convertManagedProxySpec(payload.Open.GetSpec().GetManagedProxy()),
+					ID:          targetID,
+					Command:     append([]string(nil), payload.Open.GetSpec().GetArgv()...),
+					Tty:         payload.Open.GetSpec().GetTty(),
+					Timeout:     payload.Open.GetSpec().GetTimeoutSeconds(),
+					Env:         cloneStringMap(payload.Open.GetSpec().GetEnv()),
+					Cwd:         payload.Open.GetSpec().GetCwd(),
+					User:        payload.Open.GetSpec().GetUser(),
+					InitialSize: convertProcessInitialSize(payload.Open.GetInitialSize()),
 				},
 			},
 		}, nil
@@ -91,6 +91,13 @@ func convertProcessRequest(in *nodesandboxv1.ProcessRequest, targetID string) (*
 	}
 }
 
+func convertProcessInitialSize(in *nodesandboxv1.TerminalResize) *runtimev1.TerminalResize {
+	if in == nil {
+		return nil
+	}
+	return &runtimev1.TerminalResize{Cols: in.GetCols(), Rows: in.GetRows()}
+}
+
 func convertProcessResponse(in *runtimev1.ProcessResponse) *nodesandboxv1.ProcessResponse {
 	switch payload := in.GetPayload().(type) {
 	case *runtimev1.ProcessResponse_Stdout:
@@ -99,9 +106,8 @@ func convertProcessResponse(in *runtimev1.ProcessResponse) *nodesandboxv1.Proces
 		return &nodesandboxv1.ProcessResponse{Payload: &nodesandboxv1.ProcessResponse_Stderr{Stderr: payload.Stderr}}
 	case *runtimev1.ProcessResponse_Exit:
 		return &nodesandboxv1.ProcessResponse{Payload: &nodesandboxv1.ProcessResponse_Exit{Exit: &nodesandboxv1.ExecExit{
-			ExitCode:           payload.Exit.GetExitCode(),
-			Message:            payload.Exit.GetMessage(),
-			ManagedProxyReport: convertManagedProxyReport(payload.Exit.GetManagedProxyReport()),
+			ExitCode: payload.Exit.GetExitCode(),
+			Message:  payload.Exit.GetMessage(),
 		}}}
 	case *runtimev1.ProcessResponse_Ready:
 		return &nodesandboxv1.ProcessResponse{Payload: &nodesandboxv1.ProcessResponse_Ready{Ready: &nodesandboxv1.ProcessReady{}}}

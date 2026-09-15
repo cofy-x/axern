@@ -14,9 +14,9 @@ import (
 )
 
 // StartRequestDigest identifies the immutable behavioral contract of one
-// managed allocation attempt. Placement evidence is deliberately reduced to
-// key plus catalog loss policy: a later current observation may replace the
-// selected placement proof without changing the requested sandbox. Trace IDs
+// allocation. Capability requirements contribute only their key and contract
+// loss policy; changing the current Node observation does not change the
+// requested sandbox. Trace IDs
 // are request telemetry and likewise do not define runtime behavior.
 func StartRequestDigest(request *runtimev1.StartRequest) (string, error) {
 	if request == nil {
@@ -24,8 +24,9 @@ func StartRequestDigest(request *runtimev1.StartRequest) (string, error) {
 	}
 	canonical := proto.Clone(request).(*runtimev1.StartRequest)
 	canonical.TraceID = ""
-	dependencies := make([]*capabilityv1.CapabilityDependency, 0, len(canonical.GetCapabilityDependencies()))
-	for _, dependency := range canonical.GetCapabilityDependencies() {
+	canonical.ExecutionLeaseTtlSeconds = 0
+	dependencies := make([]*capabilityv1.CapabilityRequirement, 0, len(canonical.GetCapabilityRequirements()))
+	for _, dependency := range canonical.GetCapabilityRequirements() {
 		if dependency == nil {
 			return "", fmt.Errorf("allocation capability dependency is required")
 		}
@@ -40,7 +41,7 @@ func StartRequestDigest(request *runtimev1.StartRequest) (string, error) {
 		if dependency.GetLossPolicy() != policy {
 			return "", fmt.Errorf("allocation capability %q has invalid loss policy", keyID)
 		}
-		dependencies = append(dependencies, &capabilityv1.CapabilityDependency{
+		dependencies = append(dependencies, &capabilityv1.CapabilityRequirement{
 			Key:        capabilitycontract.CloneKey(dependency.GetKey()),
 			LossPolicy: policy,
 		})
@@ -50,7 +51,7 @@ func StartRequestDigest(request *runtimev1.StartRequest) (string, error) {
 		right, _ := capabilitycontract.KeyID(dependencies[j].GetKey())
 		return left < right
 	})
-	canonical.CapabilityDependencies = dependencies
+	canonical.CapabilityRequirements = dependencies
 	extensionRequirements := append([]*capabilityv1.ExtensionCapabilityRequirement(nil), canonical.GetExtensionCapabilityRequirements()...)
 	for _, requirement := range extensionRequirements {
 		if requirement == nil || requirement.GetCapability() == nil {

@@ -1,32 +1,12 @@
 package rollout
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
-
-func TestWorkspaceImageNeverUsesClientUpload(t *testing.T) {
-	sb := &fakeSandbox{}
-	task := domain.TaskInstance{InitialState: &domain.InitialStateSpec{
-		Type: "taskset_workspace_image",
-		WorkspaceImage: &domain.WorkspaceImageSourceSpec{
-			Variants:   []domain.WorkspaceImageVariantSpec{{Format: "nydus", Image: "registry.example/taskset@sha256:abc"}},
-			SourcePath: "tasks/example/workspace",
-			Target:     "/workspace",
-		},
-	}}
-	uploaded, err := uploadInitialWorkspace(context.Background(), sb, Paths{}, task, func(domain.TrajectoryStep) (int, error) { return 0, nil })
-	if err != nil {
-		t.Fatal(err)
-	}
-	if uploaded || len(sb.uploadLocalPaths) != 0 {
-		t.Fatalf("workspace image used client upload: uploaded=%v paths=%#v", uploaded, sb.uploadLocalPaths)
-	}
-}
 
 func TestExecuteUploadsInitialWorkspaceBeforeAgent(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})

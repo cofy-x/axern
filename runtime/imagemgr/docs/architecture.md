@@ -1,11 +1,8 @@
 # Imagemgr Architecture
 
-`imagemgr` is the node-local image orchestration daemon used by `axnoded`.
-It owns API-level mount routing and process orchestration, while image bytes,
-filesystem reads, loop mounts, and OCI extraction stay in their owning packages.
+`imagemgr` is the node-local image orchestration daemon used by `axnoded`. It owns API-level mount routing and process orchestration, while image bytes, filesystem reads and OCI extraction stay in their owning packages.
 
-Use this document when changing mount routing, daemon lifecycle, inventory, or
-the `axnoded` to `imagemgr` integration.
+Use this document when changing mount routing, daemon lifecycle, inventory, or the `axnoded` to `imagemgr` integration.
 
 ## Implementation Map
 
@@ -17,12 +14,9 @@ flowchart TB
     Worker --> OCI["oci.Manager"]
     Worker --> Nydus["nydus.RegistryClient"]
     Worker --> IFSMgr["imagefsd.Manager"]
-    Worker --> OSSLoop["ossloop.Manager"]
 
     IFSMgr --> IFSD["imagefsd daemon process"]
-    IFSD --> RawFuse["raw image FUSE mount"]
     IFSD --> NydusFuse["Nydus RAFS FUSE mount"]
-    OSSLoop --> OSSRootfs["directory rootfs from raw image"]
     OCI --> OCIRootfs["OCI extract + readonly overlay"]
 
     Worker --> Inventory["GET /inventory"]
@@ -30,16 +24,13 @@ flowchart TB
 
 ## Mount Families
 
-| Entry point | Primary owner | Result |
-| --- | --- | --- |
-| `POST /oss_mount` | `api` + `imagefsd` + `ossloop` | Remote raw image mounted by `imagefsd`, then loop-mounted as a directory rootfs |
-| `POST /nydus_mount` | `api` + `nydus` + `imagefsd` | Registry bootstrap mounted as a Nydus RAFS rootfs |
-| `POST /oci_mount` | `api` + `oci`, optionally `nydus` + `imagefsd` | Imported or pulled OCI image exposed as a readonly overlay, unless Nydus routing succeeds |
-| `POST /oci_import` | `api` + `oci` | Local Docker archive imported into the node-local OCI cache |
+| Entry point         | Primary owner                                  | Result                                                                                    |
+| ------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `POST /nydus_mount` | `api` + `nydus` + `imagefsd`                   | Registry bootstrap mounted as a Nydus RAFS rootfs                                         |
+| `POST /oci_mount`   | `api` + `oci`, optionally `nydus` + `imagefsd` | Imported or pulled OCI image exposed as a readonly overlay, unless Nydus routing succeeds |
+| `POST /oci_import`  | `api` + `oci`                                  | Local Docker archive imported into the node-local OCI cache                               |
 
-`api.HttpWorker` is the routing point. Keep request validation, daemon ID
-generation, mount record writes, and route selection there instead of moving
-mount policy into `axnoded` or lower-level packages.
+`api.HttpWorker` is the routing point. Keep request validation, lease/resource writes, daemon ID generation, and route selection there instead of moving mount policy into `axnoded` or lower-level packages.
 
 ## OCI Mount Routing
 
@@ -79,63 +70,30 @@ Important routing rules:
 
 - Imported images skip Nydus detection and use the local OCI cache.
 - Request-scoped Docker config JSON applies only to the OCI pull path.
-- If an image is detected as Nydus but the Nydus mount fails, the API returns
-  that error instead of silently falling back to OCI.
-- `POST /oci_umount` releases one durable lease. The final lease routes resource
-  cleanup through `oci.Manager` or `imagefsd.Manager`; failed cleanup remains
-  durable for reconciliation.
+- If an image is detected as Nydus but the Nydus mount fails, the API returns that error instead of silently falling back to OCI.
+- `POST /oci_umount` releases one durable lease. The final lease routes resource cleanup through `oci.Manager` or `imagefsd.Manager`; failed cleanup remains durable for reconciliation.
 
-## OSS Raw Image Flow
+## Persistence And Ownership
 
-```mermaid
-sequenceDiagram
-    participant Client as axnoded or operator
-    participant API as api.HttpWorker
-    participant IFSD as imagefsd.Manager
-    participant Daemon as imagefsd daemon
-    participant OSSLoop as ossloop.Manager
+`internal/mountstore` is the sole authority for client-visible resource identity, ownership, and leases. Its `resource_leases.db` decides whether a resource may be retained or unmounted. OCI and Nydus implementations cannot create ownership by discovering backend state.
 
-    Client->>API: POST /oss_mount {endpoint,bucket,object,lease_id,owner}
-    API->>IFSD: CreateDaemon(raw image options)
-    IFSD-->>API: daemon mountpoint + raw image name
-    API->>Daemon: Mount raw object with imagefsd
-    API->>OSSLoop: Mount ext4 raw image as directory rootfs
-    API-->>Client: mount_path + immutable_mount + lease identity
-```
+The OCI `metadata.db` contains only backend recovery state: extracted layer and chain refcounts, imported content, in-flight mount intent, and the `oci_mount_state` projection needed to reconstruct or remove an overlay mount. This state is not a second resource lifecycle. On restart, imagemgr reconciles backend state under the resource/lease authority; an OCI projection without an authoritative resource lease is cleanup work, not a live client resource.
 
-The OSS flow is intentionally two-stage. `imagefsd` exposes the raw remote
-image as a file, and `ossloop` converts that file into the directory rootfs
-that `axnoded` can use. Preserve that split unless the rootfs model is being
-redesigned deliberately.
-
-OCI, Nydus, and OSS resources share the mountstore lease contract. Their
-resource implementations remain owned by `oci`, `imagefsd`, and `ossloop`.
-Each owner returns one bounded flat immutable-mount descriptor; axnoded
-projection consumes that descriptor and must not reverse-engineer these
-implementations. Source health and identity stay with imagemgr lease
-reconciliation, while projection owns only its host OverlayFS and writable
-artifacts.
-Callers recover ownership by submitting their complete desired lease set to
-`POST /reconcile_mount_leases`; reconciliation is scoped to that owner.
+OCI and Nydus resources share the mountstore lease contract. Their resource implementations remain owned by `oci` and `imagefsd`. Each owner returns one bounded flat immutable-mount descriptor; axnoded projection consumes that descriptor and must not reverse-engineer these implementations. Source health and identity stay with imagemgr lease reconciliation, while projection owns only its host OverlayFS and writable artifacts. Callers recover ownership by submitting their complete desired lease set to `POST /reconcile_mount_leases`; reconciliation is scoped to that owner.
 
 ## Inventory And Cleanup
 
 `GET /inventory` is the read-only node image summary. It combines:
 
-- mount records from `internal/mountstore`
+- authoritative resources and leases from `internal/mountstore`
 - imported and mounted OCI state from `oci.Manager`
 - live daemon state from `imagefsd.Manager`
 - retained ChunkDB and locality summaries from `imagefsd`
 
-`POST /cleanup_daemon` removes a specific `imagefsd` daemon by daemon ID. Prefer
-normal unmount endpoints for mounted rootfs cleanup because they also release
-the owning mount records and route through the correct package owner.
+`POST /cleanup_daemon` removes a specific `imagefsd` daemon by daemon ID. Prefer normal unmount endpoints for mounted rootfs cleanup because they also release the owning mount records and route through the correct package owner.
 
 ## Change Routing
 
-- API request or response changes: update `api/types.go`, tests, and
-  `README.md` examples together.
-- `imagefsd` daemon invocation changes: update this document,
-  `runtime/imagefsd/docs/architecture.md`, and launch validation.
-- Socket, `.dev/`, or rootfs routing changes: update `.x/runtime-stack.md` and
-  the affected subsystem docs together.
+- API request or response changes: update `api/types.go`, tests, and `README.md` examples together.
+- `imagefsd` daemon invocation changes: update this document, `runtime/imagefsd/docs/architecture.md`, and launch validation.
+- Socket, `.dev/`, or rootfs routing changes: update `.x/runtime-stack.md` and the affected subsystem docs together.

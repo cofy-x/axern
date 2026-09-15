@@ -52,7 +52,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
           "refId": "A",
           "legendFormat": "running"
         }
@@ -129,7 +129,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
           "refId": "A",
           "legendFormat": "cluster total"
         }
@@ -206,22 +206,22 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "last_over_time((histogram_quantile(0.50, sum(rate(axern_controld_service_ready_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
+          "expr": "last_over_time((histogram_quantile(0.50, sum(rate(axern_controld_environment_operation_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
           "refId": "A",
           "legendFormat": "p50"
         },
         {
-          "expr": "last_over_time((histogram_quantile(0.95, sum(rate(axern_controld_service_ready_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
+          "expr": "last_over_time((histogram_quantile(0.95, sum(rate(axern_controld_environment_operation_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
           "refId": "B",
           "legendFormat": "p95"
         },
         {
-          "expr": "last_over_time((histogram_quantile(0.99, sum(rate(axern_controld_service_ready_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
+          "expr": "last_over_time((histogram_quantile(0.99, sum(rate(axern_controld_environment_operation_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
           "refId": "C",
           "legendFormat": "p99"
         }
       ],
-      "title": "Service Ready Latency",
+      "title": "Environment Operation Latency",
       "type": "timeseries",
       "description": "Rolling 5-minute percentiles. The last valid observation is held for up to 30 minutes. No data means no valid latency sample exists in that period; zero is intentionally not synthesized. Use Startup Event Rate to distinguish idle traffic from telemetry loss."
     },
@@ -294,22 +294,22 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "last_over_time((histogram_quantile(0.50, sum(rate(axern_controld_service_replica_ready_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
+          "expr": "last_over_time((histogram_quantile(0.50, sum(rate(axern_controld_run_operation_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
           "refId": "A",
           "legendFormat": "p50"
         },
         {
-          "expr": "last_over_time((histogram_quantile(0.95, sum(rate(axern_controld_service_replica_ready_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
+          "expr": "last_over_time((histogram_quantile(0.95, sum(rate(axern_controld_run_operation_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
           "refId": "B",
           "legendFormat": "p95"
         },
         {
-          "expr": "last_over_time((histogram_quantile(0.99, sum(rate(axern_controld_service_replica_ready_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
+          "expr": "last_over_time((histogram_quantile(0.99, sum(rate(axern_controld_run_operation_duration_seconds_bucket[5m])) by (le)) >= 0)[30m:15s])",
           "refId": "C",
           "legendFormat": "p99"
         }
       ],
-      "title": "Service Replica Ready Latency",
+      "title": "Run Operation Latency",
       "type": "timeseries",
       "description": "Rolling 5-minute percentiles. The last valid observation is held for up to 30 minutes. No data means no valid latency sample exists in that period; zero is intentionally not synthesized. Use Startup Event Rate to distinguish idle traffic from telemetry loss."
     },
@@ -558,12 +558,12 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum by (axern_state) (axern_controld_service_replicas_current)",
+          "expr": "sum by (axern_status) (axern_controld_allocations_current)",
           "refId": "A",
-          "legendFormat": "{{axern_state}}"
+          "legendFormat": "{{axern_status}}"
         }
       ],
-      "title": "Service Replicas",
+      "title": "Allocations by Status",
       "type": "timeseries"
     },
     {
@@ -626,14 +626,14 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "(((sum(rate(axern_controld_service_operation_total{axern_result=\"ok\"}[5m])) or vector(0)) / sum(rate(axern_controld_service_operation_total[5m]))) and on() (sum(rate(axern_controld_service_operation_total[5m])) > 0)) or (-1 * (0 * sum(axern_controld_reconcile_consecutive_failures) + 1))",
+          "expr": "(((sum(rate(axern_controld_run_operation_total{axern_result=\"ok\"}[5m])) or vector(0)) / sum(rate(axern_controld_run_operation_total[5m]))) and on() (sum(rate(axern_controld_run_operation_total[5m])) > 0)) or (-1 * (0 * sum(axern_controld_reconcile_consecutive_failures) + 1))",
           "refId": "A",
           "legendFormat": "success"
         }
       ],
-      "title": "Service Operation Success (5m)",
+      "title": "Run Operation Success (5m)",
       "type": "stat",
-      "description": "Success ratio for service operations observed in the last 5 minutes. Idle means no operations occurred; it is intentionally not reported as 0% or 100%."
+      "description": "Success ratio for Run operations observed in the last 5 minutes. Idle means no operations occurred; it is intentionally not reported as 0% or 100%."
     },
     {
       "datasource": "${datasource}",
@@ -683,12 +683,12 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "(sum(rate(axern_gateway_service_proxy_requests_total{axern_result!=\"ok\"}[5m])) / clamp_min(sum(rate(axern_gateway_service_proxy_requests_total[5m])), 1)) or (0 * sum(axern_gateway_http_requests_current))",
+          "expr": "(sum(rate(axern_gateway_terminal_resolve_total{axern_result!=\"ok\"}[5m])) / clamp_min(sum(rate(axern_gateway_terminal_resolve_total[5m])), 1)) or (0 * sum(axern_gateway_terminal_sessions_current))",
           "refId": "A",
           "legendFormat": "errors"
         }
       ],
-      "title": "Gateway Error Rate (5m)",
+      "title": "Gateway Terminal Resolve Error Rate (5m)",
       "type": "stat",
       "description": "Gateway proxy error ratio over the last 5 minutes. Zero is valid when no requests or no errors occurred."
     },
@@ -1095,23 +1095,13 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(rate(axern_controld_service_ready_duration_seconds_count[5m])) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
-          "refId": "A",
-          "legendFormat": "service ready"
-        },
-        {
-          "expr": "sum(rate(axern_controld_service_replica_ready_duration_seconds_count[5m])) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
-          "refId": "B",
-          "legendFormat": "replica ready"
-        },
-        {
           "expr": "sum(rate(axern_axnoded_allocation_start_duration_seconds_count[5m])) or (0 * sum(axern_axnoded_resource_pool_target_current{axern_resource=\"cgroup\"}))",
-          "refId": "C",
+          "refId": "A",
           "legendFormat": "allocation start"
         },
         {
           "expr": "sum(rate(axern_imagemgr_timed_operation_duration_seconds_count[5m])) or (0 * sum(axern_axnoded_resource_pool_target_current{axern_resource=\"cgroup\"}))",
-          "refId": "D",
+          "refId": "B",
           "legendFormat": "image operation"
         }
       ],

@@ -34,15 +34,6 @@ const (
 	PathComputerUseDisplay    = "/computer-use/display"
 	PathComputerUseMouse      = "/computer-use/mouse"
 	PathComputerUseKeyboard   = "/computer-use/keyboard"
-	PathBrowserPrefix         = "/browser/"
-	PathBrowserStatus         = "/browser/status"
-	PathBrowserOpen           = "/browser/open"
-	PathBrowserClose          = "/browser/close"
-	PathBrowserNavigate       = "/browser/navigate"
-	PathBrowserResize         = "/browser/resize"
-	PathBrowserClick          = "/browser/click"
-	PathBrowserType           = "/browser/type"
-	PathBrowserWait           = "/browser/wait"
 )
 
 const (

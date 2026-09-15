@@ -34,7 +34,7 @@ var NewSessionClient = func(socketPath string) SessionClient {
 }
 
 func OpenExecSession(ctx context.Context, request *apipb.ExecSessionOpen, options contract.HandlerOptions, containerRoot string) (contract.Session, error) {
-	socketPath, err := processSocketPath(containerRoot, options, request.GetTty(), request.GetManagedProxy() != nil)
+	socketPath, err := processSocketPath(containerRoot, options)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,6 @@ func OpenExecSession(ctx context.Context, request *apipb.ExecSessionOpen, option
 		Terminal:     request.GetTty(),
 		InitialCols:  request.GetInitialSize().GetCols(),
 		InitialRows:  request.GetInitialSize().GetRows(),
-		ManagedProxy: managedProxySpec(request.GetManagedProxy()),
 	})
 	if err != nil {
 		return nil, processOperationError("start exec session", err)
@@ -188,9 +187,8 @@ func (s *Session) waitProcess() {
 		return
 	}
 	s.base.FinishWait(contract.Exit{
-		Timestamp:          time.Now(),
-		Status:             exitCode,
-		ManagedProxyReport: managedProxyReport(status.ManagedProxyReport),
+		Timestamp: time.Now(),
+		Status:    exitCode,
 	}, nil)
 	s.base.FinishOutput()
 }

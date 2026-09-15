@@ -28,7 +28,6 @@ func ImageReferences(version string) map[string]string {
 	registry := "ghcr.io/cofy-x/axern/"
 	values := map[string]string{
 		"POSTGRES_IMAGE":             "postgres:16-alpine",
-		"MINIO_IMAGE":                "minio/minio:RELEASE.2025-02-28T09-55-16Z",
 		"CONTROLD_IMAGE":             registry + "controld:" + tag,
 		"TUNNELD_IMAGE":              registry + "tunneld:" + tag,
 		"GATEWAYD_IMAGE":             registry + "gatewayd:" + tag,
@@ -37,8 +36,6 @@ func ImageReferences(version string) map[string]string {
 		"SERVER_BASE_RUNTIME_IMAGE":  registry + "server-base-runtime:" + tag,
 		"CODING_BASE_RUNTIME_IMAGE":  registry + "coding-base-runtime:" + tag,
 		"DESKTOP_BASE_RUNTIME_IMAGE": registry + "desktop-base-runtime:" + tag,
-		"CLAUDE_CODE_BUNDLE_IMAGE":   registry + "claude-code-bundle:" + tag,
-		"CODEX_BUNDLE_IMAGE":         registry + "codex-bundle:" + tag,
 		"OTEL_COLLECTOR_IMAGE":       "otel/opentelemetry-collector:0.150.1",
 		"OTEL_LGTM_IMAGE":            "grafana/otel-lgtm:0.11.16",
 	}

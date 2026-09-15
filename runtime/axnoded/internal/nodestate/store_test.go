@@ -11,6 +11,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestDBRecordLifecycle(t *testing.T) {
@@ -21,16 +22,16 @@ func TestDBRecordLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	want := &apipb.Map{Items: map[string]string{"a": "one"}}
+	want := &apipb.ContainerMetadata{Stdout: "one"}
 	if err := db.PutRecord("records", "allocation-a", want); err != nil {
 		t.Fatalf("PutRecord() error = %v", err)
 	}
-	var got apipb.Map
+	var got apipb.ContainerMetadata
 	if err := db.GetRecord("records", "allocation-a", &got); err != nil {
 		t.Fatalf("GetRecord() error = %v", err)
 	}
-	if !reflect.DeepEqual(got.GetItems(), want.GetItems()) {
-		t.Fatalf("GetRecord() = %#v, want %#v", got.GetItems(), want.GetItems())
+	if !proto.Equal(&got, want) {
+		t.Fatalf("GetRecord().stdout = %q, want %q", got.GetStdout(), want.GetStdout())
 	}
 	if err := db.DeleteRecord("records", "allocation-a"); err != nil {
 		t.Fatalf("DeleteRecord() error = %v", err)
@@ -47,7 +48,7 @@ func TestDBCompareAndSwapRecord(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 
-	first := &apipb.Map{Items: map[string]string{"value": "first"}}
+	first := &apipb.ContainerMetadata{Stdout: "first"}
 	swapped, err := db.CompareAndSwapRecord("records", "key", nil, false, first)
 	if err != nil || !swapped {
 		t.Fatalf("create CAS = %v, %v", swapped, err)
@@ -73,11 +74,11 @@ func TestDBSnapshotAndIterationSurviveReopen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	if err := db.SaveSnapshot("network_interfaces", &apipb.Slice{Items: []string{"one"}}); err != nil {
+	if err := db.SaveSnapshot("network_interfaces", &apipb.NetworkLedger{Leases: []*apipb.NetworkLease{{AllocationID: "one"}}}); err != nil {
 		t.Fatalf("SaveSnapshot() error = %v", err)
 	}
 	for _, key := range []string{"b", "a"} {
-		if err := db.PutRecord("allocations", key, &apipb.Map{Items: map[string]string{"id": key}}); err != nil {
+		if err := db.PutRecord("allocations", key, &apipb.ContainerMetadata{Stdout: key}); err != nil {
 			t.Fatalf("PutRecord(%q) error = %v", key, err)
 		}
 	}
@@ -90,12 +91,12 @@ func TestDBSnapshotAndIterationSurviveReopen(t *testing.T) {
 		t.Fatalf("Open() after close error = %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	var snapshot apipb.Slice
+	var snapshot apipb.NetworkLedger
 	if err := db.LoadSnapshot("network_interfaces", &snapshot); err != nil {
 		t.Fatalf("LoadSnapshot() error = %v", err)
 	}
-	if !reflect.DeepEqual(snapshot.GetItems(), []string{"one"}) {
-		t.Fatalf("LoadSnapshot() = %#v", snapshot.GetItems())
+	if len(snapshot.GetLeases()) != 1 || snapshot.GetLeases()[0].GetAllocationID() != "one" {
+		t.Fatalf("LoadSnapshot() = %#v", snapshot.GetLeases())
 	}
 	var keys []string
 	if err := db.ForEachRecord("allocations", func(key string, _ []byte) error {
@@ -135,7 +136,7 @@ func TestDBForEachRecordAllowsRecordDeletion(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	for _, key := range []string{"orphan-a", "orphan-b"} {
-		if err := db.PutRecord("allocations", key, &apipb.Map{Items: map[string]string{"id": key}}); err != nil {
+		if err := db.PutRecord("allocations", key, &apipb.ContainerMetadata{Stdout: key}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -169,7 +170,7 @@ func TestDBConcurrentRecordsRemainIsolated(t *testing.T) {
 		go func(index int) {
 			defer wait.Done()
 			key := fmt.Sprintf("allocation-%03d", index)
-			if err := db.PutRecord("allocations", key, &apipb.Map{Items: map[string]string{"id": key}}); err != nil {
+			if err := db.PutRecord("allocations", key, &apipb.ContainerMetadata{Stdout: key}); err != nil {
 				t.Errorf("PutRecord(%q) error = %v", key, err)
 			}
 		}(index)
@@ -193,7 +194,7 @@ func BenchmarkDBPutRecord(b *testing.B) {
 		b.Fatalf("Open() error = %v", err)
 	}
 	b.Cleanup(func() { _ = db.Close() })
-	value := &apipb.Map{Items: map[string]string{"runtime": "runsc", "image": "registry.example/image@sha256:digest"}}
+	value := &apipb.ContainerMetadata{Stdout: "runsc", Stderr: "registry.example/image@sha256:digest"}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := db.PutRecord("allocations", "allocation", value); err != nil {

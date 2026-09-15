@@ -2,45 +2,45 @@ package runkernel
 
 import (
 	"context"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type AllocationRecord struct {
 	AllocationID           string
 	NodeID                 string
 	NodeTarget             string
-	Attempt                int64
-	CapabilityDependencies []*capabilityv1.CapabilityDependency
+	CapabilityRequirements []*capabilityv1.CapabilityRequirement
 }
 
 type EnvironmentStore interface {
 	CreateEnvironment(ctx context.Context, params CreateEnvironmentParams, now time.Time) (*environmentv1.Environment, error)
 	GetEnvironment(ctx context.Context, id string) (*environmentv1.Environment, error)
-	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, error)
-	DeleteEnvironment(ctx context.Context, id string, now time.Time) (*environmentv1.Environment, error)
+	ListEnvironments(ctx context.Context, filter *environmentv1.ListFilter) ([]*environmentv1.Environment, string, error)
+	DeleteEnvironment(ctx context.Context, id string) (*environmentv1.Environment, error)
 }
 
 type RunStore interface {
 	AdmitRun(ctx context.Context, params AdmitRunParams, now time.Time) (*runv1.Run, error)
-	MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error)
 	GetRun(ctx context.Context, id string) (*runv1.Run, error)
-	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error)
-	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, *AllocationRecord, error)
+	WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error)
+	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error)
+	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error)
 }
 
 type CreateEnvironmentParams struct {
-	Spec     *environmentv1.EnvironmentSpec
-	Template *catalogv1.RuntimeTemplate
-	Labels   map[string]string
+	Spec         *environmentv1.EnvironmentSpec
+	ResolvedSpec *environmentv1.ResolvedEnvironmentSpec
+	Labels       map[string]string
 }
 
 type CreateParams struct {
@@ -61,26 +61,27 @@ type AdmitRunParams struct {
 	Candidates  []*placementkernel.Candidate
 }
 
-type LeaseStore interface {
-	IssueExecutionLease(ctx context.Context, allocationID string, attempt int64, leaseType commonv1.LeaseType, ttl time.Duration, now time.Time) (*commonv1.ExecutionLease, error)
-	WatchExecutionLeases(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*commonv1.ExecutionLease, int64, error)
+type AccessGrantStore interface {
+	IssueAllocationAccessGrant(ctx context.Context, allocationID string, purpose gatewayv1.AllocationAccessPurpose, ttl time.Duration, now time.Time) (*accessgrantkernel.IssuedGrant, error)
+	WatchAllocationAccessGrants(ctx context.Context, nodeID string, afterRevision int64, now time.Time) ([]*accessgrantkernel.Record, int64, error)
 }
 
 type AllocationReporter interface {
-	BatchReportAllocationStatus(ctx context.Context, nodeID string, observations []*nodev1.AllocationStatusObservation, now time.Time) error
+	BatchReportAllocationLifecycle(ctx context.Context, nodeID string, observations []*nodev1.AllocationLifecycleObservation, now time.Time) error
 	ReconcileNodeInventory(ctx context.Context, snapshot allocationkernel.NodeInventorySnapshot, now time.Time) error
 	ReconcileNodeUnavailable(ctx context.Context, nodeID string, now time.Time) error
+	ListNodeExecutionAllocationIDs(ctx context.Context, nodeID string) ([]string, error)
 }
 
 type ReconcileStore interface {
 	LoadStartAllocation(ctx context.Context, allocationID string) (*StartAllocation, error)
-	CompleteAllocationStart(ctx context.Context, allocationID string, now time.Time) error
-	RecordAllocationCapabilityAdmission(ctx context.Context, allocationID string, admission *allocationkernel.CapabilityAdmission, now time.Time) error
-	CompleteAllocationRelease(ctx context.Context, allocationID string, attempt int64, now time.Time) error
-	MarkAllocationCreateFailed(ctx context.Context, allocationID string, message string, now time.Time) (*runv1.Run, error)
-	DueReconcileItems(ctx context.Context, limit int, now time.Time) ([]allocationkernel.ReconcileItem, error)
-	ScheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) error
-	RescheduleReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, now time.Time) (bool, error)
+	CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
+	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, now time.Time) error
+	MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error)
+	ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, claimTTL time.Duration) ([]allocationkernel.ReconcileItem, error)
+	RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error)
+	ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error)
+	WaitReconcileWork(ctx context.Context) error
 }
 
 type StartAllocation struct {

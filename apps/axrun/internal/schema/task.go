@@ -59,13 +59,9 @@ func validateTaskRecord(problems *collector, runDir string, path string, task do
 	validateSandboxSpec(problems, rel, "sandbox", task.Sandbox)
 	validateSandboxRuntimeSourceRefs(problems, runDir, rel, task.Sandbox.RuntimeSource)
 	validateVerifierSpec(problems, rel, "verifier", task.Verifier)
-	taskSetTaskID := ""
-	if task.InitialState != nil && task.InitialState.WorkspaceImage != nil {
-		taskSetTaskID = task.ID
-	}
-	validateVerifierAssets(problems, runDir, rel, task.Verifier.Assets, taskSetTaskID)
+	validateVerifierAssets(problems, runDir, rel, task.Verifier.Assets, "")
 	validateInitialStateSpec(problems, runDir, rel, "initial_state", task.InitialState)
-	validateOracleSpec(problems, runDir, rel, task.Oracle, taskSetTaskID)
+	validateOracleSpec(problems, runDir, rel, task.Oracle, "")
 }
 
 func sortedTaskIDs(tasks taskIndex) []string {

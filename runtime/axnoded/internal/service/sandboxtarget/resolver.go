@@ -1,6 +1,7 @@
 package sandboxtarget
 
 import (
+	"context"
 	"fmt"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -9,27 +10,36 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 )
 
+type Runtime interface {
+	Wait(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	KillContainer(context.Context, *runtime.SignalContainerRequest, contract.HandlerOptions) (*runtime.SignalContainerResponse, error)
+	ExecContainer(context.Context, *runtime.ExecContainerRequest, contract.HandlerOptions) (*runtime.ExecContainerResponse, error)
+	OpenExecSession(context.Context, *runtime.ExecSessionOpen, contract.HandlerOptions) (contract.Session, error)
+	ProcessService() contract.ProcessService
+	FileService() contract.FileService
+}
+
 type Options struct {
-	GetContainer   func(id string) (*container.Container, error)
-	RuntimeHandler func(runtimeName string) (contract.RuntimeHandler, error)
+	GetContainer func(id string) (*container.Container, error)
+	RunscHandler Runtime
 }
 
 type Resolver struct {
-	getContainer   func(id string) (*container.Container, error)
-	runtimeHandler func(runtimeName string) (contract.RuntimeHandler, error)
+	getContainer func(id string) (*container.Container, error)
+	runscHandler Runtime
 }
 
 type Target struct {
 	ID        string
 	Metadata  *runtime.ContainerMetadata
 	Container *container.Container
-	Handler   contract.RuntimeHandler
+	Handler   Runtime
 }
 
 func NewResolver(options Options) *Resolver {
 	return &Resolver{
-		getContainer:   options.GetContainer,
-		runtimeHandler: options.RuntimeHandler,
+		getContainer: options.GetContainer,
+		runscHandler: options.RunscHandler,
 	}
 }
 
@@ -40,8 +50,8 @@ func (r *Resolver) Container(id string) (Target, error) {
 	if r == nil || r.getContainer == nil {
 		return Target{}, fmt.Errorf("sandbox target container resolver is not configured")
 	}
-	if r.runtimeHandler == nil {
-		return Target{}, fmt.Errorf("sandbox target runtime resolver is not configured")
+	if r.runscHandler == nil {
+		return Target{}, fmt.Errorf("sandbox target runsc handler is not configured: %w", errord.ErrInvalidContainer)
 	}
 	c, err := r.getContainer(id)
 	if err != nil {
@@ -50,18 +60,11 @@ func (r *Resolver) Container(id string) (Target, error) {
 	if c == nil || c.Metadata == nil {
 		return Target{}, errord.ErrInvalidContainer
 	}
-	handler, err := r.runtimeHandler(c.Metadata.GetRuntimeHandler())
-	if err != nil {
-		return Target{}, err
-	}
-	if handler == nil {
-		return Target{}, fmt.Errorf("runtime %s returned nil handler: %w", c.Metadata.GetRuntimeHandler(), errord.ErrInvalidContainer)
-	}
 	return Target{
 		ID:        id,
 		Metadata:  c.Metadata,
 		Container: c,
-		Handler:   handler,
+		Handler:   r.runscHandler,
 	}, nil
 }
 
@@ -81,22 +84,5 @@ func (r *Resolver) ExecDirect(id string) (Target, error) {
 	if err != nil {
 		return Target{}, err
 	}
-	if !target.Handler.Capabilities().CanExecDirect {
-		return Target{}, errord.ErrNotImplemented
-	}
 	return target, nil
-}
-
-func (t Target) Labels() map[string]string {
-	if t.Metadata == nil {
-		return nil
-	}
-	return t.Metadata.GetLabels()
-}
-
-func (t Target) RuntimeClass() string {
-	if t.Metadata == nil {
-		return ""
-	}
-	return t.Metadata.GetRuntimeHandler()
 }

@@ -8,15 +8,15 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 )
 
-type LangRuntimePrepareSummary struct {
+type EnvironmentPrepareSummary struct {
 	RuntimeReused         bool
 	RootfsType            string
-	LangRuntimeLookupTime time.Duration
+	EnvironmentLookupTime time.Duration
 	RootfsPrepareTime     time.Duration
 	Steps                 []StartupStepSample
 }
 
-func (s LangRuntimePrepareSummary) StartClass() string {
+func (s EnvironmentPrepareSummary) StartClass() string {
 	if s.RuntimeReused {
 		return contract.StartupClassWarm
 	}
@@ -123,7 +123,7 @@ func (r *startMetricsRecorder) Finish(result string) {
 	r.sink.RecordStartDuration(r.startClass, r.runtime, r.rootfsType, result, time.Since(r.startedAt))
 }
 
-func RootfsTypeFromRuntimeTemplate(fr *runtimeapi.RuntimeTemplate) string {
+func RootfsTypeFromResolvedEnvironment(fr *runtimeapi.ResolvedEnvironment) string {
 	if fr == nil {
 		return contract.StartupRootfsTypeUnknown
 	}

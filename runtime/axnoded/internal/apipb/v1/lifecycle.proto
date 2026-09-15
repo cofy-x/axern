@@ -7,84 +7,72 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 import "internal/apipb/v1/axnoded_internal.proto";
 import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
-import "axern/private/storage/v1/storage.proto";
 
 message StartRequest {
-  RuntimeTemplate runtime_template = 1;
+  ResolvedEnvironment environment = 1;
   repeated Mount mounts = 2;
   axern.control.common.v1.ResourceSpec resources = 3;
-  map<string, string> userEnvs = 4;
+  map<string, string> env = 4;
   string stdout = 5;
   string stderr = 6;
-  string extra_config = 7;
-  string network = 8;
-  string ckptDir = 9;
-  string trace_id = 10;
-  repeated string ports = 11;
-  string containerID = 12;
-  repeated axern.private.storage.v1.ResolvedNodeVolume node_volumes = 13;
-  repeated ImageMount image_mounts = 14;
-  WorkspaceImageSource workspace_image = 15;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 16;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 17;
-  int64 allocation_attempt = 18;
-  // The normalized public policy is carried intact to the node-local
-  // enforcement boundary. The legacy string network field remains the OCI
-  // network-mode selector and must never be used as a policy surrogate.
-  axern.control.common.v1.NetworkEgressPolicy egress_policy = 19;
+  RegistryCredential registry_credential = 7;
+  repeated ResolvedSecretEnvVar secret_env = 8;
+  repeated ResolvedSecretFile secret_files = 9;
+  axern.control.common.v1.NetworkSpec network = 10;
+  string trace_id = 11;
+  string allocation_id = 12;
+  repeated ImageMount image_mounts = 13;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 14;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 15;
+  int64 execution_lease_ttl_seconds = 16;
+}
+
+message RegistryCredential {
+  string docker_config_json = 1;
+}
+
+message ResolvedSecretEnvVar {
+  string name = 1;
+  string value = 2;
+}
+
+message ResolvedSecretFile {
+  string path = 1;
+  bytes content = 2;
+  uint32 mode = 3;
 }
 
 message StartResponse {
-  int32 code = 1;
-  string message = 2;
-  string ID = 3;
-  repeated axern.private.storage.v1.PublishedNodeVolume published_volumes = 4;
-  axern.control.capability.v1.CapabilityConditionSet capability_verification = 5;
-  repeated axern.control.capability.v1.CapabilityDependency admitted_capability_dependencies = 6;
+  string allocation_id = 1;
+  axern.control.capability.v1.CapabilityConditionSet capability_verification = 2;
 }
 
 message DeleteRequest {
-  string ID = 1;
+  string id = 1;
   int64 timeout = 2;
+  int64 output_expires_at_unix_nano = 3;
 }
 
-message DeleteResponse {
-  repeated axern.private.storage.v1.VolumeReleaseObservation volume_release_observations = 1;
-}
+message DeleteResponse {}
 
 message KillRequest {
-  string ID = 1;
+  string id = 1;
   string signal = 2;
 }
 
 message KillResponse {}
 
 message WaitRequest {
-  string ID = 1;
+  string id = 1;
 }
 
 message WaitResponse {
-  int32 status = 1;
-  int32 exit_code = 2;
-  string message = 3;
-}
-
-message CheckpointRequest {
-  string ID = 1;
-  string ckptDir = 2;
-  int64 timeout = 3;
-  bool compress = 4;
-  string trace_id = 5;
-}
-
-message CheckpointResponse {
-  bool success = 1;
+  optional int32 exit_code = 1;
   string message = 2;
 }
 
 message ListContainersRequest {
-  string ID = 1;
-  map<string, string> selector = 10;
+  string id = 1;
 }
 
 message ListContainersResponse {
@@ -92,28 +80,22 @@ message ListContainersResponse {
 }
 
 enum ContainerState {
-  CONTAINER_RUNNING = 0;
-  CONTAINER_EXITED = 1;
-  CONTAINER_UNKNOWN = 2;
+  CONTAINER_UNKNOWN = 0;
+  CONTAINER_RUNNING = 1;
+  CONTAINER_EXITED = 2;
 }
 
 message ContainerStatus {
-  string ID = 1;
-  repeated string command = 2;
-  string runtime = 3;
-  ContainerState state = 4;
-  int64 started_at = 5;
-  int64 finished_at = 6;
-  int32 exit_code = 7;
-  string message = 8;
-  map<string, string> labels = 9;
-  repeated Mount mounts = 10;
-  repeated KeyValue envs = 11;
-  string stdout = 12;
-  string stderr = 13;
-  LinuxContainerResources linux_resources = 14;
-  int32 pid = 15;
-  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 16;
+  string id = 1;
+  ContainerState state = 2;
+  int64 started_at = 3;
+  int64 finished_at = 4;
+  optional int32 exit_code = 5;
+  string message = 6;
+  string stdout = 7;
+  string stderr = 8;
+  int32 pid = 9;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 10;
 }
 
 message VersionRequest {
@@ -122,16 +104,15 @@ message VersionRequest {
 
 message VersionResponse {
   string version = 1;
-  repeated RuntimeVersion runtimes = 2;
+  RuntimeVersion runsc = 2;
 }
 
 message RuntimeVersion {
-  string runtime_name = 1;
-  string runtime_version = 2;
+  string version = 1;
 }
 
 message StatsRequest {
-  string ID = 1;
+  string id = 1;
 }
 
 message StatsResponse {

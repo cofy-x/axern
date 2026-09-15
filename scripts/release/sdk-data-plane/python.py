@@ -22,7 +22,6 @@ def main() -> None:
         with Sandbox(
             client=client,
             template_id="python311",
-            runtime_class="runsc",
             request_cpu="100m",
             request_memory="512MiB",
             labels={"axern.release.acceptance": "python"},
@@ -30,9 +29,9 @@ def main() -> None:
             result = sandbox.exec(["python", "-c", f"print({marker!r})"], check=True, text=True)
             if result.stdout.strip() != marker:
                 raise RuntimeError(f"unexpected Python SDK exec output: {result.stdout!r}")
-            handshake.joinpath("python.service-id").write_text(sandbox.service_id, encoding="utf-8")
+            handshake.joinpath("python.run-id").write_text(sandbox.run_id, encoding="utf-8")
             wait_verified(handshake / "python.verified")
-            print(f"sdk_data_plane=python service_id={sandbox.service_id} ok=true")
+            print(f"sdk_data_plane=python run_id={sandbox.run_id} ok=true")
     finally:
         client.close()
 
@@ -43,7 +42,7 @@ def wait_verified(path: Path) -> None:
         if path.exists():
             return
         time.sleep(0.1)
-    raise TimeoutError("CLI did not verify the Python SDK service")
+    raise TimeoutError("CLI did not verify the Python SDK Run")
 
 
 def required(name: str) -> str:

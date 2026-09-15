@@ -15,53 +15,6 @@ func TestBackendConfig_LoadTemplate(t *testing.T) {
 		validate    func(*testing.T, *BackendConfig)
 	}{
 		{
-			name: "valid OSS config",
-			fileContent: `{
-				"type": "oss",
-				"oss": {
-					"endpoint": "oss-cn-hangzhou.aliyuncs.com",
-					"bucket_name": "test-bucket",
-					"object_prefix": "images/"
-				}
-			}`,
-			wantErr: false,
-			validate: func(t *testing.T, cfg *BackendConfig) {
-				if cfg.BackendType != "oss" {
-					t.Errorf("BackendType = %s, want oss", cfg.BackendType)
-				}
-				if cfg.Oss == nil {
-					t.Fatal("Oss config is nil")
-				}
-				if cfg.Oss.Endpoint != "oss-cn-hangzhou.aliyuncs.com" {
-					t.Errorf("Endpoint = %s, want oss-cn-hangzhou.aliyuncs.com", cfg.Oss.Endpoint)
-				}
-			},
-		},
-		{
-			name: "valid S3 config",
-			fileContent: `{
-				"type": "s3",
-				"s3": {
-					"endpoint": "minio:9000",
-					"region": "us-east-1",
-					"bucket_name": "test-bucket",
-					"object_prefix": "images/"
-				}
-			}`,
-			wantErr: false,
-			validate: func(t *testing.T, cfg *BackendConfig) {
-				if cfg.BackendType != "s3" {
-					t.Errorf("BackendType = %s, want s3", cfg.BackendType)
-				}
-				if cfg.S3 == nil {
-					t.Fatal("S3 config is nil")
-				}
-				if cfg.S3.Endpoint != "minio:9000" {
-					t.Errorf("Endpoint = %s, want minio:9000", cfg.S3.Endpoint)
-				}
-			},
-		},
-		{
 			name: "valid registry config",
 			fileContent: `{
 				"type": "registry",

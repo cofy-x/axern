@@ -5,20 +5,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
 type config struct {
-	runtimeName    string
 	runtimeBinary  string
 	rootfs         string
 	sandboxdBinary string
@@ -54,7 +51,6 @@ func main() {
 
 func parseFlags() config {
 	cfg := config{}
-	flag.StringVar(&cfg.runtimeName, "runtime", "runsc", "runtime name under test")
 	flag.StringVar(&cfg.runtimeBinary, "runtime-binary", "", "OCI runtime binary path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "rootfs path")
 	flag.StringVar(&cfg.sandboxdBinary, "sandboxd-binary", "/usr/local/libexec/axnoded/axern-sandboxd", "host axern-sandboxd binary path")
@@ -67,7 +63,7 @@ func parseFlags() config {
 	flag.BoolVar(&cfg.noCopyRootfs, "no-copy-rootfs", false, "use the supplied rootfs path directly")
 	flag.Parse()
 	if cfg.runtimeBinary == "" {
-		cfg.runtimeBinary = "/usr/local/bin/" + cfg.runtimeName
+		cfg.runtimeBinary = "/usr/local/bin/runsc"
 	}
 	return cfg
 }
@@ -135,7 +131,7 @@ func run(cfg config) error {
 }
 
 func runOne(workDir string, cfg config, tc runCase) error {
-	caseDir := filepath.Join(workDir, safeName(cfg.runtimeName+"-"+tc.name))
+	caseDir := filepath.Join(workDir, safeName("runsc-"+tc.name))
 	if err := os.RemoveAll(caseDir); err != nil {
 		return err
 	}
@@ -163,23 +159,17 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	if err != nil {
 		return err
 	}
-	containerID := safeName("axern-sandboxd-" + cfg.runtimeName + "-" + tc.name)
+	containerID := safeName("axern-sandboxd-runsc-" + tc.name)
 	stdoutPath := filepath.Join(caseDir, "stdout.log")
 	stderrPath := filepath.Join(caseDir, "stderr.log")
 	cwd := tc.cwd
 	if cwd == "" {
 		cwd = "/"
 	}
-	labels := map[string]string{
-		resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): (&resourcemanager.NetResource{
-			Ip: net.ParseIP("10.88.0.2"), NetNSPath: cfg.netnsPath,
-		}).ToString(),
-	}
 	request := &apipb.CreateContainerRequest{
 		Command: tc.argv,
 		Cwd:     cwd,
 		Envs:    tc.env,
-		Labels:  labels,
 		Stdout:  stdoutPath,
 		Stderr:  stderrPath,
 		Rootfs: &apipb.Rootfs{
@@ -194,9 +184,11 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 	}
 	loadOptions := runtimeoci.LoadOptions{
-		ContainerID:       containerID,
-		Request:           request,
-		SandboxdInjection: &runtimeoci.SandboxdInjectionOptions{HostBinaryPath: cfg.sandboxdBinary},
+		ContainerID:          containerID,
+		Request:              request,
+		NetworkNamespacePath: cfg.netnsPath,
+		SandboxIP:            "10.88.0.2",
+		SandboxdInjection:    &runtimeoci.SandboxdInjectionOptions{HostBinaryPath: cfg.sandboxdBinary},
 	}
 	var bundlePath string
 	var ociSpec *spec.Spec

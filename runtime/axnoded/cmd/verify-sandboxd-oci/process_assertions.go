@@ -145,14 +145,13 @@ func assertTimedProcess(ctx context.Context, client *runtimesandboxd.Client) err
 
 func assertSandboxdBackedExecContainer(ctx context.Context, cfg config, bundlePath string) error {
 	socketPath := runtimeoci.SandboxdBundleSocketPath(bundlePath)
-	snapshot, err := runtimesandboxd.NewClient(socketPath).WaitReady(ctx, runtimesandboxd.DefaultReadyTimeout, runtimesandboxd.DefaultPollInterval)
+	_, err := runtimesandboxd.NewClient(socketPath).WaitReady(ctx, runtimesandboxd.DefaultReadyTimeout, runtimesandboxd.DefaultPollInterval)
 	if err != nil {
 		return fmt.Errorf("wait sandboxd ready for runtime exec: %w", err)
 	}
-	labels := runtimesandboxd.EnrichLabels(nil, socketPath, snapshot)
 	containerRoot := filepath.Dir(bundlePath)
 	runtimeRoot := filepath.Dir(containerRoot)
-	handler, err := newVerifyRuntimeHandlerWithRoot(cfg, runtimeRoot)
+	handler, err := newVerifySandboxRuntimeWithRoot(cfg, runtimeRoot)
 	if err != nil {
 		return err
 	}
@@ -160,10 +159,7 @@ func assertSandboxdBackedExecContainer(ctx context.Context, cfg config, bundlePa
 		Command: []string{"/bin/sh", "-c", "printf '%s:%s' \"$AXERN_EXEC_E2E\" \"$(pwd)\""},
 		Envs:    []*apipb.KeyValue{{Key: "AXERN_EXEC_E2E", Value: "ok"}},
 		Cwd:     "/tmp",
-	}, contract.HandlerOptions{
-		ContainerID:     filepath.Base(bundlePath),
-		ContainerLabels: labels,
-	})
+	}, contract.HandlerOptions{ContainerID: filepath.Base(bundlePath)})
 	if err != nil {
 		return fmt.Errorf("sandboxd-backed ExecContainer: %w", err)
 	}
@@ -175,23 +171,19 @@ func assertSandboxdBackedExecContainer(ctx context.Context, cfg config, bundlePa
 
 func assertSandboxdBackedExecSession(ctx context.Context, cfg config, bundlePath string) error {
 	socketPath := runtimeoci.SandboxdBundleSocketPath(bundlePath)
-	snapshot, err := runtimesandboxd.NewClient(socketPath).WaitReady(ctx, runtimesandboxd.DefaultReadyTimeout, runtimesandboxd.DefaultPollInterval)
+	_, err := runtimesandboxd.NewClient(socketPath).WaitReady(ctx, runtimesandboxd.DefaultReadyTimeout, runtimesandboxd.DefaultPollInterval)
 	if err != nil {
 		return fmt.Errorf("wait sandboxd ready for runtime exec session: %w", err)
 	}
-	labels := runtimesandboxd.EnrichLabels(nil, socketPath, snapshot)
 	containerRoot := filepath.Dir(bundlePath)
 	runtimeRoot := filepath.Dir(containerRoot)
-	handler, err := newVerifyRuntimeHandlerWithRoot(cfg, runtimeRoot)
+	handler, err := newVerifySandboxRuntimeWithRoot(cfg, runtimeRoot)
 	if err != nil {
 		return err
 	}
 	session, err := handler.OpenExecSession(ctx, &apipb.ExecSessionOpen{
 		Command: []string{"/bin/sh", "-c", "cat; printf ':err' >&2"},
-	}, contract.HandlerOptions{
-		ContainerID:     filepath.Base(bundlePath),
-		ContainerLabels: labels,
-	})
+	}, contract.HandlerOptions{ContainerID: filepath.Base(bundlePath)})
 	if err != nil {
 		return fmt.Errorf("sandboxd-backed OpenExecSession: %w", err)
 	}

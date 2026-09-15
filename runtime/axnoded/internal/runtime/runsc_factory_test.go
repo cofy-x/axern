@@ -15,7 +15,7 @@ func TestRunscFactoryComposesRuntimeServices(t *testing.T) {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
 
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{Binary: "/usr/bin/runsc"}, loader)
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/bin/runsc"}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}

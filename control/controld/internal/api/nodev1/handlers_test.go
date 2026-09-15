@@ -2,21 +2,20 @@ package nodev1
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -24,7 +23,7 @@ func TestReportNodeRequiresRuntimeSlotContract(t *testing.T) {
 	server := New(Dependencies{})
 
 	_, err := server.ReportNode(context.Background(), &controlnodev1.ReportNodeRequest{
-		NodeID:  "node-a",
+		NodeID: "node-a", NodeTarget: "127.0.0.1:25000",
 		Summary: &controlnodev1.NodeSummary{Pools: &controlnodev1.PoolsSummary{}},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
@@ -35,14 +34,58 @@ func TestReportNodeRequiresRuntimeSlotContract(t *testing.T) {
 	}
 }
 
+func TestReportNodeRequiresReachableNodeTarget(t *testing.T) {
+	server := New(Dependencies{})
+	request := &controlnodev1.ReportNodeRequest{
+		NodeID:  "node-a",
+		Summary: &controlnodev1.NodeSummary{Pools: &controlnodev1.PoolsSummary{RuntimeSlots: &controlnodev1.PoolState{}}},
+	}
+	for _, target := range []string{"", "node-a", "node-a:0", "node-a:65536"} {
+		request.NodeTarget = target
+		if _, err := server.ReportNode(context.Background(), request); grpcstatus.Code(err) != codes.InvalidArgument {
+			t.Fatalf("ReportNode(node_target=%q) error = %v, want InvalidArgument", target, err)
+		}
+	}
+}
+
+type executionAuthorityReporterStub struct{ allocationIDs []string }
+
+func (s executionAuthorityReporterStub) Report(context.Context, nodekernel.ReportParams) ([]string, error) {
+	return append([]string(nil), s.allocationIDs...), nil
+}
+
+func TestReportNodeReturnsCompleteExecutionAuthoritySnapshot(t *testing.T) {
+	server := New(Dependencies{
+		Reporter: executionAuthorityReporterStub{allocationIDs: []string{"alloc-a", "alloc-b"}},
+		Now:      time.Now,
+	})
+	response, err := server.ReportNode(context.Background(), &controlnodev1.ReportNodeRequest{
+		NodeID: "node-a", NodeTarget: "127.0.0.1:25000",
+		Summary: &controlnodev1.NodeSummary{
+			Pools: &controlnodev1.PoolsSummary{RuntimeSlots: &controlnodev1.PoolState{}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("ReportNode() error = %v", err)
+	}
+	if len(response.GetExecutionLeases()) != 2 {
+		t.Fatalf("execution leases = %#v", response.GetExecutionLeases())
+	}
+	for i, allocationID := range []string{"alloc-a", "alloc-b"} {
+		lease := response.GetExecutionLeases()[i]
+		if lease.GetAllocationID() != allocationID || lease.GetTtlSeconds() != int64(allocationkernel.ExecutionLeaseTTL/time.Second) {
+			t.Fatalf("execution lease %d = %#v", i, lease)
+		}
+	}
+}
+
 func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	summary := controldtest.ReadySummary(now)
 	summary.Capacity.MemoryBytes = 16 << 30
 	summary.Allocatable.MemoryBytes = 7 << 30
 	summary.MemoryBudget = &controlnodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes: 16 << 30, SourceAllocatableBytes: 8 << 30, SystemReserveBytes: 1 << 30,
-		EffectiveAllocatableBytes: 7 << 30, CapacityIdentity: "boot:mount:root:sandbox",
+		SourceAllocatableBytes: 8 << 30, SystemReserveBytes: 1 << 30, CapacityIdentity: "boot:mount:root:sandbox",
 		Mode:      controlnodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
 		SampledAt: timestamppb.New(now),
 	}
@@ -60,127 +103,43 @@ func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 	}
 }
 
-func TestValidateAllocationMemoryObservationBatchRejectsAmbiguousEnforcementData(t *testing.T) {
-	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
-	valid := &controlnodev1.AllocationMemoryObservation{
-		AllocationID: "alloc-a", Attempt: 1, Revision: 1, ObservedAt: timestamppb.New(now),
-		RequestBytes: 128, LimitBytes: 256, CurrentBytes: 64, PeakBytes: 96, PeakAvailable: true,
-		CgroupIdentity: "boot:mount:parent:leaf", Runtime: "runsc", ParentControlsVerified: true, LeafControlsVerified: true,
-		CleanupState: controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED,
-	}
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{valid}, now); err != nil {
-		t.Fatalf("validateAllocationMemoryObservationBatch() error = %v", err)
-	}
-	withPSI := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	withPSI.PsiAvailable = true
-	withPSI.PsiSomeAvg10 = 0.25
-	withPSI.PsiSomeTotalUsec = 10
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{withPSI}, now); err != nil {
-		t.Fatalf("available PSI observation validation error = %v", err)
-	}
-	sampledPeak := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	sampledPeak.PeakAvailable = false
-	sampledPeak.PeakBytes = sampledPeak.CurrentBytes
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{sampledPeak}, now); err != nil {
-		t.Fatalf("sampled peak observation validation error = %v", err)
-	}
-	invalidSampledPeak := proto.Clone(sampledPeak).(*controlnodev1.AllocationMemoryObservation)
-	invalidSampledPeak.PeakBytes++
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidSampledPeak}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("inconsistent sampled peak observation validation error = %v, want InvalidArgument", err)
-	}
-	invalidPSI := proto.Clone(withPSI).(*controlnodev1.AllocationMemoryObservation)
-	invalidPSI.PsiAvailable = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidPSI}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("unavailable PSI observation validation error = %v, want InvalidArgument", err)
-	}
-	retiring := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	retiring.CleanupState = controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING
-	retiring.LeafControlsVerified = false
-	retiring.PidRolesVerified = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{retiring}, now); err != nil {
-		t.Fatalf("retiring observation validation error = %v", err)
-	}
-	invalidRetiring := proto.Clone(retiring).(*controlnodev1.AllocationMemoryObservation)
-	invalidRetiring.ParentControlsVerified = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalidRetiring}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("retiring parent validation error = %v, want InvalidArgument", err)
-	}
-	invalid := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	invalid.SwapCurrentBytes = 1
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalid}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("swap validation error = %v, want InvalidArgument", err)
-	}
-	unlimited := proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	unlimited.LimitBytes = 0
-	unlimited.SwapCurrentBytes = 32
-	unlimited.ParentControlsVerified = false
-	unlimited.LeafControlsVerified = false
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{unlimited}, now); err != nil {
-		t.Fatalf("unlimited observation validation error = %v", err)
-	}
-	invalid = proto.Clone(unlimited).(*controlnodev1.AllocationMemoryObservation)
-	invalid.ParentControlsVerified = true
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalid}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("unlimited control validation error = %v, want InvalidArgument", err)
-	}
-	invalid = proto.Clone(valid).(*controlnodev1.AllocationMemoryObservation)
-	invalid.CleanupState = controlnodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_UNSPECIFIED
-	if err := validateAllocationMemoryObservationBatch([]*controlnodev1.AllocationMemoryObservation{invalid}, now); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("cleanup state validation error = %v, want InvalidArgument", err)
-	}
-}
-
-func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) {
+func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
-	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Now:           now,
+	nodeStore.Admit("node-a", now)
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{
+		NodeID:  "node-a",
+		Summary: controldtest.ReadySummary(now),
+		Now:     now,
 	}); err != nil {
-		t.Fatalf("register node: %v", err)
+		t.Fatalf("report node: %v", err)
 	}
-	allocations := &fakeAllocationControl{reconcileServiceIDs: []string{"svc-2", "svc-1"}}
-	notifications := 0
-	var notifiedServiceIDs []string
+	allocations := &fakeAllocationControl{}
 	server := New(Dependencies{
 		Now:         func() time.Time { return now },
 		NodeStore:   nodeStore,
 		Allocations: allocations,
-		NotifyServiceReconcile: func(serviceIDs ...string) {
-			notifications++
-			notifiedServiceIDs = append(notifiedServiceIDs, serviceIDs...)
-		},
 	})
-	observations := []*controlnodev1.AllocationStatusObservation{
-		{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_STARTING},
-		{AllocationID: "alloc-2", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
+	observations := []*controlnodev1.AllocationLifecycleObservation{
+		{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING, ObservedAt: timestamppb.New(now)},
+		{AllocationID: "alloc-2", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
 	}
 
-	if _, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Observations:  observations,
+	if _, err := server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID:       "node-a",
+		Observations: observations,
 	}); err != nil {
-		t.Fatalf("BatchReportAllocationStatus() error = %v", err)
+		t.Fatalf("BatchReportAllocationLifecycle() error = %v", err)
 	}
 	if allocations.calls != 1 || allocations.nodeID != "node-a" || len(allocations.observations) != 2 {
 		t.Fatalf("allocation control call = calls:%d node:%q observations:%d", allocations.calls, allocations.nodeID, len(allocations.observations))
 	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications = %d, want 1", notifications)
-	}
-	if len(notifiedServiceIDs) != 2 || notifiedServiceIDs[0] != "svc-2" || notifiedServiceIDs[1] != "svc-1" {
-		t.Fatalf("notified service IDs = %#v, want [svc-2 svc-1]", notifiedServiceIDs)
-	}
 
-	_, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Observations: []*controlnodev1.AllocationStatusObservation{
-			{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
-			{AllocationID: "alloc-1", Attempt: 1, Status: commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING},
+	_, err := server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID: "node-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{
+			{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
+			{AllocationID: "alloc-1", State: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, ObservedAt: timestamppb.New(now)},
 		},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
@@ -189,33 +148,40 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	if allocations.calls != 1 {
 		t.Fatalf("allocation control calls after invalid batch = %d, want 1", allocations.calls)
 	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications after invalid batch = %d, want 1", notifications)
-	}
 
-	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Observations: []*controlnodev1.AllocationStatusObservation{{
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID: "node-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID: "alloc-1",
-			Attempt:      1,
-			Status:       commonv1.AllocationStatus(999),
+			State:        commonv1.AllocationLifecycleState(999),
 		}},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("unknown allocation status error = %v, want InvalidArgument", err)
+		t.Fatalf("unknown allocation lifecycle error = %v, want InvalidArgument", err)
 	}
 	if allocations.calls != 1 {
-		t.Fatalf("allocation control calls after unknown status = %d, want 1", allocations.calls)
+		t.Fatalf("allocation control calls after unknown lifecycle state = %d, want 1", allocations.calls)
 	}
 
-	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Observations: []*controlnodev1.AllocationStatusObservation{{
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID: "node-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
+			AllocationID: "alloc-1",
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		}},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("control-plane allocation lifecycle state error = %v, want InvalidArgument", err)
+	}
+	if allocations.calls != 1 {
+		t.Fatalf("allocation control calls after control-plane state = %d, want 1", allocations.calls)
+	}
+
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID: "node-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
 			AllocationID:   "alloc-1",
-			Attempt:        1,
-			Status:         commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED,
+			State:          commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
 			DiagnosticCode: commonv1.WorkloadDiagnosticCode(999),
 		}},
 	})
@@ -226,10 +192,33 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 		t.Fatalf("allocation control calls after unknown diagnostic code = %d, want 1", allocations.calls)
 	}
 
-	_, err = server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "wrong-token",
-		Observations:  observations,
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID: "node-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
+			AllocationID: "alloc-1",
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+		}},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("missing observed_at error = %v, want InvalidArgument", err)
+	}
+
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID: "node-a",
+		Observations: []*controlnodev1.AllocationLifecycleObservation{{
+			AllocationID: "alloc-1",
+			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE,
+			ObservedAt:   timestamppb.New(now),
+			ExitCode:     func() *int32 { value := int32(0); return &value }(),
+		}},
+	})
+	if grpcstatus.Code(err) != codes.InvalidArgument {
+		t.Fatalf("active terminal facts error = %v, want InvalidArgument", err)
+	}
+
+	_, err = server.BatchReportAllocationLifecycle(context.Background(), &controlnodev1.BatchReportAllocationLifecycleRequest{
+		NodeID:       "node-unknown",
+		Observations: observations,
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("invalid auth error = %v, want PermissionDenied", err)
@@ -237,34 +226,30 @@ func TestBatchReportAllocationStatusAuthenticatesAndForwardsBatch(t *testing.T) 
 	if allocations.calls != 1 {
 		t.Fatalf("allocation control calls after invalid auth = %d, want 1", allocations.calls)
 	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications after invalid auth = %d, want 1", notifications)
-	}
+}
 
-	allocations.reconcileServiceIDs = nil
-	if _, err := server.BatchReportAllocationStatus(context.Background(), &controlnodev1.BatchReportAllocationStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		Observations:  observations,
-	}); err != nil {
-		t.Fatalf("run-only BatchReportAllocationStatus() error = %v", err)
-	}
-	if notifications != 1 {
-		t.Fatalf("service reconcile notifications after run-only batch = %d, want 1", notifications)
+func TestMemoryNodeStoreRejectsIdentityBeforeAdmission(t *testing.T) {
+	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
+	_, err := controldtest.NewMemoryNodeStore().Report(context.Background(), nodekernel.ReportParams{
+		NodeID: "node-unknown", Summary: controldtest.ReadySummary(now), Now: now,
+	})
+	if grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ReportNode() error = %v, want PermissionDenied", err)
 	}
 }
 
 func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnly(t *testing.T) {
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
-	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{NodeID: "node-a", NodeAuthToken: "token-a", Now: now}); err != nil {
+	nodeStore.Admit("node-a", now)
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", Summary: controldtest.ReadySummary(now), Now: now}); err != nil {
 		t.Fatal(err)
 	}
 	allocations := &fakeAllocationControl{}
 	server := New(Dependencies{Now: func() time.Time { return now }, NodeStore: nodeStore, Allocations: allocations})
 	report := validCapabilityConditionReport(now)
 	if _, err := server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: "node-a", NodeAuthToken: "token-a", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
+		NodeID: "node-a", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -272,18 +257,18 @@ func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnl
 		t.Fatalf("condition forwarding = calls:%d node:%q reports:%d", allocations.conditionCalls, allocations.conditionNodeID, len(allocations.conditionReports))
 	}
 	if allocations.calls != 0 {
-		t.Fatalf("condition reporting invoked lifecycle status path %d time(s)", allocations.calls)
+		t.Fatalf("condition reporting invoked lifecycle observation path %d time(s)", allocations.calls)
 	}
 
 	duplicate := []*controlnodev1.AllocationCapabilityConditionReport{report, report}
 	_, err := server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: "node-a", NodeAuthToken: "token-a", Reports: duplicate,
+		NodeID: "node-a", Reports: duplicate,
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument || allocations.conditionCalls != 1 {
 		t.Fatalf("duplicate condition report error=%v calls=%d", err, allocations.conditionCalls)
 	}
 	_, err = server.BatchReportAllocationCapabilityConditions(context.Background(), &controlnodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: "node-a", NodeAuthToken: "wrong", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
+		NodeID: "node-unknown", Reports: []*controlnodev1.AllocationCapabilityConditionReport{report},
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied || allocations.conditionCalls != 1 {
 		t.Fatalf("unauthenticated condition report error=%v calls=%d", err, allocations.conditionCalls)
@@ -292,22 +277,11 @@ func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnl
 
 func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapabilityConditionReport {
 	key := capabilitycontract.ExtensionKey("example.com/accelerator", "v1")
-	evidence := capabilitycontract.ConfigEvidence("sha256:" + strings.Repeat("a", 64))
-	observation := &capabilityv1.CapabilityObservation{
-		Key:        capabilitycontract.CloneKey(key),
-		State:      capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
-		ObservedAt: timestamppb.New(now),
-		Evidence:   evidence,
-		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-	}
-	capabilitycontract.NormalizeObservation(observation)
 	return &controlnodev1.AllocationCapabilityConditionReport{
-		AllocationID: "allocation-a", Attempt: 1,
-		ConditionSet: &capabilityv1.CapabilityConditionSet{Revision: 1, ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
+		AllocationID: "allocation-a",
+		ConditionSet: &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(now), Conditions: []*capabilityv1.CapabilityCondition{{
 			Key: key, State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
-			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, ObservedAt: timestamppb.New(now),
-			Proof: capabilitycontract.NewObservationProof(observation),
+			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 		}}},
 	}
 }
@@ -315,14 +289,14 @@ func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapa
 func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	now := time.Now().UTC()
 	nodeStore := controldtest.NewMemoryNodeStore()
-	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{
-		NodeID:        "node-a",
-		NodeTarget:    "127.0.0.1:25000",
-		Runtimes:      []string{"runsc"},
-		NodeAuthToken: "token-a",
-		Now:           now,
+	nodeStore.Admit("node-a", now)
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{
+		NodeID:     "node-a",
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    controldtest.ReadySummary(now),
+		Now:        now,
 	}); err != nil {
-		t.Fatalf("register node: %v", err)
+		t.Fatalf("report node: %v", err)
 	}
 	tunnels := &fakeTunnelControl{}
 	server := New(Dependencies{
@@ -332,10 +306,9 @@ func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	})
 
 	_, err := server.ReportTunnelSessionStatus(context.Background(), &controlnodev1.ReportTunnelSessionStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "wrong-token",
-		SessionID:     "tun-1",
-		Status:        tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+		NodeID:    "node-unknown",
+		SessionID: "tun-1",
+		Status:    tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("ReportTunnelSessionStatus error = %v, want PermissionDenied", err)
@@ -345,10 +318,9 @@ func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	}
 
 	if _, err := server.ReportTunnelSessionStatus(context.Background(), &controlnodev1.ReportTunnelSessionStatusRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "token-a",
-		SessionID:     "tun-1",
-		Status:        tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+		NodeID:    "node-a",
+		SessionID: "tun-1",
+		Status:    tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
 	}); err != nil {
 		t.Fatalf("ReportTunnelSessionStatus with valid node auth: %v", err)
 	}
@@ -364,20 +336,19 @@ type fakeTunnelControl struct {
 }
 
 type fakeAllocationControl struct {
-	calls               int
-	nodeID              string
-	observations        []*controlnodev1.AllocationStatusObservation
-	reconcileServiceIDs []string
-	conditionCalls      int
-	conditionNodeID     string
-	conditionReports    []*controlnodev1.AllocationCapabilityConditionReport
+	calls            int
+	nodeID           string
+	observations     []*controlnodev1.AllocationLifecycleObservation
+	conditionCalls   int
+	conditionNodeID  string
+	conditionReports []*controlnodev1.AllocationCapabilityConditionReport
 }
 
-func (f *fakeAllocationControl) BatchReportAllocationStatus(_ context.Context, nodeID string, observations []*controlnodev1.AllocationStatusObservation, _ time.Time) ([]string, error) {
+func (f *fakeAllocationControl) BatchReportAllocationLifecycle(_ context.Context, nodeID string, observations []*controlnodev1.AllocationLifecycleObservation, _ time.Time) ([]string, error) {
 	f.calls++
 	f.nodeID = nodeID
-	f.observations = append([]*controlnodev1.AllocationStatusObservation(nil), observations...)
-	return f.reconcileServiceIDs, nil
+	f.observations = append([]*controlnodev1.AllocationLifecycleObservation(nil), observations...)
+	return nil, nil
 }
 
 func (f *fakeAllocationControl) BatchReportAllocationCapabilityConditions(_ context.Context, nodeID string, reports []*controlnodev1.AllocationCapabilityConditionReport, _ time.Time) error {
@@ -387,16 +358,11 @@ func (f *fakeAllocationControl) BatchReportAllocationCapabilityConditions(_ cont
 	return nil
 }
 
-func (f *fakeAllocationControl) BatchReportAllocationMemoryObservations(_ context.Context, nodeID string, observations []*controlnodev1.AllocationMemoryObservation, _ time.Time) error {
-	f.nodeID = nodeID
-	return nil
-}
-
 func (f *fakeAllocationControl) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {
 	return nil
 }
 
-func (f *fakeAllocationControl) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*commonv1.ExecutionLease, int64, error) {
+func (f *fakeAllocationControl) WatchAllocationAccessGrants(context.Context, string, int64, time.Time) ([]*accessgrantkernel.Record, int64, error) {
 	return nil, 0, nil
 }
 

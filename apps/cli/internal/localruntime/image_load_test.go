@@ -31,7 +31,7 @@ func (r *imageLoadRunner) Output(_ context.Context, name string, args ...string)
 func (r *imageLoadRunner) Pipe(_ context.Context, stdout, _ io.Writer, _ string, sourceArgs []string, _ string, destinationArgs []string) error {
 	r.sourceArgs = append([]string(nil), sourceArgs...)
 	r.destinationArgs = append([]string(nil), destinationArgs...)
-	_, err := io.WriteString(stdout, `{"source_ref":"demo:dev","canonical_ref":"index.docker.io/library/demo:dev","immutable_ref":"index.docker.io/library/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","generation_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","archive_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","platform":"linux/amd64","size_bytes":42,"reused":false}`)
+	_, err := io.WriteString(stdout, `{"source_ref":"demo:dev","canonical_ref":"index.docker.io/library/demo:dev","immutable_ref":"index.docker.io/library/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","content_digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","archive_digest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","platform":"linux/amd64","size_bytes":42,"reused":false}`)
 	return err
 }
 
@@ -47,7 +47,7 @@ func TestImageLoadStreamsImmutableImageIDIntoNode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ImageLoad() error = %v", err)
 	}
-	if result.GenerationDigest == "" {
+	if result.ContentDigest == "" {
 		t.Fatal("ImageLoad() generation digest is empty")
 	}
 	resolved, pinned, err := ResolveLocalImageReference(dir, "demo:dev")

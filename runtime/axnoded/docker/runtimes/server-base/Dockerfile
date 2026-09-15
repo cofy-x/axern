@@ -32,7 +32,8 @@ RUN set -eux; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
       bash \
       ca-certificates \
       curl \
@@ -78,7 +79,7 @@ RUN rm -rf /etc/update-motd.d/* /etc/legal /etc/motd && \
 EXPOSE 22 80
 
 LABEL org.opencontainers.image.title="Axern Server Base Runtime" \
-      org.opencontainers.image.description="Official headless Ubuntu server runtime template for Axern." \
+      org.opencontainers.image.description="Official headless Ubuntu server environment for Axern." \
       org.opencontainers.image.source="https://github.com/cofy-x/axern"
 
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

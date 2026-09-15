@@ -22,8 +22,6 @@ import (
 func TestServerHandlers(t *testing.T) {
 	t.Setenv("DISPLAY", "")
 	t.Setenv("WAYLAND_DISPLAY", "")
-	t.Setenv("AXERN_SANDBOXD_BROWSER_CMD", "")
-	t.Setenv("AXERN_SANDBOXD_BROWSER_OPEN_CMD", "")
 	t.Setenv("PATH", t.TempDir())
 
 	state := workload.NewState("/tmp/sandboxd.sock")
@@ -96,9 +94,6 @@ func TestServerHandlers(t *testing.T) {
 	if providers["computer_use"] {
 		t.Fatalf("computer-use provider should not be available by default: %#v", capabilities.Providers)
 	}
-	if providers["browser"] {
-		t.Fatalf("browser provider should not be available by default: %#v", capabilities.Providers)
-	}
 
 	resp = httptest.NewRecorder()
 	req = httptest.NewRequest(http.MethodGet, "/status", nil)
@@ -144,10 +139,6 @@ func TestServerHandlers(t *testing.T) {
 		ComputerUse struct {
 			Available bool `json:"available"`
 		} `json:"computerUse"`
-		Browser struct {
-			Available bool `json:"available"`
-			Running   bool `json:"running"`
-		} `json:"browser"`
 	}
 	if err := json.Unmarshal(resp.Body.Bytes(), &diagnostics); err != nil {
 		t.Fatalf("decode diagnostics: %v", err)
@@ -164,7 +155,7 @@ func TestServerHandlers(t *testing.T) {
 	if len(diagnostics.Capabilities) == 0 || len(diagnostics.Providers) == 0 {
 		t.Fatalf("diagnostics missing provider details: %#v", diagnostics)
 	}
-	if diagnostics.ComputerUse.Available || diagnostics.Browser.Available || diagnostics.Browser.Running {
+	if diagnostics.ComputerUse.Available {
 		t.Fatalf("diagnostics desktop status should be unavailable by default: %#v", diagnostics)
 	}
 
@@ -178,7 +169,7 @@ func TestServerHandlers(t *testing.T) {
 	if err := json.Unmarshal(resp.Body.Bytes(), &full); err != nil {
 		t.Fatalf("decode full diagnostics: %v", err)
 	}
-	if full.Detail != "full" || full.Ports == nil || full.Mounts == nil || full.FileLimits == nil || full.ComputerUse == nil || full.Browser == nil {
+	if full.Detail != "full" || full.Ports == nil || full.Mounts == nil || full.FileLimits == nil || full.ComputerUse == nil {
 		t.Fatalf("full diagnostics = %#v", full)
 	}
 	if full.FileLimits.MaxArchiveEntries == 0 || full.FileLimits.MaxArchiveBytes == 0 {
@@ -573,119 +564,6 @@ func TestServerRejectsOversizedJSONRequest(t *testing.T) {
 	assertErrorResponse(t, resp, errorCodeInvalidArgument)
 }
 
-func TestServerBrowserHandlers(t *testing.T) {
-	dir := t.TempDir()
-	openPath := filepath.Join(dir, "open")
-	closePath := filepath.Join(dir, "close")
-	xdotoolLog := filepath.Join(dir, "xdotool.log")
-	xdotoolPath := filepath.Join(dir, "xdotool")
-	if err := os.WriteFile(xdotoolPath, []byte("#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$AXERN_XDOTOOL_LOG\"\n"), 0755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", dir)
-	t.Setenv("AXERN_XDOTOOL_LOG", xdotoolLog)
-	t.Setenv("AXERN_SANDBOXD_BROWSER_OPEN_CMD", "printf '%s' \"$AXERN_BROWSER_URL\" >"+openPath)
-	t.Setenv("AXERN_SANDBOXD_BROWSER_CLOSE_CMD", "printf closed >"+closePath)
-
-	server := New(workload.NewState("/tmp/sandboxd.sock"), nil, nil)
-
-	resp := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/browser/status", nil)
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"available":true`) {
-		t.Fatalf("browser status = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/open", strings.NewReader(`{"url":"https://example.com"}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"running":true`) {
-		t.Fatalf("browser open = %d %s", resp.Code, resp.Body.String())
-	}
-	if got := string(mustReadFile(t, openPath)); got != "https://example.com" {
-		t.Fatalf("open hook = %q", got)
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/open", nil)
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"running":true`) {
-		t.Fatalf("browser open without body = %d %s", resp.Code, resp.Body.String())
-	}
-	if got := string(mustReadFile(t, openPath)); got != "about:blank" {
-		t.Fatalf("open hook without body = %q", got)
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/navigate", strings.NewReader(`{"url":"https://example.org"}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"url":"https://example.org"`) {
-		t.Fatalf("browser navigate = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/resize", strings.NewReader(`{"width":800,"height":600}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("browser resize = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/click", strings.NewReader(`{"x":10,"y":20}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("browser click = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/click", nil)
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("browser click empty body = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/type", strings.NewReader(`{"text":"hello","delayMs":1}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("browser type = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/type", strings.NewReader(`{}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("browser type empty text = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/wait", strings.NewReader(`{"timeoutMs":1}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("browser wait = %d %s", resp.Code, resp.Body.String())
-	}
-	if log := string(mustReadFile(t, xdotoolLog)); !strings.Contains(log, "windowsize 800 600") || !strings.Contains(log, "mousemove 10 20 click 1") || !strings.Contains(log, "type --delay 1 -- hello") {
-		t.Fatalf("xdotool log = %q", log)
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/open", strings.NewReader(`{"url":"javascript:alert(1)"}`))
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusBadRequest {
-		t.Fatalf("browser open invalid URL = %d %s", resp.Code, resp.Body.String())
-	}
-
-	resp = httptest.NewRecorder()
-	req = httptest.NewRequest(http.MethodPost, "/browser/close", nil)
-	server.ServeHTTP(resp, req)
-	if resp.Code != http.StatusOK || !strings.Contains(resp.Body.String(), `"running":false`) {
-		t.Fatalf("browser close = %d %s", resp.Code, resp.Body.String())
-	}
-	if got := string(mustReadFile(t, closePath)); got != "closed" {
-		t.Fatalf("close hook = %q", got)
-	}
-}
-
 func assertStatus(t *testing.T, server *Server, path string, want int) {
 	t.Helper()
 	resp := httptest.NewRecorder()
@@ -712,14 +590,5 @@ func assertErrorResponse(t *testing.T, resp *httptest.ResponseRecorder, wantCode
 
 func testPNG() []byte {
 	data, _ := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=")
-	return data
-}
-
-func mustReadFile(t *testing.T, path string) []byte {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
 	return data
 }

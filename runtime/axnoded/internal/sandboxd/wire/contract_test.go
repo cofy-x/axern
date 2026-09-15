@@ -14,7 +14,6 @@ func TestCapabilityContract(t *testing.T) {
 		CapabilityDiagnostics,
 		CapabilityFile,
 		CapabilityHealth,
-		CapabilityManagedProxy,
 		CapabilityMounts,
 		CapabilityPorts,
 		CapabilityProbe,
@@ -26,7 +25,7 @@ func TestCapabilityContract(t *testing.T) {
 	if got := BaselineCapabilities(); !reflect.DeepEqual(got, wantBaseline) {
 		t.Fatalf("BaselineCapabilities() = %#v, want %#v", got, wantBaseline)
 	}
-	wantOptional := []string{CapabilityBrowser, CapabilityComputerUse}
+	wantOptional := []string{CapabilityComputerUse}
 	if got := OptionalCapabilities(); !reflect.DeepEqual(got, wantOptional) {
 		t.Fatalf("OptionalCapabilities() = %#v, want %#v", got, wantOptional)
 	}
@@ -54,7 +53,7 @@ func TestProviderGroupContract(t *testing.T) {
 		{
 			name: "process",
 			got:  ProcessCapabilities(),
-			want: []string{CapabilityManagedProxy, CapabilityProcess, CapabilityPTY},
+			want: []string{CapabilityProcess, CapabilityPTY},
 		},
 	}
 	for _, tc := range cases {

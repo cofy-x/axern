@@ -13,8 +13,6 @@ import (
 // axnoded. Facts unavailable before image preparation (for example EROFS) are
 // left false during the request-static gate and supplied at the backing gate.
 type RequirementInput struct {
-	RuntimeName                     string
-	HasPorts                        bool
 	NetworkMode                     string
 	NetworkBackend                  string
 	RequiresDNSPolicyEnforcement    bool
@@ -45,14 +43,7 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 	if err := ValidateExtensionRequirements(input.ExtensionCapabilityRequests); err != nil {
 		return nil, err
 	}
-	runtimeName := strings.ToLower(strings.TrimSpace(input.RuntimeName))
-	if runtimeName != "runc" && runtimeName != "runsc" {
-		return nil, fmt.Errorf("unsupported sandbox runtime %q", input.RuntimeName)
-	}
-	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+5)
-	if input.HasPorts {
-		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING))
-	}
+	keys := make([]*capabilityv1.CapabilityKey, 0, len(input.ExtensionCapabilityRequests)+4)
 	if input.RequiresDNSPolicyEnforcement && input.RequiresStrictEgressEnforcement {
 		return nil, fmt.Errorf("network policy cannot require both DNS-only and strict enforcement")
 	}
@@ -79,17 +70,11 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 		}
 	}
 	if input.MemoryLimitBytes > 0 {
-		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT
-		if runtimeName == "runsc" {
-			capability = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
-		}
+		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT
 		keys = append(keys, PlatformKey(capability))
 	}
 	if input.RootfsWritable || input.EphemeralStorageLimitBytes > 0 {
-		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT
-		if runtimeName == "runsc" {
-			capability = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
-		}
+		capability := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT
 		keys = append(keys, PlatformKey(capability))
 	}
 	if input.EROFSBacking {

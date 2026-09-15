@@ -41,7 +41,7 @@ func (s *Sandbox) DownloadDir(ctx context.Context, remotePath, localPath string,
 	return node.DownloadDir(ctx, remotePath, localPath, options)
 }
 
-func (n *NodeSandboxClient) UploadDir(ctx context.Context, localPath, remotePath string, options UploadDirOptions) error {
+func (n *AllocationClient) UploadDir(ctx context.Context, localPath, remotePath string, options UploadDirOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -70,7 +70,7 @@ func (n *NodeSandboxClient) UploadDir(ctx context.Context, localPath, remotePath
 	return nil
 }
 
-func (n *NodeSandboxClient) DownloadDir(ctx context.Context, remotePath, localPath string, options DownloadDirOptions) error {
+func (n *AllocationClient) DownloadDir(ctx context.Context, remotePath, localPath string, options DownloadDirOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}

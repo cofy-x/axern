@@ -4,21 +4,23 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"sort"
-	"strings"
+	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
+	runtimecore "github.com/cofy-x/axern/runtime/axnoded/internal/runtime"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/sirupsen/logrus"
 )
 
 func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, error) {
-	if err := h.runtimeHandlers.Load(ctx); err != nil {
+	handler, err := loadRunscHandler(ctx, h.config)
+	if err != nil {
 		return nil, err
 	}
-	if err := validateRuntimeResourceConfiguration(h.runtimeHandlers, h.config.PluginConfig.ResourceConfig); err != nil {
+	h.runscHandler = handler
+	if err := validateRuntimeResourceConfiguration(handler, h.config.PluginConfig.ResourceConfig); err != nil {
 		return nil, err
 	}
 
@@ -36,7 +38,7 @@ func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, e
 	healthChan := make(chan bool)
 	h.containerManager, err = container.NewManager(
 		h.config.RootDir,
-		h.runtimeHandlers.Map(),
+		h.runscHandler,
 		healthChan,
 		resourceManagers...,
 	)
@@ -49,6 +51,31 @@ func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, e
 	return healthChan, nil
 }
 
+func loadRunscHandler(ctx context.Context, cfg config.Config) (contract.SandboxRuntime, error) {
+	backoff := 100 * time.Millisecond
+	for {
+		handler, err := runtimecore.NewRunscHandler(cfg)
+		if err == nil {
+			logrus.Info("loaded runsc handler")
+			return handler, nil
+		}
+		logrus.WithError(err).Warn("load runsc handler")
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, fmt.Errorf("load runsc handler: %w", ctx.Err())
+		case <-timer.C:
+		}
+		if backoff < 5*time.Second {
+			backoff *= 2
+			if backoff > 5*time.Second {
+				backoff = 5 * time.Second
+			}
+		}
+	}
+}
+
 func shutdownResourceManagers(managers []resourcemanager.Manager) {
 	for _, manager := range managers {
 		if manager != nil {
@@ -57,7 +84,7 @@ func shutdownResourceManagers(managers []resourcemanager.Manager) {
 	}
 }
 
-func validateRuntimeResourceConfiguration(registry *handlerregistry.Registry, cfg config.ResourceConfig) error {
+func validateRuntimeResourceConfiguration(handler contract.SandboxRuntime, cfg config.ResourceConfig) error {
 	if cfg.MaxInstanceNum <= 0 {
 		return fmt.Errorf("invalid runtime resource configuration: max_instance_num must be positive")
 	}
@@ -89,32 +116,23 @@ func validateRuntimeResourceConfiguration(registry *handlerregistry.Registry, cf
 		}
 	}
 
-	disabled := disabledResourcePools(cfg, !runtimeRegistryRequiresResource(registry, resourcemanager.CgroupResourceName))
+	disabled := disabledResourcePools(cfg, !runtimeRequiresResource(handler, resourcemanager.CgroupResourceName))
 	disabledSet := make(map[resourcemanager.ResourceName]struct{}, len(disabled))
 	for _, name := range disabled {
 		disabledSet[name] = struct{}{}
 	}
-	var conflicts []string
-	for runtimeName, handler := range registry.Items() {
-		for _, resourceName := range handler.Requirements().Resources {
-			if _, disabled := disabledSet[resourceName]; disabled {
-				conflicts = append(conflicts, fmt.Sprintf("runtime %q requires disabled resource pool %q", runtimeName, resourceName))
-			}
+	for _, resourceName := range handler.HostRequirements().Resources {
+		if _, disabled := disabledSet[resourceName]; disabled {
+			return fmt.Errorf("invalid runtime resource configuration: runsc requires disabled resource pool %q", resourceName)
 		}
 	}
-	if len(conflicts) == 0 {
-		return nil
-	}
-	sort.Strings(conflicts)
-	return fmt.Errorf("invalid runtime resource configuration: %s", strings.Join(conflicts, "; "))
+	return nil
 }
 
-func runtimeRegistryRequiresResource(registry *handlerregistry.Registry, want resourcemanager.ResourceName) bool {
-	for _, handler := range registry.Items() {
-		for _, resourceName := range handler.Requirements().Resources {
-			if resourceName == want {
-				return true
-			}
+func runtimeRequiresResource(handler contract.SandboxRuntime, want resourcemanager.ResourceName) bool {
+	for _, resourceName := range handler.HostRequirements().Resources {
+		if resourceName == want {
+			return true
 		}
 	}
 	return false

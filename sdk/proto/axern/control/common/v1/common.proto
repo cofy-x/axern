@@ -4,40 +4,24 @@ package axern.control.common.v1;
 
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1;commonv1";
 
-import "google/protobuf/timestamp.proto";
 import "axern/control/capability/v1/capability.proto";
-import "axern/control/storage/v1/storage_types.proto";
 
 message ResourceQuantity {
   int64 cpu_milli = 1;
   // Total sandbox memory budget. requests.memory_bytes is the placement,
-  // reservation, and namespace-quota commitment. limits.memory_bytes is the
+  // node-capacity charge and namespace-quota commitment. limits.memory_bytes is the
   // host cgroup v2 hard boundary and includes runtime processes, guest
   // accounting, kernel memory, shmem, and charged file/page cache.
   int64 memory_bytes = 2;
   // Sandbox-lifetime node-local disposable storage managed by Axern. The
   // current accounting scope is the runtime writable root overlay and its
-  // metadata/copy-up/whiteouts; persistent volumes and immutable image data
-  // are excluded.
+  // metadata/copy-up/whiteouts; immutable image data is excluded.
   int64 ephemeral_storage_bytes = 3;
 }
 
 message ResourceSpec {
   ResourceQuantity requests = 1;
   ResourceQuantity limits = 2;
-}
-
-enum PortProtocol {
-  PORT_PROTOCOL_UNSPECIFIED = 0;
-  PORT_PROTOCOL_TCP = 1;
-  PORT_PROTOCOL_UDP = 2;
-}
-
-message PortSpec {
-  string name = 1;
-  PortProtocol protocol = 2;
-  int32 container_port = 3;
-  int32 host_port = 4;
 }
 
 enum NetworkMode {
@@ -113,42 +97,10 @@ message SecretFile {
   bool optional = 5;
 }
 
-message ServiceVolumeMount {
-  string name = 1;
-  string target = 2;
-  bool readonly = 3;
-  repeated string options = 4;
-  axern.control.storage.v1.VolumeReclaimPolicy reclaim_policy = 5;
-}
-
 message ImageMount {
   string image = 1;
   string target = 2;
   bool readonly = 3;
-}
-
-message WorkspaceImageVariant {
-  string format = 1;
-  string image = 2;
-}
-
-message WorkspaceImageSource {
-  repeated WorkspaceImageVariant variants = 1;
-  string source_path = 2;
-  string target = 3;
-}
-
-// WorkspacePreparationFacts records the node-observed preparation result for
-// one allocation's immutable TaskSet workspace. These facts describe the
-// variant that was actually selected by the node, not the variant preference
-// declared by the client.
-message WorkspacePreparationFacts {
-  string payload_format = 1;
-  string payload_digest = 2;
-  bool cache_hit = 3;
-  int64 image_resolve_ms = 4;
-  int64 image_pull_ms = 5;
-  int64 cow_prepare_ms = 6;
 }
 
 message ExecutionConfig {
@@ -156,28 +108,27 @@ message ExecutionConfig {
   map<string, string> env = 2;
   string cwd = 3;
   ResourceSpec resources = 4;
-  repeated PortSpec ports = 5;
-  NetworkSpec network = 6;
-  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 7;
-  PlacementConstraints placement = 8;
-  repeated SecretEnvVar secret_env = 9;
-  repeated SecretFile secret_files = 10;
-  repeated ServiceVolumeMount volume_mounts = 11;
-  string runtime_class = 12;
-  repeated ImageMount image_mounts = 13;
-  WorkspaceImageSource workspace_image = 14;
+  NetworkSpec network = 5;
+  repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 6;
+  PlacementConstraints placement = 7;
+  repeated SecretEnvVar secret_env = 8;
+  repeated SecretFile secret_files = 9;
+  repeated ImageMount image_mounts = 10;
 }
 
-enum AllocationStatus {
-  ALLOCATION_STATUS_UNSPECIFIED = 0;
-  ALLOCATION_STATUS_RESERVED = 1;
-  ALLOCATION_STATUS_BOUND = 2;
-  ALLOCATION_STATUS_STARTING = 3;
-  ALLOCATION_STATUS_RUNNING = 4;
-  ALLOCATION_STATUS_EXITED = 5;
-  ALLOCATION_STATUS_FAILED = 6;
-  ALLOCATION_STATUS_RELEASING = 7;
-  ALLOCATION_STATUS_RELEASED = 8;
+// AllocationLifecycleState tracks only placement and infrastructure cleanup.
+// Workload outcome, exit status, diagnostics, and user-visible status belong to
+// the owning Run.
+enum AllocationLifecycleState {
+  ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED = 0;
+  ALLOCATION_LIFECYCLE_STATE_BOUND = 1;
+  ALLOCATION_LIFECYCLE_STATE_STARTING = 2;
+  ALLOCATION_LIFECYCLE_STATE_ACTIVE = 3;
+  // STOPPED is a node observation. Controld transitions it atomically to
+  // RELEASING when it commits the owning Run result and cleanup work.
+  ALLOCATION_LIFECYCLE_STATE_STOPPED = 4;
+  ALLOCATION_LIFECYCLE_STATE_RELEASING = 5;
+  ALLOCATION_LIFECYCLE_STATE_RELEASED = 6;
 }
 
 enum WorkloadDiagnosticCode {
@@ -188,34 +139,10 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_NODE_SELECTION_ERROR = 4;
   WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR = 5;
   WORKLOAD_DIAGNOSTIC_CODE_PROCESS_EXITED = 6;
-  WORKLOAD_DIAGNOSTIC_CODE_LIVENESS_PROBE_FAILED = 7;
-  WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED = 8;
-  WORKLOAD_DIAGNOSTIC_CODE_STORAGE_TOPOLOGY_UNSATISFIED = 9;
-  WORKLOAD_DIAGNOSTIC_CODE_STORAGE_RESERVE_ERROR = 10;
-  WORKLOAD_DIAGNOSTIC_CODE_VOLUME_PUBLISH_ERROR = 11;
-  WORKLOAD_DIAGNOSTIC_CODE_VOLUME_RELEASE_ERROR = 12;
-  WORKLOAD_DIAGNOSTIC_CODE_VOLUME_SPEC_CONFLICT = 13;
-  WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 14;
-  WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 15;
-}
-
-enum LeaseType {
-  LEASE_TYPE_UNSPECIFIED = 0;
-  LEASE_TYPE_RUN = 1;
-  LEASE_TYPE_SERVICE = 2;
-  LEASE_TYPE_INVOKE = 3;
-}
-
-message ExecutionLease {
-  string lease_id = 1;
-  string allocation_id = 2;
-  string node_id = 3;
-  int64 attempt = 4;
-  LeaseType lease_type = 5;
-  string plaintext_token = 6;
-  int64 revision = 7;
-  google.protobuf.Timestamp expires_at = 8;
-  bool revoked = 9;
-  string node_target = 10;
-  string validation_token_hash = 11;
+  WORKLOAD_DIAGNOSTIC_CODE_ADMISSION_BLOCKED = 7;
+  WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST = 8;
+  WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED = 9;
+  WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED = 10;
+  WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_TERMINATED = 11;
+  WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_CLEANUP = 12;
 }

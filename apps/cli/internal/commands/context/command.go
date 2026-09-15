@@ -62,12 +62,11 @@ func importKubernetesCommand(runtime command.Runtime) *cobra.Command {
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&namespace, "namespace", "axern-system", "Kubernetes namespace")
-	flags.StringVar(&secretName, "secret", "controld-pki", "Axern PKI Secret name")
+	flags.StringVar(&secretName, "secret", "axern-pki", "Axern PKI Secret name")
 	flags.StringVar(&kubeconfig, "kubeconfig", "", "path to kubeconfig")
 	flags.StringVar(&kubeContext, "kube-context", "", "Kubernetes context name")
 	flags.StringVar(&params.CertDir, "cert-dir", "", "directory for imported certificates")
 	flags.StringVar(&params.Endpoint, "endpoint", "127.0.0.1:25100", "gateway gRPC endpoint")
-	flags.StringVar(&params.ServiceURL, "service-url", "http://127.0.0.1:25101", "gateway HTTP service URL")
 	flags.StringVar(&params.SSHEndpoint, "ssh-endpoint", "127.0.0.1:25122", "gateway SSH endpoint")
 	flags.StringVar(&params.SSHIdentityFile, "ssh-identity-file", "", "gateway SSH identity file")
 	flags.StringVar(&params.TLSServerName, "tls-server-name", "", "gateway TLS server name")
@@ -96,7 +95,7 @@ func currentCommand(runtime command.Runtime) *cobra.Command {
 				Context *clientconfig.Context `json:"context"`
 			}{name, profile})
 		}
-		rows := []output.ContextListRow{{Active: true, Name: name, Endpoint: profile.Endpoint, ServiceURL: profile.ServiceURL, SSHEndpoint: profile.SSHEndpoint, ProxyMode: profile.ProxyMode}}
+		rows := []output.ContextListRow{{Active: true, Name: name, Endpoint: profile.Endpoint, SSHEndpoint: profile.SSHEndpoint, ProxyMode: profile.ProxyMode}}
 		output.RenderContextTable(cmd.OutOrStdout(), rows)
 		return nil
 	}}
@@ -115,7 +114,7 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 		rows := make([]output.ContextListRow, 0, len(cfg.Contexts))
 		for _, name := range cliconfig.ContextNames(cfg) {
 			profile := cfg.Contexts[name]
-			rows = append(rows, output.ContextListRow{Active: name == active, Name: name, Endpoint: profile.Endpoint, ServiceURL: profile.ServiceURL, SSHEndpoint: profile.SSHEndpoint, ProxyMode: profile.ProxyMode})
+			rows = append(rows, output.ContextListRow{Active: name == active, Name: name, Endpoint: profile.Endpoint, SSHEndpoint: profile.SSHEndpoint, ProxyMode: profile.ProxyMode})
 		}
 		if runtime.Options.Output == "json" {
 			return output.PrintJSON(cmd.OutOrStdout(), rows)
@@ -170,7 +169,6 @@ func setCommand(runtime command.Runtime) *cobra.Command {
 	}}
 	flags := cmd.Flags()
 	flags.StringVar(&value.Endpoint, "endpoint", "", "gateway gRPC endpoint")
-	flags.StringVar(&value.ServiceURL, "service-url", "", "gateway HTTP service URL")
 	flags.StringVar(&value.SSHEndpoint, "ssh-endpoint", "", "gateway SSH endpoint")
 	flags.StringVar(&value.SSHIdentityFile, "ssh-identity-file", "", "gateway SSH identity file")
 	flags.StringVar(&value.TLS.CACert, "tls-ca-cert", "", "gateway CA certificate")

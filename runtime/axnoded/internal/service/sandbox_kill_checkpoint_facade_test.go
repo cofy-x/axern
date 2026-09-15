@@ -8,8 +8,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -17,15 +15,13 @@ import (
 
 func TestKill(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-kill"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, containerID)
 	time.Sleep(200 * time.Millisecond)
 
 	resp, err := s.Kill(context.Background(), &runtime.KillRequest{
@@ -44,23 +40,21 @@ func TestKill(t *testing.T) {
 
 func TestKillRejectsExitedContainer(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-kill-exited"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, s, containerID)
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)
 	assert.NoError(t, err)
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
+		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
-		st.ExitCode = 0
-		st.ExitCodeKnown = true
+		st.ExitCode = func() *int32 { value := int32(0); return &value }()
 		return st, nil
 	})
 	assert.NoError(t, err)
@@ -70,17 +64,4 @@ func TestKillRejectsExitedContainer(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, codes.FailedPrecondition, status.Code(err))
 	assert.Equal(t, 0, handler.killCalls)
-}
-
-func TestCheckpoint_ContainerNotFound(t *testing.T) {
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": runtimetest.NewFakeRuntimeHandler(),
-	})
-
-	resp, err := s.Checkpoint(context.Background(), &runtime.CheckpointRequest{
-		ID:      "axctl-nonexistent",
-		CkptDir: "/tmp/ckpt",
-	})
-	assert.Nil(t, err)
-	assert.False(t, resp.Success)
 }

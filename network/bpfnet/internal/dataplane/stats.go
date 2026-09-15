@@ -3,10 +3,6 @@ package dataplane
 const (
 	KernelStatAttachSuccess uint32 = iota
 	KernelStatAttachError
-	KernelStatServiceHit
-	KernelStatRevNATHit
-	KernelStatFallbackHit
-	KernelStatMapConflict
 	KernelStatSNATHit
 	KernelStatSNATRevHit
 	KernelStatSNATFwdHit
@@ -36,7 +32,4 @@ const (
 	KernelStatSNATTCPRevMissACK
 	KernelStatSNATTCPRevMissOther
 	KernelStatNativeRouteSkip
-	KernelStatLocalhostConnectHit
-	KernelStatLocalhostGetPeerHit
-	KernelStatLocalhostFallbackHit
 )

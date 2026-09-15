@@ -31,7 +31,7 @@ func (s *Store) ReportPeerEvent(ctx context.Context, params tunnelkernel.PeerEve
 		return nil, err
 	}
 	row := tx.QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1 FOR UPDATE`, sessionID)
-	current, clientHash, _, nodeHash, err := scanSession(row)
+	current, internal, err := scanSession(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.NotFound, "tunnel session not found")
 	}
@@ -44,32 +44,26 @@ func (s *Store) ReportPeerEvent(ctx context.Context, params tunnelkernel.PeerEve
 	gotTokenHash := hashToken(params.PeerToken)
 	switch params.PeerKind {
 	case tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT:
-		if gotTokenHash != clientHash {
+		if gotTokenHash != internal.clientTokenHash {
 			return nil, grpcstatus.Error(codes.PermissionDenied, "invalid tunnel client token")
 		}
 	case tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_NODE:
-		if gotTokenHash != nodeHash {
+		if gotTokenHash != internal.nodeTokenHash {
 			return nil, grpcstatus.Error(codes.PermissionDenied, "invalid tunnel node token")
 		}
 	default:
-		if gotTokenHash != clientHash && gotTokenHash != nodeHash {
+		if gotTokenHash != internal.clientTokenHash && gotTokenHash != internal.nodeTokenHash {
 			return nil, grpcstatus.Error(codes.PermissionDenied, "invalid tunnel peer token")
 		}
-	}
-	revision, err := nextRevision(ctx, tx)
-	if err != nil {
-		return nil, err
 	}
 	row = tx.QueryRow(ctx, `
 		UPDATE tunnel_sessions
 		SET last_peer_event_at = $2,
 		    bytes_in = bytes_in + $3,
-		    bytes_out = bytes_out + $4,
-		    updated_at = $2,
-		    revision = $5
+		    bytes_out = bytes_out + $4
 		WHERE session_id = $1
-		RETURNING `+sessionSelectColumns(), sessionID, now, params.BytesIn, params.BytesOut, revision)
-	session, _, _, _, err := scanSession(row)
+		RETURNING `+sessionSelectColumns(), sessionID, now, params.BytesIn, params.BytesOut)
+	session, _, err := scanSession(row)
 	if err != nil {
 		return nil, err
 	}

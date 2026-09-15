@@ -17,7 +17,6 @@
 
 - `mount` is implemented on Linux only. On non-Linux targets, mounting returns an unsupported-operation error.
 - `--src local` mounts a single raw file from the local filesystem.
-- `--src oss` mounts a single raw file from a remote backend created from a Nydus `BackendConfigV2` JSON file. Despite the flag name, this path is not OSS-only. With the enabled build features it can use OSS, S3, registry, and HTTP-proxy backends exposed by `nydus-storage`.
 - `--src nydus` mounts a Nydus RAFS filesystem from a bootstrap plus backend config.
 - Optional dedup uses:
   - `ChunkDB`: global content-addressed chunk storage
@@ -37,14 +36,8 @@
 - `--src local` opens the source file read-write. When dedup is enabled, chunks that have been persisted to `ChunkDB` may be hole-punched from that file. Use a dedicated writable cache copy if you need to preserve the original file byte-for-byte.
 - In Nydus mode, `--name` is still required by the CLI parser, but it is not used by the mounted filesystem.
 - In Nydus mode, `--cache-dir` is optional. If set, blob payloads are cached on disk and wrapped in the same cache/dedup stack. If omitted, blob ranges are fetched directly from the backend, while decompressed chunks can still be served from and stored into `ChunkDB` when dedup is enabled.
-- `--nydus-readahead-workers` starts a bounded worker pool for demand-triggered
-  Nydus cache readahead. `--nydus-readahead-window-bytes` limits each hint.
-  Readahead requires `--cache-dir`; zero workers disables it.
-- `--nydus-decoded-cache-bytes` bounds the per-mount memory used to coalesce
-  concurrent decodes and briefly reuse decompressed Nydus chunks. The default
-  is 8 MiB; zero retains no chunks after an in-flight load completes. When
-  ChunkDB is enabled, successful asynchronous persistence immediately releases
-  the corresponding decoded entry; failed persistence remains retryable.
+- `--nydus-readahead-workers` starts a bounded worker pool for demand-triggered Nydus cache readahead. `--nydus-readahead-window-bytes` limits each hint. Readahead requires `--cache-dir`; zero workers disables it.
+- `--nydus-decoded-cache-bytes` bounds the per-mount memory used to coalesce concurrent decodes and briefly reuse decompressed Nydus chunks. The default is 8 MiB; zero retains no chunks after an in-flight load completes. When ChunkDB is enabled, successful asynchronous persistence immediately releases the corresponding decoded entry; failed persistence remains retryable.
 - The Nydus read path does not support encrypted chunks or batched chunks.
 - `gc-chunk --dry-run` only skips deletion. It does not print a deletion plan.
 
@@ -90,12 +83,12 @@ VS Code launch support is available through the repository-level [`../../.vscode
 
 The main binary exposes five subcommands:
 
-| Command | Purpose |
-| --- | --- |
-| `mount` | Mount a raw image or Nydus filesystem |
-| `serve-chunk` | Serve local chunks over TCP and Unix socket, optionally with peer coordination |
-| `gc-chunk` | Garbage-collect old/LRU chunks from `ChunkDB` |
-| `stats-chunk` | Print lightweight JSON stats for `ChunkDB` |
+| Command          | Purpose                                                                           |
+| ---------------- | --------------------------------------------------------------------------------- |
+| `mount`          | Mount a raw image or Nydus filesystem                                             |
+| `serve-chunk`    | Serve local chunks over TCP and Unix socket, optionally with peer coordination    |
+| `gc-chunk`       | Garbage-collect old/LRU chunks from `ChunkDB`                                     |
+| `stats-chunk`    | Print lightweight JSON stats for `ChunkDB`                                        |
 | `stats-locality` | Query Unix-socket locality stats used by `imagemgr` for chunk/peer heat summaries |
 
 Global flags:
@@ -108,18 +101,9 @@ Common operational flags:
 - `--pid-file`: PID file path to use with `--daemon`
 - `--log-file`: log file path; if set, logs go through the rotating file writer
 - `--node-id`: stable control-plane node identity for mount telemetry
-- `--otel-endpoint`: override the standard `OTEL_EXPORTER_OTLP_ENDPOINT` used
-  for OTLP metrics export. The Nydus mount path emits startup-critical phase
-  histograms under `imagefsd.mount.startup_phase_duration_seconds` with
-  `canonical_phase=rootfs_prepare`.
+- `--otel-endpoint`: override the standard `OTEL_EXPORTER_OTLP_ENDPOINT` used for OTLP metrics export. The Nydus mount path emits startup-critical phase histograms under `imagefsd.mount.startup_phase_duration_seconds` with `canonical_phase=rootfs_prepare`.
 
-The sparse cache exports `imagefsd.cache.backend_fetch_duration_ms` with
-`path=foreground|readahead` and bounded result values including `ok`,
-`io_error`, and `short_read`.
-`imagefsd.cache.inflight_wait_duration_ms` records time spent waiting for the
-leader of a same-chunk fetch. These attribution histograms carry the bounded
-`node_id` label; process identity comes from the OTLP resource. Image refs,
-blob IDs, cache paths, and other workload identities are not metric labels.
+The sparse cache exports `imagefsd.cache.backend_fetch_duration_ms` with `path=foreground|readahead` and bounded result values including `ok`, `io_error`, and `short_read`. `imagefsd.cache.inflight_wait_duration_ms` records time spent waiting for the leader of a same-chunk fetch. These attribution histograms carry the bounded `node_id` label; process identity comes from the OTLP resource. Image refs, blob IDs, cache paths, and other workload identities are not metric labels.
 
 ## Mount Modes
 
@@ -139,33 +123,10 @@ Example:
 mkdir -p /mnt/raw
 
 cargo run -p imagefsd -- mount \
+  --node-id node-example \
   --src local \
   --name disk.raw \
   --cache-file /data/disk.raw \
-  --mountpoint /mnt/raw
-```
-
-### `--src oss`
-
-Mount a remote raw file as a single file in the mountpoint. The implementation uses `GeneralBackend`, which loads a Nydus `BackendConfigV2` JSON file.
-
-Required arguments:
-
-- `--name`: remote object/blob identifier and mounted filename; it must still be valid as a single filename inside the mountpoint
-- `--mountpoint`: FUSE mountpoint
-- `--cfg`: backend config JSON
-- `--cache-file`: writable local cache file path
-
-Example:
-
-```bash
-mkdir -p /mnt/raw /var/cache/distill
-
-cargo run -p imagefsd -- mount \
-  --src oss \
-  --name rootfs.raw \
-  --cfg /etc/distill/backend.json \
-  --cache-file /var/cache/distill/rootfs.raw \
   --mountpoint /mnt/raw
 ```
 
@@ -193,6 +154,7 @@ Example:
 mkdir -p /mnt/nydus /var/cache/distill/blobs
 
 cargo run -p imagefsd -- mount \
+  --node-id node-example \
   --src nydus \
   --name nydus-image \
   --bootstrap /images/bootstrap.rafs \
@@ -218,15 +180,15 @@ When enabled:
 - raw-image reads can fall back from cache/backend to chunk reuse
 - Nydus reads can serve decompressed chunks from `ChunkDB` and asynchronously persist newly read chunks into it
 
-Example with dedup enabled:
+Example with dedup enabled (prepare a dedicated writable raw-file copy at `/var/cache/distill/rootfs.raw` first; dedup may hole-punch that file):
 
 ```bash
 mkdir -p /mnt/raw /var/cache/distill /var/lib/distill/chunkdb /var/lib/distill/imagedb
 
 cargo run -p imagefsd -- mount \
-  --src oss \
+  --node-id node-example \
+  --src local \
   --name rootfs.raw \
-  --cfg /etc/distill/backend.json \
   --cache-file /var/cache/distill/rootfs.raw \
   --chunk-db-dir /var/lib/distill/chunkdb \
   --image-meta-dir /var/lib/distill/imagedb \
@@ -377,7 +339,7 @@ The fixed chunk size used by the dedup/cache stack is 4 MiB.
 
 ## Backend Configuration
 
-This project does not define its own remote-backend JSON schema. The `--cfg` file for remote raw and Nydus modes is deserialized directly as Nydus `BackendConfigV2`.
+This project does not define its own remote-backend JSON schema. The `--cfg` file for Nydus mode is deserialized directly as Nydus `BackendConfigV2`.
 
 In practice this means:
 

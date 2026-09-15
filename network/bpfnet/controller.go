@@ -15,16 +15,11 @@ type commandRunner func(name string, args ...string) ([]byte, error)
 type dataplaneFactory func(cfg Config, run commandRunner) dataplane
 
 type dataplane interface {
-	EnsureAttached(uplinks []string, ipRange string, nativeRoutingCIDRs []string, services []Service) (dataplaneAttachment, error)
-	UpsertService(service Service) error
-	DeleteService(service Service) error
+	EnsureAttached(uplinks []string, ipRange string, nativeRoutingCIDRs []string) (dataplaneAttachment, error)
 	CleanupStaleSNATMappings(policy SNATGCPolicy) (SNATGCResult, error)
 }
 
 type dataplaneAttachment struct {
-	LocalAddresses       []string
-	LocalhostTCPDNAT     bool
-	LocalhostAttachError string
 }
 
 type Controller struct {
@@ -32,8 +27,6 @@ type Controller struct {
 	run       commandRunner
 	stateDir  string
 	stateFile string
-	svcFile   string
-	statsFile string
 	dp        dataplane
 	ipRange   string
 	mu        sync.Mutex
@@ -43,52 +36,22 @@ type DataplaneState struct {
 	Mode               string    `json:"mode"`
 	IPRange            string    `json:"ipRange"`
 	UplinkDevices      []string  `json:"uplinkDevices"`
-	LocalAddresses     []string  `json:"localAddresses"`
 	PinPath            string    `json:"pinPath"`
-	MapSize            int       `json:"mapSize"`
 	SNATMapSize        int       `json:"snatMapSize"`
 	SNATPortMin        int       `json:"snatPortMin"`
 	SNATPortMax        int       `json:"snatPortMax"`
 	SNATPortAttempts   int       `json:"snatPortAttempts"`
-	LocalOutCompat     bool      `json:"localOutCompat"`
 	NativeRoutingCIDRs []string  `json:"nativeRoutingCIDRs"`
-	IptablesFallback   bool      `json:"iptablesFallback"`
-	IngressTCPDNAT     bool      `json:"ingressTcpDnat"`
-	IngressUDPDNAT     bool      `json:"ingressUdpDnat"`
 	EgressSNAT         bool      `json:"egressSnat"`
 	TCReady            bool      `json:"tcReady"`
-	LocalhostTCPDNAT   bool      `json:"localhostTcpDnat"`
-	LocalhostPathReady bool      `json:"localhostPathReady"`
-	FullFallback       bool      `json:"fullFallback"`
-	LocalhostCompat    bool      `json:"localhostCompatFallback"`
 	LastAttachError    string    `json:"lastAttachError,omitempty"`
 	LastTCProbeError   string    `json:"lastTcProbeError,omitempty"`
-	LastLocalhostError string    `json:"lastLocalhostAttachError,omitempty"`
 	LastReconcileError string    `json:"lastReconcileError,omitempty"`
 	UpdatedAt          time.Time `json:"updatedAt"`
 }
 
-type Service struct {
-	Protocol   string `json:"protocol"`
-	HostPort   uint16 `json:"hostPort"`
-	TargetIP   string `json:"targetIp"`
-	TargetPort uint16 `json:"targetPort"`
-}
-
-type Stats struct {
-	AttachSuccesses uint64    `json:"attachSuccesses"`
-	Upserts         uint64    `json:"upserts"`
-	Deletes         uint64    `json:"deletes"`
-	Conflicts       uint64    `json:"conflicts"`
-	Fallbacks       uint64    `json:"fallbacks"`
-	AttachErrors    uint64    `json:"attachErrors"`
-	UpdatedAt       time.Time `json:"updatedAt"`
-}
-
 type KernelStats struct {
 	AttachSuccesses                    uint64 `json:"attachSuccesses"`
-	ServiceHits                        uint64 `json:"serviceHits"`
-	RevNATHits                         uint64 `json:"revNatHits"`
 	SNATHits                           uint64 `json:"snatHits"`
 	SNATRevHits                        uint64 `json:"snatRevHits"`
 	SNATFwdHits                        uint64 `json:"snatFwdHits"`
@@ -118,10 +81,6 @@ type KernelStats struct {
 	SNATTCPReverseMissACKs             uint64 `json:"snatTcpReverseMissAcks"`
 	SNATTCPReverseMissOther            uint64 `json:"snatTcpReverseMissOther"`
 	NativeRouteSkips                   uint64 `json:"nativeRouteSkips"`
-	LocalhostConnectHits               uint64 `json:"localhostConnectHits"`
-	LocalhostGetpeerHits               uint64 `json:"localhostGetpeerHits"`
-	FallbackHits                       uint64 `json:"fallbackHits"`
-	LocalhostFallbackHits              uint64 `json:"localhostFallbackHits"`
 	AttachErrors                       uint64 `json:"attachErrors"`
 }
 
@@ -164,19 +123,15 @@ type SNATGCResult struct {
 }
 
 type AttachmentReadiness struct {
-	UplinkDevices          []string `json:"uplinkDevices"`
-	LocalAddresses         []string `json:"localAddresses"`
-	IngressTCAttached      bool     `json:"ingressTcAttached"`
-	EgressTCAttached       bool     `json:"egressTcAttached"`
-	LocalhostLinksAttached bool     `json:"localhostLinksAttached"`
-	PinnedMapsReady        bool     `json:"pinnedMapsReady"`
-	PinnedProgramsReady    bool     `json:"pinnedProgramsReady"`
+	UplinkDevices       []string `json:"uplinkDevices"`
+	IngressTCAttached   bool     `json:"ingressTcAttached"`
+	EgressTCAttached    bool     `json:"egressTcAttached"`
+	PinnedMapsReady     bool     `json:"pinnedMapsReady"`
+	PinnedProgramsReady bool     `json:"pinnedProgramsReady"`
 }
 
 type Status struct {
 	State      DataplaneState      `json:"state"`
-	Services   []Service           `json:"services"`
-	Stats      Stats               `json:"stats"`
 	Kernel     KernelStats         `json:"kernelStats"`
 	SNATMaps   SNATMapStats        `json:"snatMaps"`
 	Attachment AttachmentReadiness `json:"attachment"`
@@ -191,39 +146,11 @@ func NewController(cfg Config) *Controller {
 		stateDir:  cfg.StatePath,
 		run:       defaultRunner,
 		stateFile: filepath.Join(cfg.StatePath, "dataplane_state.json"),
-		svcFile:   filepath.Join(cfg.StatePath, "service_map.json"),
-		statsFile: filepath.Join(cfg.StatePath, "stats.json"),
 	}
 }
 
 func defaultRunner(name string, args ...string) ([]byte, error) {
 	return exec.Command(name, args...).CombinedOutput()
-}
-
-func (c *Controller) NeedsSNATFallback() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return !c.currentStateLocked().TCReady
-}
-
-func (c *Controller) NeedsFullDNATFallback(protocol string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	switch strings.ToLower(protocol) {
-	case "tcp", "udp":
-		return !c.currentStateLocked().TCReady
-	default:
-		return true
-	}
-}
-
-func (c *Controller) NeedsLocalhostCompat(protocol string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return strings.ToLower(protocol) == "tcp" && c.currentStateLocked().LocalhostCompat
 }
 
 func (c *Controller) EnsureAttached(ipRange string) error {
@@ -242,9 +169,6 @@ func (c *Controller) EnsureAttached(ipRange string) error {
 
 	uplinks, err := c.resolveUplinks()
 	if err != nil {
-		c.bumpStats(func(s *Stats) {
-			s.AttachErrors++
-		})
 		return err
 	}
 
@@ -255,45 +179,19 @@ func (c *Controller) EnsureAttached(ipRange string) error {
 		return fmt.Errorf("create bpfnet state path: %w", err)
 	}
 
-	services, err := c.loadServicesLocked()
-	if err != nil {
-		return err
-	}
-
-	attachment, err := c.dataplaneLocked().EnsureAttached(
+	_, err = c.dataplaneLocked().EnsureAttached(
 		uplinks,
 		c.ipRange,
 		append([]string(nil), c.cfg.NativeRoutingCIDRs...),
-		flattenServices(services),
 	)
 	if err != nil {
-		c.bumpStats(func(s *Stats) {
-			s.AttachErrors++
-			s.Fallbacks++
-		})
-		fallbackState := c.fallbackState(uplinks, err)
-		if writeErr := writeJSONFile(c.stateFile, fallbackState); writeErr != nil {
+		failedState := c.failedState(uplinks, err)
+		if writeErr := writeJSONFile(c.stateFile, failedState); writeErr != nil {
 			return writeErr
 		}
-		if !c.cfg.IptablesFallback {
-			return err
-		}
-		return nil
+		return err
 	}
-	c.bumpStats(func(s *Stats) {
-		s.AttachSuccesses++
-	})
-
-	state := c.readyState(uplinks, attachment)
-	if attachment.LocalhostAttachError != "" && !c.cfg.IptablesFallback {
-		if writeErr := writeJSONFile(c.stateFile, state); writeErr != nil {
-			return writeErr
-		}
-		c.bumpStats(func(s *Stats) {
-			s.AttachErrors++
-		})
-		return fmt.Errorf("attach localhost tcp path: %s", attachment.LocalhostAttachError)
-	}
+	state := c.readyState(uplinks)
 	return writeJSONFile(c.stateFile, state)
 }
 
@@ -337,10 +235,4 @@ func (c *Controller) dataplaneLocked() dataplane {
 		c.dp = newDataplane(c.cfg, c.run)
 	}
 	return c.dp
-}
-
-func (c *Controller) currentStateLocked() DataplaneState {
-	var state DataplaneState
-	_ = readJSONFile(c.stateFile, &state)
-	return state
 }

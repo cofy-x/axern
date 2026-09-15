@@ -34,27 +34,22 @@ func TestGetDaemon_NonExistent_ReturnsNil(t *testing.T) {
 func TestCreateDaemon_ExistingDaemon_ClearsMountFailed(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ossConfig := BackendConfig{BackendType: "oss", Oss: &OssConfig{}}
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", ossConfig)
 	nydusConfig := BackendConfig{BackendType: "registry", Registry: &RegistryConfig{}}
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", nydusConfig)
-	ossAuthsPath := createTestOSSAuthsFile(t, tmpDir)
 	registryAuthsPath := createTestRegistryAuthsFile(t, tmpDir)
 
 	mgr, err := NewManager(&ManagerConfig{
 		NodeID:            "node-test",
 		Root:              tmpDir,
-		OSSCfgPath:        ossCfgPath,
 		NydusCfgPath:      nydusCfgPath,
 		BinPath:           "/usr/local/bin/imagefsd",
-		OSSAuthsPath:      ossAuthsPath,
 		RegistryAuthsPath: registryAuthsPath,
 	})
 	if err != nil {
 		t.Fatalf("NewManager failed: %v", err)
 	}
 
-	opts := &DaemonCreateOpt{ID: "existing-1", Name: "test"}
+	opts := &DaemonCreateOpt{SourceType: SourceTypeNydus, ID: "existing-1", Name: "test"}
 	if err := mgr.CreateDaemon(opts); err != nil {
 		t.Fatalf("CreateDaemon() failed: %v", err)
 	}

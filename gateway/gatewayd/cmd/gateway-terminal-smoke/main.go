@@ -1,11 +1,12 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -15,22 +16,33 @@ import (
 
 func main() {
 	url := flag.String("url", "", "terminal websocket URL")
-	token := flag.String("token", "", "gateway dev token")
+	caPath := flag.String("tls-ca-cert", "", "server CA certificate PEM")
+	certPath := flag.String("tls-cert", "", "Principal client certificate PEM")
+	keyPath := flag.String("tls-key", "", "Principal client private key PEM")
 	stdin := flag.String("stdin", "echo gateway-terminal-ok\nexit\n", "stdin to send")
 	expect := flag.String("expect", "gateway-terminal-ok", "stdout substring to wait for")
 	expectCRLF := flag.String("expect-crlf", "", "stdout substring that must include terminal CRLF line endings")
 	timeout := flag.Duration("timeout", 30*time.Second, "smoke timeout")
 	flag.Parse()
 
-	if strings.TrimSpace(*url) == "" {
-		exitf("missing -url")
+	if !strings.HasPrefix(*url, "wss://") {
+		exitf("-url must use wss://")
 	}
 
-	headers := http.Header{}
-	if *token != "" {
-		headers.Set("Authorization", "Bearer "+*token)
+	cert, err := tls.LoadX509KeyPair(*certPath, *keyPath)
+	if err != nil {
+		exitf("load client identity: %v", err)
 	}
-	conn, resp, err := websocket.DefaultDialer.Dial(*url, headers)
+	ca, err := os.ReadFile(*caPath)
+	if err != nil {
+		exitf("read server CA: %v", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(ca) {
+		exitf("invalid server CA")
+	}
+	dialer := websocket.Dialer{HandshakeTimeout: *timeout, TLSClientConfig: &tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, Certificates: []tls.Certificate{cert}}}
+	conn, resp, err := dialer.Dial(*url, nil)
 	if err != nil {
 		if resp != nil {
 			exitf("websocket dial failed: %v status=%s", err, resp.Status)

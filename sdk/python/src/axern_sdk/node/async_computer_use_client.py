@@ -20,8 +20,8 @@ from axern_sdk.node.models import (
 )
 
 
-class AsyncNodeSandboxComputerUseMixin:
-    """Computer-use RPCs for ``AsyncNodeSandboxClient``."""
+class AsyncAllocationComputerUseMixin:
+    """Computer-use RPCs for ``AsyncAllocationClient``."""
 
     if TYPE_CHECKING:
         _allocation_id: str

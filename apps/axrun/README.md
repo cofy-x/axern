@@ -1,8 +1,6 @@
 # axrun
 
-`axrun` compiles immutable TaskSets and executes reproducible agent rollouts.
-Task semantics live in `TaskSetBuild`; rollout specs select an immutable TaskSet,
-agent/model, attempts, placement, and output location.
+`axrun` compiles immutable TaskSets and executes reproducible agent rollouts. Task semantics live in `TaskSetBuild`; rollout specs select an immutable TaskSet, agent/model, attempts, placement, and output location.
 
 ## Commands
 
@@ -11,20 +9,15 @@ axrun task init --output-dir <dir>
 axrun task build --file <taskset.yaml> --output <bundle-dir>
 axrun task publish <bundle-dir> --target <registry/repo> [--publisher kova|local]
 axrun task inspect <local-path-or-oci-ref>
-axrun profile create|get|list|update|rotate|doctor|delete
 axrun rollout plan --file rollout.yaml
-axrun rollout start <ready-rollout-id>
-axrun rollout run --file rollout.yaml [--detach]
-axrun rollout watch|inspect|get|list|cancel|retry|delete|compare
-axrun rollout artifact list|download|download-all
+axrun rollout run --file rollout.yaml
+axrun rollout run --resume <run-dir>
 axrun validate <run-dir>
 axrun export sft|reward|trace|preference <run-dir>
 axrun serve
 ```
 
-`task build` is deterministic and offline. `task publish` is the only TaskSet
-operation that writes to a registry. Kova is the production default and emits
-Nydus plus OCI variants; `local` pushes an OCI variant for development.
+`task build` is deterministic and offline. `task publish` is the only TaskSet operation that writes to a registry. Kova is the production default and emits Nydus plus OCI variants; `local` pushes an OCI variant for development.
 
 ## Rollout
 
@@ -47,7 +40,6 @@ spec:
   execution:
     runner: axern
     namespace: default
-    runtime_class: runsc
     concurrency: 32
     attempts: 4
   selection:
@@ -58,16 +50,6 @@ spec:
   output_dir: .axrun/runs
 ```
 
-Remote execution requires a descriptor digest. Planning resolves the small
-descriptor and freezes its digest, logical source digest, selected task IDs,
-payload variants, agent bundle digest, Profile version, and hidden credential
-version. Managed `rollout plan` performs the real provider probe from an Axrun
-worker and creates a directly startable `READY` rollout; controld only owns
-durable state, scheduling, snapshots, metering admission, and saved results.
-Every managed provider probe and episode is durably metered even without a
-configured budget. Managed artifact bytes always flow through gatewayd's mTLS
-gRPC data plane.
-Resume reads the frozen plan.
+Remote execution requires immutable task and image references. Planning freezes the resolved task selection, caller-supplied agent image, and episode order. Before execution, Axrun captures the immutable TaskSet payload into the local run directory; resume never re-resolves mutable input. Provider profiles remain Axrun-local configuration; controld does not own provider credentials, rollout queues, or evaluation results.
 
-See [usage](./docs/usage.md), [architecture](./docs/architecture.md), and
-[acceptance](./docs/acceptance.md).
+See [usage](./docs/usage.md), [architecture](./docs/architecture.md), and [acceptance](./docs/acceptance.md).

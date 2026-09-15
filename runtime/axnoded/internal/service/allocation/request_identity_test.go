@@ -9,10 +9,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-func TestStartRequestDigestCanonicalizesTelemetryAndCapabilityProofs(t *testing.T) {
+func TestStartRequestDigestCanonicalizesTelemetryAndRequirementOrder(t *testing.T) {
 	request := testDigestStartRequest()
 	request.TraceID = "trace-one"
-	request.CapabilityDependencies[0].SelectedObservation = &capabilityv1.CapabilityObservationProof{ObservationID: "placement-proof-one"}
 	first, err := StartRequestDigest(request)
 	if err != nil {
 		t.Fatal(err)
@@ -20,7 +19,6 @@ func TestStartRequestDigestCanonicalizesTelemetryAndCapabilityProofs(t *testing.
 
 	retry := proto.Clone(request).(*apipb.StartRequest)
 	retry.TraceID = "trace-two"
-	retry.CapabilityDependencies[0].SelectedObservation = &capabilityv1.CapabilityObservationProof{ObservationID: "placement-proof-two"}
 	retry.ExtensionCapabilityRequirements[0], retry.ExtensionCapabilityRequirements[1] = retry.ExtensionCapabilityRequirements[1], retry.ExtensionCapabilityRequirements[0]
 	second, err := StartRequestDigest(retry)
 	if err != nil {
@@ -38,9 +36,8 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for name, mutate := range map[string]func(*apipb.StartRequest){
-		"command": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Command = []string{"/bin/false"} },
+		"command": func(candidate *apipb.StartRequest) { candidate.Environment.Argv = []string{"/bin/false"} },
 		"memory":  func(candidate *apipb.StartRequest) { candidate.Resources.Limits.MemoryBytes++ },
-		"runtime": func(candidate *apipb.StartRequest) { candidate.RuntimeTemplate.Sandbox = "runc" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			candidate := proto.Clone(request).(*apipb.StartRequest)
@@ -58,24 +55,23 @@ func TestStartRequestDigestChangesWithSandboxContract(t *testing.T) {
 
 func TestStartRequestDigestRejectsCatalogPolicyMismatch(t *testing.T) {
 	request := testDigestStartRequest()
-	request.CapabilityDependencies[0].LossPolicy = capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP
+	request.CapabilityRequirements[0].LossPolicy = capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP
 	if _, err := StartRequestDigest(request); err == nil {
-		t.Fatal("StartRequestDigest() accepted a non-catalog loss policy")
+		t.Fatal("StartRequestDigest() accepted a non-contract loss policy")
 	}
 }
 
 func testDigestStartRequest() *apipb.StartRequest {
 	return &apipb.StartRequest{
-		ContainerID:       "allocation-digest",
-		AllocationAttempt: 7,
-		RuntimeTemplate: &apipb.RuntimeTemplate{
-			ID: "runtime-digest", Sandbox: "runsc",
-			Rootfs:  &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},
-			Command: []string{"/bin/true"},
+		AllocationID: "allocation-digest",
+		Environment: &apipb.ResolvedEnvironment{
+			ID:     "runtime-digest",
+			Rootfs: &apipb.RootfsConfig{Readonly: true, Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: "/rootfs"}},
+			Argv:   []string{"/bin/true"},
 		},
 		Resources: &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{MemoryBytes: 64 << 20}},
-		CapabilityDependencies: []*capabilityv1.CapabilityDependency{{
-			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING}},
+		CapabilityRequirements: []*capabilityv1.CapabilityRequirement{{
+			Key:        &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE}},
 			LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
 		}},
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{

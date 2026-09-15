@@ -32,27 +32,21 @@ const sidebar = [
         translations: { 'zh-CN': '工作负载' },
         items: [
           { label: 'Runs', translations: { 'zh-CN': 'Run' }, link: '/guides/run/' },
-          { label: 'Services', translations: { 'zh-CN': 'Service' }, link: '/guides/service/' },
-          { label: 'Functions', translations: { 'zh-CN': 'Function' }, link: '/guides/functions/' },
-          { label: 'Coding Agents', translations: { 'zh-CN': '编码 Agent' }, link: '/guides/agent/' },
         ],
       },
       {
         label: 'SDK Guides',
         translations: { 'zh-CN': 'SDK 指南' },
         items: [
-          { label: 'Python Service', translations: { 'zh-CN': 'Python Service' }, link: '/guides/python-service/' },
-          { label: 'Computer Use and Browser', translations: { 'zh-CN': 'Computer Use 与浏览器' }, link: '/guides/computer-use/' },
+          { label: 'Computer Use', translations: { 'zh-CN': 'Computer Use' }, link: '/guides/computer-use/' },
         ],
       },
       {
         label: 'Data and Config',
         translations: { 'zh-CN': '数据与配置' },
         items: [
-          { label: 'Catalog', translations: { 'zh-CN': 'Catalog' }, link: '/guides/catalog/' },
           { label: 'Environments and Quota', translations: { 'zh-CN': '环境与配额' }, link: '/guides/environments/' },
           { label: 'Secrets', translations: { 'zh-CN': 'Secret' }, link: '/guides/secrets/' },
-          { label: 'Storage and Volumes', translations: { 'zh-CN': '存储与卷' }, link: '/guides/storage/' },
         ],
       },
       {
@@ -81,7 +75,7 @@ const sidebar = [
     label: 'Axrun',
     translations: { 'zh-CN': 'Axrun' },
     items: [
-      { label: 'Managed Rollouts', translations: { 'zh-CN': '托管 Rollout' }, link: '/axrun/' },
+      { label: 'Agent Workflows', translations: { 'zh-CN': 'Agent 工作流' }, link: '/axrun/' },
       { label: 'TaskSets and Local Workflows', translations: { 'zh-CN': 'TaskSet 与本地工作流' }, link: '/axrun/local-workflows/' },
     ],
   },
@@ -112,7 +106,7 @@ export default defineConfig({
     sitemap({ i18n: { defaultLocale: 'en', locales: { en: 'en-US', 'zh-cn': 'zh-CN' } } }),
     starlight({
       title: 'Axern',
-      description: 'Open-source AI sandboxes for untrusted code, durable services, and reproducible agent rollouts.',
+      description: 'Open-source AI sandboxes for secure, reproducible agent evaluation, training, and data synthesis.',
       favicon: '/favicon.svg',
       customCss: ['./src/styles/custom.css'],
       defaultLocale: 'root',

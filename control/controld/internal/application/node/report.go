@@ -10,7 +10,7 @@ import (
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"go.opentelemetry.io/otel/attribute"
 )
 
@@ -21,11 +21,11 @@ type ReportStore interface {
 }
 
 type ReportRegistry interface {
-	Report(nodeID, nodeTarget string, runtimes []string, summary *nodev1.NodeSummary, now time.Time)
+	Report(nodeID, nodeTarget string, summary *nodev1.NodeSummary, now time.Time)
 }
 
 // Reporter is the application-level node-report use case. The store commits
-// summary, transitions, and durable reconcile work atomically; only then does
+// summary and durable reconcile work atomically; only then does
 // this use case expose the new state through the in-process registry.
 type Reporter struct {
 	store       ReportStore
@@ -38,36 +38,46 @@ func NewReporter(store ReportStore, registry ReportRegistry, allocations Allocat
 	return &Reporter{store: store, registry: registry, allocations: allocations, now: now}
 }
 
-func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) error {
+func (r *Reporter) Report(ctx context.Context, params nodekernel.ReportParams) ([]string, error) {
 	if r == nil || r.store == nil || r.registry == nil {
-		return errNodeReporterUnavailable
+		return nil, errNodeReporterUnavailable
 	}
 	record, err := r.store.Report(ctx, params)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	recordCapabilityTransitions(ctx, record.ReportedCapabilityTransitions)
-	r.registry.Report(record.NodeID, record.NodeTarget, record.Runtimes, record.Summary, record.UpdatedAt)
-	if !reportedAxnodedReady(record.Summary) || r.allocations == nil {
-		return nil
+	recordCapabilityChanges(ctx, record.ReportedCapabilityChanges)
+	r.registry.Report(record.NodeID, record.NodeTarget, record.Summary, record.LastHeartbeatAt)
+	if r.allocations == nil {
+		return nil, nil
 	}
 	now := params.Now
 	if now.IsZero() && r.now != nil {
 		now = r.now()
 	}
-	return r.allocations.ReconcileNodeInventory(ctx, allocationkernel.NodeInventorySnapshot{
-		NodeID: record.NodeID, ActiveAllocationIDs: record.Summary.GetComponents().GetAxnoded().GetActiveAllocationIds(),
-		CollectedAt: reportSnapshotTime(record.Summary, now),
-	}, now)
+	// Readiness gates inventory reconciliation because a recovering axnoded has
+	// not yet produced a complete runtime observation. It must not gate the
+	// execution authority snapshot: doing so would turn the first successful
+	// post-restart heartbeat into an accidental revocation of every recovered
+	// Allocation on the node.
+	if reportedAxnodedReady(record.Summary) {
+		if err := r.allocations.ReconcileNodeInventory(ctx, allocationkernel.NodeInventorySnapshot{
+			NodeID: record.NodeID, ActiveAllocationIDs: record.Summary.GetComponents().GetAxnoded().GetActiveAllocationIds(),
+			CollectedAt: reportSnapshotTime(record.Summary, now),
+		}, now); err != nil {
+			return nil, err
+		}
+	}
+	return r.allocations.ListNodeExecutionAllocationIDs(ctx, record.NodeID)
 }
 
-func recordCapabilityTransitions(ctx context.Context, transitions []nodekernel.CapabilityTransition) {
-	counter := sdkobs.Int64Counter(ctrlobs.MetricNodeCapabilityTransitionTotal.Name, ctrlobs.MetricNodeCapabilityTransitionTotal.Description)
-	for _, transition := range transitions {
+func recordCapabilityChanges(ctx context.Context, changes []nodekernel.CapabilityChange) {
+	counter := sdkobs.Int64Counter(ctrlobs.MetricNodeCapabilityChangeTotal.Name, ctrlobs.MetricNodeCapabilityChangeTotal.Description)
+	for _, change := range changes {
 		counter.Add(ctx, 1,
-			attribute.String(sdkobs.AttrCapability, capabilitycontract.MetricKey(transition.Key)),
-			attribute.String(sdkobs.AttrState, transition.NewState.String()),
-			attribute.String(sdkobs.AttrReason, transition.ReasonCode.String()),
+			attribute.String(sdkobs.AttrCapability, capabilitycontract.MetricKey(change.Key)),
+			attribute.String(sdkobs.AttrState, change.NewState.String()),
+			attribute.String(sdkobs.AttrReason, change.ReasonCode.String()),
 		)
 	}
 }

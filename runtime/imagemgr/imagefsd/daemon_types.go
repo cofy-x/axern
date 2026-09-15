@@ -69,10 +69,9 @@ type DaemonMeta struct {
 	DaemonDir            string   `json:"daemon_dir"`
 	DaemonLogPath        string   `json:"daemon_log_path"`
 	PidFilePath          string   `json:"pid_file_path"`
-	CachePath            string   `json:"cache_path"`
 	ImageMetaDir         string   `json:"image_meta_dir"`
 	ChunkDBDir           string   `json:"chunk_db_dir"`
-	SourceType           string   `json:"source_type,omitempty"`    // "oss" or "nydus"
+	SourceType           string   `json:"source_type,omitempty"`    // "nydus"
 	BootstrapPath        string   `json:"bootstrap_path,omitempty"` // For Nydus: path to bootstrap file
 	CacheDir             string   `json:"cache_dir,omitempty"`      // For Nydus: --cache-dir parameter
 	ReadaheadWorkers     int      `json:"readahead_workers,omitempty"`
@@ -85,15 +84,12 @@ type DaemonMeta struct {
 
 // DaemonInfo contains basic information about a daemon
 type DaemonInfo struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	MountPoint   string `json:"mount_point"`
-	SourceType   string `json:"source_type"`
-	IsAlive      bool   `json:"is_alive"`
-	ImageURL     string `json:"image_url,omitempty"`
-	Endpoint     string `json:"endpoint,omitempty"`
-	Bucket       string `json:"bucket,omitempty"`
-	ObjectPrefix string `json:"object_prefix,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	MountPoint string `json:"mount_point"`
+	SourceType string `json:"source_type"`
+	IsAlive    bool   `json:"is_alive"`
+	ImageURL   string `json:"image_url,omitempty"`
 }
 
 type Daemon struct {
@@ -102,7 +98,7 @@ type Daemon struct {
 	meta             DaemonMeta
 	binPath          string
 	nodeID           string
-	config           *BackendConfig // Backend configuration (OSS, Nydus/Registry, etc.)
+	config           *BackendConfig // Backend configuration (Nydus/Registry)
 	savedPath        string
 	stopChan         chan struct{}
 	kickStop         *Stopper
@@ -132,7 +128,7 @@ func (d *Daemon) daemonLogFields() logrus.Fields {
 		"daemon_id":   d.meta.ID,
 		"daemon_name": d.meta.Name,
 		"mount_point": d.meta.MountPoint,
-		"source_type": normalizeSourceType(d.meta.SourceType),
+		"source_type": d.meta.SourceType,
 	}
 	if d.meta.ImageURL != "" {
 		fields["image_url"] = d.meta.ImageURL

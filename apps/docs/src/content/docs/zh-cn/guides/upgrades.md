@@ -20,15 +20,16 @@ curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh \
   | AXERN_VERSION=<version> sh
 ```
 
-## 升级 Local Axern
+## 替换 Local Axern
 
-CLI 不会静默改变运行中的本地栈。当 `axern local status` 报告版本不匹配时，显式迁移：
+CLI 不会静默改变运行中的本地栈，也不为本地数据库提供跨版本迁移兼容。先导出需要保留的输出，再显式重建：
 
 ```bash
-axern local upgrade
+axern local reset --force
+axern local up
 ```
 
-升级会停止旧栈，对数据、身份、元数据和部署文件创建带时间戳的备份，应用受支持的迁移，并验证健康状态。降级会被拒绝；完整生命周期见 [Local Axern 参考](/zh-cn/guides/local/)。
+该操作会替换本地数据和身份材料；完整生命周期见 [Local Axern 参考](/zh-cn/guides/local/)。
 
 ## 升级 Kubernetes 安装
 

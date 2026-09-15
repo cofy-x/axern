@@ -15,55 +15,43 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	ebpfnetwork "github.com/cofy-x/axern/runtime/axnoded/internal/network/ebpf"
 	nodecapabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodestate"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/imageprocess"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/probes"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/process"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxcontrol"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxtarget"
-	servicevolumes "github.com/cofy-x/axern/runtime/axnoded/internal/service/volumes"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/volume"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
 
-var _ NodeOperatorService = &sandboxService{}
+var _ NodeService = &sandboxService{}
 
 // sandboxService is the NodeSandbox-facing facade assembled by NewSandboxService.
 type sandboxService struct {
-	config          config.Config
-	runtimeHandlers *handlerregistry.Registry
+	config       config.Config
+	runscHandler contract.SandboxRuntime
 
 	containerManager *container.Manager
 
 	store nodeStateStore
 
-	lrtManager        *langrtmanager.LangRTManager
-	volumeClient      volume.Publisher
-	volumeCloser      io.Closer
+	environmentCache  *environmentcache.EnvironmentCache
 	egressClient      egress.Manager
 	egressCloser      io.Closer
-	volumes           *servicevolumes.Coordinator
 	sandboxAccess     *sandboxaccess.Accessor
 	sandboxTargets    *sandboxtarget.Resolver
 	networking        *servicenetworking.Coordinator
 	processController *process.Controller
-	imageProcesses    *imageprocess.Controller
 	sandboxController *sandboxcontrol.Controller
 	allocations       *allocation.Controller
-
-	probeCoordinator *probes.Coordinator
-	probeAdapter     *probes.Adapter
 
 	nodeInventorySource       *nodeinventory.AxnodedSource
 	inventoryCollector        *nodeinventory.Collector
@@ -76,11 +64,16 @@ type sandboxService struct {
 	capabilityReconcileCtx    context.Context
 	capabilityReconcileCancel context.CancelFunc
 	capabilityReconcileWG     sync.WaitGroup
+	executionLeaseCancel      context.CancelFunc
+	executionLeaseWG          sync.WaitGroup
+	nodeIdentityCancel        context.CancelFunc
+	nodeBootstrapTokenFile    string
+	nodeIdentityWG            sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
-	allocationStatusOutbox    *nodecontrol.AllocationStatusOutbox
-	memoryObservationMu       sync.Mutex
-	memoryObservationNext     int64
-	memoryObservationReserved int64
+	allocationLifecycleOutbox *nodecontrol.AllocationLifecycleOutbox
+
+	outputRetentionCancel context.CancelFunc
+	outputRetentionWG     sync.WaitGroup
 
 	ready atomic.Bool
 
@@ -92,15 +85,19 @@ type nodeStateStore interface {
 	SaveSnapshot(bucket string, value proto.Message) error
 	LoadSnapshot(bucket string, value proto.Message) error
 	PutRecord(bucket, key string, value proto.Message) error
+	GetRecord(bucket, key string, value proto.Message) error
 	DeleteRecord(bucket, key string) error
 	ForEachRecord(bucket string, visit func(key string, value []byte) error) error
 	Close() error
 }
 
 // NewSandboxService creates a new sandbox service from an already parsed config.
-func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorService, error) {
+func NewSandboxService(ctx context.Context, cfg config.Config, bootstrapTokenFile string) (NodeService, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("sandbox service context is required")
+	}
+	if err := cfg.ValidateNodeIdentity(); err != nil {
+		return nil, err
 	}
 	if err := validateMemoryBoundaryConfiguration(cfg); err != nil {
 		return nil, err
@@ -119,8 +116,13 @@ func NewSandboxService(ctx context.Context, cfg config.Config) (NodeOperatorServ
 		return nil, err
 	}
 
+	s.nodeBootstrapTokenFile = bootstrapTokenFile
 	healthChan, err := s.initContainerRuntime(ctx)
 	if err != nil {
+		s.closeAfterInitializationFailure()
+		return nil, err
+	}
+	if err := s.configureServiceCollaborators(); err != nil {
 		s.closeAfterInitializationFailure()
 		return nil, err
 	}
@@ -178,45 +180,33 @@ func configureNodeNetwork(cfg config.Config) error {
 func newSandboxServiceState(cfg config.Config) (*sandboxService, error) {
 	imageManagerEnabled := cfg.PluginConfig.RuntimeConfig.ImageManagerEnabledValue()
 	imageManagerSocket := cfg.PluginConfig.RuntimeConfig.ImageManagerSocketPath()
-	retentionTTL, err := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionTTLDuration()
+	retentionTTL, err := cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionTTLDuration()
 	if err != nil {
 		return nil, err
 	}
-	retentionMax := cfg.PluginConfig.RuntimeConfig.IdleRuntimeRetentionMaxValue()
-	volumeDialCtx, cancelVolumeDial := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelVolumeDial()
-	volumeClient, err := volume.Dial(volumeDialCtx, cfg.PluginConfig.RuntimeConfig.VolumeManagerSocketPath())
-	if err != nil {
-		return nil, err
-	}
+	retentionMax := cfg.PluginConfig.RuntimeConfig.IdleEnvironmentRetentionMaxValue()
 	egressClient, err := egress.Dial(context.Background(), cfg.PluginConfig.RuntimeConfig.EgressManagerSocketPath())
 	if err != nil {
-		_ = volumeClient.Close()
 		return nil, err
 	}
 	stateDB, err := nodestate.Open(filepath.Join(cfg.StoreDir, "metadata.db"))
 	if err != nil {
-		_ = volumeClient.Close()
 		_ = egressClient.Close()
 		return nil, err
 	}
 
 	s := &sandboxService{
-		config:          cfg,
-		store:           stateDB,
-		runtimeHandlers: handlerregistry.New(cfg),
-		lrtManager:      langrtmanager.NewLanguageRuntimeManager(langrtmanager.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
-		volumeClient:    volumeClient,
-		volumeCloser:    volumeClient,
-		egressClient:    egressClient,
-		egressCloser:    egressClient,
+		config:           cfg,
+		store:            stateDB,
+		environmentCache: environmentcache.NewEnvironmentCache(environmentcache.NewDefaultMounter(imageManagerEnabled, imageManagerSocket)),
+		egressClient:     egressClient,
+		egressCloser:     egressClient,
 	}
 	if cfg.PluginConfig.ControlPlaneTargetValue() != "" {
-		s.allocationStatusOutbox = nodecontrol.NewAllocationStatusOutbox(stateDB)
+		s.allocationLifecycleOutbox = nodecontrol.NewAllocationLifecycleOutbox(stateDB)
 	}
 	s.capabilityReconcileCtx, s.capabilityReconcileCancel = context.WithCancel(context.Background())
-	s.configureServiceCollaborators()
-	s.lrtManager.ConfigureRetention(retentionTTL, retentionMax)
+	s.environmentCache.ConfigureRetention(retentionTTL, retentionMax)
 	return s, nil
 }
 
@@ -242,15 +232,12 @@ func (h *sandboxService) closeAfterInitializationFailure() {
 		}
 		cancel()
 	}
-	if h.runtimeHandlers != nil {
-		for item := range h.runtimeHandlers.Map().IterBuffered() {
-			item.Val.ShutDown()
-		}
+	if h.runscHandler != nil {
+		h.runscHandler.ShutDown()
 	}
-	if h.lrtManager != nil {
-		h.lrtManager.Close()
+	if h.environmentCache != nil {
+		h.environmentCache.Close()
 	}
-	h.closeVolume()
 	h.closeEgress()
 	h.closeNodeState()
 }
@@ -264,17 +251,33 @@ func (h *sandboxService) closeEgress() {
 	}
 }
 
-func (h *sandboxService) configureServiceCollaborators() {
-	h.configureProbeCoordinator()
-	h.configureVolumeCoordinator()
+func (h *sandboxService) configureServiceCollaborators() error {
+	if h == nil {
+		return fmt.Errorf("configure service collaborators: sandbox service is required")
+	}
+	if h.runscHandler == nil {
+		return fmt.Errorf("configure service collaborators: runsc handler is required")
+	}
+	if h.containerManager == nil {
+		return fmt.Errorf("configure service collaborators: container manager is required")
+	}
+	if h.store == nil {
+		return fmt.Errorf("configure service collaborators: node state store is required")
+	}
+	if h.environmentCache == nil {
+		return fmt.Errorf("configure service collaborators: environment cache is required")
+	}
+	if h.egressClient == nil {
+		return fmt.Errorf("configure service collaborators: egress manager is required")
+	}
 	h.configureSandboxTargets()
 	h.configureSandboxAccess()
 	h.configureNetworking()
 	h.configureProcessController()
 	h.configureSandboxControl()
-	h.configureControlPlaneReports()
 	h.configureAllocationController()
-	h.configureImageProcesses()
+	h.configureControlPlaneReports()
+	return nil
 }
 
 func (h *sandboxService) restorePersistentState() error {
@@ -282,91 +285,225 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
-	retained := inventory.retained()
-	if err := h.containerManager.ValidateRuntimeInventory(retained.allByRuntime()); err != nil {
+	if err := h.containerManager.ValidateRuntimeInventory(inventory.allIDs()); err != nil {
 		return fmt.Errorf("validate persisted container inventory: %w", err)
 	}
-	if err := h.seedTerminalAllocationStatusOutbox(); err != nil {
+	recoveryRecords, err := h.allocationController().InspectRecoveryRecords()
+	if err != nil {
+		return fmt.Errorf("validate persisted allocation authority: %w", err)
+	}
+	if err := h.cleanupInterruptedAllocationStarts(context.Background(), inventory, recoveryRecords); err != nil {
+		return err
+	}
+	persistedAllocations := recoveryRecords.Intents
+	durableInventory, discardInventory, err := h.partitionRuntimeInventory(inventory, persistedAllocations)
+	if err != nil {
+		return err
+	}
+	if err := h.recoverTerminalRuntimeCheckpoints(context.Background(), durableInventory); err != nil {
+		return err
+	}
+	if err := h.seedTerminalAllocationLifecycleOutbox(persistedAllocations); err != nil {
 		return err
 	}
 	if err := h.cleanupTerminalRuntimeContainers(context.Background(), inventory); err != nil {
 		return err
 	}
+	if err := h.cleanupDiscardOnRestartContainers(context.Background(), discardInventory.retained()); err != nil {
+		return err
+	}
+	retained := durableInventory.retained()
 	if err := h.allocationController().RestoreAllocationState(retained.allIDs()); err != nil {
 		return err
 	}
 	if err := h.reconcileEgressPolicies(context.Background()); err != nil {
 		return err
 	}
-	for _, handler := range h.containerManager.Handlers() {
-		reconciler, ok := handler.(contract.PersistentStorageReconciler)
-		if !ok {
-			continue
-		}
-		if err := reconciler.ReconcilePersistentStorage(context.Background(), retained.forRuntime(handler.Name())); err != nil {
-			return fmt.Errorf("reconcile %s persistent runtime storage: %w", handler.Name(), err)
+	if reconciler, ok := h.runscHandler.(contract.RuntimeArtifactReconciler); ok {
+		if err := reconciler.ReconcileRuntimeArtifacts(context.Background(), retained.allIDs()); err != nil {
+			return fmt.Errorf("reconcile runsc runtime artifacts: %w", err)
 		}
 	}
-	if err := h.containerManager.ReconcileRuntimeInventory(retained.allByRuntime()); err != nil {
+	if err := h.containerManager.ReconcileRuntimeInventory(retained.allIDs()); err != nil {
 		return fmt.Errorf("reconcile persisted container inventory: %w", err)
+	}
+	for id, state := range retained {
+		if state != nil && state.Status == contract.ContainerStatusRunning {
+			if err := h.containerManager.SyncRuntimeIdentityFromState(id, state); err != nil {
+				return fmt.Errorf("restore runtime identity for allocation %s: %w", id, err)
+			}
+		}
 	}
 	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
 		return fmt.Errorf("reconcile persisted resource claims: %w", err)
 	}
-	h.sandboxNetworking().LoadDnatRules()
 	return nil
 }
 
-type runtimeInventory map[string]map[string]contract.ContainerStatus
+// cleanupInterruptedAllocationStarts closes both create crash windows:
+//
+//   - a durable intent with no runsc container never reached OCI create; and
+//   - a runsc container in created state never crossed OCI start.
+//
+// An unverified running or unknown container violates the create-before-start
+// ordering and is retained fail-closed for operator inspection. Terminal
+// containers are retained only when verified enforcement makes their exit
+// evidence reportable to controld.
+func (h *sandboxService) cleanupInterruptedAllocationStarts(ctx context.Context, inventory runtimeInventory, records allocation.RecoveryRecords) error {
+	ids := make([]string, 0, len(records.Intents))
+	for id := range records.Intents {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		state, live := inventory[id]
+		status := contract.ContainerStatusUnknown
+		if state != nil {
+			status = state.Status
+		}
+		_, enforcementVerified := records.EnforcementVerified[id]
+		cleanup, err := interruptedStartRecoveryAction(live, status, enforcementVerified)
+		if err != nil {
+			return fmt.Errorf("recover allocation %s: %w", id, err)
+		}
+		if !cleanup {
+			continue
+		}
+		if err := h.allocationController().CleanupPersistedFailedStart(ctx, id); err != nil {
+			return fmt.Errorf("cleanup interrupted allocation start %s: %w", id, err)
+		}
+		delete(inventory, id)
+		delete(records.Intents, id)
+		delete(records.EnforcementVerified, id)
+	}
+	return nil
+}
+
+func interruptedStartRecoveryAction(live bool, status contract.ContainerStatus, enforcementVerified bool) (bool, error) {
+	if !live || status == contract.ContainerStatusCreated {
+		return true, nil
+	}
+	if enforcementVerified {
+		return false, nil
+	}
+	if status == contract.ContainerStatusExited {
+		return true, nil
+	}
+	return false, fmt.Errorf("unverified runtime container has uncertain execution state %q", status)
+}
+
+// partitionRuntimeInventory derives recovery ownership from the admitted
+// Allocation record. Runtime metadata is never an ownership authority.
+func (h *sandboxService) partitionRuntimeInventory(inventory runtimeInventory, persistedAllocations map[string]struct{}) (runtimeInventory, runtimeInventory, error) {
+	durable := make(runtimeInventory, len(inventory))
+	discard := make(runtimeInventory, len(inventory))
+	for id, state := range inventory {
+		_, hasState := persistedAllocations[id]
+		if hasState {
+			durable[id] = state
+		} else {
+			discard[id] = state
+		}
+	}
+	return durable, discard, nil
+}
+
+func (h *sandboxService) cleanupDiscardOnRestartContainers(ctx context.Context, inventory runtimeInventory) error {
+	ids := make([]string, 0, len(inventory))
+	for id := range inventory {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{ID: id, Timeout: 0}, contract.HandlerOptions{ContainerID: id, ForceDelete: true}); err != nil && !allocation.IsDeleteNotFound(err) {
+			return fmt.Errorf("delete discard-on-restart runsc container %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+type runtimeInventory map[string]*contract.UnionContainerState
 
 func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeInventory, error) {
-	inventory := make(runtimeInventory, len(h.containerManager.Handlers()))
-	owners := make(map[string]string)
-	for _, handler := range h.containerManager.Handlers() {
-		runtimeName := handler.Name()
-		states, err := handler.ListContainers(ctx, contract.HandlerOptions{})
-		if err != nil {
-			return nil, fmt.Errorf("list %s containers before persistent-state reconciliation: %w", runtimeName, err)
+	states, err := h.runscHandler.ListContainers(ctx, contract.HandlerOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list runsc containers before persistent-state reconciliation: %w", err)
+	}
+	inventory := make(runtimeInventory, len(states))
+	for _, state := range states {
+		if state == nil || state.ID == "" {
+			return nil, fmt.Errorf("runsc returned an invalid container inventory entry")
 		}
-		ids := make(map[string]contract.ContainerStatus, len(states))
-		for _, state := range states {
-			if state == nil || state.ID == "" {
-				return nil, fmt.Errorf("runtime %s returned an invalid container inventory entry", runtimeName)
-			}
-			if owner, duplicate := owners[state.ID]; duplicate {
-				return nil, fmt.Errorf("container %s is reported by both %s and %s", state.ID, owner, runtimeName)
-			}
-			switch state.Status {
-			case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
-			default:
-				return nil, fmt.Errorf("runtime %s container %s returned invalid status %q", runtimeName, state.ID, state.Status)
-			}
-			owners[state.ID] = runtimeName
-			ids[state.ID] = state.Status
+		switch state.Status {
+		case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
+		default:
+			return nil, fmt.Errorf("runsc container %s returned invalid status %q", state.ID, state.Status)
 		}
-		inventory[runtimeName] = ids
+		if _, duplicate := inventory[state.ID]; duplicate {
+			return nil, fmt.Errorf("runsc returned duplicate container %s", state.ID)
+		}
+		inventory[state.ID] = state
 	}
 	return inventory, nil
 }
 
-func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, inventory runtimeInventory) error {
-	handlers := h.containerManager.Handlers()
-	sort.Slice(handlers, func(i, j int) bool { return handlers[i].Name() < handlers[j].Name() })
-	for _, handler := range handlers {
-		ids := make([]string, 0)
-		for id, status := range inventory[handler.Name()] {
-			if status == contract.ContainerStatusExited {
-				ids = append(ids, id)
-			}
+// recoverTerminalRuntimeCheckpoints closes the crash window where runsc has
+// durably recorded an exit but axnoded stopped before writing its lifecycle
+// checkpoint. Terminal runtime state must never be deleted until the wait result
+// (including confirmed termination with unavailable exit status) is durable.
+func (h *sandboxService) recoverTerminalRuntimeCheckpoints(ctx context.Context, inventory runtimeInventory) error {
+	ids := make([]string, 0)
+	for id, state := range inventory {
+		if state != nil && state.Status == contract.ContainerStatusExited {
+			ids = append(ids, id)
 		}
-		sort.Strings(ids)
-		for _, id := range ids {
-			if _, err := handler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
-				ContainerID: id,
-				ForceDelete: true,
-			}); err != nil {
-				return fmt.Errorf("delete terminal %s container %s before persistent-state reconciliation: %w", handler.Name(), id, err)
-			}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		item, err := h.containerManager.Get(id)
+		if err != nil {
+			return fmt.Errorf("load terminal runtime checkpoint for %s: %w", id, err)
+		}
+		if item == nil || item.Status == nil {
+			return fmt.Errorf("load terminal runtime checkpoint for %s: checkpoint unavailable", id)
+		}
+		if item.Status.Get().State() == runtimeapi.ContainerState_CONTAINER_EXITED {
+			continue
+		}
+		exit, err := h.runscHandler.Wait(ctx, contract.HandlerOptions{ContainerID: id})
+		if err != nil && !contract.IsExitStatusUnavailable(err) {
+			return fmt.Errorf("recover runtime exit for %s: %w", id, err)
+		}
+		event := container.Event{Type: container.EventTypeExit, ContainerID: id, ExitedAt: exit.Timestamp}
+		if err != nil {
+			// Like the live monitor, preserve confirmed termination without
+			// fabricating an exit code after a host/runtime crash.
+			event.Reason = err.Error()
+		} else {
+			exitCode := int32(exit.Status)
+			event.ExitCode = &exitCode
+		}
+		if _, err := h.containerManager.CheckpointRuntimeExit(event); err != nil {
+			return fmt.Errorf("checkpoint recovered runtime exit for %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, inventory runtimeInventory) error {
+	ids := make([]string, 0)
+	for id, state := range inventory {
+		if state != nil && state.Status == contract.ContainerStatusExited {
+			ids = append(ids, id)
+		}
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
+			ContainerID: id,
+			ForceDelete: true,
+		}); err != nil {
+			return fmt.Errorf("delete terminal runsc container %s before persistent-state reconciliation: %w", id, err)
 		}
 	}
 	return nil
@@ -374,39 +511,18 @@ func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, i
 
 func (i runtimeInventory) retained() runtimeInventory {
 	result := make(runtimeInventory, len(i))
-	for runtimeName, states := range i {
-		result[runtimeName] = make(map[string]contract.ContainerStatus)
-		for id, status := range states {
-			if status != contract.ContainerStatusExited {
-				result[runtimeName][id] = status
-			}
+	for id, state := range i {
+		if state != nil && state.Status != contract.ContainerStatusExited {
+			result[id] = state
 		}
-	}
-	return result
-}
-
-func (i runtimeInventory) forRuntime(runtimeName string) map[string]struct{} {
-	result := make(map[string]struct{}, len(i[runtimeName]))
-	for id := range i[runtimeName] {
-		result[id] = struct{}{}
-	}
-	return result
-}
-
-func (i runtimeInventory) allByRuntime() map[string]map[string]struct{} {
-	result := make(map[string]map[string]struct{}, len(i))
-	for runtimeName := range i {
-		result[runtimeName] = i.forRuntime(runtimeName)
 	}
 	return result
 }
 
 func (i runtimeInventory) allIDs() map[string]struct{} {
-	result := make(map[string]struct{})
-	for _, ids := range i {
-		for id := range ids {
-			result[id] = struct{}{}
-		}
+	result := make(map[string]struct{}, len(i))
+	for id := range i {
+		result[id] = struct{}{}
 	}
 	return result
 }

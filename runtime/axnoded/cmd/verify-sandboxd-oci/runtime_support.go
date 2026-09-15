@@ -17,38 +17,24 @@ import (
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 )
 
-func newVerifyRuntimeHandlerWithRoot(cfg config, rootDir string) (contract.RuntimeHandler, error) {
+func newVerifySandboxRuntimeWithRoot(cfg config, rootDir string) (contract.SandboxRuntime, error) {
 	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
 	if err != nil {
 		return nil, err
 	}
 	runtimeCfg := axnodedconfig.RuntimeInstanceConfig{Binary: filepath.Join(rootDir, "missing-runtime-binary")}
 	baseCfg := axnodedconfig.Config{RootDir: rootDir}
-	switch cfg.runtimeName {
-	case "runc":
-		handler, err := runtimecore.NewRuncServiceHandler(baseCfg, axnodedconfig.RuntimeNameRunc, runtimeCfg, loader)
-		if err != nil {
-			return nil, err
-		}
-		return handler, nil
-	case "runsc":
-		handler, err := runtimecore.NewRunscServiceHandler(baseCfg, axnodedconfig.RuntimeNameRunsc, runtimeCfg, loader)
-		if err != nil {
-			return nil, err
-		}
-		return handler, nil
-	default:
-		return nil, fmt.Errorf("unsupported runtime for sandboxd-backed exec e2e: %s", cfg.runtimeName)
+	handler, err := runtimecore.NewRunscServiceHandler(baseCfg, runtimeCfg, loader)
+	if err != nil {
+		return nil, err
 	}
+	return handler, nil
 }
 
 func runtimeArgs(cfg config, runtimeRoot string, args ...string) []string {
-	out := []string{"--root", runtimeRoot}
-	if cfg.runtimeName == "runsc" {
-		out = append(out, "--ignore-cgroups", "--host-uds=create")
-		if cfg.runscOverlay2 != "" {
-			out = append(out, "--overlay2", cfg.runscOverlay2)
-		}
+	out := []string{"--root", runtimeRoot, "--ignore-cgroups", "--host-uds=create"}
+	if cfg.runscOverlay2 != "" {
+		out = append(out, "--overlay2", cfg.runscOverlay2)
 	}
 	out = append(out, args...)
 	return out

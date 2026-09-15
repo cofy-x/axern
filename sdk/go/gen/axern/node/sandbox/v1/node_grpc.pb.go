@@ -20,19 +20,13 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	NodeSandbox_Exec_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Exec"
-	NodeSandbox_ExecStream_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ExecStream"
 	NodeSandbox_Process_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/Process"
-	NodeSandbox_ExecImage_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/ExecImage"
-	NodeSandbox_ProcessImage_FullMethodName          = "/axern.node.sandbox.v1.NodeSandbox/ProcessImage"
-	NodeSandbox_WaitSandbox_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/WaitSandbox"
 	NodeSandbox_ReadOutput_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
 	NodeSandbox_CapabilityStatus_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus"
-	NodeSandbox_ProxyHTTP_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/ProxyHTTP"
 	NodeSandbox_StatFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/StatFile"
 	NodeSandbox_ListDir_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/ListDir"
 	NodeSandbox_ReadFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/ReadFile"
 	NodeSandbox_WriteFile_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/WriteFile"
-	NodeSandbox_MaterializeTaskAssets_FullMethodName = "/axern.node.sandbox.v1.NodeSandbox/MaterializeTaskAssets"
 	NodeSandbox_Mkdir_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Mkdir"
 	NodeSandbox_Remove_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/Remove"
 	NodeSandbox_Exists_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/Exists"
@@ -47,14 +41,6 @@ const (
 	NodeSandbox_ComputerUseDisplay_FullMethodName    = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseDisplay"
 	NodeSandbox_ComputerUseMouse_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseMouse"
 	NodeSandbox_ComputerUseKeyboard_FullMethodName   = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseKeyboard"
-	NodeSandbox_BrowserStatus_FullMethodName         = "/axern.node.sandbox.v1.NodeSandbox/BrowserStatus"
-	NodeSandbox_BrowserOpen_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/BrowserOpen"
-	NodeSandbox_BrowserClose_FullMethodName          = "/axern.node.sandbox.v1.NodeSandbox/BrowserClose"
-	NodeSandbox_BrowserNavigate_FullMethodName       = "/axern.node.sandbox.v1.NodeSandbox/BrowserNavigate"
-	NodeSandbox_BrowserResize_FullMethodName         = "/axern.node.sandbox.v1.NodeSandbox/BrowserResize"
-	NodeSandbox_BrowserClick_FullMethodName          = "/axern.node.sandbox.v1.NodeSandbox/BrowserClick"
-	NodeSandbox_BrowserType_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/BrowserType"
-	NodeSandbox_BrowserWait_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/BrowserWait"
 )
 
 // NodeSandboxClient is the client API for NodeSandbox service.
@@ -62,19 +48,13 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeSandboxClient interface {
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
-	ExecStream(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ExecStreamClient, error)
 	Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error)
-	ExecImage(ctx context.Context, in *ExecImageRequest, opts ...grpc.CallOption) (*ExecImageResponse, error)
-	ProcessImage(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessImageClient, error)
-	WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error)
 	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
 	CapabilityStatus(ctx context.Context, in *CapabilityStatusRequest, opts ...grpc.CallOption) (*CapabilityStatusResponse, error)
-	ProxyHTTP(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProxyHTTPClient, error)
 	StatFile(ctx context.Context, in *StatFileRequest, opts ...grpc.CallOption) (*StatFileResponse, error)
 	ListDir(ctx context.Context, in *ListDirRequest, opts ...grpc.CallOption) (*ListDirResponse, error)
 	ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (*ReadFileResponse, error)
 	WriteFile(ctx context.Context, in *WriteFileRequest, opts ...grpc.CallOption) (*WriteFileResponse, error)
-	MaterializeTaskAssets(ctx context.Context, in *MaterializeTaskAssetsRequest, opts ...grpc.CallOption) (*MaterializeTaskAssetsResponse, error)
 	Mkdir(ctx context.Context, in *MkdirRequest, opts ...grpc.CallOption) (*MkdirResponse, error)
 	Remove(ctx context.Context, in *RemoveRequest, opts ...grpc.CallOption) (*RemoveResponse, error)
 	Exists(ctx context.Context, in *ExistsRequest, opts ...grpc.CallOption) (*ExistsResponse, error)
@@ -89,14 +69,6 @@ type NodeSandboxClient interface {
 	ComputerUseDisplay(ctx context.Context, in *ComputerUseDisplayRequest, opts ...grpc.CallOption) (*ComputerUseDisplayResponse, error)
 	ComputerUseMouse(ctx context.Context, in *ComputerUseMouseRequest, opts ...grpc.CallOption) (*ComputerUseMouseResponse, error)
 	ComputerUseKeyboard(ctx context.Context, in *ComputerUseKeyboardRequest, opts ...grpc.CallOption) (*ComputerUseKeyboardResponse, error)
-	BrowserStatus(ctx context.Context, in *BrowserStatusRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserOpen(ctx context.Context, in *BrowserOpenRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserClose(ctx context.Context, in *BrowserCloseRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserNavigate(ctx context.Context, in *BrowserNavigateRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserResize(ctx context.Context, in *BrowserResizeRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserClick(ctx context.Context, in *BrowserClickRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserType(ctx context.Context, in *BrowserTypeRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
-	BrowserWait(ctx context.Context, in *BrowserWaitRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error)
 }
 
 type nodeSandboxClient struct {
@@ -116,39 +88,8 @@ func (c *nodeSandboxClient) Exec(ctx context.Context, in *ExecRequest, opts ...g
 	return out, nil
 }
 
-func (c *nodeSandboxClient) ExecStream(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ExecStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[0], NodeSandbox_ExecStream_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeSandboxExecStreamClient{stream}
-	return x, nil
-}
-
-type NodeSandbox_ExecStreamClient interface {
-	Send(*ExecStreamRequest) error
-	Recv() (*ExecStreamResponse, error)
-	grpc.ClientStream
-}
-
-type nodeSandboxExecStreamClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeSandboxExecStreamClient) Send(m *ExecStreamRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeSandboxExecStreamClient) Recv() (*ExecStreamResponse, error) {
-	m := new(ExecStreamResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *nodeSandboxClient) Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[1], NodeSandbox_Process_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[0], NodeSandbox_Process_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -178,57 +119,8 @@ func (x *nodeSandboxProcessClient) Recv() (*ProcessResponse, error) {
 	return m, nil
 }
 
-func (c *nodeSandboxClient) ExecImage(ctx context.Context, in *ExecImageRequest, opts ...grpc.CallOption) (*ExecImageResponse, error) {
-	out := new(ExecImageResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_ExecImage_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) ProcessImage(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessImageClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_ProcessImage_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeSandboxProcessImageClient{stream}
-	return x, nil
-}
-
-type NodeSandbox_ProcessImageClient interface {
-	Send(*ProcessImageRequest) error
-	Recv() (*ProcessImageResponse, error)
-	grpc.ClientStream
-}
-
-type nodeSandboxProcessImageClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeSandboxProcessImageClient) Send(m *ProcessImageRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeSandboxProcessImageClient) Recv() (*ProcessImageResponse, error) {
-	m := new(ProcessImageResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *nodeSandboxClient) WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error) {
-	out := new(WaitSandboxResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_WaitSandbox_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *nodeSandboxClient) ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_ReadOutput_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[1], NodeSandbox_ReadOutput_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -268,37 +160,6 @@ func (c *nodeSandboxClient) CapabilityStatus(ctx context.Context, in *Capability
 	return out, nil
 }
 
-func (c *nodeSandboxClient) ProxyHTTP(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProxyHTTPClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_ProxyHTTP_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeSandboxProxyHTTPClient{stream}
-	return x, nil
-}
-
-type NodeSandbox_ProxyHTTPClient interface {
-	Send(*ProxyHTTPRequest) error
-	Recv() (*ProxyHTTPResponse, error)
-	grpc.ClientStream
-}
-
-type nodeSandboxProxyHTTPClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeSandboxProxyHTTPClient) Send(m *ProxyHTTPRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeSandboxProxyHTTPClient) Recv() (*ProxyHTTPResponse, error) {
-	m := new(ProxyHTTPResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *nodeSandboxClient) StatFile(ctx context.Context, in *StatFileRequest, opts ...grpc.CallOption) (*StatFileResponse, error) {
 	out := new(StatFileResponse)
 	err := c.cc.Invoke(ctx, NodeSandbox_StatFile_FullMethodName, in, out, opts...)
@@ -329,15 +190,6 @@ func (c *nodeSandboxClient) ReadFile(ctx context.Context, in *ReadFileRequest, o
 func (c *nodeSandboxClient) WriteFile(ctx context.Context, in *WriteFileRequest, opts ...grpc.CallOption) (*WriteFileResponse, error) {
 	out := new(WriteFileResponse)
 	err := c.cc.Invoke(ctx, NodeSandbox_WriteFile_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) MaterializeTaskAssets(ctx context.Context, in *MaterializeTaskAssetsRequest, opts ...grpc.CallOption) (*MaterializeTaskAssetsResponse, error) {
-	out := new(MaterializeTaskAssetsResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_MaterializeTaskAssets_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -408,7 +260,7 @@ func (c *nodeSandboxClient) Touch(ctx context.Context, in *TouchRequest, opts ..
 }
 
 func (c *nodeSandboxClient) UploadArchive(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_UploadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[5], NodeSandbox_UploadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_UploadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -442,7 +294,7 @@ func (x *nodeSandboxUploadArchiveClient) CloseAndRecv() (*UploadArchiveResponse,
 }
 
 func (c *nodeSandboxClient) DownloadArchive(ctx context.Context, in *DownloadArchiveRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[6], NodeSandbox_DownloadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_DownloadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -518,96 +370,18 @@ func (c *nodeSandboxClient) ComputerUseKeyboard(ctx context.Context, in *Compute
 	return out, nil
 }
 
-func (c *nodeSandboxClient) BrowserStatus(ctx context.Context, in *BrowserStatusRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserStatus_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserOpen(ctx context.Context, in *BrowserOpenRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserOpen_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserClose(ctx context.Context, in *BrowserCloseRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserClose_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserNavigate(ctx context.Context, in *BrowserNavigateRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserNavigate_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserResize(ctx context.Context, in *BrowserResizeRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserResize_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserClick(ctx context.Context, in *BrowserClickRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserClick_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserType(ctx context.Context, in *BrowserTypeRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserType_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeSandboxClient) BrowserWait(ctx context.Context, in *BrowserWaitRequest, opts ...grpc.CallOption) (*BrowserStatusResponse, error) {
-	out := new(BrowserStatusResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_BrowserWait_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // NodeSandboxServer is the server API for NodeSandbox service.
 // All implementations must embed UnimplementedNodeSandboxServer
 // for forward compatibility
 type NodeSandboxServer interface {
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
-	ExecStream(NodeSandbox_ExecStreamServer) error
 	Process(NodeSandbox_ProcessServer) error
-	ExecImage(context.Context, *ExecImageRequest) (*ExecImageResponse, error)
-	ProcessImage(NodeSandbox_ProcessImageServer) error
-	WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error)
 	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
 	CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error)
-	ProxyHTTP(NodeSandbox_ProxyHTTPServer) error
 	StatFile(context.Context, *StatFileRequest) (*StatFileResponse, error)
 	ListDir(context.Context, *ListDirRequest) (*ListDirResponse, error)
 	ReadFile(context.Context, *ReadFileRequest) (*ReadFileResponse, error)
 	WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error)
-	MaterializeTaskAssets(context.Context, *MaterializeTaskAssetsRequest) (*MaterializeTaskAssetsResponse, error)
 	Mkdir(context.Context, *MkdirRequest) (*MkdirResponse, error)
 	Remove(context.Context, *RemoveRequest) (*RemoveResponse, error)
 	Exists(context.Context, *ExistsRequest) (*ExistsResponse, error)
@@ -622,14 +396,6 @@ type NodeSandboxServer interface {
 	ComputerUseDisplay(context.Context, *ComputerUseDisplayRequest) (*ComputerUseDisplayResponse, error)
 	ComputerUseMouse(context.Context, *ComputerUseMouseRequest) (*ComputerUseMouseResponse, error)
 	ComputerUseKeyboard(context.Context, *ComputerUseKeyboardRequest) (*ComputerUseKeyboardResponse, error)
-	BrowserStatus(context.Context, *BrowserStatusRequest) (*BrowserStatusResponse, error)
-	BrowserOpen(context.Context, *BrowserOpenRequest) (*BrowserStatusResponse, error)
-	BrowserClose(context.Context, *BrowserCloseRequest) (*BrowserStatusResponse, error)
-	BrowserNavigate(context.Context, *BrowserNavigateRequest) (*BrowserStatusResponse, error)
-	BrowserResize(context.Context, *BrowserResizeRequest) (*BrowserStatusResponse, error)
-	BrowserClick(context.Context, *BrowserClickRequest) (*BrowserStatusResponse, error)
-	BrowserType(context.Context, *BrowserTypeRequest) (*BrowserStatusResponse, error)
-	BrowserWait(context.Context, *BrowserWaitRequest) (*BrowserStatusResponse, error)
 	mustEmbedUnimplementedNodeSandboxServer()
 }
 
@@ -640,29 +406,14 @@ type UnimplementedNodeSandboxServer struct {
 func (UnimplementedNodeSandboxServer) Exec(context.Context, *ExecRequest) (*ExecResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Exec not implemented")
 }
-func (UnimplementedNodeSandboxServer) ExecStream(NodeSandbox_ExecStreamServer) error {
-	return status.Errorf(codes.Unimplemented, "method ExecStream not implemented")
-}
 func (UnimplementedNodeSandboxServer) Process(NodeSandbox_ProcessServer) error {
 	return status.Errorf(codes.Unimplemented, "method Process not implemented")
-}
-func (UnimplementedNodeSandboxServer) ExecImage(context.Context, *ExecImageRequest) (*ExecImageResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ExecImage not implemented")
-}
-func (UnimplementedNodeSandboxServer) ProcessImage(NodeSandbox_ProcessImageServer) error {
-	return status.Errorf(codes.Unimplemented, "method ProcessImage not implemented")
-}
-func (UnimplementedNodeSandboxServer) WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method WaitSandbox not implemented")
 }
 func (UnimplementedNodeSandboxServer) ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error {
 	return status.Errorf(codes.Unimplemented, "method ReadOutput not implemented")
 }
 func (UnimplementedNodeSandboxServer) CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CapabilityStatus not implemented")
-}
-func (UnimplementedNodeSandboxServer) ProxyHTTP(NodeSandbox_ProxyHTTPServer) error {
-	return status.Errorf(codes.Unimplemented, "method ProxyHTTP not implemented")
 }
 func (UnimplementedNodeSandboxServer) StatFile(context.Context, *StatFileRequest) (*StatFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method StatFile not implemented")
@@ -675,9 +426,6 @@ func (UnimplementedNodeSandboxServer) ReadFile(context.Context, *ReadFileRequest
 }
 func (UnimplementedNodeSandboxServer) WriteFile(context.Context, *WriteFileRequest) (*WriteFileResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method WriteFile not implemented")
-}
-func (UnimplementedNodeSandboxServer) MaterializeTaskAssets(context.Context, *MaterializeTaskAssetsRequest) (*MaterializeTaskAssetsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method MaterializeTaskAssets not implemented")
 }
 func (UnimplementedNodeSandboxServer) Mkdir(context.Context, *MkdirRequest) (*MkdirResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Mkdir not implemented")
@@ -721,30 +469,6 @@ func (UnimplementedNodeSandboxServer) ComputerUseMouse(context.Context, *Compute
 func (UnimplementedNodeSandboxServer) ComputerUseKeyboard(context.Context, *ComputerUseKeyboardRequest) (*ComputerUseKeyboardResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ComputerUseKeyboard not implemented")
 }
-func (UnimplementedNodeSandboxServer) BrowserStatus(context.Context, *BrowserStatusRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserStatus not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserOpen(context.Context, *BrowserOpenRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserOpen not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserClose(context.Context, *BrowserCloseRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserClose not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserNavigate(context.Context, *BrowserNavigateRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserNavigate not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserResize(context.Context, *BrowserResizeRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserResize not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserClick(context.Context, *BrowserClickRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserClick not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserType(context.Context, *BrowserTypeRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserType not implemented")
-}
-func (UnimplementedNodeSandboxServer) BrowserWait(context.Context, *BrowserWaitRequest) (*BrowserStatusResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method BrowserWait not implemented")
-}
 func (UnimplementedNodeSandboxServer) mustEmbedUnimplementedNodeSandboxServer() {}
 
 // UnsafeNodeSandboxServer may be embedded to opt out of forward compatibility for this service.
@@ -776,32 +500,6 @@ func _NodeSandbox_Exec_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeSandbox_ExecStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeSandboxServer).ExecStream(&nodeSandboxExecStreamServer{stream})
-}
-
-type NodeSandbox_ExecStreamServer interface {
-	Send(*ExecStreamResponse) error
-	Recv() (*ExecStreamRequest, error)
-	grpc.ServerStream
-}
-
-type nodeSandboxExecStreamServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeSandboxExecStreamServer) Send(m *ExecStreamResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeSandboxExecStreamServer) Recv() (*ExecStreamRequest, error) {
-	m := new(ExecStreamRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func _NodeSandbox_Process_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(NodeSandboxServer).Process(&nodeSandboxProcessServer{stream})
 }
@@ -826,68 +524,6 @@ func (x *nodeSandboxProcessServer) Recv() (*ProcessRequest, error) {
 		return nil, err
 	}
 	return m, nil
-}
-
-func _NodeSandbox_ExecImage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ExecImageRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).ExecImage(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_ExecImage_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).ExecImage(ctx, req.(*ExecImageRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_ProcessImage_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeSandboxServer).ProcessImage(&nodeSandboxProcessImageServer{stream})
-}
-
-type NodeSandbox_ProcessImageServer interface {
-	Send(*ProcessImageResponse) error
-	Recv() (*ProcessImageRequest, error)
-	grpc.ServerStream
-}
-
-type nodeSandboxProcessImageServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeSandboxProcessImageServer) Send(m *ProcessImageResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeSandboxProcessImageServer) Recv() (*ProcessImageRequest, error) {
-	m := new(ProcessImageRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func _NodeSandbox_WaitSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WaitSandboxRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).WaitSandbox(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_WaitSandbox_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).WaitSandbox(ctx, req.(*WaitSandboxRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeSandbox_ReadOutput_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -927,32 +563,6 @@ func _NodeSandbox_CapabilityStatus_Handler(srv interface{}, ctx context.Context,
 		return srv.(NodeSandboxServer).CapabilityStatus(ctx, req.(*CapabilityStatusRequest))
 	}
 	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_ProxyHTTP_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeSandboxServer).ProxyHTTP(&nodeSandboxProxyHTTPServer{stream})
-}
-
-type NodeSandbox_ProxyHTTPServer interface {
-	Send(*ProxyHTTPResponse) error
-	Recv() (*ProxyHTTPRequest, error)
-	grpc.ServerStream
-}
-
-type nodeSandboxProxyHTTPServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeSandboxProxyHTTPServer) Send(m *ProxyHTTPResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeSandboxProxyHTTPServer) Recv() (*ProxyHTTPRequest, error) {
-	m := new(ProxyHTTPRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
 }
 
 func _NodeSandbox_StatFile_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -1023,24 +633,6 @@ func _NodeSandbox_WriteFile_Handler(srv interface{}, ctx context.Context, dec fu
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeSandboxServer).WriteFile(ctx, req.(*WriteFileRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_MaterializeTaskAssets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(MaterializeTaskAssetsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).MaterializeTaskAssets(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_MaterializeTaskAssets_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).MaterializeTaskAssets(ctx, req.(*MaterializeTaskAssetsRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1308,150 +900,6 @@ func _NodeSandbox_ComputerUseKeyboard_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeSandbox_BrowserStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserStatus(ctx, req.(*BrowserStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserOpen_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserOpenRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserOpen(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserOpen_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserOpen(ctx, req.(*BrowserOpenRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserClose_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserCloseRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserClose(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserClose_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserClose(ctx, req.(*BrowserCloseRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserNavigate_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserNavigateRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserNavigate(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserNavigate_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserNavigate(ctx, req.(*BrowserNavigateRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserResize_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserResizeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserResize(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserResize_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserResize(ctx, req.(*BrowserResizeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserClick_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserClickRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserClick(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserClick_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserClick(ctx, req.(*BrowserClickRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserType_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserTypeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserType(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserType_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserType(ctx, req.(*BrowserTypeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeSandbox_BrowserWait_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(BrowserWaitRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).BrowserWait(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_BrowserWait_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).BrowserWait(ctx, req.(*BrowserWaitRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // NodeSandbox_ServiceDesc is the grpc.ServiceDesc for NodeSandbox service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1462,14 +910,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Exec",
 			Handler:    _NodeSandbox_Exec_Handler,
-		},
-		{
-			MethodName: "ExecImage",
-			Handler:    _NodeSandbox_ExecImage_Handler,
-		},
-		{
-			MethodName: "WaitSandbox",
-			Handler:    _NodeSandbox_WaitSandbox_Handler,
 		},
 		{
 			MethodName: "CapabilityStatus",
@@ -1490,10 +930,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "WriteFile",
 			Handler:    _NodeSandbox_WriteFile_Handler,
-		},
-		{
-			MethodName: "MaterializeTaskAssets",
-			Handler:    _NodeSandbox_MaterializeTaskAssets_Handler,
 		},
 		{
 			MethodName: "Mkdir",
@@ -1543,46 +979,8 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ComputerUseKeyboard",
 			Handler:    _NodeSandbox_ComputerUseKeyboard_Handler,
 		},
-		{
-			MethodName: "BrowserStatus",
-			Handler:    _NodeSandbox_BrowserStatus_Handler,
-		},
-		{
-			MethodName: "BrowserOpen",
-			Handler:    _NodeSandbox_BrowserOpen_Handler,
-		},
-		{
-			MethodName: "BrowserClose",
-			Handler:    _NodeSandbox_BrowserClose_Handler,
-		},
-		{
-			MethodName: "BrowserNavigate",
-			Handler:    _NodeSandbox_BrowserNavigate_Handler,
-		},
-		{
-			MethodName: "BrowserResize",
-			Handler:    _NodeSandbox_BrowserResize_Handler,
-		},
-		{
-			MethodName: "BrowserClick",
-			Handler:    _NodeSandbox_BrowserClick_Handler,
-		},
-		{
-			MethodName: "BrowserType",
-			Handler:    _NodeSandbox_BrowserType_Handler,
-		},
-		{
-			MethodName: "BrowserWait",
-			Handler:    _NodeSandbox_BrowserWait_Handler,
-		},
 	},
 	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "ExecStream",
-			Handler:       _NodeSandbox_ExecStream_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
 		{
 			StreamName:    "Process",
 			Handler:       _NodeSandbox_Process_Handler,
@@ -1590,21 +988,9 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "ProcessImage",
-			Handler:       _NodeSandbox_ProcessImage_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
-		{
 			StreamName:    "ReadOutput",
 			Handler:       _NodeSandbox_ReadOutput_Handler,
 			ServerStreams: true,
-		},
-		{
-			StreamName:    "ProxyHTTP",
-			Handler:       _NodeSandbox_ProxyHTTP_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
 		},
 		{
 			StreamName:    "UploadArchive",

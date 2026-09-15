@@ -8,17 +8,17 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	"github.com/cofy-x/axern/lib/go/observability"
-	artifactv1 "github.com/cofy-x/axern/sdk/go/gen/axern/data/artifact/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/metadata"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -26,6 +26,8 @@ import (
 type Server struct {
 	address string
 	grpc    *grpc.Server
+	http    *http.Server
+	web     http.Handler
 }
 
 type Options struct {
@@ -36,25 +38,18 @@ type Options struct {
 }
 
 var publicControlServices = map[string]struct{}{
-	"axern.control.admin.v1.AccessAdmin":                {},
-	"axern.control.admin.v1.AdminAudit":                 {},
-	"axern.control.admin.v1.AdminReliability":           {},
-	"axern.control.admin.v1.NodeAdmin":                  {},
-	"axern.control.admin.v1.AllocationLifecycleAdmin":   {},
-	"axern.control.admin.v1.ServiceAdmin":               {},
-	"axern.control.admin.v1.StorageAdmin":               {},
-	"axern.control.agentprofile.v1.AgentProfileControl": {},
-	"axern.control.catalog.v1.RuntimeCatalog":           {},
-	"axern.control.environment.v1.EnvironmentControl":   {},
-	"axern.control.function.v1.FunctionControl":         {},
-	"axern.control.namespace.v1.NamespaceControl":       {},
-	"axern.control.identity.v1.IdentityControl":         {},
-	"axern.control.quota.v1.QuotaControl":               {},
-	"axern.control.rollout.v1.RolloutControl":           {},
-	"axern.control.run.v1.RunControl":                   {},
-	"axern.control.secret.v1.SecretControl":             {},
-	"axern.control.service.v1.ServiceControl":           {},
-	"axern.control.tunnel.v1.TunnelControl":             {},
+	"axern.control.admin.v1.AccessAdmin":                      {},
+	"axern.control.admin.v1.AdminAudit":                       {},
+	"axern.control.admin.v1.AdminReliability":                 {},
+	"axern.control.admin.v1.NodeAdmin":                        {},
+	"axern.private.control.admin.v1.AllocationLifecycleAdmin": {},
+	"axern.control.environment.v1.EnvironmentControl":         {},
+	"axern.control.namespace.v1.NamespaceControl":             {},
+	"axern.control.identity.v1.IdentityControl":               {},
+	"axern.control.quota.v1.QuotaControl":                     {},
+	"axern.control.run.v1.RunControl":                         {},
+	"axern.control.secret.v1.SecretControl":                   {},
+	"axern.control.tunnel.v1.TunnelControl":                   {},
 }
 
 func New(backend *grpc.ClientConn, opts Options, obs *observability.Handle) (*Server, error) {
@@ -66,7 +61,6 @@ func New(backend *grpc.ClientConn, opts Options, obs *observability.Handle) (*Se
 		return nil, err
 	}
 	serverOpts := []grpc.ServerOption{
-		grpc.Creds(creds),
 		grpc.ForceServerCodec(rawCodec{}),
 		grpc.UnknownServiceHandler(proxyUnknownService(backend)),
 	}
@@ -75,10 +69,22 @@ func New(backend *grpc.ClientConn, opts Options, obs *observability.Handle) (*Se
 			serverOpts = append(serverOpts, grpc.StatsHandler(statsHandler))
 		}
 	}
-	return &Server{
+	s := &Server{
 		address: opts.Address,
 		grpc:    grpc.NewServer(serverOpts...),
-	}, nil
+	}
+	s.http = &http.Server{TLSConfig: creds, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ProtoMajor == 2 && strings.HasPrefix(r.Header.Get("Content-Type"), "application/grpc") {
+			s.grpc.ServeHTTP(w, r)
+			return
+		}
+		if s.web != nil {
+			s.web.ServeHTTP(w, r)
+			return
+		}
+		http.NotFound(w, r)
+	})}
+	return s, nil
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -86,16 +92,17 @@ func (s *Server) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.http.BaseContext = func(net.Listener) context.Context { return ctx }
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- s.grpc.Serve(listener)
+		errCh <- s.http.ServeTLS(listener, "", "")
 	}()
 	select {
 	case <-ctx.Done():
-		s.grpc.GracefulStop()
+		s.Close()
 		return nil
 	case err := <-errCh:
-		if errors.Is(err, grpc.ErrServerStopped) {
+		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
 		return err
@@ -103,10 +110,15 @@ func (s *Server) Run(ctx context.Context) error {
 }
 
 func (s *Server) Close() {
+	if s != nil && s.http != nil {
+		_ = s.http.Close()
+	}
 	if s != nil && s.grpc != nil {
 		s.grpc.Stop()
 	}
 }
+
+func (s *Server) RegisterHTTP(handler http.Handler) { s.web = handler }
 
 func (s *Server) RegisterTunnelRelay(handler tunnelv1.TunnelRelayServer) {
 	tunnelv1.RegisterTunnelRelayServer(s.grpc, handler)
@@ -115,10 +127,6 @@ func (s *Server) RegisterTunnelRelay(handler tunnelv1.TunnelRelayServer) {
 func (s *Server) RegisterNodeSandbox(handler nodesandboxv1.NodeSandboxServer) {
 	nodesandboxv1.RegisterNodeSandboxServer(s.grpc, handler)
 }
-func (s *Server) RegisterArtifactData(handler artifactv1.ArtifactDataServer) {
-	artifactv1.RegisterArtifactDataServer(s.grpc, handler)
-}
-
 func proxyUnknownService(backend *grpc.ClientConn) grpc.StreamHandler {
 	return proxyUnknownServiceForServices(backend, publicControlServices)
 }
@@ -130,12 +138,10 @@ func proxyUnknownServiceForServices(backend *grpc.ClientConn, allowedServices ma
 type clientIdentity func(context.Context) (string, error)
 
 const clientCertificateFingerprintMetadata = "x-axern-internal-client-cert-sha256"
-const rolloutExecutionLeaseMetadata = "x-axern-rollout-work-lease"
 
 var forwardedRequestMetadata = map[string]struct{}{
-	"traceparent":                 {},
-	"tracestate":                  {},
-	rolloutExecutionLeaseMetadata: {},
+	"traceparent": {},
+	"tracestate":  {},
 }
 
 func proxyUnknownServiceForServicesWithIdentity(backend *grpc.ClientConn, allowedServices map[string]struct{}, identity clientIdentity) grpc.StreamHandler {
@@ -269,7 +275,7 @@ func publicResponseMetadata(in metadata.MD) metadata.MD {
 	return out
 }
 
-func loadServerCredentials(caPath, certPath, keyPath string) (credentials.TransportCredentials, error) {
+func loadServerCredentials(caPath, certPath, keyPath string) (*tls.Config, error) {
 	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("load control edge tls key pair: %w", err)
@@ -282,10 +288,10 @@ func loadServerCredentials(caPath, certPath, keyPath string) (credentials.Transp
 	if !roots.AppendCertsFromPEM(caPEM) {
 		return nil, fmt.Errorf("parse control edge tls ca cert %q", caPath)
 	}
-	return credentials.NewTLS(&tls.Config{
+	return &tls.Config{
 		MinVersion:   tls.VersionTLS12,
 		Certificates: []tls.Certificate{cert},
 		ClientCAs:    roots,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-	}), nil
+	}, nil
 }

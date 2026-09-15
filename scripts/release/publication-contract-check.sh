@@ -8,6 +8,7 @@ python3 "${AXERN_ROOT}/scripts/release/homebrew_formula_reconcile_test.py"
 python3 - "${AXERN_ROOT}" <<'PY'
 import ast
 import pathlib
+import re
 import sys
 
 root = pathlib.Path(sys.argv[1])
@@ -62,6 +63,12 @@ if "proxy.golang.org" in preflight or "sum.golang.org" in preflight:
 for contract in ("name: Release Contracts", "actionlint .github/workflows/*.yml", "make release-check"):
     if contract not in ci:
         raise SystemExit(f"pull request CI is missing release contract gate: {contract}")
+
+for workflow, source in (("ci", ci), ("release", release)):
+    for job in re.split(r"(?m)^  [a-z][a-z0-9-]*:\n", source)[1:]:
+        invocation = re.search(r"make release-(?:check|build)", job)
+        if invocation and "apt-get install --no-install-recommends --yes ripgrep" not in job[:invocation.start()]:
+            raise SystemExit(f"{workflow} release contract job must install ripgrep before architecture checks")
 PY
 
 echo "publication_contract_ok=true"

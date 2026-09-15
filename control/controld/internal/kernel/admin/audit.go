@@ -12,9 +12,9 @@ const (
 	AuditOperationForceAllocationLifecycleRetry = "force_allocation_lifecycle_retry"
 	AuditOperationFailAllocationLifecycleRetry  = "fail_allocation_lifecycle_retry"
 	AuditOperationClearAllocationLifecycleRetry = "clear_allocation_lifecycle_retry"
-	AuditOperationRetryStorageBinding           = "retry_storage_binding"
-	AuditOperationPurgeService                  = "purge_service"
+	AuditOperationRevokeNode                    = "revoke_node"
 	AuditOperationRetireNode                    = "retire_node"
+	AuditOperationAdmitNode                     = "admit_node"
 	AuditOperationCreatePrincipal               = "principal.create"
 	AuditOperationDisablePrincipal              = "principal.disable"
 	AuditOperationAddCredential                 = "credential.add"
@@ -23,13 +23,11 @@ const (
 	AuditOperationRevokeRoleBinding             = "role_binding.revoke"
 	AuditOperationBootstrapAccess               = "access.bootstrap"
 
-	AuditTargetAllocation     = "allocation"
-	AuditTargetStorageBinding = "storage_binding"
-	AuditTargetService        = "service"
-	AuditTargetNode           = "node"
-	AuditTargetPrincipal      = "principal"
-	AuditTargetCredential     = "credential"
-	AuditTargetRoleBinding    = "role_binding"
+	AuditTargetAllocation  = "allocation"
+	AuditTargetNode        = "node"
+	AuditTargetPrincipal   = "principal"
+	AuditTargetCredential  = "credential"
+	AuditTargetRoleBinding = "role_binding"
 
 	MaxAuditEventListLimit     = 100
 	DefaultAuditEventListLimit = 50
@@ -70,12 +68,12 @@ func NormalizeAuditEventFilter(in AuditEventFilter) AuditEventFilter {
 
 func ValidateAuditEventFilter(filter AuditEventFilter) error {
 	switch filter.Operation {
-	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationRetryStorageBinding, AuditOperationPurgeService, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
+	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationAdmitNode, AuditOperationRevokeNode, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit operation %q", filter.Operation)
 	}
 	switch filter.TargetType {
-	case "", AuditTargetAllocation, AuditTargetStorageBinding, AuditTargetService, AuditTargetNode, AuditTargetPrincipal, AuditTargetCredential, AuditTargetRoleBinding:
+	case "", AuditTargetAllocation, AuditTargetNode, AuditTargetPrincipal, AuditTargetCredential, AuditTargetRoleBinding:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit target_type %q", filter.TargetType)
 	}

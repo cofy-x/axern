@@ -7,15 +7,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/startupflow"
 )
 
-func (r *RunscServiceHandler) startRunWithExitState(stdoutPath, stderrPath, bundlePath, containerID string, overlayArgs []string) (<-chan error, error) {
-	runArgs := r.lifecycleArgs()
-	runArgs = append(runArgs, overlayArgs...)
-	runArgs = append(runArgs, "run", "--pid-file", r.common.RuntimePIDFilePath(containerID), "--bundle", bundlePath, containerID)
-	return startRuntimeWaitLocked(r.waitLock(containerID), func() (<-chan error, error) {
-		return r.common.StartRunWithExitState(stdoutPath, stderrPath, containerID, r.common.CommandArgs(runArgs...))
-	})
-}
-
 func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdoutPath, stderrPath, bundlePath, containerID string, overlayArgs []string) error {
 	pidFilePath, _, err := r.common.PrepareContainerStatePaths(containerID)
 	if err != nil {
@@ -28,20 +19,11 @@ func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdou
 	return r.common.RunWithIO(ctx, stdoutPath, stderrPath, args...)
 }
 
-func (r *RunscServiceHandler) waitForContainerStart(ctx context.Context, containerID string, runWait <-chan error) error {
-	return r.waitForStartup(ctx, containerID, runWait)
-}
-
 func (r *RunscServiceHandler) waitForPreparedContainerStart(ctx context.Context, containerID string) error {
-	return r.waitForStartup(ctx, containerID, nil)
-}
-
-func (r *RunscServiceHandler) waitForStartup(ctx context.Context, containerID string, runWait <-chan error) error {
 	return startupflow.Wait(ctx, startupflow.Options{
 		RuntimeName: "runsc",
 		ContainerID: containerID,
 		PIDFilePath: r.common.RuntimePIDFilePath(containerID),
-		WaitCh:      runWait,
 		ReadyByState: func(callCtx context.Context) bool {
 			return r.isStartupReady(callCtx, containerID)
 		},

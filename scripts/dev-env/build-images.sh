@@ -17,7 +17,7 @@ trap 'end_named_lock "images-build"' EXIT
 image_scope="${AXERN_LOCAL_IMAGE_SCOPE:-all}"
 build_node_runtime_base=false
 build_runtime_core=false
-build_full_runtime_catalog=false
+build_full_environment_catalog=false
 build_control_stack=false
 build_tunneld=false
 build_node_image=false
@@ -25,7 +25,7 @@ case "${image_scope}" in
   all)
     build_node_runtime_base=true
     build_runtime_core=true
-    build_full_runtime_catalog=true
+    build_full_environment_catalog=true
     build_control_stack=true
     build_tunneld=true
     build_node_image=true
@@ -33,19 +33,12 @@ case "${image_scope}" in
   control)
     build_control_stack=true
     ;;
-  managed-rollout)
-    build_node_runtime_base=true
-    build_runtime_core=true
-    build_control_stack=true
-    build_tunneld=true
-    build_node_image=true
-    ;;
   node)
     build_node_runtime_base=true
     build_node_image=true
     ;;
   *)
-    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, managed-rollout, or node" >&2
+    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, or node" >&2
     exit 2
     ;;
 esac
@@ -87,18 +80,14 @@ if [ "${build_runtime_core}" = "true" ]; then
   push_image_after_build "${SERVER_BASE_RUNTIME_IMAGE}"
   IMAGE_REF="${CODING_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-coding-base-runtime-image.sh" >/dev/null
   push_image_after_build "${CODING_BASE_RUNTIME_IMAGE}"
-  IMAGE_REF="${CODEX_BUNDLE_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-codex-bundle-image.sh"
-  push_image_after_build "${CODEX_BUNDLE_IMAGE}"
-  IMAGE_REF="${CLAUDE_CODE_BUNDLE_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-claude-code-bundle-image.sh"
-  push_image_after_build "${CLAUDE_CODE_BUNDLE_IMAGE}"
   report_image_build_phase "runtime-core" "${phase_started_at}"
 fi
 
-if [ "${build_full_runtime_catalog}" = "true" ]; then
+if [ "${build_full_environment_catalog}" = "true" ]; then
   phase_started_at="$(date +%s)"
   IMAGE_REF="${DESKTOP_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-desktop-base-runtime-image.sh" >/dev/null
   push_image_after_build "${DESKTOP_BASE_RUNTIME_IMAGE}"
-  report_image_build_phase "runtime-catalog" "${phase_started_at}"
+  report_image_build_phase "environment-templates" "${phase_started_at}"
 fi
 
 if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
@@ -126,12 +115,6 @@ if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; the
   esac
 fi
 if [ "${build_control_stack}" = "true" ]; then
-  rm -rf "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
-  (
-    cd "${AXERN_DEV_ENV_ROOT}" && \
-      GOTOOLCHAIN=local GOFLAGS='' "${go_bin}" run ./gateway/gatewayd/cmd/dashassets \
-        -vendor-dir "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/.build/dashboard-vendor"
-  )
   (
     cd "${AXERN_DEV_ENV_ROOT}" && \
       GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
@@ -143,7 +126,6 @@ if [ "${build_control_stack}" = "true" ]; then
       GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
         "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/controld-retention" ./control/controld/cmd/retention
       GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
-        "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/storaged" ./control/storaged/cmd/storaged
       GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
         "${go_bin}" build -o "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/.build/axrun" ./apps/axrun
       GOOS=linux GOARCH="${CONTROLD_GOARCH}" CGO_ENABLED=0 GOTOOLCHAIN=local GOFLAGS='' \
@@ -204,13 +186,11 @@ fi
 
 if [ "${build_runtime_core}" = "true" ]; then
   docker image inspect \
-    "${PYTHON311_RUNTIME_IMAGE}" \
-    "${SERVER_BASE_RUNTIME_IMAGE}" \
-    "${CODING_BASE_RUNTIME_IMAGE}" \
-    "${CODEX_BUNDLE_IMAGE}" \
-    "${CLAUDE_CODE_BUNDLE_IMAGE}" >/dev/null
+	  "${PYTHON311_RUNTIME_IMAGE}" \
+	  "${SERVER_BASE_RUNTIME_IMAGE}" \
+	  "${CODING_BASE_RUNTIME_IMAGE}" >/dev/null
 fi
-if [ "${build_full_runtime_catalog}" = "true" ]; then
+if [ "${build_full_environment_catalog}" = "true" ]; then
   docker image inspect \
     "${DESKTOP_BASE_RUNTIME_IMAGE}" >/dev/null
 fi
@@ -232,5 +212,3 @@ echo "python311_runtime_image=${PYTHON311_RUNTIME_IMAGE}"
 echo "server_base_runtime_image=${SERVER_BASE_RUNTIME_IMAGE}"
 echo "coding_base_runtime_image=${CODING_BASE_RUNTIME_IMAGE}"
 echo "desktop_base_runtime_image=${DESKTOP_BASE_RUNTIME_IMAGE}"
-echo "claude_code_bundle_image=${CLAUDE_CODE_BUNDLE_IMAGE}"
-echo "codex_bundle_image=${CODEX_BUNDLE_IMAGE}"

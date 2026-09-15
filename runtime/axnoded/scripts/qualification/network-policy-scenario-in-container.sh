@@ -6,7 +6,6 @@ if [ "$(uname -s)" != "Linux" ] || [ "$(id -u)" -ne 0 ]; then
   exit 1
 fi
 
-runtime_name=""
 network_backend=""
 ip_family=""
 policy_mode=""
@@ -20,7 +19,6 @@ output=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --runtime) runtime_name="${2:?}"; shift 2 ;;
     --network-backend) network_backend="${2:?}"; shift 2 ;;
     --ip-family) ip_family="${2:?}"; shift 2 ;;
     --policy-mode) policy_mode="${2:?}"; shift 2 ;;
@@ -35,7 +33,7 @@ while [ "$#" -gt 0 ]; do
   esac
 done
 
-for required in runtime_name network_backend ip_family policy_mode samples concurrency payload_bytes sustained_seconds rule_scale_counts output; do
+for required in network_backend ip_family policy_mode samples concurrency payload_bytes sustained_seconds rule_scale_counts output; do
   if [ -z "${!required}" ]; then
     echo "missing qualification argument: ${required}" >&2
     exit 1
@@ -54,11 +52,6 @@ case "${network_backend}" in
   *) echo "unsupported network backend: ${network_backend}" >&2; exit 1 ;;
 esac
 
-case "${runtime_name}" in
-  runc | runsc) ;;
-  *) echo "unsupported runtime: ${runtime_name}" >&2; exit 1 ;;
-esac
-
 fixture_ns="axern-qual-fixture"
 fixture_host_dev="axqhost0"
 fixture_peer_dev="axqpeer0"
@@ -75,13 +68,6 @@ case "${ip_family}" in
     ;;
   *) echo "unsupported IP family: ${ip_family}" >&2; exit 1 ;;
 esac
-
-# Native bpfnet is IPv4-only. An IPv6 pool configured with the ebpf option
-# intentionally uses the bridge compatibility dataplane and publishes that
-# effective capability to placement and lifecycle gates.
-if [ "${network_backend}" = ebpf ] && [ "${ip_family}" = ipv6 ]; then
-  network_capability=PLATFORM_CAPABILITY_NETWORK_BRIDGE
-fi
 
 node_pid=""
 fixture_pid=""
@@ -123,14 +109,14 @@ finish() {
 trap finish EXIT
 
 cleanup
-mkdir -p /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed /run/axnoded /run/egressd
+mkdir -p /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /run/axnoded /run/egressd
 # This script only runs in a disposable qualification image. These exact
 # directories contain state created by the preceding matrix cell in that image.
 while IFS= read -r mount_target; do
   umount "${mount_target}"
 done < <(
   findmnt -rn -o TARGET |
-    awk '$0 ~ "^/var/lib/(axnoded|egressd|imagemgr|volumed)(/|$)" { print length($0), $0 }' |
+    awk '$0 ~ "^/var/lib/(axnoded|egressd|imagemgr)(/|$)" { print length($0), $0 }' |
     sort -rn |
     cut -d ' ' -f 2-
 )
@@ -161,7 +147,7 @@ for cgroup_root in "${workload_cgroup_root}" "${conformance_cgroup_root}"; do
   done < <(find "${cgroup_root}" -mindepth 1 -depth -type d)
 done
 
-find /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr /var/lib/volumed -mindepth 1 -delete
+find /var/lib/axnoded /var/lib/egressd /var/lib/imagemgr -mindepth 1 -delete
 find /run/axnoded /run/egressd -mindepth 1 -delete
 
 default_uplink="$(ip route show default | awk '/default/ {print $5; exit}')"
@@ -227,7 +213,7 @@ export AXNODED_CGROUP_CACHE_SIZE=0
 # ensuring each matrix cell does not manufacture a full 16-interface warm pool.
 export AXNODED_INTERFACE_CACHE_SIZE=1
 
-node_log="/tmp/network-policy-node-${runtime_name}-${network_backend}-${ip_family}-${policy_mode}.log"
+node_log="/tmp/network-policy-node-runsc-${network_backend}-${ip_family}-${policy_mode}.log"
 /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >"${node_log}" 2>&1 &
 node_pid=$!
 conformance_quiescent() {
@@ -243,27 +229,23 @@ inventory_ready() {
     # to finish. Both success and failure are latched for the runtime/config
     # identity; UNAVAILABLE is safe here only because destructive failures no
     # longer retry in the background. Memory admission still requires proof.
-    ([.node.capability_snapshot.observations[]?
+    (["PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT",
+      "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT",
+      $network_capability] | unique) as $required |
+    ($required - [.node.capability_snapshot.observations[]?
       | select(
-          (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
-           .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
-           .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
-           .key.platform == $network_capability) and
           .state == "CAPABILITY_STATE_AVAILABLE")
       | .key.platform]
-     | unique
-     | length == 4) and
+     | length == 0) and
     ([.node.capability_snapshot.observations[]?
       | select(
-          (.key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
-           .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
-           .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
+          (.key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
            .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST") and
           (.state == "CAPABILITY_STATE_AVAILABLE" or
            .state == "CAPABILITY_STATE_UNAVAILABLE"))
       | .key.platform]
      | unique
-     | length == 4)
+     | length == 2)
   ' >/dev/null 2>&1 && conformance_quiescent
 }
 for _ in $(seq 1 180); do
@@ -288,17 +270,13 @@ if ! inventory_ready <<<"${inventory}"; then
   jq --arg network_capability "${network_capability}" '
     [.node.capability_snapshot.observations[]?
      | select(
-         .key.platform == "PLATFORM_CAPABILITY_PORT_FORWARDING" or
+         .key.platform == "PLATFORM_CAPABILITY_NETWORK_BRIDGE" or
          .key.platform == $network_capability or
          .key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
          .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or
-         .key.platform == "PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST" or
          .key.platform == "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST")
      | {platform: .key.platform, state, reason_code, reason}]
   ' <<<"${inventory}" >&2 || true
@@ -312,7 +290,7 @@ cgroup_children_converged() {
 }
 
 if ! verify-network-policy-qualification \
-  --runtime "${runtime_name}" \
+  --axnoded-socket "${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}" \
   --network-backend "${network_backend}" \
   --ip-family "${ip_family}" \
   --policy-mode "${policy_mode}" \
@@ -358,4 +336,4 @@ if [ "${retirement_converged}" != "true" ]; then
   exit 1
 fi
 
-echo "network_policy_qualification_scenario_ok=${runtime_name}/${network_backend}/${ip_family}/${policy_mode}" >&2
+echo "network_policy_qualification_scenario_ok=runsc/${network_backend}/${ip_family}/${policy_mode}" >&2

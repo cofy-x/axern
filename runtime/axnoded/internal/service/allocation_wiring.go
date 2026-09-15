@@ -3,10 +3,12 @@ package service
 import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 func (h *sandboxService) configureAllocationController() {
+	if h == nil || h.allocations != nil {
+		return
+	}
 	h.allocations = allocation.NewController(h.allocationOptions())
 }
 
@@ -17,12 +19,10 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 		ContainerManager: func() *container.Manager {
 			return h.containerManager
 		},
-		RuntimeHandler:              h.runtimeHandler,
-		LangRuntime:                 h.lrtManager,
-		Volumes:                     h.volumes,
+		RunscHandler:                h.runscHandler,
+		EnvironmentCache:            h.environmentCache,
 		Networking:                  h.networking,
-		Probes:                      h.probeCoordinator,
-		ReportStatus:                h.ReportAllocationStatus,
+		ReportStatus:                h.ReportAllocationLifecycle,
 		InventoryChanged:            h.notifyNodeInventoryChanged,
 		RootfsCapabilityGate:        h.verifyRootfsCapabilityRequirements,
 		PreActivationCapabilityGate: h.verifyPreparedAllocationCapabilities,
@@ -39,8 +39,4 @@ func (h *sandboxService) allocationController() *allocation.Controller {
 	}
 	h.allocations = allocation.NewController(h.allocationOptions())
 	return h.allocations
-}
-
-func (h *sandboxService) WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts {
-	return h.allocationController().WorkspacePreparation(containerID)
 }

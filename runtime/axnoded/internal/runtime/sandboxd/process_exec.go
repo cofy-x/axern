@@ -25,7 +25,7 @@ var newProcessClient = func(socketPath string) processClient {
 }
 
 func ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, options contract.HandlerOptions, containerRoot string) (*apipb.ExecContainerResponse, error) {
-	socketPath, err := processSocketPath(containerRoot, options, request.GetTty(), request.GetManagedProxy() != nil)
+	socketPath, err := processSocketPath(containerRoot, options)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,6 @@ func ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, opt
 		User:          request.GetUser(),
 		CaptureOutput: true,
 		Terminal:      request.GetTty(),
-		ManagedProxy:  managedProxySpec(request.GetManagedProxy()),
 	})
 	if err != nil {
 		return nil, processOperationError("start exec process", err)
@@ -51,12 +50,11 @@ func ExecContainer(ctx context.Context, request *apipb.ExecContainerRequest, opt
 		return nil, err
 	}
 	return &apipb.ExecContainerResponse{
-		ExitCode:           int32(exitCode),
-		Stdout:             []byte(status.Stdout),
-		Stderr:             []byte(status.Stderr),
-		StdoutTruncated:    status.StdoutTruncated,
-		StderrTruncated:    status.StderrTruncated,
-		ManagedProxyReport: managedProxyReport(status.ManagedProxyReport),
+		ExitCode:        int32(exitCode),
+		Stdout:          []byte(status.Stdout),
+		Stderr:          []byte(status.Stderr),
+		StdoutTruncated: status.StdoutTruncated,
+		StderrTruncated: status.StderrTruncated,
 	}, nil
 }
 
@@ -72,26 +70,13 @@ func processEnvList(values map[string]string) []string {
 	return out
 }
 
-func processSocketPath(containerRoot string, options contract.HandlerOptions, terminal bool, managedProxy bool) (string, error) {
+func processSocketPath(containerRoot string, options contract.HandlerOptions) (string, error) {
 	containerID := options.ContainerID
 	if strings.TrimSpace(containerID) == "" {
 		return "", fmt.Errorf("sandboxd process requires container id: %w", errord.ErrInvalidArgument)
 	}
 	if strings.TrimSpace(containerRoot) == "" {
 		return "", fmt.Errorf("sandboxd process requires container root: %w", errord.ErrFailedPrecondition)
-	}
-	if err := requireCapabilityFromLabels(options.ContainerLabels, wire.CapabilityProcess); err != nil {
-		return "", err
-	}
-	if terminal {
-		if err := requireCapabilityFromLabels(options.ContainerLabels, wire.CapabilityPTY); err != nil {
-			return "", err
-		}
-	}
-	if managedProxy {
-		if err := requireCapabilityFromLabels(options.ContainerLabels, wire.CapabilityManagedProxy); err != nil {
-			return "", err
-		}
 	}
 	return runtimeoci.SandboxdBundleSocketPath(filepath.Join(containerRoot, containerID)), nil
 }

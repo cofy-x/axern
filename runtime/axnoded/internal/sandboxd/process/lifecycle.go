@@ -37,13 +37,6 @@ func (r *Registry) Start(request StartRequest) (Status, error) {
 	if err != nil {
 		return Status{}, err
 	}
-	managedProxy, managedProxyEnv, err := startManagedProxy(request.ManagedProxy)
-	if err != nil {
-		return Status{}, err
-	}
-	managed.managedProxy = managedProxy
-	request.Env = withManagedProxyEnv(request.Env, managedProxyEnv)
-
 	cmd := exec.Command(request.Args[0], request.Args[1:]...)
 	cmd.Dir = processCwd(request.Cwd, r.cwd, user, hasUser)
 	cmd.Env = proc.MergeEnv(proc.MergeEnv(r.env, user.env()), request.Env)
@@ -52,7 +45,6 @@ func (r *Registry) Start(request StartRequest) (Status, error) {
 	} else if request.OpenStdin {
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
-			_ = managed.closeManagedProxy()
 			return Status{}, err
 		}
 		managed.stdin = stdin
@@ -60,7 +52,6 @@ func (r *Registry) Start(request StartRequest) (Status, error) {
 		cmd.Stdin = strings.NewReader(request.Stdin)
 	}
 	if err := managed.configureOutput(cmd, request); err != nil {
-		_ = managed.closeManagedProxy()
 		return Status{}, err
 	}
 	if !request.Terminal && !request.CaptureOutput && !request.StreamOutput {
@@ -69,12 +60,10 @@ func (r *Registry) Start(request StartRequest) (Status, error) {
 	}
 
 	if err := r.reserve(id, managed); err != nil {
-		_ = managed.closeManagedProxy()
 		return Status{}, err
 	}
 
 	if err := managed.start(cmd, request, user, hasUser); err != nil {
-		managedProxyReport := managed.closeManagedProxy()
 		finishedAt := time.Now().UTC()
 		exitCode := proc.RuntimeStartExitCode
 		managed.mu.Lock()
@@ -82,7 +71,6 @@ func (r *Registry) Start(request StartRequest) (Status, error) {
 		managed.status.ExitCode = &exitCode
 		managed.status.FinishedAt = &finishedAt
 		managed.status.LastError = err.Error()
-		managed.status.ManagedProxyReport = managedProxyReport
 		managed.mu.Unlock()
 		if managed.outputs != nil {
 			managed.outputs.close()
@@ -141,7 +129,6 @@ func (p *managedProcess) finishFromWait(waitResult proc.Result) {
 		_ = p.cmd.Process.Release()
 	}
 	p.waitForOutput()
-	managedProxyReport := p.closeManagedProxy()
 	finishedAt := time.Now().UTC()
 	exitCode := waitResult.ExitCode
 	signalName := ""
@@ -153,7 +140,6 @@ func (p *managedProcess) finishFromWait(waitResult proc.Result) {
 	p.status.ExitCode = &exitCode
 	p.status.Signal = signalName
 	p.status.FinishedAt = &finishedAt
-	p.status.ManagedProxyReport = managedProxyReport
 	if waitResult.Err != nil {
 		if p.status.LastError == "" {
 			p.status.LastError = waitResult.Err.Error()
@@ -166,22 +152,6 @@ func (p *managedProcess) finishFromWait(waitResult proc.Result) {
 		p.outputs.close()
 	}
 	close(p.done)
-}
-
-func (p *managedProcess) closeManagedProxy() *ManagedProxyReport {
-	p.mu.RLock()
-	session := p.managedProxy
-	p.mu.RUnlock()
-	if session == nil {
-		return nil
-	}
-	report := session.closeAndReport()
-	p.mu.Lock()
-	if p.managedProxy == session {
-		p.managedProxy = nil
-	}
-	p.mu.Unlock()
-	return report
 }
 
 func (p *managedProcess) killAfter(timeout time.Duration) {

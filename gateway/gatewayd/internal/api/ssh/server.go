@@ -2,6 +2,7 @@ package sshapi
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -31,16 +32,13 @@ type Server struct {
 }
 
 type TerminalManager interface {
+	Authorize(context.Context, string) error
 	Options() term.Options
 	OpenWithOptions(ctx context.Context, allocationID string, opts term.OpenOptions) (*term.Session, error)
 }
 
-func New(address, hostKeyPath, authorizedKeysPath string, manager TerminalManager, metrics *observability.Metrics, obs *sdkobs.Handle) (*Server, error) {
+func New(address, hostKeyPath string, manager TerminalManager, metrics *observability.Metrics, obs *sdkobs.Handle) (*Server, error) {
 	hostKey, err := LoadHostKey(hostKeyPath)
-	if err != nil {
-		return nil, err
-	}
-	authorized, err := LoadAuthorizedKeys(authorizedKeysPath)
 	if err != nil {
 		return nil, err
 	}
@@ -50,10 +48,16 @@ func New(address, hostKeyPath, authorizedKeysPath string, manager TerminalManage
 			if strings.TrimSpace(conn.User()) == "" {
 				return nil, fmt.Errorf("allocation id is required as ssh username")
 			}
-			if !authorized.Contains(key) {
-				return nil, fmt.Errorf("unauthorized ssh public key")
+			if _, certificate := key.(*gossh.Certificate); certificate {
+				return nil, fmt.Errorf("SSH certificates are not supported")
 			}
-			return nil, nil
+			fingerprint := fmt.Sprintf("%x", sha256.Sum256(key.Marshal()))
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := manager.Authorize(term.WithCredential(ctx, fingerprint, "ssh_sha256"), conn.User()); err != nil {
+				return nil, fmt.Errorf("SSH credential is not authorized")
+			}
+			return &gossh.Permissions{Extensions: map[string]string{"credential_fingerprint": fingerprint}}, nil
 		},
 		ServerVersion: "SSH-2.0-axern-gatewayd",
 	}
@@ -169,11 +173,13 @@ openSession:
 		Env: map[string]string{
 			"TERM": termName,
 		},
-		User: containerUser,
-		TTY:  tty,
+		User:        containerUser,
+		TTY:         tty,
+		InitialCols: initialCols,
+		InitialRows: initialRows,
 	})
 	if err != nil {
-		_, _ = io.WriteString(channel.Stderr(), "terminal target unavailable: "+err.Error()+"\n")
+		_, _ = io.WriteString(channel.Stderr(), "terminal target unavailable\n")
 		op.SetErrorStatus("terminal target unavailable")
 		opErr = err
 		if s.metrics != nil {
@@ -182,10 +188,6 @@ openSession:
 		return
 	}
 	defer session.Close()
-	if initialCols > 0 && initialRows > 0 {
-		_ = session.Resize(initialCols, initialRows)
-	}
-
 	var lastActivity atomic.Int64
 	touch := func() { lastActivity.Store(time.Now().UnixNano()) }
 	touch()

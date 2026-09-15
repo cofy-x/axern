@@ -3,9 +3,7 @@ package quota
 import (
 	"context"
 
-	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc"
 )
 
@@ -17,17 +15,12 @@ type Client interface {
 	UnsetNamespaceQuota(context.Context, *quotav1.UnsetNamespaceQuotaRequest, ...grpc.CallOption) (*quotav1.UnsetNamespaceQuotaResponse, error)
 }
 
-type ServiceLister interface {
-	ListServices(context.Context, *servicev1.ListServicesRequest, ...grpc.CallOption) (*servicev1.ListServicesResponse, error)
-}
-
 type Control struct {
 	client Client
 }
 
 type DescribeResult struct {
-	Quota                    *quotav1.NamespaceQuota
-	AdmissionBlockedServices []*servicev1.Service
+	Quota *quotav1.NamespaceQuota
 }
 
 func New(client Client) Control {
@@ -65,26 +58,10 @@ func (c Control) Unset(ctx context.Context, namespace string) (*quotav1.UnsetNam
 	return c.client.UnsetNamespaceQuota(ctx, &quotav1.UnsetNamespaceQuotaRequest{Namespace: namespace})
 }
 
-func (c Control) Describe(ctx context.Context, namespace string, services ServiceLister) (DescribeResult, error) {
+func (c Control) Describe(ctx context.Context, namespace string) (DescribeResult, error) {
 	resp, err := c.Get(ctx, namespace)
 	if err != nil {
 		return DescribeResult{}, err
 	}
-	result := DescribeResult{Quota: resp.GetQuota()}
-	if services == nil {
-		return result, nil
-	}
-	serviceResp, err := services.ListServices(ctx, &servicev1.ListServicesRequest{
-		Filter: &servicev1.ServiceListFilter{Namespace: namespace},
-	})
-	if err != nil {
-		return DescribeResult{}, err
-	}
-	for _, service := range serviceResp.GetServices() {
-		if service == nil || workloaddiagnostic.AdmissionBlockedSummary(service.GetMessage()) == "" {
-			continue
-		}
-		result.AdmissionBlockedServices = append(result.AdmissionBlockedServices, service)
-	}
-	return result, nil
+	return DescribeResult{Quota: resp.GetQuota()}, nil
 }

@@ -39,30 +39,10 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecResponse.FromString,
                 _registered_method=True)
-        self.ExecStream = channel.stream_stream(
-                '/axern.node.sandbox.v1.NodeSandbox/ExecStream',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamResponse.FromString,
-                _registered_method=True)
         self.Process = channel.stream_stream(
                 '/axern.node.sandbox.v1.NodeSandbox/Process',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.FromString,
-                _registered_method=True)
-        self.ExecImage = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/ExecImage',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageResponse.FromString,
-                _registered_method=True)
-        self.ProcessImage = channel.stream_stream(
-                '/axern.node.sandbox.v1.NodeSandbox/ProcessImage',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageResponse.FromString,
-                _registered_method=True)
-        self.WaitSandbox = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/WaitSandbox',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.FromString,
                 _registered_method=True)
         self.ReadOutput = channel.unary_stream(
                 '/axern.node.sandbox.v1.NodeSandbox/ReadOutput',
@@ -73,11 +53,6 @@ class NodeSandboxStub:
                 '/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusResponse.FromString,
-                _registered_method=True)
-        self.ProxyHTTP = channel.stream_stream(
-                '/axern.node.sandbox.v1.NodeSandbox/ProxyHTTP',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProxyHTTPRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProxyHTTPResponse.FromString,
                 _registered_method=True)
         self.StatFile = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/StatFile',
@@ -98,11 +73,6 @@ class NodeSandboxStub:
                 '/axern.node.sandbox.v1.NodeSandbox/WriteFile',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileResponse.FromString,
-                _registered_method=True)
-        self.MaterializeTaskAssets = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/MaterializeTaskAssets',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsResponse.FromString,
                 _registered_method=True)
         self.Mkdir = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/Mkdir',
@@ -174,46 +144,6 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ComputerUseKeyboardRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ComputerUseKeyboardResponse.FromString,
                 _registered_method=True)
-        self.BrowserStatus = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserStatus',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserOpen = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserOpen',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserOpenRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserClose = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserClose',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserCloseRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserNavigate = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserNavigate',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserNavigateRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserResize = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserResize',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserResizeRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserClick = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserClick',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserClickRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserType = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserType',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserTypeRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
-        self.BrowserWait = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/BrowserWait',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserWaitRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-                _registered_method=True)
 
 
 class NodeSandboxServicer:
@@ -225,31 +155,7 @@ class NodeSandboxServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ExecStream(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def Process(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ExecImage(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ProcessImage(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def WaitSandbox(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -262,12 +168,6 @@ class NodeSandboxServicer:
         raise NotImplementedError('Method not implemented!')
 
     def CapabilityStatus(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def ProxyHTTP(self, request_iterator, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -292,12 +192,6 @@ class NodeSandboxServicer:
         raise NotImplementedError('Method not implemented!')
 
     def WriteFile(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def MaterializeTaskAssets(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -387,54 +281,6 @@ class NodeSandboxServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def BrowserStatus(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserOpen(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserClose(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserNavigate(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserResize(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserClick(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserType(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def BrowserWait(self, request, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
 
 def add_NodeSandboxServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -443,30 +289,10 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecResponse.SerializeToString,
             ),
-            'ExecStream': grpc.stream_stream_rpc_method_handler(
-                    servicer.ExecStream,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamResponse.SerializeToString,
-            ),
             'Process': grpc.stream_stream_rpc_method_handler(
                     servicer.Process,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.SerializeToString,
-            ),
-            'ExecImage': grpc.unary_unary_rpc_method_handler(
-                    servicer.ExecImage,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageResponse.SerializeToString,
-            ),
-            'ProcessImage': grpc.stream_stream_rpc_method_handler(
-                    servicer.ProcessImage,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageResponse.SerializeToString,
-            ),
-            'WaitSandbox': grpc.unary_unary_rpc_method_handler(
-                    servicer.WaitSandbox,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.SerializeToString,
             ),
             'ReadOutput': grpc.unary_stream_rpc_method_handler(
                     servicer.ReadOutput,
@@ -477,11 +303,6 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     servicer.CapabilityStatus,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusResponse.SerializeToString,
-            ),
-            'ProxyHTTP': grpc.stream_stream_rpc_method_handler(
-                    servicer.ProxyHTTP,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProxyHTTPRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProxyHTTPResponse.SerializeToString,
             ),
             'StatFile': grpc.unary_unary_rpc_method_handler(
                     servicer.StatFile,
@@ -502,11 +323,6 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     servicer.WriteFile,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileResponse.SerializeToString,
-            ),
-            'MaterializeTaskAssets': grpc.unary_unary_rpc_method_handler(
-                    servicer.MaterializeTaskAssets,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsResponse.SerializeToString,
             ),
             'Mkdir': grpc.unary_unary_rpc_method_handler(
                     servicer.Mkdir,
@@ -578,46 +394,6 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ComputerUseKeyboardRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ComputerUseKeyboardResponse.SerializeToString,
             ),
-            'BrowserStatus': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserStatus,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserOpen': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserOpen,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserOpenRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserClose': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserClose,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserCloseRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserNavigate': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserNavigate,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserNavigateRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserResize': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserResize,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserResizeRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserClick': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserClick,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserClickRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserType': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserType,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserTypeRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
-            'BrowserWait': grpc.unary_unary_rpc_method_handler(
-                    servicer.BrowserWait,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserWaitRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.SerializeToString,
-            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'axern.node.sandbox.v1.NodeSandbox', rpc_method_handlers)
@@ -657,33 +433,6 @@ class NodeSandbox:
             _registered_method=True)
 
     @staticmethod
-    def ExecStream(request_iterator,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ExecStream',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
     def Process(request_iterator,
             target,
             options=(),
@@ -700,87 +449,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/Process',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ExecImage(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ExecImage',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecImageResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ProcessImage(request_iterator,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ProcessImage',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessImageResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def WaitSandbox(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/WaitSandbox',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -835,33 +503,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CapabilityStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def ProxyHTTP(request_iterator,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ProxyHTTP',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProxyHTTPRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProxyHTTPResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -970,33 +611,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/WriteFile',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WriteFileResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def MaterializeTaskAssets(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/MaterializeTaskAssets',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.MaterializeTaskAssetsResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -1375,222 +989,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/ComputerUseKeyboard',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ComputerUseKeyboardRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ComputerUseKeyboardResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserStatus(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserStatus',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserOpen(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserOpen',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserOpenRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserClose(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserClose',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserCloseRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserNavigate(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserNavigate',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserNavigateRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserResize(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserResize',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserResizeRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserClick(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserClick',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserClickRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserType(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserType',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserTypeRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def BrowserWait(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/BrowserWait',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserWaitRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.BrowserStatusResponse.FromString,
             options,
             channel_credentials,
             insecure,

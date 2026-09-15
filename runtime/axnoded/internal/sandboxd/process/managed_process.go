@@ -21,7 +21,6 @@ type managedProcess struct {
 	terminal      bool
 	outputs       *outputHub
 	tty           *os.File
-	managedProxy  *managedProxySession
 	outputDone    chan struct{}
 	done          chan struct{}
 	mu            sync.RWMutex

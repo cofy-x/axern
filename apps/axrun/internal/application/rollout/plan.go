@@ -3,9 +3,9 @@ package rollout
 import (
 	"time"
 
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/localstore"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 type EpisodePlan struct {

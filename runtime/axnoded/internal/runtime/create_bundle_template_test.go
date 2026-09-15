@@ -14,80 +14,32 @@ import (
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
-func TestRuncCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
-	rootDir := t.TempDir()
-	loader := &trackingBundleLoader{rootDir: rootDir}
-	handler, err := NewRuncServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunc, config.RuntimeInstanceConfig{
-		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runc"),
-	}, loader)
-	if err != nil {
-		t.Fatalf("NewRuncServiceHandler() error = %v", err)
-	}
-	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
-	disableSandboxReadyWait(t, handler)
-	handler.ignoreCgroups = true
-
-	carrier := &templateCarrierSpy{}
-	profile := runtimeoci.DefaultExecutionProfile()
-	profile.RuntimeBaseline.NoFileLimit = 2097152
-	templateSource := &runtimeoci.TemplateOptions{Request: newLocalCreateRequest(t)}
-	for idx := 0; idx < 2; idx++ {
-		_, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
-			ContainerID:           fmt.Sprintf("runc-template-%d", idx),
-			RootfsType:            contract.StartupRootfsTypeLocal,
-			BundleTemplateCarrier: carrier,
-			BundleTemplateSource:  templateSource,
-			AdditionalAnnotations: map[string]string{"test": "true"},
-			ExecutionProfile:      &profile,
-		})
-		if err != nil {
-			t.Fatalf("CreateContainer(%d) error = %v", idx, err)
-		}
-	}
-
-	if loader.prepareCalls != 1 {
-		t.Fatalf("prepare calls = %d, want 1", loader.prepareCalls)
-	}
-	if loader.materializeCalls != 2 {
-		t.Fatalf("materialize calls = %d, want 2", loader.materializeCalls)
-	}
-	if loader.generateCalls != 0 {
-		t.Fatalf("generate calls = %d, want 0", loader.generateCalls)
-	}
-	if loader.lastTemplateExecutionProfile == nil || loader.lastTemplateExecutionProfile.RuntimeBaseline.NoFileLimit != 2097152 {
-		t.Fatalf("template execution profile = %#v, want nofile limit 2097152", loader.lastTemplateExecutionProfile)
-	}
-	if loader.lastLoadExecutionProfile == nil || loader.lastLoadExecutionProfile.RuntimeBaseline.NoFileLimit != 2097152 {
-		t.Fatalf("load execution profile = %#v, want nofile limit 2097152", loader.lastLoadExecutionProfile)
-	}
-}
-
 func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	rootDir := t.TempDir()
 	loader := &trackingBundleLoader{rootDir: rootDir}
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeNameRunsc, config.RuntimeInstanceConfig{
+	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{
 		Binary: writeFakeOCIRuntimeBinary(t, rootDir, "runsc"),
 	}, loader)
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
-	handler.filestoreDir = filepath.Join(rootDir, "filestore")
-	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
 	disableSandboxReadyWait(t, handler)
 	handler.ignoreCgroups = true
 
 	carrier := &templateCarrierSpy{}
+	profile := runtimeoci.DefaultExecutionProfile()
+	profile.Baseline.NoFileLimit = 2097152
 	templateSource := &runtimeoci.TemplateOptions{Request: newLocalCreateRequest(t)}
 	for idx := 0; idx < 2; idx++ {
-		_, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
+		_, err := handler.PrepareContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
 			ContainerID:           fmt.Sprintf("runsc-template-%d", idx),
 			RootfsType:            contract.StartupRootfsTypeLocal,
 			BundleTemplateCarrier: carrier,
 			BundleTemplateSource:  templateSource,
-			AdditionalAnnotations: map[string]string{"test": "true"},
+			ExecutionProfile:      &profile,
 		})
 		if err != nil {
-			t.Fatalf("CreateContainer(%d) error = %v", idx, err)
+			t.Fatalf("PrepareContainer(%d) error = %v", idx, err)
 		}
 	}
 
@@ -99,6 +51,12 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	}
 	if loader.generateCalls != 0 {
 		t.Fatalf("generate calls = %d, want 0", loader.generateCalls)
+	}
+	if loader.lastTemplateExecutionProfile == nil || loader.lastTemplateExecutionProfile.Baseline.NoFileLimit != 2097152 {
+		t.Fatalf("template execution profile = %#v, want nofile limit 2097152", loader.lastTemplateExecutionProfile)
+	}
+	if loader.lastLoadExecutionProfile == nil || loader.lastLoadExecutionProfile.Baseline.NoFileLimit != 2097152 {
+		t.Fatalf("load execution profile = %#v, want nofile limit 2097152", loader.lastLoadExecutionProfile)
 	}
 }
 

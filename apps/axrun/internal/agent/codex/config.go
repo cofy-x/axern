@@ -14,7 +14,7 @@ type Config struct {
 
 func ConfigFromEnv() (Config, error) {
 	config := Config{
-		ConfigPath: strings.TrimSpace(os.Getenv("AXERN_CONFIG")),
+		ConfigPath: strings.TrimSpace(os.Getenv("AXRUN_CONFIG")),
 	}
 	return config, nil
 }

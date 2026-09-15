@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const SchemaVersion = 3
+const SchemaVersion = 5
 
 const RecoveryMeasurementMethod = "client-health-and-recovered-proof-v2"
 const MinRecoverySamples = 200
@@ -23,7 +23,7 @@ const MinRecoverySamples = 200
 const maxSubjectCommitFileBytes = 1024
 
 var (
-	Runtimes        = []string{"runc", "runsc"}
+	Runtimes        = []string{"runsc"}
 	NetworkBackends = []string{"bridge", "ebpf"}
 	IPFamilies      = []string{"ipv4", "ipv6"}
 	PolicyModes     = []string{"unrestricted", "dns_deny", "strict_domain", "strict_cidr"}
@@ -259,10 +259,15 @@ func (report Report) Validate(fullMatrix bool) error {
 		seen[key] = struct{}{}
 	}
 	if fullMatrix {
+		wanted := 0
 		for _, runtimeName := range Runtimes {
 			for _, backend := range NetworkBackends {
 				for _, family := range IPFamilies {
+					if backend == "ebpf" && family == "ipv6" {
+						continue
+					}
 					for _, mode := range PolicyModes {
+						wanted++
 						key := strings.Join([]string{runtimeName, backend, family, mode}, "/")
 						if _, exists := seen[key]; !exists {
 							return fmt.Errorf("full matrix is missing scenario %q", key)
@@ -271,8 +276,8 @@ func (report Report) Validate(fullMatrix bool) error {
 				}
 			}
 		}
-		if len(seen) != len(Runtimes)*len(NetworkBackends)*len(IPFamilies)*len(PolicyModes) {
-			return fmt.Errorf("full matrix contains %d scenarios, want %d", len(seen), len(Runtimes)*len(NetworkBackends)*len(IPFamilies)*len(PolicyModes))
+		if len(seen) != wanted {
+			return fmt.Errorf("full matrix contains %d scenarios, want %d", len(seen), wanted)
 		}
 	}
 	return nil
@@ -313,6 +318,9 @@ func (environment EnvironmentProvenance) Fingerprint() (string, error) {
 func (scenario ScenarioResult) Validate() error {
 	if !contains(Runtimes, scenario.Runtime) || !contains(NetworkBackends, scenario.NetworkBackend) || !contains(IPFamilies, scenario.IPFamily) || !contains(PolicyModes, scenario.PolicyMode) {
 		return fmt.Errorf("invalid scenario axes %q", scenarioKey(scenario))
+	}
+	if scenario.NetworkBackend == "ebpf" && scenario.IPFamily == "ipv6" {
+		return errors.New("ebpf IPv6 is unsupported and cannot produce a performance scenario")
 	}
 	metrics := scenario.Metrics
 	if metrics.PrepareLatencyMS == nil || metrics.SandboxStartLatencyMS == nil || metrics.FirstConnectionLatencyMS == nil || metrics.RestartConvergenceLatencyMS == nil {

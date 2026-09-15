@@ -22,26 +22,6 @@ func uploadVerifierAssets(ctx context.Context, instance sandbox.Instance, paths 
 }
 
 func uploadVerifierAsset(ctx context.Context, instance sandbox.Instance, paths Paths, task domain.TaskInstance, asset domain.VerifierAssetSpec, appendStep func(domain.TrajectoryStep) (int, error)) error {
-	if task.InitialState != nil && task.InitialState.WorkspaceImage != nil {
-		materializer, ok := instance.(sandbox.TaskAssetMaterializer)
-		if !ok {
-			return fmt.Errorf("sandbox does not support TaskSet asset materialization")
-		}
-		targetPath := asset.TargetPath
-		if strings.TrimSpace(targetPath) == "" {
-			targetPath = path.Join(task.Sandbox.Workdir, path.Base(asset.Path))
-		}
-		if err := materializer.MaterializeTaskAssets(ctx, asset.Path, targetPath, sandbox.TaskAssetKindVerifier); err != nil {
-			return fmt.Errorf("materialize verifier asset %q: %w", asset.Path, err)
-		}
-		_, err := appendStep(domain.TrajectoryStep{
-			Type:     domain.TrajectoryEventSystemWorkspaceUpload,
-			Actor:    "rollout",
-			Summary:  fmt.Sprintf("materialized verifier asset to %s", targetPath),
-			InputRef: asset.Path,
-		})
-		return err
-	}
 	localPath, err := resolveRunPath(paths.ArtifactDir, asset.Path)
 	if err != nil {
 		return fmt.Errorf("resolve verifier asset %q: %w", asset.Path, err)

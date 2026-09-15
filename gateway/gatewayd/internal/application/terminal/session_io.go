@@ -1,19 +1,21 @@
 package terminal
 
 import (
+	"context"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/metadata"
 )
 
-type execStream interface {
-	Send(*nodesandboxv1.ExecStreamRequest) error
-	Recv() (*nodesandboxv1.ExecStreamResponse, error)
+type processStream interface {
+	Send(*nodesandboxv1.ProcessRequest) error
+	Recv() (*nodesandboxv1.ProcessResponse, error)
 	Header() (metadata.MD, error)
 	CloseSend() error
 }
 
 type Session struct {
-	stream execStream
+	stream processStream
+	cancel context.CancelFunc
 }
 
 type Output struct {
@@ -33,11 +35,11 @@ func (s *Session) Recv() (Output, error) {
 		return Output{}, err
 	}
 	switch payload := resp.GetPayload().(type) {
-	case *nodesandboxv1.ExecStreamResponse_Stdout:
+	case *nodesandboxv1.ProcessResponse_Stdout:
 		return Output{Stdout: payload.Stdout}, nil
-	case *nodesandboxv1.ExecStreamResponse_Stderr:
+	case *nodesandboxv1.ProcessResponse_Stderr:
 		return Output{Stderr: payload.Stderr}, nil
-	case *nodesandboxv1.ExecStreamResponse_Exit:
+	case *nodesandboxv1.ProcessResponse_Exit:
 		return Output{Exit: &Exit{Code: payload.Exit.GetExitCode(), Message: payload.Exit.GetMessage()}}, nil
 	default:
 		return Output{}, nil
@@ -45,17 +47,20 @@ func (s *Session) Recv() (Output, error) {
 }
 
 func (s *Session) Write(data []byte) error {
-	return s.stream.Send(&nodesandboxv1.ExecStreamRequest{Payload: &nodesandboxv1.ExecStreamRequest_Stdin{Stdin: data}})
+	return s.stream.Send(&nodesandboxv1.ProcessRequest{Payload: &nodesandboxv1.ProcessRequest_Stdin{Stdin: data}})
 }
 
 func (s *Session) Resize(cols, rows uint32) error {
-	return s.stream.Send(&nodesandboxv1.ExecStreamRequest{Payload: &nodesandboxv1.ExecStreamRequest_Resize{Resize: &nodesandboxv1.TerminalResize{Cols: cols, Rows: rows}}})
+	return s.stream.Send(&nodesandboxv1.ProcessRequest{Payload: &nodesandboxv1.ProcessRequest_Resize{Resize: &nodesandboxv1.TerminalResize{Cols: cols, Rows: rows}}})
 }
 
 func (s *Session) CloseStdin() error {
-	return s.stream.Send(&nodesandboxv1.ExecStreamRequest{Payload: &nodesandboxv1.ExecStreamRequest_CloseStdin{CloseStdin: true}})
+	return s.stream.Send(&nodesandboxv1.ProcessRequest{Payload: &nodesandboxv1.ProcessRequest_CloseStdin{CloseStdin: true}})
 }
 
 func (s *Session) Close() error {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	return s.stream.CloseSend()
 }

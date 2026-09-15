@@ -37,12 +37,6 @@ func (h *Controller) logSandboxdDiagnostics(traceID, containerID string, metaDat
 		ContainerID: containerID,
 		SocketPath:  h.sandboxdSocketPath(containerID, metaData),
 	}
-	if metaData != nil {
-		labels := metaData.GetLabels()
-		report.Ready = labels[runtimesandboxd.LabelReady]
-		report.Capabilities = labels[runtimesandboxd.LabelCapabilities]
-		report.UserState = labels[runtimesandboxd.LabelUserState]
-	}
 	if _, err := os.Stat(report.SocketPath); err != nil {
 		report.SocketError = err.Error()
 	} else {
@@ -66,11 +60,6 @@ func (h *Controller) logSandboxdDiagnostics(traceID, containerID string, metaDat
 }
 
 func (h *Controller) sandboxdSocketPath(containerID string, metaData *apipb.ContainerMetadata) string {
-	if metaData != nil {
-		if snapshot, err := runtimesandboxd.SnapshotFromLabels(metaData.GetLabels()); err == nil && snapshot.SocketPath != "" {
-			return snapshot.SocketPath
-		}
-	}
 	return runtimeoci.SandboxdBundleSocketPath(filepath.Join(h.config.RootDir, "containers", containerID))
 }
 

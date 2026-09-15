@@ -12,7 +12,7 @@ import (
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 )
 
@@ -24,14 +24,11 @@ func TestNodesHandlerReturnsJSONDebugShape(t *testing.T) {
 				FreshnessState:   "fresh",
 				HeartbeatAgeSecs: 1,
 				SummaryAgeSecs:   2,
-				RegisteredAt:     time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC),
+				AdmittedAt:       time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC),
 			}}
 		},
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{CPUOvercommitRatio: 2, MemoryOvercommitPolicy: "disabled"}
-		},
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -58,9 +55,6 @@ func TestResourceHandlerReturnsJSONPolicyShape(t *testing.T) {
 		DebugNodes: func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{CPUOvercommitRatio: 2.5, MemoryOvercommitPolicy: "disabled"}
-		},
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
 		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
@@ -90,9 +84,6 @@ func TestQuotaHandlerReturnsProtoJSON(t *testing.T) {
 		ResourcePolicy: func() ResourcePolicySnapshot {
 			return ResourcePolicySnapshot{}
 		},
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
-		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{Quotas: []*quotav1.NamespaceQuota{{Namespace: "default"}}}, nil
 		},
@@ -117,18 +108,14 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	handler := New(Config{
 		DebugNodes:     func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot { return ResourcePolicySnapshot{} },
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
-		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
 		},
 		ListReconcileQueue: func(context.Context) ([]allocationkernel.LifecycleRetryItem, error) {
 			return []allocationkernel.LifecycleRetryItem{{
 				AllocationID:      "alloc-1",
-				OwnerID:           "svc-1",
-				OwnerType:         allocationkernel.OwnerService,
-				Reason:            allocationkernel.ReconcileReasonCreate,
+				RunID:             "run-1",
+				LifecycleState:    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
 				NodeID:            "node-a",
 				ReconcileAttempts: 2,
 				AgeSeconds:        30,
@@ -144,7 +131,7 @@ func TestAllocationReconcileHandlerReturnsJSONQueue(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"allocation_id":"alloc-1"`, `"owner_type":"service"`, `"reason":"create"`, `"reconcile_attempts":2`, `"due":true`} {
+	for _, want := range []string{`"allocation_id":"alloc-1"`, `"run_id":"run-1"`, `"lifecycle_state":"ALLOCATION_LIFECYCLE_STATE_BOUND"`, `"reconcile_attempts":2`, `"due":true`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected allocation reconcile body: %s", recorder.Body.String())
 		}
@@ -156,9 +143,6 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 	handler := New(Config{
 		DebugNodes:     func() []nodekernel.DebugNode { return nil },
 		ResourcePolicy: func() ResourcePolicySnapshot { return ResourcePolicySnapshot{} },
-		ListRuntimeTemplates: func(context.Context) (*catalogv1.ListRuntimeTemplatesResponse, error) {
-			return &catalogv1.ListRuntimeTemplatesResponse{}, nil
-		},
 		ListNamespaceQuotas: func(context.Context) (*quotav1.ListNamespaceQuotasResponse, error) {
 			return &quotav1.ListNamespaceQuotasResponse{}, nil
 		},
@@ -167,7 +151,7 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 		},
 		ReconcileHealth: func() reconcilekernel.HealthSnapshot {
 			return reconcilekernel.HealthSnapshot{Components: []reconcilekernel.ComponentHealth{{
-				Component:           reconcilekernel.ComponentService,
+				Component:           reconcilekernel.ComponentRun,
 				LastErrorAt:         &now,
 				LastError:           "database unavailable",
 				ConsecutiveFailures: 2,
@@ -182,7 +166,7 @@ func TestReconcileHealthHandlerReturnsJSONSnapshot(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"component":"service"`, `"last_error":"database unavailable"`, `"consecutive_failures":2`} {
+	for _, want := range []string{`"component":"run"`, `"last_error":"database unavailable"`, `"consecutive_failures":2`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected reconcile health body: %s", recorder.Body.String())
 		}
@@ -207,12 +191,11 @@ func TestReconcileHealthHandlerReturnsStableEmptySnapshot(t *testing.T) {
 func TestConsistencyHandlerReturnsJSONSnapshot(t *testing.T) {
 	handler := New(Config{
 		ConsistencySnapshot: func(context.Context) (consistencykernel.Snapshot, error) {
-			return consistencykernel.NewSnapshot(consistencykernel.Counts{ActiveReservations: 1}, []consistencykernel.Issue{{
-				Code:         "active_reservation_on_ended_allocation",
+			return consistencykernel.NewSnapshot(consistencykernel.Counts{ActiveAllocations: 1}, []consistencykernel.Issue{{
+				Code:         "active_lease_on_ended_allocation",
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-1",
-				OwnerType:    allocationkernel.OwnerRun,
-				OwnerID:      "run-1",
+				RunID:        "run-1",
 			}}, false), nil
 		},
 	})
@@ -224,7 +207,7 @@ func TestConsistencyHandlerReturnsJSONSnapshot(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", recorder.Code)
 	}
-	for _, want := range []string{`"status":"inconsistent"`, `"active_reservations":1`, `"issues":1`, `"code":"active_reservation_on_ended_allocation"`, `"allocation_id":"alloc-1"`} {
+	for _, want := range []string{`"status":"inconsistent"`, `"active_allocations":1`, `"issues":1`, `"code":"active_lease_on_ended_allocation"`, `"allocation_id":"alloc-1"`} {
 		if !strings.Contains(recorder.Body.String(), want) {
 			t.Fatalf("unexpected consistency body: %s", recorder.Body.String())
 		}

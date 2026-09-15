@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"net"
-	"reflect"
 	"testing"
 	"time"
 
@@ -16,83 +17,9 @@ import (
 
 const testCapabilityBootID = "11111111-2222-3333-4444-555555555555"
 
-func TestNetworkConfigDigestUsesCompleteNormalizedNetworkConfig(t *testing.T) {
-	base, err := config.DefaultConfig().PluginConfig.NetworkConfig.Normalized()
-	if err != nil {
-		t.Fatal(err)
-	}
-	equivalent := base
-	equivalent.BPFNet.SNATGCInterval = "1000ms"
-	equivalent.BPFNet.NativeRoutingCIDRs = []string{"10.2.3.4/16", "10.0.0.0/8"}
-	base.BPFNet.NativeRoutingCIDRs = []string{"10.0.0.0/8", "10.2.0.0/16"}
-	equivalent, err = equivalent.Normalized()
-	if err != nil {
-		t.Fatal(err)
-	}
-	base, err = base.Normalized()
-	if err != nil {
-		t.Fatal(err)
-	}
-	baseDigest, err := networkConfigDigest(base)
-	if err != nil {
-		t.Fatal(err)
-	}
-	equivalentDigest, err := networkConfigDigest(equivalent)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(base, equivalent) || baseDigest != equivalentDigest {
-		t.Fatal("semantically equivalent network configurations produced different evidence identity")
-	}
-
-	mutations := map[string]func(*config.NetworkConfig){
-		"ip range":            func(c *config.NetworkConfig) { c.IPRange = "172.18.0.1/16" },
-		"backend":             func(c *config.NetworkConfig) { c.NatBackend = config.NatBackendEBPF },
-		"pin path":            func(c *config.NetworkConfig) { c.BPFNet.PinPath += "-changed" },
-		"map size":            func(c *config.NetworkConfig) { c.BPFNet.MapSize++ },
-		"snat map size":       func(c *config.NetworkConfig) { c.BPFNet.SNATMapSize++ },
-		"gc interval":         func(c *config.NetworkConfig) { c.BPFNet.SNATGCInterval = "2s" },
-		"tcp idle":            func(c *config.NetworkConfig) { c.BPFNet.SNATTCPIdleTimeout = "6m" },
-		"tcp closing":         func(c *config.NetworkConfig) { c.BPFNet.SNATTCPClosingTimeout = "3s" },
-		"datagram idle":       func(c *config.NetworkConfig) { c.BPFNet.SNATDatagramIdleTimeout = "11s" },
-		"local-out compat":    func(c *config.NetworkConfig) { c.BPFNet.LocalOutCompat = !c.BPFNet.LocalOutCompat },
-		"iptables fallback":   func(c *config.NetworkConfig) { c.BPFNet.IptablesFallback = !c.BPFNet.IptablesFallback },
-		"uplink devices":      func(c *config.NetworkConfig) { c.BPFNet.UplinkDevices = []string{"eth0"} },
-		"native routing CIDR": func(c *config.NetworkConfig) { c.BPFNet.NativeRoutingCIDRs = []string{"10.3.0.0/16"} },
-	}
-	for name, mutate := range mutations {
-		t.Run(name, func(t *testing.T) {
-			changed := base
-			changed.BPFNet.UplinkDevices = append([]string(nil), base.BPFNet.UplinkDevices...)
-			changed.BPFNet.NativeRoutingCIDRs = append([]string(nil), base.BPFNet.NativeRoutingCIDRs...)
-			mutate(&changed)
-			changedDigest, digestErr := networkConfigDigest(changed)
-			if digestErr != nil {
-				t.Fatal(digestErr)
-			}
-			if changedDigest == baseDigest {
-				t.Fatal("behavioral network configuration change did not change evidence identity")
-			}
-		})
-	}
-}
-
-func TestExtensionConfigDigestIsIndependentFromNetworkConfig(t *testing.T) {
-	extensions := []*capabilityv1.ExtensionCapability{{Name: "example.com/device", Value: "v1"}}
-	want := extensionConfigDigest(extensions)
-	network := config.DefaultConfig().PluginConfig.NetworkConfig
-	network.IPRange = "172.19.0.1/16"
-	if _, err := networkConfigDigest(network); err != nil {
-		t.Fatal(err)
-	}
-	if got := extensionConfigDigest(extensions); got != want {
-		t.Fatalf("network configuration changed extension evidence: got %q want %q", got, want)
-	}
-}
-
 func TestConfigCapabilityProviderPublishesOnlyExtensionFacts(t *testing.T) {
 	extension := &capabilityv1.ExtensionCapability{Name: "example.com/accelerator", Value: "v1"}
-	provider := configCapabilityProvider([]*capabilityv1.ExtensionCapability{extension}, sha256Digest([]byte("extensions")))
+	provider := configCapabilityProvider([]*capabilityv1.ExtensionCapability{extension})
 	observations, err := provider.Observe(context.Background(), time.Now().UTC())
 	if err != nil {
 		t.Fatalf("Observe() error = %v", err)
@@ -121,18 +48,15 @@ type observedNetworkManager struct{ health networkmanager.Health }
 func (m observedNetworkManager) ProbeHealth(string) (networkmanager.Health, error) {
 	return m.health, nil
 }
-func (observedNetworkManager) SetupSNATRules(string) error                          { return nil }
-func (observedNetworkManager) CleanupSNATRules(string) error                        { return nil }
-func (observedNetworkManager) SetupNetworkRulesForActivating(net.IP, string) error  { return nil }
-func (observedNetworkManager) CleanupNetworkRulesForActivating(net.IP) error        { return nil }
-func (observedNetworkManager) SetupDNATRule(string, uint16, string, uint16) error   { return nil }
-func (observedNetworkManager) CleanupDNATRule(string, uint16, string, uint16) error { return nil }
-
+func (observedNetworkManager) SetupSNATRules(string) error                         { return nil }
+func (observedNetworkManager) CleanupSNATRules(string) error                       { return nil }
+func (observedNetworkManager) SetupNetworkRulesForActivating(net.IP, string) error { return nil }
+func (observedNetworkManager) CleanupNetworkRulesForActivating(net.IP) error       { return nil }
 func TestNetworkCapabilityProviderRequiresObservedDataplaneHealth(t *testing.T) {
 	const backend = "observed-test"
-	networkmanager.NetworkManagers[backend] = observedNetworkManager{health: networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: false}}
+	networkmanager.NetworkManagers[backend] = observedNetworkManager{health: networkmanager.Health{NativeDataplaneReady: true}}
 	t.Cleanup(func() { delete(networkmanager.NetworkManagers, backend) })
-	provider := networkCapabilityProvider(config.Config{PluginConfig: config.PluginConfig{NetworkConfig: config.NetworkConfig{NatBackend: backend, IPRange: "172.17.0.1/16"}}}, sha256Digest([]byte("network")))
+	provider := networkCapabilityProvider(config.Config{PluginConfig: config.PluginConfig{NetworkConfig: config.NetworkConfig{NatBackend: backend, IPRange: "172.17.0.1/16"}}})
 	observations, err := provider.Observe(context.Background(), time.Now().UTC())
 	if err != nil {
 		t.Fatal(err)
@@ -142,28 +66,15 @@ func TestNetworkCapabilityProviderRequiresObservedDataplaneHealth(t *testing.T) 
 	}
 }
 
-func TestNetworkCapabilityProviderPublishesEffectiveBridgeForIPv6EBPFCompatibility(t *testing.T) {
-	previous := networkmanager.NetworkManagers[config.NatBackendEBPF]
-	networkmanager.NetworkManagers[config.NatBackendEBPF] = observedNetworkManager{health: networkmanager.Health{PortForwardingReady: true, NativeDataplaneReady: true}}
-	t.Cleanup(func() { networkmanager.NetworkManagers[config.NatBackendEBPF] = previous })
-	cfg := config.Config{PluginConfig: config.PluginConfig{NetworkConfig: config.NetworkConfig{NatBackend: config.NatBackendEBPF, IPRange: "fd31::1/64"}}}
-
-	observations, err := networkCapabilityProvider(cfg, sha256Digest([]byte("network"))).Observe(context.Background(), time.Now().UTC())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if observations[1].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE {
-		t.Fatalf("effective bridge capability = %#v", observations[1])
-	}
-	if observations[2].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE {
-		t.Fatalf("native bpfnet capability = %#v", observations[2])
-	}
+func sha256Digest(payload []byte) string {
+	digest := sha256.Sum256(payload)
+	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 func TestDerivedCapabilityUsesRecoveryFilteredDependencies(t *testing.T) {
 	cgroupKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER)
-	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
-	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)
+	selfTestKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
+	derivedKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)
 	available := false
 	cgroup := observedProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_HOST_CGROUP,
@@ -176,10 +87,10 @@ func TestDerivedCapabilityUsesRecoveryFilteredDependencies(t *testing.T) {
 		},
 	}
 	selfTest := observedProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTestKey},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runc", sha256Digest([]byte("binary")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, sha256Digest([]byte("binary")), sha256Digest([]byte("config")))
 			if !available {
 				return []*capabilityv1.CapabilityObservation{failedObservation(selfTestKey, evidence, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED, "failed")}, nil
 			}

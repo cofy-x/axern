@@ -45,7 +45,7 @@ axrun_import_bundle_image_to_compose() {
     --file - \
     --ref "${import_ref}" \
     --json)"
-  digest="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["generation_digest"])' <<<"${import_result}")"
+  digest="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["content_digest"])' <<<"${import_result}")"
   imported_ref="$(axrun_normalize_digest_repository "${repository}")@${digest}"
   printf '%s\n' "${imported_ref}"
 }

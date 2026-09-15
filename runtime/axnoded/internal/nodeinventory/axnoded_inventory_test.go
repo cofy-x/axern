@@ -10,11 +10,11 @@ import (
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
@@ -26,27 +26,26 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 	if err := os.MkdirAll(rootfsDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll() error = %v", err)
 	}
-	manager := langruntime.NewLanguageRuntimeManager()
+	manager := environmentcache.NewEnvironmentCache()
 	manager.ConfigureRetention(time.Minute, 1)
-	fr := &runtimeapi.RuntimeTemplate{
-		ID:      "inventory-retained",
-		Sandbox: "runsc",
+	fr := &runtimeapi.ResolvedEnvironment{
+		ID: "inventory-retained",
 		Rootfs: &runtimeapi.RootfsConfig{
 			Type:   runtimeapi.RootfsSrcType_LOCAL,
 			Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},
 		},
-		Command: []string{"/bin/sh"},
+		Argv: []string{"/bin/sh"},
 	}
 
-	rootfsCfg, err := langruntime.RootfsConfigFromRuntimeTemplate(fr)
+	rootfsCfg, err := environmentcache.RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
-		t.Fatalf("RootfsConfigFromRuntimeTemplate() error = %v", err)
+		t.Fatalf("RootfsConfigFromResolvedEnvironment() error = %v", err)
 	}
-	result, err := manager.AddLangRuntime(t.Context(), fr, rootfsCfg, true)
+	result, err := manager.PrepareEnvironment(t.Context(), fr, rootfsCfg)
 	if err != nil {
-		t.Fatalf("AddLangRuntime() error = %v", err)
+		t.Fatalf("PrepareEnvironment() error = %v", err)
 	}
-	lr := result.Runtime
+	lr := result.Environment
 	lr.IncRef()
 	lr.DecRef()
 
@@ -59,14 +58,14 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 				"interface": {Capacity: 8},
 			},
 		},
-		LangRuntime: manager,
+		EnvironmentCache: manager,
 	})
 
 	snapshot := NewSnapshot()
 	source.collectAxnodedInventory(time.Now().UTC(), &snapshot)
 
-	if got := snapshot.Heat.RetainedRuntimeCount; got != 1 {
-		t.Fatalf("retained_runtime_count = %d, want 1", got)
+	if got := snapshot.Heat.RetainedEnvironmentCount; got != 1 {
+		t.Fatalf("retained_environment_count = %d, want 1", got)
 	}
 	if got := snapshot.Heat.RetainedRootfsCount; got != 1 {
 		t.Fatalf("retained_rootfs_count = %d, want 1", got)
@@ -77,8 +76,8 @@ func TestCollectAxnodedInventoryIncludesRetentionHeat(t *testing.T) {
 	if snapshot.Heat.Locality[0].Key != "local:"+rootfsDir {
 		t.Fatalf("locality key = %q, want %q", snapshot.Heat.Locality[0].Key, "local:"+rootfsDir)
 	}
-	if snapshot.Heat.Locality[0].RetainedRuntimeCount != 1 {
-		t.Fatalf("retained_runtime_count = %d, want 1", snapshot.Heat.Locality[0].RetainedRuntimeCount)
+	if snapshot.Heat.Locality[0].RetainedEnvironmentCount != 1 {
+		t.Fatalf("retained_environment_count = %d, want 1", snapshot.Heat.Locality[0].RetainedEnvironmentCount)
 	}
 	if snapshot.Heat.Locality[0].RetainedRootfsCount != 1 {
 		t.Fatalf("retained_rootfs_count = %d, want 1", snapshot.Heat.Locality[0].RetainedRootfsCount)
@@ -117,8 +116,9 @@ func TestCollectAxnodedInventoryPreservesLifecycleOwnershipUntilStatusAcknowledg
 		RuntimeCount: func() int { return 1 },
 		Container: &fakeContainerManager{list: []*container.Container{
 			inventoryContainer("exited-local", container.Status{
-				StartedAt:  "2026-08-11T00:00:00Z",
-				FinishedAt: "2026-08-11T00:00:01Z",
+				RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
+				StartedAt:    "2026-08-11T00:00:00Z",
+				FinishedAt:   "2026-08-11T00:00:01Z",
 			}),
 		}},
 		DisabledResourcePools: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
@@ -137,6 +137,61 @@ func TestCollectAxnodedInventoryPreservesLifecycleOwnershipUntilStatusAcknowledg
 	got := snapshot.Components.Axnoded.ActiveAllocationIDs
 	if len(got) != 2 || got[0] != "exited-local" || got[1] != "pending-remote" {
 		t.Fatalf("active allocation ids = %#v, want [exited-local pending-remote]", got)
+	}
+}
+
+func TestCollectAxnodedInventoryDoesNotPromoteInternalContainersToAllocations(t *testing.T) {
+	running := container.Status{RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: "2026-08-11T00:00:00Z"}
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		Ready:        func() bool { return true },
+		RuntimeCount: func() int { return 1 },
+		Container: &fakeContainerManager{list: []*container.Container{
+			inventoryContainer("allocation-a", running),
+			inventoryContainer("internal-conformance", running),
+		}},
+		AllocationIDs:         func() []string { return []string{"allocation-a"} },
+		DisabledResourcePools: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
+	})
+
+	snapshot := NewSnapshot()
+	if ready := source.collectAxnodedInventory(time.Now().UTC(), &snapshot); !ready {
+		t.Fatal("collectAxnodedInventory() ready = false, want true")
+	}
+	if got := snapshot.Components.Axnoded.ActiveAllocationIDs; len(got) != 1 || got[0] != "allocation-a" {
+		t.Fatalf("active allocation ids = %#v, want only admitted allocation", got)
+	}
+	if got := snapshot.Components.Axnoded.RunningAllocationIDs; len(got) != 1 || got[0] != "allocation-a" {
+		t.Fatalf("running allocation ids = %#v, want only admitted allocation", got)
+	}
+	if got := snapshot.Components.Axnoded.RunningContainers; got != 2 {
+		t.Fatalf("running containers = %d, want raw runtime count 2", got)
+	}
+}
+
+func TestCollectAxnodedInventoryUsesAllocationStateInsteadOfContainerMetadata(t *testing.T) {
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		Ready:        func() bool { return true },
+		RuntimeCount: func() int { return 1 },
+		Container: &fakeContainerManager{list: []*container.Container{
+			inventoryContainer("allocation-live", container.Status{RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: "2026-08-11T00:00:00Z"}),
+			inventoryContainer("internal-actor", container.Status{RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING, StartedAt: "2026-08-11T00:00:00Z"}),
+		}},
+		AllocationIDs:         func() []string { return []string{"allocation-live"} },
+		DisabledResourcePools: []resources.ResourceName{resources.CgroupResourceName, resources.InterfaceResourceName},
+	})
+
+	snapshot := NewSnapshot()
+	if ready := source.collectAxnodedInventory(time.Now().UTC(), &snapshot); !ready {
+		t.Fatal("collectAxnodedInventory() ready = false, want true")
+	}
+	if got := snapshot.Components.Axnoded.ActiveAllocationIDs; len(got) != 1 || got[0] != "allocation-live" {
+		t.Fatalf("active allocation ids = %#v, want only admitted allocation", got)
+	}
+	if got := snapshot.Components.Axnoded.RunningAllocationIDs; len(got) != 1 || got[0] != "allocation-live" {
+		t.Fatalf("running allocation ids = %#v, want only admitted allocation", got)
+	}
+	if got := snapshot.Components.Axnoded.RunningContainers; got != 2 {
+		t.Fatalf("running containers = %d, want runtime projection to include internal actor", got)
 	}
 }
 
@@ -184,40 +239,39 @@ func TestCollectAxnodedInventoryResourceCommitmentUsesRequests(t *testing.T) {
 	source := NewAxnodedSource(AxnodedSourceOptions{
 		Ready:        func() bool { return true },
 		RuntimeCount: func() int { return 1 },
+		AllocationIDs: func() []string {
+			return []string{"request-only", "limit-only", "unbounded", "exited-ignored"}
+		},
+		AllocationResourceSpec: func(allocationID string) *commonv1.ResourceSpec {
+			switch allocationID {
+			case "request-only":
+				return &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 128 * 1024 * 1024}}
+			case "limit-only":
+				return &commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 256 * 1024 * 1024}}
+			case "exited-ignored":
+				return &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 900, MemoryBytes: 900}}
+			default:
+				return nil
+			}
+		},
 		Container: &fakeContainerManager{
 			list: []*container.Container{
 				inventoryContainer("request-only", container.Status{
-					StartedAt: "2026-05-09T00:00:00Z",
-					ResourceSpec: &commonv1.ResourceSpec{
-						Requests: &commonv1.ResourceQuantity{
-							CpuMilli:    250,
-							MemoryBytes: 128 * 1024 * 1024,
-						},
-					},
-					LinuxResources: &runtimeapi.LinuxContainerResources{
-						CpuShares: 256,
-					},
+					RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+					StartedAt:    "2026-05-09T00:00:00Z",
 				}),
 				inventoryContainer("limit-only", container.Status{
-					StartedAt: "2026-05-09T00:00:00Z",
-					LinuxResources: &runtimeapi.LinuxContainerResources{
-						CpuPeriod:          100000,
-						CpuQuota:           50000,
-						MemoryLimitInBytes: 256 * 1024 * 1024,
-					},
+					RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+					StartedAt:    "2026-05-09T00:00:00Z",
 				}),
 				inventoryContainer("unbounded", container.Status{
-					StartedAt: "2026-05-09T00:00:00Z",
+					RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+					StartedAt:    "2026-05-09T00:00:00Z",
 				}),
 				inventoryContainer("exited-ignored", container.Status{
-					StartedAt:  "2026-05-09T00:00:00Z",
-					FinishedAt: "2026-05-09T00:00:01Z",
-					ResourceSpec: &commonv1.ResourceSpec{
-						Requests: &commonv1.ResourceQuantity{
-							CpuMilli:    900,
-							MemoryBytes: 900,
-						},
-					},
+					RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
+					StartedAt:    "2026-05-09T00:00:00Z",
+					FinishedAt:   "2026-05-09T00:00:01Z",
 				}),
 			},
 			pools: map[string]PoolInventory{
@@ -265,13 +319,15 @@ func TestCollectAxnodedInventoryDisabledDevDoesNotFabricateCgroupUsage(t *testin
 		// No CgroupDriver is intentional: disabled_dev has no allocation-owned
 		// cgroup from which usage could be attributed safely.
 		MemoryCgroupEnforced: false,
+		AllocationIDs:        func() []string { return []string{"disabled-dev"} },
+		AllocationResourceSpec: func(string) *commonv1.ResourceSpec {
+			return &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 128 * 1024 * 1024}}
+		},
 		Container: &fakeContainerManager{
 			list: []*container.Container{
 				inventoryContainer("disabled-dev", container.Status{
-					StartedAt: "2026-08-11T00:00:00Z",
-					ResourceSpec: &commonv1.ResourceSpec{
-						Requests: &commonv1.ResourceQuantity{MemoryBytes: 128 * 1024 * 1024},
-					},
+					RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+					StartedAt:    "2026-08-11T00:00:00Z",
 				}),
 			},
 			pools: map[string]PoolInventory{
@@ -302,7 +358,8 @@ func TestCollectAxnodedInventoryDisabledDevDoesNotFabricateCgroupUsage(t *testin
 
 func inventoryContainer(id string, status container.Status) *container.Container {
 	return &container.Container{
-		Metadata: &runtimeapi.ContainerMetadata{ID: id},
+		ID:       id,
+		Metadata: &runtimeapi.ContainerMetadata{},
 		Status:   &fakeStatusStorage{status: status},
 	}
 }
@@ -310,7 +367,7 @@ func inventoryContainer(id string, status container.Status) *container.Container
 func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	observation := memoryObservationFromKernel(
-		"alloc-retiring", 4, 512, 1024, "runsc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, 9, now,
+		"alloc-retiring", 512, 1024, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 11, LeafInode: 12},
 		&hostlinux.CgroupMemoryObservation{
 			CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, Stat: map[string]int64{"anon": 100, "file": 500},
@@ -318,8 +375,8 @@ func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 		},
 		true, false,
 	)
-	if observation.GetAllocationID() != "alloc-retiring" || observation.GetAttempt() != 4 || observation.GetRevision() != 9 ||
-		observation.GetCleanupState() != nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING || observation.GetCurrentBytes() != 700 || observation.GetRuntime() != "runsc" ||
+	if observation.GetAllocationID() != "alloc-retiring" ||
+		observation.GetCleanupState() != nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_RETIRING || observation.GetCurrentBytes() != 700 ||
 		observation.GetCgroupIdentity() != "boot=boot:mount:11:12" || !observation.GetParentControlsVerified() || observation.GetLeafControlsVerified() ||
 		!observation.GetPsiAvailable() || observation.GetPsiSomeAvg10() != 0.5 || observation.GetPsiSomeTotalUsec() != 42 {
 		t.Fatalf("memoryObservationFromKernel() = %+v", observation)
@@ -329,7 +386,7 @@ func TestMemoryObservationFromKernelPreservesRetiringOwnership(t *testing.T) {
 func TestMemoryObservationFromKernelRepresentsUnlimitedSandboxWithoutHardControlClaim(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	observation := memoryObservationFromKernel(
-		"alloc-unlimited", 2, 512, 0, "runc", nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, 10, now,
+		"alloc-unlimited", 512, 0, nodev1.AllocationMemoryCleanupState_ALLOCATION_MEMORY_CLEANUP_STATE_ASSIGNED, now,
 		&hostlinux.CgroupMemoryDomain{BootID: "boot", MountIdentity: "mount", ParentInode: 21, LeafInode: 22, LimitBytes: -1, SwapMaxBytes: -1},
 		&hostlinux.CgroupMemoryObservation{CurrentBytes: 700, PeakBytes: 900, PeakAvailable: true, SwapCurrent: 12},
 		false, false,

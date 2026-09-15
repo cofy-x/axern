@@ -4,7 +4,6 @@ import (
 	"strings"
 	"time"
 
-	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
@@ -45,30 +44,24 @@ func compactStrings(values []string) []string {
 	return out
 }
 
-func cpuCommitmentMilli(spec *commonv1.ResourceSpec, res *runtimeapi.LinuxContainerResources) (int64, bool) {
+func cpuCommitmentMilli(spec *commonv1.ResourceSpec) (int64, bool) {
 	if cpu := spec.GetRequests().GetCpuMilli(); cpu > 0 {
 		return cpu, true
 	}
-	if res == nil {
-		return 0, false
-	}
-	if res.CpuQuota > 0 && res.CpuPeriod > 0 {
-		return res.CpuQuota * 1000 / int64(res.CpuPeriod), true
-	}
-	if res.CpuShares > 0 {
-		return int64(res.CpuShares * 1000 / 1024), true
+	if cpu := spec.GetLimits().GetCpuMilli(); cpu > 0 {
+		return cpu, true
 	}
 	return 0, false
 }
 
-func memoryCommitmentBytes(spec *commonv1.ResourceSpec, res *runtimeapi.LinuxContainerResources) (int64, bool) {
+func memoryCommitmentBytes(spec *commonv1.ResourceSpec) (int64, bool) {
 	if memory := spec.GetRequests().GetMemoryBytes(); memory > 0 {
 		return memory, true
 	}
-	if res == nil || res.MemoryLimitInBytes <= 0 {
-		return 0, false
+	if memory := spec.GetLimits().GetMemoryBytes(); memory > 0 {
+		return memory, true
 	}
-	return res.MemoryLimitInBytes, true
+	return 0, false
 }
 
 func cpuUsedMilli(prev, current cpuUsageSample) (int64, bool) {

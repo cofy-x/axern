@@ -43,7 +43,7 @@ func (c *Controller) List(_ context.Context, request *runtime.ListContainersRequ
 			return response, errord.ErrNotFound
 		}
 	} else {
-		containers = c.options.ListContainers(container.ListFilterByLabels(request.GetSelector()))
+		containers = c.options.ListContainers()
 	}
 
 	for _, item := range containers {
@@ -52,15 +52,13 @@ func (c *Controller) List(_ context.Context, request *runtime.ListContainersRequ
 		}
 		status := item.Status.Get()
 		response.Containers = append(response.Containers, &runtime.ContainerStatus{
-			ID:             item.Metadata.ID,
-			Runtime:        item.Metadata.RuntimeHandler,
+			ID:             item.ID,
 			State:          status.State(),
 			StartedAt:      container.ParseTimestamp(status.StartedAt),
 			FinishedAt:     container.ParseTimestamp(status.FinishedAt),
 			ExitCode:       status.ExitCode,
 			Message:        status.Message,
 			DiagnosticCode: status.DiagnosticCode,
-			Labels:         item.Metadata.Labels,
 			Stdout:         item.Metadata.Stdout,
 			Stderr:         item.Metadata.Stderr,
 			Pid:            int32(status.Pid),
@@ -114,7 +112,7 @@ func (c *Controller) Wait(ctx context.Context, request *runtime.WaitRequest) (*r
 	}
 
 	status := target.Container.Status.Get()
-	if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCodeKnown {
+	if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCode != nil {
 		response.Message = status.Message
 		response.ExitCode = status.ExitCode
 		return response, nil
@@ -134,7 +132,7 @@ func (c *Controller) Wait(ctx context.Context, request *runtime.WaitRequest) (*r
 
 	for {
 		status = target.Container.Status.Get()
-		if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCodeKnown {
+		if status.State() == runtime.ContainerState_CONTAINER_EXITED && status.ExitCode != nil {
 			response.Message = status.Message
 			response.ExitCode = status.ExitCode
 			return response, nil
@@ -143,7 +141,8 @@ func (c *Controller) Wait(ctx context.Context, request *runtime.WaitRequest) (*r
 		select {
 		case result := <-waitCh:
 			if result.err == nil {
-				response.ExitCode = int32(result.exit.Status)
+				exitCode := int32(result.exit.Status)
+				response.ExitCode = &exitCode
 				response.Message = ""
 				return response, nil
 			}
@@ -192,21 +191,4 @@ func normalizeKillSignal(signal string) string {
 	}
 	normalized = strings.ToUpper(normalized)
 	return strings.TrimPrefix(normalized, "SIG")
-}
-
-func (c *Controller) Checkpoint(_ context.Context, request *runtime.CheckpointRequest) (*runtime.CheckpointResponse, error) {
-	target, err := c.options.ContainerTarget(request.GetID())
-	if err != nil {
-		return &runtime.CheckpointResponse{
-			Success: false,
-			Message: fmt.Sprintf("Failed to get container %v: %v", request.GetID(), err),
-		}, nil
-	}
-	if err := target.Handler.CheckpointContainer(request); err != nil {
-		return &runtime.CheckpointResponse{
-			Success: false,
-			Message: fmt.Sprintf("Failed to checkpoint container %v: %v", request.GetID(), err),
-		}, nil
-	}
-	return &runtime.CheckpointResponse{Success: true}, nil
 }

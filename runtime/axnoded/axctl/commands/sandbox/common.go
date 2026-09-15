@@ -11,63 +11,61 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func renderSandboxTable(w io.Writer, sandboxes []*nodeoperatorv1.LocalSandbox) {
+func renderSandboxTable(w io.Writer, allocations []*nodeoperatorv1.LocalAllocation) {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
-	fmt.Fprintln(tw, "SANDBOX ID\tRUNTIME\tSTATE\tEXIT CODE\tPID\tSTARTED AT\tFINISHED AT")
-	for _, sandbox := range sandboxes {
-		if sandbox == nil {
+	fmt.Fprintln(tw, "ALLOCATION ID\tSTATE\tEXIT CODE\tPID\tSTARTED AT\tFINISHED AT")
+	for _, allocation := range allocations {
+		if allocation == nil {
 			continue
 		}
 		fmt.Fprintf(
 			tw,
-			"%s\t%s\t%s\t%s\t%s\t%s\t%s\n",
-			sandbox.GetSandboxID(),
-			sandbox.GetRuntimeClass(),
-			localStateString(sandbox.GetState()),
-			localExitCodeString(sandbox.GetState(), sandbox.GetExitCode(), sandbox.GetExitCodeKnown()),
-			formatPID(sandbox.GetPid()),
-			formatTimestamp(sandbox.GetStartedAt()),
-			formatTimestamp(sandbox.GetFinishedAt()),
+			"%s\t%s\t%s\t%s\t%s\t%s\n",
+			allocation.GetAllocationID(),
+			localStateString(allocation.GetState()),
+			localExitCodeString(allocation.GetState(), allocation.ExitCode),
+			formatPID(allocation.GetPid()),
+			formatTimestamp(allocation.GetStartedAt()),
+			formatTimestamp(allocation.GetFinishedAt()),
 		)
 	}
 	_ = tw.Flush()
 }
 
-func renderSandboxInspect(w io.Writer, sandbox *nodeoperatorv1.LocalSandbox) {
-	if sandbox == nil {
+func renderSandboxInspect(w io.Writer, allocation *nodeoperatorv1.LocalAllocation) {
+	if allocation == nil {
 		return
 	}
-	fmt.Fprintf(w, "Sandbox: %s\n", sandbox.GetSandboxID())
-	fmt.Fprintf(w, "Runtime: %s\n", sandbox.GetRuntimeClass())
-	fmt.Fprintf(w, "State: %s\n", localStateString(sandbox.GetState()))
-	fmt.Fprintf(w, "Exit Code: %s\n", localExitCodeString(sandbox.GetState(), sandbox.GetExitCode(), sandbox.GetExitCodeKnown()))
-	fmt.Fprintf(w, "PID: %s\n", formatPID(sandbox.GetPid()))
-	if message := strings.TrimSpace(sandbox.GetMessage()); message != "" {
+	fmt.Fprintf(w, "Allocation: %s\n", allocation.GetAllocationID())
+	fmt.Fprintf(w, "State: %s\n", localStateString(allocation.GetState()))
+	fmt.Fprintf(w, "Exit Code: %s\n", localExitCodeString(allocation.GetState(), allocation.ExitCode))
+	fmt.Fprintf(w, "PID: %s\n", formatPID(allocation.GetPid()))
+	if message := strings.TrimSpace(allocation.GetMessage()); message != "" {
 		fmt.Fprintf(w, "Message: %s\n", message)
 	}
-	fmt.Fprintf(w, "Started At: %s\n", formatTimestamp(sandbox.GetStartedAt()))
-	fmt.Fprintf(w, "Finished At: %s\n", formatTimestamp(sandbox.GetFinishedAt()))
+	fmt.Fprintf(w, "Started At: %s\n", formatTimestamp(allocation.GetStartedAt()))
+	fmt.Fprintf(w, "Finished At: %s\n", formatTimestamp(allocation.GetFinishedAt()))
 }
 
-func localStateString(state nodeoperatorv1.LocalSandboxState) string {
+func localStateString(state nodeoperatorv1.LocalAllocationState) string {
 	switch state {
-	case nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING:
+	case nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_RUNNING:
 		return "RUNNING"
-	case nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED:
+	case nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED:
 		return "EXITED"
 	default:
 		return "UNKNOWN"
 	}
 }
 
-func localExitCodeString(state nodeoperatorv1.LocalSandboxState, exitCode int32, known bool) string {
-	if state == nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING {
+func localExitCodeString(state nodeoperatorv1.LocalAllocationState, exitCode *int32) string {
+	if state == nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_RUNNING {
 		return "-"
 	}
-	if !known {
+	if exitCode == nil {
 		return "unknown"
 	}
-	return fmt.Sprintf("%d", exitCode)
+	return fmt.Sprintf("%d", *exitCode)
 }
 
 func formatTimestamp(ts *timestamppb.Timestamp) string {

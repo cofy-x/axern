@@ -29,7 +29,6 @@ type Params struct {
 	AgentPatchRequired  bool
 	AgentEnv            []string
 	Model               string
-	RuntimeClass        string
 	RunID               string
 	TaskSetRef          string
 	SelectedTaskIDs     []string
@@ -85,12 +84,6 @@ func (s Service) create(params Params) (Result, error) {
 		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	if providerProfilePreflight, ok := adapter.(backend.ProviderProfilePreflight); ok {
-		if err := providerProfilePreflight.PreflightProviderProfile(rolloutRun.Agent); err != nil {
-			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
-			return Result{}, err
-		}
-	}
 	if params.Execute {
 		if err := s.validateRunAgentForBackend(rolloutRun, params.BackendName); err != nil {
 			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
@@ -120,7 +113,7 @@ func (s Service) create(params Params) (Result, error) {
 		return Result{}, err
 	}
 	rolloutRun = result.RolloutRun
-	captured, err := store.CaptureInputs(result, rolloutRun.Input, tasks, &prepared.TaskSet)
+	captured, err := store.CaptureInputs(runContext(params), result, rolloutRun.Input, tasks, &prepared.TaskSet)
 	if err != nil {
 		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err

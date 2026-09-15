@@ -1,11 +1,8 @@
 # Local Runtime Troubleshooting
 
-Use this runbook for the repo-supported compose and kind development
-environments. It focuses on commands: how to get status, how to collect the
-critical logs, and which command to run for each failure mode.
+Use this runbook for the repo-supported compose and kind development environments. It focuses on commands: how to get status, how to collect the critical logs, and which command to run for each failure mode.
 
-For the environment-neutral meaning of each component log, see
-[Runtime Logs](../../docs/operations/runtime-logs.md).
+For the environment-neutral meaning of each component log, see [Runtime Logs](../../docs/operations/runtime-logs.md).
 
 ## Quick Commands
 
@@ -35,14 +32,14 @@ Node-local checks:
 ```bash
 # compose
 docker exec axern-local-node-1 axctl node check
-docker exec axern-local-node-1 axctl sandbox list
+docker exec axern-local-node-1 axctl allocation list
 docker exec axern-local-node-1 axctl image list
 docker exec axern-local-node-1 axctl image mounts
 
 # kind
 NODE_POD="$(kubectl -n axern-local get pods -l app=node-all-in-one -o jsonpath='{.items[0].metadata.name}')"
 kubectl -n axern-local exec "${NODE_POD}" -- axctl node check
-kubectl -n axern-local exec "${NODE_POD}" -- axctl sandbox list
+kubectl -n axern-local exec "${NODE_POD}" -- axctl allocation list
 kubectl -n axern-local exec "${NODE_POD}" -- axctl image list
 kubectl -n axern-local exec "${NODE_POD}" -- axctl image mounts
 ```
@@ -67,15 +64,14 @@ curl -fsS http://127.0.0.1:25082/healthz
 
 Service logs:
 
-| Component | Command |
-| --- | --- |
-| `controld` | `docker logs --tail=200 axern-local-controld-1` |
+| Component          | Command                                                 |
+| ------------------ | ------------------------------------------------------- |
+| `controld`         | `docker logs --tail=200 axern-local-controld-1`         |
 | `controld-migrate` | `docker logs --tail=200 axern-local-controld-migrate-1` |
-| `tunneld` | `docker logs --tail=200 axern-local-tunneld-1` |
-| `node-all-in-one` | `docker logs --tail=200 axern-local-node-1` |
-| `gatewayd` | `docker logs --tail=200 axern-local-gatewayd-1` |
-| `postgres` | `docker logs --tail=120 axern-local-postgres-1` |
-| `minio` | `docker logs --tail=120 axern-local-minio-1` |
+| `tunneld`          | `docker logs --tail=200 axern-local-tunneld-1`          |
+| `node-all-in-one`  | `docker logs --tail=200 axern-local-node-1`             |
+| `gatewayd`         | `docker logs --tail=200 axern-local-gatewayd-1`         |
+| `postgres`         | `docker logs --tail=120 axern-local-postgres-1`         |
 
 Node-internal logs:
 
@@ -89,22 +85,21 @@ docker exec axern-local-node-1 sh -lc 'find /var/lib/imagemgr/daemons -maxdepth 
 Config:
 
 ```bash
-docker exec axern-local-node-1 sed -n '1,220p' /tmp/axnoded-node-config.toml
+docker exec axern-local-node-1 cat /var/lib/axnoded/node-config.toml
 ```
 
 ### Kind
 
 Service logs:
 
-| Component | Command |
-| --- | --- |
-| `controld` | `kubectl -n axern-local logs deploy/controld --tail=200` |
-| `controld-migrate` | `kubectl -n axern-local logs job/controld-migrate --tail=200` |
-| `tunneld` | `kubectl -n axern-local logs deploy/tunneld --tail=200` |
-| `node-all-in-one` | `kubectl -n axern-local logs -l app=node-all-in-one --tail=200` |
-| `gatewayd` | `kubectl -n axern-local logs deploy/gatewayd --tail=200` |
-| `postgres` | `kubectl -n axern-local logs deploy/postgres --tail=120` |
-| `minio` | `kubectl -n axern-local logs deploy/minio --tail=120` |
+| Component          | Command                                                         |
+| ------------------ | --------------------------------------------------------------- |
+| `controld`         | `kubectl -n axern-local logs deploy/controld --tail=200`        |
+| `controld-migrate` | `kubectl -n axern-local logs job/controld-migrate --tail=200`   |
+| `tunneld`          | `kubectl -n axern-local logs deploy/tunneld --tail=200`         |
+| `node-all-in-one`  | `kubectl -n axern-local logs -l app=node-all-in-one --tail=200` |
+| `gatewayd`         | `kubectl -n axern-local logs deploy/gatewayd --tail=200`        |
+| `postgres`         | `kubectl -n axern-local logs deploy/postgres --tail=120`        |
 
 Node-internal logs:
 
@@ -119,7 +114,7 @@ kubectl -n axern-local exec "${NODE_POD}" -- sh -lc 'find /var/lib/imagemgr/daem
 Config:
 
 ```bash
-kubectl -n axern-local exec "${NODE_POD}" -- sed -n '1,220p' /tmp/axnoded-node-config.toml
+kubectl -n axern-local exec "${NODE_POD}" -- cat /var/lib/axnoded/node-config.toml
 ```
 
 ## Troubleshooting By Symptom
@@ -172,7 +167,7 @@ Compose:
 
 ```bash
 docker logs --tail=160 axern-local-controld-1
-docker exec axern-local-node-1 axctl sandbox list
+docker exec axern-local-node-1 axctl allocation list
 docker exec axern-local-node-1 tail -n 240 /var/log/axnoded/axnoded.log
 ```
 
@@ -181,7 +176,7 @@ Kind:
 ```bash
 kubectl -n axern-local logs deploy/controld --tail=160
 NODE_POD="$(kubectl -n axern-local get pods -l app=node-all-in-one -o jsonpath='{.items[0].metadata.name}')"
-kubectl -n axern-local exec "${NODE_POD}" -- axctl sandbox list
+kubectl -n axern-local exec "${NODE_POD}" -- axctl allocation list
 kubectl -n axern-local exec "${NODE_POD}" -- tail -n 240 /var/log/axnoded/axnoded.log
 ```
 
@@ -263,14 +258,9 @@ Use targeted smokes after a suspected fix:
 
 ```bash
 make local-compose-smoke
-make local-compose-gateway-smoke
-make local-compose-tunnel-e2e
-make local-compose-image-service-smoke
+make local-compose-python-sdk-e2e
 
 make kind-smoke
-make kind-gateway-smoke
-make kind-tunnel-e2e
-make kind-image-service-smoke
 ```
 
 Use reset only when local state is suspect:

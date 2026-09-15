@@ -191,6 +191,7 @@ impl<B: Backend> Cache<B> {
         Self::new_with_node_id(b, cache_file_path, "")
     }
 
+    #[cfg(any(target_os = "linux", test))]
     pub(crate) fn new_with_node_id(
         b: B,
         cache_file_path: &str,

@@ -76,6 +76,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 	idleIDs := queue.New("")
 	usingIDs := cmap.New[struct{}]()
 	leases := cmap.New[*apipb.CgroupLease]()
+	allocationLeases := cmap.New[string]()
 	gcQueue := queue.New("")
 	for _, lease := range reconciledLeases {
 		staleRoot := !cgroupPathInCurrentRoot(lease.GetCgroupID(), resolvedRoot, conformanceRoot)
@@ -111,8 +112,18 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 			idleIDs.Push(copy.GetCgroupID())
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
+			if existing, duplicate := allocationLeases.Get(copy.GetAllocationID()); duplicate {
+				return nil, fmt.Errorf("allocation %s owns multiple cgroups: %s and %s", copy.GetAllocationID(), existing, copy.GetCgroupID())
+			}
+			allocationLeases.Set(copy.GetAllocationID(), copy.GetCgroupID())
 			usingIDs.Set(copy.GetCgroupID(), struct{}{})
 		case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
+			if copy.GetAllocationID() != "" {
+				if existing, duplicate := allocationLeases.Get(copy.GetAllocationID()); duplicate {
+					return nil, fmt.Errorf("allocation %s owns multiple cgroups: %s and %s", copy.GetAllocationID(), existing, copy.GetCgroupID())
+				}
+				allocationLeases.Set(copy.GetAllocationID(), copy.GetCgroupID())
+			}
 			gcQueue.Push(copy.GetCgroupID())
 		}
 	}
@@ -132,7 +143,7 @@ func NewCgroupManager(db stateStore, cfg config.ResourceConfig, memoryAdmissionR
 
 	c := &CgroupManager{
 		size: cfg.MaxInstanceNum, cacheSize: cfg.CgroupCacheSize, rootName: resolvedRoot, conformanceRoot: conformanceRoot,
-		usingID: usingIDs, idleID: idleIDs, leases: leases, gcQueue: gcQueue,
+		usingID: usingIDs, idleID: idleIDs, leases: leases, allocationLeases: &allocationLeases, gcQueue: gcQueue,
 		gcStop: make(chan struct{}), gcDone: make(chan struct{}),
 		generator:            truncindex.NewFixLenGenerator(12, cgroupIDsUnderRoot(cgs.Keys(), resolvedRoot), truncindex.PrefixModifier(resolvedRoot+"/")),
 		conformanceGenerator: truncindex.NewFixLenGenerator(12, cgroupIDsUnderRoot(cgs.Keys(), conformanceRoot), truncindex.PrefixModifier(conformanceRoot+"/")),
@@ -240,15 +251,15 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 	switch lease.GetState() {
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE:
 		if lease.GetAllocationID() != "" || lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 ||
-			lease.GetCapacityReservationBytes() != 0 ||
-			lease.GetAllocationAttempt() != 0 || lease.GetRuntimeName() != "" || lease.GetAssignedAtUnixNano() != 0 ||
+			lease.GetCapacityChargeBytes() != 0 ||
+			lease.GetAssignedAtUnixNano() != 0 ||
 			lease.GetRetiringAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) ||
 			lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED {
 			return fmt.Errorf("idle cgroup %s contains allocation ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED:
 		if lease.GetAllocationID() == "" || lease.GetAssignedAtUnixNano() <= 0 || lease.GetRetiringAtUnixNano() != 0 ||
-			(lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
+			!validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("assigned cgroup %s has malformed ownership", lease.GetCgroupID())
 		}
 	case apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING:
@@ -257,34 +268,33 @@ func validateCgroupLease(lease *apipb.CgroupLease) error {
 		}
 		if lease.GetAllocationID() == "" {
 			if lease.GetOwnerKind() != apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_UNSPECIFIED ||
-				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetCapacityReservationBytes() != 0 || lease.GetRuntimeName() != "" ||
+				lease.GetMemoryRequestBytes() != 0 || lease.GetMemoryLimitBytes() != 0 || lease.GetCapacityChargeBytes() != 0 ||
 				lease.GetAssignedAtUnixNano() != 0 || cgroupLeaseHasAnyMemoryIdentity(lease) {
 				return fmt.Errorf("unowned retiring cgroup %s contains allocation ownership", lease.GetCgroupID())
 			}
-		} else if lease.GetAssignedAtUnixNano() <= 0 || (lease.GetRuntimeName() != "runc" && lease.GetRuntimeName() != "runsc") ||
-			!validAssignedCgroupOwner(lease.GetOwnerKind()) {
+		} else if lease.GetAssignedAtUnixNano() <= 0 || !validAssignedCgroupOwner(lease.GetOwnerKind()) {
 			return fmt.Errorf("retiring cgroup %s has malformed allocation ownership", lease.GetCgroupID())
 		}
 	default:
 		return fmt.Errorf("cgroup %s has invalid lifecycle state %s", lease.GetCgroupID(), lease.GetState())
 	}
-	if lease.GetMemoryRequestBytes() < 0 || lease.GetMemoryLimitBytes() < 0 || lease.GetCapacityReservationBytes() < 0 || lease.GetAllocationAttempt() < 0 || lease.GetCurrentChargedBytes() < 0 {
+	if lease.GetMemoryRequestBytes() < 0 || lease.GetMemoryLimitBytes() < 0 || lease.GetCapacityChargeBytes() < 0 || lease.GetCurrentChargedBytes() < 0 {
 		return fmt.Errorf("cgroup %s has negative memory accounting", lease.GetCgroupID())
 	}
 	if lease.GetMemoryLimitBytes() > 0 && lease.GetMemoryRequestBytes() > lease.GetMemoryLimitBytes() {
 		return fmt.Errorf("cgroup %s memory request exceeds its hard limit", lease.GetCgroupID())
 	}
 	if lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_IDLE && lease.GetAllocationID() != "" {
-		capacityReservation := lease.GetCapacityReservationBytes()
-		if capacityReservation == 0 {
-			capacityReservation = lease.GetMemoryRequestBytes()
+		capacityCharge := lease.GetCapacityChargeBytes()
+		if capacityCharge == 0 {
+			capacityCharge = lease.GetMemoryRequestBytes()
 		}
-		if capacityReservation < lease.GetMemoryRequestBytes() {
-			return fmt.Errorf("cgroup %s capacity reservation is smaller than its memory request", lease.GetCgroupID())
+		if capacityCharge < lease.GetMemoryRequestBytes() {
+			return fmt.Errorf("cgroup %s capacity charge is smaller than its memory request", lease.GetCgroupID())
 		}
 		if lease.GetOwnerKind() == apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD &&
-			capacityReservation != lease.GetMemoryRequestBytes() {
-			return fmt.Errorf("workload cgroup %s capacity reservation differs from its memory request", lease.GetCgroupID())
+			capacityCharge != lease.GetMemoryRequestBytes() {
+			return fmt.Errorf("workload cgroup %s capacity charge differs from its memory request", lease.GetCgroupID())
 		}
 	}
 	if cgroupLeaseHasAnyMemoryIdentity(lease) && !cgroupLeaseHasMemoryIdentity(lease) {
@@ -431,12 +441,12 @@ func (c *CgroupManager) RetiringMemoryLeases() []RetiringMemoryLease {
 	for item := range c.leases.IterBuffered() {
 		lease := item.Val
 		if lease == nil || lease.GetState() != apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING ||
-			lease.GetAllocationID() == "" || lease.GetAllocationAttempt() <= 0 {
+			lease.GetAllocationID() == "" {
 			continue
 		}
 		result = append(result, RetiringMemoryLease{
-			CgroupID: lease.GetCgroupID(), AllocationID: lease.GetAllocationID(), AllocationAttempt: lease.GetAllocationAttempt(),
-			MemoryRequest: lease.GetMemoryRequestBytes(), MemoryLimit: lease.GetMemoryLimitBytes(), RuntimeName: lease.GetRuntimeName(),
+			CgroupID: lease.GetCgroupID(), AllocationID: lease.GetAllocationID(),
+			MemoryRequest: lease.GetMemoryRequestBytes(), MemoryLimit: lease.GetMemoryLimitBytes(),
 			BootID: lease.GetCgroupBootID(), MountIdentity: lease.GetCgroupMountIdentity(),
 			ParentInode: lease.GetCgroupParentInode(), LeafInode: lease.GetCgroupLeafInode(),
 		})

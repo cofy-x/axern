@@ -7,7 +7,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 import "axern/common/file/v1/file.proto";
 
 message StatFileRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
 }
 
@@ -16,7 +16,7 @@ message StatFileResponse {
 }
 
 message ListDirRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
 }
 
@@ -25,7 +25,7 @@ message ListDirResponse {
 }
 
 message ReadFileRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
 }
 
@@ -34,7 +34,7 @@ message ReadFileResponse {
 }
 
 message WriteFileRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   bytes data = 3;
   bool create_parents = 4;
@@ -43,7 +43,7 @@ message WriteFileRequest {
 message WriteFileResponse {}
 
 message MkdirRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   bool parents = 3;
 }
@@ -51,7 +51,7 @@ message MkdirRequest {
 message MkdirResponse {}
 
 message RemoveRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   bool recursive = 3;
   bool force = 4;
@@ -60,7 +60,7 @@ message RemoveRequest {
 message RemoveResponse {}
 
 message ExistsRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
 }
 
@@ -69,7 +69,7 @@ message ExistsResponse {
 }
 
 message CopyRequest {
-  string ID = 1;
+  string id = 1;
   string src_path = 2;
   string dst_path = 3;
   bool recursive = 4;
@@ -79,7 +79,7 @@ message CopyRequest {
 message CopyResponse {}
 
 message MoveRequest {
-  string ID = 1;
+  string id = 1;
   string src_path = 2;
   string dst_path = 3;
   bool overwrite = 4;
@@ -88,7 +88,7 @@ message MoveRequest {
 message MoveResponse {}
 
 message ChmodRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   uint32 mode = 3;
   bool recursive = 4;
@@ -97,7 +97,7 @@ message ChmodRequest {
 message ChmodResponse {}
 
 message TouchRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   bool create = 3;
   int64 mtime_ns = 4;
@@ -106,7 +106,7 @@ message TouchRequest {
 message TouchResponse {}
 
 message UploadArchiveRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   axern.common.file.v1.SandboxArchiveFormat format = 3;
   bool create_parents = 4;
@@ -117,7 +117,7 @@ message UploadArchiveRequest {
 message UploadArchiveResponse {}
 
 message DownloadArchiveRequest {
-  string ID = 1;
+  string id = 1;
   string path = 2;
   axern.common.file.v1.SandboxArchiveFormat format = 3;
   axern.common.file.v1.SandboxArchiveSymlinkPolicy symlink_policy = 4;

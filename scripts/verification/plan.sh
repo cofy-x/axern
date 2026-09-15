@@ -65,7 +65,7 @@ fi
 
 docs=false docs_site=false proto=false root_go=false axnoded=false egressd=false bpfnet=false
 rust=false typescript=false python=false broad=false network_policy_linux=false
-managed_rollout=false release_contract=false
+release_contract=false
 
 for path in "${paths[@]}"; do
   case "${path}" in
@@ -79,7 +79,7 @@ for path in "${paths[@]}"; do
   case "${path}" in apps/docs/*) docs=true; docs_site=true ;; esac
   case "${path}" in sdk/proto/*|scripts/proto-generate.sh|scripts/proto-generated-check.sh) proto=true; root_go=true; axnoded=true ;; esac
   case "${path}" in
-    apps/axrun/*|apps/cli/*|control/*|gateway/*|lib/go/*|runtime/imagemgr/*|runtime/tunneld/*|runtime/volumed/*|sdk/go/*|*/go.mod|*/go.sum|go.work|go.work.sum) root_go=true ;;
+    apps/axrun/*|apps/cli/*|control/*|gateway/*|lib/go/*|runtime/imagemgr/*|runtime/tunneld/*|sdk/go/*|*/go.mod|*/go.sum|go.work|go.work.sum) root_go=true ;;
   esac
   case "${path}" in runtime/axnoded/*) axnoded=true ;; esac
   case "${path}" in runtime/egressd/*) egressd=true ;; esac
@@ -89,9 +89,6 @@ for path in "${paths[@]}"; do
   case "${path}" in *.py|sdk/python/*|pyproject.toml|uv.lock) python=true ;; esac
   case "${path}" in
     runtime/egressd/*|lib/go/networkpolicy/*|network/bpfnet/*|runtime/axnoded/cmd/network-policy-*|runtime/axnoded/cmd/verify-network-policy-*|runtime/axnoded/internal/egress/*|runtime/axnoded/internal/network/*|runtime/axnoded/internal/bpfnetstatus/*|runtime/axnoded/internal/nodeinventory/bpfnet_*|runtime/axnoded/internal/runtime/oci/spec_network.go|runtime/axnoded/internal/service/egress_*|runtime/axnoded/internal/service/network_policy_*|runtime/axnoded/internal/service/networking/*|runtime/axnoded/internal/service/allocation/egress_*|runtime/axnoded/scripts/qualification/*|sdk/proto/axern/private/runtime/egress/*|sdk/proto/axern/node/sandbox/v1/node.proto) network_policy_linux=true ;;
-  esac
-  case "${path}" in
-    apps/axrun/*|control/controld/*|sdk/proto/axern/private/rollout/*|scripts/axrun/*|scripts/dev-env/compose-managed-rollout-e2e.sh|deploy/local/compose/*managed-rollout*|mk/axrun.mk|.github/workflows/managed-rollout-ci.yml) managed_rollout=true ;;
   esac
   case "${path}" in VERSION|.github/workflows/release.yml|scripts/release/*|deploy/helm/*|deploy/images/*|mk/deploy.mk) release_contract=true ;; esac
   case "${path}" in Makefile|mk/*|scripts/*|.github/*|deploy/*|examples/*) broad=true ;; esac
@@ -103,12 +100,10 @@ done
 
 if [[ "${broad}" == "true" ]]; then
   network_policy_linux=true
-  managed_rollout=true
 fi
 
 if [[ "${all_heavy}" == "true" ]]; then
   network_policy_linux=true
-  managed_rollout=true
   release_contract=true
 fi
 
@@ -143,13 +138,11 @@ else
   printf 'verification.fast=%s\n' "$(IFS=,; echo "${fast_groups[*]}")"
 fi
 printf 'verification.network_policy_linux=%s\n' "${network_policy_linux}"
-printf 'verification.managed_rollout=%s\n' "${managed_rollout}"
 printf 'verification.release_contract=%s\n' "${release_contract}"
 
 if [[ -n "${github_output}" ]]; then
   {
     printf 'network_policy_linux=%s\n' "${network_policy_linux}"
-    printf 'managed_rollout=%s\n' "${managed_rollout}"
     printf 'release_contract=%s\n' "${release_contract}"
   } >>"${github_output}"
 fi

@@ -11,6 +11,7 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -19,20 +20,18 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	GatewayControl_ResolveServiceRoute_FullMethodName          = "/axern.control.gateway.v1.GatewayControl/ResolveServiceRoute"
-	GatewayControl_ResolveAllocationTerminal_FullMethodName    = "/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"
-	GatewayControl_ResolveTunnelRelayTarget_FullMethodName     = "/axern.control.gateway.v1.GatewayControl/ResolveTunnelRelayTarget"
-	GatewayControl_ResolveServiceReplicaTargets_FullMethodName = "/axern.control.gateway.v1.GatewayControl/ResolveServiceReplicaTargets"
+	GatewayControl_AuthorizeAllocationAccess_FullMethodName = "/axern.control.gateway.v1.GatewayControl/AuthorizeAllocationAccess"
+	GatewayControl_ResolveAllocationTerminal_FullMethodName = "/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"
+	GatewayControl_ResolveTunnelRelayTarget_FullMethodName  = "/axern.control.gateway.v1.GatewayControl/ResolveTunnelRelayTarget"
 )
 
 // GatewayControlClient is the client API for GatewayControl service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GatewayControlClient interface {
-	ResolveServiceRoute(ctx context.Context, in *ResolveServiceRouteRequest, opts ...grpc.CallOption) (*ResolveServiceRouteResponse, error)
+	AuthorizeAllocationAccess(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ResolveAllocationTerminal(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*ResolveAllocationTerminalResponse, error)
 	ResolveTunnelRelayTarget(ctx context.Context, in *ResolveTunnelRelayTargetRequest, opts ...grpc.CallOption) (*ResolveTunnelRelayTargetResponse, error)
-	ResolveServiceReplicaTargets(ctx context.Context, in *ResolveServiceReplicaTargetsRequest, opts ...grpc.CallOption) (*ResolveServiceReplicaTargetsResponse, error)
 }
 
 type gatewayControlClient struct {
@@ -43,9 +42,9 @@ func NewGatewayControlClient(cc grpc.ClientConnInterface) GatewayControlClient {
 	return &gatewayControlClient{cc}
 }
 
-func (c *gatewayControlClient) ResolveServiceRoute(ctx context.Context, in *ResolveServiceRouteRequest, opts ...grpc.CallOption) (*ResolveServiceRouteResponse, error) {
-	out := new(ResolveServiceRouteResponse)
-	err := c.cc.Invoke(ctx, GatewayControl_ResolveServiceRoute_FullMethodName, in, out, opts...)
+func (c *gatewayControlClient) AuthorizeAllocationAccess(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, GatewayControl_AuthorizeAllocationAccess_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,23 +69,13 @@ func (c *gatewayControlClient) ResolveTunnelRelayTarget(ctx context.Context, in 
 	return out, nil
 }
 
-func (c *gatewayControlClient) ResolveServiceReplicaTargets(ctx context.Context, in *ResolveServiceReplicaTargetsRequest, opts ...grpc.CallOption) (*ResolveServiceReplicaTargetsResponse, error) {
-	out := new(ResolveServiceReplicaTargetsResponse)
-	err := c.cc.Invoke(ctx, GatewayControl_ResolveServiceReplicaTargets_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // GatewayControlServer is the server API for GatewayControl service.
 // All implementations must embed UnimplementedGatewayControlServer
 // for forward compatibility
 type GatewayControlServer interface {
-	ResolveServiceRoute(context.Context, *ResolveServiceRouteRequest) (*ResolveServiceRouteResponse, error)
+	AuthorizeAllocationAccess(context.Context, *ResolveAllocationTerminalRequest) (*emptypb.Empty, error)
 	ResolveAllocationTerminal(context.Context, *ResolveAllocationTerminalRequest) (*ResolveAllocationTerminalResponse, error)
 	ResolveTunnelRelayTarget(context.Context, *ResolveTunnelRelayTargetRequest) (*ResolveTunnelRelayTargetResponse, error)
-	ResolveServiceReplicaTargets(context.Context, *ResolveServiceReplicaTargetsRequest) (*ResolveServiceReplicaTargetsResponse, error)
 	mustEmbedUnimplementedGatewayControlServer()
 }
 
@@ -94,17 +83,14 @@ type GatewayControlServer interface {
 type UnimplementedGatewayControlServer struct {
 }
 
-func (UnimplementedGatewayControlServer) ResolveServiceRoute(context.Context, *ResolveServiceRouteRequest) (*ResolveServiceRouteResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResolveServiceRoute not implemented")
+func (UnimplementedGatewayControlServer) AuthorizeAllocationAccess(context.Context, *ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AuthorizeAllocationAccess not implemented")
 }
 func (UnimplementedGatewayControlServer) ResolveAllocationTerminal(context.Context, *ResolveAllocationTerminalRequest) (*ResolveAllocationTerminalResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveAllocationTerminal not implemented")
 }
 func (UnimplementedGatewayControlServer) ResolveTunnelRelayTarget(context.Context, *ResolveTunnelRelayTargetRequest) (*ResolveTunnelRelayTargetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveTunnelRelayTarget not implemented")
-}
-func (UnimplementedGatewayControlServer) ResolveServiceReplicaTargets(context.Context, *ResolveServiceReplicaTargetsRequest) (*ResolveServiceReplicaTargetsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResolveServiceReplicaTargets not implemented")
 }
 func (UnimplementedGatewayControlServer) mustEmbedUnimplementedGatewayControlServer() {}
 
@@ -119,20 +105,20 @@ func RegisterGatewayControlServer(s grpc.ServiceRegistrar, srv GatewayControlSer
 	s.RegisterService(&GatewayControl_ServiceDesc, srv)
 }
 
-func _GatewayControl_ResolveServiceRoute_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResolveServiceRouteRequest)
+func _GatewayControl_AuthorizeAllocationAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveAllocationTerminalRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GatewayControlServer).ResolveServiceRoute(ctx, in)
+		return srv.(GatewayControlServer).AuthorizeAllocationAccess(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GatewayControl_ResolveServiceRoute_FullMethodName,
+		FullMethod: GatewayControl_AuthorizeAllocationAccess_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GatewayControlServer).ResolveServiceRoute(ctx, req.(*ResolveServiceRouteRequest))
+		return srv.(GatewayControlServer).AuthorizeAllocationAccess(ctx, req.(*ResolveAllocationTerminalRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -173,24 +159,6 @@ func _GatewayControl_ResolveTunnelRelayTarget_Handler(srv interface{}, ctx conte
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GatewayControl_ResolveServiceReplicaTargets_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResolveServiceReplicaTargetsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(GatewayControlServer).ResolveServiceReplicaTargets(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: GatewayControl_ResolveServiceReplicaTargets_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GatewayControlServer).ResolveServiceReplicaTargets(ctx, req.(*ResolveServiceReplicaTargetsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // GatewayControl_ServiceDesc is the grpc.ServiceDesc for GatewayControl service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -199,8 +167,8 @@ var GatewayControl_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*GatewayControlServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ResolveServiceRoute",
-			Handler:    _GatewayControl_ResolveServiceRoute_Handler,
+			MethodName: "AuthorizeAllocationAccess",
+			Handler:    _GatewayControl_AuthorizeAllocationAccess_Handler,
 		},
 		{
 			MethodName: "ResolveAllocationTerminal",
@@ -209,10 +177,6 @@ var GatewayControl_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResolveTunnelRelayTarget",
 			Handler:    _GatewayControl_ResolveTunnelRelayTarget_Handler,
-		},
-		{
-			MethodName: "ResolveServiceReplicaTargets",
-			Handler:    _GatewayControl_ResolveServiceReplicaTargets_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

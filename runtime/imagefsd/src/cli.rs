@@ -20,7 +20,6 @@ const DEFAULT_NYDUS_DECODED_CACHE_BYTES: usize = 8 * 1024 * 1024;
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 enum Source {
     Local,
-    Oss,
     Nydus,
 }
 
@@ -28,7 +27,6 @@ impl Source {
     fn as_str(self) -> &'static str {
         match self {
             Self::Local => "local",
-            Self::Oss => "oss",
             Self::Nydus => "nydus",
         }
     }
@@ -53,8 +51,7 @@ struct FsOptions {
     pid_file: String,
     #[arg(long, default_value = "")]
     log_file: String,
-    /// for oss: object name,
-    /// for local: local file name
+    /// Local file name or Nydus image identity.
     #[arg(long)]
     name: String,
     /// FUSE mountpoint dir
@@ -63,16 +60,13 @@ struct FsOptions {
     /// Stable control-plane node identity used by bounded cache metrics.
     #[arg(long, value_parser = parse_non_empty_node_id)]
     node_id: String,
-    /// for oss: local cached file path,
-    /// for local: local file path
+    /// Local raw file path.
     #[arg(long, default_value = "")]
     cache_file: String,
     /// for nydus: cache directory for blob files
     #[arg(long, default_value = "")]
     cache_dir: String,
-    /// for oss: oss config file path,
-    /// for local: useless
-    /// for nydus: backend config file path
+    /// Nydus backend config file path; unused for local raw files.
     #[arg(long, default_value = "")]
     cfg: String,
     #[arg(long, value_enum)]
@@ -191,8 +185,8 @@ mod tests {
             "node-a",
             vec![
                 KeyValue::new("imagefsd.mountpoint", "/mnt/distill"),
-                KeyValue::new("imagefsd.src", "oss"),
-                KeyValue::new("service.instance.id", "mount:node-a:oss:/mnt/distill"),
+                KeyValue::new("imagefsd.src", "local"),
+                KeyValue::new("service.instance.id", "mount:node-a:local:/mnt/distill"),
             ],
         );
 
@@ -210,11 +204,11 @@ mod tests {
         );
         assert_eq!(
             resource_value(&resource, "imagefsd.src"),
-            Some(Value::from("oss"))
+            Some(Value::from("local"))
         );
         assert_eq!(
             resource_value(&resource, "service.instance.id"),
-            Some(Value::from("mount:node-a:oss:/mnt/distill"))
+            Some(Value::from("mount:node-a:local:/mnt/distill"))
         );
     }
 
@@ -249,6 +243,23 @@ mod tests {
         let socket = resolve_chunk_server_socket("/tmp/chunkdb", "");
 
         assert_eq!(socket, Some(default_chunk_server_socket("/tmp/chunkdb")));
+    }
+
+    #[test]
+    fn mount_rejects_removed_remote_raw_source() {
+        let result = Cli::try_parse_from([
+            "imagefsd",
+            "mount",
+            "--name",
+            "image",
+            "--mountpoint",
+            "/tmp/image",
+            "--node-id",
+            "node-a",
+            "--src",
+            "oss",
+        ]);
+        assert!(result.is_err());
     }
 
     #[test]

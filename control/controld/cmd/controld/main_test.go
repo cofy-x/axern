@@ -15,8 +15,9 @@ func TestParseFlagsResourceCPUOvercommitRatio(t *testing.T) {
 		"-postgres-dsn=postgres://test",
 		"-secrets-master-key=test-only-master-key-32-bytes!!!",
 		"-tls-ca-cert=ca.crt",
-		"-tls-cert=server.crt",
-		"-tls-key=server.key",
+		"-workload-cluster=cluster.test",
+		"-workload-bundle=controld.pem",
+		"-workload-signer-bundle=signer.pem",
 		"-resource-cpu-overcommit-ratio=2.5",
 	}
 
@@ -37,8 +38,9 @@ func TestParseFlagsRejectsInvalidResourceCPUOvercommitRatio(t *testing.T) {
 		"-postgres-dsn=postgres://test",
 		"-secrets-master-key=test-only-master-key-32-bytes!!!",
 		"-tls-ca-cert=ca.crt",
-		"-tls-cert=server.crt",
-		"-tls-key=server.key",
+		"-workload-cluster=cluster.test",
+		"-workload-bundle=controld.pem",
+		"-workload-signer-bundle=signer.pem",
 		"-resource-cpu-overcommit-ratio=0",
 	}
 
@@ -59,8 +61,9 @@ func TestParseFlagsRejectsNegativeReconcileTimeout(t *testing.T) {
 		"-postgres-dsn=postgres://test",
 		"-secrets-master-key=test-only-master-key-32-bytes!!!",
 		"-tls-ca-cert=ca.crt",
-		"-tls-cert=server.crt",
-		"-tls-key=server.key",
+		"-workload-cluster=cluster.test",
+		"-workload-bundle=controld.pem",
+		"-workload-signer-bundle=signer.pem",
 		"-reconcile-timeout=" + (-time.Second).String(),
 	}
 

@@ -24,7 +24,6 @@ export interface TunnelConnectorRunner {
 export interface TunnelControl {
   createSession(options: {
     allocationId: string;
-    upstream: string;
     proxyPort: number;
     ttlSeconds: number;
     readyTimeoutMs: number;
@@ -47,7 +46,6 @@ export async function startTunnelRuntime(options: {
   const proxyPort = options.tunnel.proxyPort ?? defaultProxyPort;
   const result = await options.control.createSession({
     allocationId: options.allocationId,
-    upstream: options.tunnel.upstream,
     proxyPort,
     ttlSeconds,
     readyTimeoutMs: options.tunnel.readyTimeoutMs ?? defaultReadyTimeoutMs,

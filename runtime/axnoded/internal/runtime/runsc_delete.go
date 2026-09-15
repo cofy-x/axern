@@ -35,8 +35,8 @@ func (r *RunscServiceHandler) DeleteContainer(ctx context.Context, request *apip
 // sandbox state lock until the workload exits. Calling "delete --force"
 // directly can therefore deadlock: delete waits for run while run cannot
 // finish its state transition. A forced delete must signal the sandbox first,
-// allowing the runtime runner to reap runsc and release the lock, and only
-// then remove the stopped OCI state.
+// allowing runsc to finish and release the lock, and only then remove the
+// stopped OCI state.
 func (r *RunscServiceHandler) deleteRuntimeContainer(ctx context.Context, containerID string, force bool) error {
 	var stopErr error
 	if force {
@@ -90,7 +90,7 @@ func (r *RunscServiceHandler) waitForForegroundRunExit(parent context.Context, c
 func (r *RunscServiceHandler) cleanupContainer(ctx context.Context, traceID, containerID, msg string) {
 	logrus.WithField("trace_id", traceID).Warn(msg)
 	if err := r.deleteRuntimeContainer(ctx, containerID, true); err != nil {
-		logrus.WithField("trace_id", traceID).Warnf("runtime cleanup for %s failed; retaining rootfs and writable reservation: %v", containerID, err)
+		logrus.WithField("trace_id", traceID).Warnf("runtime cleanup for %s failed; retaining rootfs and writable charge: %v", containerID, err)
 		return
 	}
 	if err := cleanupOwnedRootfsStorage(containerID, r.rootfsViews.Remove, r.writableCapacity.Release); err != nil {

@@ -1,28 +1,16 @@
 # controld Postgres Schema Design
 
-Postgres is the authoritative store for `controld`. The canonical schema is
-defined by `internal/postgres/migrations/*.sql`; application startup validates
-the applied versions but never mutates the schema.
+Postgres is the authoritative store for `controld`. The canonical schema is defined by `internal/postgres/migrations/*.sql`; application startup validates the applied versions but never mutates the schema.
 
 ## Migration Layout
 
-The schema is split by durable ownership boundary:
+The rebuild-only schema has one canonical baseline:
 
 | Migration | Ownership |
 | --- | --- |
-| `000001_initial.sql` | Nodes, namespaces, environments, secrets, runs, services, desired-spec identity, CPU/memory/ephemeral-storage quota and reservations, allocations, execution leases, reconciliation, and audit state |
-| `000002_tunnel_sessions.sql` | Tunnel sessions, peer events, and the tunnel revision stream |
-| `000003_functions.sql` | Functions, revisions, deployments, invocations, events, idempotency records, and bundles |
-| `000004_managed_rollouts.sql` | Agent Profiles, rollout planning and execution, worker leases, metering, evidence, and artifact metadata |
+| `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, allocation access grants, tunnels, lifecycle delivery, and audit state |
 
-Each migration declares the final shape of its domain. Migrations run in one
-direction under a Postgres advisory lock and are recorded in
-`schema_migrations` with version, name, checksum, and application time. The
-repository currently supports rebuild-only database upgrades, so a coordinated
-contract replacement folds schema changes into the owning baseline migration
-and requires the database to be rebuilt. It must not add a compatibility
-migration or dual-read path without an explicit persisted-database compatibility
-contract.
+Each migration declares the final shape of its domain. Migrations run in one direction under a Postgres advisory lock and are recorded in `schema_migrations` with version, name, checksum, and application time. The repository uses rebuild-only database upgrades: schema changes are folded into the owning baseline migration and the database is recreated. Compatibility migrations and dual-read paths are outside the current contract.
 
 ```mermaid
 sequenceDiagram
@@ -39,11 +27,7 @@ sequenceDiagram
   Retention->>DB: require the complete schema
 ```
 
-An edited checksum, a missing version, or a database ahead of the binary is a
-startup error for an existing database. Rebuild the database when a coordinated
-baseline replacement changes a checksum. Once a migration participates in a
-declared persisted-database compatibility contract, it is immutable and future
-schema changes use a new sequential migration.
+An edited checksum, a missing version, or a database ahead of the binary is a startup error. Rebuild the database whenever a baseline checksum changes.
 
 ## Core Control-Plane Model
 
@@ -53,141 +37,64 @@ erDiagram
   namespaces ||--o{ environments : scopes
   namespaces ||--o{ secrets : scopes
   environments ||--o{ runs : configures
-  environments ||--o{ services : configures
+  environments ||--o| environment_secret_references : protects
+  secrets ||--o{ environment_secret_references : referenced
   runs ||--|| allocations : executes
-  services ||--o{ allocations : executes
-  services ||--o{ service_events : records
+  runs ||--o{ run_secret_references : protects
+  secrets ||--o{ run_secret_references : referenced
   nodes ||--o{ allocations : hosts
   nodes ||--|| node_summaries : reports
-  nodes ||--o{ node_runtime_sets : supports
-  allocations ||--o{ workload_reservations : reserves
-  allocations ||--o{ execution_leases : authorizes
+  allocations ||--o{ allocation_access_grants : authorizes_access
   allocations ||--o| allocation_reconcile_queue : retries
-  allocations ||--o{ allocation_capability_dependencies : requires
-	allocations ||--o| allocation_capability_admissions : admits
-  allocations ||--o| allocation_capability_condition_sets : owns
-  allocation_capability_condition_sets ||--o{ allocation_capability_conditions : projects
-  allocations ||--o| allocation_capability_reconcile_queue : verifies
-  allocation_capability_reconcile_queue ||--o{ allocation_capability_reconcile_pending_keys : merges
-  nodes ||--o{ node_capability_transitions : records
+  allocations ||--o{ allocation_capability_requirements : requires
+  allocations ||--o| allocation_capability_conditions : projects
 ```
 
-### Catalog and namespace state
+### Environment inputs and namespace state
 
-- `namespaces` is the durable scope and optimistic-lock row.
-- `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage
-  admission limits.
-- `environment_templates` stores versioned catalog entries.
-- `environments.spec` stores user intent; `resolved_template` stores the
-  normalized runtime snapshot used by execution paths.
-- `namespace_quota_events` records durable admission decisions independently
-  from operator audit events.
+- `namespaces` is the durable scope and admission lock row. Its `deleted_at` is a security tombstone that prevents a deleted namespace name from being reused and confused with retained Run history or revoked authorization records; this is the only generic-resource-style soft deletion in the workload schema.
+- `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage admission limits.
+- Built-in Environment templates are deployment configuration used only during resolution. They have no public API, product identity, or database table.
+- `environments.spec` stores normalized user intent and `resolved_spec` stores the immutable runtime input available for new admission. Environment deletion physically removes this row.
+- `namespace_quota_events` records durable admission decisions independently from operator audit events.
 
-Namespace names are stored on scoped resources for filtering and ownership.
-Only relationships whose deletion semantics are part of the domain contract
-use database foreign keys.
+Namespace names are stored on scoped resources for filtering and ownership. Only relationships whose deletion semantics are part of the domain contract use database foreign keys.
 
 ### Secrets
 
 `secrets` stores encrypted payloads and query-safe metadata:
 
 - `data_keys` lists available keys without exposing values.
-- `encrypted_payload` is never returned after creation.
-- `visibility='PUBLIC'` identifies resources visible through the generic
-  Secret API.
-- `visibility='INTERNAL'`, `owner_type`, and `owner_id` identify credentials
-  owned by another domain, including Agent Profiles.
+- `encrypted_payload` is never returned after creation. Execution configuration stores secret references, not plaintext.
+- `environment_secret_references` protects one required registry credential for an Environment. `run_secret_references` protects the Run snapshot's registry credential together with deduplicated required execution inputs while the Run is non-terminal. Composite foreign keys enforce that owners and Secrets share one Namespace; terminalization drops Run references atomically, and Environment deletion removes only the reusable Environment's reference without weakening an admitted Run's independent lock.
 
-Execution configuration stores secret references, not plaintext. Public Secret
-queries use the partial public index; retention uses the internal ownership
-index.
+### Runs and allocations
 
-### Runs, services, and allocations
+`runs` models one user-visible execution lifecycle and is the only durable owner of immutable execution config, the admitted Environment source and resolved snapshots, public status, result, diagnostics, message, optimistic version, and user-visible timestamps. Admission copies both Environment snapshots in the same transaction as the Run, Allocation, capability requirements, Secret references, and create intent. Node creation and recovery never depend on the continued existence of the Environment row. Every Run owns exactly one Allocation through the unique, non-null `allocations.run_id` foreign key. The uniqueness constraint is intentional: the product does not reschedule one Run onto multiple or replacement Allocations. A retry of execution is a new Run.
 
-`runs` models single-shot execution and owns one allocation ID. `services`
-models desired replicas, rollout policy, probes, autoscaling, and current
-allocation IDs. `service_events` stores operational history outside the current
-service row.
+`allocations` is the concrete execution unit and infrastructure-convergence record. Its globally unique, never-reused `allocation_id` is the data-plane and cleanup identity; `run_id` is its sole owner and `node_id` is its immutable execution binding. `lifecycle_state` contains only `BOUND`, `STARTING`, `ACTIVE`, `RELEASING`, or `RELEASED`. A node `STOPPED` observation atomically commits result fields to the Run and persists the Allocation as `RELEASING`; it is never stored as an Allocation state. Allocation has no config, public status, exit result, diagnostic, message, version, or TaskSet-specific preparation columns.
 
-`allocations` is the shared execution unit. Its `owner_type` and `owner_id`
-identify the Run or Service, while `node_id`, `attempt`, status, readiness, and
-exit fields describe the current concrete execution attempt. For a TaskSet
-workspace, `workspace_preparation` stores the typed node-observed payload
-format/digest, cache result, image resolution/pull time, and COW preparation
-time. Service replica reads expose this allocation fact without parsing node
-logs.
+`allocations` also stores the immutable admitted CPU, sandbox-memory, and ephemeral-storage request. This is the single resource charge: every Allocation whose lifecycle is not `RELEASED` counts at Namespace and Node admission. There is no Reservation row, release timestamp, or accounting lifecycle parallel to Allocation cleanup.
 
-`workload_reservations` records admitted CPU, sandbox-memory, and
-ephemeral-storage requests. `sandbox_memory_request_bytes` is the public
-request without a runtime overhead side channel. A non-null `released_at`
-closes the control-plane reservation without erasing accounting history;
-node admission still honors a larger axnoded local commitment until host
-cleanup completes.
+Allocation memory usage is live node-local diagnostic data rebuilt from the authoritative cgroup. It is not persisted by controld and does not participate in admission or lifecycle decisions. The memory budget used during placement is validated inside the admission transaction.
 
-`allocation_memory_admission_evidence` freezes the node memory budget used by
-the admission transaction, including distinct physical capacity, source
-allocatable, delegated-root limit, system reserve, and node-local commitment
-facts. `allocation_memory_observations` keeps only the
-latest attempt- and revision-fenced host memcg sample for diagnostics; it is
-not a second reservation ledger.
+`allocation_capability_requirements` stores only the immutable typed key and platform loss policy. It is owned through the Allocation foreign key and does not repeat Node binding or preserve placement observations. The Allocation binding, resource charge, requirement rows, and create intent commit in one transaction; that transaction is the admission decision.
 
-`allocation_capability_dependencies` stores one typed key per allocation with
-catalog loss policy, placement proof, and create-time admitted proof.
-`allocation_capability_admissions` is the immutable per-attempt commit marker
-and stores the canonical admitted dependency-set digest, including the
-zero-dependency case. The first post-create admission transaction binds the
-proof rows, projects conditions, and inserts this marker atomically. A retried
-Create may only replay the exact digest and proof set; it never refreshes the
-historical create proof. Runtime capability reconciliation is condition-only. The
-`(node_id, capability_key_id, allocation_id)` index is the authoritative path
-from a node transition to affected allocations; report processing never scans
-allocation configuration JSON.
-
-`allocation_capability_condition_sets` owns the latest attempt, full-set
-revision, observation time, and canonical protobuf SHA-256 payload digest.
-`allocation_capability_conditions` stores the normalized per-key projection
-and references the same `(allocation_id, attempt, revision)`, so a new
-allocation attempt can restart its node-local revision while an old attempt
-remains fenced, and readers cannot observe a partially replaced generation.
-An exact revision replay is idempotent only when the digest matches; a
-different payload at the same revision is rejected. Conditions are independent
-of allocation lifecycle columns and cannot update status, readiness, exit
-information, or the primary message.
+`allocation_capability_conditions` stores one complete latest diagnostic projection and its `observed_at`. Older reports are ignored, exact equal-time replay is idempotent, and conflicting equal-time data is rejected. Terminal Allocations ignore late reports. Conditions cannot update Run or Allocation lifecycle, readiness, exit information, or the primary message.
 
 ### Reconciliation and audit
 
-`allocation_reconcile_queue` is the durable retry queue. `next_run_at`,
-`reconcile_attempts`, and `last_error` describe retry state; `lease_owner` and
-`lease_expires_at` provide bounded multi-worker claims.
+`allocation_reconcile_queue` is the sole durable dispatcher for node Create/Delete operations. `next_run_at`, `reconcile_attempts`, and `last_error` describe delivery state; `claim_owner` and `claim_expires_at` provide renewable multi-worker delivery fencing and are not execution leases. Run admission, cancellation, terminal observation, and create exhaustion write or replace this intent in the same transaction as their authoritative lifecycle changes. Completion and rescheduling require the current claim owner, so an expired worker cannot acknowledge newer work.
 
-`node_capability_transitions` records idempotent effective state, evidence, and
-bounded reason-code changes. Ordinary TTL refresh without one of those changes
-does not create history. `allocation_capability_reconcile_queue` owns claim and
-retry state; `allocation_capability_reconcile_pending_keys` merges the latest
-snapshot sequence per key. This capability-loss queue is separate from
-create/delete lifecycle intent.
+Lifecycle transactions lock the Allocation before its queue row. Node reports, cancellation, worker completion, and release therefore share one lock order; a terminal report racing successful node creation cannot deadlock or let the stale create completion erase the replacement delete intent.
 
-A node report replaces the latest summary, evaluates effective transitions,
-inserts idempotent transition rows, and merges pending keys for directly indexed
-active `DEGRADE` or `FAIL_STOP` dependencies in one transaction.
-`ADMISSION_ONLY` rows remain durable admission evidence but are never runtime
-reconcile work. Rollback leaves all four projections
-unchanged. Capability condition reporting likewise replaces the attempt-fenced
-set header and normalized rows in one transaction; it has no write path to the
-allocation lifecycle columns.
+Capability loss has no controld queue or transition-history table. Axnoded owns the crash-safe Allocation-scoped verification/termination intent. Controld persists only the latest ordered Node summary and condition projection; its lifecycle queue remains limited to create/delete convergence.
 
-`admin_audit_events` records operator mutations before lifecycle coordination
-state changes. It is distinct from quota decisions and workload event history.
+`admin_audit_events` records operator mutations before lifecycle coordination state changes. It is distinct from quota decisions and workload event history.
 
-## Nodes and Execution Leases
+## Nodes, Execution Leases, and Access Grants
 
-`nodes` stores identity, control target, authentication hash, heartbeat
-freshness, lifecycle status, retirement reason, and version. Active identities
-may report and participate in placement. Retirement is irreversible, retains
-historical references, and commits with an admin audit event after lifecycle
-and storage blockers are clear. `node_summaries` stores rich reported capacity
-and inventory, while `node_runtime_sets` keeps runtime eligibility cheap to
-query.
+`nodes` stores an explicitly admitted identity, a 64-character credential hash, the latest observed control target and heartbeat time, lifecycle status, and retirement facts. Admission is an audited administrator operation; the mutable target belongs to authenticated node observation, while an unknown node report cannot create identity, rotate credentials, or revive a retired node. Retirement is irreversible, retains historical references, and commits with an admin audit event after lifecycle and storage blockers are clear. `node_summaries.summary` stores the latest complete observation. `node_observation_instances` retains only the greatest accepted sequence per concrete node process so a delayed superseded process cannot replace current capacity or capability facts after restart. These small ordering fences intentionally survive process restarts and disappear when the Node identity is deleted; without a separately authenticated node session, pruning a superseded instance would make its delayed reports indistinguishable from a new process. Capacity and allocatable are the sole scheduling quantities; memory boundaries support their validation, while pool, storage, cleanup-debt, and retiring-cgroup diagnostics remain non-authoritative telemetry. Runtime eligibility is not stored because Axern has one production execution boundary.
 
 ```mermaid
 sequenceDiagram
@@ -196,170 +103,46 @@ sequenceDiagram
   participant DB as "Postgres"
   participant Node as "axnoded"
 
-  Gateway->>Control: acquire execution lease
-  Control->>DB: persist token hash, attempt, expiry, revision
-  Control-->>Gateway: return plaintext token once
-  DB-->>Node: notify lease stream changed
-  Node->>Control: watch from last revision
-  Control-->>Node: hashes, revocations, and expiries
+  Gateway->>Control: request allocation access grant
+  Control->>DB: persist token hash, allocation and node identity, expiry, revision
+  Control-->>Gateway: return plaintext allocation access token once
+  DB-->>Node: notify access-grant stream changed
+  Node->>Control: watch access grants from last revision
+  Control-->>Node: hash-only grants, revocations, and expiries
 ```
 
-`execution_leases` binds authorization to an allocation, node, and attempt.
-Only token hashes are stored. `control_revisions` owns the monotonic revision
-stream, and the execution-lease trigger wakes watchers without making
-notifications authoritative state.
+`allocation_access_grants` binds data-plane authorization to an exact Allocation ID and Node ID. Only token hashes are stored. `control_revisions` owns the monotonic delivery stream, and the access-grant trigger wakes watchers without making notifications authoritative state.
+
+Gateway and node protocols deliberately use different messages. `AllocationAccessGrant` exists only on the trusted gateway issuance path and carries plaintext. `NodeAllocationAccessGrant` is the node validation projection and never has a plaintext field. Neither message carries a type or routing target; the Allocation binding owns both purpose and node routing.
+
+Execution liveness uses no Postgres lease entity. A successful authenticated `ReportNode` response contains the complete set of Allocations currently authorized on that Node, each with a TTL. Axnoded measures expiry from receipt time and persists only that deadline in its authoritative local Allocation record. Omission, expiry, invalid identity, or inability to renew stops the sandbox fail-closed.
 
 ## Tunnel Model
 
 ```mermaid
 erDiagram
   allocations ||--o{ tunnel_sessions : opens
-  nodes ||--o{ tunnel_sessions : serves
   tunnel_sessions ||--o{ tunnel_session_events : records
 ```
 
-`tunnel_sessions` stores the selected allocation attempt, remote port, edge and
-relay targets, encrypted node token, token hashes, revision, traffic counters,
-expiry, and revocation state. A partial unique index prevents two active
-sessions from claiming the same allocation port.
+`tunnel_sessions` stores the selected Allocation ID, remote port, edge and relay targets, encrypted node token, token hashes, node-desired-state revision, traffic counters, expiry, and terminal state. Namespace ownership and Node routing are derived through the immutable Allocation-to-Run and Allocation-to-Node relationships rather than copied into the session. A partial unique index prevents two active sessions from claiming the same allocation port.
 
-`tunnel_session_events` is append-only peer and lifecycle history. The
-`tunnel_sessions` control revision supports incremental node convergence.
-
-## Function Model
-
-```mermaid
-erDiagram
-  functions ||--o{ function_revisions : versions
-  functions ||--|| function_deployments : deploys
-  functions ||--o{ function_invocations : invokes
-  functions ||--o{ function_events : records
-  functions ||--o{ function_idempotency_records : deduplicates
-```
-
-- `functions` owns namespace/name identity and current product status.
-- `function_revisions` stores immutable source and spec snapshots.
-- `function_deployments` stores the current worker service and scaling state.
-- `function_invocations` stores request, result, error, timeout, duration, and
-  lifecycle timestamps.
-- `function_events.event_sequence` provides a globally ordered watch cursor.
-- `function_idempotency_records` fences repeated requests for a function
-  revision.
-- `function_bundles` stores digest-addressed worker payloads for the private
-  Function download path.
-
-Function execution still uses owned worker services; these tables do not create
-a second general execution backend.
-
-## Managed Rollout Model
-
-```mermaid
-erDiagram
-  agent_profiles ||--o{ agent_profile_operations : fences
-  agent_profiles ||--o{ agent_profile_doctor_jobs : checks
-  rollouts ||--|| rollout_plans : freezes
-  rollouts ||--o{ rollout_tasks : selects
-  rollouts ||--o{ rollout_episodes : executes
-  rollouts ||--o{ rollout_work_items : schedules
-  rollouts ||--o{ rollout_events : records
-  rollouts ||--o{ rollout_artifacts : describes
-  rollouts ||--o{ rollout_usage_reservations : meters
-  rollout_episodes ||--o{ rollout_artifacts : produces
-  rollout_episodes ||--o{ rollout_usage_reservations : consumes
-```
-
-### Profiles and credentials
-
-`agent_profiles` owns the provider, wire API, agent contract, concurrency, and
-current immutable credential version. Profile operations store request hashes
-and results by idempotency key.
-
-Profile credentials are internal Secret rows. Generic Secret APIs cannot list
-or fetch them. Rotation creates a new credential version; it does not mutate a
-credential used by an accepted rollout.
-
-### Frozen rollout contract
-
-`rollouts` stores the accepted spec, start policy, status, durable terminal
-failure class, source and descriptor digests, summary, deadline, and preflight
-report. The rollout-level failure class also covers planning failures, where no
-Episode exists, and drives diagnosis and CLI exit status. The row also stores
-the frozen Profile snapshot and credential version.
-
-`rollouts.profile_id` is snapshot metadata, not a foreign key to the current
-Profile. Deleting a Profile therefore cannot invalidate retained or running
-rollouts. The frozen credential Secret remains protected by a direct foreign
-key until no retained rollout references it.
-
-`rollout_plans` stores the immutable resolved plan. `rollout_tasks` stores the
-selected task contracts in deterministic ordinal order. `rollout_episodes`
-stores attempt and execution-generation outcomes, verifier result, reward,
-usage, cost, duration, failure class, and execution facts. Rollout execution
-facts copy the allocation workspace preparation and add verifier materialization,
-allocation identity, runtime class, and frozen agent bundle digest.
-
-### Durable work and doctor jobs
-
-`rollout_work_items` schedules exactly one of three owners:
-
-- planning work owns a rollout and no episode;
-- episode work owns a rollout and episode;
-- Profile doctor work owns a doctor job and no rollout.
-
-Database check constraints enforce this ownership union and require Profile ID,
-version, and concurrency to be either all absent or all valid. Lease hashes,
-expiry, cancellation state, attempts, and retry time make claims recoverable
-across worker restarts.
-
-`agent_profile_doctor_jobs` stores the frozen Profile and credential reference,
-model, typed checks, health result, and completion state. Provider probes are
-executed only by leased workers; controld persists scheduling and results.
-
-### Metering, evidence, and artifacts
-
-`rollout_usage_reservations` persists reserved and actual token/cost usage.
-Planning probes may have no episode, so `episode_id` is nullable; episode usage
-binds to both episode and execution generation.
-
-`rollout_artifacts` stores metadata and object keys, never public object-store
-URLs or credentials. Artifact tickets are validated against artifact ID,
-generation, digest, size, expiry, and audience before gateway streaming.
-
-`rollout_events.sequence` is the reconnect cursor for watch clients. Events and
-notifications accelerate observation; rollout rows, work rows, and usage rows
-remain the authoritative state.
+`tunnel_session_events` is append-only peer and lifecycle history. The `tunnel_sessions` revision is only the ordered node desired-state feed: create and terminalization advance it, while renewal, non-terminal node status, relay peer events, and traffic counters do not. PostgreSQL notifications wake node-specific watchers; fixed high-water reads make reconnects and concurrent commits lossless. Each watcher also sleeps until its node's nearest active TTL deadline, so expiry does not depend on unrelated writes or polling. Terminal session rows are retained as recovery tombstones, while event retention may prune older diagnostic history.
 
 ## Query and Index Intent
 
 Indexes follow server-side access paths:
 
 - namespace and creation cursors for list APIs;
-- node/status and owner/status for placement and lifecycle projection;
-- partial active indexes for reservations, leases, tunnels, and live services;
-- partial pending/expired claim indexes and leased owner, rollout, and Profile
-  capacity indexes for the rollout work claim predicate;
-- sequence indexes for reconnectable Function and rollout watches;
+- composite `(created_at, id)` keyset indexes and JSONB label indexes for Run, Environment, and Secret list filters;
+- node/lifecycle and namespace/run-status indexes for placement and lifecycle projection;
+- partial active indexes for Allocation resource charges, access grants, tunnels, and live Allocations;
 - retention indexes on expiry and creation timestamps;
-- public visibility and internal ownership indexes for Secret boundaries.
 
-New indexes require a concrete query, reconciliation, retention, or uniqueness
-contract. Low-cardinality status values are not indexed alone.
+New indexes require a concrete query, reconciliation, retention, or uniqueness contract. Low-cardinality status values are not indexed alone.
 
 ## Storage Rules
 
-Typed columns own identity, state-machine status, foreign keys, optimistic
-versions, timestamps, budgets, usage totals, and fields used for ordering or
-selection. JSONB owns versioned intent and snapshots that are read and written
-as a whole.
+Typed columns own identity, state-machine status, foreign keys, required concurrency versions, timestamps, budgets, usage totals, and fields used for ordering or selection. JSONB owns typed protobuf intent and immutable snapshots that are read and written as a whole. Database checks reject unknown Run and TunnelSession states, unsupported Secret types, empty Node routing or authentication identity, empty quota-event Environment identity, non-object specifications and labels, invalid versions or revisions, negative counters, and impossible timestamp ordering before those values can become authoritative. Quota rejection events name the real Environment request but have no `run_id`, because rejection means no Run exists.
 
-Notifications are wake-up hints only. Rollout work triggers emit only when new
-candidate supply appears or a lease releases capacity; a candidate may have a
-future `next_run_at`, and lease renewal and other non-actionable updates stay
-silent. Unique supply hints wake one compatible
-FIFO waiter per replica, while capacity hints wake at most one waiter per
-capability group. Workers always re-read durable rows after a notification and
-periodic jittered safety sweeps recover missed notifications.
-
-Retention may delete completed history only after checking domain references.
-It must not delete current workloads, active leases, claimed work, frozen
-credentials, or artifact metadata whose object lifecycle is incomplete.
+Retention may delete completed history only after checking domain references. A terminal Run is eligible only after its Allocation is `RELEASED`, no lifecycle delivery intent remains, every allocation access grant is revoked or expired, and no pending/running/degraded TunnelSession survives. It must not delete current workloads or active access paths through cascading foreign keys.

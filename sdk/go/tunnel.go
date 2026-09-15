@@ -72,7 +72,6 @@ func (s *Sandbox) OpenTunnel(ctx context.Context, options TunnelOptions) (*Sandb
 	}
 	result, err := s.client.CreateTunnelSession(ctx, CreateTunnelSessionOptions{
 		AllocationID: s.state.AllocationID,
-		LocalTarget:  options.Upstream,
 		RemotePort:   proxyPort,
 		TTL:          ttl,
 		WaitReady:    true,
@@ -103,7 +102,6 @@ func (s *Sandbox) OpenTunnel(ctx context.Context, options TunnelOptions) (*Sandb
 		defer wg.Done()
 		err := tunnelConnectorRunner(tunnelCtx, tunnelrelay.ConnectorConfig{
 			SessionID:        result.Session.GetSessionID(),
-			EdgeTarget:       result.Session.GetEdgeTarget(),
 			ClientEdgeTarget: result.Session.GetClientEdgeTarget(),
 			ClientToken:      result.ClientToken,
 			LocalTarget:      options.Upstream,

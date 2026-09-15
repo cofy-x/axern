@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
@@ -20,7 +20,8 @@ import (
 type Control interface {
 	CreateRun(ctx context.Context, params runkernel.CreateParams, now time.Time) (*runv1.Run, error)
 	GetRun(ctx context.Context, id string) (*runv1.Run, error)
-	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error)
+	WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error)
+	ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error)
 	CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error)
 }
 
@@ -29,24 +30,22 @@ type CandidateSelector interface {
 }
 
 type AllocationLifecycle interface {
-	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, dependencies []*capabilityv1.CapabilityDependency) (*allocationkernel.CapabilityAdmission, error)
-	DeleteAllocation(ctx context.Context, target, allocationID string, attempt int64, nodeID string) error
+	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error)
+	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputExpiresAt *time.Time) error
 }
 
 type AuthoritativeStore interface {
 	runkernel.EnvironmentStore
 	runkernel.RunStore
-	runkernel.ReconcileStore
 }
 
-func NewAuthoritative(store AuthoritativeStore, selector CandidateSelector, lifecycle AllocationLifecycle) Control {
-	return authoritativeRunAccess{store: store, selector: selector, lifecycle: lifecycle}
+func NewAuthoritative(store AuthoritativeStore, selector CandidateSelector) Control {
+	return authoritativeRunAccess{store: store, selector: selector}
 }
 
 type authoritativeRunAccess struct {
-	store     AuthoritativeStore
-	selector  CandidateSelector
-	lifecycle AllocationLifecycle
+	store    AuthoritativeStore
+	selector CandidateSelector
 }
 
 func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.CreateParams, now time.Time) (*runv1.Run, error) {
@@ -58,7 +57,11 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 	if err != nil {
 		return nil, err
 	}
-	normalizedConfig, err := executionkernel.NormalizeConfigForRootfs(params.Config, env.GetResolvedTemplate().GetRootfsReadonly())
+	namespace := environmentkernel.NormalizeNamespace(params.Namespace)
+	if namespace != env.GetNamespace() {
+		return nil, grpcstatus.Errorf(codes.InvalidArgument, "run namespace %q does not own environment %q", namespace, environmentID)
+	}
+	normalizedConfig, err := executionkernel.NormalizeConfigForRootfs(params.Config, env.GetResolvedSpec().GetRootfsReadonly())
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +70,7 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 		return nil, err
 	}
 	run, err := p.store.AdmitRun(ctx, runkernel.AdmitRunParams{
-		Namespace:   params.Namespace,
+		Namespace:   namespace,
 		Environment: env,
 		Config:      normalizedConfig,
 		Labels:      params.Labels,
@@ -83,22 +86,14 @@ func (p authoritativeRunAccess) GetRun(ctx context.Context, id string) (*runv1.R
 	return p.store.GetRun(ctx, id)
 }
 
-func (p authoritativeRunAccess) ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, error) {
+func (p authoritativeRunAccess) WatchRun(ctx context.Context, id string, afterVersion int64) (*runv1.Run, error) {
+	return p.store.WatchRun(ctx, id, afterVersion)
+}
+
+func (p authoritativeRunAccess) ListRuns(ctx context.Context, filter *runv1.RunListFilter) ([]*runv1.Run, string, error) {
 	return p.store.ListRuns(ctx, filter)
 }
 
 func (p authoritativeRunAccess) CancelRun(ctx context.Context, runID string, now time.Time) (*runv1.Run, error) {
-	run, alloc, err := p.store.CancelRun(ctx, runID, now)
-	if err != nil {
-		return nil, err
-	}
-	if alloc != nil && strings.TrimSpace(alloc.NodeTarget) != "" {
-		err := p.lifecycle.DeleteAllocation(ctx, alloc.NodeTarget, alloc.AllocationID, alloc.Attempt, alloc.NodeID)
-		if err != nil {
-			_ = p.store.ScheduleReconcile(context.Background(), allocationkernel.ScheduleImmediateDeleteRetryRequest(alloc.AllocationID, err.Error(), now), now)
-		} else {
-			_ = p.store.CompleteAllocationRelease(context.Background(), alloc.AllocationID, alloc.Attempt, now)
-		}
-	}
-	return run, nil
+	return p.store.CancelRun(ctx, runID, now)
 }

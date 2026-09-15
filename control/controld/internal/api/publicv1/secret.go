@@ -48,11 +48,11 @@ func (s *Server) ListSecrets(ctx context.Context, req *secretv1.ListSecretsReque
 	if s.deps.Secrets == nil {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "secret control is not configured")
 	}
-	secrets, err := s.deps.Secrets.List(ctx, req.GetFilter())
+	secrets, nextCursor, err := s.deps.Secrets.List(ctx, req.GetFilter())
 	if err != nil {
 		return nil, err
 	}
-	return &secretv1.ListSecretsResponse{Secrets: secrets}, nil
+	return &secretv1.ListSecretsResponse{Secrets: secrets, NextCursor: nextCursor}, nil
 }
 
 func (s *Server) DeleteSecret(ctx context.Context, req *secretv1.DeleteSecretRequest) (*secretv1.DeleteSecretResponse, error) {

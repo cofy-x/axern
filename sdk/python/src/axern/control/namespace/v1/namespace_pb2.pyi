@@ -10,16 +10,14 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 DESCRIPTOR: _descriptor.FileDescriptor
 
 class Namespace(_message.Message):
-    __slots__ = ("namespace", "version", "created_at", "updated_at")
+    __slots__ = ("namespace", "created_at", "deleted_at")
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    VERSION_FIELD_NUMBER: _ClassVar[int]
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
-    UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
+    DELETED_AT_FIELD_NUMBER: _ClassVar[int]
     namespace: str
-    version: int
     created_at: _timestamp_pb2.Timestamp
-    updated_at: _timestamp_pb2.Timestamp
-    def __init__(self, namespace: _Optional[str] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    deleted_at: _timestamp_pb2.Timestamp
+    def __init__(self, namespace: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., deleted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class CreateNamespaceRequest(_message.Message):
     __slots__ = ("namespace",)

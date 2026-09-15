@@ -7,7 +7,7 @@ import (
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -159,9 +159,9 @@ type StorageInventoryEntry struct {
 	Collected                   bool   `json:"collected"`
 	Error                       string `json:"error,omitempty"`
 	SystemReserveBytes          int64  `json:"system_reserve_bytes"`
-	ReservedBytes               int64  `json:"reserved_bytes"`
+	ChargedBytes                int64  `json:"charged_bytes"`
 	AllocatableBytes            int64  `json:"allocatable_bytes"`
-	ActiveReservations          int64  `json:"active_reservations"`
+	ActiveAllocations           int64  `json:"active_allocations"`
 	FilesystemType              string `json:"filesystem_type,omitempty"`
 	MountIdentity               string `json:"mount_identity,omitempty"`
 	AllocationUsedBytes         int64  `json:"allocation_used_bytes"`
@@ -198,28 +198,11 @@ type ImagefsdComponentInventory struct {
 }
 
 type BPFNetComponentInventory struct {
-	Status                string `json:"status"`
-	Error                 string `json:"error,omitempty"`
-	Enabled               bool   `json:"enabled"`
-	Ready                 bool   `json:"ready"`
-	Mode                  string `json:"mode,omitempty"`
-	NeedsSNATFallback     bool   `json:"needs_snat_fallback"`
-	NeedsFullDNATFallback bool   `json:"needs_full_dnat_fallback"`
-	NeedsLocalhostCompat  bool   `json:"needs_localhost_compat"`
-}
-
-type VolumedComponentInventory struct {
-	Status                             string    `json:"status"`
-	Error                              string    `json:"error,omitempty"`
-	Reachable                          bool      `json:"reachable"`
-	PublishedVolumeCount               int       `json:"published_volume_count"`
-	LastReconcileAt                    time.Time `json:"last_reconcile_at,omitempty"`
-	LastReconcileError                 string    `json:"last_reconcile_error,omitempty"`
-	LastReconcileRetainedCount         int       `json:"last_reconcile_retained_count"`
-	LastReconcileUnpublishedCount      int       `json:"last_reconcile_unpublished_count"`
-	LastReconcileActiveAllocationCount int       `json:"last_reconcile_active_allocation_count"`
-	LastReconcileStaleAllocationCount  int       `json:"last_reconcile_stale_allocation_count"`
-	LastReconcileInvalidVolumeCount    int       `json:"last_reconcile_invalid_volume_count"`
+	Status  string `json:"status"`
+	Error   string `json:"error,omitempty"`
+	Enabled bool   `json:"enabled"`
+	Ready   bool   `json:"ready"`
+	Mode    string `json:"mode,omitempty"`
 }
 
 type ComponentsInventory struct {
@@ -227,7 +210,6 @@ type ComponentsInventory struct {
 	Imagemgr ImagemgrComponentInventory `json:"imagemgr"`
 	Imagefsd ImagefsdComponentInventory `json:"imagefsd"`
 	BPFNet   BPFNetComponentInventory   `json:"bpfnet"`
-	Volumed  VolumedComponentInventory  `json:"volumed"`
 }
 
 type ChunkDBHeat struct {
@@ -243,7 +225,7 @@ type LocalityHeatEntry struct {
 	RootfsType                 string `json:"rootfs_type"`
 	MountType                  string `json:"mount_type"`
 	Mounted                    bool   `json:"mounted"`
-	RetainedRuntimeCount       int    `json:"retained_runtime_count"`
+	RetainedEnvironmentCount   int    `json:"retained_environment_count"`
 	RetainedRootfsCount        int    `json:"retained_rootfs_count"`
 	RunningContainerCount      int    `json:"running_container_count"`
 	NydusDaemonAlive           bool   `json:"nydus_daemon_alive"`
@@ -256,13 +238,13 @@ type LocalityHeatEntry struct {
 }
 
 type HeatInventory struct {
-	MountedImageURLs     []string            `json:"mounted_image_urls"`
-	MountedRootfsCount   int                 `json:"mounted_rootfs_count"`
-	NydusDaemonCount     int                 `json:"nydus_daemon_count"`
-	RetainedRuntimeCount int                 `json:"retained_runtime_count"`
-	RetainedRootfsCount  int                 `json:"retained_rootfs_count"`
-	Locality             []LocalityHeatEntry `json:"locality"`
-	ChunkDB              ChunkDBHeat         `json:"chunkdb"`
+	MountedImageURLs         []string            `json:"mounted_image_urls"`
+	MountedRootfsCount       int                 `json:"mounted_rootfs_count"`
+	NydusDaemonCount         int                 `json:"nydus_daemon_count"`
+	RetainedEnvironmentCount int                 `json:"retained_environment_count"`
+	RetainedRootfsCount      int                 `json:"retained_rootfs_count"`
+	Locality                 []LocalityHeatEntry `json:"locality"`
+	ChunkDB                  ChunkDBHeat         `json:"chunkdb"`
 }
 
 type NodeInventorySnapshot struct {
@@ -274,8 +256,8 @@ type NodeInventorySnapshot struct {
 	Components ComponentsInventory     `json:"components"`
 	Heat       HeatInventory           `json:"heat"`
 	Sources    map[string]SourceStatus `json:"sources"`
-	// AllocationMemoryObservations are a bounded control-plane report payload,
-	// not part of the operator-facing aggregate inventory JSON.
+	// AllocationMemoryObservations are live node-local diagnostics. They are
+	// rebuilt from cgroup state and are never persisted as control-plane facts.
 	AllocationMemoryObservations []*nodev1.AllocationMemoryObservation `json:"-"`
 }
 

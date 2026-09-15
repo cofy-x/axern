@@ -69,23 +69,26 @@ func principalCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func credentialCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "credential", Short: "Manage Principal X.509 credentials"}
-	var certificate, label string
+	root := &cobra.Command{Use: "credential", Short: "Manage Principal X.509 and SSH credentials"}
+	var certificate, sshKey, expiry, label string
 	add := &cobra.Command{Use: "add <principal-id>", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err
 		}
 		defer s.Close()
-		resp, err := appadmin.NewAccess(s.Clients.AccessAdmin).AddCredential(s.Context, args[0], certificate, label)
+		resp, err := appadmin.NewAccess(s.Clients.AccessAdmin).AddCredential(s.Context, args[0], certificate, sshKey, expiry, label)
 		if err != nil {
 			return err
 		}
 		return renderCredential(cmd, runtime, resp.GetCredential())
 	}}
 	add.Flags().StringVar(&certificate, "certificate", "", "public certificate PEM path")
+	add.Flags().StringVar(&sshKey, "ssh-public-key", "", "SSH public key path")
+	add.Flags().StringVar(&expiry, "expires-at", "", "SSH credential expiry (RFC3339)")
 	add.Flags().StringVar(&label, "label", "", "credential label")
-	_ = add.MarkFlagRequired("certificate")
+	add.MarkFlagsMutuallyExclusive("certificate", "ssh-public-key")
+	add.MarkFlagsOneRequired("certificate", "ssh-public-key")
 	_ = add.MarkFlagRequired("label")
 	var principalID string
 	list := &cobra.Command{Use: "list", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
@@ -107,7 +110,7 @@ func credentialCommand(runtime command.Runtime) *cobra.Command {
 			if c.GetRevokedAt() != nil {
 				revoked = c.GetRevokedAt().AsTime().Format("2006-01-02T15:04:05Z")
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", c.GetLabel(), c.GetCertificateNotAfter().AsTime().Format("2006-01-02T15:04:05Z"), revoked, c.GetCredentialID())
+			fmt.Fprintf(cmd.OutOrStdout(), "%s\t%s\t%s\t%s\n", c.GetLabel(), c.GetExpiresAt().AsTime().Format("2006-01-02T15:04:05Z"), revoked, c.GetCredentialID())
 		}
 		return nil
 	}}

@@ -73,36 +73,6 @@ func (h *Harness) applyReferencePatchFile(ctx context.Context, request agent.Req
 	if path == "" {
 		return agent.Result{}, fmt.Errorf("oracle: reference_patch_file requires a non-empty path")
 	}
-	if request.Task.InitialState != nil && request.Task.InitialState.WorkspaceImage != nil {
-		if err := materializeOracleAsset(ctx, request, path, pathpkg.Join(taskWorkdir(request.Task), remotePatchPath)); err != nil {
-			return agent.Result{}, err
-		}
-		result, err := request.Sandbox.Exec(
-			ctx,
-			sandbox.ShellCommand(fmt.Sprintf("git apply %s", remotePatchPath)),
-			sandbox.ExecOptions{CWD: taskWorkdir(request.Task)},
-		)
-		if err != nil {
-			return agent.Result{}, err
-		}
-		exitCode := result.ExitCode
-		status := domain.AgentStatusCompleted
-		summary := "oracle: reference patch applied"
-		errorMessage := ""
-		if result.ExitCode != 0 {
-			status = domain.AgentStatusFailed
-			summary = fmt.Sprintf("oracle: git apply exited with status %d", result.ExitCode)
-			errorMessage = strings.TrimSpace(result.Stderr)
-		}
-		return agent.Result{
-			Status:   status,
-			Summary:  summary,
-			Error:    errorMessage,
-			ExitCode: &exitCode,
-			Stdout:   result.Stdout,
-			Stderr:   result.Stderr,
-		}, nil
-	}
 	localPath, err := resolveLocalOraclePath(request, path)
 	if err != nil {
 		return agent.Result{}, err
@@ -183,13 +153,6 @@ func (h *Harness) applySolutionFile(ctx context.Context, request agent.Request, 
 	if path == "" {
 		return agent.Result{}, fmt.Errorf("oracle: solution_file requires a non-empty path")
 	}
-	if request.Task.InitialState != nil && request.Task.InitialState.WorkspaceImage != nil {
-		target := pathpkg.Join(taskWorkdir(request.Task), pathpkg.Base(filepath.ToSlash(path)))
-		if err := materializeOracleAsset(ctx, request, path, target); err != nil {
-			return agent.Result{}, err
-		}
-		return agent.Result{Status: domain.AgentStatusCompleted, Summary: "oracle: solution materialized into workspace"}, nil
-	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return agent.Result{}, fmt.Errorf("oracle: stat solution path %q: %w", path, err)
@@ -226,27 +189,6 @@ func (h *Harness) applySolutionFile(ctx context.Context, request agent.Request, 
 		Status:  domain.AgentStatusCompleted,
 		Summary: fmt.Sprintf("oracle: solution file %q uploaded to workspace", name),
 	}, nil
-}
-
-func materializeOracleAsset(ctx context.Context, request agent.Request, source, target string) error {
-	allowed := false
-	for _, capability := range request.Task.Capabilities {
-		if capability == "oracle_assets" {
-			allowed = true
-			break
-		}
-	}
-	if !allowed {
-		return fmt.Errorf("oracle: task does not grant oracle_assets capability")
-	}
-	materializer, ok := request.Sandbox.(sandbox.TaskAssetMaterializer)
-	if !ok {
-		return fmt.Errorf("oracle: sandbox does not support TaskSet asset materialization")
-	}
-	if err := materializer.MaterializeTaskAssets(ctx, source, target, sandbox.TaskAssetKindOracle); err != nil {
-		return fmt.Errorf("oracle: materialize asset: %w", err)
-	}
-	return nil
 }
 
 func (h *Harness) runCommand(ctx context.Context, request agent.Request, command string) (agent.Result, error) {

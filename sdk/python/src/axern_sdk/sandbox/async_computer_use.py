@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from axern_sdk.node import (
-    AsyncNodeSandboxClient,
+    AsyncAllocationClient,
     ComputerUseDisplay,
     ComputerUseRegion,
     ComputerUseScreenshot,
@@ -14,7 +14,7 @@ from axern_sdk.node import (
 
 
 class _HasAsyncNodeClient(Protocol):
-    def _node_client(self) -> AsyncNodeSandboxClient: ...
+    def _node_client(self) -> AsyncAllocationClient: ...
 
 
 class AsyncSandboxComputerUseMixin:

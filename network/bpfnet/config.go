@@ -8,7 +8,6 @@ import (
 const (
 	DefaultPinPath            = "/sys/fs/bpf/axern/bpfnet"
 	DefaultStatePath          = "/var/run/axern/bpfnet"
-	DefaultMapSize            = 16384
 	DefaultSNATMapSize        = 262144
 	SNATAllocatorPortMin      = 10000
 	SNATAllocatorPortMax      = 65535
@@ -19,11 +18,8 @@ type Config struct {
 	UplinkDevices      []string
 	PinPath            string
 	StatePath          string
-	MapSize            int
 	SNATMapSize        int
-	LocalOutCompat     bool
 	NativeRoutingCIDRs []string
-	IptablesFallback   bool
 }
 
 func (c Config) WithDefaults() Config {
@@ -32,9 +28,6 @@ func (c Config) WithDefaults() Config {
 	}
 	if c.StatePath == "" {
 		c.StatePath = defaultStatePath(c.PinPath)
-	}
-	if c.MapSize <= 0 {
-		c.MapSize = DefaultMapSize
 	}
 	if c.SNATMapSize <= 0 {
 		c.SNATMapSize = DefaultSNATMapSize

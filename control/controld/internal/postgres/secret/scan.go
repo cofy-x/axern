@@ -19,23 +19,9 @@ type rowQuery interface {
 func getRecordTx(ctx context.Context, q rowQuery, id string) (*secretv1.Secret, []byte, error) {
 	var ciphertext []byte
 	row := q.QueryRow(ctx, `
-		SELECT secret_id, namespace, type, data_keys, labels, version, created_at, updated_at, encrypted_payload
+		SELECT secret_id, namespace, type, data_keys, labels, created_at, encrypted_payload
 		FROM secrets
-		WHERE secret_id = $1 AND visibility = 'PUBLIC'
-	`, strings.TrimSpace(id))
-	secret, err := scanSecretMetadataWithCiphertext(row, &ciphertext)
-	if err != nil {
-		return nil, nil, err
-	}
-	return secret, ciphertext, nil
-}
-
-func getProfileCredentialRecordTx(ctx context.Context, q rowQuery, id string) (*secretv1.Secret, []byte, error) {
-	var ciphertext []byte
-	row := q.QueryRow(ctx, `
-		SELECT secret_id, namespace, type, data_keys, labels, version, created_at, updated_at, encrypted_payload
-		FROM secrets
-		WHERE secret_id = $1 AND visibility = 'INTERNAL' AND owner_type = 'AGENT_PROFILE'
+		WHERE secret_id = $1
 	`, strings.TrimSpace(id))
 	secret, err := scanSecretMetadataWithCiphertext(row, &ciphertext)
 	if err != nil {
@@ -55,12 +41,10 @@ func scanSecretMetadataWithCiphertext(row interface{ Scan(...any) error }, ciphe
 		typeText   string
 		dataKeys   []byte
 		labelsJSON []byte
-		version    int64
 		createdAt  time.Time
-		updatedAt  time.Time
 		payload    []byte
 	)
-	dest := []any{&id, &namespace, &typeText, &dataKeys, &labelsJSON, &version, &createdAt, &updatedAt}
+	dest := []any{&id, &namespace, &typeText, &dataKeys, &labelsJSON, &createdAt}
 	if ciphertext != nil {
 		dest = append(dest, &payload)
 	}
@@ -71,9 +55,7 @@ func scanSecretMetadataWithCiphertext(row interface{ Scan(...any) error }, ciphe
 		ID:        id,
 		Namespace: namespace,
 		Type:      parseSecretType(typeText),
-		Version:   version,
 		CreatedAt: timestamppb.New(createdAt),
-		UpdatedAt: timestamppb.New(updatedAt),
 	}
 	if err := json.Unmarshal(dataKeys, &secret.DataKeys); err != nil {
 		return nil, fmt.Errorf("unmarshal secret data keys: %w", err)

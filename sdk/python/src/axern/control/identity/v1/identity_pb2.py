@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n(axern/control/identity/v1/identity.proto\x12\x19\x61xern.control.identity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"[\n\x11PrincipalIdentity\x12\x14\n\x0cprincipal_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x03 \x01(\t\x12\x0c\n\x04kind\x18\x04 \x01(\t\"\x8a\x01\n\x12\x43redentialIdentity\x12\x15\n\rcredential_id\x18\x01 \x01(\t\x12\r\n\x05label\x18\x02 \x01(\t\x12\x13\n\x0b\x66ingerprint\x18\x03 \x01(\t\x12\x39\n\x15\x63\x65rtificate_not_after\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"D\n\rEffectiveRole\x12\x0c\n\x04role\x18\x01 \x01(\t\x12\x12\n\nscope_type\x18\x02 \x01(\t\x12\x11\n\tnamespace\x18\x03 \x01(\t\"\x0f\n\rWhoAmIRequest\"\xcd\x01\n\x0eWhoAmIResponse\x12?\n\tprincipal\x18\x01 \x01(\x0b\x32,.axern.control.identity.v1.PrincipalIdentity\x12\x41\n\ncredential\x18\x02 \x01(\x0b\x32-.axern.control.identity.v1.CredentialIdentity\x12\x37\n\x05roles\x18\x03 \x03(\x0b\x32(.axern.control.identity.v1.EffectiveRole2r\n\x0fIdentityControl\x12_\n\x06WhoAmI\x12(.axern.control.identity.v1.WhoAmIRequest\x1a).axern.control.identity.v1.WhoAmIResponse\"\x00\x42IZGgithub.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1;identityv1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n(axern/control/identity/v1/identity.proto\x12\x19\x61xern.control.identity.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"[\n\x11PrincipalIdentity\x12\x14\n\x0cprincipal_id\x18\x01 \x01(\t\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x03 \x01(\t\x12\x0c\n\x04kind\x18\x04 \x01(\t\"\x7f\n\x12\x43redentialIdentity\x12\x15\n\rcredential_id\x18\x01 \x01(\t\x12\r\n\x05label\x18\x02 \x01(\t\x12\x13\n\x0b\x66ingerprint\x18\x03 \x01(\t\x12.\n\nexpires_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"D\n\rEffectiveRole\x12\x0c\n\x04role\x18\x01 \x01(\t\x12\x12\n\nscope_type\x18\x02 \x01(\t\x12\x11\n\tnamespace\x18\x03 \x01(\t\"\x0f\n\rWhoAmIRequest\"\xcd\x01\n\x0eWhoAmIResponse\x12?\n\tprincipal\x18\x01 \x01(\x0b\x32,.axern.control.identity.v1.PrincipalIdentity\x12\x41\n\ncredential\x18\x02 \x01(\x0b\x32-.axern.control.identity.v1.CredentialIdentity\x12\x37\n\x05roles\x18\x03 \x03(\x0b\x32(.axern.control.identity.v1.EffectiveRole2r\n\x0fIdentityControl\x12_\n\x06WhoAmI\x12(.axern.control.identity.v1.WhoAmIRequest\x1a).axern.control.identity.v1.WhoAmIResponse\"\x00\x42IZGgithub.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1;identityv1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -35,14 +35,14 @@ if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._serialized_options = b'ZGgithub.com/cofy-x/axern/sdk/go/gen/axern/control/identity/v1;identityv1'
   _globals['_PRINCIPALIDENTITY']._serialized_start=104
   _globals['_PRINCIPALIDENTITY']._serialized_end=195
-  _globals['_CREDENTIALIDENTITY']._serialized_start=198
-  _globals['_CREDENTIALIDENTITY']._serialized_end=336
-  _globals['_EFFECTIVEROLE']._serialized_start=338
-  _globals['_EFFECTIVEROLE']._serialized_end=406
-  _globals['_WHOAMIREQUEST']._serialized_start=408
-  _globals['_WHOAMIREQUEST']._serialized_end=423
-  _globals['_WHOAMIRESPONSE']._serialized_start=426
-  _globals['_WHOAMIRESPONSE']._serialized_end=631
-  _globals['_IDENTITYCONTROL']._serialized_start=633
-  _globals['_IDENTITYCONTROL']._serialized_end=747
+  _globals['_CREDENTIALIDENTITY']._serialized_start=197
+  _globals['_CREDENTIALIDENTITY']._serialized_end=324
+  _globals['_EFFECTIVEROLE']._serialized_start=326
+  _globals['_EFFECTIVEROLE']._serialized_end=394
+  _globals['_WHOAMIREQUEST']._serialized_start=396
+  _globals['_WHOAMIREQUEST']._serialized_end=411
+  _globals['_WHOAMIRESPONSE']._serialized_start=414
+  _globals['_WHOAMIRESPONSE']._serialized_end=619
+  _globals['_IDENTITYCONTROL']._serialized_start=621
+  _globals['_IDENTITYCONTROL']._serialized_end=735
 # @@protoc_insertion_point(module_scope)

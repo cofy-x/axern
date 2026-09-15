@@ -150,7 +150,7 @@ func TestProcessDaemonLog(t *testing.T) {
 		"daemon_id":   "test-123",
 		"daemon_name": "test-daemon",
 		"mount_point": "/mnt/test",
-		"source_type": "oss",
+		"source_type": "nydus",
 	}
 
 	processDaemonLog(logFile, fields)

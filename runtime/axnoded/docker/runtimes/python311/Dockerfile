@@ -19,7 +19,7 @@ RUN if [ -n "${PIP_INDEX_URL}" ]; then \
     && rm -rf /tmp/axern-sdk
 
 LABEL org.opencontainers.image.title="Axern Python 3.11 Runtime" \
-      org.opencontainers.image.description="Official minimal Python 3.11 language runtime for Axern." \
+      org.opencontainers.image.description="Official minimal Python 3.11 environment for Axern." \
       org.opencontainers.image.source="https://github.com/cofy-x/axern"
 
 CMD ["python3"]

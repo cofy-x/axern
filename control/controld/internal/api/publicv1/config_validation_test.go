@@ -49,67 +49,8 @@ func TestValidateExecutionConfigSecretRefs(t *testing.T) {
 	}
 }
 
-func TestValidateServiceVolumeMounts(t *testing.T) {
-	valid := &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
-		Name:    "data_1",
-		Target:  "/var/lib/app",
-		Options: []string{"rbind", "nodev"},
-	}}}
-	if err := validateServiceVolumeMounts(valid); err != nil {
-		t.Fatalf("validateServiceVolumeMounts(valid) error = %v", err)
-	}
-
-	tests := []struct {
-		name   string
-		config *commonv1.ExecutionConfig
-	}{
-		{
-			name: "invalid name",
-			config: &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name: "bad/name", Target: "/data",
-			}}},
-		},
-		{
-			name: "root target",
-			config: &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name: "data", Target: "/",
-			}}},
-		},
-		{
-			name: "parent target",
-			config: &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name: "data", Target: "/var/../data",
-			}}},
-		},
-		{
-			name: "duplicate target",
-			config: &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{
-				{Name: "a", Target: "/data"},
-				{Name: "b", Target: "/data"},
-			}},
-		},
-		{
-			name: "unsupported option",
-			config: &commonv1.ExecutionConfig{VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name: "data", Target: "/data", Options: []string{"shared"},
-			}}},
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := validateServiceVolumeMounts(tc.config); grpcstatus.Code(err) != codes.InvalidArgument {
-				t.Fatalf("code = %v, want InvalidArgument (err=%v)", grpcstatus.Code(err), err)
-			}
-		})
-	}
-}
-
 func TestValidateExecutionConfigImageMounts(t *testing.T) {
-	workspace := &commonv1.WorkspaceImageSource{
-		Variants:   []*commonv1.WorkspaceImageVariant{{Format: "nydus", Image: "example.com/task@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, {Format: "oci", Image: "example.com/task@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}},
-		SourcePath: "tasks/task-a/workspace", Target: "/workspace",
-	}
-	valid := &commonv1.ExecutionConfig{WorkspaceImage: workspace, ImageMounts: []*commonv1.ImageMount{{
+	valid := &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{{
 		Image: "example.com/tools/codex:latest", Target: "/opt/axern/tools/codex",
 	}}}
 	if err := validateExecutionConfigImageMounts(valid); err != nil {
@@ -120,26 +61,6 @@ func TestValidateExecutionConfigImageMounts(t *testing.T) {
 		name   string
 		config *commonv1.ExecutionConfig
 	}{
-		{
-			name: "duplicate workspace format",
-			config: &commonv1.ExecutionConfig{WorkspaceImage: &commonv1.WorkspaceImageSource{
-				Variants:   []*commonv1.WorkspaceImageVariant{{Format: "oci", Image: "example.com/task@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, {Format: "oci", Image: "example.com/task@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}},
-				SourcePath: "tasks/task-a/workspace", Target: "/workspace",
-			}},
-		},
-		{
-			name: "ambiguous workspace source",
-			config: &commonv1.ExecutionConfig{WorkspaceImage: &commonv1.WorkspaceImageSource{
-				Variants:   []*commonv1.WorkspaceImageVariant{{Format: "oci", Image: "example.com/task@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
-				SourcePath: "tasks/group/task-a/workspace", Target: "/workspace",
-			}},
-		},
-		{
-			name: "workspace overlaps volume",
-			config: &commonv1.ExecutionConfig{WorkspaceImage: workspace, VolumeMounts: []*commonv1.ServiceVolumeMount{{
-				Name: "data", Target: "/workspace/data",
-			}}},
-		},
 		{
 			name: "missing image",
 			config: &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{{
@@ -170,46 +91,6 @@ func TestValidateExecutionConfigImageMounts(t *testing.T) {
 				{Image: "image-a", Target: "/opt/axern/tools"},
 				{Image: "image-b", Target: "/opt/axern/tools/codex"},
 			}},
-		},
-		{
-			name: "Claude public alias overlaps image mount",
-			config: &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{
-				{Image: "claude", Target: "/__claude_code"},
-				{Image: "other", Target: "/opt/axern/agents/claude-code"},
-			}},
-		},
-		{
-			name: "Claude public alias overlaps workspace image",
-			config: &commonv1.ExecutionConfig{
-				WorkspaceImage: &commonv1.WorkspaceImageSource{
-					Variants:   []*commonv1.WorkspaceImageVariant{{Format: "oci", Image: "example.com/task@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}},
-					SourcePath: "tasks/task-a/workspace", Target: "/opt/axern/agents/claude-code/workspace",
-				},
-				ImageMounts: []*commonv1.ImageMount{{Image: "claude", Target: "/__claude_code"}},
-			},
-		},
-		{
-			name: "Claude public alias overlaps volume mount",
-			config: &commonv1.ExecutionConfig{
-				ImageMounts:  []*commonv1.ImageMount{{Image: "claude", Target: "/__claude_code"}},
-				VolumeMounts: []*commonv1.ServiceVolumeMount{{Name: "data", Target: "/opt/axern/agents/claude-code/data"}},
-			},
-		},
-		{
-			name: "Claude public alias overlaps secret file",
-			config: &commonv1.ExecutionConfig{
-				ImageMounts: []*commonv1.ImageMount{{Image: "claude", Target: "/__claude_code"}},
-				SecretFiles: []*commonv1.SecretFile{{Path: "/opt/axern/agents/claude-code/token", SecretID: "sec", Key: "token"}},
-			},
-		},
-		{
-			name: "overlapping volume mount",
-			config: &commonv1.ExecutionConfig{
-				ImageMounts: []*commonv1.ImageMount{{Image: "image", Target: "/opt/axern/tools"}},
-				VolumeMounts: []*commonv1.ServiceVolumeMount{{
-					Name: "data", Target: "/opt/axern/tools/data",
-				}},
-			},
 		},
 		{
 			name: "overlapping secret file",
@@ -252,15 +133,6 @@ func TestValidateExecutionConfigNetworkRejectsUnsafeOrAmbiguousPolicy(t *testing
 		if err := validateExecutionConfigNetwork(config); grpcstatus.Code(err) != codes.InvalidArgument {
 			t.Fatalf("validateExecutionConfigNetwork(%+v) code = %s, want InvalidArgument", config, grpcstatus.Code(err))
 		}
-	}
-}
-
-func TestValidateNoServiceVolumeMounts(t *testing.T) {
-	err := validateNoServiceVolumeMounts(&commonv1.ExecutionConfig{
-		VolumeMounts: []*commonv1.ServiceVolumeMount{{Name: "data", Target: "/data"}},
-	}, "run")
-	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("code = %v, want InvalidArgument", grpcstatus.Code(err))
 	}
 }
 

@@ -37,20 +37,7 @@ func TestCanGrantPreventsEscalation(t *testing.T) {
 	if !CanGrant(actor, RoleNamespaceAdmin, "team-a") {
 		t.Fatal("namespace admin could not grant namespace role")
 	}
-	if CanGrant(actor, RolePlatformAdmin, "team-a") || CanGrant(actor, RoleNamespaceViewer, "team-b") || CanGrant(actor, RoleRolloutExecutor, "team-a") {
+	if CanGrant(actor, RolePlatformAdmin, "team-a") || CanGrant(actor, RoleNamespaceViewer, "team-b") {
 		t.Fatal("namespace admin could escalate privileges")
-	}
-}
-
-func TestRolloutDelegationIsLimitedToDataPlaneActions(t *testing.T) {
-	for _, action := range []Action{ActionResourceRead, ActionResourceWrite, ActionSandboxExecute} {
-		if !IsRolloutDelegatableAction(action) {
-			t.Errorf("action %s should be delegatable", action)
-		}
-	}
-	for _, action := range []Action{ActionNamespaceManage, ActionQuotaManage, ActionNamespaceAccess, ActionPlatformAdmin} {
-		if IsRolloutDelegatableAction(action) {
-			t.Errorf("action %s must not be delegatable", action)
-		}
 	}
 }

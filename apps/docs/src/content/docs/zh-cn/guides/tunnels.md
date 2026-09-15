@@ -1,6 +1,6 @@
 ---
 title: 反向隧道
-description: 把本地 TCP 服务暴露给 Axern 服务或 Sandbox 中运行的代码。
+description: 把本地 TCP 服务暴露给 Axern Allocation 或 Sandbox 中运行的代码。
 ---
 
 Axern 隧道是反向 TCP 隧道：远端 Allocation 中的代码访问 Axern 在 Allocation 内绑定的 localhost 端口，流量被转发回你工作站上的 TCP 目标。适用于远端工作负载需要访问开发 API 服务、Mock 或持有凭据的本地代理的场景。它与 port-forward 相反：你的机器不通过隧道调用远端服务。
@@ -11,31 +11,27 @@ Axern 隧道是反向 TCP 隧道：远端 Allocation 中的代码访问 Axern �
 
 :::
 
-## 从 Service 开隧道
+## 从 Allocation 开隧道
 
-先启动本地目标，再从就绪的服务副本开启前台隧道：
+先启动本地目标，创建一个 detached Run，再为其 Allocation 开启前台隧道：
 
 ```bash
 python3 -m http.server 8080 --bind 127.0.0.1
 
-axern service create --template-id python311 --replicas 1
-axern service tunnel <service-id> --to 127.0.0.1:8080
+axern run --detach python:3.12-slim -- python -c 'import time; time.sleep(3600)'
+axern tunnel open --allocation-id <allocation-id> --local 127.0.0.1:8080
 ```
 
 命令会选择一个稳定的就绪副本、创建隧道会话、等待 Allocation 本地绑定完成，并打印会话与绑定地址：
 
 ```text
-Service: svc-...
-Selected allocation: alloc-...
 Tunnel session: tun-...
 Local target: 127.0.0.1:8080
 Remote bind: 127.0.0.1:42377
 Press Ctrl-C to revoke the tunnel.
 ```
 
-此后在 Allocation 内 `curl http://127.0.0.1:42377/` 即可到达你本地的 `127.0.0.1:8080`。用 `--allocation-id` 或 `--node-id` 指定副本。远端工作负载需要本地目标期间保持命令运行；Ctrl-C 吊销会话。
-
-`axern tunnel open --allocation-id <allocation-id> --local 127.0.0.1:8080` 是更底层、按 Allocation 作用的调试入口。
+此后在 Allocation 内 `curl http://127.0.0.1:42377/` 即可到达你本地的 `127.0.0.1:8080`。远端工作负载需要本地目标期间保持命令运行；Ctrl-C 吊销会话。
 
 ## 从 SDK Sandbox 开隧道
 
@@ -60,7 +56,7 @@ with Sandbox(
 ```bash
 axern tunnel list --allocation-id <allocation-id>
 axern tunnel inspect <session-id>
-axern tunnel doctor --service-id <service-id> --local 127.0.0.1:8080
+axern tunnel doctor --allocation-id <allocation-id> --local 127.0.0.1:8080
 axern tunnel revoke <session-id> --reason manual-cleanup
 ```
 

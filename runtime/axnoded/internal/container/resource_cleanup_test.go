@@ -12,7 +12,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/jsonutil"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/orcaman/concurrent-map/v2"
 	"github.com/stretchr/testify/assert"
@@ -47,12 +46,18 @@ type releaseTrackingResourceManager struct {
 	name               resourcemanager.ResourceName
 	recycled           []string
 	using              []string
+	owners             map[string]string
 	recycleAttempts    int
 	failuresBeforePass int
 }
 
 func (m *releaseTrackingResourceManager) Allocate(resourcemanager.AllocateOption) (resourcemanager.Resource, error) {
 	return resourcemanager.EmptyStringResource, errord.ErrResourceExhausted
+}
+
+func (m *releaseTrackingResourceManager) AllocationResource(id string) (string, bool) {
+	value, ok := m.owners[id]
+	return value, ok
 }
 
 func (m *releaseTrackingResourceManager) Recycle(id string) error {
@@ -90,6 +95,12 @@ func TestOccupyPreservesResourceExhaustedClass(t *testing.T) {
 	assert.ErrorIs(t, err, errord.ErrResourceExhausted)
 }
 
+func TestOccupyRequiresExplicitAllocationID(t *testing.T) {
+	manager := &Manager{containers: cmap.New[*Container](), resourceManagers: cmap.New[resourcemanager.Manager]()}
+	_, err := manager.Occupy(resourcemanager.AllocateOption{})
+	require.ErrorContains(t, err, "explicit allocation id")
+}
+
 func TestReleaseResourceKeepsCgroupAssignedUntilOtherResourcesRetire(t *testing.T) {
 	cgroupManager := &releaseTrackingResourceManager{name: resourcemanager.CgroupResourceName}
 	interfaceManager := &releaseTrackingResourceManager{
@@ -123,7 +134,6 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 		root:             root,
 		containers:       cmap.New[*Container](),
 		resourceManagers: cmap.New[resourcemanager.Manager](),
-		idGenerator:      truncindex.NewTruncGenerator("sandbox", []string{containerID}),
 		monitors:         cmap.New[*containerMonitor](),
 	}
 	m.resourceManagers.Set(string(resourceManager.ResourceName()), resourceManager)
@@ -131,19 +141,17 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 	containerDir := filepath.Join(root, containerID)
 	require.NoError(t, os.MkdirAll(containerDir, 0755))
 	spec := &specs.Spec{
-		Annotations: map[string]string{
-			resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "net-resource",
-		},
 		Linux: &specs.Linux{},
 	}
 	buf, err := jsonutil.UnescapedMarshal(spec)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(containerDir, config.ContainerSpecFile), buf, 0644))
 	m.containers.Set(containerID, &Container{
-		Metadata: &apipb.ContainerMetadata{ID: containerID, RuntimeHandler: "runsc"},
+		Metadata: &apipb.ContainerMetadata{},
 		Status: &statusStorage{status: Status{
-			FinishedAt:    time.Now().UTC().Format(time.RFC3339Nano),
-			ExitCodeKnown: true,
+			RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED,
+			FinishedAt:   time.Now().UTC().Format(time.RFC3339Nano),
+			ExitCode:     testExitCode(0),
 		}},
 		Spec: spec,
 		PATH: containerDir,
@@ -158,7 +166,6 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 	require.ErrorContains(t, err, "recycle failed")
 	assert.True(t, dirExists(containerDir))
 	assert.True(t, m.containers.Has(containerID))
-	assert.Contains(t, spec.Annotations, resourcemanager.ResourceAnnotationKeyPrefix+string(resourcemanager.InterfaceResourceName))
 
 	require.NoError(t, m.DeleteAfterConfirmedRuntimeDelete(containerID, OccupiedResource{
 		ID: containerID,
@@ -174,8 +181,9 @@ func TestDeletePreservesContainerClaimsUntilResourceReleaseSucceeds(t *testing.T
 
 func TestReconcileResourceClaimsRecyclesOnlyUnclaimedPoolOwnership(t *testing.T) {
 	resourceManager := &releaseTrackingResourceManager{
-		name:  resourcemanager.InterfaceResourceName,
-		using: []string{"owned-resource", "orphan-resource"},
+		name:   resourcemanager.InterfaceResourceName,
+		using:  []string{"owned-resource", "orphan-resource"},
+		owners: map[string]string{"alloc-owned": "owned-resource"},
 	}
 	m := &Manager{
 		containers:       cmap.New[*Container](),
@@ -184,9 +192,6 @@ func TestReconcileResourceClaimsRecyclesOnlyUnclaimedPoolOwnership(t *testing.T)
 	m.resourceManagers.Set(string(resourceManager.ResourceName()), resourceManager)
 	m.containers.Set("alloc-owned", &Container{Spec: &specs.Spec{
 		Version: "1.0.0",
-		Annotations: map[string]string{
-			resourcemanager.ResourceAnnotationKeyPrefix + string(resourcemanager.InterfaceResourceName): "owned-resource",
-		},
 	}})
 
 	require.NoError(t, m.ReconcileResourceClaims())

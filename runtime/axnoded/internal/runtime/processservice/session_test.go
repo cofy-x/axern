@@ -30,6 +30,10 @@ func TestOpenProcessMapsRequestToExecSession(t *testing.T) {
 		},
 		Cwd:  "/work",
 		User: "1000",
+		InitialSize: &apipb.TerminalResize{
+			Cols: 120,
+			Rows: 40,
+		},
 	}, options)
 	require.NoError(t, err)
 
@@ -39,6 +43,8 @@ func TestOpenProcessMapsRequestToExecSession(t *testing.T) {
 	assert.True(t, gotRequest.GetTty())
 	assert.Equal(t, "/work", gotRequest.GetCwd())
 	assert.Equal(t, "1000", gotRequest.GetUser())
+	assert.Equal(t, uint32(120), gotRequest.GetInitialSize().GetCols())
+	assert.Equal(t, uint32(40), gotRequest.GetInitialSize().GetRows())
 	assert.Equal(t, []*apipb.KeyValue{{Key: "A", Value: "1"}, {Key: "B", Value: "2"}}, gotRequest.GetEnvs())
 	assert.Equal(t, options.ContainerID, gotOptions.ContainerID)
 }

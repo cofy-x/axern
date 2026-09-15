@@ -5,17 +5,17 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
-func dedupeRejectionReasons(in []nodev1.PlacementRejectionReason) []nodev1.PlacementRejectionReason {
+func dedupeRejectionReasons(in []placementkernel.RejectionReason) []placementkernel.RejectionReason {
 	if len(in) == 0 {
 		return nil
 	}
-	seen := make(map[nodev1.PlacementRejectionReason]struct{}, len(in))
-	out := make([]nodev1.PlacementRejectionReason, 0, len(in))
+	seen := make(map[placementkernel.RejectionReason]struct{}, len(in))
+	out := make([]placementkernel.RejectionReason, 0, len(in))
 	for _, reason := range in {
-		if reason == nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_UNSPECIFIED {
+		if reason == placementkernel.RejectionReasonUnspecified {
 			continue
 		}
 		if _, ok := seen[reason]; ok {
@@ -28,27 +28,22 @@ func dedupeRejectionReasons(in []nodev1.PlacementRejectionReason) []nodev1.Place
 	return out
 }
 
-func buildPlacementRank(req *placementkernel.Request, summary *nodev1.NodeSummary, locality *nodev1.LocalitySummary) *nodev1.PlacementRank {
-	rank := &nodev1.PlacementRank{
+func buildPlacementRank(req *placementkernel.Request, summary *nodev1.NodeSummary, locality *nodev1.LocalitySummary) *placementkernel.Rank {
+	rank := &placementkernel.Rank{
 		MountedMatch:               localityMounted(locality, req.GetRootfsKey()),
 		RetainedRootfsCount:        locality.GetRetainedRootfsCount(),
-		RetainedRuntimeCount:       locality.GetRetainedRuntimeCount(),
+		RetainedEnvironmentCount:   locality.GetRetainedEnvironmentCount(),
 		NydusDaemonAlive:           locality.GetNydusDaemonAlive(),
-		ChunkdbRecentAccessAgeSecs: localityAge(locality),
+		ChunkDBRecentAccessAgeSecs: localityAge(locality),
 		PeerHealthyCount:           locality.GetPeerHealthyCount(),
 		PeerHintedCount:            locality.GetPeerHintedCount(),
 		IdlePoolReady:              hasWarmRuntimeSlot(summary.GetPools()),
-		AxnodedUsedMilli:           summary.GetResources().GetAxnodedUsedMilli(),
-		AxnodedUsedBytes:           summary.GetResources().GetAxnodedUsedBytes(),
-		AxnodedActiveInstances:     nodekernel.ReportedActiveInstances(summary),
-	}
-	if requiresPortsCapability(req) {
-		rank.BpfnetPreferred = bpfnetPreferred(summary)
+		RuntimeSlotOccupancy:       nodekernel.ReportedActiveInstances(summary),
 	}
 	return rank
 }
 
-func compareEligibleCandidates(left, right *nodev1.PlacementCandidate) bool {
+func compareEligibleCandidates(left, right *placementkernel.Evaluation) bool {
 	return placementkernel.EvaluationLess(left, right)
 }
 
@@ -81,12 +76,4 @@ func hasWarmRuntimeSlot(pools *nodev1.PoolsSummary) bool {
 		return false
 	}
 	return pools.GetRuntimeSlots().GetIdle() > 0
-}
-
-func bpfnetPreferred(summary *nodev1.NodeSummary) bool {
-	if summary == nil {
-		return false
-	}
-	component := summary.GetComponents().GetBpfnet()
-	return component.GetReady() && !component.GetNeedsFullDnatFallback()
 }

@@ -18,10 +18,10 @@ func TestNormalizeKillSignal(t *testing.T) {
 	assert.Equal(t, "9", normalizeKillSignal("9"))
 }
 
-func TestListFiltersByIDAndLabels(t *testing.T) {
+func TestListFiltersByID(t *testing.T) {
 	containers := []*container.Container{
-		testContainer("ctr-a", map[string]string{"app": "api"}),
-		testContainer("ctr-b", map[string]string{"app": "worker"}),
+		testContainer("ctr-a"),
+		testContainer("ctr-b"),
 	}
 	controller := NewController(Options{
 		ListContainers: func(filters ...container.ListOption) []*container.Container {
@@ -47,22 +47,18 @@ func TestListFiltersByIDAndLabels(t *testing.T) {
 	require.Len(t, byID.GetContainers(), 1)
 	assert.Equal(t, "ctr-a", byID.GetContainers()[0].GetID())
 
-	byLabel, err := controller.List(context.Background(), &runtime.ListContainersRequest{Selector: map[string]string{"app": "worker"}})
+	all, err := controller.List(context.Background(), &runtime.ListContainersRequest{})
 	require.NoError(t, err)
-	require.Len(t, byLabel.GetContainers(), 1)
-	assert.Equal(t, "ctr-b", byLabel.GetContainers()[0].GetID())
+	require.Len(t, all.GetContainers(), 2)
 }
 
-func testContainer(id string, labels map[string]string) *container.Container {
+func testContainer(id string) *container.Container {
 	return &container.Container{
-		Metadata: &runtime.ContainerMetadata{
-			ID:             id,
-			RuntimeHandler: "runsc",
-			Labels:         labels,
-		},
+		ID:       id,
+		Metadata: &runtime.ContainerMetadata{},
 		Status: fixedStatus{status: container.Status{
-			StartedAt:     time.Now().Format(time.RFC3339Nano),
-			ExitCodeKnown: true,
+			RuntimeState: runtime.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+			StartedAt:    time.Now().Format(time.RFC3339Nano),
 		}},
 	}
 }

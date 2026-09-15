@@ -10,7 +10,6 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 )
 
 func TestStartupObservationDurationSinceClampsNonPositiveDuration(t *testing.T) {
@@ -19,38 +18,35 @@ func TestStartupObservationDurationSinceClampsNonPositiveDuration(t *testing.T) 
 	}
 }
 
-func TestStartManagedContainerReservesMemoryBeforeVolumeImageOrRootfsSideEffects(t *testing.T) {
-	publishCalls := 0
+func TestStartAllocationReservesMemoryBeforeImageOrRootfsSideEffects(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
-		requirements: contract.RuntimeRequirements{Resources: []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}},
+		requirements: contract.HostRequirements{Resources: []resourcemanager.ResourceName{resourcemanager.CgroupResourceName}},
 	}
 	fixture := newTestAllocationControllerWithResources(
 		t,
-		map[string]contract.RuntimeHandler{"runsc": handler},
+		handler,
 		nil,
-		fakeVolumePublisher{publishCalls: &publishCalls},
 		newRejectingTestResourceManager(resourcemanager.CgroupResourceName),
 	)
 	request := &runtimeapi.StartRequest{
-		ContainerID: "alloc-rejected-before-side-effects",
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID: "runtime-rejected", Sandbox: "runsc",
+		AllocationID: "alloc-rejected-before-side-effects",
+		Environment: &runtimeapi.ResolvedEnvironment{
+			ID:     "runtime-rejected",
 			Rootfs: &runtimeapi.RootfsConfig{Type: runtimeapi.RootfsSrcType_LOCAL, Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()}},
 		},
-		Resources:   &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 256 << 20}},
-		NodeVolumes: []*privatestoragev1.ResolvedNodeVolume{{ClaimID: "default/data", Target: "/data"}},
+		Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{MemoryBytes: 256 << 20}},
 	}
-	if _, err := fixture.controller.startManagedContainer(context.Background(), request); err == nil {
-		t.Fatal("startManagedContainer() accepted rejected node-local admission")
+	if _, err := fixture.controller.startAllocation(context.Background(), request); err == nil {
+		t.Fatal("startAllocation() accepted rejected node-local admission")
 	}
-	if publishCalls != 0 || handler.createCalls != 0 || len(fixture.lrtManager.List()) != 0 {
-		t.Fatalf("side effects after rejected admission: volume=%d runtime=%d rootfs=%d", publishCalls, handler.createCalls, len(fixture.lrtManager.List()))
+	if handler.createCalls != 0 || len(fixture.environmentCache.List()) != 0 {
+		t.Fatalf("side effects after rejected admission: runtime=%d rootfs=%d", handler.createCalls, len(fixture.environmentCache.List()))
 	}
 }
 
-func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
-	const containerID = "alloc-managed-fast-exit"
+func TestStartAllocationPreservesFastExitStatus(t *testing.T) {
+	const containerID = "alloc-fast-exit"
 	releaseExit := make(chan struct{})
 	handler := &runtimeSpyHandler{
 		name: "runsc",
@@ -68,36 +64,35 @@ func TestStartManagedContainerPreservesFastExitStatus(t *testing.T) {
 		}},
 		listHook: func() { close(releaseExit) },
 	}
-	fixture := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	fixture := newTestAllocationController(t, handler)
 
-	response, err := fixture.controller.startManagedContainer(context.Background(), &runtimeapi.StartRequest{
-		ContainerID: containerID,
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "runtime-managed-fast-exit",
-			Sandbox: "runsc",
+	response, err := fixture.controller.startAllocation(context.Background(), &runtimeapi.StartRequest{
+		AllocationID: containerID,
+		Environment: &runtimeapi.ResolvedEnvironment{
+			ID: "runtime-fast-exit",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: t.TempDir()},
 			},
-			Command: []string{"/bin/sh", "-c", "exit 42"},
+			Argv: []string{"/bin/sh", "-c", "exit 42"},
 		},
 	})
 	if err != nil {
-		t.Fatalf("startManagedContainer() error = %v", err)
+		t.Fatalf("startAllocation() error = %v", err)
 	}
-	if response.GetID() != containerID {
-		t.Fatalf("container id = %q, want %q", response.GetID(), containerID)
+	if response.GetAllocationID() != containerID {
+		t.Fatalf("container id = %q, want %q", response.GetAllocationID(), containerID)
 	}
 	assertExactContainerExit(t, fixture, containerID, 42)
 }
 
-func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) {
+func TestStartAllocationSerializesDuplicateAllocationStarts(t *testing.T) {
 	rootfsDir := t.TempDir()
 	createEntered := make(chan struct{})
 	releaseCreate := make(chan struct{})
 	runtimeExited := make(chan struct{})
 	handler := &runtimeSpyHandler{
-		name: "runc",
+		name: "runsc",
 		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
 			select {
 			case <-runtimeExited:
@@ -119,40 +114,23 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 			<-releaseCreate
 		})
 	}
-	fixture := newTestAllocationControllerWithStore(t, map[string]contract.RuntimeHandler{"runc": handler}, nil, fakeVolumePublisher{
-		published: []*privatestoragev1.PublishedNodeVolume{{
-			ClaimID:   "default/svc/data",
-			BindingID: "binding-1",
-			HostPath:  rootfsDir,
-			Target:    "/data",
-		}},
-		listed: []*privatestoragev1.PublishedNodeVolume{{
-			ClaimID:   "default/svc/data",
-			BindingID: "binding-1",
-			HostPath:  rootfsDir,
-			Target:    "/data",
-		}},
-	})
+	fixture := newTestAllocationController(t, handler)
 	request := &runtimeapi.StartRequest{
-		ContainerID: "alloc-duplicate-start",
-		RuntimeTemplate: &runtimeapi.RuntimeTemplate{
-			ID:      "runtime-duplicate-start",
-			Sandbox: "runc",
+		AllocationID: "alloc-duplicate-start",
+		Environment: &runtimeapi.ResolvedEnvironment{
+			ID: "runtime-duplicate-start",
 			Rootfs: &runtimeapi.RootfsConfig{
 				Type:   runtimeapi.RootfsSrcType_LOCAL,
 				Source: &runtimeapi.RootfsConfig_Path{Path: rootfsDir},
 			},
-			Command: []string{"/bin/sh"},
+			Argv: []string{"/bin/sh"},
 		},
-		NodeVolumes: []*privatestoragev1.ResolvedNodeVolume{{
-			ClaimID: "default/svc/data",
-			Target:  "/data",
-		}},
+		Mounts: []*runtimeapi.Mount{{Type: "bind", Source: rootfsDir, Target: "/data"}},
 	}
 
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := fixture.controller.startManagedContainer(context.Background(), request)
+		_, err := fixture.controller.startAllocation(context.Background(), request)
 		firstDone <- err
 	}()
 
@@ -168,7 +146,7 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 	}
 	secondDone := make(chan startResult, 1)
 	go func() {
-		resp, err := fixture.controller.startManagedContainer(context.Background(), request)
+		resp, err := fixture.controller.startAllocation(context.Background(), request)
 		secondDone <- startResult{resp: resp, err: err}
 	}()
 
@@ -183,14 +161,14 @@ func TestStartManagedContainerSerializesDuplicateAllocationStarts(t *testing.T) 
 		t.Fatalf("first start error = %v", err)
 	}
 	if got := handler.lastRequest.GetMounts(); len(got) != 1 || got[0].GetType() != "bind" || got[0].GetSource() != rootfsDir || got[0].GetTarget() != "/data" {
-		t.Fatalf("runtime create mounts = %#v, want explicit node volume bind mount", got)
+		t.Fatalf("runtime create mounts = %#v, want explicit allocation bind mount", got)
 	}
 	secondResult := <-secondDone
 	if secondResult.err != nil {
 		t.Fatalf("duplicate start error = %v", secondResult.err)
 	}
-	if got := secondResult.resp.GetPublishedVolumes(); len(got) != 1 || got[0].GetBindingID() != "binding-1" {
-		t.Fatalf("duplicate start published volumes = %#v, want binding-1", got)
+	if got := secondResult.resp.GetAllocationID(); got != request.GetAllocationID() {
+		t.Fatalf("duplicate start allocation id = %q, want %q", got, request.GetAllocationID())
 	}
 	if handler.createCalls != 1 {
 		t.Fatalf("runtime create calls = %d, want 1", handler.createCalls)

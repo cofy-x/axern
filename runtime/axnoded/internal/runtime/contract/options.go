@@ -12,15 +12,10 @@ type HandlerOptions struct {
 	TraceID     string
 	SpanID      string
 	ContainerID string
-	// ContainerLabels carries persisted metadata labels for runtime paths that
-	// validate sandboxd create-time readiness and baseline capabilities before
-	// dispatching to the daemon socket derived from ContainerID.
-	ContainerLabels map[string]string
 
 	StartupPhaseRecorder StartupPhaseRecorder
 
-	ForceDelete  bool
-	CleanRootDir string
+	ForceDelete bool
 
 	CgroupPath                 string
 	RuntimeCgroupPath          string
@@ -33,8 +28,9 @@ type HandlerOptions struct {
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
 	BundleTemplateSource  *runtimeoci.TemplateOptions
 
-	AdditionalAnnotations map[string]string
-	ExecutionProfile      *runtimeoci.ExecutionProfile
+	NetworkNamespacePath string
+	SandboxIP            string
+	ExecutionProfile     *runtimeoci.ExecutionProfile
 }
 
 func (o HandlerOptions) RecordStartupPhase(phase StartupPhase, duration time.Duration) {

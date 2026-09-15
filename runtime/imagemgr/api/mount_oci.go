@@ -30,9 +30,9 @@ func (w *HttpWorker) MountOCI(ctx context.Context, req *OCIMountRequest) (*OCIMo
 		return nil, fmt.Errorf("mount store is not initialized")
 	}
 
-	imported, err := w.ociMgr.HasImportedGeneration(req.CacheKey)
+	imported, err := w.ociMgr.HasImportedContent(req.CacheKey)
 	if err != nil {
-		return nil, fmt.Errorf("query imported generation %s: %w", req.CacheKey, err)
+		return nil, fmt.Errorf("query imported content %s: %w", req.CacheKey, err)
 	}
 	if req.CacheKey == "" {
 		importedCacheKey, currentImported, err := w.ociMgr.ResolveImportedImageCacheKey(req.ImageURL)
@@ -251,8 +251,6 @@ func (w *HttpWorker) unmountResource(ctx context.Context, record *mountstore.Rec
 			return nil
 		}
 		return err
-	case MountTypeOSS:
-		return w.unmountOSSResource(ctx, record)
 	default:
 		return fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 	}
@@ -276,13 +274,13 @@ func (w *HttpWorker) ImportOCI(ctx context.Context, imageRef string, archive io.
 	if err != nil {
 		return nil, err
 	}
-	immutableRef, err := oci.ImmutableImageRef(result.ImageURL, result.GenerationDigest)
+	immutableRef, err := oci.ImmutableImageRef(result.ImageURL, result.ContentDigest)
 	if err != nil {
 		return nil, err
 	}
 	return &OCIImportResponse{
 		SourceRef: result.SourceRef, CanonicalRef: result.ImageURL, ImmutableRef: immutableRef,
-		GenerationDigest: result.GenerationDigest, ArchiveDigest: result.ArchiveDigest,
+		ContentDigest: result.ContentDigest, ArchiveDigest: result.ArchiveDigest,
 		Platform:  formatImagePlatform(result.PlatformOS, result.PlatformArch, result.PlatformVariant),
 		SizeBytes: result.SizeBytes, Reused: result.Reused,
 	}, nil
@@ -319,8 +317,8 @@ func (w *HttpWorker) ListMountedOCIImages() ([]string, error) {
 		}
 		imageURLs := make([]string, 0, len(records))
 		for _, record := range records {
-			if MountType(record.MountType) == MountTypeOSS {
-				continue
+			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
+				return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 			}
 			imageURLs = append(imageURLs, record.ImageURL)
 		}
@@ -340,8 +338,8 @@ func (w *HttpWorker) ListMountedOCIDetails() ([]MountedImageDetail, error) {
 		}
 		mounts := make([]MountedImageDetail, 0, len(records))
 		for _, record := range records {
-			if MountType(record.MountType) == MountTypeOSS {
-				continue
+			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
+				return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
 			}
 			leaseCount, err := w.mountStore.LeaseCount(record.CacheKey)
 			if err != nil {
@@ -403,7 +401,7 @@ func (w *HttpWorker) Inventory() (*InventoryResponse, error) {
 		resp.ImportedImages = make([]ImportedImageDetail, 0, len(imports))
 		for _, rec := range imports {
 			resp.ImportedImages = append(resp.ImportedImages, ImportedImageDetail{
-				ImageRef: rec.ImageURL, GenerationDigest: rec.GenerationDigest,
+				ImageRef: rec.ImageURL, ContentDigest: rec.ContentDigest,
 				ArchiveDigest: rec.ArchiveDigest,
 				Platform:      formatImagePlatform(rec.PlatformOS, rec.PlatformArch, rec.PlatformVariant),
 				SizeBytes:     rec.SizeBytes, ImportedAtUnix: rec.ImportedAtUnix,

@@ -5,6 +5,17 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd kubectl
 require_cmd curl
+# This local manifest has one explicitly provisioned development identity.
+# Multi-node deployments must use the chart's per-node token projections.
+k8s_runtime_node="${AXERN_LOCAL_RUNTIME_NODE:-}"
+if [ -z "${k8s_runtime_node}" ]; then
+  k8s_runtime_node="$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+  if [ "$(printf '%s\n' "${k8s_runtime_node}" | wc -l | tr -d ' ')" != 1 ]; then
+    echo "set AXERN_LOCAL_RUNTIME_NODE to pin the single local runtime identity; use Helm for multiple Axern nodes" >&2
+    exit 1
+  fi
+fi
+kubectl get node "${k8s_runtime_node}" -o name >/dev/null
 begin_env_lock "${K8S_ENV_NAME}"
 trap 'end_env_lock "${K8S_ENV_NAME}"' EXIT
 
@@ -14,33 +25,35 @@ ensure_k8s_images_loaded
 generate_k8s_certs
 ensure_k8s_ssh_keys
 ensure_secrets_master_key "${K8S_ENV_NAME}"
+ensure_enrollment_token "${K8S_ENV_NAME}"
 write_cli_env "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}"
 
 kubectl apply -f "${DEPLOY_ROOT}/k8s/namespace.yaml"
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic controld-pki \
   --from-file=ca.crt="${K8S_STATE_DIR}/certs/ca.crt" \
-  --from-file=controld.crt="${K8S_STATE_DIR}/certs/controld.crt" \
-  --from-file=controld.key="${K8S_STATE_DIR}/certs/controld.key" \
+  --from-file=controld.pem="${K8S_STATE_DIR}/certs/controld.pem" \
+  --from-file=gatewayd.pem="${K8S_STATE_DIR}/certs/gatewayd.pem" \
+  --from-file=tunneld.pem="${K8S_STATE_DIR}/certs/tunneld.pem" \
+  --from-file=gateway_client_ed25519.pub="${K8S_STATE_DIR}/ssh/gateway_client_ed25519.pub" \
   --from-file=client.crt="${K8S_STATE_DIR}/certs/client.crt" \
   --from-file=client.key="${K8S_STATE_DIR}/certs/client.key" \
-  --from-file=rollout-worker.crt="${K8S_STATE_DIR}/certs/rollout-worker.crt" \
-  --from-file=rollout-worker.key="${K8S_STATE_DIR}/certs/rollout-worker.key" \
-  --from-file=gatewayd.crt="${K8S_STATE_DIR}/certs/gatewayd.crt" \
-  --from-file=gatewayd.key="${K8S_STATE_DIR}/certs/gatewayd.key" \
-  --from-file=node.crt="${K8S_STATE_DIR}/certs/node.crt" \
-  --from-file=node.key="${K8S_STATE_DIR}/certs/node.key" \
-  --from-file=tunneld.crt="${K8S_STATE_DIR}/certs/tunneld.crt" \
-  --from-file=tunneld.key="${K8S_STATE_DIR}/certs/tunneld.key" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n "${K8S_NAMESPACE}" create secret generic axern-pki-signer \
+  --from-file=signer.pem="${K8S_STATE_DIR}/certs/private/signer.pem" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic controld-secrets \
   --from-literal=AXERN_SECRETS_MASTER_KEY="$(cat "$(secrets_master_key_file "${K8S_ENV_NAME}")")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+kubectl -n "${K8S_NAMESPACE}" create secret generic enrollment-token \
+  --from-file=enrollment-token="$(enrollment_token_file "${K8S_ENV_NAME}")" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
 kubectl -n "${K8S_NAMESPACE}" create secret generic gatewayd-ssh \
   --from-file=gateway_host_ed25519="${K8S_STATE_DIR}/ssh/gateway_host_ed25519" \
-  --from-file=authorized_keys="${K8S_STATE_DIR}/ssh/authorized_keys" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 proxy_env_args=()
@@ -52,7 +65,6 @@ kubectl -n "${K8S_NAMESPACE}" create configmap local-proxy-env \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl apply -f "${DEPLOY_ROOT}/k8s/postgres.yaml"
-kubectl apply -f "${DEPLOY_ROOT}/k8s/minio.yaml"
 if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
   kubectl -n "${K8S_NAMESPACE}" create configmap grafana-dashboard-provisioning \
     --from-file=axern.yaml="${DEPLOY_ROOT}/grafana/provisioning/dashboards/axern.yaml" \
@@ -74,7 +86,7 @@ else
   kubectl -n "${K8S_NAMESPACE}" delete deployment/jaeger service/jaeger --ignore-not-found >/dev/null
 fi
 kubectl -n "${K8S_NAMESPACE}" rollout status deployment/postgres --timeout=180s >/dev/null
-for deployment in gatewayd controld-retention controld storaged; do
+for deployment in gatewayd controld-retention controld; do
   if kubectl -n "${K8S_NAMESPACE}" get deployment/"${deployment}" >/dev/null 2>&1; then
     kubectl -n "${K8S_NAMESPACE}" scale deployment/"${deployment}" --replicas=0 >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${deployment}" --timeout=180s >/dev/null
@@ -89,16 +101,16 @@ kubectl apply -f "${DEPLOY_ROOT}/k8s/controld-migrate.yaml"
 kubectl -n "${K8S_NAMESPACE}" wait --for=condition=complete job/controld-migrate --timeout=180s >/dev/null
 kubectl apply -f "${DEPLOY_ROOT}/k8s/controld.yaml"
 kubectl apply -f "${DEPLOY_ROOT}/k8s/tunneld.yaml"
-kubectl apply -f "${DEPLOY_ROOT}/k8s/node-all-in-one.yaml"
+kubectl patch --local -f "${DEPLOY_ROOT}/k8s/node-all-in-one.yaml" --type=json \
+  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchFields/0/values/0\",\"value\":\"${k8s_runtime_node}\"}]" \
+  -o yaml | kubectl apply -f -
 kubectl apply -f "${DEPLOY_ROOT}/k8s/gatewayd.yaml"
 
 kubectl -n "${K8S_NAMESPACE}" set env deployment/controld \
-	AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON311_RUNTIME_IMAGE}" \
-	AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" \
-	AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE="${CODING_BASE_RUNTIME_IMAGE}" \
-	AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" \
-	AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE="${CLAUDE_CODE_BUNDLE_IMAGE}" \
-	AXERN_AGENT_BUNDLE_CODEX_IMAGE="${CODEX_BUNDLE_IMAGE}" \
+	AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE="${PYTHON311_RUNTIME_IMAGE}" \
+	AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" \
+	AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE="${CODING_BASE_RUNTIME_IMAGE}" \
+	AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" \
 	CONTROLD_TUNNEL_RELAYS="default,127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT},tunneld.${K8S_NAMESPACE}.svc.cluster.local:24100,1,false" >/dev/null
 
 if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then

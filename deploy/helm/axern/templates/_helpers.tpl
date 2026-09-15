@@ -85,7 +85,7 @@ topologySpreadConstraints:
 {{- end -}}
 
 {{- define "axern.pkiSecretName" -}}
-{{- default .Values.pki.secretName .Values.pki.existingSecret -}}
+{{- required "pki.secretName is required; provision it with the repository PKI bootstrap tool" .Values.pki.secretName -}}
 {{- end -}}
 
 {{- define "axern.secretsSecretName" -}}

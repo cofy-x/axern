@@ -3,9 +3,9 @@ package allocation
 import (
 	"context"
 	"errors"
-	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
@@ -28,8 +28,8 @@ func (h *Controller) deleteContainer(ctx context.Context, request *apipb.DeleteC
 
 // deleteContainerRuntime crosses the runtime exit-state barrier and cleans
 // runtime-owned rootfs/storage plus activation networking, but deliberately
-// retains the node-local resource claims. The managed lifecycle releases
-// volumes and image leases before calling finalizeContainerDelete.
+// retains the node-local resource claims. The Allocation lifecycle releases
+// rootfs and image leases before calling finalizeContainerDelete.
 func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.DeleteContainerRequest) (response *apipb.DeleteContainerResponse, resource container.OccupiedResource, err error) {
 	traceID, spanID := trace.GetContextID(ctx)
 	start := time.Now()
@@ -42,20 +42,13 @@ func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.
 	}()
 
 	stageStarted := time.Now()
-	c, handler, err := h.runtimeHandlerForContainer(request.ID)
+	_, handler, err := h.runtimeHandlerForContainer(request.ID)
 	if err != nil {
 		recordAllocationDeleteStage("resolve_runtime", "", stageStarted, err)
 		return response, resource, err
 	}
-	runtimeName := c.Metadata.RuntimeHandler
+	runtimeName := config.RuntimeNameRunsc
 	recordAllocationDeleteStage("resolve_runtime", runtimeName, stageStarted, nil)
-
-	stageStarted = time.Now()
-	if err := h.checkRuntime(runtimeName); err != nil {
-		recordAllocationDeleteStage("validate_runtime", runtimeName, stageStarted, err)
-		return response, resource, errord.ErrNotImplemented
-	}
-	recordAllocationDeleteStage("validate_runtime", runtimeName, stageStarted, nil)
 
 	stageStarted = time.Now()
 	resource, err = h.containers().CollectResourceByID(request.ID)
@@ -66,7 +59,7 @@ func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.
 	recordAllocationDeleteStage("collect_resource", runtimeName, stageStarted, nil)
 
 	stageStarted = time.Now()
-	response, err = h.deleteContainerWithRuntime(ctx, request, c, handler, traceID.String(), spanID.String())
+	response, err = h.deleteContainerWithRuntime(ctx, request, handler, traceID.String(), spanID.String())
 	if err != nil {
 		recordAllocationDeleteStage("runtime_delete", runtimeName, stageStarted, err)
 		return response, resource, err
@@ -79,10 +72,6 @@ func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.
 		return response, resource, err
 	}
 	recordAllocationDeleteStage("network_cleanup", runtimeName, stageStarted, nil)
-	stageStarted = time.Now()
-	h.sandboxNetworking().CloseHTTPProxyTransports(request.ID)
-	recordAllocationDeleteStage("transport_cleanup", runtimeName, stageStarted, nil)
-
 	return response, resource, nil
 }
 
@@ -97,42 +86,38 @@ func recordAllocationDeleteStage(stage, runtimeName string, started time.Time, e
 func (h *Controller) deleteContainerWithRuntime(
 	ctx context.Context,
 	request *apipb.DeleteContainerRequest,
-	c *container.Container,
-	handler contract.RuntimeHandler,
+	handler contract.SandboxRuntime,
 	traceID, spanID string,
 ) (*apipb.DeleteContainerResponse, error) {
 	options := contract.HandlerOptions{
-		TraceID:               traceID,
-		SpanID:                spanID,
-		ContainerID:           request.ID,
-		CleanRootDir:          cleanRootDirForContainer(c),
-		AdditionalAnnotations: c.Spec.Annotations,
+		TraceID:     traceID,
+		SpanID:      spanID,
+		ContainerID: request.ID,
 	}
 
 	if request.Timeout == 0 {
 		options.ForceDelete = true
-		return h.callRuntimeDelete(ctx, request, c.Metadata.RuntimeHandler, handler, options, "force delete container")
+		return h.callRuntimeDelete(ctx, request, config.RuntimeNameRunsc, handler, options, "force delete container")
 	}
 
 	delCtx, cancel := context.WithTimeout(ctx, time.Duration(request.Timeout)*time.Second)
 	defer cancel()
 
-	response, err := h.callRuntimeDelete(delCtx, request, c.Metadata.RuntimeHandler, handler, options, "delete container with timeout")
+	response, err := h.callRuntimeDelete(delCtx, request, config.RuntimeNameRunsc, handler, options, "delete container with timeout")
 	if err == nil {
 		return response, nil
 	}
 
 	logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("runtime handler delete container with timeout %v (seconds) failed: %v, try delete it force", request.Timeout, err)
 	options.ForceDelete = true
-	options.CleanRootDir = ""
-	return h.callRuntimeDelete(ctx, request, c.Metadata.RuntimeHandler, handler, options, "delete container force")
+	return h.callRuntimeDelete(ctx, request, config.RuntimeNameRunsc, handler, options, "delete container force")
 }
 
 func (h *Controller) callRuntimeDelete(
 	ctx context.Context,
 	request *apipb.DeleteContainerRequest,
 	runtimeName string,
-	handler contract.RuntimeHandler,
+	handler contract.SandboxRuntime,
 	options contract.HandlerOptions,
 	operation string,
 ) (*apipb.DeleteContainerResponse, error) {
@@ -156,17 +141,6 @@ func isDeleteNotFound(err error) bool {
 
 func IsDeleteNotFound(err error) bool {
 	return isDeleteNotFound(err)
-}
-
-func cleanRootDirForContainer(c *container.Container) string {
-	if c == nil || c.Spec == nil || c.Spec.Process == nil || c.Spec.Process.Cwd == "" {
-		return ""
-	}
-	taskUUID := c.EnvValue("TASK_UUID")
-	if taskUUID == "" || !strings.Contains(c.Spec.Process.Cwd, taskUUID) {
-		return ""
-	}
-	return c.Spec.Process.Cwd
 }
 
 func (h *Controller) finalizeContainerDelete(containerID string, resource container.OccupiedResource) error {

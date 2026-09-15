@@ -6,7 +6,7 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -14,7 +14,7 @@ import (
 func TestValidateSummaryPublicationFencesFreshnessClock(t *testing.T) {
 	now := time.Now().UTC()
 	snapshot := &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(now)}
-	summary := &nodev1.NodeSummary{CollectedAt: timestamppb.New(now), CapabilitySnapshot: snapshot}
+	summary := &nodev1.NodeSummary{NodeInstanceID: "instance-1", Sequence: 1, CollectedAt: timestamppb.New(now), CapabilitySnapshot: snapshot}
 	if err := validateSummaryPublication(summary, now); err != nil {
 		t.Fatal(err)
 	}
@@ -30,65 +30,94 @@ func TestValidateSummaryPublicationFencesFreshnessClock(t *testing.T) {
 	}
 }
 
-func TestValidateSnapshotAdvanceAllowsOnlyExactReplay(t *testing.T) {
+func TestValidateNodeObservationAdvanceAllowsOnlyExactReplay(t *testing.T) {
 	now := timestamppb.New(time.Now().UTC())
-	previous := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "instance-1", Sequence: 7, SnapshotID: "snapshot-7", CollectedAt: now}
-	replay := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
-	idempotent, err := validateSnapshotAdvance(previous, replay)
+	previous := &nodev1.NodeSummary{
+		NodeInstanceID: "instance-1", Sequence: 7, CollectedAt: now,
+		CapabilitySnapshot: &capabilityv1.CapabilitySnapshot{CollectedAt: now},
+		MemoryBudget:       &nodev1.NodeMemoryBudget{SampledAt: now},
+	}
+	replay := proto.Clone(previous).(*nodev1.NodeSummary)
+	idempotent, err := validateNodeObservationAdvance(previous, replay)
 	if err != nil || !idempotent {
 		t.Fatalf("exact replay = (%t, %v), want idempotent", idempotent, err)
 	}
-	changed := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
-	changed.SnapshotID = "different"
-	if _, err := validateSnapshotAdvance(previous, changed); err == nil {
-		t.Fatal("same sequence with different snapshot was accepted")
+	changed := proto.Clone(previous).(*nodev1.NodeSummary)
+	changed.NodeState = nodev1.NodeState_NODE_STATE_DRAINING
+	if _, err := validateNodeObservationAdvance(previous, changed); err == nil {
+		t.Fatal("same sequence with different whole-node observation was accepted")
 	}
-	stale := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
+	stale := proto.Clone(previous).(*nodev1.NodeSummary)
 	stale.Sequence--
-	if _, err := validateSnapshotAdvance(previous, stale); err == nil {
+	if _, err := validateNodeObservationAdvance(previous, stale); err == nil {
 		t.Fatal("decreasing sequence was accepted")
 	}
-	next := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
+	next := proto.Clone(previous).(*nodev1.NodeSummary)
 	next.Sequence++
-	next.SnapshotID = "snapshot-8"
-	if idempotent, err := validateSnapshotAdvance(previous, next); err != nil || idempotent {
+	if idempotent, err := validateNodeObservationAdvance(previous, next); err != nil || idempotent {
 		t.Fatalf("next sequence = (%t, %v), want accepted advance", idempotent, err)
 	}
-	restarted := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
+	restarted := proto.Clone(previous).(*nodev1.NodeSummary)
 	restarted.NodeInstanceID = "instance-2"
 	restarted.Sequence = 1
-	restarted.SnapshotID = "instance-2-snapshot-1"
-	if idempotent, err := validateSnapshotAdvance(previous, restarted); err != nil || idempotent {
+	if idempotent, err := validateNodeObservationAdvance(previous, restarted); err != nil || idempotent {
 		t.Fatalf("new instance = (%t, %v), want accepted reset", idempotent, err)
 	}
-	regressed := proto.Clone(next).(*capabilityv1.CapabilitySnapshot)
+	regressed := proto.Clone(next).(*nodev1.NodeSummary)
 	regressed.Sequence++
-	regressed.SnapshotID = "snapshot-9"
 	regressed.CollectedAt = timestamppb.New(previous.GetCollectedAt().AsTime().Add(-time.Second))
-	if _, err := validateSnapshotAdvance(next, regressed); err == nil {
+	if _, err := validateNodeObservationAdvance(next, regressed); err == nil {
 		t.Fatal("snapshot with regressed collected_at was accepted")
+	}
+	capabilityRegressed := proto.Clone(next).(*nodev1.NodeSummary)
+	capabilityRegressed.Sequence++
+	capabilityRegressed.CollectedAt = timestamppb.New(next.GetCollectedAt().AsTime().Add(time.Second))
+	capabilityRegressed.CapabilitySnapshot.CollectedAt = timestamppb.New(previous.GetCapabilitySnapshot().GetCollectedAt().AsTime().Add(-time.Second))
+	if _, err := validateNodeObservationAdvance(next, capabilityRegressed); err == nil {
+		t.Fatal("snapshot with regressed capability sample was accepted")
+	}
+	memoryRegressed := proto.Clone(next).(*nodev1.NodeSummary)
+	memoryRegressed.Sequence++
+	memoryRegressed.CollectedAt = timestamppb.New(next.GetCollectedAt().AsTime().Add(time.Second))
+	memoryRegressed.MemoryBudget.SampledAt = timestamppb.New(previous.GetMemoryBudget().GetSampledAt().AsTime().Add(-time.Second))
+	if _, err := validateNodeObservationAdvance(next, memoryRegressed); err == nil {
+		t.Fatal("snapshot with regressed memory boundary sample was accepted")
 	}
 }
 
-func TestValidateSnapshotAdvanceRejectsOwnershipChangeWithinNodeInstance(t *testing.T) {
-	now := timestamppb.New(time.Now().UTC())
-	firstKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
-	secondKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
-	previous := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 1, SnapshotID: "snapshot-1", CollectedAt: now,
-		Observations: []*capabilityv1.CapabilityObservation{{Key: firstKey}, {Key: secondKey}},
+func TestValidateSummaryPublicationRejectsInvalidObservationIdentity(t *testing.T) {
+	now := time.Now().UTC()
+	base := &nodev1.NodeSummary{
+		NodeInstanceID: "instance-1", Sequence: 1, CollectedAt: timestamppb.New(now),
+		CapabilitySnapshot: &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(now)},
 	}
-	next := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
+	for _, instanceID := range []string{"", " instance-1", string([]byte{0xff}), string(make([]byte, maxNodeObservationInstanceIDBytes+1))} {
+		summary := proto.Clone(base).(*nodev1.NodeSummary)
+		summary.NodeInstanceID = instanceID
+		if err := validateSummaryPublication(summary, now); err == nil {
+			t.Fatalf("node_instance_id %q was accepted", instanceID)
+		}
+	}
+}
+
+func TestValidateNodeObservationAdvanceRejectsOwnershipChangeWithinNodeInstance(t *testing.T) {
+	now := timestamppb.New(time.Now().UTC())
+	firstKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
+	secondKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
+	previous := &nodev1.NodeSummary{
+		NodeInstanceID: "instance-1", Sequence: 1, CollectedAt: now,
+		CapabilitySnapshot: &capabilityv1.CapabilitySnapshot{CollectedAt: now, Observations: []*capabilityv1.CapabilityObservation{{Key: firstKey}, {Key: secondKey}}},
+	}
+	next := proto.Clone(previous).(*nodev1.NodeSummary)
 	next.Sequence = 2
-	next.SnapshotID = "snapshot-2"
-	next.Observations = next.Observations[:1]
-	if _, err := validateSnapshotAdvance(previous, next); err == nil {
+	next.CapabilitySnapshot.Observations = next.CapabilitySnapshot.Observations[:1]
+	if _, err := validateNodeObservationAdvance(previous, next); err == nil {
 		t.Fatal("same node instance removed an owned capability observation")
 	}
 
 	next.NodeInstanceID = "instance-2"
 	next.Sequence = 1
-	if idempotent, err := validateSnapshotAdvance(previous, next); err != nil || idempotent {
+	if idempotent, err := validateNodeObservationAdvance(previous, next); err != nil || idempotent {
 		t.Fatalf("new node instance ownership change = (%t, %v), want accepted reset", idempotent, err)
 	}
 }
@@ -100,12 +129,11 @@ func TestCapabilityTransitionPreservesPreviouslyPublishedAvailableState(t *testi
 		Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		ObservedAt: timestamppb.New(observedAt), ValidUntil: timestamppb.New(observedAt.Add(capabilitycontract.HealthObservationValidity)),
-		Evidence:   capabilitycontract.ConfigEvidence("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		Evidence:   nil,
 		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 	}
 	capabilitycontract.NormalizeObservation(available)
 	previous := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 1, SnapshotID: "snapshot-1",
 		CollectedAt: timestamppb.New(observedAt), Observations: []*capabilityv1.CapabilityObservation{available},
 	}
 	unknown := &capabilityv1.CapabilityObservation{
@@ -117,7 +145,6 @@ func TestCapabilityTransitionPreservesPreviouslyPublishedAvailableState(t *testi
 	}
 	capabilitycontract.NormalizeObservation(unknown)
 	next := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 2, SnapshotID: "snapshot-2",
 		CollectedAt: timestamppb.New(observedAt.Add(16 * time.Second)), Observations: []*capabilityv1.CapabilityObservation{unknown},
 	}
 
@@ -140,17 +167,14 @@ func TestCapabilityTransitionRecordsEffectiveExpiryWithoutRawStateChange(t *test
 		Key: key, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 		Provider:   capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		ObservedAt: timestamppb.New(observedAt), ValidUntil: timestamppb.New(observedAt.Add(capabilitycontract.HealthObservationValidity)),
-		Evidence:   capabilitycontract.ConfigEvidence("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+		Evidence:   nil,
 		ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
 	}
 	capabilitycontract.NormalizeObservation(available)
 	previous := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-1", Sequence: 1, SnapshotID: "snapshot-1",
 		CollectedAt: timestamppb.New(observedAt), Observations: []*capabilityv1.CapabilityObservation{available},
 	}
 	next := proto.Clone(previous).(*capabilityv1.CapabilitySnapshot)
-	next.Sequence = 2
-	next.SnapshotID = "snapshot-2"
 	next.CollectedAt = timestamppb.New(observedAt.Add(capabilitycontract.HealthObservationValidity + time.Second))
 
 	transitions, err := capabilityTransitions(previous, next, next.GetCollectedAt().AsTime())
@@ -160,7 +184,7 @@ func TestCapabilityTransitionRecordsEffectiveExpiryWithoutRawStateChange(t *test
 	if len(transitions) != 1 || transitions[0].oldState != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE || transitions[0].newState != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN {
 		t.Fatalf("effective expiry transitions = %#v, want AVAILABLE -> UNKNOWN", transitions)
 	}
-	if transitions[0].newReasonCode != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED {
-		t.Fatalf("effective expiry reason = %s, want EXPIRED", transitions[0].newReasonCode)
+	if transitions[0].reasonCode != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED {
+		t.Fatalf("effective expiry reason = %s, want EXPIRED", transitions[0].reasonCode)
 	}
 }

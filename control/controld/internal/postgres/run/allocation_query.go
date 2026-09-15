@@ -13,21 +13,21 @@ import (
 func (s *Store) currentAllocation(ctx context.Context, tx pgx.Tx, allocationID string) (*runkernel.AllocationRecord, error) {
 	var alloc runkernel.AllocationRecord
 	if err := tx.QueryRow(ctx, `
-		SELECT a.allocation_id, a.node_id, n.node_target, a.attempt
+		SELECT a.allocation_id, a.node_id, n.node_target
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
 		WHERE a.allocation_id = $1
-	`, strings.TrimSpace(allocationID)).Scan(&alloc.AllocationID, &alloc.NodeID, &alloc.NodeTarget, &alloc.Attempt); err != nil {
+	`, strings.TrimSpace(allocationID)).Scan(&alloc.AllocationID, &alloc.NodeID, &alloc.NodeTarget); err != nil {
 		return nil, err
 	}
-	dependencies, err := pgallocation.LoadCapabilityDependencies(ctx, tx, allocationID)
+	dependencies, err := pgallocation.LoadCapabilityRequirements(ctx, tx, allocationID)
 	if err != nil {
 		return nil, err
 	}
-	alloc.CapabilityDependencies = dependencies
+	alloc.CapabilityRequirements = dependencies
 	return &alloc, nil
 }
 
 func (s *Store) runByAllocation(ctx context.Context, tx pgx.Tx, allocationID string) (*runv1.Run, error) {
-	return scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE allocation_id = $1`, strings.TrimSpace(allocationID)))
+	return scanRun(tx.QueryRow(ctx, runSelectSQL()+` WHERE a.allocation_id = $1`, strings.TrimSpace(allocationID)))
 }

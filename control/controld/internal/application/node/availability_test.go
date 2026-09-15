@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
+	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestAvailabilityReconcilerFailsOnlyStaleHeartbeatNodes(t *testing.T) {
 	now := time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeAvailabilityNodeStore{records: []*nodekernel.Record{
-		{NodeID: "fresh", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-5 * time.Second)},
-		{NodeID: "stale", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-30 * time.Second)},
+		{NodeID: "fresh", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-5 * time.Second)},
+		{NodeID: "stale", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-30 * time.Second)},
 	}}
 	allocations := &fakeAvailabilityAllocations{}
 
@@ -36,8 +36,8 @@ func TestAvailabilityReconcilerFailsOnlyStaleHeartbeatNodes(t *testing.T) {
 func TestAvailabilityReconcilerContinuesAfterNodeFailure(t *testing.T) {
 	now := time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeAvailabilityNodeStore{records: []*nodekernel.Record{
-		{NodeID: "stale-a", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-30 * time.Second)},
-		{NodeID: "stale-b", Lifecycle: nodekernel.LifecycleActive, UpdatedAt: now.Add(-45 * time.Second)},
+		{NodeID: "stale-a", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-30 * time.Second)},
+		{NodeID: "stale-b", Lifecycle: nodekernel.LifecycleActive, LastHeartbeatAt: now.Add(-45 * time.Second)},
 	}}
 	allocations := &fakeAvailabilityAllocations{errByNodeID: map[string]error{"stale-a": errors.New("database unavailable")}}
 
@@ -58,7 +58,7 @@ func TestAvailabilityReconcilerSynchronizesLifecycleWithoutReconcilingRetiredNod
 	now := time.Date(2026, 5, 9, 12, 0, 0, 0, time.UTC)
 	retiredAt := now.Add(-time.Minute)
 	nodes := &fakeAvailabilityNodeStore{records: []*nodekernel.Record{{
-		NodeID: "retired", Lifecycle: nodekernel.LifecycleRetired, UpdatedAt: now.Add(-time.Hour),
+		NodeID: "retired", Lifecycle: nodekernel.LifecycleRetired, LastHeartbeatAt: now.Add(-time.Hour),
 		RetiredAt: retiredAt, RetiredReason: "host removed",
 	}}}
 	lifecycle := &fakeLifecycleRegistry{}
@@ -86,29 +86,24 @@ func (f *fakeAvailabilityNodeStore) Load(context.Context) ([]*nodekernel.Record,
 	return f.records, nil
 }
 
-func (f *fakeAvailabilityNodeStore) Register(context.Context, nodekernel.RegisterParams) (*nodekernel.Record, error) {
-	panic("unexpected Register call")
-}
-
 func (f *fakeAvailabilityNodeStore) Report(context.Context, nodekernel.ReportParams) (*nodekernel.Record, error) {
 	panic("unexpected Report call")
 }
 
-func (f *fakeAvailabilityNodeStore) Authenticate(context.Context, string, string) error {
+func (f *fakeAvailabilityNodeStore) RequireActive(context.Context, string) error {
 	panic("unexpected Authenticate call")
 }
 
 type fakeAvailabilityAllocations struct {
 	unavailableNodeIDs []string
 	errByNodeID        map[string]error
+	executionIDs       []string
+	executionListCalls int
+	inventoryCalls     int
 }
 
 func (f *fakeAvailabilityAllocations) BatchReportAllocationCapabilityConditions(context.Context, string, []*nodev1.AllocationCapabilityConditionReport, time.Time) error {
 	panic("unexpected BatchReportAllocationCapabilityConditions call")
-}
-
-func (f *fakeAvailabilityAllocations) BatchReportAllocationMemoryObservations(context.Context, string, []*nodev1.AllocationMemoryObservation, time.Time) error {
-	panic("unexpected BatchReportAllocationMemoryObservations call")
 }
 
 type fakeLifecycleRegistry struct {
@@ -133,14 +128,32 @@ func (f *fakeAvailabilityAllocations) ReconcileNodeUnavailable(_ context.Context
 	return nil
 }
 
-func (f *fakeAvailabilityAllocations) BatchReportAllocationStatus(context.Context, string, []*nodev1.AllocationStatusObservation, time.Time) ([]string, error) {
-	panic("unexpected BatchReportAllocationStatus call")
+func (f *fakeAvailabilityAllocations) BatchReportAllocationLifecycle(context.Context, string, []*nodev1.AllocationLifecycleObservation, time.Time) ([]string, error) {
+	panic("unexpected BatchReportAllocationLifecycle call")
 }
 
 func (f *fakeAvailabilityAllocations) ReconcileNodeInventory(context.Context, allocationkernel.NodeInventorySnapshot, time.Time) error {
-	panic("unexpected ReconcileNodeInventory call")
+	f.inventoryCalls++
+	return nil
 }
 
-func (f *fakeAvailabilityAllocations) WatchExecutionLeases(context.Context, string, int64, time.Time) ([]*commonv1.ExecutionLease, int64, error) {
-	panic("unexpected WatchExecutionLeases call")
+func (f *fakeAvailabilityAllocations) WatchAllocationAccessGrants(context.Context, string, int64, time.Time) ([]*accessgrantkernel.Record, int64, error) {
+	panic("unexpected WatchAllocationAccessGrants call")
+}
+
+func (f *fakeAvailabilityAllocations) ListNodeExecutionAllocationIDs(context.Context, string) ([]string, error) {
+	f.executionListCalls++
+	return append([]string(nil), f.executionIDs...), nil
+}
+
+func TestAvailabilityReconcilesRevokedNodeWithFreshHeartbeat(t *testing.T) {
+	now := time.Now()
+	allocations := &fakeAvailabilityAllocations{}
+	err := NewAvailabilityReconciler(AvailabilityReconcilerDeps{
+		Nodes:       &fakeAvailabilityNodeStore{records: []*nodekernel.Record{{NodeID: "revoked", Lifecycle: nodekernel.LifecycleRevoked, LastHeartbeatAt: now}}},
+		Allocations: allocations, HeartbeatWindow: time.Minute,
+	}).ReconcileUnavailableNodes(context.Background(), now)
+	if err != nil || len(allocations.unavailableNodeIDs) != 1 {
+		t.Fatalf("revoked cleanup not driven: %v %v", allocations.unavailableNodeIDs, err)
+	}
 }

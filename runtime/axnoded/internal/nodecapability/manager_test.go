@@ -11,6 +11,7 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -64,28 +65,28 @@ func networkObservation(key *capabilityv1.CapabilityKey, now time.Time, state ca
 	return &capabilityv1.CapabilityObservation{
 		Key: key, State: state, ObservedAt: timestamppb.New(now),
 		ValidUntil: timestamppb.New(now.Add(capabilitycontract.HealthObservationValidity)),
-		ReasonCode: reason, Evidence: capabilitycontract.ConfigEvidence(digest("a")),
+		ReasonCode: reason, Evidence: nil,
 	}
 }
 
 func TestManagerRejectsDuplicateOwnership(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) { return nil, nil }}
 	if _, err := NewManager(provider, provider); err == nil {
 		t.Fatal("NewManager accepted duplicate capability ownership")
 	}
 }
 
-func TestValidateCatalogProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+func TestValidateProviderCoverageRejectsMissingPlatformProvider(t *testing.T) {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}}
-	if err := ValidateCatalogProviderCoverage(provider); err == nil {
-		t.Fatal("partial production provider catalog was accepted")
+	if err := ValidateProviderCoverage(provider); err == nil {
+		t.Fatal("partial production provider contract was accepted")
 	}
 }
 
 func TestManagerPublishesAtomicUnknownForProviderError(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return nil, errors.New("probe unavailable")
 	}})
@@ -102,7 +103,7 @@ func TestManagerPublishesAtomicUnknownForProviderError(t *testing.T) {
 }
 
 func TestManagerSerializesOneProviderWithoutBlockingIndependentProviders(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	var active, maximum atomic.Int32
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		current := active.Add(1)
@@ -132,7 +133,7 @@ func TestManagerSerializesOneProviderWithoutBlockingIndependentProviders(t *test
 }
 
 func TestManagerSerializesSnapshotPublicationAndObserverDelivery(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	manager, err := NewManager(testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
 		keys:     []*capabilityv1.CapabilityKey{key},
@@ -166,7 +167,7 @@ func TestManagerSerializesSnapshotPublicationAndObserverDelivery(t *testing.T) {
 }
 
 func TestSlowTransitionHandlerDoesNotBlockSnapshotPublication(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
 	manager, err := NewManager(testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
@@ -231,7 +232,7 @@ func TestSlowTransitionHandlerDoesNotBlockSnapshotPublication(t *testing.T) {
 }
 
 func TestTransitionHandlerPanicDoesNotSuppressFollowingHandler(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
 	manager, err := NewManager(testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
@@ -266,10 +267,10 @@ func TestTransitionHandlerPanicDoesNotSuppressFollowingHandler(t *testing.T) {
 }
 
 func TestRuntimeProviderSerialLaneHonorsCancellationWhileQueued(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
 	called := false
 	provider := testProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		keys:     []*capabilityv1.CapabilityKey{key},
 		observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			called = true
@@ -306,22 +307,22 @@ func TestRuntimeProvidersShareOneGlobalSerialLane(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 		return nil, nil
 	}
-	runcProvider := testProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
-		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)},
+	memoryProvider := testProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
+		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)},
 		observe:  observe,
 	}
-	runscProvider := testProvider{
+	storageProvider := testProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		keys:     []*capabilityv1.CapabilityKey{capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)},
 		observe:  observe,
 	}
-	manager, err := NewManager(runcProvider, runscProvider)
+	manager, err := NewManager(memoryProvider, storageProvider)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var wait sync.WaitGroup
-	for _, provider := range []Provider{runcProvider, runscProvider} {
+	for _, provider := range []Provider{memoryProvider, storageProvider} {
 		provider := provider
 		wait.Add(1)
 		go func() {
@@ -336,14 +337,14 @@ func TestRuntimeProvidersShareOneGlobalSerialLane(t *testing.T) {
 }
 
 func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
-	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST)
-	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	runtimeKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
+	networkKey := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	releaseRuntime := make(chan struct{})
 	networkPublished := make(chan struct{}, 1)
 	manager, err := NewManager(
-		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{runtimeKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{runtimeKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			<-releaseRuntime
-			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: runtimeKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c"))}}, nil
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{networkKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			select {
@@ -370,7 +371,7 @@ func TestSlowRuntimeProviderDoesNotBlockHealthPublication(t *testing.T) {
 		snapshot = manager.Snapshot()
 		time.Sleep(time.Millisecond)
 	}
-	if snapshot == nil || len(snapshot.GetObservations()) != 1 || snapshot.GetObservations()[0].GetKey().GetPlatform() != capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING {
+	if snapshot == nil || len(snapshot.GetObservations()) != 1 || snapshot.GetObservations()[0].GetKey().GetPlatform() != capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE {
 		t.Fatalf("health publication = %#v", snapshot)
 	}
 	if manager.Ready() {
@@ -390,7 +391,7 @@ func TestDerivedCapabilityDoesNotEnterRecoveryDuringInitialWarming(t *testing.T)
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			<-releaseSelfTest
-			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c"))}}, nil
 		}},
 		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampledAt), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil
@@ -423,7 +424,7 @@ func TestDerivedCapabilityDoesNotEnterRecoveryDuringInitialWarming(t *testing.T)
 }
 
 func TestManagerRejectsStalePublicationTime(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return []*capabilityv1.CapabilityObservation{networkObservation(key, now, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
 	}})
@@ -440,7 +441,7 @@ func TestManagerRejectsStalePublicationTime(t *testing.T) {
 }
 
 func TestManagerRecoveryRequiresTwoIndependentSamples(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	state := capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
 	observedAt := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	provider := testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -493,7 +494,7 @@ func TestDerivedCapabilityRecoversWithConfirmedBaseObservations(t *testing.T) {
 				Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 				ObservedAt: timestamppb.New(now),
 				ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-				Evidence:   capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c")),
+				Evidence:   capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c")),
 			}}, nil
 		}},
 		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -526,7 +527,7 @@ func TestDerivedCapabilityRecoversWithConfirmedBaseObservations(t *testing.T) {
 }
 
 func TestManagerErrorRecoveryRequiresTwoIndependentSamples(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	failing := true
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
@@ -559,7 +560,7 @@ func TestManagerErrorRecoveryRequiresTwoIndependentSamples(t *testing.T) {
 }
 
 func TestManagerExpiryRecoveryRequiresTwoIndependentSamples(t *testing.T) {
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING)
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	manager, err := NewManager(testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH, keys: []*capabilityv1.CapabilityKey{key}, observe: func(sampledAt time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 		return []*capabilityv1.CapabilityObservation{networkObservation(key, sampledAt, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)}, nil
@@ -604,7 +605,7 @@ func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
 			return []*capabilityv1.CapabilityObservation{{Key: baseKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ValidUntil: timestamppb.New(sampleTime.Add(capabilitycontract.HealthObservationValidity)), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.MountEvidence(testBootID, "42:/filestore:xfs")}}, nil
 		}},
 		testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST, keys: []*capabilityv1.CapabilityKey{selfTestKey}, observe: func(time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, "runsc", digest("b"), digest("c"))}}, nil
+			return []*capabilityv1.CapabilityObservation{{Key: selfTestKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(sampleTime), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Evidence: capabilitycontract.RuntimeEvidence(testBootID, digest("b"), digest("c"))}}, nil
 		}},
 		testDeriver{testProvider{provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_DERIVED, keys: []*capabilityv1.CapabilityKey{derivedKey}, observe: func(now time.Time) ([]*capabilityv1.CapabilityObservation, error) {
 			return []*capabilityv1.CapabilityObservation{{Key: derivedKey, State: capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE, ObservedAt: timestamppb.New(now), ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE}}, nil
@@ -617,7 +618,7 @@ func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	placement, err := capabilitycontract.ResolveDependencies(first, []*capabilityv1.CapabilityKey{derivedKey}, now)
+	placement, err := capabilitycontract.ResolveRequirements(first, []*capabilityv1.CapabilityKey{derivedKey}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,10 +630,7 @@ func TestManagerAdmitsCurrentCompleteProof(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if admitted[0].GetSelectedObservation().GetObservationID() == placement[0].GetSelectedObservation().GetObservationID() {
-		t.Fatal("admission did not bind the current observation")
-	}
-	if len(admitted[0].GetDependencyObservations()) != 2 || conditions[0].GetProof().GetObservationID() != admitted[0].GetSelectedObservation().GetObservationID() {
-		t.Fatalf("admitted proof is incomplete: admitted=%#v conditions=%#v", admitted, conditions)
+	if !proto.Equal(admitted[0], placement[0]) || conditions[0].GetState() != capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY {
+		t.Fatalf("requirements or conditions changed: admitted=%#v conditions=%#v", admitted, conditions)
 	}
 }

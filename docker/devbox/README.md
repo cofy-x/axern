@@ -1,8 +1,6 @@
 # Axern Devbox
 
-The Axern devbox image is the standalone Linux workspace for node-runtime
-development. It is built from a public Ubuntu base image and started by the
-repo-local [devbox wrapper](../../scripts/devbox/devbox.sh).
+The Axern devbox image is the standalone Linux workspace for node-runtime development. It is built from a public Ubuntu base image and started by the repo-local [devbox wrapper](../../scripts/devbox/devbox.sh).
 
 It includes:
 
@@ -11,7 +9,7 @@ It includes:
 - Rust `1.89.0` with `rustfmt`
 - Postgres for the standalone source-development stack
 - Node.js, pnpm, Python, and uv for root workspace development
-- `runsc` and `runc` for runtime validation
+- `runsc` for runtime validation
 - Docker CLI plus `buildx` and `compose` plugins for the mounted host Docker socket
 - network, filesystem, FUSE, and debug tools used by the node verification flow
 - `sshd` managed by `supervisord` for VS Code Remote-SSH
@@ -22,8 +20,7 @@ Build it with:
 make devbox-image-build
 ```
 
-Image builds use upstream Ubuntu and language package sources by default. No
-host build proxy is enabled automatically.
+Image builds use upstream Ubuntu and language package sources by default. No host build proxy is enabled automatically.
 
 Regional mirrors and a host proxy remain explicit options:
 
@@ -41,15 +38,9 @@ Start the project devbox with:
 make devbox-up
 ```
 
-See [Devbox Workflow](../../docs/operations/devbox.md) for the full standalone
-development workflow, including stack startup, per-service restarts, VS Code
-Remote-SSH debugging, and verification commands.
+See [Devbox Workflow](../../docs/operations/devbox.md) for the full standalone development workflow, including stack startup, per-service restarts, VS Code Remote-SSH debugging, and verification commands.
 
-The default SSH endpoint is written to `~/.ssh/config` as
-`Host axern-devbox`, so VS Code Remote-SSH can attach to `axern-devbox`.
-Toolchain commands are available through the default SSH `PATH`, and the
-mounted workspace `bin/` directory is added at container startup for
-repo-local CLI builds.
+The default SSH endpoint is written to `~/.ssh/config` as `Host axern-devbox`, so VS Code Remote-SSH can attach to `axern-devbox`. Toolchain commands are available through the default SSH `PATH`, and the mounted workspace `bin/` directory is added at container startup for repo-local CLI builds.
 
 Override the port with:
 

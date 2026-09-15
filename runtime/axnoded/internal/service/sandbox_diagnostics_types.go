@@ -16,10 +16,10 @@ type SandboxCapabilityProvider struct {
 	Capabilities []string
 	Backend      string
 	Reason       string
-	Dependencies []SandboxCapabilityDependency
+	Dependencies []SandboxCapabilityRequirement
 }
 
-type SandboxCapabilityDependency struct {
+type SandboxCapabilityRequirement struct {
 	Name      string
 	Available bool
 	Reason    string

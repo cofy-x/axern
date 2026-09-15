@@ -8,41 +8,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 )
 
-func (r *RuncServiceHandler) verifyMemoryEnforcement(ctx context.Context, options contract.HandlerOptions) error {
-	if options.MemoryLimitBytes <= 0 {
-		return nil
-	}
-	manifest, err := r.AllocationEnforcementManifest(ctx, options.ContainerID)
-	if err != nil {
-		return fmt.Errorf("read immutable runc enforcement manifest: %w", err)
-	}
-	if err := verifyDurableEnforcementManifest(options.EnforcementManifest, manifest); err != nil {
-		return err
-	}
-	cgroupPath := options.RuntimeCgroupPath
-	if err := hostlinux.VerifyCgroupMemoryDomain(options.CgroupPath, cgroupPath, options.MemoryLimitBytes, manifest.GetCgroupBootID(), manifest.GetCgroupMountIdentity(), manifest.GetCgroupParentInode(), manifest.GetCgroupLeafInode()); err != nil {
-		return fmt.Errorf("verify runc memory domain: %w", err)
-	}
-	state, err := r.state(ctx, options.ContainerID)
-	if err != nil {
-		return inconclusiveCapabilityErrorf("read runc state for memory enforcement: %w", err)
-	}
-	if state.Pid == nil || *state.Pid <= 0 {
-		return fmt.Errorf("runc state has no init host pid for memory enforcement")
-	}
-	launchPID, err := r.common.RuntimePID(options.ContainerID)
-	if err != nil {
-		return fmt.Errorf("resolve runc launch pid for memory enforcement: %w", err)
-	}
-	if launchPID != *state.Pid {
-		return fmt.Errorf("runc state pid %d differs from immutable launch pid %d", *state.Pid, launchPID)
-	}
-	if err := hostlinux.VerifyRuncCgroupProcessTree(cgroupPath, *state.Pid); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *RunscServiceHandler) verifyMemoryEnforcement(ctx context.Context, options contract.HandlerOptions) error {
 	if options.MemoryLimitBytes <= 0 {
 		return nil

@@ -20,7 +20,6 @@ class TLSContext:
 class AxernContext:
     name: str
     endpoint: str
-    service_url: str
     ssh_endpoint: str
     ssh_identity_file: str
     tls: TLSContext
@@ -34,7 +33,7 @@ def load_context(path: str | Path, name: str = "") -> AxernContext:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
     if not isinstance(raw, dict):
         raise ValueError("Axern config must be an object")
-    _reject_unknown(raw, {"current_context", "contexts", "agent_profiles"}, "config")
+    _reject_unknown(raw, {"current_context", "contexts"}, "config")
     context_name = name or _string(raw, "current_context")
     if not context_name:
         raise ValueError("Axern context name is required")
@@ -44,7 +43,7 @@ def load_context(path: str | Path, name: str = "") -> AxernContext:
     context = contexts[context_name]
     if not isinstance(context, dict):
         raise ValueError(f"Axern context {context_name!r} must be an object")
-    _reject_unknown(context, {"endpoint", "service_url", "ssh_endpoint", "ssh_identity_file", "tls", "proxy_mode"}, "context")
+    _reject_unknown(context, {"endpoint", "ssh_endpoint", "ssh_identity_file", "tls", "proxy_mode"}, "context")
     tls = context.get("tls")
     if not isinstance(tls, dict):
         raise ValueError("context.tls must be an object")
@@ -61,7 +60,6 @@ def load_context(path: str | Path, name: str = "") -> AxernContext:
     return AxernContext(
         name=context_name,
         endpoint=endpoint,
-        service_url=_string(context, "service_url"),
         ssh_endpoint=_string(context, "ssh_endpoint"),
         ssh_identity_file=_string(context, "ssh_identity_file"),
         tls=TLSContext(ca_cert=ca_cert, cert=cert, key=key, server_name=_string(tls, "server_name")),

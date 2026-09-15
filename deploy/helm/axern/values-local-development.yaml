@@ -5,8 +5,6 @@ runtimeCatalog:
   serverBaseImage: axern/server-base-runtime:dev
   codingBaseImage: axern/coding-base-runtime:dev
   desktopBaseImage: axern/desktop-base-runtime:dev
-  claudeCodeBundleImage: axern/claude-code-bundle:dev
-  codexBundleImage: axern/codex-bundle:dev
 
 controld:
   image:
@@ -19,6 +17,9 @@ tunneld:
     tag: dev
 
 node:
+  enrollment:
+    nodes: [] # Explicit records: {nodeName: worker-a, nodeID: independently-assigned-id}
+    existingSecret: enrollment-token
   image:
     repository: axern/local-node-all-in-one
     tag: dev

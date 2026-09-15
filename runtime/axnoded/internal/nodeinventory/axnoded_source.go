@@ -14,26 +14,27 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/bpfnetstatus"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langruntime "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	runtimevolumev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/volume/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/protobuf/proto"
 )
 
 type runtimeCountFunc func() int
 type readyFunc func() bool
-type volumeHealthFunc func(context.Context) (*runtimevolumev1.VolumeManagerHealth, error)
 type statfsFunc func(string) (StorageInventoryEntry, error)
 type capabilitySnapshotFunc func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error)
 type memoryCommitmentFunc func() (resources.MemoryCommitment, error)
 type memoryCapacityObserverFunc func(resources.MemoryCapacitySnapshot) error
-type memoryObservationRevisionFunc func() (int64, error)
-type memoryPIDRolesVerifierFunc func(allocationID, runtimeName, workloadPath string, runtimePID int) error
+type memoryPIDRolesVerifierFunc func(allocationID, workloadPath string, runtimePID int) error
 type retiringMemoryLeasesFunc func() []resources.RetiringMemoryLease
 type unackedStatusIDsFunc func() []string
+type allocationIDsFunc func() []string
+type allocationEnvironmentIDFunc func(string) string
+type allocationResourceSpecFunc func(string) *commonv1.ResourceSpec
 
 var ErrCapabilitySnapshotWarming = errors.New("capability manager is warming")
 
@@ -41,42 +42,44 @@ type containerManagerView interface {
 	List(...container.ListOption) []*container.Container
 	ResourcePoolStatus(resources.ResourceName) (resources.PoolStatus, error)
 	RuntimeCgroupPath(string) (string, error)
+	AllocationCgroupPath(string) (string, error)
 }
 
-type langRuntimeManagerView interface {
-	GetLangRuntime(string) *langruntime.LanguageRuntime
-	List() []*langruntime.LanguageRuntime
-	RetentionStats() langruntime.RetentionStats
+type preparedEnvironmentManagerView interface {
+	GetPreparedEnvironment(string) *environmentcache.PreparedEnvironment
+	List() []*environmentcache.PreparedEnvironment
+	RetentionStats() environmentcache.RetentionStats
 }
 
 type AxnodedSourceOptions struct {
-	NodeID                    string
-	Ready                     readyFunc
-	RuntimeCount              runtimeCountFunc
-	Container                 containerManagerView
-	LangRuntime               langRuntimeManagerView
-	ImageManager              *ImageManagerClient
-	NodeResources             NodeResourceProvider
-	CgroupDriver              os2.CgroupDriver
-	NatBackend                string
-	BPFNetPinPath             string
-	NodeState                 string
-	NodeLabels                map[string]string
-	CapabilitySnapshot        capabilitySnapshotFunc
-	LoadBPFNet                func(string) (bpfnet.Status, error)
-	VolumeHealth              volumeHealthFunc
-	StorageTargets            []StorageTarget
-	StatFS                    statfsFunc
-	RuntimeSlotCapacity       int
-	MemoryBudgetEnabled       bool
-	MemoryCgroupEnforced      bool
-	CgroupRootName            string
-	MemorySystemReserveBytes  int64
-	MemoryCommitment          memoryCommitmentFunc
-	MemoryCapacityObserver    memoryCapacityObserverFunc
-	MemoryObservationRevision memoryObservationRevisionFunc
-	MemoryPIDRolesVerifier    memoryPIDRolesVerifierFunc
-	RetiringMemoryLeases      retiringMemoryLeasesFunc
+	NodeID                   string
+	Ready                    readyFunc
+	RuntimeCount             runtimeCountFunc
+	Container                containerManagerView
+	EnvironmentCache         preparedEnvironmentManagerView
+	ImageManager             *ImageManagerClient
+	NodeResources            NodeResourceProvider
+	CgroupDriver             os2.CgroupDriver
+	NatBackend               string
+	BPFNetPinPath            string
+	NodeState                string
+	NodeLabels               map[string]string
+	CapabilitySnapshot       capabilitySnapshotFunc
+	LoadBPFNet               func(string) (bpfnet.Status, error)
+	StorageTargets           []StorageTarget
+	StatFS                   statfsFunc
+	RuntimeSlotCapacity      int
+	MemoryBudgetEnabled      bool
+	MemoryCgroupEnforced     bool
+	CgroupRootName           string
+	MemorySystemReserveBytes int64
+	MemoryCommitment         memoryCommitmentFunc
+	MemoryCapacityObserver   memoryCapacityObserverFunc
+	MemoryPIDRolesVerifier   memoryPIDRolesVerifierFunc
+	RetiringMemoryLeases     retiringMemoryLeasesFunc
+	AllocationIDs            allocationIDsFunc
+	AllocationEnvironmentID  allocationEnvironmentIDFunc
+	AllocationResourceSpec   allocationResourceSpecFunc
 	// UnackedStatusIDs extends active allocation ownership
 	// through the control-plane status-report acknowledgement boundary. This
 	// prevents a short-lived allocation from disappearing from node inventory
@@ -89,35 +92,36 @@ type AxnodedSourceOptions struct {
 }
 
 type AxnodedSource struct {
-	nodeID                    string
-	ready                     readyFunc
-	runtimeCount              runtimeCountFunc
-	container                 containerManagerView
-	langRuntime               langRuntimeManagerView
-	imageManager              *ImageManagerClient
-	nodeResources             NodeResourceProvider
-	cgroupDriver              os2.CgroupDriver
-	natBackend                string
-	bpfnetPin                 string
-	nodeState                 string
-	nodeLabels                map[string]string
-	capabilitySnapshot        capabilitySnapshotFunc
-	loadBPFNet                func(string) (bpfnet.Status, error)
-	volumeHealth              volumeHealthFunc
-	storageTargets            []StorageTarget
-	statFS                    statfsFunc
-	disabledPools             map[resources.ResourceName]struct{}
-	runtimeSlotCapacity       int
-	memoryBudgetEnabled       bool
-	memoryCgroupEnforced      bool
-	cgroupRootName            string
-	memorySystemReserveBytes  int64
-	memoryCommitment          memoryCommitmentFunc
-	memoryCapacityObserver    memoryCapacityObserverFunc
-	memoryObservationRevision memoryObservationRevisionFunc
-	memoryPIDRolesVerifier    memoryPIDRolesVerifierFunc
-	retiringMemoryLeases      retiringMemoryLeasesFunc
-	unackedStatusIDs          unackedStatusIDsFunc
+	nodeID                   string
+	ready                    readyFunc
+	runtimeCount             runtimeCountFunc
+	container                containerManagerView
+	preparedEnvironment      preparedEnvironmentManagerView
+	imageManager             *ImageManagerClient
+	nodeResources            NodeResourceProvider
+	cgroupDriver             os2.CgroupDriver
+	natBackend               string
+	bpfnetPin                string
+	nodeState                string
+	nodeLabels               map[string]string
+	capabilitySnapshot       capabilitySnapshotFunc
+	loadBPFNet               func(string) (bpfnet.Status, error)
+	storageTargets           []StorageTarget
+	statFS                   statfsFunc
+	disabledPools            map[resources.ResourceName]struct{}
+	runtimeSlotCapacity      int
+	memoryBudgetEnabled      bool
+	memoryCgroupEnforced     bool
+	cgroupRootName           string
+	memorySystemReserveBytes int64
+	memoryCommitment         memoryCommitmentFunc
+	memoryCapacityObserver   memoryCapacityObserverFunc
+	memoryPIDRolesVerifier   memoryPIDRolesVerifierFunc
+	retiringMemoryLeases     retiringMemoryLeasesFunc
+	unackedStatusIDs         unackedStatusIDsFunc
+	allocationIDs            allocationIDsFunc
+	allocationEnvironmentID  allocationEnvironmentIDFunc
+	allocationResourceSpec   allocationResourceSpecFunc
 
 	sampleMu       sync.Mutex
 	prevCPUSamples map[string]cpuUsageSample
@@ -149,36 +153,37 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 	}
 	runtimeSlotCapacity = min(runtimeSlotCapacity, container.MaxContainerNum)
 	return &AxnodedSource{
-		nodeID:                    strings.TrimSpace(opts.NodeID),
-		ready:                     opts.Ready,
-		runtimeCount:              opts.RuntimeCount,
-		container:                 opts.Container,
-		langRuntime:               opts.LangRuntime,
-		imageManager:              opts.ImageManager,
-		nodeResources:             defaultNodeResourceProvider(opts.NodeResources),
-		cgroupDriver:              opts.CgroupDriver,
-		natBackend:                opts.NatBackend,
-		bpfnetPin:                 opts.BPFNetPinPath,
-		nodeState:                 opts.NodeState,
-		nodeLabels:                cloneStringMap(opts.NodeLabels),
-		capabilitySnapshot:        opts.CapabilitySnapshot,
-		loadBPFNet:                loadBPFNet,
-		volumeHealth:              opts.VolumeHealth,
-		storageTargets:            normalizeStorageTargets(opts.StorageTargets),
-		statFS:                    defaultStatFS(opts.StatFS),
-		disabledPools:             disabledPools,
-		runtimeSlotCapacity:       runtimeSlotCapacity,
-		memoryBudgetEnabled:       opts.MemoryBudgetEnabled,
-		memoryCgroupEnforced:      opts.MemoryCgroupEnforced,
-		cgroupRootName:            opts.CgroupRootName,
-		memorySystemReserveBytes:  opts.MemorySystemReserveBytes,
-		memoryCommitment:          opts.MemoryCommitment,
-		memoryCapacityObserver:    opts.MemoryCapacityObserver,
-		memoryObservationRevision: opts.MemoryObservationRevision,
-		memoryPIDRolesVerifier:    opts.MemoryPIDRolesVerifier,
-		retiringMemoryLeases:      opts.RetiringMemoryLeases,
-		unackedStatusIDs:          opts.UnackedStatusIDs,
-		prevCPUSamples:            make(map[string]cpuUsageSample),
+		nodeID:                   strings.TrimSpace(opts.NodeID),
+		ready:                    opts.Ready,
+		runtimeCount:             opts.RuntimeCount,
+		container:                opts.Container,
+		preparedEnvironment:      opts.EnvironmentCache,
+		imageManager:             opts.ImageManager,
+		nodeResources:            defaultNodeResourceProvider(opts.NodeResources),
+		cgroupDriver:             opts.CgroupDriver,
+		natBackend:               opts.NatBackend,
+		bpfnetPin:                opts.BPFNetPinPath,
+		nodeState:                opts.NodeState,
+		nodeLabels:               cloneStringMap(opts.NodeLabels),
+		capabilitySnapshot:       opts.CapabilitySnapshot,
+		loadBPFNet:               loadBPFNet,
+		storageTargets:           normalizeStorageTargets(opts.StorageTargets),
+		statFS:                   defaultStatFS(opts.StatFS),
+		disabledPools:            disabledPools,
+		runtimeSlotCapacity:      runtimeSlotCapacity,
+		memoryBudgetEnabled:      opts.MemoryBudgetEnabled,
+		memoryCgroupEnforced:     opts.MemoryCgroupEnforced,
+		cgroupRootName:           opts.CgroupRootName,
+		memorySystemReserveBytes: opts.MemorySystemReserveBytes,
+		memoryCommitment:         opts.MemoryCommitment,
+		memoryCapacityObserver:   opts.MemoryCapacityObserver,
+		memoryPIDRolesVerifier:   opts.MemoryPIDRolesVerifier,
+		retiringMemoryLeases:     opts.RetiringMemoryLeases,
+		unackedStatusIDs:         opts.UnackedStatusIDs,
+		allocationIDs:            opts.AllocationIDs,
+		allocationEnvironmentID:  opts.AllocationEnvironmentID,
+		allocationResourceSpec:   opts.AllocationResourceSpec,
+		prevCPUSamples:           make(map[string]cpuUsageSample),
 	}
 }
 
@@ -218,7 +223,6 @@ func (s *AxnodedSource) Collect(ctx context.Context) (NodeInventorySnapshot, boo
 
 	localReady := s.collectAxnodedInventory(now, &snapshot)
 	s.collectImagemgrInventory(now, &snapshot)
-	s.collectVolumedInventory(ctx, now, &snapshot)
 	s.collectBPFNetInventory(now, &snapshot)
 	sortLocalityEntries(snapshot.Heat.Locality)
 	// Node collected_at is the completion/publication boundary. Individual

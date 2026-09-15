@@ -20,33 +20,28 @@ func (s *Store) CreateEnvironment(ctx context.Context, params runkernel.CreateEn
 		normalized = &environmentv1.EnvironmentSpec{}
 	}
 	normalized.Namespace = environmentkernel.NormalizeNamespace(normalized.GetNamespace())
-	hash := environmentkernel.SpecHash(normalized, params.Template)
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin create environment tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
-	if _, err := pgnamespace.Ensure(ctx, tx, normalized.GetNamespace()); err != nil {
+	if _, err := pgnamespace.EnsureAt(ctx, tx, normalized.GetNamespace(), now.UTC()); err != nil {
 		return nil, err
 	}
 
 	env := &environmentv1.Environment{
-		ID:               "env-" + uuid.NewString(),
-		Namespace:        normalized.GetNamespace(),
-		Status:           environmentv1.EnvironmentStatus_ENVIRONMENT_STATUS_READY,
-		Spec:             normalized,
-		SpecHash:         hash,
-		ResolvedTemplate: params.Template,
-		Labels:           runkernel.CloneLabels(params.Labels),
-		Version:          1,
-		CreatedAt:        timestamppb.New(now),
-		UpdatedAt:        timestamppb.New(now),
+		ID:           "env-" + uuid.NewString(),
+		Namespace:    normalized.GetNamespace(),
+		Spec:         normalized,
+		ResolvedSpec: params.ResolvedSpec,
+		Labels:       runkernel.CloneLabels(params.Labels),
+		CreatedAt:    timestamppb.New(now),
 	}
 	specJSON, err := marshalProtoJSON(normalized)
 	if err != nil {
 		return nil, err
 	}
-	templateJSON, err := marshalProtoJSON(params.Template)
+	resolvedSpecJSON, err := marshalProtoJSON(params.ResolvedSpec)
 	if err != nil {
 		return nil, err
 	}
@@ -56,11 +51,13 @@ func (s *Store) CreateEnvironment(ctx context.Context, params runkernel.CreateEn
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO environments (
-			environment_id, namespace, status, spec_hash, spec, resolved_template,
-			labels, version, created_at, updated_at, message
-		) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9, $10, '')
-	`, env.GetID(), env.GetNamespace(), env.GetStatus().String(), env.GetSpecHash(), specJSON, templateJSON, labelsJSON, env.GetVersion(), now.UTC(), now.UTC()); err != nil {
+			environment_id, namespace, spec, resolved_spec, labels, created_at
+		) VALUES ($1, $2, $3::jsonb, $4::jsonb, $5::jsonb, $6)
+	`, env.GetID(), env.GetNamespace(), specJSON, resolvedSpecJSON, labelsJSON, now.UTC()); err != nil {
 		return nil, fmt.Errorf("insert environment: %w", err)
+	}
+	if err := insertEnvironmentSecretReference(ctx, tx, env); err != nil {
+		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit create environment tx: %w", err)
@@ -73,6 +70,17 @@ func cloneEnvironmentSpec(spec *environmentv1.EnvironmentSpec) *environmentv1.En
 		return nil
 	}
 	cloned, ok := proto.Clone(spec).(*environmentv1.EnvironmentSpec)
+	if !ok || cloned == nil {
+		return nil
+	}
+	return cloned
+}
+
+func cloneResolvedEnvironmentSpec(spec *environmentv1.ResolvedEnvironmentSpec) *environmentv1.ResolvedEnvironmentSpec {
+	if spec == nil {
+		return nil
+	}
+	cloned, ok := proto.Clone(spec).(*environmentv1.ResolvedEnvironmentSpec)
 	if !ok || cloned == nil {
 		return nil
 	}

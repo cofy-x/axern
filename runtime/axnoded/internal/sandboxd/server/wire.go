@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/browser"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/computeruse"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/diagnostic"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/fileapi"
@@ -152,26 +151,6 @@ func providerDependenciesFromComputerUse(items []computeruse.DependencyStatus) [
 	return out
 }
 
-func providerFromBrowserStatus(status browser.StatusResponse) provider.Provider {
-	item := provider.Provider{
-		Name:         provider.CapabilityBrowser,
-		Available:    status.Available,
-		Capabilities: []string{provider.CapabilityBrowser},
-		Command:      status.Command,
-		Reason:       status.Reason,
-		LastError:    status.LastError,
-	}
-	switch {
-	case !status.Available:
-		item.State = provider.ProviderStateUnavailable
-	case status.LastError != "":
-		item.State = provider.ProviderStateDegraded
-	default:
-		item.State = provider.ProviderStateAvailable
-	}
-	return item
-}
-
 func wireProcessList(list process.ListResponse) wire.ProcessListResponse {
 	out := wire.ProcessListResponse{Processes: make([]wire.ProcessStatus, 0, len(list.Processes))}
 	for _, item := range list.Processes {
@@ -182,32 +161,18 @@ func wireProcessList(list process.ListResponse) wire.ProcessListResponse {
 
 func wireProcessStatus(status process.Status) wire.ProcessStatus {
 	return wire.ProcessStatus{
-		ID:                 status.ID,
-		State:              status.State,
-		PID:                status.PID,
-		ExitCode:           status.ExitCode,
-		Signal:             status.Signal,
-		StartedAt:          status.StartedAt,
-		FinishedAt:         status.FinishedAt,
-		LastError:          status.LastError,
-		Stdout:             status.Stdout,
-		Stderr:             status.Stderr,
-		StdoutTruncated:    status.StdoutTruncated,
-		StderrTruncated:    status.StderrTruncated,
-		ManagedProxyReport: wireManagedProxyReport(status.ManagedProxyReport),
-	}
-}
-
-func wireManagedProxyReport(report *process.ManagedProxyReport) *wire.ManagedProxyReport {
-	if report == nil {
-		return nil
-	}
-	return &wire.ManagedProxyReport{
-		Provider:      report.Provider,
-		RequestCount:  report.RequestCount,
-		ResponseCount: report.ResponseCount,
-		ErrorCount:    report.ErrorCount,
-		ReportJSON:    append([]byte(nil), report.ReportJSON...),
+		ID:              status.ID,
+		State:           status.State,
+		PID:             status.PID,
+		ExitCode:        status.ExitCode,
+		Signal:          status.Signal,
+		StartedAt:       status.StartedAt,
+		FinishedAt:      status.FinishedAt,
+		LastError:       status.LastError,
+		Stdout:          status.Stdout,
+		Stderr:          status.Stderr,
+		StdoutTruncated: status.StdoutTruncated,
+		StderrTruncated: status.StderrTruncated,
 	}
 }
 
@@ -253,18 +218,4 @@ func wireComputerUseDependencies(items []computeruse.DependencyStatus) []wire.Co
 		out = append(out, wire.ComputerUseDependencyStatus{Name: item.Name, Available: item.Available, Reason: item.Reason})
 	}
 	return out
-}
-
-func wireBrowserStatus(status browser.StatusResponse) wire.BrowserStatusResponse {
-	return wire.BrowserStatusResponse{
-		Available:    status.Available,
-		Command:      status.Command,
-		Running:      status.Running,
-		Pid:          status.Pid,
-		URL:          status.URL,
-		Reason:       status.Reason,
-		StartedAt:    status.StartedAt,
-		LastActionAt: status.LastActionAt,
-		LastError:    status.LastError,
-	}
 }

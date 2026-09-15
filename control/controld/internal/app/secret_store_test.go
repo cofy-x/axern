@@ -48,29 +48,3 @@ func TestPostgresSecretStoreEncryptsPayloadAtRest(t *testing.T) {
 		t.Fatalf("resolved token = %q, want super-secret-value", resolved.Data["token"])
 	}
 }
-
-func TestProfileCredentialCannotResolveThroughGenericSecretBoundary(t *testing.T) {
-	app, _ := newPostgresTestService(t)
-	defer app.Close()
-	ctx := context.Background()
-	now := time.Date(2026, 7, 22, 12, 0, 0, 0, time.UTC)
-	tx, err := app.db.Pool().Begin(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	id, _, err := app.secretDB.CreateProfileCredentialTx(ctx, tx, "default", "apf-private", []byte("private-token"), now)
-	if err != nil {
-		_ = tx.Rollback(ctx)
-		t.Fatal(err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, err := app.secretDB.Resolve(ctx, id); err != nil || ok {
-		t.Fatalf("generic Resolve() ok=%t err=%v, want hidden", ok, err)
-	}
-	resolved, ok, err := app.secretDB.ResolveProfileCredential(ctx, id)
-	if err != nil || !ok || resolved.Data["token"] != "private-token" {
-		t.Fatalf("profile credential resolve = %v ok=%t err=%v", resolved, ok, err)
-	}
-}

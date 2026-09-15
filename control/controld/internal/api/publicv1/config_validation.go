@@ -5,11 +5,8 @@ import (
 	"strings"
 
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
-	servicekernel "github.com/cofy-x/axern/control/controld/internal/kernel/service"
-	"github.com/cofy-x/axern/lib/go/agentbundle"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -100,35 +97,6 @@ func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error 
 	if config == nil {
 		return nil
 	}
-	if err := validateWorkspaceImage(config.GetWorkspaceImage()); err != nil {
-		return err
-	}
-	if workspace := config.GetWorkspaceImage(); workspace != nil {
-		workspaceTarget := path.Clean(workspace.GetTarget())
-		if workspaceTarget == "." {
-			workspaceTarget = "/workspace"
-		}
-		for _, imageMount := range config.GetImageMounts() {
-			if imageMount == nil {
-				continue
-			}
-			for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
-				if pathsOverlap(workspaceTarget, imageTarget) {
-					return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.image_mounts target %q", workspaceTarget, imageTarget)
-				}
-			}
-		}
-		for _, volume := range config.GetVolumeMounts() {
-			if volume != nil && pathsOverlap(workspaceTarget, volume.GetTarget()) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.volume_mounts target %q", workspaceTarget, volume.GetTarget())
-			}
-		}
-		for _, secretFile := range config.GetSecretFiles() {
-			if secretFile != nil && pathsOverlap(workspaceTarget, secretFile.GetPath()) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q overlaps config.secret_files path %q", workspaceTarget, secretFile.GetPath())
-			}
-		}
-	}
 	if len(config.GetImageMounts()) == 0 {
 		return nil
 	}
@@ -149,152 +117,15 @@ func validateExecutionConfigImageMounts(config *commonv1.ExecutionConfig) error 
 		if protectedImageMountTarget(target) {
 			return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q is protected", target)
 		}
-		for _, claimedTarget := range agentbundle.ClaimedMountTargets(target) {
-			for existing := range seenTargets {
-				if pathsOverlap(existing, claimedTarget) {
-					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps target %q", claimedTarget, existing)
-				}
+		for existing := range seenTargets {
+			if pathsOverlap(existing, target) {
+				return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps target %q", target, existing)
 			}
-			seenTargets[claimedTarget] = struct{}{}
 		}
-	}
-	if err := validateImageMountNoVolumeOverlap(config); err != nil {
-		return err
+		seenTargets[target] = struct{}{}
 	}
 	if err := validateImageMountNoSecretFileOverlap(config); err != nil {
 		return err
-	}
-	return nil
-}
-
-func validateWorkspaceImage(workspace *commonv1.WorkspaceImageSource) error {
-	if workspace == nil {
-		return nil
-	}
-	if len(workspace.GetVariants()) == 0 {
-		return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image.variants is required")
-	}
-	seenFormats := map[string]bool{}
-	for _, variant := range workspace.GetVariants() {
-		if variant == nil {
-			return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image variant must not be nil")
-		}
-		format := strings.ToLower(strings.TrimSpace(variant.GetFormat()))
-		if format != "nydus" && format != "oci" {
-			return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image variant format must be nydus or oci")
-		}
-		if strings.TrimSpace(variant.GetImage()) == "" {
-			return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image variant image is required")
-		}
-		if !immutableWorkspaceImageReference(variant.GetImage()) {
-			return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image variant image must use an immutable sha256 digest reference")
-		}
-		if seenFormats[format] {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image variant format %q is duplicated", format)
-		}
-		seenFormats[format] = true
-	}
-	sourcePath := strings.TrimSpace(workspace.GetSourcePath())
-	cleanSource := path.Clean(sourcePath)
-	parts := strings.Split(cleanSource, "/")
-	if len(parts) != 3 || parts[0] != "tasks" || parts[1] == "" || parts[2] != "workspace" || pathHasParentReference(sourcePath) {
-		return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image.source_path must select tasks/<id>/workspace")
-	}
-	rawTarget := strings.TrimSpace(workspace.GetTarget())
-	target := path.Clean(rawTarget)
-	if target == "." {
-		target = "/workspace"
-	}
-	if target == "/" || !strings.HasPrefix(target, "/") || pathHasParentReference(rawTarget) {
-		return grpcstatus.Error(codes.InvalidArgument, "config.workspace_image.target must be an absolute path below /")
-	}
-	if protectedImageMountTarget(target) {
-		return grpcstatus.Errorf(codes.InvalidArgument, "config.workspace_image target %q is protected", target)
-	}
-	return nil
-}
-
-func immutableWorkspaceImageReference(value string) bool {
-	_, digest, ok := strings.Cut(strings.TrimSpace(value), "@sha256:")
-	if !ok || len(digest) != 64 {
-		return false
-	}
-	for _, r := range digest {
-		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
-			return false
-		}
-	}
-	return true
-}
-
-func validateNoServiceVolumeMounts(config *commonv1.ExecutionConfig, owner string) error {
-	if config == nil || len(config.GetVolumeMounts()) == 0 {
-		return nil
-	}
-	return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts is only supported for service workloads in v1, not %s", owner)
-}
-
-func validateServiceVolumeMounts(config *commonv1.ExecutionConfig) error {
-	if config == nil {
-		return nil
-	}
-	seenNames := map[string]struct{}{}
-	seenTargets := map[string]struct{}{}
-	for _, item := range config.GetVolumeMounts() {
-		if item == nil {
-			continue
-		}
-		name := strings.TrimSpace(item.GetName())
-		if name == "" {
-			return grpcstatus.Error(codes.InvalidArgument, "config.volume_mounts.name is required")
-		}
-		if !isStableVolumeName(name) {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q name may only contain letters, digits, '.', '_', or '-'", name)
-		}
-		if _, exists := seenNames[name]; exists {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q is duplicated", name)
-		}
-		seenNames[name] = struct{}{}
-
-		rawTarget := strings.TrimSpace(item.GetTarget())
-		target := path.Clean(rawTarget)
-		if target == "." || target == "/" || !strings.HasPrefix(target, "/") || pathHasParentReference(rawTarget) {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q target must be an absolute container path below /", name)
-		}
-		if _, exists := seenTargets[target]; exists {
-			return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts target %q is duplicated", target)
-		}
-		seenTargets[target] = struct{}{}
-
-		for _, option := range item.GetOptions() {
-			option = strings.TrimSpace(option)
-			if option == "" {
-				continue
-			}
-			if !allowedServiceVolumeOption(option) {
-				return grpcstatus.Errorf(codes.InvalidArgument, "config.volume_mounts %q option %q is not supported", name, option)
-			}
-		}
-	}
-	return nil
-}
-
-func validateImageMountNoVolumeOverlap(config *commonv1.ExecutionConfig) error {
-	for _, imageMount := range config.GetImageMounts() {
-		if imageMount == nil {
-			continue
-		}
-		for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
-			for _, volume := range config.GetVolumeMounts() {
-				if volume == nil {
-					continue
-				}
-				volumeTarget := path.Clean(strings.TrimSpace(volume.GetTarget()))
-				if pathsOverlap(imageTarget, volumeTarget) {
-					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.volume_mounts target %q", imageTarget, volumeTarget)
-				}
-			}
-		}
 	}
 	return nil
 }
@@ -304,15 +135,14 @@ func validateImageMountNoSecretFileOverlap(config *commonv1.ExecutionConfig) err
 		if imageMount == nil {
 			continue
 		}
-		for _, imageTarget := range agentbundle.ClaimedMountTargets(path.Clean(strings.TrimSpace(imageMount.GetTarget()))) {
-			for _, secretFile := range config.GetSecretFiles() {
-				if secretFile == nil {
-					continue
-				}
-				secretPath := path.Clean(strings.TrimSpace(secretFile.GetPath()))
-				if pathsOverlap(imageTarget, secretPath) {
-					return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.secret_files path %q", imageTarget, secretPath)
-				}
+		imageTarget := path.Clean(strings.TrimSpace(imageMount.GetTarget()))
+		for _, secretFile := range config.GetSecretFiles() {
+			if secretFile == nil {
+				continue
+			}
+			secretPath := path.Clean(strings.TrimSpace(secretFile.GetPath()))
+			if pathsOverlap(imageTarget, secretPath) {
+				return grpcstatus.Errorf(codes.InvalidArgument, "config.image_mounts target %q overlaps config.secret_files path %q", imageTarget, secretPath)
 			}
 		}
 	}
@@ -341,38 +171,4 @@ func pathHasParentReference(value string) bool {
 		}
 	}
 	return false
-}
-
-func isStableVolumeName(value string) bool {
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '.' || r == '_' || r == '-' {
-			continue
-		}
-		return false
-	}
-	return true
-}
-
-func allowedServiceVolumeOption(option string) bool {
-	switch option {
-	case "ro", "rw", "rbind", "nosuid", "nodev", "noexec":
-		return true
-	default:
-		return false
-	}
-}
-
-func validateServiceReadinessProbe(probe *servicev1.ServiceProbe) error {
-	_, err := servicekernel.ValidateAndNormalizeReadinessProbe(probe)
-	return err
-}
-
-func validateServiceLivenessProbe(probe *servicev1.ServiceProbe) error {
-	_, err := servicekernel.ValidateAndNormalizeLivenessProbe(probe)
-	return err
-}
-
-func validateServiceAutoscalingPolicy(policy *servicev1.ServiceAutoscalingPolicy) error {
-	_, err := servicekernel.ValidateAndNormalizeAutoscalingPolicy(policy)
-	return err
 }

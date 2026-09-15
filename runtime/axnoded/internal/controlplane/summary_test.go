@@ -6,7 +6,8 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
@@ -15,7 +16,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	snapshot.Node.CollectedAt = collectedAt
 	snapshot.Node.State = "draining"
 	snapshot.Node.Labels = map[string]string{"zone": "us-east-1"}
-	snapshot.Node.CapabilitySnapshot = &capabilityv1.CapabilitySnapshot{NodeInstanceID: "node-instance", Sequence: 7, SnapshotID: "snapshot-7"}
+	snapshot.Node.CapabilitySnapshot = &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(collectedAt)}
 	snapshot.Node.Capacity = nodeinventory.NodeResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30}
 	snapshot.Node.Allocatable = nodeinventory.NodeResourceQuantity{CpuMilli: 6000, MemoryBytes: 12 << 30}
 	snapshot.Resources.CPU.AxnodedCommittedMilli = 1200
@@ -36,8 +37,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	}
 	snapshot.Components.Imagemgr = nodeinventory.ImagemgrComponentInventory{Status: nodeinventory.StatusDegraded, Reachable: true, DaemonCount: 2, MountedImageCount: 3, ImportedImageCount: 4}
 	snapshot.Components.Imagefsd = nodeinventory.ImagefsdComponentInventory{Status: nodeinventory.StatusReady, Reachable: true, ChunkDBPresent: true, ChunkCount: 9, ChunkDBUsedBytes: 2048, ChunkDBUsagePercent: 80.5}
-	snapshot.Components.BPFNet = nodeinventory.BPFNetComponentInventory{Status: nodeinventory.StatusDisabled, Enabled: false, Ready: false, Mode: "iptables", NeedsSNATFallback: true, NeedsFullDNATFallback: true, NeedsLocalhostCompat: true}
-	snapshot.Components.Volumed = nodeinventory.VolumedComponentInventory{Status: nodeinventory.StatusError, Reachable: true, PublishedVolumeCount: 2, LastReconcileAt: collectedAt.Add(time.Minute), LastReconcileError: "provider validation failed", LastReconcileRetainedCount: 3, LastReconcileUnpublishedCount: 1, LastReconcileActiveAllocationCount: 2, LastReconcileStaleAllocationCount: 1, LastReconcileInvalidVolumeCount: 1}
+	snapshot.Components.BPFNet = nodeinventory.BPFNetComponentInventory{Status: nodeinventory.StatusDisabled, Enabled: false, Ready: false, Mode: "iptables"}
 	snapshot.Storage = []nodeinventory.StorageInventoryEntry{
 		{
 			Target:          nodeinventory.StorageTargetAxnodedState,
@@ -62,7 +62,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 		RootfsType:                 "image",
 		MountType:                  "oci",
 		Mounted:                    true,
-		RetainedRuntimeCount:       2,
+		RetainedEnvironmentCount:   2,
 		RetainedRootfsCount:        3,
 		RunningContainerCount:      4,
 		NydusDaemonAlive:           true,
@@ -84,23 +84,17 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	if summary.GetLabels()["zone"] != "us-east-1" {
 		t.Fatalf("labels = %#v, want zone=us-east-1", summary.GetLabels())
 	}
-	if summary.GetCapabilitySnapshot().GetSnapshotID() != "snapshot-7" || summary.GetCapabilitySnapshot().GetSequence() != 7 {
+	if summary.GetCapabilitySnapshot().GetCollectedAt().AsTime() != collectedAt {
 		t.Fatalf("capability snapshot = %#v", summary.GetCapabilitySnapshot())
 	}
 	if summary.GetCapacity().GetCpuMilli() != 8000 || summary.GetAllocatable().GetMemoryBytes() != 12<<30 {
 		t.Fatalf("unexpected capacity/allocatable = %#v %#v", summary.GetCapacity(), summary.GetAllocatable())
 	}
-	if summary.GetResources().GetAxnodedCommittedMilli() != 1200 || summary.GetResources().GetAxnodedCpuUnboundedCount() != 2 {
-		t.Fatalf("unexpected cpu resources summary: %#v", summary.GetResources())
+	if summary.GetDiagnostics().GetCgroupPool().GetIdle() != 3 || summary.GetDiagnostics().GetInterfacePool().GetIdle() != 4 {
+		t.Fatalf("unexpected diagnostic pools: %#v", summary.GetDiagnostics())
 	}
-	if summary.GetResources().GetAxnodedCommittedBytes() != 1024 || summary.GetResources().GetAxnodedMemoryUnboundedCount() != 1 {
-		t.Fatalf("unexpected memory resources summary: %#v", summary.GetResources())
-	}
-	if summary.GetPools().GetCgroup().GetIdle() != 3 || summary.GetPools().GetInterface().GetIdle() != 4 {
-		t.Fatalf("unexpected pools summary: %#v", summary.GetPools())
-	}
-	if summary.GetPools().GetInterface().GetUnavailable() != 2 {
-		t.Fatalf("interface unavailable = %d, want 2", summary.GetPools().GetInterface().GetUnavailable())
+	if summary.GetDiagnostics().GetInterfacePool().GetUnavailable() != 2 {
+		t.Fatalf("interface unavailable = %d, want 2", summary.GetDiagnostics().GetInterfacePool().GetUnavailable())
 	}
 	if slots := summary.GetPools().GetRuntimeSlots(); slots.GetCapacity() != 8 || slots.GetUnavailable() != 2 || slots.GetUsing() != 2 {
 		t.Fatalf("runtime slots = %+v, want capacity=8 unavailable=2 using=2", slots)
@@ -123,22 +117,10 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	if !summary.GetComponents().GetImagefsd().GetChunkdbPresent() || summary.GetComponents().GetImagefsd().GetChunkdbUsedBytes() != 2048 {
 		t.Fatalf("unexpected imagefsd summary: %#v", summary.GetComponents().GetImagefsd())
 	}
-	if !summary.GetComponents().GetBpfnet().GetNeedsSnatFallback() || !summary.GetComponents().GetBpfnet().GetNeedsFullDnatFallback() {
-		t.Fatalf("unexpected bpfnet summary: %#v", summary.GetComponents().GetBpfnet())
+	if len(summary.GetDiagnostics().GetStorage()) != 2 {
+		t.Fatalf("storage len = %d, want 2", len(summary.GetDiagnostics().GetStorage()))
 	}
-	if summary.GetComponents().GetVolumed().GetState() != nodev1.ComponentState_COMPONENT_STATE_ERROR ||
-		summary.GetComponents().GetVolumed().GetPublishedVolumeCount() != 2 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileError() != "provider validation failed" ||
-		summary.GetComponents().GetVolumed().GetLastReconcileActiveAllocationCount() != 2 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileStaleAllocationCount() != 1 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileInvalidVolumeCount() != 1 ||
-		summary.GetComponents().GetVolumed().GetLastReconcileAt().AsTime() != collectedAt.Add(time.Minute) {
-		t.Fatalf("unexpected volumed summary: %#v", summary.GetComponents().GetVolumed())
-	}
-	if len(summary.GetStorage()) != 2 {
-		t.Fatalf("storage len = %d, want 2", len(summary.GetStorage()))
-	}
-	if got := summary.GetStorage()[0]; got.GetTarget() != nodeinventory.StorageTargetAxnodedState ||
+	if got := summary.GetDiagnostics().GetStorage()[0]; got.GetTarget() != nodeinventory.StorageTargetAxnodedState ||
 		got.GetCapacityBytes() != 1000 ||
 		got.GetUsedBytes() != 250 ||
 		got.GetAvailableBytes() != 700 ||
@@ -148,7 +130,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 		!got.GetCollected() {
 		t.Fatalf("unexpected collected storage summary: %#v", got)
 	}
-	if got := summary.GetStorage()[1]; got.GetTarget() != nodeinventory.StorageTargetImageCache ||
+	if got := summary.GetDiagnostics().GetStorage()[1]; got.GetTarget() != nodeinventory.StorageTargetImageCache ||
 		got.GetCollected() ||
 		got.GetError() != "statfs /var/lib/imagemgr: no such file or directory" {
 		t.Fatalf("unexpected failed storage summary: %#v", got)

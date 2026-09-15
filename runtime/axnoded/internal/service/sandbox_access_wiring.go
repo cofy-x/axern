@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
+	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxtarget"
 )
@@ -16,7 +18,7 @@ func (h *sandboxService) configureSandboxTargets() {
 			}
 			return h.containerManager.Get(id)
 		},
-		RuntimeHandler: h.runtimeHandler,
+		RunscHandler: h.runscHandler,
 	})
 }
 
@@ -52,8 +54,8 @@ func (h *sandboxService) resolveSandboxAccessTarget(id string) (sandboxaccess.Ta
 		return sandboxaccess.Target{}, err
 	}
 	return sandboxaccess.Target{
-		ID:      id,
-		Labels:  target.Labels(),
-		Handler: target.Handler,
+		ID:                 id,
+		SandboxdSocketPath: runtimeoci.SandboxdBundleSocketPath(filepath.Join(h.config.RootDir, "containers", id)),
+		Handler:            target.Handler,
 	}, nil
 }

@@ -20,20 +20,9 @@ type Instance interface {
 	Close(context.Context) error
 }
 
-type TaskAssetMaterializer interface {
-	MaterializeTaskAssets(context.Context, string, string, TaskAssetKind) error
-}
-
 type PathExister interface {
 	PathExists(context.Context, string) (bool, error)
 }
-
-type TaskAssetKind string
-
-const (
-	TaskAssetKindVerifier TaskAssetKind = "verifier"
-	TaskAssetKindOracle   TaskAssetKind = "oracle"
-)
 
 type ExecCommand struct {
 	shell string
@@ -69,47 +58,23 @@ func (c ExecCommand) Validate() error {
 }
 
 type State struct {
-	EnvironmentID         string
-	ServiceID             string
-	AllocationID          string
-	NodeID                string
-	RuntimeClass          string
-	PayloadFormat         string
-	PayloadDigest         string
-	CacheHit              bool
-	ImageResolveMs        int64
-	ImagePullMs           int64
-	CowPrepareMs          int64
-	VerifierMaterializeMs int64
+	EnvironmentID string
+	RunID         string
+	AllocationID  string
+	NodeID        string
 }
 
 type ExecOptions struct {
-	CWD          string
-	Timeout      time.Duration
-	User         string
-	Env          map[string]string
-	ManagedProxy *ManagedProxyOptions
+	CWD     string
+	Timeout time.Duration
+	User    string
+	Env     map[string]string
 }
 
 type ExecResult struct {
-	ExitCode           int
-	Stdout             string
-	Stderr             string
-	ManagedProxyReport *ManagedProxyReport
-}
-
-type ManagedProxyOptions struct {
-	Provider            string
-	UpstreamBaseURL     string
-	UpstreamBearerToken string
-}
-
-type ManagedProxyReport struct {
-	Provider      string
-	RequestCount  int32
-	ResponseCount int32
-	ErrorCount    int32
-	ReportJSON    []byte
+	ExitCode int
+	Stdout   string
+	Stderr   string
 }
 
 type UploadDirOptions struct {

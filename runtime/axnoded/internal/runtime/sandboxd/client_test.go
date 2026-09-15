@@ -29,13 +29,13 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 		case "/status":
 			fmt.Fprint(w, `{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}}`)
 		case "/capabilities":
-			fmt.Fprint(w, `{"protocolVersion":1,"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use","browser"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]},{"name":"browser","available":true,"capabilities":["browser"]}]}`)
+			fmt.Fprint(w, `{"protocolVersion":1,"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}]}`)
 		case "/diagnostics":
 			if r.URL.Query().Get("detail") != "full" {
-				fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use","browser"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]},{"name":"browser","available":true,"capabilities":["browser"]}],"providerSummary":{"total":2,"available":2}}`)
+				fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}],"providerSummary":{"total":1,"available":1}}`)
 				return
 			}
-			fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"detail":"full","status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use","browser"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]},{"name":"browser","available":true,"capabilities":["browser"]}],"providerSummary":{"total":2,"available":2},"processes":{"processes":[{"id":"proc-1","state":"running","pid":12}]},"fileLimits":{"maxArchiveEntries":256,"maxArchiveBytes":67108864,"maxArchiveEntryBytes":33554432,"maxArchivePathDepth":64},"ports":{"ports":[{"protocol":"tcp","address":"127.0.0.1","port":18081,"state":"0A"}]},"mounts":{"mounts":[{"mountpoint":"/","fsType":"overlay"}],"paths":[{"path":"/","exists":true}]},"computerUse":{"available":true,"display":":99","backend":"x11"},"browser":{"available":true,"command":"chromium","running":true,"pid":99,"url":"https://example.com"}}`)
+			fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"detail":"full","status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}],"providerSummary":{"total":1,"available":1},"processes":{"processes":[{"id":"proc-1","state":"running","pid":12}]},"fileLimits":{"maxArchiveEntries":256,"maxArchiveBytes":67108864,"maxArchiveEntryBytes":33554432,"maxArchivePathDepth":64},"ports":{"ports":[{"protocol":"tcp","address":"127.0.0.1","port":18081,"state":"0A"}]},"mounts":{"mounts":[{"mountpoint":"/","fsType":"overlay"}],"paths":[{"path":"/","exists":true}]},"computerUse":{"available":true,"display":":99","backend":"x11"}}`)
 		case "/computer-use/status":
 			fmt.Fprint(w, `{"available":true,"display":":99","backend":"x11"}`)
 		case "/computer-use/screenshot":
@@ -70,8 +70,6 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 				t.Fatalf("keyboard request = %#v", request)
 			}
 			fmt.Fprint(w, `{"ok":true}`)
-		case "/browser/status":
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":false}`)
 		case "/probe":
 			if r.Method != http.MethodPost {
 				t.Fatalf("probe method = %s", r.Method)
@@ -81,78 +79,6 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 			fmt.Fprint(w, `{"ports":[{"protocol":"tcp","address":"127.0.0.1","port":18081,"state":"0A"}]}`)
 		case "/mounts":
 			fmt.Fprint(w, `{"mounts":[{"mountpoint":"/","fsType":"overlay"}],"paths":[{"path":"/","exists":true}]}`)
-		case "/browser/open":
-			if r.Method != http.MethodPost {
-				t.Fatalf("browser open method = %s", r.Method)
-			}
-			var request BrowserOpenRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("decode browser open request: %v", err)
-			}
-			if request.URL != "https://example.com" {
-				t.Fatalf("browser open request = %#v", request)
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":true,"pid":99}`)
-		case "/browser/close":
-			if r.Method != http.MethodPost {
-				t.Fatalf("browser close method = %s", r.Method)
-			}
-			body, err := io.ReadAll(r.Body)
-			if err != nil {
-				t.Fatalf("read browser close body: %v", err)
-			}
-			if len(body) != 0 {
-				t.Fatalf("browser close body = %q, want empty", string(body))
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":false}`)
-		case "/browser/navigate":
-			if r.Method != http.MethodPost {
-				t.Fatalf("browser navigate method = %s", r.Method)
-			}
-			var request BrowserNavigateRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("decode browser navigate request: %v", err)
-			}
-			if request.URL != "https://example.org" {
-				t.Fatalf("browser navigate request = %#v", request)
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":true,"pid":99,"url":"https://example.org"}`)
-		case "/browser/resize":
-			var request BrowserResizeRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("decode browser resize request: %v", err)
-			}
-			if request.Width != 800 || request.Height != 600 {
-				t.Fatalf("browser resize request = %#v", request)
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":true,"pid":99}`)
-		case "/browser/click":
-			var request BrowserClickRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("decode browser click request: %v", err)
-			}
-			if request.X != 10 || request.Y != 20 || request.Button != "1" {
-				t.Fatalf("browser click request = %#v", request)
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":true,"pid":99}`)
-		case "/browser/type":
-			var request BrowserTypeRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("decode browser type request: %v", err)
-			}
-			if request.Text != "hello" || request.DelayMS != 1 {
-				t.Fatalf("browser type request = %#v", request)
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":true,"pid":99}`)
-		case "/browser/wait":
-			var request BrowserWaitRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-				t.Fatalf("decode browser wait request: %v", err)
-			}
-			if request.TimeoutMS != 25 {
-				t.Fatalf("browser wait request = %#v", request)
-			}
-			fmt.Fprint(w, `{"available":true,"command":"chromium","running":true,"pid":99}`)
 		case "/files/stat":
 			if r.URL.Query().Get("path") != "/tmp/message.txt" {
 				t.Fatalf("stat path = %q", r.URL.Query().Get("path"))
@@ -213,12 +139,12 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 	if snapshot.Ready.ProtocolVersion != wire.ProtocolVersion {
 		t.Fatalf("ready snapshot protocol version = %d, want %d", snapshot.Ready.ProtocolVersion, wire.ProtocolVersion)
 	}
-	for _, capability := range []string{"archive", "diagnostics", "health", "status", "supervisor", "file", "process", "pty", "probe", "ports", "mounts", "computer_use", "browser"} {
+	for _, capability := range []string{"archive", "diagnostics", "health", "status", "supervisor", "file", "process", "pty", "probe", "ports", "mounts", "computer_use"} {
 		if !hasCapability(snapshot.Capabilities.Capabilities, capability) {
 			t.Fatalf("capabilities missing %q in %#v", capability, snapshot.Capabilities.Capabilities)
 		}
 	}
-	if snapshot.Capabilities.ProtocolVersion != 1 || len(snapshot.Capabilities.Providers) != 2 || !snapshot.Capabilities.Providers[0].Available {
+	if snapshot.Capabilities.ProtocolVersion != 1 || len(snapshot.Capabilities.Providers) != 1 || !snapshot.Capabilities.Providers[0].Available {
 		t.Fatalf("capability providers = %#v", snapshot.Capabilities)
 	}
 	diagnostics, err := client.Diagnostics(context.Background())
@@ -228,13 +154,13 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 	if diagnostics.ProtocolVersion != 1 || !diagnostics.Ready || diagnostics.Status.UserProcess.State != "running" {
 		t.Fatalf("diagnostics status = %#v", diagnostics)
 	}
-	if !hasCapability(diagnostics.Capabilities, "archive") || len(diagnostics.Providers) != 2 || diagnostics.Providers[0].Name != "computer_use" {
+	if !hasCapability(diagnostics.Capabilities, "archive") || len(diagnostics.Providers) != 1 || diagnostics.Providers[0].Name != "computer_use" {
 		t.Fatalf("diagnostics providers = %#v", diagnostics)
 	}
 	if diagnostics.Processes == nil || len(diagnostics.Processes.Processes) != 1 || diagnostics.Processes.Processes[0].ID != "proc-1" {
 		t.Fatalf("diagnostics processes = %#v", diagnostics.Processes)
 	}
-	if diagnostics.ComputerUse == nil || diagnostics.ComputerUse.Display != ":99" || diagnostics.Browser == nil || !diagnostics.Browser.Running {
+	if diagnostics.ComputerUse == nil || diagnostics.ComputerUse.Display != ":99" {
 		t.Fatalf("diagnostics session status = %#v", diagnostics)
 	}
 	if diagnostics.FileLimits == nil || diagnostics.FileLimits.MaxArchiveEntries != 256 {
@@ -305,46 +231,6 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 	if err := client.ComputerUseKeyboard(context.Background(), ComputerUseKeyboardRequest{Text: "hello"}); err != nil {
 		t.Fatalf("ComputerUseKeyboard() error = %v", err)
 	}
-	browserStatus, err := client.BrowserStatus(context.Background())
-	if err != nil {
-		t.Fatalf("BrowserStatus() error = %v", err)
-	}
-	if !browserStatus.Available || browserStatus.Running {
-		t.Fatalf("browser status = %#v", browserStatus)
-	}
-	browserStatus, err = client.BrowserOpen(context.Background(), BrowserOpenRequest{URL: "https://example.com"})
-	if err != nil {
-		t.Fatalf("BrowserOpen() error = %v", err)
-	}
-	if !browserStatus.Running || browserStatus.Pid != 99 {
-		t.Fatalf("browser open status = %#v", browserStatus)
-	}
-	browserStatus, err = client.BrowserClose(context.Background())
-	if err != nil {
-		t.Fatalf("BrowserClose() error = %v", err)
-	}
-	if browserStatus.Running {
-		t.Fatalf("browser close status = %#v", browserStatus)
-	}
-	browserStatus, err = client.BrowserNavigate(context.Background(), BrowserNavigateRequest{URL: "https://example.org"})
-	if err != nil {
-		t.Fatalf("BrowserNavigate() error = %v", err)
-	}
-	if !browserStatus.Running || browserStatus.URL != "https://example.org" {
-		t.Fatalf("browser navigate status = %#v", browserStatus)
-	}
-	if _, err := client.BrowserResize(context.Background(), BrowserResizeRequest{Width: 800, Height: 600}); err != nil {
-		t.Fatalf("BrowserResize() error = %v", err)
-	}
-	if _, err := client.BrowserClick(context.Background(), BrowserClickRequest{X: 10, Y: 20, Button: "1"}); err != nil {
-		t.Fatalf("BrowserClick() error = %v", err)
-	}
-	if _, err := client.BrowserType(context.Background(), BrowserTypeRequest{Text: "hello", DelayMS: 1}); err != nil {
-		t.Fatalf("BrowserType() error = %v", err)
-	}
-	if _, err := client.BrowserWait(context.Background(), BrowserWaitRequest{TimeoutMS: 25}); err != nil {
-		t.Fatalf("BrowserWait() error = %v", err)
-	}
 	stat, err := client.StatFile(context.Background(), "/tmp/message.txt")
 	if err != nil {
 		t.Fatalf("StatFile() error = %v", err)
@@ -410,12 +296,12 @@ func TestClientParsesStructuredSandboxdErrors(t *testing.T) {
 	socketPath, shutdown := serveUnix(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		fmt.Fprint(w, `{"error":{"code":"invalid_argument","message":"bad browser request"}}`)
+		fmt.Fprint(w, `{"error":{"code":"invalid_argument","message":"bad file request"}}`)
 	}))
 	defer shutdown()
 
 	client := NewClient(socketPath)
-	_, err := client.BrowserNavigate(context.Background(), BrowserNavigateRequest{URL: "https://example.com"})
+	_, err := client.StatFile(context.Background(), "/tmp/bad")
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -428,7 +314,7 @@ func TestClientParsesStructuredSandboxdErrors(t *testing.T) {
 	if ClassifyError(err) != ErrorClassInvalidArgument {
 		t.Fatalf("error class = %q, want %q", ClassifyError(err), ErrorClassInvalidArgument)
 	}
-	if !strings.Contains(err.Error(), "bad browser request") {
+	if !strings.Contains(err.Error(), "bad file request") {
 		t.Fatalf("error = %v", err)
 	}
 }
@@ -589,19 +475,6 @@ func TestClientWaitReadySocketMissingAndContextCancel(t *testing.T) {
 	_, err = NewClient(filepath.Join(t.TempDir(), "missing.sock")).WaitReady(ctx, time.Second, time.Millisecond)
 	if err == nil {
 		t.Fatal("WaitReady() canceled context error = nil")
-	}
-}
-
-func TestEnrichLabels(t *testing.T) {
-	labels := EnrichLabels(map[string]string{"existing": "true"}, "/tmp/sandboxd.sock", wire.ReadySnapshot{
-		Capabilities: wire.CapabilitiesResponse{Capabilities: []string{"health", "status"}},
-		Status:       wire.StatusResponse{UserProcess: wire.UserProcessStatus{State: "running"}},
-	})
-	if labels["existing"] != "true" || labels[LabelReady] != "true" || labels[LabelSocket] != "/tmp/sandboxd.sock" {
-		t.Fatalf("labels = %#v", labels)
-	}
-	if labels[LabelCapabilities] != "health,status" || labels[LabelUserState] != "running" {
-		t.Fatalf("labels = %#v", labels)
 	}
 }
 

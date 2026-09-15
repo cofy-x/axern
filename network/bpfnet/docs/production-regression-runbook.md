@@ -1,20 +1,14 @@
 # bpfnet Production Regression Runbook
 
-This runbook is the repeatable Kubernetes validation flow for bpfnet production
-replacement. It avoids cluster names, regions, registry names, image tags,
-kubeconfigs, and rollout revisions. Use it with
-[Production Replacement Baseline](production-replacement-baseline.md).
+This runbook is the repeatable Kubernetes validation flow for bpfnet production replacement. It avoids cluster names, regions, registry names, image tags, kubeconfigs, and rollout revisions. Use it with [Production Replacement Baseline](production-replacement-baseline.md).
 
 ## Preconditions
 
 - The target cluster runs real Linux Kubernetes nodes.
 - `node-all-in-one` is deployed with `node.network.natBackend=ebpf`.
-- The benchmark image is the `axnoded-verify` image for the same source build,
-  not the production `node-all-in-one` image.
+- The benchmark image is the `axnoded-verify` image for the same source build, not the production `node-all-in-one` image.
 - The benchmark namespace can pull the image through an existing pull secret.
-- Local access to the kube-apiserver must use the intended direct network path.
-  Clear proxy environment variables when the local proxy would intercept that
-  path.
+- Local access to the kube-apiserver must use the intended direct network path. Clear proxy environment variables when the local proxy would intercept that path.
 
 Set the common environment:
 
@@ -53,20 +47,18 @@ done
 Required result:
 
 - `bpfnetctl check --json` returns `.ok=true`.
-- `status.state.fullFallback=false`.
+- `status.state.tcReady=true`.
 - `status.attachment.ingressTcAttached=true`.
 - `status.attachment.egressTcAttached=true`.
 - `status.attachment.pinnedMapsReady=true`.
 - `status.attachment.pinnedProgramsReady=true`.
 
-`localhost-tcp-iptables-compat` is acceptable when the kernel does not support
-the localhost cgroup path. `iptables-full-fallback` is a rollback state and
-fails production replacement validation.
+Any TC attach or reconciliation failure makes the `ebpf` backend fail closed. Switching to `iptables` is an explicit node configuration rollback, never an automatic compatibility mode.
 
-## Ingress Comparison
+## UDP Egress Comparison
 
 ```bash
-out="${OUTPUT_ROOT}/ingress"
+out="${OUTPUT_ROOT}/udp-egress"
 rm -rf "${out}" && mkdir -p "${out}"
 
 $KUBE_ENV \
@@ -77,7 +69,7 @@ $KUBE_ENV \
   BENCHMARK_RUNS=1 \
   BENCHMARK_REQUESTS=50000 \
   BENCHMARK_CONCURRENCY=128 \
-  BENCHMARK_PATHS=external_tcp_ingress,external_udp_ingress \
+  BENCHMARK_PATHS=egress_udp,egress_udp_connected \
   BENCHMARK_SNAT_POST_GC_WAIT=12s \
   OUTPUT_DIR="${out}" \
   runtime/axnoded/scripts/benchmark/benchmark-kubernetes-compare.sh
@@ -143,8 +135,7 @@ jq -r '
 
 ## TCP Short-Connection Churn
 
-Use the multi-client path to stress bpfnet shared maps without stopping at one
-client namespace's ephemeral-port boundary.
+Use the multi-client path to stress bpfnet shared maps without stopping at one client namespace's ephemeral-port boundary.
 
 ```bash
 out="${OUTPUT_ROOT}/tcp-short"
@@ -174,10 +165,7 @@ Required result:
 - `snatTcpNonSynMissFwdHostMismatches=0`.
 - post-GC forward, reverse, and alias entries are `0`.
 
-Late `snatTcpNonSynMisses` and `snatFallbackHits` can be healthy close-path
-tail traffic. Treat them as a bug only when they correlate with failures,
-reverse SYN-ACK misses, host mismatches, allocator exhaustion, or persistent
-post-GC retention.
+Late `snatTcpNonSynMisses` and `snatFallbackHits` can be healthy close-path tail traffic. Treat them as a bug only when they correlate with failures, reverse SYN-ACK misses, host mismatches, allocator exhaustion, or persistent post-GC retention.
 
 ## eBPF-Only Soak
 
@@ -249,8 +237,7 @@ for name, row in rows.items():
 PY
 ```
 
-The soak passes when every path has zero failures, the risk counters stay zero,
-and post-GC maps drain to zero in every run.
+The soak passes when every path has zero failures, the risk counters stay zero, and post-GC maps drain to zero in every run.
 
 ## Rollout Recovery
 
@@ -287,7 +274,7 @@ $KUBE_ENV \
 The production regression passes when:
 
 - all benchmark eBPF paths have zero failures;
-- bpfnet mode is not `iptables-full-fallback`;
+- bpfnet reports `tcReady=true`;
 - TC ingress and egress remain attached on every node;
 - pinned maps and pinned programs are ready on every node;
 - allocator exhaustion, reverse SYN-ACK misses, and host mismatches stay zero;

@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 )
 
 type FakeImageResolver struct {
@@ -20,7 +20,7 @@ func NewFakeImageResolver() *FakeImageResolver {
 		Images: map[string]*environmentkernel.ResolvedImage{
 			"docker.io/library/nginx:1.27": {
 				Ref: "index.docker.io/library/nginx:1.27",
-				Descriptor: &catalogv1.OciImageDescriptor{
+				Descriptor: &environmentv1.OciImageDescriptor{
 					Digest:      "sha256:1111111111111111111111111111111111111111111111111111111111111111",
 					MediaType:   "application/vnd.oci.image.manifest.v1+json",
 					SizeBytes:   1234,
@@ -29,7 +29,7 @@ func NewFakeImageResolver() *FakeImageResolver {
 			},
 			"docker.io/library/nginx:1.28": {
 				Ref: "index.docker.io/library/nginx:1.28",
-				Descriptor: &catalogv1.OciImageDescriptor{
+				Descriptor: &environmentv1.OciImageDescriptor{
 					Digest:      "sha256:2222222222222222222222222222222222222222222222222222222222222222",
 					MediaType:   "application/vnd.oci.image.manifest.v1+json",
 					SizeBytes:   1234,
@@ -38,7 +38,7 @@ func NewFakeImageResolver() *FakeImageResolver {
 			},
 			"docker.io/library/alpine:3.20": {
 				Ref: "index.docker.io/library/alpine:3.20",
-				Descriptor: &catalogv1.OciImageDescriptor{
+				Descriptor: &environmentv1.OciImageDescriptor{
 					Digest:      "sha256:3333333333333333333333333333333333333333333333333333333333333333",
 					MediaType:   "application/vnd.oci.image.manifest.v1+json",
 					SizeBytes:   456,
@@ -47,7 +47,7 @@ func NewFakeImageResolver() *FakeImageResolver {
 			},
 			"ghcr.io/acme/private-app:v2": {
 				Ref: "ghcr.io/acme/private-app:v2",
-				Descriptor: &catalogv1.OciImageDescriptor{
+				Descriptor: &environmentv1.OciImageDescriptor{
 					Digest:      "sha256:4444444444444444444444444444444444444444444444444444444444444444",
 					MediaType:   "application/vnd.oci.image.manifest.v1+json",
 					SizeBytes:   789,
@@ -80,7 +80,7 @@ func cloneResolvedImage(in *environmentkernel.ResolvedImage) *environmentkernel.
 	}
 	out := &environmentkernel.ResolvedImage{Ref: in.Ref}
 	if in.Descriptor != nil {
-		out.Descriptor = &catalogv1.OciImageDescriptor{
+		out.Descriptor = &environmentv1.OciImageDescriptor{
 			Digest:      in.Descriptor.GetDigest(),
 			MediaType:   in.Descriptor.GetMediaType(),
 			SizeBytes:   in.Descriptor.GetSizeBytes(),

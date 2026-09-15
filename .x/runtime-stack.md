@@ -1,163 +1,66 @@
 # Runtime Stack
 
-Use this document only when a change crosses runtime, control-plane, gateway,
-storage, SDK, or networking boundaries. For changes contained inside one
-subsystem, read that subsystem's `AGENTS.md` and `README.md` instead.
+Use this document only when a change crosses runtime, control-plane, gateway, storage, SDK, or networking boundaries. For work contained inside one subsystem, read that subsystem's `AGENTS.md` and README instead. Product object meaning remains authoritative in the [Stable Domain Model](../docs/product/domain-model.md).
 
 ## Stack Map
 
 ```text
-clients / SDKs / apps
-  -> gatewayd          external mTLS identity, control, tunnel, service HTTP, and terminal edge
-     -> controld       product API semantics and durable control state
-        -> storaged        storage planning and binding
-        -> gatewayd        Function worker dispatch through the data-plane edge
-        -> tunneld         internal raw TCP tunnel relay targets
-        -> axnoded         node lifecycle and sandbox execution
-           -> egressd      trusted egress policy lifecycle and host enforcement
-           -> volumed      node-local volume publish/unpublish
-           -> imagemgr     image rootfs resolution and mount references
-              -> imagefsd  read-only image data plane
-     -> axnoded        service HTTP and terminal data-plane forwarding
-        -> runc/runsc   OCI container lifecycle
-           -> sandboxd  sandbox PID 1, process/file/PTY/proxy APIs
-        -> bpfnet       optional host networking dataplane
+clients / SDKs / Axrun
+  -> gatewayd          unified external control and Allocation data edge
+     -> controld       durable Environment / Run / Allocation authority
+        -> PostgreSQL  central control state
+        -> axnoded     Allocation lifecycle dispatch over controld mTLS authority
+     -> axnoded        process, file, archive, terminal, and SSH over gatewayd mTLS authority
+     -> tunneld        Tunnel client peer
+
+axnoded
+  -> controld          status, inventory, and capability reporting
+  -> tunneld           Tunnel node peer
+  -> runsc             production sandbox lifecycle
+     -> sandboxd       sandbox PID 1 and process/file/PTY/proxy APIs
+  -> egressd / bpfnet  egress policy and host networking
+  -> imagemgr
+     -> imagefsd       immutable rootfs and read-only image data plane
 ```
 
-Shared API contracts live under `sdk/proto`; generated SDK code lives under
-the language SDK workspaces.
+Shared API contracts live under `sdk/proto`; generated client code lives in the language SDK workspaces.
 
-## Ownership Rules
+## Ownership
 
-- Control plane:
-  - `control/controld` owns product API semantics, placement, allocation
-    registry, node lifecycle dispatch, route resolution, tunnel session
-    control, and durable control-plane state. External product API traffic
-    should enter through `gateway/gatewayd`.
-  - `control/storaged` owns Storage V1 semantics: volume classes, claims,
-    bindings, topology, and resolved node volume specs.
-- Gateway and tunnels:
-  - `gateway/gatewayd` owns external control API, tunnel client entry, service
-    HTTP, and browser terminal entry.
-  - Public control and sandbox requests are authenticated at gatewayd and
-    authorized by controld against durable Principal credentials and scoped
-    role bindings. Direct public controld access is not supported.
-  - `control/controld` may call `gateway/gatewayd` for gateway-owned data-plane
-    actions such as Function worker dispatch. This is an internal orchestration
-    path, not the external product API entry path.
-  - `control/controld` owns tunnel sessions and advertises a client target on
-    the gateway edge plus a node target on the internal `tunneld` relay.
-  - Managed Axrun workers use distinct mTLS connections: private lease and
-    rollout-worker control calls go directly to `controld`, while allocation
-    and sandbox execution use the public API path through `gatewayd`.
-    The worker's `rollout_executor` identity requires the active durable work
-    lease as a namespace-scoped execution delegation.
-  - `runtime/tunneld` owns internal reverse TCP tunnel pairing. Tunnels are
-    platform networking, not Axrun LLM telemetry.
-- Node runtime:
-  - `runtime/axnoded` owns node-local sandbox lifecycle, OCI bundle generation,
-    runtime handler integration, node operator APIs, gateway-forwarded sandbox
-    operations, and allocation cleanup.
-  - `runtime/egressd` owns the trusted host-side sandbox egress policy record,
-    allocation-attempt fencing, persistence, recovery, reconciliation, and
-    enforcement health. Its private Unix socket and bypass privileges are not
-    exposed to workload namespaces.
-  - `runtime/volumed` owns physical node volume publish, unpublish, safe
-    Claim-owned deletion, reconcile, and provider health.
-  - `runtime/imagemgr` owns image rootfs resolution, OCI/Nydus/OSS image mount
-    orchestration, imported image cache state, and mounted rootfs references.
-  - `runtime/imagefsd` owns the read-only image data plane used by imagemgr.
-- Network:
-  - `network/bpfnet` owns optional eBPF host networking behavior.
+- `control/controld` owns durable product semantics, placement, lifecycle intent, target resolution, leases, TunnelSessions, authorization decisions, and PostgreSQL state.
+- `gateway/gatewayd` owns the unified external edge. It authenticates public protocols and forwards authorized control or Allocation-scoped traffic without owning placement, lifecycle, or durable product state.
+- `runtime/axnoded` owns node-local Allocation execution, recovery, cleanup, writable filesystems, and gateway-forwarded sandbox operations.
+- `runtime/egressd`, `network/bpfnet`, `runtime/imagemgr`, and `runtime/imagefsd` own their narrow node-local network or image contracts; none owns Run state.
+- `runtime/tunneld` owns reverse-TCP peer pairing. `controld` owns the TunnelSession, while `gatewayd` and `axnoded` provide the client and node peer paths.
+- Axrun and other evaluation, training, or data-synthesis systems remain callers above the execution platform.
 
-`axern-sandboxd` runs as sandbox PID 1 for sandboxd-backed OCI bundles.
-High-level sandbox operations should flow through sandboxd where available;
-direct OCI runtime exec is a debug-level tool.
+## Cross-Component Invariants
 
-## Runtime Contracts
-
-- Workload execution config carries `runtime_class`; empty values default in
-  the control/runtime path before node lifecycle dispatch.
-- Workload network policy is immutable execution config. Strict policy is a
-  fail-closed boundary; DNS deny is explicitly DNS-only. Controld normalizes
-  the public policy and derives exact node capability requirements before
-  lifecycle dispatch. The node must reject a policy workload when the matching
-  egress enforcement proof is unavailable; it may never silently ignore a
-  newer policy shape.
-- Axnoded prepares egress policy after assigning the sandbox interface and
-  before starting the OCI user process. Deletion stops the workload before
-  deleting policy and releasing the interface. Startup reconciliation sends
-  exact allocation ID, attempt, sandbox IP, policy digest, and execution
-  revision proofs; egressd removes every orphan or mismatched record.
-- `requests` drive placement, admission, and node reservation. `limits` remain
-  runtime enforcement ceilings.
-- `axnoded` owns the aggregate `runtime_slots` report consumed by placement and
-  admission. Enabled resource pools constrain that aggregate; disabled pools
-  remain node-local implementation choices and are never inferred by
-  `controld`.
-- Node reports without `runtime_slots` are rejected. Control-plane and node
-  releases that introduce a new required node-summary contract must be rebuilt
-  together; mixed-version operation is not a supported compatibility path.
-- Node platform capability follows the shared
-  [Observation, Policy, And Enforcement Contract](../docs/architecture/observed-capability-providers.md).
-  Axnoded publishes one atomic typed observation snapshot, the shared catalog
-  derives workload-facing policy, controld repeats eligibility inside the
-  locked admission transaction, and axnoded verifies admitted dependencies
-  before and after runtime creation. Platform requirements are derived from
-  workload semantics; users may request only exact-match extension
-  capabilities.
-- Node identities have a durable `active` or `retired` lifecycle in Postgres.
-  Retirement is an audited, irreversible control-plane operation; retired
-  identities cannot register, report, authenticate, or receive new placement.
-  Replacement hosts use a new node ID.
-- Catalog templates and environments are runtime-neutral. Runtime-specific
-  behavior belongs in execution config, runtime templates, or node runtime
-  code.
-- Image-backed rootfs flows resolve through `axnoded -> imagemgr -> imagefsd`
-  where needed.
-- Agent bundle image mounts remain single bind mounts. Claude Code is bound at
-  its private ABI target `/__claude_code`; axnoded's allocation-private rootfs
-  projection supplies the public `/opt/axern/agents/claude-code` symlink used by
-  Axrun. Both paths participate in mount conflict validation.
-- High-level process, file, PTY, and managed-proxy operations flow through
-  sandboxd when supported. Axern tunnel sessions are a separate networking
-  primitive.
+- The only durable execution chain is `Environment -> Run -> Allocation`; SDK `Sandbox` is a facade over it.
+- Runsc is the only supported production runtime. Missing isolation, policy, or required capability evidence fails closed.
+- Public clients address `gatewayd`, never node targets or internal execution leases. Internal lifecycle and status traffic does not route through the gateway.
+- Axnoded's routable listener admits `NodeLifecycle` only from `controld` and `NodeSandbox` only from `gatewayd`. Root-only operator, machine network resolution, and optional local conformance use separate Unix sockets; production does not enable conformance lifecycle authority.
+- Node capability observations, admission policy, and enforcement follow the [Observed Capability Providers](../docs/architecture/observed-capability-providers.md) contract.
+- Resource requests drive placement and reservation; limits are runtime enforcement ceilings. See the [Resource Model](../docs/architecture/resource-model.md).
+- Writable rootfs and workspace data is Allocation-local. Callers must download or export required outputs before cleanup; Axern has no reusable persistent Volume or generic public Artifact root.
+- Images resolve through `axnoded -> imagemgr -> imagefsd` where required. Sandbox network policy resolves through `axnoded -> egressd / bpfnet`; strict policy never degrades silently.
 
 ## Change Routing
 
 | Change | Read / update |
 | --- | --- |
-| Public API, SDK shape, or protobuf contract | `sdk/proto`, generated SDKs, owning service, CLI/app docs |
-| Placement, node registration, allocation lifecycle, runtime catalog | `control/controld`, `runtime/axnoded`, SDKs if user-facing |
-| Node capability observation, catalog policy, admission evidence, or enforcement loss | `sdk/proto`, `lib/go/nodecapability`, `runtime/axnoded`, `control/controld`, CLI/SDK diagnostics |
-| Sandbox DNS or strict egress lifecycle and enforcement | `runtime/egressd`, `runtime/axnoded`, `network/bpfnet`, deployment and verification surfaces |
-| Storage API, volume claims/classes/bindings, node volume specs | `control/storaged`, `control/controld`, `runtime/volumed`, `runtime/axnoded` |
-| Gateway control edge, tunnel client entry, service HTTP, browser terminal entry | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
-| Internal TCP tunnel relay or node-local tunnel binding | `runtime/tunneld`, `control/controld`, `runtime/axnoded` |
-| Sandboxd lifecycle or process/file/PTY/proxy behavior | `runtime/axnoded`, `runtime/axnoded/docs/sandbox-daemon.md`, SDK/proto if API-visible |
-| Image-backed rootfs resolution | `runtime/axnoded`, `runtime/imagemgr`, `runtime/imagefsd` |
-| Image mounts or read-only image bundle injection | `sdk/proto`, affected SDKs/apps, `control/controld`, `runtime/axnoded`, `runtime/imagemgr` |
-| OCI extraction, overlay mounts, registry auth, Nydus bootstrap | `runtime/imagemgr`, `runtime/imagefsd` when daemon behavior changes |
-| eBPF NAT or host networking dataplane | `network/bpfnet`, `runtime/axnoded` |
-| Repo-local devbox, runtime sockets, or `.dev/` stack layout | root Make files, devbox scripts, root docs, affected subsystem docs |
+| Public API, SDK shape, or protobuf contract | `sdk/proto`, generated SDKs, owning module, CLI and public docs |
+| Environment, Run, Allocation, placement, lease, or node lifecycle | `control/controld`, `runtime/axnoded`, affected SDK surfaces |
+| Capability observation, admission evidence, or enforcement loss | `lib/go/nodecapability`, `runtime/axnoded`, `control/controld`, SDK/proto diagnostics |
+| Sandbox DNS, egress policy, NAT, or host networking | `runtime/egressd`, `runtime/axnoded`, `network/bpfnet`, deployment and verification surfaces |
+| Writable filesystem reservation, recovery, or cleanup | `runtime/axnoded`, `control/controld`, storage architecture |
+| Public gateway, terminal, SSH, file/archive, or Tunnel client path | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
+| Sandboxd process, file, PTY, or proxy behavior | `runtime/axnoded`, sandboxd documentation, SDK/proto when public |
+| OCI, Nydus, rootfs, or image mounts | `runtime/axnoded`, `runtime/imagemgr`, `runtime/imagefsd`, SDK/proto when public |
+| Devbox sockets or `.dev/` stack layout | Root Make files, devbox scripts, root docs, affected service docs |
 
-## Sync Rules
+## Synchronization And Validation
 
-- If a shared API shape changes, regenerate code and update all affected
-  SDKs, services, tests, and user-facing docs together.
-- If a shared socket path or `.dev/` layout changes, update root docs and every
-  subsystem doc that names that path.
-- If `axnoded` changes image-manager integration behavior, update axnoded and
-  imagemgr docs together.
-- If a public workload shape or sandbox-local operation changes, update the API,
-  affected SDK/app docs, and the owning runtime documentation together.
-- If node capability keys, evidence, provider ownership, validity, loss policy,
-  or requirement derivation changes, update the canonical observed-capability
-  architecture document and both controld and axnoded contracts together.
-
-## Validation Pointers
-
-- Prefer subsystem verification targets for local changes.
-- For cross-runtime behavior, use the owning subsystem's validation matrix plus
-  compose/devbox smoke targets that exercise the boundary.
-- For docs touching `.x`, run `make agent-doc-check`.
+- A shared contract change updates generated code, callers, tests, and authoritative documentation together. Protobuf generation must finish before consumers compile.
+- A socket, mount target, or `.dev/` layout change updates every owning module that names it.
+- Run the owning subsystem checks first, then the Linux, Compose, kind, or regional truth path required by the changed behavior. For `.x` changes, run `make agent-doc-check`.

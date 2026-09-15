@@ -5,9 +5,9 @@ import (
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agent"
 	codexagent "github.com/cofy-x/axern/apps/axrun/internal/agent/codex"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	rolloutagents "github.com/cofy-x/axern/apps/axrun/internal/application/rollout/agents"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 const Name = "codex"

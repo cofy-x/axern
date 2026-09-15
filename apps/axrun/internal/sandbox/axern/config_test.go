@@ -6,11 +6,12 @@ func TestConfigFromEnvParsesOptionalSettings(t *testing.T) {
 	t.Setenv("AXERN_ENDPOINT", " 127.0.0.1:24000 ")
 	t.Setenv("AXERN_TEMPLATE_ID", " python311 ")
 	t.Setenv("AXERN_NAMESPACE", " bench ")
-	t.Setenv("AXERN_RUNTIME_CLASS", " runc ")
 	t.Setenv("AXERN_REQUEST_CPU", " 100m ")
 	t.Setenv("AXERN_REQUEST_MEMORY", " 512MiB ")
+	t.Setenv("AXERN_REQUEST_EPHEMERAL_STORAGE", " 2GiB ")
 	t.Setenv("AXERN_LIMIT_CPU", " 1 ")
 	t.Setenv("AXERN_LIMIT_MEMORY", " 1GiB ")
+	t.Setenv("AXERN_LIMIT_EPHEMERAL_STORAGE", " 4GiB ")
 	t.Setenv("AXERN_TLS_CA_CERT", " ca.pem ")
 	t.Setenv("AXERN_TLS_CERT", " cert.pem ")
 	t.Setenv("AXERN_TLS_KEY", " key.pem ")
@@ -20,11 +21,12 @@ func TestConfigFromEnvParsesOptionalSettings(t *testing.T) {
 	if config.Endpoint != "127.0.0.1:24000" ||
 		config.TemplateID != "python311" ||
 		config.Namespace != "bench" ||
-		config.RuntimeClass != "runc" ||
 		config.RequestCPU != "100m" ||
 		config.RequestMemory != "512MiB" ||
+		config.RequestEphemeralStorage != "2GiB" ||
 		config.LimitCPU != "1" ||
 		config.LimitMemory != "1GiB" ||
+		config.LimitEphemeralStorage != "4GiB" ||
 		config.TLSCACert != "ca.pem" ||
 		config.TLSCert != "cert.pem" ||
 		config.TLSKey != "key.pem" ||

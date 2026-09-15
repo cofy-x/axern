@@ -2,6 +2,7 @@ import datetime
 
 from axern.control.common.v1 import common_pb2 as _common_pb2
 from axern.control.capability.v1 import capability_pb2 as _capability_pb2
+from axern.control.environment.v1 import environment_pb2 as _environment_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -15,7 +16,6 @@ DESCRIPTOR: _descriptor.FileDescriptor
 class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     RUN_STATUS_UNSPECIFIED: _ClassVar[RunStatus]
-    RUN_STATUS_QUEUED: _ClassVar[RunStatus]
     RUN_STATUS_PLACED: _ClassVar[RunStatus]
     RUN_STATUS_STARTING: _ClassVar[RunStatus]
     RUN_STATUS_RUNNING: _ClassVar[RunStatus]
@@ -23,7 +23,6 @@ class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     RUN_STATUS_FAILED: _ClassVar[RunStatus]
     RUN_STATUS_CANCELLED: _ClassVar[RunStatus]
 RUN_STATUS_UNSPECIFIED: RunStatus
-RUN_STATUS_QUEUED: RunStatus
 RUN_STATUS_PLACED: RunStatus
 RUN_STATUS_STARTING: RunStatus
 RUN_STATUS_RUNNING: RunStatus
@@ -32,7 +31,7 @@ RUN_STATUS_FAILED: RunStatus
 RUN_STATUS_CANCELLED: RunStatus
 
 class Run(_message.Message):
-    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "attempt", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "exit_code_known", "message", "diagnostic_code", "capability_conditions")
+    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "message", "diagnostic_code", "capability_conditions", "node_id", "environment_spec", "resolved_environment_spec", "output_expires_at")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -44,7 +43,6 @@ class Run(_message.Message):
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    ATTEMPT_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
     CONFIG_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
@@ -52,15 +50,17 @@ class Run(_message.Message):
     CREATED_AT_FIELD_NUMBER: _ClassVar[int]
     UPDATED_AT_FIELD_NUMBER: _ClassVar[int]
     EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
-    EXIT_CODE_KNOWN_FIELD_NUMBER: _ClassVar[int]
     MESSAGE_FIELD_NUMBER: _ClassVar[int]
     DIAGNOSTIC_CODE_FIELD_NUMBER: _ClassVar[int]
     CAPABILITY_CONDITIONS_FIELD_NUMBER: _ClassVar[int]
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    ENVIRONMENT_SPEC_FIELD_NUMBER: _ClassVar[int]
+    RESOLVED_ENVIRONMENT_SPEC_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
     environment_id: str
     allocation_id: str
-    attempt: int
     status: RunStatus
     config: _common_pb2.ExecutionConfig
     labels: _containers.ScalarMap[str, str]
@@ -68,11 +68,14 @@ class Run(_message.Message):
     created_at: _timestamp_pb2.Timestamp
     updated_at: _timestamp_pb2.Timestamp
     exit_code: int
-    exit_code_known: bool
     message: str
     diagnostic_code: _common_pb2.WorkloadDiagnosticCode
     capability_conditions: _capability_pb2.CapabilityConditionSet
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., attempt: _Optional[int] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., exit_code_known: _Optional[bool] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ...) -> None: ...
+    node_id: str
+    environment_spec: _environment_pb2.EnvironmentSpec
+    resolved_environment_spec: _environment_pb2.ResolvedEnvironmentSpec
+    output_expires_at: _timestamp_pb2.Timestamp
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., node_id: _Optional[str] = ..., environment_spec: _Optional[_Union[_environment_pb2.EnvironmentSpec, _Mapping]] = ..., resolved_environment_spec: _Optional[_Union[_environment_pb2.ResolvedEnvironmentSpec, _Mapping]] = ..., output_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class RunListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

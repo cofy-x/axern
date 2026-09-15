@@ -30,15 +30,17 @@ func codexConfigTOML(profile agent.Profile) (string, error) {
 	builder.WriteString("model_provider = ")
 	builder.WriteString(tomlQuote(providerName))
 	builder.WriteByte('\n')
-	builder.WriteString(`openai_base_url = "${AXERN_MANAGED_PROXY_BASE_URL}"`)
+	builder.WriteString("openai_base_url = ")
+	builder.WriteString(tomlQuote(profile.Upstream.String()))
 	builder.WriteString("\n\n")
 	builder.WriteString("[model_providers.")
 	builder.WriteString(tomlKey(providerName))
 	builder.WriteString("]\n")
 	builder.WriteString("name = ")
-	builder.WriteString(tomlQuote("Axern Axrun Proxy"))
+	builder.WriteString(tomlQuote("Axrun provider"))
 	builder.WriteByte('\n')
-	builder.WriteString(`base_url = "${AXERN_MANAGED_PROXY_BASE_URL}"`)
+	builder.WriteString("base_url = ")
+	builder.WriteString(tomlQuote(profile.Upstream.String()))
 	builder.WriteByte('\n')
 	builder.WriteString("env_key = ")
 	builder.WriteString(tomlQuote("OPENAI_API_KEY"))
@@ -51,10 +53,6 @@ func codexConfigTOML(profile agent.Profile) (string, error) {
 
 func remoteCodexConfigScript(configTOML string) string {
 	return fmt.Sprintf(`set -eu
-: "${AXERN_MANAGED_PROXY_BASE_URL:?}"
-: "${AXERN_MANAGED_PROXY_TOKEN:?}"
-export OPENAI_BASE_URL="${AXERN_MANAGED_PROXY_BASE_URL}"
-export OPENAI_API_KEY="${AXERN_MANAGED_PROXY_TOKEN}"
 codex_home="${CODEX_HOME:-${HOME}/.codex}"
 mkdir -p "${codex_home}"
 stamp="$(date +%%Y%%m%%d%%H%%M%%S)"

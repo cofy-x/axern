@@ -47,12 +47,33 @@ fi
 
 kind create cluster --name "${cluster}" --wait 120s
 kubectl create namespace "${namespace}"
+cli="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
+"${cli}" admin pki bootstrap --directory "${state_dir}/pki" --cluster axern.local --dns localhost,controld,gatewayd,tunneld
+kubectl --namespace "${namespace}" create secret generic axern-pki \
+  --from-file=ca.crt="${state_dir}/pki/ca.crt" \
+  --from-file=controld.pem="${state_dir}/pki/controld.pem" \
+  --from-file=gatewayd.pem="${state_dir}/pki/gatewayd.pem" \
+  --from-file=tunneld.pem="${state_dir}/pki/tunneld.pem" \
+  --from-file=client.crt="${state_dir}/pki/client.crt" \
+  --from-file=client.key="${state_dir}/pki/client.key"
+kubectl --namespace "${namespace}" create secret generic axern-pki-signer \
+  --from-file=signer.pem="${state_dir}/pki/private/signer.pem"
+release_node_name="$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')"
+release_node_id="node-$(openssl rand -hex 16)"
+release_enrollment_token_file="${state_dir}/enrollment-token"
+openssl rand -hex 32 > "${release_enrollment_token_file}"
+chmod 600 "${release_enrollment_token_file}"
+kubectl --namespace "${namespace}" create secret generic enrollment-token \
+  --from-file="${release_node_id}=${release_enrollment_token_file}"
 
 helm_args=(
   install axern "${chart}"
   --namespace "${namespace}"
   --wait --timeout 15m
   --set-string "node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}"
+  --set-string "node.enrollment.existingSecret=enrollment-token"
+  --set-string "node.enrollment.nodes[0].nodeName=${release_node_name}"
+  --set-string "node.enrollment.nodes[0].nodeID=${release_node_id}"
 )
 if [[ "${chart}" == oci://* ]]; then
   helm_args+=(--version "${tag#v}")
@@ -68,8 +89,6 @@ if [ -n "${image_tag_suffix}" ]; then
     --set-string "runtimeCatalog.serverBaseImage=${AXERN_RELEASE_REGISTRY}/server-base-runtime:${candidate_tag}"
     --set-string "runtimeCatalog.codingBaseImage=${AXERN_RELEASE_REGISTRY}/coding-base-runtime:${candidate_tag}"
     --set-string "runtimeCatalog.desktopBaseImage=${AXERN_RELEASE_REGISTRY}/desktop-base-runtime:${candidate_tag}"
-    --set-string "runtimeCatalog.claudeCodeBundleImage=${AXERN_RELEASE_REGISTRY}/claude-code-bundle:${candidate_tag}"
-    --set-string "runtimeCatalog.codexBundleImage=${AXERN_RELEASE_REGISTRY}/codex-bundle:${candidate_tag}"
   )
 fi
 if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then
@@ -94,13 +113,12 @@ if [ -n "${AXERN_REGISTRY_USERNAME:-}" ] && [ -n "${AXERN_REGISTRY_PASSWORD:-}" 
   helm_args+=(
     --set-string 'global.imagePullSecrets[0].name=axern-release-registry'
     --set-string 'node.registryAuth.existingSecret=axern-release-registry'
-    --set-string 'rolloutWorker.registryAuth.existingSecret=axern-release-registry'
   )
 fi
 helm "${helm_args[@]}"
 kubectl --namespace "${namespace}" rollout status deployment/controld --timeout=5m
 kubectl --namespace "${namespace}" rollout status deployment/gatewayd --timeout=5m
-kubectl --namespace "${namespace}" rollout status daemonset/node-all-in-one --timeout=10m
+kubectl --namespace "${namespace}" rollout status daemonset -l app.kubernetes.io/component=node --timeout=10m
 
 kubectl --namespace "${namespace}" port-forward svc/gatewayd 25100:25000 25101:25080 >"${state_dir}/port-forward.log" 2>&1 &
 port_forward_pid=$!
@@ -126,6 +144,9 @@ config="${state_dir}/config.json"
 cli="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
 "${cli}" --config "${config}" context import-kubernetes release \
   --namespace "${namespace}" --cert-dir "${state_dir}/certs" --current
+"${cli}" --config "${config}" admin node admit "${release_node_id}" \
+  --enrollment-token-file "${release_enrollment_token_file}" \
+  --operator-reason "release acceptance node admission"
 "${cli}" --config "${config}" namespace create default --output json
 "${cli}" --config "${config}" doctor --namespace default --output json
 
@@ -208,9 +229,9 @@ PY
   echo "--- node pods ---" >&2
   kubectl --namespace "${namespace}" get pods -o wide >&2 || true
   echo "--- node logs ---" >&2
-  kubectl --namespace "${namespace}" logs daemonset/node-all-in-one --all-containers --tail=300 >&2 || true
+  kubectl --namespace "${namespace}" logs -l app.kubernetes.io/component=node --all-containers --tail=300 >&2 || true
   echo "--- axnoded file log ---" >&2
-  kubectl --namespace "${namespace}" exec daemonset/node-all-in-one -- \
+  kubectl --namespace "${namespace}" exec "$(kubectl --namespace "${namespace}" get pod -l app.kubernetes.io/component=node -o jsonpath='{.items[0].metadata.name}')" -- \
     sh -c 'tail -n 500 /var/log/axnoded/axnoded.log' >&2 || true
   return 1
 }
@@ -227,7 +248,6 @@ spec:
     template: python311
   command:
     argv: [python, -c, "print('axern-release-ok')"]
-  runtime_class: runsc
   resources:
     requests:
       cpu: 100m

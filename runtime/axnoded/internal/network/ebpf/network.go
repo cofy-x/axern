@@ -7,33 +7,21 @@ import (
 	"net/netip"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cofy-x/axern/network/bpfnet"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/network/bridge"
 )
 
 type dataplaneController interface {
 	EnsureAttached(ipRange string) error
 	Cleanup() error
-	UpsertService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
-	DeleteService(protocol string, hostPort uint16, targetIP string, targetPort uint16) error
-	NeedsSNATFallback() bool
-	NeedsFullDNATFallback(protocol string) bool
-	NeedsLocalhostCompat(protocol string) bool
 	CleanupStaleSNATMappings(policy bpfnet.SNATGCPolicy) (bpfnet.SNATGCResult, error)
 	Status() (bpfnet.Status, error)
 }
 
 type controllerFactory func(cfg config.BPFNetConfig) (dataplaneController, error)
-
-type dnatCompatFallback interface {
-	SetupDNATCompatRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error
-	CleanupDNATCompatRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error
-}
 
 var (
 	managerMu        sync.Mutex
@@ -42,34 +30,23 @@ var (
 
 type BPFNetworkManager struct {
 	controller dataplaneController
-	fallback   networkmanager.NetworkManager
 	gcInterval time.Duration
 	gcPolicy   bpfnet.SNATGCPolicy
 	gcMu       sync.Mutex
 	gcStop     chan struct{}
-	ipv6Compat atomic.Bool
 }
 
 func (m *BPFNetworkManager) ProbeHealth(ipRange string) (networkmanager.Health, error) {
 	if ipv6, err := isIPv6Range(ipRange); err != nil {
 		return networkmanager.Health{}, err
 	} else if ipv6 {
-		probe, ok := m.fallback.(networkmanager.HealthProber)
-		if !ok {
-			return networkmanager.Health{}, fmt.Errorf("IPv6 compatibility backend has no health probe")
-		}
-		return probe.ProbeHealth(ipRange)
+		return networkmanager.Health{}, ipv6UnsupportedError()
 	}
 	status, err := m.controller.Status()
 	if err != nil {
 		return networkmanager.Health{}, fmt.Errorf("read bpfnet dataplane status: %w", err)
 	}
-	// Persisted readiness is authoritative. In particular, failure of the
-	// optional localhost cgroup path records LastLocalhostError while TC ingress
-	// and egress remain healthy, and full iptables fallback can still provide
-	// port forwarding without satisfying the native bpfnet capability.
 	return networkmanager.Health{
-		PortForwardingReady:  status.State.TCReady || status.State.FullFallback,
 		NativeDataplaneReady: status.State.TCReady,
 	}, nil
 }
@@ -78,11 +55,8 @@ func defaultControllerFactory(cfg config.BPFNetConfig) (dataplaneController, err
 	controller := bpfnet.NewController(bpfnet.Config{
 		UplinkDevices:      append([]string(nil), cfg.UplinkDevices...),
 		PinPath:            cfg.PinPath,
-		MapSize:            cfg.MapSize,
 		SNATMapSize:        cfg.SNATMapSize,
-		LocalOutCompat:     cfg.LocalOutCompat,
 		NativeRoutingCIDRs: append([]string(nil), cfg.NativeRoutingCIDRs...),
-		IptablesFallback:   cfg.IptablesFallback,
 	})
 	return controller, nil
 }
@@ -101,7 +75,6 @@ func Configure(cfg config.BPFNetConfig) error {
 	}
 	networkmanager.Register(config.NatBackendEBPF, &BPFNetworkManager{
 		controller: controller,
-		fallback:   &bridge.BridgeNetworkManager{},
 		gcInterval: gcInterval,
 		gcPolicy:   gcPolicy,
 	})
@@ -112,20 +85,10 @@ func (m *BPFNetworkManager) SetupSNATRules(ipRange string) error {
 	if ipv6, err := isIPv6Range(ipRange); err != nil {
 		return err
 	} else if ipv6 {
-		m.stopSNATGC()
-		if err := m.fallback.SetupSNATRules(ipRange); err != nil {
-			return fmt.Errorf("set up IPv6 compatibility SNAT: %w", err)
-		}
-		m.ipv6Compat.Store(true)
-		return nil
+		return ipv6UnsupportedError()
 	}
-	m.ipv6Compat.Store(false)
 	if err := m.controller.EnsureAttached(ipRange); err != nil {
 		return err
-	}
-	if m.controller.NeedsSNATFallback() {
-		m.stopSNATGC()
-		return m.fallback.SetupSNATRules(ipRange)
 	}
 	m.startSNATGC()
 	return nil
@@ -135,20 +98,10 @@ func (m *BPFNetworkManager) CleanupSNATRules(ipRange string) error {
 	if ipv6, err := isIPv6Range(ipRange); err != nil {
 		return err
 	} else if ipv6 {
-		m.ipv6Compat.Store(false)
-		return m.fallback.CleanupSNATRules(ipRange)
+		return ipv6UnsupportedError()
 	}
-	var firstErr error
 	m.stopSNATGC()
-	if m.controller.NeedsSNATFallback() {
-		if err := m.fallback.CleanupSNATRules(ipRange); err != nil {
-			firstErr = err
-		}
-	}
-	if err := m.controller.Cleanup(); err != nil && firstErr == nil {
-		firstErr = err
-	}
-	return firstErr
+	return m.controller.Cleanup()
 }
 
 func snatGCSettings(cfg config.BPFNetConfig) (time.Duration, bpfnet.SNATGCPolicy, error) {
@@ -214,127 +167,16 @@ func (m *BPFNetworkManager) runSNATGC(stop <-chan struct{}) {
 
 func (m *BPFNetworkManager) SetupNetworkRulesForActivating(ip net.IP, envID string) error {
 	if ip != nil && ip.To4() == nil {
-		return m.fallback.SetupNetworkRulesForActivating(ip, envID)
-	}
-	if m.controller.NeedsSNATFallback() {
-		return m.fallback.SetupNetworkRulesForActivating(ip, envID)
+		return ipv6UnsupportedError()
 	}
 	return nil
 }
 
 func (m *BPFNetworkManager) CleanupNetworkRulesForActivating(ip net.IP) error {
 	if ip != nil && ip.To4() == nil {
-		return m.fallback.CleanupNetworkRulesForActivating(ip)
-	}
-	if m.controller.NeedsSNATFallback() {
-		return m.fallback.CleanupNetworkRulesForActivating(ip)
+		return ipv6UnsupportedError()
 	}
 	return nil
-}
-
-func (m *BPFNetworkManager) SetupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error {
-	if m.ipv6Compat.Load() || isIPv6Address(targetIP) {
-		return m.fallback.SetupDNATRule(protocol, dstPort, targetIP, targetPort)
-	}
-	if err := m.controller.EnsureAttached(""); err != nil {
-		return err
-	}
-	if err := m.controller.UpsertService(protocol, dstPort, targetIP, targetPort); err != nil {
-		return fmt.Errorf("bpfnet upsert service: %w", err)
-	}
-	if m.controller.NeedsFullDNATFallback(protocol) {
-		if err := m.fallback.SetupDNATRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			_ = m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-			return err
-		}
-		return nil
-	}
-	if m.controller.NeedsLocalhostCompat(protocol) {
-		compat, ok := m.fallback.(dnatCompatFallback)
-		if !ok {
-			_ = m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-			return fmt.Errorf("fallback network manager does not support localhost DNAT compatibility")
-		}
-		if err := compat.SetupDNATCompatRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			_ = m.controller.DeleteService(protocol, dstPort, targetIP, targetPort)
-			return err
-		}
-	}
-	return nil
-}
-
-func (m *BPFNetworkManager) CleanupDNATRule(protocol string, dstPort uint16, targetIP string, targetPort uint16) error {
-	if m.ipv6Compat.Load() || isIPv6Address(targetIP) {
-		return m.fallback.CleanupDNATRule(protocol, dstPort, targetIP, targetPort)
-	}
-	var firstErr error
-	if m.controller.NeedsFullDNATFallback(protocol) {
-		if err := m.fallback.CleanupDNATRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			firstErr = err
-		}
-	} else if m.controller.NeedsLocalhostCompat(protocol) {
-		compat, ok := m.fallback.(dnatCompatFallback)
-		if !ok {
-			firstErr = fmt.Errorf("fallback network manager does not support localhost DNAT compatibility")
-		} else if err := compat.CleanupDNATCompatRule(protocol, dstPort, targetIP, targetPort); err != nil {
-			firstErr = err
-		}
-	}
-	if err := m.controller.DeleteService(protocol, dstPort, targetIP, targetPort); err != nil && firstErr == nil {
-		firstErr = err
-	}
-	return firstErr
-}
-
-func (m *BPFNetworkManager) ReconcileDNATRules(desired []networkmanager.DNATRule) error {
-	if m.ipv6Compat.Load() {
-		var errs []error
-		for _, rule := range desired {
-			if err := m.fallback.SetupDNATRule(rule.Protocol, rule.HostPort, rule.TargetIP, rule.TargetPort); err != nil {
-				errs = append(errs, err)
-			}
-		}
-		return errors.Join(errs...)
-	}
-	status, err := m.controller.Status()
-	if err != nil {
-		return fmt.Errorf("read bpfnet service state: %w", err)
-	}
-
-	desiredByKey := make(map[string]networkmanager.DNATRule, len(desired))
-	for _, rule := range desired {
-		desiredByKey[dnatRuleKey(rule.Protocol, rule.HostPort)] = rule
-	}
-	currentByKey := make(map[string]bpfnet.Service, len(status.Services))
-	blockedKeys := make(map[string]struct{})
-	var errs []error
-	for _, current := range status.Services {
-		key := dnatRuleKey(current.Protocol, current.HostPort)
-		currentByKey[key] = current
-		next, keep := desiredByKey[key]
-		if keep && dnatRulesEqual(current, next) {
-			continue
-		}
-		if err := m.CleanupDNATRule(current.Protocol, current.HostPort, current.TargetIP, current.TargetPort); err != nil {
-			errs = append(errs, fmt.Errorf("remove orphaned bpfnet service %s: %w", key, err))
-			blockedKeys[key] = struct{}{}
-			continue
-		}
-		delete(currentByKey, key)
-	}
-
-	for key, rule := range desiredByKey {
-		if _, blocked := blockedKeys[key]; blocked {
-			continue
-		}
-		if current, ok := currentByKey[key]; ok && dnatRulesEqual(current, rule) {
-			continue
-		}
-		if err := m.SetupDNATRule(rule.Protocol, rule.HostPort, rule.TargetIP, rule.TargetPort); err != nil {
-			errs = append(errs, fmt.Errorf("ensure bpfnet service %s: %w", key, err))
-		}
-	}
-	return errors.Join(errs...)
 }
 
 func isIPv6Range(ipRange string) (bool, error) {
@@ -349,20 +191,8 @@ func isIPv6Range(ipRange string) (bool, error) {
 	return prefix.Addr().Is6(), nil
 }
 
-func isIPv6Address(address string) bool {
-	ip := net.ParseIP(strings.TrimSpace(address))
-	return ip != nil && ip.To4() == nil
-}
-
-func dnatRuleKey(protocol string, hostPort uint16) string {
-	return fmt.Sprintf("%s:%d", strings.ToLower(protocol), hostPort)
-}
-
-func dnatRulesEqual(current bpfnet.Service, desired networkmanager.DNATRule) bool {
-	return strings.EqualFold(current.Protocol, desired.Protocol) &&
-		current.HostPort == desired.HostPort &&
-		current.TargetIP == desired.TargetIP &&
-		current.TargetPort == desired.TargetPort
+func ipv6UnsupportedError() error {
+	return errors.New("ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range")
 }
 
 func setControllerFactoryForTest(factory controllerFactory) {

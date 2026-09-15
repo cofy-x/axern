@@ -9,11 +9,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-func TestRecordExecutionLeaseVisibilityUsesBoundedResultLabel(t *testing.T) {
+func TestRecordAllocationAccessGrantVisibilityUsesBoundedResultLabel(t *testing.T) {
 	ResetForTest()
-	RecordExecutionLeaseVisibility(25*time.Millisecond, "event_wait")
+	RecordAllocationAccessGrantVisibility(25*time.Millisecond, "event_wait")
 
-	if got := HistogramCountForTest(MetricExecutionLeaseVisibilityDuration, map[string]string{"axern.result": "event_wait"}); got != 1 {
+	if got := HistogramCountForTest(MetricAllocationAccessGrantVisibilityDuration, map[string]string{"axern.result": "event_wait"}); got != 1 {
 		t.Fatalf("histogram count = %d, want 1", got)
 	}
 }

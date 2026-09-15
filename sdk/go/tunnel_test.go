@@ -69,8 +69,8 @@ func TestSandboxOpenTunnelLifecycle(t *testing.T) {
 	if tunnel.SessionID() != "tun-1" || tunnel.BoundAddr() != "127.0.0.1:9000" {
 		t.Fatalf("unexpected tunnel session=%q bound=%q", tunnel.SessionID(), tunnel.BoundAddr())
 	}
-	if fake.tunnelAllocationID != "alloc-1" || fake.tunnelLocalTarget != "127.0.0.1:8080" || fake.tunnelRemotePort != 9000 {
-		t.Fatalf("unexpected create tunnel request allocation=%q local=%q port=%d", fake.tunnelAllocationID, fake.tunnelLocalTarget, fake.tunnelRemotePort)
+	if fake.tunnelAllocationID != "alloc-1" || fake.tunnelRemotePort != 9000 {
+		t.Fatalf("unexpected create tunnel request allocation=%q port=%d", fake.tunnelAllocationID, fake.tunnelRemotePort)
 	}
 	var config tunnelrelay.ConnectorConfig
 	select {
@@ -78,7 +78,7 @@ func TestSandboxOpenTunnelLifecycle(t *testing.T) {
 	case <-ctx.Done():
 		t.Fatalf("connector runner was not called: %v", ctx.Err())
 	}
-	if config.SessionID != "tun-1" || config.EdgeTarget != "gateway.example:25000" || config.ClientToken != "client-token" || config.LocalTarget != "127.0.0.1:8080" || !config.RelayInsecure || config.ProxyMode != ProxyModeDirect || config.MaxStreams != 7 {
+	if config.SessionID != "tun-1" || config.ClientEdgeTarget != "gateway.example:25000" || config.ClientToken != "client-token" || config.LocalTarget != "127.0.0.1:8080" || !config.RelayInsecure || config.ProxyMode != ProxyModeDirect || config.MaxStreams != 7 {
 		t.Fatalf("unexpected connector config: %+v", config)
 	}
 	metadata, err := sandbox.Metadata()

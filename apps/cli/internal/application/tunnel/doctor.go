@@ -7,48 +7,40 @@ import (
 	"strings"
 	"time"
 
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 )
 
 type DoctorParams struct {
-	SessionID     string
-	AllocationID  string
-	ServiceID     string
-	LocalTarget   string
-	Timeout       time.Duration
-	ProbeRelay    func(context.Context, string, time.Duration) bool
-	ServiceClient ServiceClient
+	SessionID    string
+	AllocationID string
+	LocalTarget  string
+	Timeout      time.Duration
+	ProbeRelay   func(context.Context, string, time.Duration) bool
 }
 
 type DoctorReport struct {
-	ServiceID          string   `json:"service_id,omitempty"`
-	SessionID          string   `json:"session_id,omitempty"`
-	AllocationID       string   `json:"allocation_id,omitempty"`
-	SelectedAllocation string   `json:"selected_allocation_id,omitempty"`
-	SelectedNodeID     string   `json:"selected_node_id,omitempty"`
-	Status             string   `json:"status,omitempty"`
-	RelayID            string   `json:"relay_id,omitempty"`
-	ClientTarget       string   `json:"client_edge_target,omitempty"`
-	NodeTarget         string   `json:"node_edge_target,omitempty"`
-	BoundAddr          string   `json:"bound_addr,omitempty"`
-	ClientPeer         string   `json:"client_peer,omitempty"`
-	NodePeer           string   `json:"node_peer,omitempty"`
-	LastCloseReason    string   `json:"last_close_reason,omitempty"`
-	Recommendation     string   `json:"recommendation,omitempty"`
-	Checks             []string `json:"checks"`
-	Problems           []string `json:"problems,omitempty"`
-	RecentEvents       []string `json:"recent_events,omitempty"`
-	LocalReachable     bool     `json:"local_reachable,omitempty"`
-	RelayReachable     bool     `json:"relay_reachable,omitempty"`
-	ControlReachable   bool     `json:"control_reachable"`
+	SessionID        string   `json:"session_id,omitempty"`
+	AllocationID     string   `json:"allocation_id,omitempty"`
+	Status           string   `json:"status,omitempty"`
+	RelayID          string   `json:"relay_id,omitempty"`
+	ClientTarget     string   `json:"client_edge_target,omitempty"`
+	BoundAddr        string   `json:"bound_addr,omitempty"`
+	ClientPeer       string   `json:"client_peer,omitempty"`
+	NodePeer         string   `json:"node_peer,omitempty"`
+	LastCloseReason  string   `json:"last_close_reason,omitempty"`
+	Recommendation   string   `json:"recommendation,omitempty"`
+	Checks           []string `json:"checks"`
+	Problems         []string `json:"problems,omitempty"`
+	RecentEvents     []string `json:"recent_events,omitempty"`
+	LocalReachable   bool     `json:"local_reachable,omitempty"`
+	RelayReachable   bool     `json:"relay_reachable,omitempty"`
+	ControlReachable bool     `json:"control_reachable"`
 }
 
 func (c Control) Doctor(ctx context.Context, params DoctorParams) (DoctorReport, error) {
 	sessionID := strings.TrimSpace(params.SessionID)
 	allocationID := strings.TrimSpace(params.AllocationID)
-	serviceID := strings.TrimSpace(params.ServiceID)
-	report := DoctorReport{ServiceID: serviceID, AllocationID: allocationID, ControlReachable: true}
+	report := DoctorReport{AllocationID: allocationID, ControlReachable: true}
 	var session *tunnelv1.TunnelSession
 	if sessionID != "" {
 		resp, err := c.Inspect(ctx, sessionID, 20)
@@ -57,46 +49,6 @@ func (c Control) Doctor(ctx context.Context, params DoctorParams) (DoctorReport,
 		}
 		session = resp.GetSession()
 		applyEventSummary(&report, resp.GetEvents())
-	} else if serviceID != "" {
-		if params.ServiceClient == nil {
-			return report, fmt.Errorf("service client is required for service tunnel doctor")
-		}
-		replicas, err := params.ServiceClient.ListServiceReplicas(ctx, &servicev1.ListServiceReplicasRequest{
-			ServiceID: serviceID,
-			Filter: &servicev1.ServiceReplicaListFilter{
-				View: servicev1.ServiceReplicaView_SERVICE_REPLICA_VIEW_CURRENT,
-			},
-		})
-		if err != nil {
-			return report, err
-		}
-		candidates := readyAllocationCandidates(serviceID, replicas.GetReplicas())
-		if len(candidates) == 0 {
-			report.Problems = append(report.Problems, fmt.Sprintf("service %s has no current ready replicas", serviceID))
-			report.Recommendation = "wait for a ready service replica before opening or diagnosing a tunnel"
-			return report, nil
-		}
-		selection := candidates[0]
-		for _, candidate := range candidates {
-			candidateSession, err := c.newestActiveSessionForAllocation(ctx, candidate.AllocationID)
-			if err != nil {
-				return report, err
-			}
-			if candidateSession != nil {
-				selection = candidate
-				session = candidateSession
-				break
-			}
-		}
-		report.SelectedAllocation = selection.AllocationID
-		report.SelectedNodeID = selection.NodeID
-		if session == nil {
-			report.Problems = append(report.Problems, "no active tunnel sessions found for current ready service replicas")
-			report.Recommendation = "start axern svc tunnel for this service, or pass --session-id for a known tunnel"
-			return report, nil
-		}
-		events, _ := c.Events(ctx, session.GetSessionID(), 20)
-		applyEventSummary(&report, events.GetEvents())
 	} else {
 		resp, err := c.List(ctx, ListParams{AllocationID: allocationID})
 		if err != nil {
@@ -115,8 +67,7 @@ func (c Control) Doctor(ctx context.Context, params DoctorParams) (DoctorReport,
 		report.AllocationID = session.GetAllocationID()
 		report.Status = session.GetStatus().String()
 		report.RelayID = session.GetRelayID()
-		report.ClientTarget = firstNonEmpty(session.GetClientEdgeTarget(), session.GetEdgeTarget())
-		report.NodeTarget = session.GetNodeEdgeTarget()
+		report.ClientTarget = session.GetClientEdgeTarget()
 		report.BoundAddr = session.GetBoundAddr()
 		if session.GetStatus() == tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING && strings.TrimSpace(session.GetBoundAddr()) != "" {
 			report.Checks = append(report.Checks, "session is running and node bind is reported")

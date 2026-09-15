@@ -9,12 +9,6 @@ import (
 func TestManager_CreateDaemon_Nydus_DockerAuthsFormat(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ossConfig := BackendConfig{
-		BackendType: "oss",
-		Oss:         &OssConfig{},
-	}
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", ossConfig)
-
 	nydusConfig := BackendConfig{
 		BackendType: "registry",
 		Registry: &RegistryConfig{
@@ -25,16 +19,13 @@ func TestManager_CreateDaemon_Nydus_DockerAuthsFormat(t *testing.T) {
 	}
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", nydusConfig)
 
-	ossAuthsPath := createTestOSSAuthsFile(t, tmpDir)
 	registryAuthsPath := createTestDockerFormatRegistryAuthsFile(t, tmpDir)
 
 	mgr, err := NewManager(&ManagerConfig{
 		NodeID:            "node-test",
 		Root:              tmpDir,
-		OSSCfgPath:        ossCfgPath,
 		NydusCfgPath:      nydusCfgPath,
 		BinPath:           "/usr/local/bin/imagefsd",
-		OSSAuthsPath:      ossAuthsPath,
 		RegistryAuthsPath: registryAuthsPath,
 	})
 	if err != nil {
@@ -62,10 +53,6 @@ func TestManager_CreateDaemon_Nydus_DockerAuthsFormat(t *testing.T) {
 
 func TestManager_CreateDaemon_Nydus_RequestAuthOverridesNodeAuth(t *testing.T) {
 	tmpDir := t.TempDir()
-	ossCfgPath := createTestConfigFile(t, tmpDir, "oss_config.json", BackendConfig{
-		BackendType: "oss",
-		Oss:         &OssConfig{},
-	})
 	nydusCfgPath := createTestConfigFile(t, tmpDir, "nydus_config.json", BackendConfig{
 		BackendType: "registry",
 		Registry:    &RegistryConfig{Scheme: "https"},
@@ -74,10 +61,8 @@ func TestManager_CreateDaemon_Nydus_RequestAuthOverridesNodeAuth(t *testing.T) {
 	mgr, err := NewManager(&ManagerConfig{
 		NodeID:            "node-test",
 		Root:              tmpDir,
-		OSSCfgPath:        ossCfgPath,
 		NydusCfgPath:      nydusCfgPath,
 		BinPath:           "/usr/local/bin/imagefsd",
-		OSSAuthsPath:      createTestOSSAuthsFile(t, tmpDir),
 		RegistryAuthsPath: createTestDockerFormatRegistryAuthsFile(t, tmpDir),
 	})
 	if err != nil {

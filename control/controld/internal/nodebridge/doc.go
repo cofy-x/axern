@@ -1,3 +1,3 @@
-// Package nodebridge adapts control-plane run and service allocation state to
+// Package nodebridge adapts control-plane Run allocation state to
 // the private node lifecycle RPC surface.
 package nodebridge

@@ -1,33 +1,18 @@
-# AGENTS.md
+# TypeScript SDK Agent Contract
 
 ## Purpose
 
-This contract applies to the Axern TypeScript SDK.
+`sdk/typescript` owns the public Node.js-first TypeScript SDK. Read the [TypeScript SDK README](README.md) for usage and package commands.
 
-## Design Rules
+## Ownership Boundaries
 
-- Keep this SDK Node.js-first until browser support is explicitly designed.
-- Keep SDK code as a thin wrapper over Axern control and node RPCs. Do not add
-  SDK-side shell fallbacks for platform file/process behavior.
-- Keep generated or dynamic proto access isolated under `src/generated`; product
-  APIs should live in `client`, `sandbox`, `node`, `errors`, and small shared
-  type modules.
-- Dynamic proto loading is acceptable while the SDK surface is still changing.
-  Prefer a deliberate static-stub migration once the public API stabilizes.
-- Preserve clear names for image inputs: user-provided refs may be tag/name/digest,
-  while resolved refs are digest-pinned values.
-- Prefer Promise and async-iterator APIs for TypeScript ergonomics.
+- Keep transport and generated/dynamic proto access isolated under `src/generated`; expose product APIs through focused client, Sandbox, node, error, and type modules.
+- Keep the SDK a typed wrapper over Axern APIs. Do not add shell fallbacks for platform file or process behavior.
+- Follow the [Stable Domain Model](../../docs/product/domain-model.md): Sandbox is a facade over Environment, Run, and current Allocation, and Allocation-bound operations reject stale targets.
+- Keep user-provided image references distinct from resolved digest-pinned references and prefer Promise and async-iterator APIs.
+- Treat any future transition from dynamic loading to static stubs as an intentional API/build change, not a compatibility layer.
 
 ## Validation
 
-Run these from the repository root after SDK changes:
-
-```bash
-make sdk-typescript-verify
-```
-
-When local compose is running and the change touches real RPC behavior, also run:
-
-```bash
-pnpm --filter @cofy-x/axern-sdk run smoke:local
-```
+- Run `make sdk-typescript-verify`.
+- Run the local SDK smoke selected by `make verify-changed` when real RPC behavior changes.

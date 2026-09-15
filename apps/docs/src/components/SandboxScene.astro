@@ -375,18 +375,18 @@
         ],
         cycle: ['01 PROVISION', '02 READY', '03 EXECUTE', '04 CLEAN'],
       },
-      SERVICE: {
-        context: 'AXERN / DURABLE SERVICE', id: 'SVC_41C2', runtime: 'RUNC',
-        command: 'axern service deploy', coreLabel: 'REPLICA SET', coreRuntime: '01 HEALTHY',
-        flowFunction: 'request', flowValue: '"/health"', outputLabel: 'HTTP', outputValue: '200 OK',
-        resultLabel: 'SERVICE', resultValue: 'READY / 1 REPLICA',
-        events: [
-          ['SERVICE DECLARED', 'RUNTIME RUNC'],
-          ['REPLICA READY', 'HEALTHCHECK PASS'],
-          ['REQUEST RECEIVED', 'ROUTE /HEALTH'],
-          ['ROLLOUT STABLE', 'READY 2 / DESIRED 2'],
-        ],
-        cycle: ['01 DEPLOY', '02 READY', '03 SERVE', '04 SCALE'],
+      BATCH: {
+		context: 'AXERN / EVALUATION BATCH', id: 'RUN_41C2', runtime: 'RUNSC',
+		command: 'evaluator.map(dataset)', coreLabel: 'SANDBOX POOL', coreRuntime: '32 ACTIVE',
+		flowFunction: 'score', flowValue: 'trajectory', outputLabel: 'RESULTS', outputValue: '32 COMPLETE',
+		resultLabel: 'BATCH', resultValue: 'PASS 31 / FAIL 1',
+		events: [
+		  ['DATASET LOADED', '32 SAMPLES'],
+		  ['SANDBOXES READY', 'RUNTIME RUNSC'],
+		  ['TRAJECTORIES CAPTURED', 'RESULTS EXPORTED'],
+		  ['RESOURCES RELEASED', 'CLEANUP COMPLETE'],
+		],
+		cycle: ['01 QUEUE', '02 PROVISION', '03 EVALUATE', '04 CLEAN'],
       },
     } as const;
     let currentPhase = '';
@@ -458,13 +458,13 @@
       currentPhase = phase;
       root.dataset.phase = phase;
       if (latencyLabel) latencyLabel.textContent = phaseLatency[phase] ?? '—';
-      if (currentMode === 'SERVICE' && textTargets.coreRuntime) {
+      if (currentMode === 'BATCH' && textTargets.coreRuntime) {
         textTargets.coreRuntime.textContent = phase === 'CLEAN' ? '02 HEALTHY' : '01 HEALTHY';
       }
-      if (currentMode === 'SERVICE' && textTargets.resultValue) {
+      if (currentMode === 'BATCH' && textTargets.resultValue) {
         textTargets.resultValue.textContent = phase === 'CLEAN' ? 'READY / 2 REPLICAS' : 'READY / 1 REPLICA';
       }
-      if (resourceProcess) resourceProcess.textContent = currentMode === 'SERVICE' && phase === 'CLEAN' ? 'PROC 02' : 'PROC 01';
+      if (resourceProcess) resourceProcess.textContent = currentMode === 'BATCH' && phase === 'CLEAN' ? 'PROC 32' : 'PROC 01';
     };
 
     const setExecuteStep = (step: string) => {
@@ -483,17 +483,17 @@
         DENIED: ['ATTEMPT CONTAINED', 'HOST BOUNDARY INTACT'],
       } : {
         INPUT: ['REQUEST RECEIVED', 'ROUTE /HEALTH'],
-        RUN: ['HANDLER RUNNING', 'RUNTIME RUNC'],
+        RUN: ['HANDLER RUNNING', 'RUNTIME RUNSC'],
         OUTPUT: ['RESPONSE STREAMING', 'HTTP 200'],
-        RESULT: ['SERVICE HEALTHY', 'READY 2 / DESIRED 2'],
+        RESULT: ['BATCH COMPLETE', 'PASS 31 / FAIL 1'],
       };
       const values = copy[step] ?? copy.INPUT;
       if (executeEvent) executeEvent.textContent = values[0];
       if (executeDetail) executeDetail.textContent = values[1];
-      const displayStep = currentMode === 'SERVICE'
+      const displayStep = currentMode === 'BATCH'
         ? ({ INPUT: 'REQUEST', RUN: 'SERVE', OUTPUT: 'RESPONSE', RESULT: 'HEALTHY' }[step] ?? step)
         : ({ ATTACK: 'UNTRUSTED', BLOCK: 'CONTAIN', DENIED: 'DENIED', RESULT: 'OUTPUT' }[step] ?? step);
-      if (phaseLabel) phaseLabel.textContent = step ? `${currentMode === 'SERVICE' ? 'SERVE' : 'EXECUTE'} / ${displayStep}` : currentPhase;
+      if (phaseLabel) phaseLabel.textContent = step ? `${currentMode === 'BATCH' ? 'EVALUATE' : 'EXECUTE'} / ${displayStep}` : currentPhase;
       if (latencyLabel && step) {
         latencyLabel.textContent = step === 'INPUT' ? '7 MS' : step === 'RUN' ? '23 MS' : step === 'OUTPUT' ? '29 MS' : '31 MS';
       }
@@ -532,7 +532,7 @@
         : phaseProgress < 0.2 ? 'INPUT' : phaseProgress < 0.45 ? 'RUN' : phaseProgress < 0.65 ? 'OUTPUT' : 'RESULT';
       setExecuteStep(executeStep);
       if (!executeStep && phaseLabel) {
-        phaseLabel.textContent = currentMode === 'SERVICE'
+        phaseLabel.textContent = currentMode === 'BATCH'
           ? ({ PROVISION: 'DEPLOY', READY: 'READY', CLEAN: 'SCALE' }[phase] ?? phase)
           : phase;
       }
@@ -568,7 +568,7 @@
       const inputAlpha = phase === 'PROVISION' ? 0.9 : executeStep === 'INPUT' ? 0.82 : phase === 'EXECUTE' ? 0.28 : 0.2;
       const outputAlpha = executeStep === 'OUTPUT' ? 0.92 : executeStep === 'RESULT' ? 0.55 : phase === 'CLEAN' ? 0.3 : 0.12;
       const processAlpha = executeStep === 'RUN' || executeStep === 'BLOCK' ? 1 : phase === 'EXECUTE' ? 0.62 : phase === 'READY' ? 0.5 : phase === 'PROVISION' ? 0.24 : 0.12;
-      draw(input, gl.POINTS, currentMode === 'SERVICE' ? healthy(inputAlpha) : primary(inputAlpha), 1, true);
+      draw(input, gl.POINTS, currentMode === 'BATCH' ? healthy(inputAlpha) : primary(inputAlpha), 1, true);
       draw(output, gl.POINTS, healthy(outputAlpha), 2, true);
       if (currentMode === 'AGENT') {
         draw(agentProcesses, gl.POINTS, healthy(processAlpha), 3, true);
@@ -607,14 +607,14 @@
       start();
     };
     modeButtons.forEach((button, index) => {
-      button.addEventListener('click', () => selectMode(button.dataset.sceneMode === 'SERVICE' ? 'SERVICE' : 'AGENT'));
+      button.addEventListener('click', () => selectMode(button.dataset.sceneMode === 'BATCH' ? 'BATCH' : 'AGENT'));
       button.addEventListener('keydown', (event) => {
         if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
         event.preventDefault();
         const offset = event.key === 'ArrowRight' ? 1 : -1;
         const next = modeButtons[(index + offset + modeButtons.length) % modeButtons.length];
         next.focus();
-        selectMode(next.dataset.sceneMode === 'SERVICE' ? 'SERVICE' : 'AGENT');
+        selectMode(next.dataset.sceneMode === 'BATCH' ? 'BATCH' : 'AGENT');
       });
     });
     const observer = new IntersectionObserver(([entry]) => {

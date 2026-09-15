@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -14,20 +14,20 @@ func TestRenderNamespaceQuotaUsesFriendlyUnits(t *testing.T) {
 	quota := &quotav1.NamespaceQuota{
 		Namespace:            "team-a",
 		CpuMilliLimit:        wrapperspb.Int64(1500),
-		ReservedCpuMilli:     500,
+		UsedCpuMilli:         500,
 		AvailableCpuMilli:    wrapperspb.Int64(1000),
 		MemoryBytesLimit:     wrapperspb.Int64(8 << 30),
-		ReservedMemoryBytes:  512 << 20,
+		UsedMemoryBytes:      512 << 20,
 		AvailableMemoryBytes: wrapperspb.Int64(7680 << 20),
 	}
 	var out bytes.Buffer
 	RenderNamespaceQuota(&out, quota)
 	for _, want := range []string{
 		"CPU Limit: 1.5 CPU",
-		"CPU Reserved: 500m",
+		"CPU Used: 500m",
 		"CPU Available: 1 CPU",
 		"Memory Limit: 8GiB",
-		"Memory Reserved: 512MiB",
+		"Memory Used: 512MiB",
 		"Memory Available: 7680MiB",
 	} {
 		if !strings.Contains(out.String(), want) {
@@ -40,9 +40,9 @@ func TestRenderNamespaceQuotaTableUsesFriendlyUnits(t *testing.T) {
 	quota := &quotav1.NamespaceQuota{
 		Namespace:            "team-a",
 		CpuMilliLimit:        wrapperspb.Int64(2000),
-		ReservedCpuMilli:     750,
+		UsedCpuMilli:         750,
 		MemoryBytesLimit:     wrapperspb.Int64(1 << 30),
-		ReservedMemoryBytes:  128 << 20,
+		UsedMemoryBytes:      128 << 20,
 		AvailableMemoryBytes: wrapperspb.Int64(896 << 20),
 	}
 	var out bytes.Buffer
@@ -61,9 +61,9 @@ func TestRenderNamespaceQuotaTableUsesFriendlyUnits(t *testing.T) {
 
 func TestRenderNamespaceQuotaTableUsesCompactUnlimitedMarker(t *testing.T) {
 	quota := &quotav1.NamespaceQuota{
-		Namespace:           "default",
-		ReservedCpuMilli:    500,
-		ReservedMemoryBytes: 4 << 30,
+		Namespace:       "default",
+		UsedCpuMilli:    500,
+		UsedMemoryBytes: 4 << 30,
 	}
 	var out bytes.Buffer
 	RenderNamespaceQuotaTable(&out, []*quotav1.NamespaceQuota{quota})
@@ -77,18 +77,23 @@ func TestRenderNamespaceQuotaTableUsesCompactUnlimitedMarker(t *testing.T) {
 	}
 }
 
-func TestRenderNamespaceQuotaDescribeShowsAdmissionBlockedServices(t *testing.T) {
-	quota := &quotav1.NamespaceQuota{Namespace: "team-a"}
-	service := &servicev1.Service{
-		ID:      "svc-a",
-		Status:  servicev1.ServiceStatus_SERVICE_STATUS_DEGRADED,
-		Message: "rpc error: code = ResourceExhausted desc = namespace quota exceeded: namespace=team-a",
+func TestRenderNamespaceQuotaEventUsesExistingEnvironmentIdentity(t *testing.T) {
+	event := &quotav1.NamespaceQuotaEvent{
+		ID:            "quotaevt-1",
+		Namespace:     "team-a",
+		Type:          quotav1.NamespaceQuotaEventType_NAMESPACE_QUOTA_EVENT_TYPE_ADMISSION_REJECTED,
+		EnvironmentID: "env-real",
+		Reason:        quotav1.NamespaceQuotaEventReason_NAMESPACE_QUOTA_EVENT_REASON_INSUFFICIENT_CPU,
+		CreatedAt:     timestamppb.Now(),
 	}
 	var out bytes.Buffer
-	RenderNamespaceQuotaDescribe(&out, quota, []*servicev1.Service{service})
-	for _, want := range []string{"Admission Blocked Services", "svc-a", "degraded", "namespace quota exceeded"} {
+	RenderNamespaceQuotaEventTable(&out, []*quotav1.NamespaceQuotaEvent{event})
+	for _, want := range []string{"ENVIRONMENT", "env-real", "insufficient-cpu"} {
 		if !strings.Contains(out.String(), want) {
-			t.Fatalf("describe output missing %q:\n%s", want, out.String())
+			t.Fatalf("event output missing %q:\n%s", want, out.String())
 		}
+	}
+	if strings.Contains(out.String(), "RUN") {
+		t.Fatalf("event output contains removed pseudo-Run identity:\n%s", out.String())
 	}
 }

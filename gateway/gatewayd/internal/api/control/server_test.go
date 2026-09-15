@@ -69,7 +69,6 @@ func TestProxyUnknownServiceForwardsUnaryControlRPC(t *testing.T) {
 	ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs(
 		"x-proxy-test", "present",
 		clientCertificateFingerprintMetadata, "spoofed",
-		rolloutExecutionLeaseMetadata, "work-lease",
 	))
 	var out rawMessage
 	var header metadata.MD
@@ -77,7 +76,7 @@ func TestProxyUnknownServiceForwardsUnaryControlRPC(t *testing.T) {
 	if err := proxyConn.Invoke(ctx, "/test.Control/Echo", rawMessage("hello"), &out, grpc.Header(&header), grpc.Trailer(&trailer)); err != nil {
 		t.Fatalf("Invoke() error = %v", err)
 	}
-	want := "echo:hello::aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:work-lease"
+	want := "echo:hello::aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	if string(out) != want {
 		t.Fatalf("response = %q, want %q", string(out), want)
 	}
@@ -206,7 +205,7 @@ func TestProxyUnknownServiceRejectsNonPublicControlService(t *testing.T) {
 	defer proxyConn.Close()
 
 	var out rawMessage
-	err = proxyConn.Invoke(context.Background(), "/axern.control.node.v1.NodeControl/RegisterNode", rawMessage("hello"), &out)
+	err = proxyConn.Invoke(context.Background(), "/axern.private.control.node.v1.NodeControl/ReportNode", rawMessage("hello"), &out)
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("Invoke() error code = %s, want PermissionDenied; err=%v", grpcstatus.Code(err), err)
 	}
@@ -251,7 +250,7 @@ func echoUnaryHandler(_ any, ctx context.Context, dec func(any) error, _ grpc.Un
 		return nil, err
 	}
 	grpc.SetTrailer(ctx, metadata.Pairs("x-proxy-trailer", "done"))
-	return rawMessage("echo:" + string(in) + ":" + first(md.Get("x-proxy-test")) + ":" + first(md.Get(clientCertificateFingerprintMetadata)) + ":" + first(md.Get(rolloutExecutionLeaseMetadata))), nil
+	return rawMessage("echo:" + string(in) + ":" + first(md.Get("x-proxy-test")) + ":" + first(md.Get(clientCertificateFingerprintMetadata))), nil
 }
 
 func echoServerStreamHandler(_ any, stream grpc.ServerStream) error {

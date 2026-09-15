@@ -58,12 +58,12 @@ func auditOperationFromProto(operation adminv1.AdminAuditOperation) string {
 		return adminkernel.AuditOperationFailAllocationLifecycleRetry
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY:
 		return adminkernel.AuditOperationClearAllocationLifecycleRetry
-	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING:
-		return adminkernel.AuditOperationRetryStorageBinding
-	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE:
-		return adminkernel.AuditOperationPurgeService
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE:
+		return adminkernel.AuditOperationRevokeNode
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE:
 		return adminkernel.AuditOperationRetireNode
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADMIT_NODE:
+		return adminkernel.AuditOperationAdmitNode
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL:
 		return adminkernel.AuditOperationCreatePrincipal
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL:
@@ -91,12 +91,12 @@ func auditOperationToProto(operation string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY
 	case adminkernel.AuditOperationClearAllocationLifecycleRetry:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
-	case adminkernel.AuditOperationRetryStorageBinding:
-		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETRY_STORAGE_BINDING
-	case adminkernel.AuditOperationPurgeService:
-		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_PURGE_SERVICE
+	case adminkernel.AuditOperationRevokeNode:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE
 	case adminkernel.AuditOperationRetireNode:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE
+	case adminkernel.AuditOperationAdmitNode:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADMIT_NODE
 	case adminkernel.AuditOperationCreatePrincipal:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL
 	case adminkernel.AuditOperationDisablePrincipal:
@@ -120,10 +120,6 @@ func auditTargetTypeFromProto(targetType adminv1.AdminAuditTargetType) string {
 	switch targetType {
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ALLOCATION:
 		return adminkernel.AuditTargetAllocation
-	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING:
-		return adminkernel.AuditTargetStorageBinding
-	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE:
-		return adminkernel.AuditTargetService
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE:
 		return adminkernel.AuditTargetNode
 	case adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_PRINCIPAL:
@@ -141,10 +137,6 @@ func auditTargetTypeToProto(targetType string) adminv1.AdminAuditTargetType {
 	switch targetType {
 	case adminkernel.AuditTargetAllocation:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_ALLOCATION
-	case adminkernel.AuditTargetStorageBinding:
-		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_STORAGE_BINDING
-	case adminkernel.AuditTargetService:
-		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_SERVICE
 	case adminkernel.AuditTargetNode:
 		return adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE
 	case adminkernel.AuditTargetPrincipal:

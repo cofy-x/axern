@@ -2,19 +2,17 @@ package allocation
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
-	servicevolumes "github.com/cofy-x/axern/runtime/axnoded/internal/service/volumes"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/storetest"
 	"google.golang.org/protobuf/proto"
 )
@@ -27,47 +25,37 @@ type testStateStore interface {
 }
 
 type testAllocationController struct {
-	controller *Controller
-	manager    *container.Manager
-	lrtManager *langrtmanager.LangRTManager
+	controller       *Controller
+	manager          *container.Manager
+	environmentCache *environmentcache.EnvironmentCache
 }
 
-func newTestAllocationController(t *testing.T, handlers map[string]contract.RuntimeHandler) testAllocationController {
+func newTestAllocationController(t *testing.T, runscHandler contract.SandboxRuntime) testAllocationController {
 	t.Helper()
-	return newTestAllocationControllerWithStore(t, handlers, storetest.NewMockStore(), fakeVolumePublisher{})
+	return newTestAllocationControllerWithStore(t, runscHandler, storetest.NewMockStore())
 }
 
-func newTestAllocationControllerWithStore(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, publisher fakeVolumePublisher) testAllocationController {
-	return newTestAllocationControllerWithResources(t, handlers, dbStore, publisher, newTestResourceManagers()...)
+func newTestAllocationControllerWithStore(t *testing.T, runscHandler contract.SandboxRuntime, dbStore testStateStore) testAllocationController {
+	return newTestAllocationControllerWithResources(t, runscHandler, dbStore, newTestResourceManagers()...)
 }
 
-func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]contract.RuntimeHandler, dbStore testStateStore, publisher fakeVolumePublisher, managers ...resourcemanager.Manager) testAllocationController {
+func newTestAllocationControllerWithResources(t *testing.T, runscHandler contract.SandboxRuntime, dbStore testStateStore, managers ...resourcemanager.Manager) testAllocationController {
 	t.Helper()
 
 	if dbStore == nil {
 		dbStore = storetest.NewMockStore()
 	}
 	tmpDir := t.TempDir()
-	runtimeBinary := make(map[string]string)
-	runtimes := make(map[string]config.RuntimeInstanceConfig)
-	for name := range handlers {
-		runtimeBinary[name] = "/fake/" + name
-		runtimes[name] = config.RuntimeInstanceConfig{Binary: "/fake/" + name}
-	}
 	cfg := config.Config{
 		RootDir: tmpDir,
 		PluginConfig: config.PluginConfig{
-			RuntimeConfig: config.RuntimeConfig{
-				Runtimes:      runtimes,
-				RuntimeBinary: runtimeBinary,
-			},
+			RuntimeConfig: config.RuntimeConfig{Runsc: config.RuntimeInstanceConfig{Binary: "/fake/runsc"}},
 		},
 	}
-	registry := handlerregistry.New(cfg)
-	for name, h := range handlers {
-		registry.Set(name, h)
+	if runscHandler == nil {
+		runscHandler = runtimetest.NewFakeSandboxRuntime()
 	}
-	manager, err := container.NewManager(tmpDir, registry.Map(), make(chan bool, 10), managers...)
+	manager, err := container.NewManager(tmpDir, runscHandler, make(chan bool, 10), managers...)
 	if err != nil {
 		t.Fatalf("NewManager() error = %v", err)
 	}
@@ -78,29 +66,15 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 			t.Errorf("stop test container manager: %v", err)
 		}
 	})
-	lrtManager := langrtmanager.NewLanguageRuntimeManager()
-	volumes := servicevolumes.NewCoordinator(servicevolumes.Options{
-		Publisher: publisher,
-		ActiveAllocationIDs: func() []string {
-			return activeAllocationIDs(manager.List())
-		},
-	})
+	environmentCache := environmentcache.NewEnvironmentCache()
 	networking := servicenetworking.NewCoordinator(servicenetworking.Options{
 		NatBackend: cfg.NatBackend,
-		Store:      dbStore,
 		CollectResourceByID: func(id string) (container.OccupiedResource, error) {
 			return manager.CollectResourceByID(id)
 		},
 		ContainerExists: func(id string) bool {
 			_, err := manager.Get(id)
 			return err == nil
-		},
-		RuntimeClass: func(id string) (string, error) {
-			c, err := manager.Get(id)
-			if err != nil || c == nil || c.Metadata == nil {
-				return "", err
-			}
-			return c.Metadata.GetRuntimeHandler(), nil
 		},
 	})
 	controller := NewController(Options{
@@ -109,23 +83,17 @@ func newTestAllocationControllerWithResources(t *testing.T, handlers map[string]
 		ContainerManager: func() *container.Manager {
 			return manager
 		},
-		RuntimeHandler: func(name string) (contract.RuntimeHandler, error) {
-			if handler, ok := handlers[name]; ok {
-				return handler, nil
-			}
-			return nil, fmt.Errorf("runtime %s is not supported", name)
-		},
-		LangRuntime: lrtManager,
-		Volumes:     volumes,
-		Networking:  networking,
-		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.ManagedRuntimeHandler, string) error {
+		RunscHandler:     runscHandler,
+		EnvironmentCache: environmentCache,
+		Networking:       networking,
+		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error {
 			return nil
 		},
 	})
-	retentionTTL, err := time.ParseDuration(config.DefaultIdleRuntimeRetentionTTL)
+	retentionTTL, err := time.ParseDuration(config.DefaultIdleEnvironmentRetentionTTL)
 	if err != nil {
 		t.Fatalf("ParseDuration() error = %v", err)
 	}
-	lrtManager.ConfigureRetention(retentionTTL, config.DefaultIdleRuntimeRetentionMax)
-	return testAllocationController{controller: controller, manager: manager, lrtManager: lrtManager}
+	environmentCache.ConfigureRetention(retentionTTL, config.DefaultIdleEnvironmentRetentionMax)
+	return testAllocationController{controller: controller, manager: manager, environmentCache: environmentCache}
 }

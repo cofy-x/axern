@@ -5,13 +5,12 @@ storeDir = "/var/lib/axnoded/store"
 control_plane_target = ""
 control_plane_node_id = ""
 control_plane_node_target = ""
-control_plane_node_auth_token = ""
+control_plane_enrollment_target = ""
+workload_cluster = "axern.local"
 control_plane_heartbeat_interval = "5s"
 control_plane_node_resource_source = "host"
 control_plane_kubernetes_node_name = ""
 control_plane_tls_ca_cert = ""
-control_plane_tls_cert = ""
-control_plane_tls_key = ""
 control_plane_node_state = "ready"
 
 # Optional exact-match extension facts. Platform capabilities are observed by
@@ -25,27 +24,20 @@ control_plane_node_state = "ready"
 # arch = "arm64"
 
 [plugin.network]
-# One IPv4 or IPv6 pool. IPv6 with nat_backend="ebpf" uses the explicit
-# bridge/ip6tables compatibility path because native bpfnet is IPv4-only.
+# One IPv4 or IPv6 pool. IPv6 requires nat_backend="iptables";
+# nat_backend="ebpf" rejects IPv6 because native bpfnet is IPv4-only.
 ip_range = "172.17.0.1/16"
-# iptables: legacy full DNAT/SNAT
-# ebpf: TCP/UDP ingress hostPort + TCP/UDP/ICMP egress SNAT in bpfnet,
-# plus Linux localhost TCP hostPort via cgroup sock_addr eBPF,
-# with automatic iptables fallback
+# iptables: IPv4/IPv6 bridge egress NAT
+# ebpf: IPv4 TCP/UDP/ICMP egress SNAT in bpfnet, without automatic fallback
 nat_backend = "iptables"
 
 [plugin.network.ebpf]
 pin_path = "/sys/fs/bpf/axern/bpfnet"
-map_size = 16384
 snat_map_size = 262144
 snat_gc_interval = "1s"
 snat_tcp_idle_timeout = "5m"
 snat_tcp_closing_timeout = "2s"
 snat_datagram_idle_timeout = "10s"
-# enable host-local TCP hostPort access; prefer eBPF localhost path and
-# fall back to iptables compat only when the cgroup attach path is unavailable
-local_out_compat = true
-iptables_fallback = true
 
 [plugin.resource]
 cgroup_cache_size = 800
@@ -63,11 +55,9 @@ resource_pool_reconcile_interval = "1s"
 image_manager_enabled = true
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_socket = "/var/run/imagemgr.sock"
-volume_manager_socket = "/run/volumed/volumed.sock"
 egress_manager_socket = "/run/egressd/egressd.sock"
-runtime_runner_binary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
-idle_runtime_retention_ttl = "5m"
-idle_runtime_retention_max = 8
+idle_environment_retention_ttl = "5m"
+idle_environment_retention_max = 8
 # Set to false for local-rootfs-only setups that do not run imagemgr.
 # image_manager_enabled = false
 cgroup_enforcement = "required"
@@ -85,13 +75,9 @@ cgroup_enforcement = "required"
 # search_domains = ["svc.cluster.local", "cluster.local"]
 # options = ["ndots:5"]
 
-[plugin.runtime.runtimes.runsc]
+[plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 base_spec = "/etc/axnoded/runsc-config.json"
 
-[plugin.runtime.runtimes.runsc.options]
+[plugin.runtime.runsc.options]
 allow_suid = true
-
-[plugin.runtime.runtimes.runc]
-binary = "/usr/bin/runc"
-base_spec = "/etc/axnoded/runc-config.json"

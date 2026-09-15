@@ -3,11 +3,10 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
-. "${ROOT_DIR}/scripts/lib/ebpf-ingress-probe.sh"
+. "${ROOT_DIR}/scripts/lib/external-network-probe.sh"
 . "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
-RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/${RUNTIME_UNDER_TEST}}"
+RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
 AXNODED_BIN="${AXNODED_BIN:-/usr/local/bin/axnoded}"
 VERIFY_EGRESS_BIN="${VERIFY_EGRESS_BIN:-/usr/local/bin/verify-egress}"
@@ -20,7 +19,6 @@ VERIFY_STDOUT="${VERIFY_STDOUT:-/tmp/axnoded-example-egress.stdout}"
 VERIFY_STDERR="${VERIFY_STDERR:-/tmp/axnoded-example-egress.stderr}"
 TCP_PORT="${TCP_PORT:-19080}"
 UDP_PORT="${UDP_PORT:-19081}"
-setup_node_runtime_volume_defaults
 ensure_bpf_fs "${NAT_BACKEND}"
 setup_external_probe
 
@@ -39,9 +37,7 @@ nat_backend = "${NAT_BACKEND}"
 
 [plugin.network.ebpf]
 pin_path = "/sys/fs/bpf/axern/bpfnet"
-map_size = 16384
-local_out_compat = true
-iptables_fallback = true
+snat_map_size = 262144
 ${BPFNET_UPLINKS_CONFIG}
 [plugin.resource]
 cgroup_cache_size = 4
@@ -52,10 +48,9 @@ max_instance_num = 8
 [plugin.runtime]
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_enabled = false
-volume_manager_socket = "${VOLUMED_SOCKET}"
 cgroup_enforcement = "disabled_dev"
 
-[plugin.runtime.runtimes.${RUNTIME_UNDER_TEST}]
+[plugin.runtime.runsc]
 binary = "${RUNTIME_BINARY}"
 EOF
 
@@ -67,12 +62,10 @@ cleanup() {
     kill "${AXNODED_PID}" >/dev/null 2>&1 || true
     wait "${AXNODED_PID}" >/dev/null 2>&1 || true
   fi
-  stop_node_runtime_volumed
   cleanup_external_probe
 }
 trap cleanup EXIT
 
-start_node_runtime_volumed
 
 "${AXNODED_BIN}" \
   -root /var/lib/axnoded \
@@ -93,8 +86,6 @@ done
 
 if ! [ -S "${SOCKET_ADDRESS}" ] || ! curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
   echo "axnoded did not become ready in time" >&2
-  echo "--- volumed log tail ---" >&2
-  tail_node_runtime_volumed_log 120
   echo "--- axnoded log tail ---" >&2
   tail -n 120 /tmp/axnoded-example.log >&2 || true
   exit 1
@@ -103,13 +94,12 @@ fi
 egress_args=(
   -address "${SOCKET_ADDRESS}"
   -rootfs "${VERIFY_ROOTFS}"
-  -runtime "${RUNTIME_UNDER_TEST}"
   -stdout "${VERIFY_STDOUT}"
   -stderr "${VERIFY_STDERR}"
   -nat-backend "${NAT_BACKEND}"
-  -external-probe-netns "${EBPF_INGRESS_PROBE_NETNS}"
-  -external-probe-address "${EBPF_INGRESS_PROBE_CLIENT_ADDR}"
-  -expected-source-ip "${EBPF_INGRESS_PROBE_HOST_ADDR}"
+  -external-probe-netns "${EXTERNAL_NETWORK_PROBE_NETNS}"
+  -external-probe-address "${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}"
+  -expected-source-ip "${EXTERNAL_NETWORK_PROBE_HOST_ADDR}"
   -helper-dir "${HELPER_DIR}"
   -tcp-port "${TCP_PORT}"
   -udp-port "${UDP_PORT}"
@@ -125,8 +115,8 @@ egress_output="$("${VERIFY_EGRESS_BIN}" "${egress_args[@]}" 2>&1)" || {
 
 printf '%s\n' "example_ok=true"
 printf '%s\n' "example=bpfnet_egress"
-printf '%s\n' "runtime=${RUNTIME_UNDER_TEST}"
+printf '%s\n' "runtime=runsc"
 printf '%s\n' "nat_backend=${NAT_BACKEND}"
-printf '%s\n' "tcp_target=${EBPF_INGRESS_PROBE_CLIENT_ADDR}:${TCP_PORT}"
-printf '%s\n' "udp_target=${EBPF_INGRESS_PROBE_CLIENT_ADDR}:${UDP_PORT}"
+printf '%s\n' "tcp_target=${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}:${TCP_PORT}"
+printf '%s\n' "udp_target=${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}:${UDP_PORT}"
 printf '%s\n' "summary=container TCP/UDP/ICMP egress reached the external namespace responder"

@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -10,9 +9,11 @@ import (
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	pgconsistency "github.com/cofy-x/axern/control/controld/internal/postgres/consistency"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
+	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func newPostgresTestService(t *testing.T) (*App, *controldtest.FakeNodeLifecycleClient) {
@@ -39,58 +40,40 @@ func newPostgresTestServiceWithConfig(t *testing.T, cfg Config) (*App, *controld
 	if err != nil {
 		t.Fatalf("New(postgres) error = %v", err)
 	}
+	lifecycle.Now = func() time.Time { return app.now() }
 	app.registry.Replace(nil)
 	return app, lifecycle
 }
 
 func registerReadyNode(t *testing.T, app *App, nodeID string, now time.Time) {
 	t.Helper()
-	node := app.NodeV1Handler()
-	if _, err := node.RegisterNode(context.Background(), &nodev1.RegisterNodeRequest{
-		NodeID:        nodeID,
-		Runtimes:      []string{"runsc"},
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-	}); err != nil {
-		t.Fatalf("RegisterNode() error = %v", err)
-	}
 	reportReadyNodeSnapshot(t, app, nodeID, now, 1)
 }
 
 func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Time, sequence int64) {
 	t.Helper()
+	ensureTestNodeAdmitted(t, app, nodeID)
 	node := app.NodeV1Handler()
 	summary := controldtest.ReadySummary(now)
-	summary.CapabilitySnapshot.Sequence = sequence
-	summary.CapabilitySnapshot.SnapshotID = fmt.Sprintf("test-snapshot-%d", sequence)
+	summary.Sequence = sequence
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:        nodeID,
-		Runtimes:      []string{"runsc"},
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-		Summary:       summary,
+		NodeID:     nodeID,
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 }
 
-func reconcileCreatedService(t *testing.T, app *App, serviceID string, now time.Time) *servicev1.Service {
-	t.Helper()
-	if err := app.serviceReconciler.ReconcilePending(context.Background(), now); err != nil {
-		t.Fatalf("ReconcilePending(service admission) error = %v", err)
-	}
-	reconcileAllocationLifecycle(t, app, now)
-	response, err := app.PublicV1Handler().GetService(context.Background(), &servicev1.GetServiceRequest{ServiceID: serviceID})
-	if err != nil {
-		t.Fatalf("GetService(after admission) error = %v", err)
-	}
-	return response.GetService()
-}
+const testEnrollmentToken = "test-enrollment-token-at-least-32-bytes"
 
-func reconcileAllocationLifecycle(t *testing.T, app *App, now time.Time) {
+func ensureTestNodeAdmitted(t *testing.T, app *App, nodeID string) {
 	t.Helper()
-	if _, err := app.allocationReconciler.ReconcileAllocationBatch(context.Background(), now); err != nil {
-		t.Fatalf("ReconcileAllocationBatch(allocation lifecycle) error = %v", err)
+	_, err := app.AdminV1Handler().AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
+		NodeID: nodeID, EnrollmentToken: testEnrollmentToken, OperatorReason: "test fixture",
+	})
+	if err != nil && grpcstatus.Code(err) != codes.AlreadyExists {
+		t.Fatalf("AdmitAdminNode() error = %v", err)
 	}
 }
 

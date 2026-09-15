@@ -4,16 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/trace"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -21,34 +22,35 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"google.golang.org/protobuf/proto"
 )
 
-func (h *Controller) ensureLangRuntime(ctx context.Context, fr *runtime.RuntimeTemplate) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
-	rootfsCfg, err := langrtmanager.RootfsConfigFromRuntimeTemplate(fr)
+func (h *Controller) ensurePreparedEnvironment(ctx context.Context, fr *runtime.ResolvedEnvironment) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+	rootfsCfg, err := environmentcache.RootfsConfigFromResolvedEnvironment(fr)
 	if err != nil {
-		return nil, LangRuntimePrepareSummary{RootfsType: RootfsTypeFromRuntimeTemplate(fr)}, err
+		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromResolvedEnvironment(fr)}, err
 	}
-	return h.prepareLangRuntime(ctx, fr, rootfsCfg)
+	return h.prepareEnvironment(ctx, fr, rootfsCfg)
 }
 
-func (h *Controller) ensureLangRuntimeFromRequest(ctx context.Context, request *runtime.StartRequest) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
+func (h *Controller) ensurePreparedEnvironmentFromRequest(ctx context.Context, request *runtime.StartRequest) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
 	_, span := sdkobs.Start(ctx, sandboxobs.SpanRootFSPrepare,
-		attribute.String(sdkobs.AttrAllocationID, request.GetContainerID()),
-		attribute.String(sdkobs.AttrRuntime, request.GetRuntimeTemplate().GetSandbox()),
-		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromRuntimeTemplate(request.GetRuntimeTemplate())),
+		attribute.String(sdkobs.AttrAllocationID, request.GetAllocationID()),
+		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
+		attribute.String(sdkobs.AttrRootFSType, RootfsTypeFromResolvedEnvironment(request.GetEnvironment())),
 	)
 	defer span.End()
 	rootfsCfg, err := startplan.RootfsConfigFromStartRequest(request)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "rootfs config")
-		return nil, LangRuntimePrepareSummary{RootfsType: RootfsTypeFromRuntimeTemplate(request.GetRuntimeTemplate())}, err
+		return nil, EnvironmentPrepareSummary{RootfsType: RootfsTypeFromResolvedEnvironment(request.GetEnvironment())}, err
 	}
-	fr := request.GetRuntimeTemplate()
-	lrt, summary, err := h.prepareLangRuntime(ctx, fr, rootfsCfg)
+	fr := request.GetEnvironment()
+	lrt, summary, err := h.prepareEnvironment(ctx, fr, rootfsCfg)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "prepare language runtime")
+		span.SetStatus(codes.Error, "prepare environment")
 		span.SetAttributes(attribute.String(sdkobs.AttrResult, "error"))
 	} else {
 		span.SetAttributes(attribute.String(sdkobs.AttrResult, "ok"), attribute.Bool("axern.runtime_reused", summary.RuntimeReused))
@@ -56,12 +58,12 @@ func (h *Controller) ensureLangRuntimeFromRequest(ctx context.Context, request *
 	return lrt, summary, err
 }
 
-func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.RuntimeTemplate, rootfsCfg langrtmanager.RootfsConfig) (*langrtmanager.LanguageRuntime, LangRuntimePrepareSummary, error) {
-	summary := LangRuntimePrepareSummary{
-		RootfsType: RootfsTypeFromRuntimeTemplate(fr),
+func (h *Controller) prepareEnvironment(ctx context.Context, fr *runtime.ResolvedEnvironment, rootfsCfg environmentcache.RootfsConfig) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
+	summary := EnvironmentPrepareSummary{
+		RootfsType: RootfsTypeFromResolvedEnvironment(fr),
 	}
 	resolveStart := time.Now()
-	resolvedRootfsCfg, err := h.lrtManager.ResolveRootfsConfig(rootfsCfg)
+	resolvedRootfsCfg, err := h.environmentCache.ResolveRootfsConfig(rootfsCfg)
 	if err != nil {
 		return nil, summary, err
 	}
@@ -71,21 +73,21 @@ func (h *Controller) prepareLangRuntime(ctx context.Context, fr *runtime.Runtime
 		Duration: startupObservationDurationSince(resolveStart),
 	})
 	lookupStart := time.Now()
-	lrt := h.lrtManager.FindReusableLangRuntime(fr, resolvedRootfsCfg)
-	summary.LangRuntimeLookupTime = time.Since(lookupStart)
+	lrt := h.environmentCache.FindReusableEnvironment(fr, resolvedRootfsCfg)
+	summary.EnvironmentLookupTime = time.Since(lookupStart)
 	if lrt != nil {
 		summary.RuntimeReused = true
 		return lrt, summary, nil
 	}
 	prepareStart := time.Now()
-	result, err := h.lrtManager.AddLangRuntime(ctx, fr, resolvedRootfsCfg, true)
+	result, err := h.environmentCache.PrepareEnvironment(ctx, fr, resolvedRootfsCfg)
 	summary.RootfsPrepareTime = time.Since(prepareStart)
 	summary.Steps = append(summary.Steps, startupStepSamplesFromRootfsReport(result.RootfsReport)...)
 	summary.RuntimeReused = !result.Created
-	return result.Runtime, summary, err
+	return result.Environment, summary, err
 }
 
-func startupStepSamplesFromRootfsReport(report langrtmanager.RootfsPrepareReport) []StartupStepSample {
+func startupStepSamplesFromRootfsReport(report environmentcache.RootfsPrepareReport) []StartupStepSample {
 	out := make([]StartupStepSample, 0, len(report.Steps))
 	for _, sample := range report.Steps {
 		out = append(out, StartupStepSample{
@@ -106,12 +108,14 @@ func startupObservationDurationSince(started time.Time) time.Duration {
 }
 
 func (h *Controller) cleanupFailedStart(ctx context.Context, containerID string) error {
-	return h.cleanupFailedStartWithResource(ctx, containerID, container.OccupiedResource{})
+	return h.cleanupFailedStartWithResource(ctx, containerID, container.OccupiedResource{}, false)
 }
 
-func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource) error {
-	h.sandboxNetworking().CleanupDnatRules(containerID)
-	h.sandboxNetworking().CloseHTTPProxyTransports(containerID)
+func (h *Controller) cleanupPersistedFailedStart(ctx context.Context, containerID string) error {
+	return h.cleanupFailedStartWithResource(ctx, containerID, container.OccupiedResource{}, true)
+}
+
+func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource, persistedRecovery bool) error {
 	var resource container.OccupiedResource
 	resourceKnown := false
 	if _, err := h.containers().Get(containerID); err == nil {
@@ -121,13 +125,13 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			return fmt.Errorf("delete failed-start runtime: %w", deleteErr)
 		}
 		resourceKnown = true
-	} else if runtime, ok := h.runtimeMapping(containerID); ok {
+	} else if _, ok := h.runtimeMapping(containerID); ok {
 		// OCI create may succeed before container metadata is durably indexed.
 		// Recover ownership from the allocation record and bundle so a metadata
 		// persistence failure cannot strand runtime, network, or resource state.
-		handler, handlerErr := h.runtimeHandler(runtime.Sandbox)
-		if handlerErr != nil {
-			return fmt.Errorf("resolve partial failed-start runtime: %w", handlerErr)
+		handler := h.runscHandler
+		if handler == nil {
+			return errors.New("resolve partial failed-start runtime: runsc handler unavailable")
 		} else {
 			var resourceErr error
 			resource, resourceErr = h.containers().CollectResourceByID(containerID)
@@ -148,15 +152,12 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			}
 		}
 	}
-	if attempt, ok := h.ManagedAllocationAttempt(containerID); ok && h.allocationHasEgressPolicy(containerID) {
-		if err := h.deleteEgressPolicy(ctx, containerID, attempt); err != nil {
+	if h.allocationHasEgressPolicy(containerID) {
+		if err := h.deleteEgressPolicy(ctx, containerID); err != nil {
 			return fmt.Errorf("retire failed-start egress policy: %w", err)
 		}
 	}
-	if _, err := h.nodeVolumes().Unpublish(ctx, containerID); err != nil {
-		return fmt.Errorf("unpublish failed-start volumes: %w", err)
-	}
-	if err := h.releaseAllocationState(containerID); err != nil {
+	if err := h.releaseAllocationState(containerID, persistedRecovery); err != nil {
 		return fmt.Errorf("release failed-start allocation state: %w", err)
 	}
 	if resourceKnown {
@@ -168,15 +169,15 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 }
 
 func startErrorResponse(message string) *runtime.StartResponse {
-	return &runtime.StartResponse{Code: -1, Message: message, ID: ""}
+	return &runtime.StartResponse{}
 }
 
 func startSuccessResponse(containerID string) *runtime.StartResponse {
-	return &runtime.StartResponse{Code: 0, Message: "Succeed", ID: containerID}
+	return &runtime.StartResponse{AllocationID: containerID}
 }
 
 func (h *Controller) existingActiveStartResponse(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
-	containerID := request.GetContainerID()
+	containerID := request.GetAllocationID()
 	containerID = strings.TrimSpace(containerID)
 	if containerID == "" || h == nil || h.containers() == nil {
 		return nil, false, nil
@@ -189,40 +190,24 @@ func (h *Controller) existingActiveStartResponse(ctx context.Context, request *r
 		return startErrorResponse(fmt.Sprintf("allocation %s already exists in terminal state", containerID)), true, errord.ErrAlreadyExists
 	}
 	resp := startSuccessResponse(containerID)
-	if len(request.GetNodeVolumes()) > 0 {
-		published, err := h.nodeVolumes().PublishedForAllocation(ctx, containerID)
-		if err != nil {
-			return startErrorResponse(fmt.Sprintf("Failed to list published node volumes: %v", err)), true, err
-		}
-		resp.PublishedVolumes = published
-	}
 	return resp, true, nil
 }
 
-func (h *Controller) startManagedContainer(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
+func (h *Controller) startAllocation(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
 	if err := startplan.ValidateStartRequest(request); err != nil {
 		return startErrorResponse(err.Error()), err
 	}
-	generatedAllocationID := false
-	if strings.TrimSpace(request.GetContainerID()) == "" {
-		allocationID, err := h.containers().ReserveContainerID()
-		if err != nil {
-			return startErrorResponse(fmt.Sprintf("Failed to reserve allocation id: %v", err)), err
-		}
-		request.ContainerID = allocationID
-		generatedAllocationID = true
-	}
-	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetContainerID())
+	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetAllocationID())
 	defer unlockLifecycle()
-	return h.startManagedContainerWithLifecycleHeld(ctx, request, generatedAllocationID)
+	return h.startAllocationWithLifecycleHeld(ctx, request)
 }
 
-func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest, generatedAllocationID bool) (response *runtime.StartResponse, returnErr error) {
+func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (response *runtime.StartResponse, returnErr error) {
 	if resp, ok, err := h.existingActiveStartResponse(ctx, request); ok {
 		return resp, err
 	}
 
-	recorder := NewStartMetricsRecorder(h.startMetricSink, request.RuntimeTemplate.Sandbox, RootfsTypeFromRuntimeTemplate(request.RuntimeTemplate))
+	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromResolvedEnvironment(request.Environment))
 	result := contract.StartupResultError
 	succeeded := false
 	stateCommitted := false
@@ -237,7 +222,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 		if stateCommitted {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			if err := h.cleanupFailedStartWithResource(cleanupCtx, request.GetContainerID(), reservedResource); err != nil {
+			if err := h.cleanupFailedStartWithResource(cleanupCtx, request.GetAllocationID(), reservedResource, false); err != nil {
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, fmt.Errorf("ordered failed-start cleanup: %w", err))
 			}
 			return
@@ -245,7 +230,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 		if egressPrepared {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			if err := h.deleteEgressPolicy(cleanupCtx, request.GetContainerID(), request.GetAllocationAttempt()); err != nil {
+			if err := h.deleteEgressPolicy(cleanupCtx, request.GetAllocationID()); err != nil {
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, err)
 				return
 			}
@@ -254,20 +239,15 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 			if err := h.containers().Release(reservedResource); err != nil {
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, fmt.Errorf("retire failed-start resources: %w", err))
 			}
-		} else if generatedAllocationID {
-			h.containers().ReleaseContainerID(request.GetContainerID())
 		}
 	}()
 
-	extraConfig, _ := startplan.ParseExtraConfig(request.ExtraConfig)
 	traceID, _ := trace.GetContextID(ctx)
 	resourceAllocateStart := time.Now()
 	handler, resource, err := h.prepareContainerResources(
 		ctx,
 		traceID.String(),
-		request.GetRuntimeTemplate().GetSandbox(),
-		request.GetContainerID(),
-		request.GetAllocationAttempt(),
+		request.GetAllocationID(),
 		nil,
 		request.GetResources(),
 	)
@@ -287,8 +267,7 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed egress policy admission: %v", err)), err
 	}
-	startplan.ApplyResolvedSecretEnv(request, extraConfig)
-	secretCleanup, err := startplan.MaterializeResolvedSecretFiles(request, extraConfig)
+	secretMounts, secretCleanup, err := startplan.MaterializeResolvedSecretFiles(request)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to materialize secrets: %v", err)), err
 	}
@@ -297,49 +276,28 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 			secretCleanup()
 		}
 	}()
-	publishResult, err := h.nodeVolumes().PublishForStart(ctx, request)
-	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to publish node volumes: %v", err)), err
-	}
-	request.Mounts = append(request.Mounts, publishResult.RuntimeMounts...)
-	defer func() {
-		if !succeeded && !stateCommitted {
-			_, _ = h.nodeVolumes().Unpublish(ctx, request.GetContainerID())
-		}
-	}()
-	imageMounts, imageMountCleanup, err := h.resolveImageMounts(request, extraConfig)
+	imageMounts, imageMountCleanup, err := h.resolveImageMounts(request)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to resolve image mounts: %v", err)), err
 	}
-	request.Mounts = append(request.Mounts, imageMounts...)
+	runtimeRequest := proto.Clone(request).(*runtime.StartRequest)
+	runtimeRequest.Mounts = append(runtimeRequest.Mounts, secretMounts...)
+	runtimeRequest.Mounts = append(runtimeRequest.Mounts, imageMounts...)
 	defer func() {
 		if !succeeded && !stateCommitted {
 			imageMountCleanup()
 		}
 	}()
-	workspaceMount, workspaceCleanup, err := h.resolveWorkspaceImage(request, extraConfig)
-	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to resolve workspace image: %v", err)), err
-	}
-	if workspaceMount != nil {
-		request.Mounts = append(request.Mounts, workspaceMount)
-	}
-	defer func() {
-		if !succeeded && !stateCommitted {
-			workspaceCleanup()
-		}
-	}()
-
-	lrt, prepareSummary, err := h.ensureLangRuntimeFromRequest(ctx, request)
+	lrt, prepareSummary, err := h.ensurePreparedEnvironmentFromRequest(ctx, request)
 	recorder.SetStartClass(prepareSummary.StartClass())
 	recorder.SetRootfsType(prepareSummary.RootfsType)
-	recorder.RecordStartupPhase(contract.StartupPhaseLangRuntimeLookup, prepareSummary.LangRuntimeLookupTime)
+	recorder.RecordStartupPhase(contract.StartupPhaseEnvironmentLookup, prepareSummary.EnvironmentLookupTime)
 	recorder.RecordStartupPhase(contract.StartupPhaseRootfsPrepare, prepareSummary.RootfsPrepareTime)
 	for _, sample := range prepareSummary.Steps {
 		recorder.RecordStartupStep(sample.Phase, sample.Step, sample.Duration)
 	}
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.RuntimeTemplate)), err
+		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.Environment)), err
 	}
 	if h.rootfsCapabilityGate != nil {
 		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS); err != nil {
@@ -353,66 +311,37 @@ func (h *Controller) startManagedContainerWithLifecycleHeld(ctx context.Context,
 			lrt.DecRef()
 		}
 	}()
-	if err := h.rememberContainerRuntime(request.GetContainerID(), lrt); err != nil {
+	if err := h.rememberContainerRuntime(request.GetAllocationID(), lrt); err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to persist allocation state: %v", err)), err
 	}
 	stateCommitted = true
 
 	createRequest := startplan.BuildCreateContainerRequest(
 		lrt,
-		request,
-		startplan.BuildStartLabels(request),
-		startplan.BuildStartEnv(lrt, request),
-		startplan.EffectiveNetworkMode(h.config.NatBackend, request),
+		runtimeRequest,
+		startplan.BuildStartEnv(lrt, runtimeRequest),
 	)
 	templateRequest := startplan.BuildBundleTemplateRequest(lrt, request)
 
-	createResponse, containerIP, err := h.createManagedContainer(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
+	createResponse, _, err := h.createAllocation(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to start: %v", err)), err
 	}
 
-	networkStart := time.Now()
-	if err := h.configureStartPorts(ctx, createResponse.ID, containerIP, request.Ports); err != nil {
-		if len(request.Ports) > 0 {
-			recorder.RecordStartupPhase(contract.StartupPhaseNetworkActivate, time.Since(networkStart))
-		}
-		return startErrorResponse(err.Error()), err
-	}
-	if len(request.Ports) > 0 {
-		recorder.RecordStartupPhase(contract.StartupPhaseNetworkActivate, time.Since(networkStart))
-	}
-
 	succeeded = true
-	h.startReadinessWorker(createResponse.ID, request.GetAllocationAttempt(), extraConfig)
-	h.startLivenessWorker(createResponse.ID, request.GetAllocationAttempt(), extraConfig)
-	h.reportStartRunningStatus(createResponse.ID, request.GetAllocationAttempt(), extraConfig, time.Now().UTC())
+	h.reportStartRunningStatus(createResponse.ID, time.Now().UTC())
 	result = contract.StartupResultOK
 	resp := startSuccessResponse(createResponse.ID)
-	resp.PublishedVolumes = publishResult.Published
 	return resp, nil
 }
 
-func (h *Controller) configureStartPorts(_ context.Context, containerID, containerIP string, ports []string) error {
-	if len(ports) == 0 {
-		return nil
-	}
-	if containerIP == "" {
-		return errors.New("Failed to get container IP for DNAT")
-	}
-	if err := h.sandboxNetworking().SetupDnatRules(containerID, ports, containerIP); err != nil {
-		return fmt.Errorf("Failed to setup DNAT rules: %v", err)
-	}
-	return nil
-}
-
-func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
+func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetID())
 	defer unlockLifecycle()
+	return h.deleteAllocationWithLifecycleHeld(ctx, request)
+}
 
-	h.stopReadinessWorker(request.ID)
-	h.stopLivenessWorker(request.ID)
-	h.sandboxNetworking().CleanupDnatRules(request.ID)
+func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{
 		ID:      request.ID,
 		Timeout: 0,
@@ -421,28 +350,36 @@ func (h *Controller) deleteManagedContainer(ctx context.Context, request *runtim
 	if err != nil && !runtimeAbsent {
 		return new(runtime.DeleteResponse), err
 	}
-	if attempt, ok := h.ManagedAllocationAttempt(request.ID); ok && h.allocationHasEgressPolicy(request.ID) {
-		if err := h.deleteEgressPolicy(ctx, request.ID, attempt); err != nil {
+	if request.GetOutputExpiresAtUnixNano() > 0 {
+		if target, loadErr := h.containers().Get(request.ID); loadErr == nil && target.Metadata != nil {
+			if err := h.outputRetention.Preserve(request.ID, time.Unix(0, request.GetOutputExpiresAtUnixNano()), allocationoutput.Sources{Stdout: target.Metadata.GetStdout(), Stderr: target.Metadata.GetStderr(), Terminal: true}); err != nil {
+				return new(runtime.DeleteResponse), err
+			}
+		}
+	}
+	// Runtime deletion releases the secret bind mounts. Remove their host-side
+	// plaintext before retiring the allocation's durable recovery state, so a
+	// cleanup failure remains retryable through the same Allocation identity.
+	if err := startplan.CleanupResolvedSecretFiles(request.ID); err != nil {
+		return new(runtime.DeleteResponse), fmt.Errorf("cleanup allocation secret files: %w", err)
+	}
+	if h.allocationHasEgressPolicy(request.ID) {
+		if err := h.deleteEgressPolicy(ctx, request.ID); err != nil {
 			return new(runtime.DeleteResponse), err
 		}
 	}
-	releaseObservations, err := h.nodeVolumes().Unpublish(ctx, request.ID)
-	if err != nil {
-		return new(runtime.DeleteResponse), err
-	}
-	if err := h.releaseAllocationState(request.ID); err != nil {
+	if err := h.releaseAllocationState(request.ID, false); err != nil {
 		return new(runtime.DeleteResponse), err
 	}
 	finalize := h.finalizeContainerDelete
 	if runtimeAbsent {
 		// A missing manager/runtime record is the explicit idempotent-delete
 		// path. Runtime absence, rather than a monitor that never existed, is
-		// the proof used to retire any remaining local claims.
+		// the fact used to retire any remaining local claims.
 		finalize = h.finalizeFailedContainerDelete
 	}
 	if err := finalize(request.ID, resource); err != nil {
 		return new(runtime.DeleteResponse), err
 	}
-	_ = os.RemoveAll(filepath.Join(os.TempDir(), "axnoded-secrets", request.ID))
-	return &runtime.DeleteResponse{VolumeReleaseObservations: releaseObservations}, nil
+	return &runtime.DeleteResponse{}, nil
 }

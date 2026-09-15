@@ -104,7 +104,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_STATUS_RUNNING\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
+          "expr": "sum(axern_controld_allocations_current{axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}) or (0 * sum(axern_controld_reconcile_consecutive_failures))",
           "refId": "A",
           "legendFormat": "running"
         }
@@ -164,7 +164,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / clamp_min(sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}), 1)",
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"charged\"}) / clamp_min(sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}), 1)",
           "refId": "A",
           "legendFormat": "cpu allocation"
         }
@@ -225,7 +225,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"}) / clamp_min(sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}), 1)",
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"charged\"}) / clamp_min(sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}), 1)",
           "refId": "A",
           "legendFormat": "memory allocation"
         }
@@ -308,7 +308,7 @@
           "legendFormat": "cluster capacity"
         },
         {
-          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / 1000",
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"charged\"}) / 1000",
           "refId": "B",
           "legendFormat": "cluster allocated"
         }
@@ -391,7 +391,7 @@
           "legendFormat": "cluster capacity"
         },
         {
-          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"})",
+          "expr": "sum(axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"charged\"})",
           "refId": "B",
           "legendFormat": "cluster allocated"
         }
@@ -501,7 +501,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / 1000, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"charged\"}) / 1000, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "A",
           "legendFormat": "CPU Allocated",
           "instant": true,
@@ -515,14 +515,14 @@
           "format": "table"
         },
         {
-          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"reserved\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"charged\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"cpu_milli\", axern_state=\"effective_allocatable\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "C",
           "legendFormat": "CPU Allocation",
           "instant": true,
           "format": "table"
         },
         {
-          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"charged\"}) / 1024 / 1024 / 1024, \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "D",
           "legendFormat": "Memory Allocated",
           "instant": true,
@@ -536,7 +536,7 @@
           "format": "table"
         },
         {
-          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"reserved\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"charged\"}) / clamp_min(sum by (axern_node_id) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"memory_bytes\", axern_state=\"effective_allocatable\"}), 1), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "F",
           "legendFormat": "Memory Allocation",
           "instant": true,
@@ -1100,7 +1100,7 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_allocations_current{axern_node_id=~\".+\", axern_status=\"ALLOCATION_STATUS_RUNNING\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id) (axern_controld_node_allocations_current{axern_node_id=~\".+\", axern_status=\"ALLOCATION_LIFECYCLE_STATE_ACTIVE\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "A",
           "legendFormat": "{{axern_node_display}}"
         }
@@ -1177,14 +1177,14 @@
       "pluginVersion": "11.0.0",
       "targets": [
         {
-          "expr": "label_replace(sum by (axern_node_id, axern_state) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"runtime_slots\", axern_state=~\"capacity|reserved\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
+          "expr": "label_replace(sum by (axern_node_id, axern_state) (axern_controld_node_resource_current{axern_node_id=~\".+\", axern_resource=\"runtime_slots\", axern_state=~\"capacity|charged\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
           "refId": "A",
           "legendFormat": "{{axern_node_display}} {{axern_state}}"
         }
       ],
       "title": "Runtime Slots By Node",
       "type": "timeseries",
-      "description": "Transactional runtime-slot capacity and active reservations. Capacity is min(cgroup, interface); reserved includes in-flight allocations not yet visible in node pool usage."
+      "description": "Transactional runtime-slot capacity and non-released Allocation charges. Capacity is min(cgroup, interface); charged includes admitted Allocations not yet visible in node pool usage."
     },
     {
       "datasource": "${datasource}",
@@ -1499,109 +1499,7 @@
                 }
               }
             ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Localhost Compat"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Off",
-                        "color": "yellow",
-                        "index": 0
-                      },
-                      "1": {
-                        "text": "On",
-                        "color": "green",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "SNAT Fallback"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Off",
-                        "color": "green",
-                        "index": 0
-                      },
-                      "1": {
-                        "text": "On",
-                        "color": "red",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "Full DNAT Fallback"
-            },
-            "properties": [
-              {
-                "id": "mappings",
-                "value": [
-                  {
-                    "type": "value",
-                    "options": {
-                      "0": {
-                        "text": "Off",
-                        "color": "green",
-                        "index": 0
-                      },
-                      "1": {
-                        "text": "On",
-                        "color": "red",
-                        "index": 1
-                      }
-                    }
-                  }
-                ]
-              },
-              {
-                "id": "custom.cellOptions",
-                "value": {
-                  "type": "color-text"
-                }
-              }
-            ]
-          }
+      }
         ]
       },
       "gridPos": {
@@ -1638,32 +1536,11 @@
           "legendFormat": "Ready",
           "instant": true,
           "format": "table"
-        },
-        {
-          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"localhost_compat\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
-          "refId": "C",
-          "legendFormat": "Localhost Compat",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"snat_fallback\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
-          "refId": "D",
-          "legendFormat": "SNAT Fallback",
-          "instant": true,
-          "format": "table"
-        },
-        {
-          "expr": "label_replace(max by (axern_node_id) (axern_controld_node_bpfnet_current{axern_state=\"full_dnat_fallback\"}), \"axern_node_display\", \"$2\", \"axern_node_id\", \"(node-[^.]+[.])?(.*)\")",
-          "refId": "E",
-          "legendFormat": "Full DNAT Fallback",
-          "instant": true,
-          "format": "table"
         }
       ],
       "title": "Node BPFNet State",
       "type": "table",
-      "description": "Current BPFNet readiness and compatibility state by node. Fallback columns should remain Off during normal operation.",
+      "description": "Current complete BPFNet readiness by node.",
       "transformations": [
         {
           "id": "joinByField",
@@ -1680,32 +1557,17 @@
               "axern_node_id": true,
               "Time 1": true,
               "axern_node_id 1": true,
-              "axern_node_display 1": true,
-              "Time 2": true,
-              "axern_node_id 2": true,
-              "axern_node_display 2": true,
-              "Time 3": true,
-              "axern_node_id 3": true,
-              "axern_node_display 3": true,
-              "Time 4": true,
-              "axern_node_id 4": true,
-              "axern_node_display 4": true
+              "axern_node_display 1": true
             },
             "indexByName": {
               "axern_node_display": 0,
               "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 3,
-              "Value #D": 4,
-              "Value #E": 5
+          "Value #B": 2
             },
             "renameByName": {
               "axern_node_display": "Node",
               "Value #A": "Enabled",
-              "Value #B": "Ready",
-              "Value #C": "Localhost Compat",
-              "Value #D": "SNAT Fallback",
-              "Value #E": "Full DNAT Fallback"
+          "Value #B": "Ready"
             }
           }
         }

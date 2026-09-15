@@ -37,7 +37,6 @@ const (
 
 type SandboxSpec struct {
 	Backend       SandboxBackend            `json:"backend" yaml:"backend"`
-	RuntimeClass  string                    `json:"runtime_class" yaml:"runtime_class"`
 	RuntimeSource *SandboxRuntimeSourceSpec `json:"runtime_source,omitempty" yaml:"runtime_source,omitempty"`
 	Workdir       string                    `json:"workdir,omitempty" yaml:"workdir,omitempty"`
 	Env           map[string]string         `json:"env,omitempty" yaml:"env,omitempty"`

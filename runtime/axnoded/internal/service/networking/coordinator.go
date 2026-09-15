@@ -3,27 +3,17 @@ package networking
 import (
 	"context"
 	"net"
-	"net/http"
-	"sync"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	networkmanager "github.com/cofy-x/axern/runtime/axnoded/internal/network"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
-
-type stateStore interface {
-	SaveSnapshot(bucket string, value proto.Message) error
-	LoadSnapshot(bucket string, value proto.Message) error
-}
 
 type Options struct {
 	NatBackend          string
-	Store               stateStore
 	CollectResourceByID func(id string) (container.OccupiedResource, error)
 	ContainerExists     func(id string) bool
-	RuntimeClass        func(id string) (string, error)
 	NetworkManager      func(name string) (networkmanager.NetworkManager, bool)
 	DialContext         func(ctx context.Context, network, address string) (net.Conn, error)
 	ConnectTimeout      time.Duration
@@ -33,20 +23,13 @@ type Options struct {
 
 type Coordinator struct {
 	natBackend          string
-	store               stateStore
 	collectResourceByID func(id string) (container.OccupiedResource, error)
 	containerExists     func(id string) bool
-	runtimeClass        func(id string) (string, error)
 	networkManager      func(name string) (networkmanager.NetworkManager, bool)
 	dialContext         func(ctx context.Context, network, address string) (net.Conn, error)
 	connectTimeout      time.Duration
 	connectRetryDelay   time.Duration
 	logger              logrus.FieldLogger
-
-	dnatMu    sync.Mutex
-	dnatRules map[string][]*DnatRule
-	proxyMu   sync.Mutex
-	proxies   map[string]*http.Transport
 }
 
 const (
@@ -82,16 +65,12 @@ func NewCoordinator(options Options) *Coordinator {
 	}
 	return &Coordinator{
 		natBackend:          options.NatBackend,
-		store:               options.Store,
 		collectResourceByID: options.CollectResourceByID,
 		containerExists:     options.ContainerExists,
-		runtimeClass:        options.RuntimeClass,
 		networkManager:      manager,
 		dialContext:         dialContext,
 		connectTimeout:      connectTimeout,
 		connectRetryDelay:   connectRetryDelay,
 		logger:              logger,
-		dnatRules:           make(map[string][]*DnatRule),
-		proxies:             make(map[string]*http.Transport),
 	}
 }

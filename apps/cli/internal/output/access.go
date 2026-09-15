@@ -14,19 +14,19 @@ type PrincipalJSON struct {
 	DisplayName string `json:"display_name"`
 	Kind        string `json:"kind"`
 	Status      string `json:"status"`
-	Version     int64  `json:"version"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
 }
 
 type PrincipalCredentialJSON struct {
-	CredentialID        string `json:"credential_id"`
-	PrincipalID         string `json:"principal_id"`
-	Fingerprint         string `json:"fingerprint"`
-	CertificateNotAfter string `json:"certificate_not_after"`
-	Label               string `json:"label"`
-	CreatedAt           string `json:"created_at"`
-	RevokedAt           string `json:"revoked_at,omitempty"`
+	Kind         string `json:"kind"`
+	CredentialID string `json:"credential_id"`
+	PrincipalID  string `json:"principal_id"`
+	Fingerprint  string `json:"fingerprint"`
+	ExpiresAt    string `json:"expires_at"`
+	Label        string `json:"label"`
+	CreatedAt    string `json:"created_at"`
+	RevokedAt    string `json:"revoked_at,omitempty"`
 }
 
 type RoleBindingJSON struct {
@@ -96,10 +96,10 @@ func PrintIdentityJSON(w io.Writer, response *identityv1.WhoAmIResponse) error {
 		Kind        string `json:"kind"`
 	}
 	type credentialIdentityJSON struct {
-		CredentialID        string `json:"credential_id"`
-		Label               string `json:"label"`
-		Fingerprint         string `json:"fingerprint"`
-		CertificateNotAfter string `json:"certificate_not_after"`
+		CredentialID string `json:"credential_id"`
+		Label        string `json:"label"`
+		Fingerprint  string `json:"fingerprint"`
+		ExpiresAt    string `json:"expires_at"`
 	}
 	out := struct {
 		Principal  principalIdentityJSON  `json:"principal"`
@@ -110,7 +110,7 @@ func PrintIdentityJSON(w io.Writer, response *identityv1.WhoAmIResponse) error {
 		out.Principal = principalIdentityJSON{PrincipalID: principal.GetPrincipalID(), Name: principal.GetName(), DisplayName: principal.GetDisplayName(), Kind: principal.GetKind()}
 	}
 	if credential := response.GetCredential(); credential != nil {
-		out.Credential = credentialIdentityJSON{CredentialID: credential.GetCredentialID(), Label: credential.GetLabel(), Fingerprint: credential.GetFingerprint(), CertificateNotAfter: FormatProtoTimestamp(credential.GetCertificateNotAfter())}
+		out.Credential = credentialIdentityJSON{CredentialID: credential.GetCredentialID(), Label: credential.GetLabel(), Fingerprint: credential.GetFingerprint(), ExpiresAt: FormatProtoTimestamp(credential.GetExpiresAt())}
 	}
 	for _, role := range response.GetRoles() {
 		out.Roles = append(out.Roles, roleJSON{Role: role.GetRole(), ScopeType: role.GetScopeType(), Namespace: role.GetNamespace()})
@@ -122,14 +122,14 @@ func principalJSON(principal *adminv1.Principal) *PrincipalJSON {
 	if principal == nil {
 		return nil
 	}
-	return &PrincipalJSON{PrincipalID: principal.GetPrincipalID(), Name: principal.GetName(), DisplayName: principal.GetDisplayName(), Kind: accessEnumLabel(principal.GetKind().String()), Status: accessEnumLabel(principal.GetStatus().String()), Version: principal.GetVersion(), CreatedAt: FormatProtoTimestamp(principal.GetCreatedAt()), UpdatedAt: FormatProtoTimestamp(principal.GetUpdatedAt())}
+	return &PrincipalJSON{PrincipalID: principal.GetPrincipalID(), Name: principal.GetName(), DisplayName: principal.GetDisplayName(), Kind: accessEnumLabel(principal.GetKind().String()), Status: accessEnumLabel(principal.GetStatus().String()), CreatedAt: FormatProtoTimestamp(principal.GetCreatedAt()), UpdatedAt: FormatProtoTimestamp(principal.GetUpdatedAt())}
 }
 
 func credentialJSON(credential *adminv1.PrincipalCredential) *PrincipalCredentialJSON {
 	if credential == nil {
 		return nil
 	}
-	return &PrincipalCredentialJSON{CredentialID: credential.GetCredentialID(), PrincipalID: credential.GetPrincipalID(), Fingerprint: credential.GetFingerprint(), CertificateNotAfter: FormatProtoTimestamp(credential.GetCertificateNotAfter()), Label: credential.GetLabel(), CreatedAt: FormatProtoTimestamp(credential.GetCreatedAt()), RevokedAt: FormatProtoTimestamp(credential.GetRevokedAt())}
+	return &PrincipalCredentialJSON{Kind: strings.ToLower(strings.TrimPrefix(credential.GetKind().String(), "CREDENTIAL_KIND_")), CredentialID: credential.GetCredentialID(), PrincipalID: credential.GetPrincipalID(), Fingerprint: credential.GetFingerprint(), ExpiresAt: FormatProtoTimestamp(credential.GetExpiresAt()), Label: credential.GetLabel(), CreatedAt: FormatProtoTimestamp(credential.GetCreatedAt()), RevokedAt: FormatProtoTimestamp(credential.GetRevokedAt())}
 }
 
 func bindingJSON(binding *adminv1.RoleBinding) *RoleBindingJSON {

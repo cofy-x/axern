@@ -35,8 +35,6 @@ declare -A internal=(
   [SERVER_BASE_RUNTIME_IMAGE]=server-base-runtime
   [CODING_BASE_RUNTIME_IMAGE]=coding-base-runtime
   [DESKTOP_BASE_RUNTIME_IMAGE]=desktop-base-runtime
-  [CLAUDE_CODE_BUNDLE_IMAGE]=claude-code-bundle
-  [CODEX_BUNDLE_IMAGE]=codex-bundle
 )
 for key in "${!internal[@]}"; do
   name="${internal[${key}]}"
@@ -48,7 +46,6 @@ for key in "${!internal[@]}"; do
 done
 
 lock_image POSTGRES_IMAGE postgres:16-alpine
-lock_image MINIO_IMAGE minio/minio:RELEASE.2025-02-28T09-55-16Z
 lock_image OTEL_COLLECTOR_IMAGE otel/opentelemetry-collector:0.150.1
 lock_image OTEL_LGTM_IMAGE grafana/otel-lgtm:0.11.16
 LC_ALL=C sort -o "${output}" "${output}"

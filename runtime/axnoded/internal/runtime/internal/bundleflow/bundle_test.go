@@ -102,7 +102,7 @@ func TestPrepareBundlePropagatesExecutionProfile(t *testing.T) {
 		Command: []string{"/bin/sh", "-c", "exit 0"},
 	}
 	profile := runtimeoci.DefaultExecutionProfile()
-	profile.RuntimeBaseline.NoFileLimit = 2097152
+	profile.Baseline.NoFileLimit = 2097152
 	loader := &bundleLoaderStub{rootDir: rootDir}
 
 	_, _, err := PrepareBundle(loader, filepath.Join(rootDir, "containers"), "test-runtime", request, contract.HandlerOptions{
@@ -115,7 +115,7 @@ func TestPrepareBundlePropagatesExecutionProfile(t *testing.T) {
 	if loader.lastExecutionProfile == nil {
 		t.Fatal("execution profile was not propagated to loader")
 	}
-	if got := loader.lastExecutionProfile.RuntimeBaseline.NoFileLimit; got != 2097152 {
+	if got := loader.lastExecutionProfile.Baseline.NoFileLimit; got != 2097152 {
 		t.Fatalf("execution profile nofile limit = %d, want 2097152", got)
 	}
 }

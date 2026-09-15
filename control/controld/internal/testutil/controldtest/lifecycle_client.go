@@ -20,8 +20,9 @@ type FakeNodeLifecycleClient struct {
 	CreateErr          error
 	DeleteErr          error
 	StatusErr          error
-	StatusByID         map[string]*privatenodev1.GetAllocationStatusResponse
+	StatusByID         map[string]*privatenodev1.GetAllocationLifecycleResponse
 	KeepDeletedVisible bool
+	Now                func() time.Time
 	deleted            map[string]bool
 }
 
@@ -35,42 +36,33 @@ func (f *FakeNodeLifecycleClient) CreateAllocation(ctx context.Context, target s
 	if err != nil {
 		return nil, err
 	}
-	dependencies, conditions, observedAt := healthyCapabilityAdmission(req.GetConfig().GetCapabilityDependencies())
+	observedAt := time.Now().UTC()
+	if f.Now != nil {
+		observedAt = f.Now().UTC()
+	}
+	conditions := healthyCapabilityConditions(req.GetConfig().GetCapabilityRequirements())
 	return &privatenodev1.CreateAllocationResponse{
-		AllocationID:                   req.GetAllocationID(),
-		Attempt:                        req.GetAttempt(),
-		AdmittedCapabilityDependencies: dependencies,
+		AllocationID: req.GetAllocationID(),
 		CapabilityVerification: &capabilityv1.CapabilityConditionSet{
-			Revision:   1,
 			ObservedAt: timestamppb.New(observedAt),
 			Conditions: conditions,
 		},
 	}, nil
 }
 
-func healthyCapabilityAdmission(in []*capabilityv1.CapabilityDependency) ([]*capabilityv1.CapabilityDependency, []*capabilityv1.CapabilityCondition, time.Time) {
-	dependencies := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+func healthyCapabilityConditions(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityCondition {
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(in))
-	observedAt := time.Unix(0, 0).UTC()
-	for _, dependency := range in {
-		if dependency == nil || dependency.GetSelectedObservation() == nil {
+	for _, requirement := range in {
+		if requirement == nil {
 			continue
 		}
-		cloned := proto.Clone(dependency).(*capabilityv1.CapabilityDependency)
-		dependencies = append(dependencies, cloned)
-		conditionAt := cloned.GetSelectedObservation().GetObservedAt().AsTime().UTC()
-		if conditionAt.After(observedAt) {
-			observedAt = conditionAt
-		}
 		conditions = append(conditions, &capabilityv1.CapabilityCondition{
-			Key:        proto.Clone(cloned.GetKey()).(*capabilityv1.CapabilityKey),
+			Key:        proto.Clone(requirement.GetKey()).(*capabilityv1.CapabilityKey),
 			State:      capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-			ObservedAt: timestamppb.New(conditionAt),
-			Proof:      proto.Clone(cloned.GetSelectedObservation()).(*capabilityv1.CapabilityObservationProof),
 		})
 	}
-	return dependencies, conditions, observedAt
+	return conditions
 }
 
 func (f *FakeNodeLifecycleClient) DeleteAllocation(ctx context.Context, target string, req *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error) {
@@ -92,11 +84,7 @@ func (f *FakeNodeLifecycleClient) DeleteAllocation(ctx context.Context, target s
 	return &privatenodev1.DeleteAllocationResponse{}, nil
 }
 
-func (f *FakeNodeLifecycleClient) DeleteVolume(context.Context, string, *privatenodev1.DeleteVolumeRequest) (*privatenodev1.DeleteVolumeResponse, error) {
-	return &privatenodev1.DeleteVolumeResponse{}, nil
-}
-
-func (f *FakeNodeLifecycleClient) GetAllocationStatus(ctx context.Context, target string, req *privatenodev1.GetAllocationStatusRequest) (*privatenodev1.GetAllocationStatusResponse, error) {
+func (f *FakeNodeLifecycleClient) GetAllocationLifecycle(ctx context.Context, target string, req *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {
 	_ = ctx
 	_ = target
 	f.mu.Lock()
@@ -108,9 +96,9 @@ func (f *FakeNodeLifecycleClient) GetAllocationStatus(ctx context.Context, targe
 		return nil, grpcstatus.Error(codes.NotFound, "allocation not found")
 	}
 	if resp, ok := f.StatusByID[req.GetAllocationID()]; ok && resp != nil {
-		return proto.Clone(resp).(*privatenodev1.GetAllocationStatusResponse), nil
+		return proto.Clone(resp).(*privatenodev1.GetAllocationLifecycleResponse), nil
 	}
-	return &privatenodev1.GetAllocationStatusResponse{}, nil
+	return &privatenodev1.GetAllocationLifecycleResponse{}, nil
 }
 
 func (f *FakeNodeLifecycleClient) Close() error {

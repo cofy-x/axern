@@ -3,7 +3,7 @@ package output
 import (
 	"io"
 
-	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 )
 
 type AllocationLifecycleRetryResponseJSON struct {
@@ -16,13 +16,11 @@ type AllocationLifecycleRetryListJSON struct {
 
 type AllocationLifecycleRetryJSON struct {
 	AllocationID       string `json:"allocation_id"`
-	OwnerID            string `json:"owner_id"`
-	OwnerType          string `json:"owner_type"`
+	RunID              string `json:"run_id"`
 	EnvironmentID      string `json:"environment_id,omitempty"`
-	Reason             string `json:"reason"`
+	LifecycleState     string `json:"lifecycle_state"`
 	NodeID             string `json:"node_id"`
 	NodeTarget         string `json:"node_target,omitempty"`
-	Attempt            int64  `json:"attempt"`
 	ReconcileAttempts  int32  `json:"reconcile_attempts"`
 	LastError          string `json:"last_error,omitempty"`
 	NextRunAt          string `json:"next_run_at,omitempty"`
@@ -34,11 +32,11 @@ type AllocationLifecycleRetryJSON struct {
 	ClearBlockedReason string `json:"clear_blocked_reason,omitempty"`
 }
 
-func PrintAllocationLifecycleRetryJSON(w io.Writer, retry *adminv1.AllocationLifecycleRetry) error {
+func PrintAllocationLifecycleRetryJSON(w io.Writer, retry *privateadminv1.AllocationLifecycleRetry) error {
 	return PrintJSON(w, AllocationLifecycleRetryResponseJSON{Retry: NewAllocationLifecycleRetryJSON(retry)})
 }
 
-func PrintAllocationLifecycleRetryListJSON(w io.Writer, retries []*adminv1.AllocationLifecycleRetry) error {
+func PrintAllocationLifecycleRetryListJSON(w io.Writer, retries []*privateadminv1.AllocationLifecycleRetry) error {
 	out := AllocationLifecycleRetryListJSON{Retries: make([]*AllocationLifecycleRetryJSON, 0, len(retries))}
 	for _, retry := range retries {
 		out.Retries = append(out.Retries, NewAllocationLifecycleRetryJSON(retry))
@@ -46,19 +44,17 @@ func PrintAllocationLifecycleRetryListJSON(w io.Writer, retries []*adminv1.Alloc
 	return PrintJSON(w, out)
 }
 
-func NewAllocationLifecycleRetryJSON(retry *adminv1.AllocationLifecycleRetry) *AllocationLifecycleRetryJSON {
+func NewAllocationLifecycleRetryJSON(retry *privateadminv1.AllocationLifecycleRetry) *AllocationLifecycleRetryJSON {
 	if retry == nil {
 		return nil
 	}
 	return &AllocationLifecycleRetryJSON{
 		AllocationID:       retry.GetAllocationID(),
-		OwnerID:            retry.GetOwnerID(),
-		OwnerType:          allocationLifecycleRetryOwnerLabel(retry.GetOwnerType()),
+		RunID:              retry.GetRunID(),
 		EnvironmentID:      retry.GetEnvironmentID(),
-		Reason:             allocationLifecycleRetryReasonLabel(retry.GetReason()),
+		LifecycleState:     retry.GetLifecycleState().String(),
 		NodeID:             retry.GetNodeID(),
 		NodeTarget:         retry.GetNodeTarget(),
-		Attempt:            retry.GetAttempt(),
 		ReconcileAttempts:  retry.GetReconcileAttempts(),
 		LastError:          retry.GetLastError(),
 		NextRunAt:          FormatProtoTimestamp(retry.GetNextRunAt()),

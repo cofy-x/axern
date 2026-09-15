@@ -242,32 +242,15 @@ func (mgr *manager) ListDaemons() []DaemonInfo {
 
 	infos := make([]DaemonInfo, 0, len(mgr.daemons))
 	for _, d := range mgr.daemons {
-		endpoint, bucket, objectPrefix := daemonObjectStoreIdentity(d)
 		infos = append(infos, DaemonInfo{
-			ID:           d.meta.ID,
-			Name:         d.meta.Name,
-			MountPoint:   d.meta.MountPoint,
-			SourceType:   d.meta.SourceType,
-			IsAlive:      d.IsAlive(),
-			ImageURL:     d.meta.ImageURL,
-			Endpoint:     endpoint,
-			Bucket:       bucket,
-			ObjectPrefix: objectPrefix,
+			ID:         d.meta.ID,
+			Name:       d.meta.Name,
+			MountPoint: d.meta.MountPoint,
+			SourceType: d.meta.SourceType,
+			IsAlive:    d.IsAlive(),
+			ImageURL:   d.meta.ImageURL,
 		})
 	}
 
 	return infos
-}
-
-func daemonObjectStoreIdentity(d *Daemon) (endpoint, bucket, objectPrefix string) {
-	if d == nil || d.config == nil {
-		return "", "", ""
-	}
-	if d.config.S3 != nil {
-		return d.config.S3.Endpoint, d.config.S3.BucketName, d.config.S3.ObjectPrefix
-	}
-	if d.config.Oss != nil {
-		return d.config.Oss.Endpoint, d.config.Oss.BucketName, d.config.Oss.ObjectPrefix
-	}
-	return "", "", ""
 }

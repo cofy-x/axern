@@ -1,19 +1,10 @@
 # Axern SDKs
 
-Axern SDKs expose the programmable sandbox surface for application code. The
-current first-class SDKs are Python, Go, and TypeScript.
+Axern SDKs expose the programmable sandbox surface for application code. The current first-class SDKs are Python, Go, and TypeScript.
 
-The SDKs share the same platform boundary: lifecycle, execution, process, file,
-archive, and tunnel behavior is delegated to Axern control, node, runtime, and
-relay APIs. SDKs should not add remote shell fallbacks for platform-owned
-behavior.
+The SDKs share the same platform boundary: lifecycle, execution, process, file, archive, and tunnel behavior is delegated to Axern control, node, runtime, and relay APIs. SDKs should not add remote shell fallbacks for platform-owned behavior.
 
-The common public contract is captured as versioned fixtures in
-`sdk/contracts/v1`. Each language consumes the same context, source,
-resource, lifecycle, file/process/tunnel, and error fixtures while retaining
-language-idiomatic APIs. Errors expose operation, RPC code, details,
-retryability, and allocation identity where available. Mutating RPCs are not
-retried implicitly.
+The common public contract is captured as versioned fixtures in `sdk/contracts/v1`. Each language consumes the same context, source, resource, lifecycle, file/process/tunnel, and error fixtures while retaining language-idiomatic APIs. Errors expose operation, RPC code, details, retryability, and allocation identity where available. Mutating RPCs are not retried implicitly.
 
 ## API Matrix
 
@@ -40,13 +31,9 @@ Intentional language differences:
 - Python provides both synchronous and asyncio surfaces.
 - Go APIs take `context.Context` and return errors.
 - TypeScript APIs are Node.js-first Promise APIs.
-- Naming follows each language's conventions while preserving the same domain
-  model.
-- Python owns the first-class Function packaging and invocation experience.
-- Go exposes lower-level Rollout, service-watch, and task-asset helpers used by
-  infrastructure integrations.
-- The higher-level Browser API is currently Python-first and is not part of the
-  shared v0.2 contract.
+- Naming follows each language's conventions while preserving the same domain model.
+- Go exposes lower-level Run, process-stream, and task-asset helpers used by infrastructure integrations.
+- Browser automation remains caller-owned workload code; Axern exposes process and Computer Use primitives instead of a managed browser lifecycle.
 
 ## Release Gate
 
@@ -64,14 +51,11 @@ This target runs:
 - `make sdk-go-verify`
 - `make sdk-typescript-verify`
 - `make agent-doc-check`
-- clean installation of the Python wheel and sdist, npm tarball, and standalone
-  Go module from their publishable boundaries
+- clean installation of the Python wheel and sdist, npm tarball, and standalone Go module from their publishable boundaries
 
 ## Compose Validation
 
-The release gate is intentionally local and package-focused. Before releasing
-changes that touch sandbox lifecycle, node/runtime file/process APIs, tunnel
-behavior, or generated protos, also run the relevant compose checks:
+The release gate is intentionally local and package-focused. Before releasing changes that touch sandbox lifecycle, node/runtime file/process APIs, tunnel behavior, or generated protos, also run the relevant compose checks:
 
 ```bash
 make local-compose-python-sdk-e2e
@@ -80,8 +64,7 @@ pnpm --filter @cofy-x/axern-sdk run smoke:local
 pnpm --filter @cofy-x/axern-sdk run smoke:tunnel
 ```
 
-If the change modifies `axnoded`, tunnel relay behavior, proto contracts, or
-compose images, refresh the local stack first:
+If the change modifies `axnoded`, tunnel relay behavior, proto contracts, or compose images, refresh the local stack first:
 
 ```bash
 make local-compose-refresh-verify

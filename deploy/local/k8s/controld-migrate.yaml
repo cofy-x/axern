@@ -27,12 +27,21 @@ spec:
                 -display-name 'Local Administrator' \
                 -credential-label local-client \
                 -certificate /certs/client.crt \
-                -rollout-worker-certificate /certs/rollout-worker.crt
+                -ssh-public-key /certs/gateway_client_ed25519.pub \
+                -node-id "node-k8s-local" \
+                -enrollment-token-file /run/secrets/enrollment-token
           volumeMounts:
             - name: certs
               mountPath: /certs
+              readOnly: true
+            - name: enrollment-token
+              mountPath: /run/secrets/enrollment-token
+              subPath: enrollment-token
               readOnly: true
       volumes:
         - name: certs
           secret:
             secretName: controld-pki
+        - name: enrollment-token
+          secret:
+            secretName: enrollment-token

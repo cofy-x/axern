@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -18,13 +19,13 @@ import (
 )
 
 type nodeUpsertParams struct {
-	NodeID        string
-	NodeTarget    string
-	Runtimes      []string
-	Summary       *nodev1.NodeSummary
-	NodeAuthToken string
-	Now           time.Time
+	NodeID     string
+	NodeTarget string
+	Summary    *nodev1.NodeSummary
+	Now        time.Time
 }
+
+const maxNodeObservationInstanceIDBytes = 128
 
 func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodekernel.Record, error) {
 	nodeID := strings.TrimSpace(params.NodeID)
@@ -33,57 +34,34 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 			return nil, err
 		}
 	}
-	nodeAuthToken := strings.TrimSpace(params.NodeAuthToken)
-	if nodeAuthToken == "" {
-		return nil, grpcstatus.Error(codes.PermissionDenied, "node auth token is required")
-	}
-	tokenHash := hashNodeAuthToken(nodeAuthToken)
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin node tx: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	var existingHash, lifecycle string
-	err = tx.QueryRow(ctx, `SELECT node_auth_token_hash, lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&existingHash, &lifecycle)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("load node auth token: %w", err)
+	var lifecycle string
+	err = tx.QueryRow(ctx, `SELECT lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&lifecycle)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "node identity has not been admitted")
 	}
-	if err == nil {
-		if lifecycle == string(nodekernel.LifecycleRetired) {
-			return nil, grpcstatus.Error(codes.FailedPrecondition, "node is retired")
-		}
-		if existingHash == "" || tokenHash != existingHash {
-			return nil, grpcstatus.Error(codes.PermissionDenied, "invalid node auth token")
-		}
+	if err != nil {
+		return nil, fmt.Errorf("load Node admission: %w", err)
+	}
+	if lifecycle != string(nodekernel.LifecycleActive) {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "node identity is not active")
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO nodes (
-			node_id, node_target, registered_at, updated_at, last_heartbeat_at, last_summary_at,
-			node_auth_token_hash, lifecycle_status, version
-		) VALUES ($1, $2, $3, $3, $3, $4, $5, 'active', 1)
-		ON CONFLICT (node_id) DO UPDATE SET
-			node_target = EXCLUDED.node_target,
-			updated_at = EXCLUDED.updated_at,
-			last_heartbeat_at = EXCLUDED.last_heartbeat_at,
-			last_summary_at = COALESCE(EXCLUDED.last_summary_at, nodes.last_summary_at),
-			node_auth_token_hash = EXCLUDED.node_auth_token_hash,
-			version = nodes.version + 1
-	`, nodeID, params.NodeTarget, params.Now.UTC(), collectedAt(params.Summary), tokenHash); err != nil {
-		return nil, fmt.Errorf("upsert node: %w", err)
+		UPDATE nodes
+		SET node_target = $2,
+			last_heartbeat_at = GREATEST(COALESCE(last_heartbeat_at, $3), $3)
+		WHERE node_id = $1
+	`, nodeID, params.NodeTarget, params.Now.UTC()); err != nil {
+		return nil, fmt.Errorf("update admitted node observation: %w", err)
 	}
 
-	if _, err := tx.Exec(ctx, `DELETE FROM node_runtime_sets WHERE node_id = $1`, nodeID); err != nil {
-		return nil, fmt.Errorf("clear node runtimes: %w", err)
-	}
-	for _, runtimeName := range normalizeRuntimes(params.Runtimes) {
-		if _, err := tx.Exec(ctx, `INSERT INTO node_runtime_sets(node_id, runtime_name) VALUES ($1, $2)`, nodeID, runtimeName); err != nil {
-			return nil, fmt.Errorf("insert node runtime %q: %w", runtimeName, err)
-		}
-	}
-
-	var reportedTransitions []nodekernel.CapabilityTransition
+	var reportedTransitions []nodekernel.CapabilityChange
 	if params.Summary != nil {
 		var previous *nodev1.NodeSummary
 		var previousJSON []byte
@@ -95,35 +73,33 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 				return nil, fmt.Errorf("unmarshal previous node summary: %w", err)
 			}
 		}
-		if previous != nil &&
-			previous.GetCapabilitySnapshot().GetNodeInstanceID() == params.Summary.GetCapabilitySnapshot().GetNodeInstanceID() &&
-			params.Summary.GetCollectedAt().AsTime().Before(previous.GetCollectedAt().AsTime()) {
-			return nil, fmt.Errorf("node summary collected_at must not move backwards within node instance %q", params.Summary.GetCapabilitySnapshot().GetNodeInstanceID())
+		if _, err := validateNodeObservationAdvance(previous, params.Summary); err != nil {
+			return nil, err
+		}
+		if err := persistNodeObservationInstance(ctx, tx, nodeID, previous, params.Summary); err != nil {
+			return nil, err
 		}
 		transitions, err := persistCapabilityReport(ctx, tx, nodeID, previous, params.Summary, params.Now)
 		if err != nil {
 			return nil, err
 		}
 		for _, transition := range transitions {
-			reportedTransitions = append(reportedTransitions, nodekernel.CapabilityTransition{
+			reportedTransitions = append(reportedTransitions, nodekernel.CapabilityChange{
 				Key:        capabilityKeyClone(transition.key),
 				NewState:   transition.newState,
-				ReasonCode: transition.newReasonCode,
+				ReasonCode: transition.reasonCode,
 			})
 		}
 		payload, err := protojson.Marshal(params.Summary)
 		if err != nil {
 			return nil, fmt.Errorf("marshal node summary: %w", err)
 		}
-		collected := params.Summary.GetCollectedAt().AsTime().UTC()
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO node_summaries(node_id, collected_at, summary, updated_at)
-			VALUES ($1, $2, $3::jsonb, $4)
+			INSERT INTO node_summaries(node_id, summary)
+			VALUES ($1, $2::jsonb)
 			ON CONFLICT (node_id) DO UPDATE SET
-				collected_at = EXCLUDED.collected_at,
-				summary = EXCLUDED.summary,
-				updated_at = EXCLUDED.updated_at
-		`, nodeID, collected, string(payload), params.Now.UTC()); err != nil {
+				summary = EXCLUDED.summary
+		`, nodeID, string(payload)); err != nil {
 			return nil, fmt.Errorf("upsert node summary: %w", err)
 		}
 	}
@@ -135,7 +111,7 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit node tx: %w", err)
 	}
-	record.ReportedCapabilityTransitions = reportedTransitions
+	record.ReportedCapabilityChanges = reportedTransitions
 	return record, nil
 }
 
@@ -153,6 +129,13 @@ func validateSummaryPublication(summary *nodev1.NodeSummary, reportedAt time.Tim
 	if collectedAt.After(reportedAt.Add(time.Minute)) {
 		return fmt.Errorf("node summary collected_at is in the future")
 	}
+	instanceID := summary.GetNodeInstanceID()
+	if strings.TrimSpace(instanceID) == "" || instanceID != strings.TrimSpace(instanceID) || !utf8.ValidString(instanceID) || len(instanceID) > maxNodeObservationInstanceIDBytes {
+		return fmt.Errorf("node summary node_instance_id must be a non-empty UTF-8 identity of at most %d bytes without surrounding whitespace", maxNodeObservationInstanceIDBytes)
+	}
+	if summary.GetSequence() <= 0 {
+		return fmt.Errorf("node summary sequence must be positive")
+	}
 	snapshot := summary.GetCapabilitySnapshot()
 	if snapshot == nil || snapshot.GetCollectedAt() == nil {
 		return fmt.Errorf("node summary capability snapshot and collected_at are required")
@@ -168,12 +151,4 @@ func capabilityKeyClone(key *capabilityv1.CapabilityKey) *capabilityv1.Capabilit
 		return nil
 	}
 	return proto.Clone(key).(*capabilityv1.CapabilityKey)
-}
-
-func collectedAt(summary *nodev1.NodeSummary) *time.Time {
-	if summary == nil || summary.GetCollectedAt() == nil {
-		return nil
-	}
-	t := summary.GetCollectedAt().AsTime().UTC()
-	return &t
 }

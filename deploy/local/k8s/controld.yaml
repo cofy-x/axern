@@ -1,60 +1,6 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: storaged
-  namespace: axern-local
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: storaged
-  template:
-    metadata:
-      labels:
-        app: storaged
-    spec:
-      containers:
-        - name: storaged
-          image: axern/local-controld:dev
-          imagePullPolicy: IfNotPresent
-          command:
-            - /usr/local/bin/storaged
-          args:
-            - -grpc-address
-            - 0.0.0.0:24020
-            - -http-address
-            - 0.0.0.0:24021
-            - -postgres-dsn
-            - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-          ports:
-            - containerPort: 24020
-            - containerPort: 24021
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 24021
-            initialDelaySeconds: 2
-            periodSeconds: 2
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: storaged
-  namespace: axern-local
-spec:
-  selector:
-    app: storaged
-  ports:
-    - name: grpc
-      port: 24020
-      targetPort: 24020
-    - name: http
-      port: 24021
-      targetPort: 24021
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
   name: controld
   namespace: axern-local
 spec:
@@ -75,6 +21,14 @@ spec:
             - configMapRef:
                 name: local-proxy-env
           args:
+            - -workload-bundle
+            - /certs/controld.pem
+            - -workload-cluster
+            - axern.local
+            - -workload-signer-bundle
+            - /signer/signer.pem
+            - -enrollment-address
+            - 0.0.0.0:24002
             - -grpc-address
             - 0.0.0.0:24000
             - -http-address
@@ -87,33 +41,15 @@ spec:
             - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
             - -tls-ca-cert
             - /certs/ca.crt
-            - -tls-cert
-            - /certs/controld.crt
-            - -tls-key
-            - /certs/controld.key
-            - -storaged-target
-            - storaged.axern-local.svc.cluster.local:24020
-            - -function-gateway-url
-            - http://gatewayd.axern-local.svc.cluster.local:25080
-            - -function-gateway-token
-            - axern-local-dev
-            - -function-bundle-base-url
-            - http://controld.axern-local.svc.cluster.local:24001
-            - -function-bundle-token
-            - axern-local-dev
           env:
-            - name: AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE
               value: axern/python311-runtime:dev
-            - name: AXERN_RUNTIME_CATALOG_SERVER_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE
               value: axern/server-base-runtime:dev
-            - name: AXERN_RUNTIME_CATALOG_CODING_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE
               value: axern/coding-base-runtime:dev
-            - name: AXERN_RUNTIME_CATALOG_DESKTOP_BASE_IMAGE
+            - name: AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE
               value: axern/desktop-base-runtime:dev
-            - name: AXERN_AGENT_BUNDLE_CLAUDE_CODE_IMAGE
-              value: axern/claude-code-bundle:dev
-            - name: AXERN_AGENT_BUNDLE_CODEX_IMAGE
-              value: axern/codex-bundle:dev
             - name: CONTROLD_TUNNEL_RELAYS
               value: default,127.0.0.1:25001,tunneld.axern-local.svc.cluster.local:24100,1,false
             - name: AXERN_SECRETS_MASTER_KEY
@@ -125,6 +61,9 @@ spec:
             - containerPort: 24000
             - containerPort: 24001
           volumeMounts:
+            - name: signer
+              mountPath: /signer
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -135,9 +74,21 @@ spec:
             initialDelaySeconds: 2
             periodSeconds: 2
       volumes:
+        - name: signer
+          secret:
+            secretName: axern-pki-signer
+            defaultMode: 384
         - name: certs
           secret:
             secretName: controld-pki
+            defaultMode: 384
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: controld.pem
+                path: controld.pem
+              - key: client.crt
+                path: client.crt
 ---
 apiVersion: v1
 kind: Service
@@ -148,6 +99,9 @@ spec:
   selector:
     app: controld
   ports:
+    - name: enrollment
+      port: 24002
+      targetPort: 24002
     - name: grpc
       port: 24000
       targetPort: 24000

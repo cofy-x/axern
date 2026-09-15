@@ -29,10 +29,69 @@ func TestLoadMigrations(t *testing.T) {
 		if migration.Version != int64(index+1) {
 			t.Fatalf("migration[%d].Version = %d, want %d", index, migration.Version, index+1)
 		}
-		if strings.Contains(strings.ToLower(migration.SQL), "create table invokes") {
-			t.Fatalf("migration %d still creates removed invokes table", migration.Version)
+	}
+}
+
+func TestTunnelNotificationDerivesNodeFromAllocation(t *testing.T) {
+	migrations, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := migrations[0].SQL
+	if strings.Contains(sql, "pg_notify('axern_tunnel_session_changes', NEW.node_id)") {
+		t.Fatal("tunnel notification must not read removed tunnel_sessions.node_id")
+	}
+	for _, fragment := range []string{
+		"SELECT node_id INTO STRICT target_node_id",
+		"WHERE allocation_id = NEW.allocation_id",
+		"pg_notify('axern_tunnel_session_changes', target_node_id)",
+	} {
+		if !strings.Contains(sql, fragment) {
+			t.Fatalf("initial schema is missing tunnel notification fragment %q", fragment)
 		}
 	}
+}
+
+func TestWorkloadSchemaEncodesFinalOwnershipModel(t *testing.T) {
+	migrations, err := loadMigrations()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sql := migrations[0].SQL
+	environment := tableDefinition(t, sql, "environments")
+	if strings.Contains(environment, "deleted_at") {
+		t.Fatal("Environment schema still contains a deletion tombstone")
+	}
+	run := tableDefinition(t, sql, "runs")
+	for _, column := range []string{"environment_spec JSONB NOT NULL", "resolved_environment_spec JSONB NOT NULL"} {
+		if !strings.Contains(run, column) {
+			t.Fatalf("Run schema is missing immutable snapshot column %q", column)
+		}
+	}
+	quotaEvent := tableDefinition(t, sql, "namespace_quota_events")
+	if strings.Contains(quotaEvent, "run_id") {
+		t.Fatal("quota rejection event still manufactures a Run identity")
+	}
+	for _, table := range []string{"environment_secret_references", "run_secret_references"} {
+		if !strings.Contains(sql, "CREATE TABLE "+table+" (") {
+			t.Fatalf("initial schema is missing typed Secret relation %q", table)
+		}
+	}
+}
+
+func tableDefinition(t *testing.T, sql, table string) string {
+	t.Helper()
+	startMarker := "CREATE TABLE " + table + " ("
+	start := strings.Index(sql, startMarker)
+	if start < 0 {
+		t.Fatalf("initial schema is missing table %q", table)
+	}
+	rest := sql[start:]
+	end := strings.Index(rest, "\n);")
+	if end < 0 {
+		t.Fatalf("table %q has no closing definition", table)
+	}
+	return rest[:end]
 }
 
 func TestParseMigrationFileName(t *testing.T) {

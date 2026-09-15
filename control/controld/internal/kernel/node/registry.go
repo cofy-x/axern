@@ -2,12 +2,11 @@ package nodekernel
 
 import (
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -17,22 +16,21 @@ type Registry struct {
 }
 
 type Record struct {
-	NodeID        string
-	NodeTarget    string
-	Runtimes      []string
-	Summary       *nodev1.NodeSummary
-	Lifecycle     LifecycleStatus
-	RegisteredAt  time.Time
-	UpdatedAt     time.Time
-	RetiredAt     time.Time
-	RetiredReason string
-	// ReportedCapabilityTransitions contains only transitions committed by the
+	NodeID          string
+	NodeTarget      string
+	Summary         *nodev1.NodeSummary
+	Lifecycle       LifecycleStatus
+	AdmittedAt      time.Time
+	LastHeartbeatAt time.Time
+	RetiredAt       time.Time
+	RetiredReason   string
+	// ReportedCapabilityChanges contains only changes committed by the
 	// report operation that returned this record. It is transient observability
 	// data and is never part of the registry's durable node state.
-	ReportedCapabilityTransitions []CapabilityTransition
+	ReportedCapabilityChanges []CapabilityChange
 }
 
-type CapabilityTransition struct {
+type CapabilityChange struct {
 	Key        *capabilityv1.CapabilityKey
 	NewState   capabilityv1.CapabilityState
 	ReasonCode capabilityv1.CapabilityReasonCode
@@ -42,6 +40,7 @@ type LifecycleStatus string
 
 const (
 	LifecycleActive  LifecycleStatus = "active"
+	LifecycleRevoked LifecycleStatus = "revoked"
 	LifecycleRetired LifecycleStatus = "retired"
 )
 
@@ -59,44 +58,19 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) Register(nodeID string, nodeTarget string, runtimes []string, now time.Time) {
+func (r *Registry) Report(nodeID string, nodeTarget string, summary *nodev1.NodeSummary, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	record := r.upsertLocked(nodeID, now)
-	record.NodeTarget = strings.TrimSpace(nodeTarget)
-	record.Runtimes = normalizeRuntimes(runtimes)
-}
-
-func (r *Registry) Report(nodeID string, nodeTarget string, runtimes []string, summary *nodev1.NodeSummary, now time.Time) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	record := r.upsertLocked(nodeID, now)
-	record.NodeTarget = strings.TrimSpace(nodeTarget)
-	record.Runtimes = normalizeRuntimes(runtimes)
+	record.NodeTarget = nodeTarget
 	record.Summary = CloneNodeSummary(summary)
-	record.UpdatedAt = now
-}
-
-func (r *Registry) MarkRetired(nodeID string, retiredAt time.Time, reason string) {
-	if r == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	record := r.nodes[nodeID]
-	if record == nil {
-		return
-	}
-	record.Lifecycle = LifecycleRetired
-	record.RetiredAt = retiredAt
-	record.RetiredReason = reason
+	record.LastHeartbeatAt = now
 }
 
 // SyncLifecycle applies the persistent lifecycle state without replacing fresher
 // process-local heartbeat and summary data. It lets every controld replica
-// converge after an administrative retirement.
+// converge after administrative revocation or retirement.
 func (r *Registry) SyncLifecycle(nodeID string, lifecycle LifecycleStatus, retiredAt time.Time, reason string) {
 	if r == nil {
 		return
@@ -105,9 +79,10 @@ func (r *Registry) SyncLifecycle(nodeID string, lifecycle LifecycleStatus, retir
 	defer r.mu.Unlock()
 	record := r.nodes[nodeID]
 	if record == nil {
-		return
+		record = &Record{NodeID: nodeID}
+		r.nodes[nodeID] = record
 	}
-	if record.Lifecycle == LifecycleRetired && lifecycle != LifecycleRetired {
+	if record.Lifecycle == LifecycleRetired && lifecycle != LifecycleRetired || record.Lifecycle == LifecycleRevoked && lifecycle == LifecycleActive {
 		return
 	}
 	record.Lifecycle = lifecycle
@@ -167,27 +142,26 @@ func (r *Registry) DebugNodes(now time.Time, heartbeatWindow, summaryWindow time
 		if record == nil {
 			continue
 		}
-		heartbeatFresh := HeartbeatFresh(record.UpdatedAt, now, heartbeatWindow)
+		heartbeatFresh := HeartbeatFresh(record.LastHeartbeatAt, now, heartbeatWindow)
 		summaryFresh := SummaryFresh(record.Summary, now, summaryWindow)
 		freshnessState := ClassifyFreshnessState(heartbeatFresh, summaryFresh)
 		if !record.Active() {
 			heartbeatFresh = false
 			summaryFresh = false
-			freshnessState = "retired"
+			freshnessState = string(record.Lifecycle)
 		}
 		out = append(out, DebugNode{
 			NodeID:           record.NodeID,
 			NodeTarget:       record.NodeTarget,
-			Runtimes:         append([]string(nil), record.Runtimes...),
 			Fresh:            heartbeatFresh && summaryFresh,
 			HeartbeatFresh:   heartbeatFresh,
 			SummaryFresh:     summaryFresh,
 			Lifecycle:        record.Lifecycle,
 			FreshnessState:   freshnessState,
-			HeartbeatAgeSecs: HeartbeatAgeSecs(record.UpdatedAt, now),
+			HeartbeatAgeSecs: HeartbeatAgeSecs(record.LastHeartbeatAt, now),
 			SummaryAgeSecs:   SummaryAgeSecs(record.Summary, now),
-			RegisteredAt:     record.RegisteredAt,
-			UpdatedAt:        record.UpdatedAt,
+			AdmittedAt:       record.AdmittedAt,
+			LastHeartbeatAt:  record.LastHeartbeatAt,
 			CollectedAt:      SummaryCollectedAt(record.Summary),
 			RetiredAt:        record.RetiredAt,
 			RetiredReason:    record.RetiredReason,
@@ -204,39 +178,18 @@ func (r *Registry) upsertLocked(nodeID string, now time.Time) *Record {
 	record, ok := r.nodes[nodeID]
 	if !ok {
 		record = &Record{
-			NodeID:       nodeID,
-			Lifecycle:    LifecycleActive,
-			RegisteredAt: now,
-			UpdatedAt:    now,
+			NodeID:          nodeID,
+			Lifecycle:       LifecycleActive,
+			AdmittedAt:      now,
+			LastHeartbeatAt: now,
 		}
 		r.nodes[nodeID] = record
 		return record
 	}
-	if record.RegisteredAt.IsZero() {
-		record.RegisteredAt = now
+	if record.AdmittedAt.IsZero() {
+		record.AdmittedAt = now
 	}
 	return record
-}
-
-func normalizeRuntimes(in []string) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	seen := make(map[string]struct{}, len(in))
-	out := make([]string, 0, len(in))
-	for _, name := range in {
-		name = strings.TrimSpace(name)
-		if name == "" {
-			continue
-		}
-		if _, ok := seen[name]; ok {
-			continue
-		}
-		seen[name] = struct{}{}
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func cloneRecord(in *Record) *Record {
@@ -244,15 +197,14 @@ func cloneRecord(in *Record) *Record {
 		return nil
 	}
 	return &Record{
-		NodeID:        in.NodeID,
-		NodeTarget:    in.NodeTarget,
-		Runtimes:      append([]string(nil), in.Runtimes...),
-		Summary:       CloneNodeSummary(in.Summary),
-		Lifecycle:     in.Lifecycle,
-		RegisteredAt:  in.RegisteredAt,
-		UpdatedAt:     in.UpdatedAt,
-		RetiredAt:     in.RetiredAt,
-		RetiredReason: in.RetiredReason,
+		NodeID:          in.NodeID,
+		NodeTarget:      in.NodeTarget,
+		Summary:         CloneNodeSummary(in.Summary),
+		Lifecycle:       in.Lifecycle,
+		AdmittedAt:      in.AdmittedAt,
+		LastHeartbeatAt: in.LastHeartbeatAt,
+		RetiredAt:       in.RetiredAt,
+		RetiredReason:   in.RetiredReason,
 	}
 }
 

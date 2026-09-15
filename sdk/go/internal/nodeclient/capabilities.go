@@ -20,10 +20,10 @@ type CapabilityProviderStatus struct {
 	Capabilities []string
 	Backend      string
 	Reason       string
-	Dependencies []CapabilityDependencyStatus
+	Dependencies []CapabilityProviderDependencyStatus
 }
 
-type CapabilityDependencyStatus struct {
+type CapabilityProviderDependencyStatus struct {
 	Name      string
 	Available bool
 	Reason    string
@@ -67,10 +67,10 @@ func capabilityProviders(items []*nodesandboxv1.CapabilityProviderStatus) []Capa
 	return out
 }
 
-func capabilityDependencies(items []*nodesandboxv1.CapabilityDependencyStatus) []CapabilityDependencyStatus {
-	out := make([]CapabilityDependencyStatus, 0, len(items))
+func capabilityDependencies(items []*nodesandboxv1.CapabilityProviderDependencyStatus) []CapabilityProviderDependencyStatus {
+	out := make([]CapabilityProviderDependencyStatus, 0, len(items))
 	for _, item := range items {
-		out = append(out, CapabilityDependencyStatus{
+		out = append(out, CapabilityProviderDependencyStatus{
 			Name:      item.GetName(),
 			Available: item.GetAvailable(),
 			Reason:    item.GetReason(),

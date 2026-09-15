@@ -3,34 +3,31 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterator
 
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk._internal.resources import ResourceQuantity
 from axern_sdk.client import AxernClient
 from axern_sdk.errors import SandboxNotStartedError, SandboxTimeoutError
-from axern_sdk.models import VolumeMount
 from axern_sdk.node import (
     ExecCommand,
     ExecResult,
-    ExecStreamEvent,
-    ImageProcessMount,
-    NodeSandboxClient,
+    ProcessEvent,
+    AllocationClient,
     SandboxProcess,
 )
-from axern_sdk.sandbox.browser import SandboxBrowserMixin
 from axern_sdk.sandbox.capabilities import SandboxCapabilityMixin
 from axern_sdk.sandbox.computer_use import SandboxComputerUseMixin
 from axern_sdk.sandbox.files import SandboxFileMixin
-from axern_sdk.sandbox.lifecycle import wait_ready_replica, wait_service_deleted
+from axern_sdk.sandbox.lifecycle import wait_running_run
 from axern_sdk.network_policy import NetworkPolicy
 from axern_sdk.sandbox.renewal import TunnelRenewal
 from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
 
-class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMixin, SandboxFileMixin):
-    """Service-backed Axern sandbox with optional reverse TCP tunnel."""
+class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin):
+    """Run allocation-backed Axern sandbox with optional reverse TCP tunnel."""
 
     def __init__(
         self,
@@ -44,7 +41,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         argv: list[str] | None = None,
         env: dict[str, str] | None = None,
         cwd: str = "",
-        runtime_class: str = "",
         network_policy: NetworkPolicy | None = None,
         request_cpu: ResourceQuantity = "",
         request_memory: ResourceQuantity = "",
@@ -53,7 +49,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
-        volumes: Iterable[VolumeMount] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
         connector: ConnectorConfig | None = None,
@@ -62,7 +57,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         connector_ready_timeout_seconds: float = 15.0,
         labels: dict[str, str] | None = None,
         _connector_factory: Callable[..., TunnelConnector] = TunnelConnector,
-        _node_client_factory: Callable[..., NodeSandboxClient] = NodeSandboxClient,
+        _node_client_factory: Callable[..., AllocationClient] = AllocationClient,
         _renew_interval_seconds: float | None = None,
     ) -> None:
         _validate_source(image=image, template_id=template_id, environment_id=environment_id)
@@ -75,7 +70,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         self._argv = list(argv or DEFAULT_SANDBOX_ARGV)
         self._env = dict(env or {})
         self._cwd = cwd
-        self._runtime_class = runtime_class
         self._network_policy = network_policy
         self._request_cpu = request_cpu
         self._request_memory = request_memory
@@ -84,7 +78,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
         self._extension_capabilities = dict(extension_capabilities or {})
-        self._volumes = tuple(volumes or ())
         self._upstream = upstream
         self._remote_port = remote_port
         self._gateway_transport = client._gateway_transport()
@@ -99,7 +92,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
 
         self._created_environment = False
         self._created_environment_id = ""
-        self._created_service_id = ""
+        self._created_run_id = ""
         self._created_tunnel_session_id = ""
         self._tunnel_client_token = ""
         self._state: SandboxState | None = None
@@ -118,8 +111,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         return self.state.environment_id
 
     @property
-    def service_id(self) -> str:
-        return self.state.service_id
+    def run_id(self) -> str:
+        return self.state.run_id
 
     @property
     def allocation_id(self) -> str:
@@ -128,10 +121,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
     @property
     def node_id(self) -> str:
         return self.state.node_id
-
-    @property
-    def attempt(self) -> int:
-        return self.state.attempt
 
     @property
     def tunnel_session_id(self) -> str:
@@ -146,11 +135,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         state = self.state
         return SandboxMetadata(
             environment_id=state.environment_id,
-            service_id=state.service_id,
+            run_id=state.run_id,
             allocation_id=state.allocation_id,
-            attempt=state.attempt,
             node_id=state.node_id,
-            runtime_class=self._runtime_class,
             tunnel_session_id=state.tunnel_session_id,
             bound_addr=state.bound_addr,
             started_at_ns=self._started_at_ns,
@@ -169,13 +156,11 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             return self
         try:
             environment_id = self._resolve_environment()
-            service = self._client.create_service(
+            run = self._client.create_run(
                 environment_id=environment_id,
-                replicas=1,
                 argv=self._argv,
                 env=self._env,
                 cwd=self._cwd,
-                runtime_class=self._runtime_class,
                 network_policy=self._network_policy,
                 request_cpu=self._request_cpu,
                 request_memory=self._request_memory,
@@ -184,21 +169,19 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
                 extension_capabilities=self._extension_capabilities,
-                volume_mounts=self._volumes,
                 namespace=self._namespace,
                 labels=self._labels,
             )
-            self._created_service_id = service.id
-            replica = wait_ready_replica(
+            self._created_run_id = run.id
+            run = wait_running_run(
                 self._client,
-                service_id=service.id,
+                run_id=run.id,
                 timeout_seconds=self._ready_timeout_seconds,
             )
 
             if self._upstream:
                 tunnel = self._client.create_tunnel_session(
-                    allocation_id=replica.id,
-                    local_target=self._upstream,
+                    allocation_id=run.allocation_id,
                     remote_port=self._remote_port,
                     ttl_seconds=self._tunnel_ttl_seconds,
                     wait_ready=True,
@@ -232,10 +215,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
 
             self._state = SandboxState(
                 environment_id=environment_id,
-                service_id=service.id,
-                allocation_id=replica.id,
-                attempt=replica.attempt,
-                node_id=replica.node_id,
+                run_id=run.id,
+                allocation_id=run.allocation_id,
+                node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,
             )
@@ -261,23 +243,12 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             except Exception:
                 pass
             self._created_tunnel_session_id = ""
-        if self._created_service_id:
-            service_deleted = False
+        if self._created_run_id:
             try:
-                self._client.delete_service(self._created_service_id, timeout=30.0)
-                service_deleted = True
+                self._client.cancel_run(self._created_run_id, timeout=30.0)
             except Exception:
                 pass
-            if service_deleted:
-                try:
-                    wait_service_deleted(
-                        self._client,
-                        service_id=self._created_service_id,
-                        timeout_seconds=self._ready_timeout_seconds,
-                    )
-                except Exception:
-                    pass
-            self._created_service_id = ""
+            self._created_run_id = ""
         if self._created_environment and self._created_environment_id:
             try:
                 self._client.delete_environment(self._created_environment_id, timeout=30.0)
@@ -371,7 +342,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-    ) -> Iterator[ExecStreamEvent]:
+    ) -> Iterator[ProcessEvent]:
         return self._node_client().exec_stream(
             command,
             env=env,
@@ -396,6 +367,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         timeout_seconds: int = 0,
         user: str = "",
         tty: bool = False,
+        initial_cols: int = 0,
+        initial_rows: int = 0,
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
@@ -407,78 +380,14 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
+            initial_cols=initial_cols,
+            initial_rows=initial_rows,
             shell=shell,
             lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
-    def exec_image(
-        self,
-        image: str,
-        command: ExecCommand,
-        *,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        timeout_seconds: int = 0,
-        user: str = "",
-        tty: bool = False,
-        check: bool = False,
-        text: bool = False,
-        encoding: str = "utf-8",
-        errors: str = "strict",
-        shell: bool | None = None,
-        mounts: list[ImageProcessMount] | tuple[ImageProcessMount, ...] | None = None,
-        lease_ttl_seconds: int = 60,
-        rpc_timeout: float | None = None,
-    ) -> ExecResult:
-        return self._node_client().exec_image(
-            image,
-            command,
-            env=env,
-            cwd=cwd,
-            timeout_seconds=timeout_seconds,
-            user=user,
-            tty=tty,
-            check=check,
-            text=text,
-            encoding=encoding,
-            errors=errors,
-            shell=shell,
-            mounts=mounts,
-            lease_ttl_seconds=lease_ttl_seconds,
-            rpc_timeout=rpc_timeout,
-        )
-
-    def process_image(
-        self,
-        image: str,
-        command: ExecCommand,
-        *,
-        env: dict[str, str] | None = None,
-        cwd: str = "",
-        timeout_seconds: int = 0,
-        user: str = "",
-        tty: bool = False,
-        shell: bool | None = None,
-        mounts: list[ImageProcessMount] | tuple[ImageProcessMount, ...] | None = None,
-        lease_ttl_seconds: int = 60,
-        rpc_timeout: float | None = None,
-    ) -> SandboxProcess:
-        return self._node_client().process_image(
-            image,
-            command,
-            env=env,
-            cwd=cwd,
-            timeout_seconds=timeout_seconds,
-            user=user,
-            tty=tty,
-            shell=shell,
-            mounts=mounts,
-            lease_ttl_seconds=lease_ttl_seconds,
-            rpc_timeout=rpc_timeout,
-        )
-
-    def _node_client(self) -> NodeSandboxClient:
+    def _node_client(self) -> AllocationClient:
         if self._state is None:
             raise SandboxNotStartedError("sandbox is not active")
         return self._node_client_factory(

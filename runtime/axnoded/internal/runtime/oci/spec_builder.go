@@ -11,10 +11,10 @@ import (
 type buildOptions struct {
 	request *apipb.CreateContainerRequest
 
-	containerID           string
-	cgroupPath            string
-	overrideRootPath      string
-	additionalAnnotations map[string]string
+	containerID          string
+	cgroupPath           string
+	overrideRootPath     string
+	networkNamespacePath string
 }
 
 type specBuilder struct {
@@ -52,40 +52,17 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 		applyProcessOverrides(ociSpec, request)
 		applyMountOverrides(ociSpec, request)
 		applyRootfsOverride(ociSpec, request)
-		ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, request.Labels)
-		applyEphemeralStorageAnnotation(ociSpec, request)
 		setSpecResource(ociSpec, request.Resource)
 	}
 
-	ociSpec.Annotations = combineAnnotations(ociSpec.Annotations, options.additionalAnnotations)
-	explicitHostname := requestedHostnameAnnotation(request, options.additionalAnnotations)
-	delete(ociSpec.Annotations, runtimeHostnameAnnotationKey())
-	applyHostname(ociSpec, request, options.containerID, explicitHostname)
-	b.profile.RuntimeBaseline.apply(ociSpec)
-	b.profile.NetworkNamespace.apply(ociSpec, options.additionalAnnotations)
-	b.profile.Capabilities.apply(ociSpec, ociSpec.Annotations)
-	b.profile.Resources.apply(ociSpec)
+	applyHostname(ociSpec, request, options.containerID)
+	b.profile.Baseline.apply(ociSpec)
+	applyNetworkNamespace(ociSpec, options.networkNamespacePath)
 
 	if options.overrideRootPath != "" && ociSpec.Root != nil {
 		ociSpec.Root.Path = options.overrideRootPath
 	}
 	return validateProcessArgs(ociSpec)
-}
-
-const ephemeralStorageAnnotationKey = "io.axnoded.resource/ephemeral-storage"
-
-func applyEphemeralStorageAnnotation(ociSpec *spec.Spec, request *apipb.CreateContainerRequest) {
-	if request.GetEphemeralStorageRequestBytes() <= 0 {
-		return
-	}
-	if ociSpec.Annotations == nil {
-		ociSpec.Annotations = make(map[string]string)
-	}
-	value, _ := json.Marshal(struct {
-		RequestBytes int64 `json:"request_bytes"`
-		LimitBytes   int64 `json:"limit_bytes"`
-	}{request.GetEphemeralStorageRequestBytes(), request.GetEphemeralStorageLimitBytes()})
-	ociSpec.Annotations[ephemeralStorageAnnotationKey] = string(value)
 }
 
 func ensureLinuxSpec(ociSpec *spec.Spec) {

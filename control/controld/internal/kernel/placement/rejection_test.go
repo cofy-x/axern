@@ -5,17 +5,16 @@ import (
 	"testing"
 
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestNoEligibleNodeErrorClassifiesCapabilityInvalidationAsNodeSelection(t *testing.T) {
-	err := NoEligibleNodeError(&Request{RequestedMemoryBytes: 512 << 20}, []*nodev1.PlacementCandidate{{
+	err := NoEligibleNodeError(&Request{RequestedMemoryBytes: 512 << 20}, []*Evaluation{{
 		NodeID:           "node-a",
-		State:            nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED,
-		RejectionReasons: []nodev1.PlacementRejectionReason{nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED},
+		State:            CandidateStateRejected,
+		RejectionReasons: []RejectionReason{RejectionReasonCapabilityUnsupported},
 	}})
 	st := grpcstatus.Convert(err)
 	if st.Code() != codes.FailedPrecondition {

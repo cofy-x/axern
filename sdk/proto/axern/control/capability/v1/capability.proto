@@ -11,28 +11,22 @@ import "google/protobuf/timestamp.proto";
 // claims; only the owning observed-capability provider may publish them.
 enum PlatformCapability {
   PLATFORM_CAPABILITY_UNSPECIFIED = 0;
-  PLATFORM_CAPABILITY_PORT_FORWARDING = 1;
-  PLATFORM_CAPABILITY_NETWORK_BRIDGE = 2;
-  PLATFORM_CAPABILITY_NETWORK_BPFNET = 3;
-  PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER = 4;
-  PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT = 5;
-  PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT = 6;
-  PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER = 7;
-  PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA = 8;
-  PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT = 9;
-  PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT = 10;
-  PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS = 11;
-  // Provider facts consumed by the catalog's derived workload capabilities.
+  PLATFORM_CAPABILITY_NETWORK_BRIDGE = 1;
+  PLATFORM_CAPABILITY_NETWORK_BPFNET = 2;
+  PLATFORM_CAPABILITY_CGROUP_V2_MEMORY_CONTROLLER = 3;
+  PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT = 4;
+  PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER = 5;
+  PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT = 6;
+  PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS = 7;
+  // Provider facts consumed by derived workload capability definitions.
   // They are not valid workload requirements on their own.
-  PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST = 12;
-  PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST = 13;
-  PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST = 14;
-  PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST = 15;
-  PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST = 16;
-  PLATFORM_CAPABILITY_EGRESSD_STRICT_EGRESS_SELF_TEST = 17;
+  PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST = 8;
+  PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST = 9;
+  PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST = 10;
+  PLATFORM_CAPABILITY_EGRESSD_STRICT_EGRESS_SELF_TEST = 11;
   // Workload-facing capabilities derived from the egressd self-test facts.
-  PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT = 18;
-  PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT = 19;
+  PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT = 12;
+  PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT = 13;
 }
 
 message ExtensionCapability {
@@ -63,10 +57,9 @@ enum CapabilityProvider {
   CAPABILITY_PROVIDER_CONFIG = 1;
   CAPABILITY_PROVIDER_HOST_CGROUP = 2;
   CAPABILITY_PROVIDER_FILESTORE = 3;
-  CAPABILITY_PROVIDER_RUNC_SELF_TEST = 4;
-  CAPABILITY_PROVIDER_RUNSC_SELF_TEST = 5;
-  CAPABILITY_PROVIDER_NETWORK_HEALTH = 6;
-  CAPABILITY_PROVIDER_DERIVED = 7;
+  CAPABILITY_PROVIDER_RUNSC_SELF_TEST = 4;
+  CAPABILITY_PROVIDER_NETWORK_HEALTH = 5;
+  CAPABILITY_PROVIDER_DERIVED = 6;
 }
 
 enum CapabilityReasonCode {
@@ -82,10 +75,6 @@ enum CapabilityReasonCode {
   CAPABILITY_REASON_CODE_ENFORCEMENT_LOST = 9;
 }
 
-message ConfigEvidenceIdentity {
-  string config_digest = 1;
-}
-
 message BootEvidenceIdentity {
   string boot_id = 1;
 }
@@ -97,72 +86,35 @@ message MountEvidenceIdentity {
 
 message RuntimeEvidenceIdentity {
   string boot_id = 1;
-  string runtime_name = 2;
-  string runtime_binary_digest = 3;
-  string runtime_config_digest = 4;
+  string runtime_binary_digest = 2;
+  string runtime_config_digest = 3;
 }
 
-message DerivedEvidenceIdentity {
-  string catalog_digest = 1;
-  // Canonical digest of the typed evidence identities for every catalog
-  // dependency. This makes the derived subject change when its mount,
-  // runtime, boot, or config subjects change without treating a normal TTL
-  // refresh as a new identity.
-  string dependency_evidence_digest = 2;
-}
-
-// CapabilityEvidence identifies the concrete subject that was probed. Its
-// identity is orthogonal to observation freshness: a mount or runtime proof
-// may still require valid_until even though its subject identity is stable.
+// CapabilityEvidence identifies the concrete host subject that was inspected.
+// It is descriptive evidence, not an identity, version, or cryptographic
+// proof. Derived and configuration capabilities need no additional evidence.
 message CapabilityEvidence {
-  string evidence_id = 1;
   oneof identity {
-    ConfigEvidenceIdentity config = 2;
-    BootEvidenceIdentity boot = 3;
-    MountEvidenceIdentity mount = 4;
-    RuntimeEvidenceIdentity runtime = 5;
-    DerivedEvidenceIdentity derived = 6;
+    BootEvidenceIdentity boot = 1;
+    MountEvidenceIdentity mount = 2;
+    RuntimeEvidenceIdentity runtime = 3;
   }
-}
-
-// CapabilityObservationProof is the durable, non-recursive proof selected
-// from a snapshot. Dependencies are represented as one bounded flat proof set
-// so persistence and validation remain bounded.
-message CapabilityObservationProof {
-  CapabilityKey key = 1;
-  string observation_id = 2;
-  CapabilityProvider provider = 3;
-  google.protobuf.Timestamp observed_at = 4;
-  google.protobuf.Timestamp valid_until = 5;
-  CapabilityEvidence evidence = 6;
 }
 
 message CapabilityObservation {
   CapabilityKey key = 1;
   CapabilityState state = 2;
   CapabilityProvider provider = 3;
-  string observation_id = 4;
-  google.protobuf.Timestamp observed_at = 5;
-  google.protobuf.Timestamp valid_until = 6;
-  CapabilityEvidence evidence = 7;
-  repeated CapabilityObservationProof dependencies = 8;
-  CapabilityReasonCode reason_code = 9;
-  string reason = 10;
+  google.protobuf.Timestamp observed_at = 4;
+  google.protobuf.Timestamp valid_until = 5;
+  CapabilityEvidence evidence = 6;
+  CapabilityReasonCode reason_code = 7;
+  string reason = 8;
 }
 
 message CapabilitySnapshot {
-  string node_instance_id = 1;
-  int64 sequence = 2;
-  string snapshot_id = 3;
-  google.protobuf.Timestamp collected_at = 4;
-  repeated CapabilityObservation observations = 5;
-}
-
-message CapabilitySnapshotReference {
-  string node_instance_id = 1;
-  int64 sequence = 2;
-  string snapshot_id = 3;
-  google.protobuf.Timestamp collected_at = 4;
+  google.protobuf.Timestamp collected_at = 1;
+  repeated CapabilityObservation observations = 2;
 }
 
 message ExtensionCapabilityRequirement {
@@ -176,18 +128,9 @@ enum CapabilityLossPolicy {
   CAPABILITY_LOSS_POLICY_FAIL_STOP = 3;
 }
 
-message CapabilityDependency {
+message CapabilityRequirement {
   CapabilityKey key = 1;
   CapabilityLossPolicy loss_policy = 2;
-  CapabilitySnapshotReference selected_snapshot = 3;
-  CapabilityObservationProof selected_observation = 4;
-  repeated CapabilityObservationProof dependency_observations = 5;
-}
-
-// CapabilityDependencySet is the durable representation stored with an
-// allocation. A wrapper keeps JSON persistence on the canonical proto shape.
-message CapabilityDependencySet {
-  repeated CapabilityDependency dependencies = 1;
 }
 
 enum CapabilityConditionState {
@@ -203,12 +146,9 @@ message CapabilityCondition {
   CapabilityConditionState state = 2;
   CapabilityReasonCode reason_code = 3;
   string message = 4;
-  google.protobuf.Timestamp observed_at = 5;
-  CapabilityObservationProof proof = 6;
 }
 
 message CapabilityConditionSet {
-  int64 revision = 1;
-  google.protobuf.Timestamp observed_at = 2;
-  repeated CapabilityCondition conditions = 3;
+  google.protobuf.Timestamp observed_at = 1;
+  repeated CapabilityCondition conditions = 2;
 }

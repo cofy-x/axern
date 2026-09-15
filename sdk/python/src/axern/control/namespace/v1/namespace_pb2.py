@@ -25,7 +25,7 @@ _sym_db = _symbol_database.Default()
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n*axern/control/namespace/v1/namespace.proto\x12\x1a\x61xern.control.namespace.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8f\x01\n\tNamespace\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x03\x12.\n\ncreated_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\nupdated_at\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"+\n\x16\x43reateNamespaceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"S\n\x17\x43reateNamespaceResponse\x12\x38\n\tnamespace\x18\x01 \x01(\x0b\x32%.axern.control.namespace.v1.Namespace\"(\n\x13GetNamespaceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"P\n\x14GetNamespaceResponse\x12\x38\n\tnamespace\x18\x01 \x01(\x0b\x32%.axern.control.namespace.v1.Namespace\"\x17\n\x15ListNamespacesRequest\"S\n\x16ListNamespacesResponse\x12\x39\n\nnamespaces\x18\x01 \x03(\x0b\x32%.axern.control.namespace.v1.Namespace\"+\n\x16\x44\x65leteNamespaceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"S\n\x17\x44\x65leteNamespaceResponse\x12\x38\n\tnamespace\x18\x01 \x01(\x0b\x32%.axern.control.namespace.v1.Namespace2\xfe\x03\n\x10NamespaceControl\x12|\n\x0f\x43reateNamespace\x12\x32.axern.control.namespace.v1.CreateNamespaceRequest\x1a\x33.axern.control.namespace.v1.CreateNamespaceResponse\"\x00\x12s\n\x0cGetNamespace\x12/.axern.control.namespace.v1.GetNamespaceRequest\x1a\x30.axern.control.namespace.v1.GetNamespaceResponse\"\x00\x12y\n\x0eListNamespaces\x12\x31.axern.control.namespace.v1.ListNamespacesRequest\x1a\x32.axern.control.namespace.v1.ListNamespacesResponse\"\x00\x12|\n\x0f\x44\x65leteNamespace\x12\x32.axern.control.namespace.v1.DeleteNamespaceRequest\x1a\x33.axern.control.namespace.v1.DeleteNamespaceResponse\"\x00\x42KZIgithub.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1;namespacev1b\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n*axern/control/namespace/v1/namespace.proto\x12\x1a\x61xern.control.namespace.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"~\n\tNamespace\x12\x11\n\tnamespace\x18\x01 \x01(\t\x12.\n\ncreated_at\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12.\n\ndeleted_at\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"+\n\x16\x43reateNamespaceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"S\n\x17\x43reateNamespaceResponse\x12\x38\n\tnamespace\x18\x01 \x01(\x0b\x32%.axern.control.namespace.v1.Namespace\"(\n\x13GetNamespaceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"P\n\x14GetNamespaceResponse\x12\x38\n\tnamespace\x18\x01 \x01(\x0b\x32%.axern.control.namespace.v1.Namespace\"\x17\n\x15ListNamespacesRequest\"S\n\x16ListNamespacesResponse\x12\x39\n\nnamespaces\x18\x01 \x03(\x0b\x32%.axern.control.namespace.v1.Namespace\"+\n\x16\x44\x65leteNamespaceRequest\x12\x11\n\tnamespace\x18\x01 \x01(\t\"S\n\x17\x44\x65leteNamespaceResponse\x12\x38\n\tnamespace\x18\x01 \x01(\x0b\x32%.axern.control.namespace.v1.Namespace2\xfe\x03\n\x10NamespaceControl\x12|\n\x0f\x43reateNamespace\x12\x32.axern.control.namespace.v1.CreateNamespaceRequest\x1a\x33.axern.control.namespace.v1.CreateNamespaceResponse\"\x00\x12s\n\x0cGetNamespace\x12/.axern.control.namespace.v1.GetNamespaceRequest\x1a\x30.axern.control.namespace.v1.GetNamespaceResponse\"\x00\x12y\n\x0eListNamespaces\x12\x31.axern.control.namespace.v1.ListNamespacesRequest\x1a\x32.axern.control.namespace.v1.ListNamespacesResponse\"\x00\x12|\n\x0f\x44\x65leteNamespace\x12\x32.axern.control.namespace.v1.DeleteNamespaceRequest\x1a\x33.axern.control.namespace.v1.DeleteNamespaceResponse\"\x00\x42KZIgithub.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1;namespacev1b\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -33,24 +33,24 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'axern.control.namespace.v1.
 if not _descriptor._USE_C_DESCRIPTORS:
   _globals['DESCRIPTOR']._loaded_options = None
   _globals['DESCRIPTOR']._serialized_options = b'ZIgithub.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1;namespacev1'
-  _globals['_NAMESPACE']._serialized_start=108
-  _globals['_NAMESPACE']._serialized_end=251
-  _globals['_CREATENAMESPACEREQUEST']._serialized_start=253
-  _globals['_CREATENAMESPACEREQUEST']._serialized_end=296
-  _globals['_CREATENAMESPACERESPONSE']._serialized_start=298
-  _globals['_CREATENAMESPACERESPONSE']._serialized_end=381
-  _globals['_GETNAMESPACEREQUEST']._serialized_start=383
-  _globals['_GETNAMESPACEREQUEST']._serialized_end=423
-  _globals['_GETNAMESPACERESPONSE']._serialized_start=425
-  _globals['_GETNAMESPACERESPONSE']._serialized_end=505
-  _globals['_LISTNAMESPACESREQUEST']._serialized_start=507
-  _globals['_LISTNAMESPACESREQUEST']._serialized_end=530
-  _globals['_LISTNAMESPACESRESPONSE']._serialized_start=532
-  _globals['_LISTNAMESPACESRESPONSE']._serialized_end=615
-  _globals['_DELETENAMESPACEREQUEST']._serialized_start=617
-  _globals['_DELETENAMESPACEREQUEST']._serialized_end=660
-  _globals['_DELETENAMESPACERESPONSE']._serialized_start=662
-  _globals['_DELETENAMESPACERESPONSE']._serialized_end=745
-  _globals['_NAMESPACECONTROL']._serialized_start=748
-  _globals['_NAMESPACECONTROL']._serialized_end=1258
+  _globals['_NAMESPACE']._serialized_start=107
+  _globals['_NAMESPACE']._serialized_end=233
+  _globals['_CREATENAMESPACEREQUEST']._serialized_start=235
+  _globals['_CREATENAMESPACEREQUEST']._serialized_end=278
+  _globals['_CREATENAMESPACERESPONSE']._serialized_start=280
+  _globals['_CREATENAMESPACERESPONSE']._serialized_end=363
+  _globals['_GETNAMESPACEREQUEST']._serialized_start=365
+  _globals['_GETNAMESPACEREQUEST']._serialized_end=405
+  _globals['_GETNAMESPACERESPONSE']._serialized_start=407
+  _globals['_GETNAMESPACERESPONSE']._serialized_end=487
+  _globals['_LISTNAMESPACESREQUEST']._serialized_start=489
+  _globals['_LISTNAMESPACESREQUEST']._serialized_end=512
+  _globals['_LISTNAMESPACESRESPONSE']._serialized_start=514
+  _globals['_LISTNAMESPACESRESPONSE']._serialized_end=597
+  _globals['_DELETENAMESPACEREQUEST']._serialized_start=599
+  _globals['_DELETENAMESPACEREQUEST']._serialized_end=642
+  _globals['_DELETENAMESPACERESPONSE']._serialized_start=644
+  _globals['_DELETENAMESPACERESPONSE']._serialized_end=727
+  _globals['_NAMESPACECONTROL']._serialized_start=730
+  _globals['_NAMESPACECONTROL']._serialized_end=1240
 # @@protoc_insertion_point(module_scope)

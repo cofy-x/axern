@@ -27,29 +27,6 @@ func (m *mockNydusClient) UseHTTPFor(imageURL string) bool {
 	return m.useHTTPForFunc != nil && m.useHTTPForFunc(imageURL)
 }
 
-func createTestOSSAuthsFile(t *testing.T, dir string) string {
-	t.Helper()
-	authsPath := filepath.Join(dir, "oss_auths.json")
-	auths := OSSAuthsConfig{
-		"oss-cn-hangzhou.aliyuncs.com/test-bucket": {
-			AccessKeyID:     "test-access-key",
-			AccessKeySecret: "test-secret-key",
-		},
-		"oss-cn-beijing.aliyuncs.com/another-bucket": {
-			AccessKeyID:     "beijing-key",
-			AccessKeySecret: "beijing-secret",
-		},
-	}
-	data, err := json.Marshal(auths)
-	if err != nil {
-		t.Fatalf("Failed to marshal oss auths: %v", err)
-	}
-	if err := os.WriteFile(authsPath, data, 0644); err != nil {
-		t.Fatalf("Failed to write oss auths file: %v", err)
-	}
-	return authsPath
-}
-
 func createTestRegistryAuthsFile(t *testing.T, dir string) string {
 	t.Helper()
 	authsPath := filepath.Join(dir, "registry_auths.json")

@@ -113,32 +113,6 @@
       "problemMatcher": []
     },
     {
-      "label": "Axern: Restart Volumed",
-      "type": "shell",
-      "command": "make",
-      "args": [
-        "dev-stack-restart",
-        "SERVICE=volumed"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Axern: Restart Storaged",
-      "type": "shell",
-      "command": "make",
-      "args": [
-        "dev-stack-restart",
-        "SERVICE=storaged"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "Axern: Restart Imagefsd",
       "type": "shell",
       "command": "make",
@@ -184,16 +158,6 @@
       "problemMatcher": []
     },
     {
-      "label": "Axern: Clean Volumed Socket",
-      "type": "shell",
-      "command": "rm",
-      "args": [
-        "-f",
-        "${workspaceFolder}/.dev/run/volumed.sock"
-      ],
-      "problemMatcher": []
-    },
-    {
       "label": "Axern: Clean Imagefsd Socket",
       "type": "shell",
       "command": "rm",
@@ -219,16 +183,6 @@
         "Axern: Ensure Delve",
         "Axern: Node Dev Prepare",
         "Axern: Prepare Gateway Dashboard Assets"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "Axern: Prepare Storaged Debug",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Axern: Ensure Delve",
-        "Axern: Start Postgres",
-        "Axern: Node Dev Prepare"
       ],
       "problemMatcher": []
     },
@@ -275,16 +229,6 @@
         "Axern: Ensure Delve",
         "Axern: Node Dev Prepare",
         "Axern: Clean Axnoded Socket"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "Axern: Prepare Volumed Debug",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Axern: Ensure Delve",
-        "Axern: Node Dev Prepare",
-        "Axern: Clean Volumed Socket"
       ],
       "problemMatcher": []
     },

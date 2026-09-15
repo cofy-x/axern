@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
@@ -11,14 +13,15 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	nodecontrolpb "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type ControlPlaneReporterHealth struct {
-	Enabled          bool                           `json:"enabled"`
-	AllocationStatus AllocationStatusReporterHealth `json:"allocationStatus"`
+	Enabled             bool                              `json:"enabled"`
+	AllocationLifecycle AllocationLifecycleReporterHealth `json:"allocationLifecycle"`
 }
 
-type AllocationStatusReporterHealth struct {
+type AllocationLifecycleReporterHealth struct {
 	Status              string     `json:"status"`
 	Pending             int        `json:"pending"`
 	OldestPendingAt     *time.Time `json:"oldestPendingAt,omitempty"`
@@ -42,19 +45,37 @@ func (h *sandboxService) configureControlPlaneReports() {
 			}
 			return h.containerManager.Get(id)
 		},
+		HasAllocation: h.allocationController().HasAdmittedAllocation,
 	})
 }
 
 func (h *sandboxService) initControlPlaneReporter() error {
-	reporter, err := servicecontrolplane.NewNodeReporter(h.config, h.runtimeHandlers.Names, h.NodeInventory, h.allocationStatusOutbox)
+	reporter, err := servicecontrolplane.NewNodeReporter(h.config, h.NodeInventory, h.allocationLifecycleOutbox)
 	if err != nil {
 		return err
 	}
 	if reporter != nil {
 		h.controlPlaneReports.SetReporter(reporter)
 		reporter.SetInventoryRefresh(h.refreshNodeInventory)
+		reporter.SetExecutionLeaseConsumer(h.applyExecutionLeases)
 	}
 	return nil
+}
+
+func (h *sandboxService) applyExecutionLeases(leases []*nodecontrolpb.AllocationExecutionLease, receivedAt time.Time) error {
+	ttls := make(map[string]time.Duration, len(leases))
+	for _, lease := range leases {
+		allocationID := strings.TrimSpace(lease.GetAllocationID())
+		ttl := time.Duration(lease.GetTtlSeconds()) * time.Second
+		if allocationID == "" || ttl <= 0 || ttl > executionlease.TTL {
+			return fmt.Errorf("invalid allocation execution lease")
+		}
+		if _, duplicate := ttls[allocationID]; duplicate {
+			return fmt.Errorf("duplicate allocation execution lease %q", allocationID)
+		}
+		ttls[allocationID] = ttl
+	}
+	return h.allocationController().RenewExecutionLeases(ttls, receivedAt)
 }
 
 func (h *sandboxService) notifyNodeInventoryChanged() {
@@ -71,11 +92,11 @@ func (h *sandboxService) handleContainerExitControlPlaneReport(event container.E
 	return h.controlPlaneReports.ReportContainerExit(event)
 }
 
-// seedTerminalAllocationStatusOutbox closes the crash window between the
+// seedTerminalAllocationLifecycleOutbox closes the crash window between the
 // container status checkpoint and outbox persistence. It runs before startup
 // reconciliation is allowed to delete terminal runtime/container artifacts.
-func (h *sandboxService) seedTerminalAllocationStatusOutbox() error {
-	if h == nil || h.containerManager == nil || h.allocationStatusOutbox == nil {
+func (h *sandboxService) seedTerminalAllocationLifecycleOutbox(admittedAllocations map[string]struct{}) error {
+	if h == nil || h.containerManager == nil || h.allocationLifecycleOutbox == nil {
 		return nil
 	}
 	for _, item := range h.containerManager.List() {
@@ -86,27 +107,29 @@ func (h *sandboxService) seedTerminalAllocationStatusOutbox() error {
 		if status.State() != apipb.ContainerState_CONTAINER_EXITED {
 			continue
 		}
+		if _, admitted := admittedAllocations[item.ID]; !admitted {
+			continue
+		}
 		exitedAt := container.ParseTimestampTime(status.FinishedAt)
 		if exitedAt.IsZero() {
-			return fmt.Errorf("recovered terminal allocation %s has an invalid finished timestamp", item.Metadata.GetID())
+			return fmt.Errorf("recovered terminal allocation %s has an invalid finished timestamp", item.ID)
 		}
 		report := servicecontrolplane.ContainerExitReportFromContainer(item, container.Event{
 			Type:           container.EventTypeExit,
-			ContainerID:    item.Metadata.GetID(),
+			ContainerID:    item.ID,
 			ExitCode:       status.ExitCode,
-			ExitCodeKnown:  status.ExitCodeKnown,
 			ExitedAt:       exitedAt,
 			Reason:         status.Message,
 			DiagnosticCode: status.DiagnosticCode,
 		}, time.Time{})
-		if report.AllocationID == "" || report.Attempt <= 0 {
+		if report.AllocationID == "" {
 			continue
 		}
-		observation, err := nodecontrol.AllocationStatusObservationFromReport(report)
+		observation, err := nodecontrol.AllocationLifecycleObservationFromReport(report)
 		if err != nil {
-			return fmt.Errorf("shape recovered terminal allocation status %s: %w", item.Metadata.GetID(), err)
+			return fmt.Errorf("shape recovered terminal allocation lifecycle %s: %w", item.ID, err)
 		}
-		if _, err := h.allocationStatusOutbox.Persist(observation); err != nil {
+		if _, err := h.allocationLifecycleOutbox.Persist(observation); err != nil {
 			return err
 		}
 	}
@@ -117,11 +140,15 @@ func (h *sandboxService) classifyContainerExit(event container.Event) (commonv1.
 	if event.DiagnosticCode != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		return event.DiagnosticCode, event.Reason
 	}
+	if h != nil && h.allocations != nil {
+		if code, message := h.allocations.TerminationIntent(event.ContainerID); code != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+			return code, message
+		}
+	}
 	if !h.allocationExitWasMemoryOOM(event.ContainerID) {
 		return event.DiagnosticCode, event.Reason
 	}
-	manifest := h.allocations.EnforcementManifest(event.ContainerID)
-	metrics.RecordSandboxMemoryOOM(manifest.GetRuntimeName())
+	metrics.RecordSandboxMemoryOOM("runsc")
 	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED, "sandbox memory limit exceeded"
 }
 
@@ -148,23 +175,23 @@ func memoryObservationIndicatesOOM(manifest *apipb.AllocationEnforcementManifest
 		observation.Events["oom_group_kill"] > manifest.GetInitialMemoryEventOomGroupKill()
 }
 
-func (h *sandboxService) ReportAllocationStatus(allocationID string, attempt int64, status commonv1.AllocationStatus, exitCode int32, exitCodeKnown bool, ready bool, readinessMessage string, message string, observedAt time.Time) {
+func (h *sandboxService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time) {
 	if h == nil || h.controlPlaneReports == nil {
 		return
 	}
-	h.controlPlaneReports.ReportAllocationStatus(allocationID, attempt, status, exitCode, exitCodeKnown, ready, readinessMessage, message, observedAt)
+	h.controlPlaneReports.ReportAllocationLifecycle(allocationID, status, exitCode, ready, readinessMessage, message, observedAt)
 }
 
 func (h *sandboxService) ControlPlaneReporterHealth() ControlPlaneReporterHealth {
 	if h == nil || h.controlPlaneReports == nil {
 		return ControlPlaneReporterHealth{
-			AllocationStatus: AllocationStatusReporterHealth{Status: "disabled"},
+			AllocationLifecycle: AllocationLifecycleReporterHealth{Status: "disabled"},
 		}
 	}
-	health := h.controlPlaneReports.AllocationStatusHealth()
+	health := h.controlPlaneReports.AllocationLifecycleHealth()
 	return ControlPlaneReporterHealth{
 		Enabled: health.Status != "disabled",
-		AllocationStatus: AllocationStatusReporterHealth{
+		AllocationLifecycle: AllocationLifecycleReporterHealth{
 			Status:              health.Status,
 			Pending:             health.Pending,
 			OldestPendingAt:     health.OldestPendingAt,

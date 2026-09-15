@@ -90,23 +90,22 @@ func (h *Harness) Run(ctx context.Context, request agent.Request) (agent.Result,
 		exitReason = domain.AgentExitReasonCommandNonzero
 	}
 	return agent.Result{
-		Status:                 status,
-		Summary:                summary,
-		Error:                  errorText,
-		ExitReason:             exitReason,
-		LauncherKind:           plan.LauncherKind,
-		RuntimeType:            plan.RuntimeType,
-		RuntimeImage:           plan.Image,
-		RuntimeMountTarget:     plan.BundleMountTarget,
-		RuntimeBinDir:          agent.AgentBundleBinDir(plan.BundleMountTarget),
-		RuntimeProfile:         plan.Profile,
-		ExitCode:               &exitCode,
-		Stdout:                 execResult.Stdout,
-		Stderr:                 execResult.Stderr,
-		StartedAt:              &startedAt,
-		FinishedAt:             &finishedAt,
-		DurationMS:             finishedAt.Sub(startedAt).Milliseconds(),
-		ManagedProxyReportJSON: managedProxyReportJSON(execResult.ManagedProxyReport),
+		Status:             status,
+		Summary:            summary,
+		Error:              errorText,
+		ExitReason:         exitReason,
+		LauncherKind:       plan.LauncherKind,
+		RuntimeType:        plan.RuntimeType,
+		RuntimeImage:       plan.Image,
+		RuntimeMountTarget: plan.ImageMountTarget,
+		RuntimeBinDir:      agent.AgentImageBinDir(plan.ImageMountTarget),
+		RuntimeProfile:     plan.Profile,
+		ExitCode:           &exitCode,
+		Stdout:             execResult.Stdout,
+		Stderr:             execResult.Stderr,
+		StartedAt:          &startedAt,
+		FinishedAt:         &finishedAt,
+		DurationMS:         finishedAt.Sub(startedAt).Milliseconds(),
 	}, nil
 }
 
@@ -126,13 +125,12 @@ func (h *Harness) launchPlan(request agent.Request) agent.LaunchPlan {
 		OutputFormat:   h.outputFormat(request.Agent),
 		AllowedTools:   h.allowedTools(request.Agent),
 		IdleTimeoutSec: h.idleTimeoutSec(request),
-		ManagedProxy:   request.ManagedProxy,
 	}
 	if runtime := request.Agent.Runtime; runtime != nil {
 		plan.RuntimeType = runtime.Type
 		plan.Image = runtime.Image
 		if runtime.Type == domain.AgentRuntimeTypeAgentImage {
-			plan.BundleMountTarget = agent.AgentBundleMountTargetForSpec(request.Agent)
+			plan.ImageMountTarget = agent.AgentImageMountTargetForSpec(request.Agent)
 		}
 		if runtime.Session != nil {
 			plan.SessionMode = runtime.Session.Mode
@@ -148,7 +146,7 @@ func (h *Harness) launcherForRuntime(runtimeType domain.AgentRuntimeType) agent.
 		return h.Launcher
 	}
 	if runtimeType == domain.AgentRuntimeTypeAgentImage {
-		return agent.MountedBundleLauncher{}
+		return agent.MountedAgentImageLauncher{}
 	}
 	return agent.SandboxCommandLauncher{}
 }
@@ -247,8 +245,8 @@ func (h *Harness) env(request agent.Request, plan agent.LaunchPlan) map[string]s
 	if plan.Image != "" {
 		env["AXRUN_AGENT_RUNTIME_IMAGE"] = plan.Image
 	}
-	if plan.BundleMountTarget != "" {
-		env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"] = plan.BundleMountTarget
+	if plan.ImageMountTarget != "" {
+		env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"] = plan.ImageMountTarget
 	}
 	if plan.SessionMode != "" {
 		env["AXRUN_AGENT_SESSION_MODE"] = string(plan.SessionMode)
@@ -278,13 +276,6 @@ func (h *Harness) profileName(spec domain.AgentSpec) string {
 	return strings.TrimSpace(spec.Profile)
 }
 
-func managedProxyReportJSON(report *sandbox.ManagedProxyReport) []byte {
-	if report == nil {
-		return nil
-	}
-	return append([]byte(nil), report.ReportJSON...)
-}
-
 type commandRecorder struct {
 	recorder *proxy.Recorder
 }
@@ -308,8 +299,8 @@ func (r *commandRecorder) recordCommandStarted(plan agent.LaunchPlan) {
 		LauncherKind:       plan.LauncherKind,
 		RuntimeType:        plan.RuntimeType,
 		RuntimeImage:       plan.Image,
-		RuntimeMountTarget: plan.BundleMountTarget,
-		RuntimeBinDir:      agent.AgentBundleBinDir(plan.BundleMountTarget),
+		RuntimeMountTarget: plan.ImageMountTarget,
+		RuntimeBinDir:      agent.AgentImageBinDir(plan.ImageMountTarget),
 		RuntimeProfile:     plan.Profile,
 		Command:            commandVector,
 		CommandText:        commandText,
@@ -331,8 +322,8 @@ func (r *commandRecorder) recordCommandFinished(plan agent.LaunchPlan, startedAt
 		LauncherKind:       plan.LauncherKind,
 		RuntimeType:        plan.RuntimeType,
 		RuntimeImage:       plan.Image,
-		RuntimeMountTarget: plan.BundleMountTarget,
-		RuntimeBinDir:      agent.AgentBundleBinDir(plan.BundleMountTarget),
+		RuntimeMountTarget: plan.ImageMountTarget,
+		RuntimeBinDir:      agent.AgentImageBinDir(plan.ImageMountTarget),
 		RuntimeProfile:     plan.Profile,
 		Command:            commandVector,
 		CommandText:        commandText,

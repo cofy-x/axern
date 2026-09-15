@@ -6,7 +6,7 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -17,15 +17,12 @@ type Request struct {
 	RootfsKey                       string
 	RootfsType                      nodev1.RootfsType
 	MountType                       nodev1.MountType
-	Runtime                         string
 	MemoryLimitBytes                int64
 	RootfsWritable                  bool
 	EphemeralStorageLimitBytes      int64
-	RequiresHostPort                bool
 	RequestedCpuMilli               int64
 	RequestedMemoryBytes            int64
 	RequestedEphemeralStorageBytes  int64
-	Ports                           []string
 	Network                         string
 	NetworkBackend                  string
 	CapabilityRequirements          []*capabilityv1.CapabilityKey
@@ -42,7 +39,6 @@ func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.
 		return nil, nil
 	}
 	out := *base
-	out.Ports = append([]string(nil), base.Ports...)
 	out.ExtensionCapabilityRequirements = cloneExtensionRequirements(base.ExtensionCapabilityRequirements)
 	out.NodeSelector = cloneLabels(base.NodeSelector)
 	erofsBacking := false
@@ -61,8 +57,6 @@ func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.
 		}
 	}
 	input := capabilitycontract.RequirementInput{
-		RuntimeName:                 out.Runtime,
-		HasPorts:                    len(out.Ports) > 0 || out.RequiresHostPort,
 		NetworkMode:                 out.Network,
 		NetworkBackend:              out.NetworkBackend,
 		MemoryLimitBytes:            out.MemoryLimitBytes,
@@ -124,13 +118,6 @@ func (r *Request) GetMountType() nodev1.MountType {
 	}
 	return r.MountType
 }
-func (r *Request) GetRuntime() string {
-	if r == nil {
-		return ""
-	}
-	return r.Runtime
-}
-func (r *Request) GetRequiresHostPort() bool { return r != nil && r.RequiresHostPort }
 func (r *Request) GetRequestedCpuMilli() int64 {
 	if r == nil {
 		return 0
@@ -148,12 +135,6 @@ func (r *Request) GetRequestedEphemeralStorageBytes() int64 {
 		return 0
 	}
 	return r.RequestedEphemeralStorageBytes
-}
-func (r *Request) GetPorts() []string {
-	if r == nil {
-		return nil
-	}
-	return r.Ports
 }
 func (r *Request) GetNetwork() string {
 	if r == nil {

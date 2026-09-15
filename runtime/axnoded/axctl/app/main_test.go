@@ -16,27 +16,27 @@ func TestNewRegistersSupportedOperatorCommands(t *testing.T) {
 	}
 
 	assert.ElementsMatch(t, []string{
-		"sandbox",
+		"allocation",
 		"image",
 		"node",
 	}, commandNames)
 
-	var sandboxCmd *cli.Command
+	var allocationCmd *cli.Command
 	for idx := range app.Commands {
-		if app.Commands[idx].Name == "sandbox" {
-			sandboxCmd = &app.Commands[idx]
+		if app.Commands[idx].Name == "allocation" {
+			allocationCmd = &app.Commands[idx]
 			break
 		}
 	}
-	if sandboxCmd == nil {
-		t.Fatal("sandbox command not registered")
+	if allocationCmd == nil {
+		t.Fatal("allocation command not registered")
 	}
 
-	sandboxSubcommandNames := make([]string, 0, len(sandboxCmd.Subcommands))
-	for _, command := range sandboxCmd.Subcommands {
-		sandboxSubcommandNames = append(sandboxSubcommandNames, command.Name)
+	allocationSubcommandNames := make([]string, 0, len(allocationCmd.Subcommands))
+	for _, command := range allocationCmd.Subcommands {
+		allocationSubcommandNames = append(allocationSubcommandNames, command.Name)
 	}
-	assert.ElementsMatch(t, []string{"list", "inspect", "diagnostics", "network-policy", "memory", "exec", "wait", "kill", "delete"}, sandboxSubcommandNames)
+	assert.ElementsMatch(t, []string{"list", "inspect", "diagnostics", "network-policy", "memory", "exec", "wait", "force-terminate", "force-cleanup"}, allocationSubcommandNames)
 
 	var nodeCmd *cli.Command
 	for idx := range app.Commands {

@@ -6,12 +6,10 @@ import (
 
 	"github.com/cofy-x/axern/apps/axrun/internal/command"
 	exportcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/export"
-	managedcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/managed"
-	profilecmd "github.com/cofy-x/axern/apps/axrun/internal/commands/profile"
+	rolloutcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/rollout"
 	servecmd "github.com/cofy-x/axern/apps/axrun/internal/commands/serve"
 	taskcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/task"
 	validatecmd "github.com/cofy-x/axern/apps/axrun/internal/commands/validate"
-	workercmd "github.com/cofy-x/axern/apps/axrun/internal/commands/worker"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
 )
@@ -39,9 +37,7 @@ func New(version string) *cobra.Command {
 	root.PersistentFlags().StringVar(&options.Output, "format", "table", "output format: table or json")
 	root.AddCommand(
 		taskcmd.Command(options),
-		managedcmd.Command(options),
-		profilecmd.Command(options),
-		workercmd.Command(options),
+		rolloutcmd.Command(options),
 		validatecmd.Command(options),
 		exportcmd.Command(options),
 		servecmd.Command(),

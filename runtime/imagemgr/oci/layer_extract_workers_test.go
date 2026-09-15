@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -90,8 +91,8 @@ func TestExtractLayersWithWorkers_ConcurrentAndOrdered(t *testing.T) {
 			t.Fatalf("layer path should exist at %d: %v", i, err)
 		}
 		layerDir := filepath.Base(filepath.Dir(gotPaths[i]))
-		if len(layerDir) > 8 || layerDir == "" || layerDir[0] != 'l' {
-			t.Fatalf("expected compact mapped layer dir, got %s", layerDir)
+		if len(layerDir) != 66 || !strings.HasPrefix(layerDir, "l-") {
+			t.Fatalf("expected content-addressed layer dir, got %s", layerDir)
 		}
 	}
 

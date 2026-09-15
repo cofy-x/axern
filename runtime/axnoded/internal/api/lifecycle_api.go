@@ -3,59 +3,39 @@ package api
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
-	"strconv"
 	"strings"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/executionlease"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	obsmetrics "github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	storagev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/storage/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
-	privatestoragev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/storage/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 type nodeLifecycleServer struct {
 	nodelifecyclev1.UnimplementedNodeLifecycleServer
-	svc     serviceLike
-	nodeID  string
-	targets *AllocationTargetRegistry
+	svc        serviceLike
+	nodeID     string
+	allowLocal bool
 }
 
 type serviceLike interface {
 	Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
 	Delete(context.Context, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
+	StartControlPlaneAllocation(context.Context, string, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
+	DeleteControlPlaneAllocation(context.Context, string, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
+	HasControlPlaneAllocation(string, string) bool
+	IsControlPlaneAllocation(string) bool
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
-	DeleteVolume(context.Context, string, storagev1.VolumeBackend, string) error
-	ManagedAllocationAttempt(string) (int64, bool)
-	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityDependency, *capabilityv1.CapabilityConditionSet, error)
-}
-
-type workspacePreparationProvider interface {
-	WorkspacePreparation(containerID string) *commonv1.WorkspacePreparationFacts
-}
-
-func (s *nodeLifecycleServer) DeleteVolume(ctx context.Context, req *nodelifecyclev1.DeleteVolumeRequest) (*nodelifecyclev1.DeleteVolumeResponse, error) {
-	if strings.TrimSpace(req.GetClaimID()) == "" || strings.TrimSpace(req.GetBackendHandle()) == "" || req.GetBackend() == storagev1.VolumeBackend_VOLUME_BACKEND_UNSPECIFIED {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "claim_id, backend, and backend_handle are required")
-	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
-		return nil, grpcstatus.Error(codes.PermissionDenied, "volume node_id does not match this node")
-	}
-	if err := s.svc.DeleteVolume(ctx, req.GetClaimID(), req.GetBackend(), req.GetBackendHandle()); err != nil {
-		return nil, err
-	}
-	return &nodelifecyclev1.DeleteVolumeResponse{}, nil
+	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
 }
 
 const (
@@ -65,25 +45,33 @@ const (
 	lifecycleStageValidateRequest   = "validate_request"
 	lifecycleStageBuildStartRequest = "build_start_request"
 	lifecycleStageServiceStart      = "service_start"
-	lifecycleStageBindTarget        = "bind_target"
-	lifecycleStageResolveTarget     = "resolve_target"
 	lifecycleStageServiceDelete     = "service_delete"
 	lifecycleStageConfirmDeleted    = "confirm_deleted"
-	lifecycleStageMarkDeleted       = "mark_deleted"
 	lifecycleStageTotal             = "total"
 )
 
-func NewNodeLifecycleServer(svc serviceLike, nodeID string, targets *AllocationTargetRegistry) nodelifecyclev1.NodeLifecycleServer {
+func NewNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1.NodeLifecycleServer {
 	return &nodeLifecycleServer{
-		svc:     svc,
-		nodeID:  nodeID,
-		targets: targets,
+		svc:    svc,
+		nodeID: nodeID,
+	}
+}
+
+// NewLocalNodeLifecycleServer exposes the same lifecycle protocol on the
+// privileged node-local socket for runtime conformance verification. Local
+// allocations are deliberately unbound and never acquire control-plane
+// authority or enter node inventory.
+func NewLocalNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1.NodeLifecycleServer {
+	return &nodeLifecycleServer{
+		svc:        svc,
+		nodeID:     nodeID,
+		allowLocal: true,
 	}
 }
 
 func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
 	totalStarted := time.Now()
-	runtimeClass := lifecycleRuntimeClass(req)
+	runtimeClass := "runsc"
 	var resultErr error
 	defer func() {
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageTotal, runtimeClass, totalStarted, resultErr)
@@ -94,18 +82,35 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if req.GetAttempt() <= 0 {
-		resultErr = grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
+	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	leaseTTL := time.Duration(req.GetExecutionLeaseTtlSeconds()) * time.Second
+	if s.allowLocal && requestNodeID != "" {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint accepts only unbound local Allocations")
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
+	if s.allowLocal && s.svc.IsControlPlaneAllocation(req.GetAllocationID()) {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot create or replace a control-plane-bound Allocation")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID == "" && !s.allowLocal {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID == "" && leaseTTL != 0 {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "node-local allocation cannot carry an execution lease")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID != "" && (leaseTTL <= 0 || leaseTTL > executionlease.TTL) {
+		resultErr = grpcstatus.Errorf(codes.InvalidArgument, "execution_lease_ttl_seconds must be between 1 and %d for a node-bound allocation", int64(executionlease.TTL/time.Second))
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID != "" && requestNodeID != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
-		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
-		return nil, resultErr
-	}
-	if current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID()); found && current != req.GetAttempt() {
-		resultErr = grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
 	}
@@ -119,42 +124,26 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageBuildStartRequest, runtimeClass, stageStarted, nil)
 	stageStarted = time.Now()
-	resp, err := s.svc.Start(ctx, startReq)
+	var resp *runtimev1.StartResponse
+	if requestNodeID == "" {
+		resp, err = s.svc.Start(ctx, startReq)
+	} else {
+		resp, err = s.svc.StartControlPlaneAllocation(ctx, requestNodeID, startReq)
+	}
 	if err != nil {
 		resultErr = err
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, err)
 		return nil, err
 	}
-	if resp.GetCode() != 0 {
-		resultErr = grpcstatus.Errorf(codes.Internal, "node start failed: %s", resp.GetMessage())
-		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, resultErr)
+	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, nil)
+	if resp.GetAllocationID() != req.GetAllocationID() {
+		resultErr = grpcstatus.Errorf(codes.Internal, "node start returned execution id %q for allocation %q", resp.GetAllocationID(), req.GetAllocationID())
 		return nil, resultErr
 	}
-	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageServiceStart, runtimeClass, stageStarted, nil)
-	stageStarted = time.Now()
-	if resp.GetID() != "" {
-		s.targets.bind(req.GetAllocationID(), resp.GetID())
-	}
-	recordLifecycleStage(lifecycleOperationCreate, lifecycleStageBindTarget, runtimeClass, stageStarted, nil)
-	var workspacePreparation *commonv1.WorkspacePreparationFacts
-	if provider, ok := s.svc.(workspacePreparationProvider); ok {
-		workspacePreparation = provider.WorkspacePreparation(resp.GetID())
-	}
 	return &nodelifecyclev1.CreateAllocationResponse{
-		AllocationID:                   req.GetAllocationID(),
-		Attempt:                        req.GetAttempt(),
-		PublishedVolumes:               clonePublishedNodeVolumes(resp.GetPublishedVolumes()),
-		WorkspacePreparation:           workspacePreparation,
-		CapabilityVerification:         cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
-		AdmittedCapabilityDependencies: cloneCapabilityDependencies(resp.GetAdmittedCapabilityDependencies()),
+		AllocationID:           req.GetAllocationID(),
+		CapabilityVerification: cloneCapabilityConditionSet(resp.GetCapabilityVerification()),
 	}, nil
-}
-
-func lifecycleRuntimeClass(req *nodelifecyclev1.CreateAllocationRequest) string {
-	if req == nil {
-		return ""
-	}
-	return strings.TrimSpace(req.GetConfig().GetRuntimeClass())
 }
 
 func recordLifecycleStage(operation, stage, runtimeClass string, started time.Time, err error) {
@@ -193,36 +182,39 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if req.GetAttempt() <= 0 {
-		resultErr = grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
+	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	if s.allowLocal && requestNodeID != "" {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot delete control-plane-bound Allocations")
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
+	if s.allowLocal && s.svc.IsControlPlaneAllocation(req.GetAllocationID()) {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot delete a control-plane-bound Allocation")
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID == "" && !s.allowLocal {
+		resultErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if requestNodeID != "" && requestNodeID != s.nodeID {
 		resultErr = grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
 		return nil, resultErr
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, nil)
-	if s.targets.isDeleted(req.GetAllocationID()) {
-		return &nodelifecyclev1.DeleteAllocationResponse{}, nil
-	}
-	if current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID()); found && current != req.GetAttempt() {
-		resultErr = grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
-		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
-		return nil, resultErr
-	}
 	stageStarted = time.Now()
-	targetID := s.targets.resolve(req.GetAllocationID())
-	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageResolveTarget, "", stageStarted, nil)
-	stageStarted = time.Now()
-	resp, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: targetID, Timeout: req.GetTimeoutSeconds()})
+	deleteRequest := &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds(), OutputExpiresAtUnixNano: req.GetOutputExpiresAtUnixNano()}
+	var err error
+	if requestNodeID == "" {
+		_, err = s.svc.Delete(ctx, deleteRequest)
+	} else {
+		_, err = s.svc.DeleteControlPlaneAllocation(ctx, requestNodeID, deleteRequest)
+	}
 	if err != nil {
 		if allocationDeleteNotFound(err) {
 			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
-			stageStarted = time.Now()
-			s.targets.markDeleted(req.GetAllocationID())
-			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageMarkDeleted, "", stageStarted, nil)
 			return &nodelifecyclev1.DeleteAllocationResponse{}, nil
 		}
 		resultErr = err
@@ -231,18 +223,13 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
 	stageStarted = time.Now()
-	if err := s.confirmAllocationDeleted(ctx, targetID); err != nil {
+	if err := s.confirmAllocationDeleted(ctx, req.GetAllocationID()); err != nil {
 		resultErr = err
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageConfirmDeleted, "", stageStarted, err)
 		return nil, err
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageConfirmDeleted, "", stageStarted, nil)
-	stageStarted = time.Now()
-	s.targets.markDeleted(req.GetAllocationID())
-	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageMarkDeleted, "", stageStarted, nil)
-	return &nodelifecyclev1.DeleteAllocationResponse{
-		VolumeReleaseObservations: cloneVolumeReleaseObservations(resp.GetVolumeReleaseObservations()),
-	}, nil
+	return &nodelifecyclev1.DeleteAllocationResponse{}, nil
 }
 
 func allocationDeleteNotFound(err error) bool {
@@ -263,27 +250,27 @@ func (s *nodeLifecycleServer) confirmAllocationDeleted(ctx context.Context, targ
 	return grpcstatus.Errorf(codes.Unavailable, "allocation %q still exists after delete", targetID)
 }
 
-func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *nodelifecyclev1.GetAllocationStatusRequest) (*nodelifecyclev1.GetAllocationStatusResponse, error) {
+func (s *nodeLifecycleServer) GetAllocationLifecycle(ctx context.Context, req *nodelifecyclev1.GetAllocationLifecycleRequest) (*nodelifecyclev1.GetAllocationLifecycleResponse, error) {
 	if strings.TrimSpace(req.GetAllocationID()) == "" {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	if req.GetAttempt() <= 0 {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "positive allocation attempt is required")
+	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	if s.allowLocal && requestNodeID != "" {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot inspect control-plane-bound Allocations")
 	}
-	if strings.TrimSpace(req.GetNodeID()) != "" && strings.TrimSpace(req.GetNodeID()) != s.nodeID {
+	if s.allowLocal && s.svc.IsControlPlaneAllocation(req.GetAllocationID()) {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot inspect a control-plane-bound Allocation")
+	}
+	if requestNodeID == "" && !s.allowLocal {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
+	}
+	if requestNodeID != "" && requestNodeID != s.nodeID {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
 	}
-	if s.targets.isDeleted(req.GetAllocationID()) {
-		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
+	if requestNodeID != "" && !s.svc.HasControlPlaneAllocation(req.GetAllocationID(), requestNodeID) {
+		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q is not admitted to this node", req.GetAllocationID())
 	}
-	current, found := s.svc.ManagedAllocationAttempt(req.GetAllocationID())
-	if !found {
-		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
-	}
-	if current != req.GetAttempt() {
-		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "allocation attempt %d does not match current attempt %d", req.GetAttempt(), current)
-	}
-	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: s.targets.resolve(req.GetAllocationID())})
+	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: req.GetAllocationID()})
 	if err != nil {
 		return nil, err
 	}
@@ -291,17 +278,16 @@ func (s *nodeLifecycleServer) GetAllocationStatus(ctx context.Context, req *node
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
 	}
 	container := resp.GetContainers()[0]
-	admittedDependencies, capabilityVerification, err := s.svc.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
+	_, capabilityVerification, err := s.svc.ReconcileAllocationCapabilities(ctx, req.GetAllocationID())
 	if err != nil {
 		return nil, err
 	}
-	return &nodelifecyclev1.GetAllocationStatusResponse{
-		Status:                         allocationStatusFromContainerState(container.GetState()),
-		ExitCode:                       container.GetExitCode(),
-		ExitCodeKnown:                  container.GetState() == runtimev1.ContainerState_CONTAINER_EXITED,
-		Message:                        container.GetMessage(),
-		CapabilityVerification:         cloneCapabilityConditionSet(capabilityVerification),
-		AdmittedCapabilityDependencies: cloneCapabilityDependencies(admittedDependencies),
+	return &nodelifecyclev1.GetAllocationLifecycleResponse{
+		State:                  allocationLifecycleStateFromContainerState(container.GetState()),
+		ExitCode:               container.ExitCode,
+		Message:                container.GetMessage(),
+		DiagnosticCode:         container.GetDiagnosticCode(),
+		CapabilityVerification: cloneCapabilityConditionSet(capabilityVerification),
 	}, nil
 }
 
@@ -310,56 +296,45 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	if spec == nil {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "config is required")
 	}
-	runtimeClass := strings.TrimSpace(spec.GetRuntimeClass())
-	if runtimeClass == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "config.runtime_class is required")
-	}
 	cwd := strings.TrimSpace(spec.GetCwd())
 	rootfsConfig, err := lifecycleRootfsConfig(spec)
 	if err != nil {
 		return nil, err
 	}
-	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Sandbox:     runtimeClass,
-		Command:     append([]string(nil), spec.GetArgv()...),
-		Cwd:         cwd,
-		RuntimeEnvs: cloneStringMap(spec.GetEnv()),
-		Mounts:      toRuntimeLifecycleMountsFromAllocation(spec.GetMounts()),
-		Rootfs:      rootfsConfig,
-		ExecutionProfile: cloneRuntimeExecutionProfile(
+	environmentTemplate := &runtimev1.ResolvedEnvironment{
+		Argv:   append([]string(nil), spec.GetArgv()...),
+		Cwd:    cwd,
+		Env:    cloneStringMap(spec.GetEnv()),
+		Mounts: toRuntimeLifecycleMountsFromAllocation(spec.GetMounts()),
+		Rootfs: rootfsConfig,
+		ExecutionProfile: cloneOciExecutionProfile(
 			spec.GetExecutionProfile(),
 		),
 	}
-	runtimeTemplate.ID = stableRuntimeTemplateID(runtimeTemplate)
-	if runtimeTemplate.ID == "" {
-		return nil, grpcstatus.Error(codes.Internal, "build stable runtime template id")
+	environmentTemplate.ID = stableResolvedEnvironmentID(environmentTemplate)
+	if environmentTemplate.ID == "" {
+		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
 	}
 	return &runtimev1.StartRequest{
-		RuntimeTemplate:        runtimeTemplate,
+		Environment:            environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
-		ContainerID:            req.GetAllocationID(),
-		AllocationAttempt:      req.GetAttempt(),
-		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
-		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
-		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
-		ExtraConfig:            lifecycleExtraConfig(spec),
+		AllocationID:           req.GetAllocationID(),
+		Network:                cloneNetworkSpec(spec.GetNetwork()),
+		RegistryCredential:     cloneRegistryCredential(spec.GetRegistryCredential()),
+		SecretEnv:              cloneResolvedSecretEnv(spec.GetSecretEnv()),
+		SecretFiles:            cloneResolvedSecretFiles(spec.GetSecretFiles()),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
-		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
-		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
-		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
+		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
+		ExecutionLeaseTtlSeconds: req.GetExecutionLeaseTtlSeconds(),
 	}, nil
 }
 
 func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.ResolvedExecutionConfig) (*runtimev1.StartRequest, error) {
-	sandboxRuntime := strings.TrimSpace(spec.GetRuntimeClass())
-	if sandboxRuntime == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "config.runtime_class is required")
-	}
 	cwd := strings.TrimSpace(spec.GetCwd())
 
 	rootfsConfig, err := lifecycleRootfsConfig(spec)
@@ -367,53 +342,50 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		return nil, err
 	}
 
-	runtimeTemplate := &runtimev1.RuntimeTemplate{
-		Sandbox:     sandboxRuntime,
-		Command:     append([]string(nil), spec.GetArgv()...),
-		Cwd:         cwd,
-		RuntimeEnvs: cloneStringMap(spec.GetEnv()),
-		Mounts:      toRuntimeLifecycleMounts(spec.GetMounts()),
-		Rootfs:      rootfsConfig,
-		ExecutionProfile: cloneRuntimeExecutionProfile(
+	environmentTemplate := &runtimev1.ResolvedEnvironment{
+		Argv:   append([]string(nil), spec.GetArgv()...),
+		Cwd:    cwd,
+		Env:    cloneStringMap(spec.GetEnv()),
+		Mounts: toRuntimeLifecycleMounts(spec.GetMounts()),
+		Rootfs: rootfsConfig,
+		ExecutionProfile: cloneOciExecutionProfile(
 			spec.GetExecutionProfile(),
 		),
 	}
-	runtimeTemplate.ID = stableRuntimeTemplateID(runtimeTemplate)
-	if runtimeTemplate.ID == "" {
-		return nil, grpcstatus.Error(codes.Internal, "build stable runtime template id")
+	environmentTemplate.ID = stableResolvedEnvironmentID(environmentTemplate)
+	if environmentTemplate.ID == "" {
+		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
 	}
 	return &runtimev1.StartRequest{
-		RuntimeTemplate:        runtimeTemplate,
+		Environment:            environmentTemplate,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
-		ContainerID:            containerID,
-		Ports:                  lifecyclePortsToRuntime(spec.GetPorts()),
-		Network:                lifecycleNetworkToRuntime(spec.GetNetwork()),
-		EgressPolicy:           cloneNetworkEgressPolicy(spec.GetNetwork().GetEgressPolicy()),
-		ExtraConfig:            lifecycleExtraConfig(spec),
+		AllocationID:           containerID,
+		Network:                cloneNetworkSpec(spec.GetNetwork()),
+		RegistryCredential:     cloneRegistryCredential(spec.GetRegistryCredential()),
+		SecretEnv:              cloneResolvedSecretEnv(spec.GetSecretEnv()),
+		SecretFiles:            cloneResolvedSecretFiles(spec.GetSecretFiles()),
 		Stdout:                 spec.GetStdoutPath(),
 		Stderr:                 spec.GetStderrPath(),
-		NodeVolumes:            cloneResolvedNodeVolumes(spec.GetNodeVolumes()),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
-		WorkspaceImage:         cloneWorkspaceImage(spec.GetWorkspaceImage()),
-		CapabilityDependencies: cloneCapabilityDependencies(spec.GetCapabilityDependencies()),
+		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
 	}, nil
 }
 
-func cloneRuntimeExecutionProfile(in *catalogv1.RuntimeExecutionProfile) *catalogv1.RuntimeExecutionProfile {
+func cloneOciExecutionProfile(in *environmentv1.OciExecutionProfile) *environmentv1.OciExecutionProfile {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*catalogv1.RuntimeExecutionProfile)
+	return proto.Clone(in).(*environmentv1.OciExecutionProfile)
 }
 
-func cloneCapabilityDependencies(in []*capabilityv1.CapabilityDependency) []*capabilityv1.CapabilityDependency {
-	out := make([]*capabilityv1.CapabilityDependency, 0, len(in))
+func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*capabilityv1.CapabilityRequirement {
+	out := make([]*capabilityv1.CapabilityRequirement, 0, len(in))
 	for _, dependency := range in {
 		if dependency != nil {
-			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityDependency))
+			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityRequirement))
 		}
 	}
 	return out
@@ -448,42 +420,29 @@ func lifecycleRootfsConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) (*runt
 	case strings.TrimSpace(spec.GetLocalRootfsPath()) != "":
 		rootfsConfig.Type = runtimev1.RootfsSrcType_LOCAL
 		rootfsConfig.Source = &runtimev1.RootfsConfig_Path{Path: strings.TrimSpace(spec.GetLocalRootfsPath())}
-	case spec.GetS3Rootfs() != nil:
-		rootfsConfig.Type = runtimev1.RootfsSrcType_S3
-		rootfsConfig.Source = &runtimev1.RootfsConfig_S3Config{S3Config: &runtimev1.S3Config{
-			Endpoint:        spec.GetS3Rootfs().GetEndpoint(),
-			Bucket:          spec.GetS3Rootfs().GetBucket(),
-			Object:          spec.GetS3Rootfs().GetObject(),
-			AccessKeyID:     spec.GetS3Rootfs().GetAccessKeyID(),
-			AccessKeySecret: spec.GetS3Rootfs().GetAccessKeySecret(),
-		}}
 	default:
-		return nil, grpcstatus.Error(codes.InvalidArgument, "one of config.image_descriptor, config.image_digest, config.local_rootfs_path, or config.s3_rootfs is required")
+		return nil, grpcstatus.Error(codes.InvalidArgument, "one of config.image_descriptor, config.image_digest, or config.local_rootfs_path is required")
 	}
 	return rootfsConfig, nil
 }
 
-func allocationStatusFromContainerState(state runtimev1.ContainerState) commonv1.AllocationStatus {
+func allocationLifecycleStateFromContainerState(state runtimev1.ContainerState) commonv1.AllocationLifecycleState {
 	switch state {
 	case runtimev1.ContainerState_CONTAINER_RUNNING:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_RUNNING
+		return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE
 	case runtimev1.ContainerState_CONTAINER_EXITED:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED
+		return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED
 	default:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED
+		return commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED
 	}
 }
 
-func stableRuntimeTemplateID(template *runtimev1.RuntimeTemplate) string {
+func stableResolvedEnvironmentID(template *runtimev1.ResolvedEnvironment) string {
 	if template == nil {
 		return ""
 	}
-	staticTemplate := proto.Clone(template).(*runtimev1.RuntimeTemplate)
+	staticTemplate := proto.Clone(template).(*runtimev1.ResolvedEnvironment)
 	staticTemplate.ID = ""
-	if s3 := staticTemplate.GetRootfs().GetS3Config(); s3 != nil {
-		s3.AccessKeyID = ""
-		s3.AccessKeySecret = ""
-	}
 	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(staticTemplate)
 	if err != nil {
 		return ""
@@ -499,6 +458,7 @@ func cloneImageMounts(in []*nodelifecyclev1.ImageMount) []*runtimev1.ImageMount 
 	out := make([]*runtimev1.ImageMount, 0, len(in))
 	for _, mount := range in {
 		if mount == nil {
+			out = append(out, nil)
 			continue
 		}
 		out = append(out, &runtimev1.ImageMount{
@@ -510,62 +470,6 @@ func cloneImageMounts(in []*nodelifecyclev1.ImageMount) []*runtimev1.ImageMount 
 	return out
 }
 
-func cloneWorkspaceImage(in *nodelifecyclev1.WorkspaceImageSource) *runtimev1.WorkspaceImageSource {
-	if in == nil {
-		return nil
-	}
-	out := &runtimev1.WorkspaceImageSource{SourcePath: strings.TrimSpace(in.GetSourcePath()), Target: strings.TrimSpace(in.GetTarget())}
-	for _, variant := range in.GetVariants() {
-		if variant == nil {
-			continue
-		}
-		out.Variants = append(out.Variants, &runtimev1.WorkspaceImageVariant{Format: strings.TrimSpace(variant.GetFormat()), Image: strings.TrimSpace(variant.GetImage())})
-	}
-	return out
-}
-
-func cloneResolvedNodeVolumes(in []*privatestoragev1.ResolvedNodeVolume) []*privatestoragev1.ResolvedNodeVolume {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.ResolvedNodeVolume, 0, len(in))
-	for _, volume := range in {
-		if volume == nil {
-			continue
-		}
-		out = append(out, proto.Clone(volume).(*privatestoragev1.ResolvedNodeVolume))
-	}
-	return out
-}
-
-func clonePublishedNodeVolumes(in []*privatestoragev1.PublishedNodeVolume) []*privatestoragev1.PublishedNodeVolume {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.PublishedNodeVolume, 0, len(in))
-	for _, volume := range in {
-		if volume == nil {
-			continue
-		}
-		out = append(out, proto.Clone(volume).(*privatestoragev1.PublishedNodeVolume))
-	}
-	return out
-}
-
-func cloneVolumeReleaseObservations(in []*privatestoragev1.VolumeReleaseObservation) []*privatestoragev1.VolumeReleaseObservation {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]*privatestoragev1.VolumeReleaseObservation, 0, len(in))
-	for _, observation := range in {
-		if observation == nil {
-			continue
-		}
-		out = append(out, proto.Clone(observation).(*privatestoragev1.VolumeReleaseObservation))
-	}
-	return out
-}
-
 func toRuntimeLifecycleMounts(in []*nodelifecyclev1.SandboxMount) []*runtimev1.Mount {
 	if len(in) == 0 {
 		return nil
@@ -573,6 +477,7 @@ func toRuntimeLifecycleMounts(in []*nodelifecyclev1.SandboxMount) []*runtimev1.M
 	out := make([]*runtimev1.Mount, 0, len(in))
 	for _, mount := range in {
 		if mount == nil {
+			out = append(out, nil)
 			continue
 		}
 		out = append(out, &runtimev1.Mount{
@@ -589,46 +494,11 @@ func toRuntimeLifecycleMountsFromAllocation(in []*nodelifecyclev1.SandboxMount) 
 	return toRuntimeLifecycleMounts(in)
 }
 
-func lifecyclePortsToRuntime(in []*commonv1.PortSpec) []string {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]string, 0, len(in))
-	for _, port := range in {
-		if port == nil {
-			continue
-		}
-		protocol := strings.ToLower(strings.TrimPrefix(port.GetProtocol().String(), "PORT_PROTOCOL_"))
-		if protocol == "" || protocol == "unspecified" {
-			protocol = "tcp"
-		}
-		if port.GetHostPort() > 0 {
-			out = append(out, protocol+":"+itoa32(port.GetHostPort())+":"+itoa32(port.GetContainerPort()))
-			continue
-		}
-		if port.GetContainerPort() > 0 {
-			out = append(out, protocol+":"+itoa32(port.GetContainerPort())+":"+itoa32(port.GetContainerPort()))
-		}
-	}
-	return out
-}
-
-func lifecycleNetworkToRuntime(in *commonv1.NetworkSpec) string {
-	if in == nil || in.GetMode() == commonv1.NetworkMode_NETWORK_MODE_UNSPECIFIED {
-		return ""
-	}
-	return strings.ToLower(strings.TrimPrefix(in.GetMode().String(), "NETWORK_MODE_"))
-}
-
-func cloneNetworkEgressPolicy(in *commonv1.NetworkEgressPolicy) *commonv1.NetworkEgressPolicy {
+func cloneNetworkSpec(in *commonv1.NetworkSpec) *commonv1.NetworkSpec {
 	if in == nil {
 		return nil
 	}
-	return proto.Clone(in).(*commonv1.NetworkEgressPolicy)
-}
-
-func itoa32(value int32) string {
-	return strconv.Itoa(int(value))
+	return proto.Clone(in).(*commonv1.NetworkSpec)
 }
 
 func toRuntimeLifecycleResources(in *commonv1.ResourceSpec) *commonv1.ResourceSpec {
@@ -638,120 +508,33 @@ func toRuntimeLifecycleResources(in *commonv1.ResourceSpec) *commonv1.ResourceSp
 	return proto.Clone(in).(*commonv1.ResourceSpec)
 }
 
-type lifecycleProbeJSON struct {
-	Http *struct {
-		Port   int32  `json:"port,omitempty"`
-		Path   string `json:"path,omitempty"`
-		Scheme string `json:"scheme,omitempty"`
-	} `json:"http,omitempty"`
-	Tcp *struct {
-		Port int32 `json:"port,omitempty"`
-	} `json:"tcp,omitempty"`
-	InitialDelayMilliseconds int64 `json:"initialDelayMilliseconds,omitempty"`
-	PeriodMilliseconds       int64 `json:"periodMilliseconds,omitempty"`
-	TimeoutMilliseconds      int64 `json:"timeoutMilliseconds,omitempty"`
-	SuccessThreshold         int32 `json:"successThreshold,omitempty"`
-	FailureThreshold         int32 `json:"failureThreshold,omitempty"`
-}
-
-func lifecycleExtraConfig(spec *nodelifecyclev1.ResolvedExecutionConfig) string {
-	if strings.TrimSpace(spec.GetNamespace()) == "" &&
-		strings.TrimSpace(spec.GetServiceID()) == "" &&
-		len(spec.GetLinuxCapabilities()) == 0 &&
-		len(spec.GetSecretEnv()) == 0 &&
-		len(spec.GetSecretFiles()) == 0 &&
-		strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()) == "" &&
-		spec.GetReadinessProbe() == nil &&
-		spec.GetLivenessProbe() == nil {
-		return ""
-	}
-	payload := struct {
-		LinuxCapabilities []string            `json:"linuxCapabilities,omitempty"`
-		DockerConfigJSON  string              `json:"dockerConfigJson,omitempty"`
-		Namespace         string              `json:"namespace,omitempty"`
-		ServiceID         string              `json:"serviceId,omitempty"`
-		ReadinessProbe    *lifecycleProbeJSON `json:"readinessProbe,omitempty"`
-		LivenessProbe     *lifecycleProbeJSON `json:"livenessProbe,omitempty"`
-		SecretEnv         []struct {
-			Name  string `json:"name,omitempty"`
-			Value string `json:"value,omitempty"`
-		} `json:"secretEnv,omitempty"`
-		SecretFiles []struct {
-			Path    string `json:"path,omitempty"`
-			Content string `json:"content,omitempty"`
-			Mode    uint32 `json:"mode,omitempty"`
-		} `json:"secretFiles,omitempty"`
-	}{
-		LinuxCapabilities: append([]string(nil), spec.GetLinuxCapabilities()...),
-		DockerConfigJSON:  strings.TrimSpace(spec.GetRegistryCredential().GetDockerConfigJson()),
-		Namespace:         strings.TrimSpace(spec.GetNamespace()),
-		ServiceID:         strings.TrimSpace(spec.GetServiceID()),
-	}
-	for _, item := range spec.GetSecretEnv() {
-		if item == nil {
-			continue
-		}
-		payload.SecretEnv = append(payload.SecretEnv, struct {
-			Name  string `json:"name,omitempty"`
-			Value string `json:"value,omitempty"`
-		}{Name: item.GetName(), Value: item.GetValue()})
-	}
-	for _, item := range spec.GetSecretFiles() {
-		if item == nil {
-			continue
-		}
-		payload.SecretFiles = append(payload.SecretFiles, struct {
-			Path    string `json:"path,omitempty"`
-			Content string `json:"content,omitempty"`
-			Mode    uint32 `json:"mode,omitempty"`
-		}{
-			Path:    item.GetPath(),
-			Content: base64.StdEncoding.EncodeToString(item.GetContent()),
-			Mode:    item.GetMode(),
-		})
-	}
-	payload.ReadinessProbe = lifecycleProbePayload(spec.GetReadinessProbe())
-	payload.LivenessProbe = lifecycleProbePayload(spec.GetLivenessProbe())
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return ""
-	}
-	return string(encoded)
-}
-
-func lifecycleProbePayload(probe *nodelifecyclev1.ResolvedProbe) *lifecycleProbeJSON {
-	if probe == nil {
+func cloneRegistryCredential(in *nodelifecyclev1.RegistryCredential) *runtimev1.RegistryCredential {
+	if in == nil {
 		return nil
 	}
-	payload := &lifecycleProbeJSON{
-		InitialDelayMilliseconds: durationMilliseconds(probe.GetInitialDelay()),
-		PeriodMilliseconds:       durationMilliseconds(probe.GetPeriod()),
-		TimeoutMilliseconds:      durationMilliseconds(probe.GetTimeout()),
-		SuccessThreshold:         probe.GetSuccessThreshold(),
-		FailureThreshold:         probe.GetFailureThreshold(),
-	}
-	if http := probe.GetHttp(); http != nil {
-		payload.Http = &struct {
-			Port   int32  `json:"port,omitempty"`
-			Path   string `json:"path,omitempty"`
-			Scheme string `json:"scheme,omitempty"`
-		}{
-			Port:   http.GetPort(),
-			Path:   http.GetPath(),
-			Scheme: strings.ToLower(strings.TrimPrefix(http.GetScheme().String(), "HTTP_PROBE_SCHEME_")),
-		}
-	}
-	if tcp := probe.GetTcp(); tcp != nil {
-		payload.Tcp = &struct {
-			Port int32 `json:"port,omitempty"`
-		}{Port: tcp.GetPort()}
-	}
-	return payload
+	return &runtimev1.RegistryCredential{DockerConfigJson: strings.TrimSpace(in.GetDockerConfigJson())}
 }
 
-func durationMilliseconds(value *durationpb.Duration) int64 {
-	if value == nil {
-		return 0
+func cloneResolvedSecretEnv(in []*nodelifecyclev1.ResolvedSecretEnvVar) []*runtimev1.ResolvedSecretEnvVar {
+	out := make([]*runtimev1.ResolvedSecretEnvVar, 0, len(in))
+	for _, item := range in {
+		if item == nil {
+			out = append(out, nil)
+			continue
+		}
+		out = append(out, &runtimev1.ResolvedSecretEnvVar{Name: item.GetName(), Value: item.GetValue()})
 	}
-	return value.AsDuration().Milliseconds()
+	return out
+}
+
+func cloneResolvedSecretFiles(in []*nodelifecyclev1.ResolvedSecretFile) []*runtimev1.ResolvedSecretFile {
+	out := make([]*runtimev1.ResolvedSecretFile, 0, len(in))
+	for _, item := range in {
+		if item == nil {
+			out = append(out, nil)
+			continue
+		}
+		out = append(out, &runtimev1.ResolvedSecretFile{Path: item.GetPath(), Content: append([]byte(nil), item.GetContent()...), Mode: item.GetMode()})
+	}
+	return out
 }

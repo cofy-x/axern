@@ -15,9 +15,8 @@ class SandboxState:
     """Stable identifiers for an active SDK sandbox."""
 
     environment_id: str
-    service_id: str
+    run_id: str
     allocation_id: str
-    attempt: int
     node_id: str
     tunnel_session_id: str
     bound_addr: str
@@ -28,11 +27,9 @@ class SandboxMetadata:
     """Diagnostic metadata for an active SDK sandbox."""
 
     environment_id: str
-    service_id: str
+    run_id: str
     allocation_id: str
-    attempt: int
     node_id: str
-    runtime_class: str
     tunnel_session_id: str
     bound_addr: str
     started_at_ns: int

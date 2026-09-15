@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	NodeAdmin_AdmitAdminNode_FullMethodName                     = "/axern.control.admin.v1.NodeAdmin/AdmitAdminNode"
 	NodeAdmin_ListAdminNodes_FullMethodName                     = "/axern.control.admin.v1.NodeAdmin/ListAdminNodes"
+	NodeAdmin_RevokeAdminNode_FullMethodName                    = "/axern.control.admin.v1.NodeAdmin/RevokeAdminNode"
 	NodeAdmin_RetireAdminNode_FullMethodName                    = "/axern.control.admin.v1.NodeAdmin/RetireAdminNode"
 	NodeAdmin_GetNodeCapabilitySnapshot_FullMethodName          = "/axern.control.admin.v1.NodeAdmin/GetNodeCapabilitySnapshot"
-	NodeAdmin_ListNodeCapabilityTransitions_FullMethodName      = "/axern.control.admin.v1.NodeAdmin/ListNodeCapabilityTransitions"
-	NodeAdmin_ListCapabilityReconcileQueue_FullMethodName       = "/axern.control.admin.v1.NodeAdmin/ListCapabilityReconcileQueue"
 	NodeAdmin_GetAllocationCapabilityDiagnostics_FullMethodName = "/axern.control.admin.v1.NodeAdmin/GetAllocationCapabilityDiagnostics"
 )
 
@@ -31,11 +31,11 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeAdminClient interface {
+	AdmitAdminNode(ctx context.Context, in *AdmitAdminNodeRequest, opts ...grpc.CallOption) (*AdmitAdminNodeResponse, error)
 	ListAdminNodes(ctx context.Context, in *ListAdminNodesRequest, opts ...grpc.CallOption) (*ListAdminNodesResponse, error)
+	RevokeAdminNode(ctx context.Context, in *RevokeAdminNodeRequest, opts ...grpc.CallOption) (*RevokeAdminNodeResponse, error)
 	RetireAdminNode(ctx context.Context, in *RetireAdminNodeRequest, opts ...grpc.CallOption) (*RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(ctx context.Context, in *GetNodeCapabilitySnapshotRequest, opts ...grpc.CallOption) (*GetNodeCapabilitySnapshotResponse, error)
-	ListNodeCapabilityTransitions(ctx context.Context, in *ListNodeCapabilityTransitionsRequest, opts ...grpc.CallOption) (*ListNodeCapabilityTransitionsResponse, error)
-	ListCapabilityReconcileQueue(ctx context.Context, in *ListCapabilityReconcileQueueRequest, opts ...grpc.CallOption) (*ListCapabilityReconcileQueueResponse, error)
 	GetAllocationCapabilityDiagnostics(ctx context.Context, in *GetAllocationCapabilityDiagnosticsRequest, opts ...grpc.CallOption) (*GetAllocationCapabilityDiagnosticsResponse, error)
 }
 
@@ -47,9 +47,27 @@ func NewNodeAdminClient(cc grpc.ClientConnInterface) NodeAdminClient {
 	return &nodeAdminClient{cc}
 }
 
+func (c *nodeAdminClient) AdmitAdminNode(ctx context.Context, in *AdmitAdminNodeRequest, opts ...grpc.CallOption) (*AdmitAdminNodeResponse, error) {
+	out := new(AdmitAdminNodeResponse)
+	err := c.cc.Invoke(ctx, NodeAdmin_AdmitAdminNode_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *nodeAdminClient) ListAdminNodes(ctx context.Context, in *ListAdminNodesRequest, opts ...grpc.CallOption) (*ListAdminNodesResponse, error) {
 	out := new(ListAdminNodesResponse)
 	err := c.cc.Invoke(ctx, NodeAdmin_ListAdminNodes_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeAdminClient) RevokeAdminNode(ctx context.Context, in *RevokeAdminNodeRequest, opts ...grpc.CallOption) (*RevokeAdminNodeResponse, error) {
+	out := new(RevokeAdminNodeResponse)
+	err := c.cc.Invoke(ctx, NodeAdmin_RevokeAdminNode_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,24 +92,6 @@ func (c *nodeAdminClient) GetNodeCapabilitySnapshot(ctx context.Context, in *Get
 	return out, nil
 }
 
-func (c *nodeAdminClient) ListNodeCapabilityTransitions(ctx context.Context, in *ListNodeCapabilityTransitionsRequest, opts ...grpc.CallOption) (*ListNodeCapabilityTransitionsResponse, error) {
-	out := new(ListNodeCapabilityTransitionsResponse)
-	err := c.cc.Invoke(ctx, NodeAdmin_ListNodeCapabilityTransitions_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *nodeAdminClient) ListCapabilityReconcileQueue(ctx context.Context, in *ListCapabilityReconcileQueueRequest, opts ...grpc.CallOption) (*ListCapabilityReconcileQueueResponse, error) {
-	out := new(ListCapabilityReconcileQueueResponse)
-	err := c.cc.Invoke(ctx, NodeAdmin_ListCapabilityReconcileQueue_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *nodeAdminClient) GetAllocationCapabilityDiagnostics(ctx context.Context, in *GetAllocationCapabilityDiagnosticsRequest, opts ...grpc.CallOption) (*GetAllocationCapabilityDiagnosticsResponse, error) {
 	out := new(GetAllocationCapabilityDiagnosticsResponse)
 	err := c.cc.Invoke(ctx, NodeAdmin_GetAllocationCapabilityDiagnostics_FullMethodName, in, out, opts...)
@@ -105,11 +105,11 @@ func (c *nodeAdminClient) GetAllocationCapabilityDiagnostics(ctx context.Context
 // All implementations must embed UnimplementedNodeAdminServer
 // for forward compatibility
 type NodeAdminServer interface {
+	AdmitAdminNode(context.Context, *AdmitAdminNodeRequest) (*AdmitAdminNodeResponse, error)
 	ListAdminNodes(context.Context, *ListAdminNodesRequest) (*ListAdminNodesResponse, error)
+	RevokeAdminNode(context.Context, *RevokeAdminNodeRequest) (*RevokeAdminNodeResponse, error)
 	RetireAdminNode(context.Context, *RetireAdminNodeRequest) (*RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(context.Context, *GetNodeCapabilitySnapshotRequest) (*GetNodeCapabilitySnapshotResponse, error)
-	ListNodeCapabilityTransitions(context.Context, *ListNodeCapabilityTransitionsRequest) (*ListNodeCapabilityTransitionsResponse, error)
-	ListCapabilityReconcileQueue(context.Context, *ListCapabilityReconcileQueueRequest) (*ListCapabilityReconcileQueueResponse, error)
 	GetAllocationCapabilityDiagnostics(context.Context, *GetAllocationCapabilityDiagnosticsRequest) (*GetAllocationCapabilityDiagnosticsResponse, error)
 	mustEmbedUnimplementedNodeAdminServer()
 }
@@ -118,20 +118,20 @@ type NodeAdminServer interface {
 type UnimplementedNodeAdminServer struct {
 }
 
+func (UnimplementedNodeAdminServer) AdmitAdminNode(context.Context, *AdmitAdminNodeRequest) (*AdmitAdminNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AdmitAdminNode not implemented")
+}
 func (UnimplementedNodeAdminServer) ListAdminNodes(context.Context, *ListAdminNodesRequest) (*ListAdminNodesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAdminNodes not implemented")
+}
+func (UnimplementedNodeAdminServer) RevokeAdminNode(context.Context, *RevokeAdminNodeRequest) (*RevokeAdminNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RevokeAdminNode not implemented")
 }
 func (UnimplementedNodeAdminServer) RetireAdminNode(context.Context, *RetireAdminNodeRequest) (*RetireAdminNodeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RetireAdminNode not implemented")
 }
 func (UnimplementedNodeAdminServer) GetNodeCapabilitySnapshot(context.Context, *GetNodeCapabilitySnapshotRequest) (*GetNodeCapabilitySnapshotResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeCapabilitySnapshot not implemented")
-}
-func (UnimplementedNodeAdminServer) ListNodeCapabilityTransitions(context.Context, *ListNodeCapabilityTransitionsRequest) (*ListNodeCapabilityTransitionsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListNodeCapabilityTransitions not implemented")
-}
-func (UnimplementedNodeAdminServer) ListCapabilityReconcileQueue(context.Context, *ListCapabilityReconcileQueueRequest) (*ListCapabilityReconcileQueueResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListCapabilityReconcileQueue not implemented")
 }
 func (UnimplementedNodeAdminServer) GetAllocationCapabilityDiagnostics(context.Context, *GetAllocationCapabilityDiagnosticsRequest) (*GetAllocationCapabilityDiagnosticsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAllocationCapabilityDiagnostics not implemented")
@@ -149,6 +149,24 @@ func RegisterNodeAdminServer(s grpc.ServiceRegistrar, srv NodeAdminServer) {
 	s.RegisterService(&NodeAdmin_ServiceDesc, srv)
 }
 
+func _NodeAdmin_AdmitAdminNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdmitAdminNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAdminServer).AdmitAdminNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAdmin_AdmitAdminNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAdminServer).AdmitAdminNode(ctx, req.(*AdmitAdminNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _NodeAdmin_ListAdminNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ListAdminNodesRequest)
 	if err := dec(in); err != nil {
@@ -163,6 +181,24 @@ func _NodeAdmin_ListAdminNodes_Handler(srv interface{}, ctx context.Context, dec
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeAdminServer).ListAdminNodes(ctx, req.(*ListAdminNodesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeAdmin_RevokeAdminNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RevokeAdminNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAdminServer).RevokeAdminNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAdmin_RevokeAdminNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAdminServer).RevokeAdminNode(ctx, req.(*RevokeAdminNodeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -203,42 +239,6 @@ func _NodeAdmin_GetNodeCapabilitySnapshot_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeAdmin_ListNodeCapabilityTransitions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListNodeCapabilityTransitionsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeAdminServer).ListNodeCapabilityTransitions(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeAdmin_ListNodeCapabilityTransitions_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAdminServer).ListNodeCapabilityTransitions(ctx, req.(*ListNodeCapabilityTransitionsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _NodeAdmin_ListCapabilityReconcileQueue_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListCapabilityReconcileQueueRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeAdminServer).ListCapabilityReconcileQueue(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeAdmin_ListCapabilityReconcileQueue_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeAdminServer).ListCapabilityReconcileQueue(ctx, req.(*ListCapabilityReconcileQueueRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _NodeAdmin_GetAllocationCapabilityDiagnostics_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetAllocationCapabilityDiagnosticsRequest)
 	if err := dec(in); err != nil {
@@ -265,8 +265,16 @@ var NodeAdmin_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeAdminServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "AdmitAdminNode",
+			Handler:    _NodeAdmin_AdmitAdminNode_Handler,
+		},
+		{
 			MethodName: "ListAdminNodes",
 			Handler:    _NodeAdmin_ListAdminNodes_Handler,
+		},
+		{
+			MethodName: "RevokeAdminNode",
+			Handler:    _NodeAdmin_RevokeAdminNode_Handler,
 		},
 		{
 			MethodName: "RetireAdminNode",
@@ -275,14 +283,6 @@ var NodeAdmin_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetNodeCapabilitySnapshot",
 			Handler:    _NodeAdmin_GetNodeCapabilitySnapshot_Handler,
-		},
-		{
-			MethodName: "ListNodeCapabilityTransitions",
-			Handler:    _NodeAdmin_ListNodeCapabilityTransitions_Handler,
-		},
-		{
-			MethodName: "ListCapabilityReconcileQueue",
-			Handler:    _NodeAdmin_ListCapabilityReconcileQueue_Handler,
 		},
 		{
 			MethodName: "GetAllocationCapabilityDiagnostics",

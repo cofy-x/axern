@@ -2,6 +2,7 @@ package pgtunnel
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -9,29 +10,33 @@ import (
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
+	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func newTestStore(db *postgres.DB) *Store {
-	return NewStore(db, "", "", WithRelays([]Relay{{
+func newTestStore(t *testing.T, db *postgres.DB) *Store {
+	t.Helper()
+	store := NewStore(db, WithRelays([]Relay{{
 		ID:           "test",
 		ClientTarget: "127.0.0.1:24210",
 		NodeTarget:   "tunneld:24210",
 		Weight:       1,
 	}}))
+	t.Cleanup(store.Close)
+	return store
 }
 
 func TestCreateAllocatesRemotePort(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-auto", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-auto",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -42,16 +47,36 @@ func TestCreateAllocatesRemotePort(t *testing.T) {
 	}
 }
 
+func TestTunnelAuthorizationNamespaceComesFromAllocationRun(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-auth", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{AllocationID: "alloc-auth", Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	access := pgaccess.NewStore(db)
+	for resource, id := range map[string]string{"tunnel": result.Session.GetSessionID(), "allocation": "alloc-auth", "run": "run-test"} {
+		namespace, err := access.ResolveResourceNamespace(context.Background(), resource, id)
+		if err != nil || namespace != "default" {
+			t.Fatalf("resolve %s namespace = %q, %v", resource, namespace, err)
+		}
+	}
+	if _, err := access.ResolveResourceNamespace(context.Background(), "tunnel", "missing"); !errors.Is(err, accesskernel.ErrNotFound) {
+		t.Fatalf("missing tunnel = %v, want not found", err)
+	}
+}
+
 func TestCreateUsesExplicitRemotePort(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-explicit", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-explicit",
 		RemotePort:   int32Ptr(8786),
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -62,16 +87,51 @@ func TestCreateUsesExplicitRemotePort(t *testing.T) {
 	}
 }
 
+func TestRelayBindingIsPrivateAndRecoverable(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-private-relay", now)
+
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-private-relay",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	target, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now)
+	if err != nil {
+		t.Fatalf("ResolveRelayTarget() error = %v", err)
+	}
+	if target != "tunneld:24210" {
+		t.Fatalf("relay target = %q, want tunneld:24210", target)
+	}
+	sessions, _, err := store.loadNodeSessions(context.Background(), "node-test", 0)
+	if err != nil {
+		t.Fatalf("loadNodeSessions() error = %v", err)
+	}
+	if len(sessions) != 1 || sessions[0].GetNodeEdgeTarget() != target {
+		t.Fatalf("node desired sessions = %+v, want private relay target %q", sessions, target)
+	}
+
+	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "test revoke", now.Add(time.Second)); err != nil {
+		t.Fatalf("Revoke() error = %v", err)
+	}
+	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Second)); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("ResolveRelayTarget(terminal) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.FailedPrecondition, err)
+	}
+}
+
 func TestCreateRejectsExplicitZeroRemotePort(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-zero", now)
 
 	_, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-zero",
 		RemotePort:   int32Ptr(0),
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err == nil {
@@ -81,13 +141,12 @@ func TestCreateRejectsExplicitZeroRemotePort(t *testing.T) {
 
 func TestRenewExtendsActiveSession(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -102,17 +161,28 @@ func TestRenewExtendsActiveSession(t *testing.T) {
 	if !renewed.GetExpiresAt().AsTime().Equal(want) {
 		t.Fatalf("expires_at = %s, want %s", renewed.GetExpiresAt().AsTime(), want)
 	}
+	for range 2 {
+		stale, err := store.Renew(context.Background(), result.Session.GetSessionID(), result.ClientToken, time.Minute, now.Add(time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !stale.GetExpiresAt().AsTime().Equal(want) {
+			t.Fatal("delayed renewal shortened authority")
+		}
+	}
+	if _, err := store.ValidatePeer(context.Background(), result.Session.GetSessionID(), tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, result.ClientToken, want); err == nil {
+		t.Fatal("peer accepted at exact expiration boundary")
+	}
 }
 
 func TestRenewRejectsExpiredSession(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-expired", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-expired",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -127,13 +197,12 @@ func TestRenewRejectsExpiredSession(t *testing.T) {
 
 func TestRenewRejectsRevokedSession(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-revoked", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-revoked",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -148,15 +217,43 @@ func TestRenewRejectsRevokedSession(t *testing.T) {
 	}
 }
 
+func TestRevokeIsIdempotentWithoutRevisionChurn(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-revoke-idempotent", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{AllocationID: "alloc-revoke-idempotent", Now: now})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "first", now.Add(time.Second)); err != nil {
+		t.Fatalf("Revoke(first) error = %v", err)
+	}
+	revision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision() error = %v", err)
+	}
+	second, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "second", now.Add(2*time.Second))
+	if err != nil {
+		t.Fatalf("Revoke(second) error = %v", err)
+	}
+	after, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(after) error = %v", err)
+	}
+	if after != revision || second.GetReason() != "first" {
+		t.Fatalf("idempotent revoke = revision %d reason %q, want revision %d reason first", after, second.GetReason(), revision)
+	}
+}
+
 func TestRenewRequiresClientToken(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-renew-token", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-renew-token",
-		LocalTarget:  "127.0.0.1:8080",
 		Now:          now,
 	})
 	if err != nil {
@@ -173,15 +270,175 @@ func TestRenewRequiresClientToken(t *testing.T) {
 	}
 }
 
+func TestNodeDesiredRevisionIgnoresOperationalUpdates(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-revision", now)
+
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-revision",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	createdRevision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(create) error = %v", err)
+	}
+	if _, err := store.Renew(context.Background(), result.Session.GetSessionID(), result.ClientToken, 10*time.Minute, now.Add(time.Second)); err != nil {
+		t.Fatalf("Renew() error = %v", err)
+	}
+	if _, err := store.ReportStatus(context.Background(), "node-test", result.Session.GetSessionID(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING, "", "0.0.0.0:8080", now.Add(2*time.Second)); err != nil {
+		t.Fatalf("ReportStatus(running) error = %v", err)
+	}
+	if _, err := store.ReportPeerEvent(context.Background(), tunnelkernel.PeerEventParams{
+		SessionID: result.Session.GetSessionID(),
+		RelayID:   "test",
+		PeerKind:  tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT,
+		EventType: tunnelv1.TunnelSessionEventType_TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED,
+		PeerToken: result.ClientToken,
+		BytesIn:   12,
+		BytesOut:  34,
+	}, now.Add(3*time.Second)); err != nil {
+		t.Fatalf("ReportPeerEvent() error = %v", err)
+	}
+	afterOperationalUpdates, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(operational updates) error = %v", err)
+	}
+	if afterOperationalUpdates != createdRevision {
+		t.Fatalf("operational updates advanced node desired revision from %d to %d", createdRevision, afterOperationalUpdates)
+	}
+
+	if _, err := store.ReportStatus(context.Background(), "node-test", result.Session.GetSessionID(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED, "agent exited", "", now.Add(4*time.Second)); err != nil {
+		t.Fatalf("ReportStatus(failed) error = %v", err)
+	}
+	afterTerminal, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(terminal) error = %v", err)
+	}
+	if afterTerminal != createdRevision+1 {
+		t.Fatalf("terminal update revision = %d, want %d", afterTerminal, createdRevision+1)
+	}
+	if err := store.ReconcileExpired(context.Background(), now.Add(24*time.Hour)); err != nil {
+		t.Fatalf("ReconcileExpired() error = %v", err)
+	}
+	afterDeadline, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision(after deadline) error = %v", err)
+	}
+	if afterDeadline != afterTerminal {
+		t.Fatalf("expiry rewrote failed terminal revision from %d to %d", afterTerminal, afterDeadline)
+	}
+	failed, err := store.Get(context.Background(), result.Session.GetSessionID(), now.Add(24*time.Hour))
+	if err != nil {
+		t.Fatalf("Get(failed after deadline) error = %v", err)
+	}
+	if failed.GetStatus() != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED {
+		t.Fatalf("failed session status after deadline = %s, want failed", failed.GetStatus())
+	}
+}
+
+func TestWatchNodeBlocksUntilDesiredStateChanges(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-watch", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-watch",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	revision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision() error = %v", err)
+	}
+
+	type watchResult struct {
+		sessions []*nodev1.NodeTunnelSession
+		revision int64
+		err      error
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	watched := make(chan watchResult, 1)
+	go func() {
+		sessions, current, err := store.WatchNode(ctx, "node-test", revision, now)
+		watched <- watchResult{sessions: sessions, revision: current, err: err}
+	}()
+
+	select {
+	case got := <-watched:
+		t.Fatalf("WatchNode returned before a desired-state change: %+v", got)
+	case <-time.After(100 * time.Millisecond):
+	}
+	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "test revoke", now.Add(time.Second)); err != nil {
+		t.Fatalf("Revoke() error = %v", err)
+	}
+	select {
+	case got := <-watched:
+		if got.err != nil {
+			t.Fatalf("WatchNode() error = %v", got.err)
+		}
+		if got.revision <= revision || len(got.sessions) != 1 {
+			t.Fatalf("WatchNode() = revision %d, sessions %d; want advancing revision and one tombstone", got.revision, len(got.sessions))
+		}
+		if got.sessions[0].GetSession().GetStatus() != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED {
+			t.Fatalf("WatchNode() status = %s, want revoked", got.sessions[0].GetSession().GetStatus())
+		}
+	case <-ctx.Done():
+		t.Fatal("WatchNode did not observe revoke notification")
+	}
+}
+
+func TestWatchNodeExpiresSessionAtDeadlineWithoutAnotherWrite(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-watch-expiry", now)
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-watch-expiry",
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	revision, err := currentRevision(context.Background(), db.Pool())
+	if err != nil {
+		t.Fatalf("currentRevision() error = %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
+		UPDATE tunnel_sessions SET expires_at = $2 WHERE session_id = $1
+	`, result.Session.GetSessionID(), now.Add(200*time.Millisecond)); err != nil {
+		t.Fatalf("set near expiry: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	sessions, current, err := store.WatchNode(ctx, "node-test", revision, now)
+	if err != nil {
+		t.Fatalf("WatchNode() error = %v", err)
+	}
+	if current <= revision || len(sessions) != 1 {
+		t.Fatalf("WatchNode() = revision %d, sessions %d; want advancing revision and one tombstone", current, len(sessions))
+	}
+	if sessions[0].GetSession().GetStatus() != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_EXPIRED {
+		t.Fatalf("WatchNode() status = %s, want expired", sessions[0].GetSession().GetStatus())
+	}
+}
+
 func TestListEventsTracksTunnelLifecycle(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-events", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-events",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -227,13 +484,12 @@ func TestListEventsTracksTunnelLifecycle(t *testing.T) {
 
 func TestListEventsRecordsExpiry(t *testing.T) {
 	db := newTunnelTestDB(t)
-	store := newTestStore(db)
+	store := newTestStore(t, db)
 	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
 	insertTunnelTestAllocation(t, db, "alloc-events-expire", now)
 
 	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
 		AllocationID: "alloc-events-expire",
-		LocalTarget:  "127.0.0.1:8080",
 		TTL:          time.Minute,
 		Now:          now,
 	})
@@ -283,7 +539,7 @@ func newTunnelTestDB(t *testing.T) *postgres.DB {
 		t.Fatalf("apply postgres migrations: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		TRUNCATE TABLE principals, namespaces, tunnel_sessions, allocations, nodes CASCADE
+		TRUNCATE TABLE principals, namespaces, tunnel_sessions, runs, nodes CASCADE
 	`); err != nil {
 		t.Fatalf("truncate tunnel test tables: %v", err)
 	}
@@ -293,40 +549,67 @@ func newTunnelTestDB(t *testing.T) *postgres.DB {
 func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID string, now time.Time) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO principals(principal_id,name,display_name,kind,status,version,created_at,updated_at)
-		VALUES ('prn-tunnel-test','tunnel-test','Tunnel Test','human','active',1,$1,$1)
+		INSERT INTO principals(principal_id,name,display_name,kind,status,created_at,updated_at)
+		VALUES ('prn-tunnel-test','tunnel-test','Tunnel Test','human','active',$1,$1)
 		ON CONFLICT (principal_id) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel principal fixture: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO namespaces(namespace,version,created_at,updated_at)
-		VALUES ('default',1,$1,$1)
+		INSERT INTO namespaces(namespace,created_at)
+		VALUES ('default',$1)
 		ON CONFLICT (namespace) DO NOTHING
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert tunnel namespace fixture: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (
-			node_id, node_target, registered_at, updated_at, last_heartbeat_at, last_summary_at, node_auth_token_hash, lifecycle_status
-		) VALUES ('node-test', '127.0.0.1:25000', $1, $1, $1, $1, 'hash', 'active')
+			node_id, node_target, admitted_at, last_heartbeat_at, enrollment_token_hash, lifecycle_status
+		) VALUES ('node-test', '127.0.0.1:25000', $1, $1, repeat('0', 64), 'active')
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert node: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ('run-test', 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $1, $1)
+	`, now.UTC()); err != nil {
+		t.Fatalf("insert run: %v", err)
+	}
+	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO allocations (
-			allocation_id, owner_type, owner_id, environment_id, node_id, attempt, status,
-			config, version, created_at, updated_at, exit_code, exit_code_known, message
-		) VALUES ($1, 'run', 'run-test', 'env-test', 'node-test', 1, 'ALLOCATION_STATUS_RUNNING',
-			'{}'::jsonb, 1, $2, $2, 0, false, '')
+			allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at
+		) VALUES ($1, 'run-test', 'node-test', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $2, $2)
 	`, allocationID, now.UTC()); err != nil {
 		t.Fatalf("insert allocation: %v", err)
 	}
-	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO workload_reservations(
-			reservation_id,allocation_id,namespace,owner_type,owner_id,node_id,created_at
-		) VALUES ('res-' || $1,$1,'default','run','run-test','node-test',$2)
-	`, allocationID, now.UTC()); err != nil {
-		t.Fatalf("insert workload reservation: %v", err)
+}
+
+func TestRevokedNodeRejectsTunnelCreationRenewalAndPeers(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Now().UTC()
+	insertTunnelTestAllocation(t, db, "alloc-revoked", now)
+	ctx := tunnelTestContext()
+	result, err := store.Create(ctx, tunnelkernel.CreateParams{AllocationID: "alloc-revoked", Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := result.Session.GetSessionID()
+	if _, err := store.ValidatePeer(ctx, id, tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, result.ClientToken, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, "UPDATE nodes SET lifecycle_status='revoked' WHERE node_id=$1", result.Session.GetNodeID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(ctx, tunnelkernel.CreateParams{AllocationID: "alloc-revoked", Now: now}); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("revoked create: %v", err)
+	}
+	if _, err := store.Renew(ctx, id, result.ClientToken, time.Minute, now); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("revoked renew: %v", err)
+	}
+	for _, kind := range []tunnelv1.TunnelPeerKind{tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_NODE} {
+		if _, err := store.ValidatePeer(ctx, id, kind, result.ClientToken, now); grpcstatus.Code(err) != codes.PermissionDenied {
+			t.Fatalf("revoked peer: %v", err)
+		}
 	}
 }

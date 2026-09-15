@@ -220,7 +220,7 @@ func TestAxernAdapterRunsManagedAgentImageCommand(t *testing.T) {
 		ApprovalPolicy: domain.AgentApprovalPolicyNever,
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
-			Image:   "ghcr.io/cofy-x/claude-code-bundle:latest",
+			Image:   "example.com/claude-code-agent:latest",
 			Workdir: "/workspace",
 			User:    "axern",
 			Env:     map[string]string{"CUSTOM": "value"},
@@ -259,26 +259,25 @@ func TestAxernAdapterRunsManagedAgentImageCommand(t *testing.T) {
 	if !strings.Contains(agentCall.command.Shell(), "export PATH='/opt/axern/agents/claude-code/bin':\"${PATH:-") {
 		t.Fatalf("agent command does not prepend the bundle bin directory: %q", agentCall.command.Shell())
 	}
-	if got := agentCall.options.Env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"]; got != "/opt/axern/agents/claude-code" {
+	if got := agentCall.options.Env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"]; got != "/opt/axern/agents/claude-code" {
 		t.Fatalf("mount target env = %q", got)
 	}
 	var agentResult domain.AgentResult
 	readJSON(t, layout.AgentJSONPath, &agentResult)
 	if agentResult.LauncherKind != domain.AgentLauncherKindAgentImage ||
 		agentResult.RuntimeType != domain.AgentRuntimeTypeAgentImage ||
-		agentResult.RuntimeImage != "ghcr.io/cofy-x/claude-code-bundle:latest" {
+		agentResult.RuntimeImage != "example.com/claude-code-agent:latest" {
 		t.Fatalf("agent result = %#v", agentResult)
 	}
 }
 
-func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *testing.T) {
+func TestAxernAdapterRuntimeForRequestMountsAgentImageIntoTaskSandbox(t *testing.T) {
 	adapter := Adapter{
 		Config: Config{Endpoint: "127.0.0.1:24000", TemplateID: "python311"},
 	}
 	request := backend.ExecuteRequest{
 		Task: domain.TaskInstance{
 			Sandbox: domain.SandboxSpec{
-				RuntimeClass: "runc",
 				RuntimeSource: &domain.SandboxRuntimeSourceSpec{
 					Type:  domain.SandboxRuntimeSourceImage,
 					Image: "example.com/task:latest",
@@ -290,7 +289,7 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 				Name: "claude-code",
 				Runtime: &domain.AgentRuntimeSpec{
 					Type:  domain.AgentRuntimeTypeAgentImage,
-					Image: "ghcr.io/cofy-x/claude-code-bundle:latest",
+					Image: "example.com/claude-code-agent:latest",
 				},
 			},
 		},
@@ -306,15 +305,12 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageBundleIntoTaskSandbox(t *t
 	if axernRuntime.Config.Image != "example.com/task:latest" || axernRuntime.Config.TemplateID != "" {
 		t.Fatalf("runtime config = %#v", axernRuntime.Config)
 	}
-	if axernRuntime.Config.RuntimeClass != "runc" {
-		t.Fatalf("runtime class = %q, want runc", axernRuntime.Config.RuntimeClass)
-	}
 	if len(axernRuntime.Config.ImageMounts) != 1 {
 		t.Fatalf("image mounts = %#v", axernRuntime.Config.ImageMounts)
 	}
 	mount := axernRuntime.Config.ImageMounts[0]
-	if mount.Image != "ghcr.io/cofy-x/claude-code-bundle:latest" ||
-		mount.Target != "/__claude_code" ||
+	if mount.Image != "example.com/claude-code-agent:latest" ||
+		mount.Target != "/opt/axern/agents/claude-code" ||
 		!mount.Readonly {
 		t.Fatalf("image mount = %#v", mount)
 	}
@@ -328,7 +324,7 @@ func TestAxernAdapterRuntimeForRequestAppliesTaskResources(t *testing.T) {
 		RequestMemory: "128Mi",
 	}}
 	request := backend.ExecuteRequest{Task: domain.TaskInstance{
-		Resources: &domain.ResourceSpec{RequestCPU: "750m", RequestMemory: "2Gi", LimitCPU: "1", LimitMemory: "4Gi"},
+		Resources: &domain.ResourceSpec{RequestCPU: "750m", RequestMemory: "2Gi", RequestEphemeralStorage: "8Gi", LimitCPU: "1", LimitMemory: "4Gi", LimitEphemeralStorage: "10Gi"},
 		Sandbox: domain.SandboxSpec{RuntimeSource: &domain.SandboxRuntimeSourceSpec{
 			Type: domain.SandboxRuntimeSourceTemplate, TemplateID: "task-template",
 		}},
@@ -338,12 +334,12 @@ func TestAxernAdapterRuntimeForRequestAppliesTaskResources(t *testing.T) {
 		t.Fatal(err)
 	}
 	config := runtime.(sandboxaxern.Runtime).Config
-	if config.RequestCPU != "750m" || config.RequestMemory != "2Gi" || config.LimitCPU != "1" || config.LimitMemory != "4Gi" {
+	if config.RequestCPU != "750m" || config.RequestMemory != "2Gi" || config.RequestEphemeralStorage != "8Gi" || config.LimitCPU != "1" || config.LimitMemory != "4Gi" || config.LimitEphemeralStorage != "10Gi" {
 		t.Fatalf("task resources were not applied: %#v", config)
 	}
 }
 
-func TestAxernAdapterRuntimeForRequestUsesAgentRuntimeMountTarget(t *testing.T) {
+func TestAxernAdapterRuntimeForRequestUsesAgentEnvironmentMountTarget(t *testing.T) {
 	adapter := Adapter{Config: Config{Endpoint: "127.0.0.1:24000"}}
 	request := backend.ExecuteRequest{
 		Task: domain.TaskInstance{
@@ -359,7 +355,7 @@ func TestAxernAdapterRuntimeForRequestUsesAgentRuntimeMountTarget(t *testing.T) 
 				Name: "custom-agent",
 				Runtime: &domain.AgentRuntimeSpec{
 					Type:        domain.AgentRuntimeTypeAgentImage,
-					Image:       "ghcr.io/cofy-x/custom-agent-bundle:latest",
+					Image:       "example.com/custom-agent:latest",
 					MountTarget: "/opt/axern/agents/custom-agent",
 				},
 			},

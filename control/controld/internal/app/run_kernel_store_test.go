@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"testing"
 	"time"
 
@@ -10,8 +11,9 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T) {
@@ -36,16 +38,16 @@ func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T)
 	if first.GetEnvironment().GetID() == second.GetEnvironment().GetID() {
 		t.Fatalf("independent environment resources reused id %q", first.GetEnvironment().GetID())
 	}
-	if first.GetEnvironment().GetSpecHash() != second.GetEnvironment().GetSpecHash() {
-		t.Fatalf("spec hashes differ: %q != %q", first.GetEnvironment().GetSpecHash(), second.GetEnvironment().GetSpecHash())
+	if !proto.Equal(first.GetEnvironment().GetResolvedSpec(), second.GetEnvironment().GetResolvedSpec()) {
+		t.Fatal("equivalent environments produced different resolved specifications")
 	}
 	if first.GetEnvironment().GetLabels()["team"] != "infra" || second.GetEnvironment().GetLabels()["team"] != "runtime" {
 		t.Fatalf("environment labels were not independently preserved: first=%v second=%v", first.GetEnvironment().GetLabels(), second.GetEnvironment().GetLabels())
 	}
 }
 
-func TestPostgresRunStaleNodeHeartbeatFailsRunAndReleasesReservation(t *testing.T) {
-	app, _ := newPostgresTestService(t)
+func TestPostgresRunStaleNodeHeartbeatFailsRunThenReleasesAllocation(t *testing.T) {
+	app, lifecycle := newPostgresTestService(t)
 	defer app.Close()
 	now := time.Date(2026, 5, 9, 13, 30, 0, 0, time.UTC)
 	app.now = func() time.Time { return now }
@@ -80,15 +82,12 @@ func TestPostgresRunStaleNodeHeartbeatFailsRunAndReleasesReservation(t *testing.
 	if gotResp.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
 		t.Fatalf("run diagnostic_code = %v, want runtime start error", gotResp.GetRun().GetDiagnosticCode())
 	}
-	var activeReservations int
-	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations: %v", err)
+	assertAllocationReleasePending(t, app, allocationID)
+	app.reconcileV1()
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests for unavailable node allocation = %d, want 1", len(lifecycle.DeleteRequests))
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations for unavailable node run = %d, want 0", activeReservations)
-	}
+	assertAllocationRetryCleanup(t, app, allocationID, "")
 }
 
 func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
@@ -130,8 +129,8 @@ func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
 	if err := app.db.Pool().QueryRow(context.Background(), `
 		SELECT reconcile_attempts, last_error, next_run_at
 		FROM allocation_reconcile_queue
-		WHERE allocation_id = $1 AND reason = $2
-	`, allocationID, allocationkernel.ReconcileReasonCreate).Scan(&attempts, &lastError, &nextRunAt); err != nil {
+		WHERE allocation_id = $1
+	`, allocationID).Scan(&attempts, &lastError, &nextRunAt); err != nil {
 		t.Fatalf("load reconcile queue after start failure: %v", err)
 	}
 	if attempts != 1 {
@@ -162,7 +161,7 @@ func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
 	}
 }
 
-func TestPostgresRunCreateRetryExhaustionReleasesReservation(t *testing.T) {
+func TestPostgresRunCreateRetryExhaustionReleasesAllocation(t *testing.T) {
 	app, lifecycle := newPostgresTestServiceWithConfig(t, Config{
 		HeartbeatFreshnessWindow: time.Hour,
 		ReconcileInterval:        time.Hour,
@@ -196,27 +195,16 @@ func TestPostgresRunCreateRetryExhaustionReleasesReservation(t *testing.T) {
 	if gotResp.GetRun().GetStatus() != runv1.RunStatus_RUN_STATUS_FAILED {
 		t.Fatalf("run status after create retry exhaustion = %v, want FAILED", gotResp.GetRun().GetStatus())
 	}
-	var activeReservations int
-	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations for failed run: %v", err)
+	if gotResp.GetRun().GetDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_RUNTIME_START_ERROR {
+		t.Fatalf("run diagnostic_code after create retry exhaustion = %v, want runtime start error", gotResp.GetRun().GetDiagnosticCode())
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations for exhausted run create retry = %d, want 0", activeReservations)
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests during run create retry exhaustion cleanup = %d, want 1", len(lifecycle.DeleteRequests))
 	}
-	var queueItems int
-	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM allocation_reconcile_queue WHERE allocation_id = $1
-	`, allocationID).Scan(&queueItems); err != nil {
-		t.Fatalf("count reconcile queue after run create retry exhaustion: %v", err)
-	}
-	if queueItems != 0 {
-		t.Fatalf("reconcile queue items after run create retry exhaustion = %d, want 0", queueItems)
-	}
+	assertAllocationRetryCleanup(t, app, allocationID, "")
 }
 
-func TestPostgresRunCancelDeleteRetryResetsStartAttemptsAndRecordsError(t *testing.T) {
+func TestPostgresRunCancelAtomicallyReplacesCreateIntentWithDeleteIntent(t *testing.T) {
 	app, lifecycle := newPostgresTestServiceWithConfig(t, Config{
 		HeartbeatFreshnessWindow: time.Hour,
 		ReconcileInterval:        time.Hour,
@@ -240,32 +228,105 @@ func TestPostgresRunCancelDeleteRetryResetsStartAttemptsAndRecordsError(t *testi
 	lifecycle.CreateErr = errors.New("node create temporarily unavailable")
 	app.reconcileV1()
 
-	lifecycle.DeleteErr = errors.New("node delete temporarily unavailable")
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
 
-	var reason, lastError string
+	var lifecycleState, lastError string
 	var attempts int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT reason, reconcile_attempts, last_error
-		FROM allocation_reconcile_queue
-		WHERE allocation_id = $1
-	`, allocationID).Scan(&reason, &attempts, &lastError); err != nil {
+		SELECT a.lifecycle_state, q.reconcile_attempts, q.last_error
+		FROM allocation_reconcile_queue q
+		JOIN allocations a ON a.allocation_id = q.allocation_id
+		WHERE q.allocation_id = $1
+	`, allocationID).Scan(&lifecycleState, &attempts, &lastError); err != nil {
 		t.Fatalf("load reconcile queue after cancel delete failure: %v", err)
 	}
-	if reason != allocationkernel.ReconcileReasonDelete {
-		t.Fatalf("reconcile reason = %q, want %q", reason, allocationkernel.ReconcileReasonDelete)
+	if lifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String() {
+		t.Fatalf("allocation lifecycle = %q, want RELEASING", lifecycleState)
 	}
 	if attempts != 0 {
 		t.Fatalf("delete retry inherited start attempts = %d, want 0", attempts)
 	}
-	if lastError != "node delete temporarily unavailable" {
-		t.Fatalf("last error = %q, want node delete temporarily unavailable", lastError)
+	if lastError != "" {
+		t.Fatalf("new delete intent inherited a create error: %q", lastError)
+	}
+	if len(lifecycle.DeleteRequests) != 0 {
+		t.Fatalf("cancel request called node delete directly: %d calls", len(lifecycle.DeleteRequests))
 	}
 }
 
-func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T) {
+func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) {
+	app, _ := newPostgresTestService(t)
+	defer app.Close()
+	now := time.Date(2026, 5, 9, 15, 0, 0, 0, time.UTC)
+	app.now = func() time.Time { return now }
+	registerReadyNode(t, app, "node-a", now)
+	env := createDefaultEnvironment(t, app)
+	runResp, err := app.PublicV1Handler().CreateRun(context.Background(), &runv1.CreateRunRequest{
+		EnvironmentID: env.GetID(),
+		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/true"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	allocationID := runResp.GetRun().GetAllocationID()
+	first, err := app.runStore.ClaimDueReconcileItems(context.Background(), "worker-a", 1, now, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-a) error = %v", err)
+	}
+	if len(first) != 1 || first[0].AllocationID != allocationID || first[0].ClaimOwner != "worker-a" {
+		t.Fatalf("worker-a claim = %+v", first)
+	}
+	second, err := app.runStore.ClaimDueReconcileItems(context.Background(), "worker-b", 1, now, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-b) error = %v", err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("worker-b claimed live worker-a work: %+v", second)
+	}
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-b", now, allocationkernel.ReconcileClaimTTL); err != nil || held {
+		t.Fatalf("RenewReconcileClaim(wrong owner) = %v, %v", held, err)
+	}
+	afterExpiry := now.Add(allocationkernel.ReconcileClaimTTL + time.Nanosecond)
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-a", afterExpiry, allocationkernel.ReconcileClaimTTL); err != nil || held {
+		t.Fatalf("RenewReconcileClaim(expired owner) = %v, %v", held, err)
+	}
+	updated, err := app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
+		AllocationID: allocationID,
+		Intent:       allocationkernel.ReconcileIntentEnsurePresent,
+		NextRunAt:    afterExpiry,
+	}, "worker-a", afterExpiry)
+	if err != nil {
+		t.Fatalf("ScheduleClaimedReconcile(expired owner) error = %v", err)
+	}
+	if updated {
+		t.Fatal("expired worker mutated an unclaimed intent")
+	}
+	if err := app.runStore.CompleteAllocationStart(context.Background(), allocationID, "worker-a", nil, afterExpiry); !errors.Is(err, allocationkernel.ErrReconcileClaimLost) {
+		t.Fatalf("CompleteAllocationStart(expired owner) error = %v, want claim lost", err)
+	}
+	second, err = app.runStore.ClaimDueReconcileItems(context.Background(), "worker-b", 1, afterExpiry, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-b after expiry) error = %v", err)
+	}
+	if len(second) != 1 || second[0].ClaimOwner != "worker-b" {
+		t.Fatalf("worker-b expired-claim takeover = %+v", second)
+	}
+	updated, err = app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
+		AllocationID: allocationID,
+		Intent:       allocationkernel.ReconcileIntentEnsurePresent,
+		NextRunAt:    afterExpiry,
+	}, "worker-a", afterExpiry)
+	if err != nil {
+		t.Fatalf("ScheduleClaimedReconcile(stale owner) error = %v", err)
+	}
+	if updated {
+		t.Fatal("stale worker mutated a reclaimed intent")
+	}
+}
+
+func TestPostgresRunCancelDeleteRetryEventuallyReleasesAllocationResources(t *testing.T) {
 	app, lifecycle := newPostgresTestServiceWithConfig(t, Config{
 		HeartbeatFreshnessWindow: time.Hour,
 		ReconcileInterval:        time.Hour,
@@ -292,37 +353,36 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	}
 	allocationID := runResp.GetRun().GetAllocationID()
 
-	lifecycle.DeleteErr = errors.New("node delete temporarily unavailable")
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
-	var activeReservations int
+	var chargedAllocations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations after delete failure: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after delete failure: %v", err)
 	}
-	if activeReservations != 1 {
-		t.Fatalf("active reservations after delete failure = %d, want 1", activeReservations)
+	if chargedAllocations != 1 {
+		t.Fatalf("charged allocations after delete failure = %d, want 1", chargedAllocations)
 	}
 
 	lifecycle.DeleteErr = nil
 	if err := app.runReconciler.ReconcilePending(context.Background(), now); err != nil {
 		t.Fatalf("ReconcilePending() error = %v", err)
 	}
-	if len(lifecycle.DeleteRequests) != 2 {
-		t.Fatalf("delete requests = %d, want initial request plus retry", len(lifecycle.DeleteRequests))
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests = %d, want one durable-intent delivery", len(lifecycle.DeleteRequests))
 	}
-	if got := lifecycle.DeleteRequests[1].GetAllocationID(); got != allocationID {
+	if got := lifecycle.DeleteRequests[0].GetAllocationID(); got != allocationID {
 		t.Fatalf("retry delete allocation = %q, want %q", got, allocationID)
 	}
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, allocationID).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations after delete retry success: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after delete retry success: %v", err)
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations after delete retry success = %d, want 0", activeReservations)
+	if chargedAllocations != 0 {
+		t.Fatalf("charged allocations after delete retry success = %d, want 0", chargedAllocations)
 	}
 	var queueItems int
 	if err := app.db.Pool().QueryRow(context.Background(), `
@@ -335,7 +395,7 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesReservation(t *testing.T)
 	}
 }
 
-func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T) {
+func TestPostgresRunKernelCancelRevokesAccessGrantAndReleasesAllocationResources(t *testing.T) {
 	app, lifecycle := newPostgresTestService(t)
 	defer app.Close()
 	now := time.Date(2026, 4, 24, 9, 0, 0, 0, time.UTC)
@@ -356,50 +416,64 @@ func TestPostgresRunKernelCancelRevokesLeaseAndReleasesReservation(t *testing.T)
 	if err != nil {
 		t.Fatalf("CreateRun() error = %v", err)
 	}
-	leaseResp, err := app.runStore.IssueExecutionLease(context.Background(), runResp.GetRun().GetAllocationID(), runResp.GetRun().GetAttempt(), commonv1.LeaseType_LEASE_TYPE_RUN, 30*time.Second, now)
-	if err != nil {
-		t.Fatalf("AcquireRunLease() error = %v", err)
+	if _, err := app.db.Pool().Exec(context.Background(), "UPDATE allocations SET lifecycle_state = 'ALLOCATION_LIFECYCLE_STATE_ACTIVE' WHERE allocation_id = $1", runResp.GetRun().GetAllocationID()); err != nil {
+		t.Fatal(err)
 	}
-	if leaseResp.GetPlaintextToken() == "" {
-		t.Fatal("AcquireRunLease() returned empty plaintext token")
+	grantResp, err := app.runStore.IssueAllocationAccessGrant(context.Background(), runResp.GetRun().GetAllocationID(), gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, 30*time.Second, now)
+	if err != nil {
+		t.Fatalf("IssueAllocationAccessGrant() error = %v", err)
+	}
+	if grantResp.PlaintextToken == "" {
+		t.Fatal("IssueAllocationAccessGrant() returned empty plaintext token")
 	}
 
 	if _, err := public.CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
 		t.Fatalf("CancelRun() error = %v", err)
 	}
-	if len(lifecycle.DeleteRequests) != 1 {
-		t.Fatalf("delete requests = %d, want 1", len(lifecycle.DeleteRequests))
+	if len(lifecycle.DeleteRequests) != 0 {
+		t.Fatalf("cancel request called node delete directly: %d calls", len(lifecycle.DeleteRequests))
 	}
-	leases, revision, err := app.runStore.WatchExecutionLeases(context.Background(), "node-a", 0, now)
+	grants, revision, err := app.runStore.WatchAllocationAccessGrants(context.Background(), "node-a", 0, now)
 	if err != nil {
-		t.Fatalf("WatchExecutionLeases() error = %v", err)
+		t.Fatalf("WatchAllocationAccessGrants() error = %v", err)
 	}
 	if revision < 2 {
-		t.Fatalf("lease revision = %d, want at least 2 after acquire+revoke", revision)
+		t.Fatalf("access grant revision = %d, want at least 2 after issue+revoke", revision)
 	}
 	var revoked bool
-	for _, lease := range leases {
-		if lease.GetLeaseID() == leaseResp.GetLeaseID() {
-			revoked = lease.GetRevoked()
-			if lease.GetPlaintextToken() != "" {
-				t.Fatal("watch path leaked plaintext token")
-			}
-			if lease.GetValidationTokenHash() == "" {
+	for _, grant := range grants {
+		if grant.GrantID == grantResp.GrantID {
+			revoked = grant.Revoked
+			if grant.ValidationTokenHash == "" {
 				t.Fatal("watch path did not return validation token hash")
 			}
 		}
 	}
 	if !revoked {
-		t.Fatal("cancelled run lease was not revoked")
+		t.Fatal("cancelled run access grant was not revoked")
 	}
-	var activeReservations int
+	var chargedAllocations int
 	if err := app.db.Pool().QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM workload_reservations WHERE allocation_id = $1 AND released_at IS NULL
-	`, runResp.GetRun().GetAllocationID()).Scan(&activeReservations); err != nil {
-		t.Fatalf("count active reservations: %v", err)
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, runResp.GetRun().GetAllocationID(), commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations: %v", err)
 	}
-	if activeReservations != 0 {
-		t.Fatalf("active reservations = %d, want 0", activeReservations)
+	if chargedAllocations != 1 {
+		t.Fatalf("charged allocations before durable delete delivery = %d, want 1", chargedAllocations)
+	}
+	if err := app.runReconciler.ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending(delete intent) error = %v", err)
+	}
+	if len(lifecycle.DeleteRequests) != 1 {
+		t.Fatalf("delete requests after reconcile = %d, want 1", len(lifecycle.DeleteRequests))
+	}
+	if err := app.db.Pool().QueryRow(context.Background(), `
+		SELECT COUNT(*) FROM allocations WHERE allocation_id = $1 AND lifecycle_state <> $2
+	`, runResp.GetRun().GetAllocationID(), commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()).Scan(&chargedAllocations); err != nil {
+		t.Fatalf("count charged allocations after reconcile: %v", err)
+	}
+	if chargedAllocations != 0 {
+		t.Fatalf("charged allocations after durable delete delivery = %d, want 0", chargedAllocations)
 	}
 	assertPostgresConsistencyOK(t, app)
 }
@@ -430,11 +504,9 @@ func TestPostgresRunStartingAllocationInActiveInventoryDoesNotFail(t *testing.T)
 	summary.Components.Axnoded.RunningAllocationIds = nil
 	summary.Components.Axnoded.ActiveAllocationIds = []string{runResp.GetRun().GetAllocationID()}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:        "node-a",
-		Runtimes:      []string{"runsc"},
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-		Summary:       summary,
+		NodeID:     "node-a",
+		NodeTarget: "127.0.0.1:25000",
+		Summary:    summary,
 	}); err != nil {
 		t.Fatalf("ReportNode(starting inventory) error = %v", err)
 	}

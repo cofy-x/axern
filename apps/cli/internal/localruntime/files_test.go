@@ -41,7 +41,7 @@ func TestGeneratedIdentityFilesAreValidAndPrivate(t *testing.T) {
 	if err := ensureSSH(ssh); err != nil {
 		t.Fatal(err)
 	}
-	data, err := os.ReadFile(filepath.Join(certs, "gatewayd.crt"))
+	data, err := os.ReadFile(filepath.Join(certs, "gatewayd.pem"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestGeneratedIdentityFilesAreValidAndPrivate(t *testing.T) {
 	if len(cert.IPAddresses) == 0 || cert.IPAddresses[0].String() != "127.0.0.1" {
 		t.Fatalf("gateway certificate does not cover loopback: %v", cert.IPAddresses)
 	}
-	for _, path := range []string{filepath.Join(certs, "client.key"), filepath.Join(ssh, "gateway_client_ed25519"), filepath.Join(ssh, "authorized_keys")} {
+	for _, path := range []string{filepath.Join(certs, "client.key"), filepath.Join(ssh, "gateway_client_ed25519")} {
 		info, err := os.Stat(path)
 		if err != nil {
 			t.Fatal(err)
@@ -82,58 +82,22 @@ func TestValidSSHPrivateKeyAcceptsOpenSSHEd25519(t *testing.T) {
 	}
 }
 
-func TestValidCertificateSetAcceptsPKCS8RSAKey(t *testing.T) {
+func TestCertificateSetRejectsLostSigningAuthority(t *testing.T) {
 	dir := t.TempDir()
 	if err := ensurePKI(dir); err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(dir, "ca.key")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	block, _ := pem.Decode(data)
-	key, err := x509.ParsePKCS1PrivateKey(block.Bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := x509.MarshalPKCS8PrivateKey(key)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: encoded}), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	if !validCertificateSet(dir) {
-		t.Fatal("certificate set with PKCS#8 RSA CA key was rejected")
+		t.Fatal("new certificate set rejected")
 	}
-}
-
-func TestVersionLess(t *testing.T) {
-	for _, test := range []struct {
-		left, right string
-		want        bool
-	}{{"1.2.3", "1.2.4", true}, {"1.10.0", "1.9.9", false}, {"2.0.0-rc.1", "2.0.0", true}, {"2.0.0", "2.0.0-rc.1", false}, {"2.0.0-rc.2", "2.0.0-rc.10", true}} {
-		if got := versionLess(test.left, test.right); got != test.want {
-			t.Fatalf("versionLess(%q, %q) = %v, want %v", test.left, test.right, got, test.want)
-		}
+	if err := os.Remove(filepath.Join(dir, "private", "signer.pem")); err != nil {
+		t.Fatal(err)
 	}
-}
-
-func TestSupportedUpgrade(t *testing.T) {
-	for _, test := range []struct {
-		from, to string
-		want     bool
-	}{
-		{"0.2.9", "0.3.0", true},
-		{"0.1.0", "0.3.0", false},
-		{"0.3.0", "0.3.2", true},
-		{"1.4.0", "1.7.0", true},
-		{"1.4.0", "2.0.0", false},
-	} {
-		if got := supportedUpgrade(test.from, test.to); got != test.want {
-			t.Errorf("supportedUpgrade(%q, %q) = %v, want %v", test.from, test.to, got, test.want)
-		}
+	if validCertificateSet(dir) {
+		t.Fatal("missing authority accepted")
+	}
+	if err := ensurePKI(dir); err == nil {
+		t.Fatal("lost authority silently replaced")
 	}
 }
 
@@ -252,7 +216,7 @@ func TestStartupDiagnosticsIncludesBoundedCoreLogs(t *testing.T) {
 	if len(runner.calls) != 2 {
 		t.Fatalf("diagnostic calls = %d, want 2", len(runner.calls))
 	}
-	if got, want := runner.calls[1][len(runner.calls[1])-9:], []string{"logs", "--no-color", "--tail", "80", "storaged", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
+	if got, want := runner.calls[1][len(runner.calls[1])-8:], []string{"logs", "--no-color", "--tail", "80", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("log diagnostics = %#v, want %#v", got, want)
 	}
 	if !bytes.Contains(stderr.Bytes(), []byte("Recent core service logs follow.")) {

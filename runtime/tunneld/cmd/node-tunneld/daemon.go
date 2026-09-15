@@ -10,22 +10,21 @@ import (
 	"sync"
 	"time"
 
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
 type daemon struct {
-	nodeID        string
-	nodeAuthToken string
-	node          nodev1.NodeControlClient
-	operator      nodeoperatorv1.NodeOperatorClient
-	runsc         runscConfig
-	relay         relayConfig
-	mu            sync.Mutex
-	running       map[string]context.CancelFunc
+	nodeID  string
+	node    nodev1.NodeControlClient
+	network nodenetworkv1.AllocationNetworkClient
+	runsc   runscConfig
+	relay   relayConfig
+	mu      sync.Mutex
+	running map[string]context.CancelFunc
 }
 
 type runscConfig struct {
@@ -39,23 +38,32 @@ type relayConfig struct {
 	caCert string
 }
 
+const (
+	sessionRetryMinDelay = time.Second
+	sessionRetryMaxDelay = 30 * time.Second
+)
+
 func (d *daemon) run(ctx context.Context) error {
 	var revision int64
 	backoff := time.Second
 	for {
-		nextRevision, err := d.poll(ctx, revision)
+		nextRevision, err := d.watch(ctx, revision)
+		if nextRevision > revision {
+			revision = nextRevision
+			backoff = time.Second
+		}
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "node-tunneld: watch poll failed: %v\n", err)
+			fmt.Fprintf(os.Stderr, "node-tunneld: session watch failed: %v\n", err)
 			if terminalControlError(err) {
 				d.stopAll()
 				return err
 			}
-		} else if nextRevision > revision {
-			revision = nextRevision
-			backoff = time.Second
+		}
+		if err == nil {
+			continue
 		}
 		wait := backoff + time.Duration(rand.Int63n(int64(backoff/2+time.Millisecond)))
-		if err != nil && backoff < 30*time.Second {
+		if backoff < 30*time.Second {
 			backoff *= 2
 		}
 		select {
@@ -67,33 +75,43 @@ func (d *daemon) run(ctx context.Context) error {
 	}
 }
 
-func (d *daemon) poll(ctx context.Context, revision int64) (int64, error) {
-	stream, err := d.node.WatchTunnelSessions(ctx, &nodev1.WatchTunnelSessionsRequest{NodeID: d.nodeID, NodeAuthToken: d.nodeAuthToken, AfterRevision: revision})
+func (d *daemon) watch(ctx context.Context, revision int64) (int64, error) {
+	stream, err := d.node.WatchTunnelSessions(ctx, &nodev1.WatchTunnelSessionsRequest{NodeID: d.nodeID, AfterRevision: revision})
 	if err != nil {
 		return revision, err
 	}
-	resp, err := stream.Recv()
-	if err != nil && !errors.Is(err, io.EOF) {
-		return revision, err
-	}
-	if resp == nil {
-		return revision, nil
-	}
-	for _, item := range resp.GetSessions() {
-		if item.GetSession() != nil {
-			if terminal(item.GetSession().GetStatus()) || item.GetSession().GetRevoked() {
-				d.stopSession(item.GetSession().GetSessionID())
-				continue
-			}
-			d.ensure(ctx, item)
+	for {
+		resp, err := stream.Recv()
+		if errors.Is(err, io.EOF) {
+			return revision, io.ErrUnexpectedEOF
 		}
+		if err != nil {
+			return revision, err
+		}
+		if resp == nil {
+			continue
+		}
+		// Never apply an old create before checking stream order: it could
+		// resurrect a listener whose terminal observation was already applied.
+		if resp.GetCurrentRevision() <= revision {
+			return revision, fmt.Errorf("control plane returned non-advancing tunnel revision %d after %d", resp.GetCurrentRevision(), revision)
+		}
+		for _, item := range resp.GetSessions() {
+			if item.GetSession() != nil {
+				if terminal(item.GetSession().GetStatus()) {
+					d.stopSession(item.GetSession().GetSessionID())
+					continue
+				}
+				d.ensure(ctx, item)
+			}
+		}
+		revision = resp.GetCurrentRevision()
 	}
-	return resp.GetCurrentRevision(), nil
 }
 
 func terminalControlError(err error) bool {
 	switch grpcstatus.Code(err) {
-	case codes.PermissionDenied, codes.Unauthenticated, codes.FailedPrecondition:
+	case codes.NotFound, codes.PermissionDenied, codes.Unauthenticated, codes.FailedPrecondition:
 		return true
 	default:
 		return false
@@ -116,16 +134,52 @@ func (d *daemon) ensure(parent context.Context, item *nodev1.NodeTunnelSession) 
 			delete(d.running, session.GetSessionID())
 			d.mu.Unlock()
 		}()
-		if err := d.serveSession(ctx, session, item.GetNodeToken()); err != nil {
-			_, _ = d.node.ReportTunnelSessionStatus(context.Background(), &nodev1.ReportTunnelSessionStatusRequest{
-				NodeID:        d.nodeID,
-				NodeAuthToken: d.nodeAuthToken,
-				SessionID:     session.GetSessionID(),
-				Status:        statusForSessionError(err),
-				Reason:        err.Error(),
-			})
-		}
+		d.runSession(ctx, session, item.GetNodeToken(), item.GetNodeEdgeTarget())
 	}()
+}
+
+func (d *daemon) runSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string) {
+	delay := sessionRetryMinDelay
+	for {
+		err := d.serveSession(ctx, session, token, nodeEdgeTarget)
+		if err == nil || ctx.Err() != nil {
+			return
+		}
+		status := statusForSessionError(err)
+		_, reportErr := d.node.ReportTunnelSessionStatus(ctx, &nodev1.ReportTunnelSessionStatusRequest{
+			NodeID:    d.nodeID,
+			SessionID: session.GetSessionID(),
+			Status:    status,
+			Reason:    err.Error(),
+		})
+		if terminalControlError(reportErr) {
+			return
+		}
+		if status == tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED {
+			if reportErr == nil {
+				return
+			}
+			// Keep the authoritative desired state locally until the terminal
+			// observation reaches controld. A transient reporting failure must
+			// not silently orphan an active control-plane session.
+		} else if reportErr != nil {
+			fmt.Fprintf(os.Stderr, "node-tunneld: report degraded session=%s: %v\n", session.GetSessionID(), reportErr)
+		}
+		wait := delay + time.Duration(rand.Int63n(int64(delay/2+time.Millisecond)))
+		timer := time.NewTimer(wait)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return
+		case <-timer.C:
+		}
+		if delay < sessionRetryMaxDelay {
+			delay *= 2
+			if delay > sessionRetryMaxDelay {
+				delay = sessionRetryMaxDelay
+			}
+		}
+	}
 }
 
 func (d *daemon) stopAll() {

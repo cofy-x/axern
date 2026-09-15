@@ -17,8 +17,8 @@ for node in nodes:
         ((item.get("key") or {}).get("Kind") or {}).get("Platform")
         for item in observations if item.get("state") == 1
     }
-    # Public PlatformCapability values: runc/runsc memory and writable storage.
-    raise SystemExit(0 if {5, 6, 9, 10}.issubset(available) else 1)
+    # Public PlatformCapability values: runsc memory and writable storage.
+    raise SystemExit(0 if {4, 6}.issubset(available) else 1)
 raise SystemExit(1)
 ' "$1" <<<"$2"
 }
@@ -62,55 +62,39 @@ setup_e2e_environment() {
   }
   ssh-keygen -q -t ed25519 -N "" -f "${ssh_dir}/gateway_host_ed25519" -C "axern-cli-e2e-gatewayd" >/dev/null
   ssh-keygen -q -t ed25519 -N "" -f "${ssh_dir}/gateway_client_ed25519" -C "axern-cli-e2e-client" >/dev/null
-  cp "${ssh_dir}/gateway_client_ed25519.pub" "${ssh_dir}/authorized_keys"
   chmod 700 "${ssh_dir}"
-  chmod 600 "${ssh_dir}/gateway_host_ed25519" "${ssh_dir}/gateway_client_ed25519" "${ssh_dir}/authorized_keys"
+  chmod 600 "${ssh_dir}/gateway_host_ed25519" "${ssh_dir}/gateway_client_ed25519"
 
   export AXERN_TLS_CA_CERT="${cert_dir}/ca.crt"
   export AXERN_TLS_CERT="${cert_dir}/client.crt"
   export AXERN_TLS_KEY="${cert_dir}/client.key"
+	printf '%s\n' "${CONTROL_PLANE_ENROLLMENT_TOKEN}" > "${cert_dir}/enrollment-token"
+	chmod 600 "${cert_dir}/enrollment-token"
 
   "${AXERN_ROOT}/bin/controld-migrate" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
     up
   "${AXERN_ROOT}/bin/controld-access-bootstrap" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
+    -ssh-public-key "${ssh_dir}/gateway_client_ed25519.pub" \
     -principal-name cli-e2e-admin \
     -display-name "CLI E2E Administrator" \
     -credential-label cli-e2e-client \
     -certificate "${cert_dir}/client.crt" \
-    -rollout-worker-certificate "${cert_dir}/rollout-worker.crt"
+    -node-id "${CONTROL_PLANE_NODE_ID}" \
+    -enrollment-token-file "${cert_dir}/enrollment-token"
 
-  "${AXERN_ROOT}/bin/storaged" \
-    -grpc-address "${STORAGED_GRPC_ADDRESS}" \
-    -http-address "${STORAGED_HTTP_ADDRESS}" \
-    -postgres-dsn "${CONTROLD_POSTGRES_DSN}" >"${storaged_log}" 2>&1 &
-  STORAGED_PID=$!
-
-  deadline=$((SECONDS + 60))
-  while [ "${SECONDS}" -lt "${deadline}" ]; do
-    if curl -fsS "http://${STORAGED_HTTP_ADDRESS}/healthz" >/dev/null 2>&1; then
-      break
-    fi
-    sleep 1
-  done
-
-  if ! curl -fsS "http://${STORAGED_HTTP_ADDRESS}/healthz" >/dev/null 2>&1; then
-    echo "storaged did not become ready in time" >&2
-    dump_logs
-    exit 1
-  fi
-
-  AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
+  AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
     "${AXERN_ROOT}/bin/controld" \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}" \
     -http-address "${CONTROLD_HTTP_ADDRESS}" \
     -tls-ca-cert "${cert_dir}/ca.crt" \
-    -tls-cert "${cert_dir}/controld.crt" \
-    -tls-key "${cert_dir}/controld.key" \
+    -workload-bundle "${cert_dir}/controld.pem" \
+    -workload-signer-bundle "${cert_dir}/private/signer.pem" \
+    -workload-cluster axern.local \
+    -enrollment-address "0.0.0.0:${CONTROLD_ENROLLMENT_PORT}" \
     -secrets-master-key "test-only-master-key-32-bytes!!!" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
-    -storaged-target "${STORAGED_GRPC_ADDRESS}" \
     -log-level info >"${controld_log}" 2>&1 &
   CONTROLD_PID=$!
 
@@ -132,16 +116,14 @@ setup_e2e_environment() {
     -http-address "${GATEWAY_HTTP_ADDRESS}" \
     -control-edge-address "${GATEWAY_CONTROL_ADDRESS}" \
     -control-edge-tls-ca-cert "${cert_dir}/ca.crt" \
-    -control-edge-tls-cert "${cert_dir}/gatewayd.crt" \
-    -control-edge-tls-key "${cert_dir}/gatewayd.key" \
+    -control-edge-tls-cert "${cert_dir}/gatewayd.pem" \
+    -control-edge-tls-key "${cert_dir}/gatewayd.pem" \
     -control-target "${CONTROLD_GRPC_ADDRESS}" \
     -tls-ca-cert "${cert_dir}/ca.crt" \
-    -tls-cert "${cert_dir}/gatewayd.crt" \
-    -tls-key "${cert_dir}/gatewayd.key" \
+    -workload-bundle "${cert_dir}/gatewayd.pem" \
     -ssh-enabled \
     -ssh-address "${GATEWAY_SSH_ADDRESS}" \
     -ssh-host-key "${ssh_dir}/gateway_host_ed25519" \
-    -ssh-authorized-keys "${ssh_dir}/authorized_keys" \
     -terminal-idle-timeout 30s \
     -terminal-max-duration 5m \
     -log-level info >"${gatewayd_log}" 2>&1 &
@@ -167,7 +149,6 @@ setup_e2e_environment() {
     --tls-ca-cert "${cert_dir}/ca.crt" \
     --tls-cert "${cert_dir}/client.crt" \
     --tls-key "${cert_dir}/client.key" \
-    --service-url "http://${GATEWAY_HTTP_ADDRESS}" \
     --ssh-endpoint "${GATEWAY_SSH_ADDRESS}" \
     --ssh-identity-file "${ssh_dir}/gateway_client_ed25519" >/dev/null
 
@@ -178,7 +159,7 @@ setup_e2e_environment() {
     --add-host "host.docker.internal:host-gateway" \
     -p "${NODE_GRPC_ADDRESS}:${NODE_GRPC_ADDRESS##*:}" \
     --volume "${shared_run_dir}:/shared/run" \
-    --volume "${cert_dir}:/shared/certs:ro" \
+    --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
     -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
     -e "AXNODED_GRPC_ADDRESS=0.0.0.0:${NODE_GRPC_ADDRESS##*:}" \
     -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
@@ -189,13 +170,13 @@ setup_e2e_environment() {
     -e "AXNODED_INTERFACE_CACHE_SIZE=16" \
     -e "AXNODED_CGROUP_CACHE_SIZE=16" \
     -e "AXNODED_CONTROL_PLANE_TARGET=host.docker.internal:${CONTROLD_GRPC_ADDRESS##*:}" \
+    -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=host.docker.internal:${CONTROLD_ENROLLMENT_PORT}" \
     -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
-    -e "AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN=${CONTROL_PLANE_NODE_AUTH_TOKEN}" \
+    -e "AXNODED_ENROLLMENT_TOKEN_FILE=/bootstrap/enrollment-token" \
+    --volume "${cert_dir}/enrollment-token:/bootstrap/enrollment-token:ro" \
     -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_GRPC_ADDRESS}" \
     -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
     -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \
-    -e "AXNODED_CONTROL_PLANE_TLS_CERT=/shared/certs/node.crt" \
-    -e "AXNODED_CONTROL_PLANE_TLS_KEY=/shared/certs/node.key" \
     "${IMAGE_TAG}" \
     /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >/dev/null
 
@@ -224,9 +205,8 @@ setup_e2e_environment() {
     exit 1
   fi
 
-  # Capability readiness includes serial runc and runsc conformance probes. Each
-  # runtime has a 60-second fail-closed budget, so the inventory wait must cover
-  # both probes plus the first report round trip.
+  # Capability readiness requires runsc conformance before image import. Keep
+  # enough time for the fail-closed probe and the first report round trip.
   local capability_readiness_timeout="${AXERN_CLI_E2E_CAPABILITY_READINESS_TIMEOUT_SECONDS:-150}"
   if ! [[ "${capability_readiness_timeout}" =~ ^[1-9][0-9]*$ ]]; then
     echo "AXERN_CLI_E2E_CAPABILITY_READINESS_TIMEOUT_SECONDS must be a positive integer" >&2
@@ -256,4 +236,37 @@ setup_e2e_environment() {
   if [ "${AXERN_CLI_E2E_IMPORT_RUNTIME_IMAGE}" = "1" ]; then
     import_python_runtime_image_once
   fi
+}
+
+# A node restarts with its own durable certificate; it must not enroll another
+# key or depend on a shared deployment Node certificate. Subsequent SSH and Run
+# scenarios verify that the recovered exact-Node transport remains usable.
+verify_node_identity_recovery() {
+  local identity_path=/var/lib/axnoded/root/identity/node.pem
+  local before after deadline nodes_body before_instance
+  before="$(docker cp "${NODE_CONTAINER_NAME}:${identity_path}" - | tar -xOf - | openssl dgst -sha256)"
+  nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz")"
+  before_instance="$(python3 -c 'import json,sys; print(next(n["summary"]["node_instance_id"] for n in json.load(sys.stdin)["nodes"] if n["node_id"] == sys.argv[1]))' "${CONTROL_PLANE_NODE_ID}" <<<"${nodes_body}")"
+  # Keep the read-only bind mount but withdraw its bootstrap contents after
+  # certificate publication. Restart must not need or replay this input.
+  : > "${cert_dir}/enrollment-token"
+  docker restart "${NODE_CONTAINER_NAME}" >/dev/null
+  deadline=$((SECONDS + 120))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    if docker exec "${NODE_CONTAINER_NAME}" curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
+      after="$(docker cp "${NODE_CONTAINER_NAME}:${identity_path}" - | tar -xOf - | openssl dgst -sha256)"
+      [ "${before}" = "${after}" ] || { echo "node restart replaced durable identity" >&2; return 1; }
+      docker exec "${NODE_CONTAINER_NAME}" test ! -e "${identity_path}.pending"
+      nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" || true)"
+      if node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}" &&
+          python3 -c 'import json,sys; n=next(n for n in json.load(sys.stdin)["nodes"] if n["node_id"] == sys.argv[1]); current=n.get("summary", {}).get("node_instance_id"); sys.exit(0 if current and current != sys.argv[2] else 1)' "${CONTROL_PLANE_NODE_ID}" "${before_instance}" <<<"${nodes_body}" &&
+          cli_runtime_capabilities_ready "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
+        return
+      fi
+    fi
+    sleep 1
+  done
+  echo "node did not recover its authenticated runtime" >&2
+  dump_logs
+  return 1
 }

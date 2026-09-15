@@ -12,11 +12,7 @@ import (
 
 func TestMemoryCapabilityVerifierRejectsMissingPositiveLimit(t *testing.T) {
 	options := contract.HandlerOptions{ContainerID: "allocation-without-limit"}
-	runcDependency := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT)}
-	if result := (&RuncServiceHandler{}).VerifyAllocationCapability(context.Background(), runcDependency, options); result.State != contract.CapabilityVerificationLost {
-		t.Fatal("runc memory verifier accepted a missing hard limit")
-	}
-	runscDependency := &capabilityv1.CapabilityDependency{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)}
+	runscDependency := &capabilityv1.CapabilityRequirement{Key: capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)}
 	if result := (&RunscServiceHandler{}).VerifyAllocationCapability(context.Background(), runscDependency, options); result.State != contract.CapabilityVerificationLost {
 		t.Fatal("runsc memory verifier accepted a missing hard limit")
 	}

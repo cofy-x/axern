@@ -5,11 +5,11 @@ import (
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agent"
 	"github.com/cofy-x/axern/apps/axrun/internal/agent/oracle"
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	rolloutclaudecode "github.com/cofy-x/axern/apps/axrun/internal/application/rollout/agents/claudecode"
 	rolloutcodex "github.com/cofy-x/axern/apps/axrun/internal/application/rollout/agents/codex"
 	rolloutcommand "github.com/cofy-x/axern/apps/axrun/internal/application/rollout/agents/command"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
-	"github.com/cofy-x/axern/lib/go/agentprofile"
 )
 
 // DefaultRegistry returns the built-in agent registry with all known agent

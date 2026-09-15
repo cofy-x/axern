@@ -25,7 +25,7 @@ func WithMaxSessions(maxSessions int) Option {
 
 func WithPeerRevalidateInterval(interval time.Duration) Option {
 	return func(s *Server) {
-		if interval >= 0 {
+		if interval > 0 && interval <= 15*time.Second {
 			s.peerRevalidateInterval = interval
 		}
 	}

@@ -4,11 +4,13 @@ package axnoded.internal.apipb.v1;
 
 option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
 
-import "axern/control/catalog/v1/catalog.proto";
+import "axern/control/environment/v1/environment.proto";
 import "axern/control/capability/v1/capability.proto";
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
 
 enum RootfsSrcType {
-  S3 = 0;
+  UNSPECIFIED = 0;
   IMAGE = 1;
   LOCAL = 2;
 }
@@ -27,8 +29,6 @@ enum CgroupLeaseOwnerKind {
 }
 
 message CgroupLease {
-  reserved 9;
-  reserved "reclaim_requested_at_unix_nano";
   string cgroup_id = 1;
   CgroupLifecycleState state = 2;
   string allocation_id = 3;
@@ -37,19 +37,17 @@ message CgroupLease {
   int64 retiring_at_unix_nano = 6;
   string last_cleanup_error = 7;
   int64 current_charged_bytes = 8;
-  int64 allocation_attempt = 10;
-  int64 memory_limit_bytes = 11;
-  string runtime_name = 12;
-  string cgroup_boot_id = 13;
-  string cgroup_mount_identity = 14;
-  uint64 cgroup_parent_inode = 15;
-  uint64 cgroup_leaf_inode = 16;
-  string last_identity_verification_error = 17;
-  CgroupLeaseOwnerKind owner_kind = 18;
+  int64 memory_limit_bytes = 9;
+  string cgroup_boot_id = 10;
+  string cgroup_mount_identity = 11;
+  uint64 cgroup_parent_inode = 12;
+  uint64 cgroup_leaf_inode = 13;
+  string last_identity_verification_error = 14;
+  CgroupLeaseOwnerKind owner_kind = 15;
   // Node admission charge, separated from the OCI workload request/limit so
   // trusted runtime monitor overhead can be reserved without weakening the
   // workload's cgroup boundary.
-  int64 capacity_reservation_bytes = 19;
+  int64 capacity_charge_bytes = 16;
 }
 
 message CgroupLedger {
@@ -60,26 +58,13 @@ message CgroupLedger {
   string memory_capacity_identity = 2;
 }
 
-message DurableSequence {
-  int64 reserved_through = 1;
-}
-
-message S3Config {
-  string endpoint = 1;
-  string bucket = 2;
-  string object = 3;
-  string accessKeyID = 4;
-  string access_key_secret = 5;
-}
-
 message RootfsConfig {
   bool readonly = 1;
   RootfsSrcType type = 2;
 
   oneof source {
     string image_url = 3;
-    S3Config s3_config = 4;
-    string path = 5;
+    string path = 4;
   }
 }
 
@@ -96,125 +81,74 @@ message ImageMount {
   bool readonly = 3;
 }
 
-message WorkspaceImageVariant {
-  string format = 1;
-  string image = 2;
+message ResolvedEnvironment {
+  string id = 1;
+  RootfsConfig rootfs = 2;
+  repeated string argv = 3;
+  map<string, string> env = 4;
+  string cwd = 5;
+  repeated Mount mounts = 6;
+  axern.control.environment.v1.OciExecutionProfile execution_profile = 7;
 }
 
-message WorkspaceImageSource {
-  repeated WorkspaceImageVariant variants = 1;
-  string source_path = 2;
-  string target = 3;
-}
-
-enum TaskAssetKind {
-  TASK_ASSET_KIND_UNSPECIFIED = 0;
-  TASK_ASSET_KIND_VERIFIER = 1;
-  TASK_ASSET_KIND_ORACLE = 2;
-}
-
-message MaterializeTaskAssetsRequest {
-  string ID = 1;
-  string source_path = 2;
-  string target = 3;
-  TaskAssetKind kind = 4;
-}
-
-message MaterializeTaskAssetsResponse {
-  int64 duration_ms = 1;
-}
-
-message RuntimeTemplate {
-  string ID = 1;
-  string sandbox = 2;
-  RootfsConfig rootfs = 3;
-  repeated string command = 4;
-  map<string, string> runtimeEnvs = 5;
-  string cwd = 6;
-  repeated Mount mounts = 7;
-  axern.control.catalog.v1.RuntimeExecutionProfile execution_profile = 8;
-}
-
+// AllocationState is the sole node-local authority and recovery record for a
+// control-plane-bound Allocation. Its node and request digest fence retries;
+// runtime and kernel state are rebuildable projections of this record.
 message AllocationState {
-  string allocationID = 1;
-  RuntimeTemplate runtime_template = 2;
-  repeated string image_mount_urls = 3;
-  string workspace_image_url = 4;
-  string workspace_source_path = 5;
-  string workspace_target = 6;
-  repeated axern.control.capability.v1.CapabilityDependency capability_dependencies = 7;
-  axern.control.capability.v1.CapabilityConditionSet capability_conditions = 8;
-  AllocationEnforcementManifest enforcement_manifest = 9;
-  AllocationCapabilityReconcileState capability_reconcile = 10;
-  int64 allocation_attempt = 11;
-  AllocationLaunchVerification launch_verification = 12;
+  string allocation_id = 1;
+  string node_id = 2;
+  ResolvedEnvironment environment = 3;
+  axern.control.common.v1.ResourceSpec resources = 4;
+  repeated string image_mount_urls = 5;
+  repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 6;
+  AllocationEnforcementManifest enforcement_manifest = 7;
+  AllocationCapabilityReconcileState capability_reconcile = 8;
   // Canonical digest of the behaviorally relevant StartRequest. It fences
-  // same-attempt retries from mutating a running allocation's contract.
-  string allocation_request_digest = 13;
-  // Immutable post-create condition proof returned by idempotent Create
-  // replays. capability_conditions remains the current runtime projection.
-  axern.control.capability.v1.CapabilityConditionSet capability_admission_conditions = 14;
-  AllocationEgressPolicyProof egress_policy_proof = 15;
+  // idempotent retries from mutating a running allocation's contract.
+  string allocation_request_digest = 9;
+  // Node-local receipt-clock deadline for the control plane's finite right to
+  // keep this Allocation running. It is renewable and is not part of the
+  // immutable create request digest.
+  int64 execution_lease_expires_at_unix_nano = 10;
+  axern.control.common.v1.WorkloadDiagnosticCode termination_diagnostic_code = 11;
+  string termination_message = 12;
 }
 
-message AllocationEgressPolicyProof {
-  string sandbox_ip = 1;
-  string policy_digest = 2;
-  int64 execution_revision = 3;
-}
-
-// AllocationLaunchVerification is the durable create-time proof that the
-// runtime-specific hard-enforcement contract was inspected while the OCI
-// container was created but before the workload process was started. The
-// immutable enforcement_manifest records what was launched; this record
-// separately records which allocation requirements were actually verified.
-message AllocationLaunchVerification {
-  repeated axern.control.capability.v1.CapabilityKey verified_capabilities = 1;
-  int64 verified_at_unix_nano = 2;
-}
-
-message PendingCapabilityReconcile {
-  axern.control.capability.v1.CapabilityKey key = 1;
-  int64 generation = 2;
-}
-
-// AllocationCapabilityReconcileState is a durable, allocation-scoped queue.
-// Per-key generations make acknowledgement safe when a newer transition is
-// merged while verification or termination is already running.
+// AllocationCapabilityReconcileState is the durable node-local intent to
+// re-evaluate an Allocation against the latest node-local capability
+// observation. The sequence changes only when work is merged into this
+// Allocation intent, so a worker cannot acknowledge over concurrent work.
 message AllocationCapabilityReconcileState {
-  repeated PendingCapabilityReconcile pending = 1;
+  int64 pending_intent_sequence = 1;
   bool terminating = 2;
   string last_error = 3;
-  int64 updated_at_unix_nano = 4;
 }
 
 // AllocationEnforcementManifest is the immutable create-time contract used by
 // runtime audits. Runtime-observed identities may be filled after create, but
 // the requested limits and immutable launch contract never change.
 message AllocationEnforcementManifest {
-  string runtime_name = 1;
-  int64 memory_limit_bytes = 2;
-  int64 ephemeral_storage_limit_bytes = 3;
-  string cgroup_path = 4;
-  string runtime_cgroup_path = 5;
-  string runsc_overlay_arg = 6;
-  string filestore_mount_identity = 7;
-  int64 created_at_unix_nano = 8;
-  uint32 runc_project_id = 9;
-  string bundle_path = 10;
-  string runsc_backing_directory = 11;
-  string runsc_backing_directory_identity = 12;
-  string cgroup_boot_id = 13;
-  string cgroup_mount_identity = 14;
-  uint64 cgroup_parent_inode = 15;
-  uint64 cgroup_leaf_inode = 16;
-  int64 memory_swap_max_bytes = 17;
-  bool memory_oom_group = 18;
-  uint64 initial_memory_event_high = 19;
-  uint64 initial_memory_event_max = 20;
-  uint64 initial_memory_event_oom = 21;
-  uint64 initial_memory_event_oom_kill = 22;
-  uint64 initial_memory_event_oom_group_kill = 23;
+  int64 memory_limit_bytes = 1;
+  int64 ephemeral_storage_limit_bytes = 2;
+  string cgroup_path = 3;
+  string runtime_cgroup_path = 4;
+  string runsc_overlay_arg = 5;
+  string filestore_mount_identity = 6;
+  int64 created_at_unix_nano = 7;
+  string bundle_path = 8;
+  string runsc_backing_directory = 9;
+  string runsc_backing_directory_identity = 10;
+  string cgroup_boot_id = 11;
+  string cgroup_mount_identity = 12;
+  uint64 cgroup_parent_inode = 13;
+  uint64 cgroup_leaf_inode = 14;
+  int64 memory_swap_max_bytes = 15;
+  bool memory_oom_group = 16;
+  uint64 initial_memory_event_high = 17;
+  uint64 initial_memory_event_max = 18;
+  uint64 initial_memory_event_oom = 19;
+  uint64 initial_memory_event_oom_kill = 20;
+  uint64 initial_memory_event_oom_group_kill = 21;
 }
 
 message TerminalResize {
@@ -240,6 +174,25 @@ message LinuxContainerResources {
   int64 memory_swap_limit_in_bytes = 10;
 }
 
+// RuntimeCheckpoint is the minimal durable lifecycle barrier for one runsc
+// container. Live identity is refreshed from runsc inventory; resource and
+// admission facts belong to AllocationState and the resource ledgers.
+enum RuntimeCheckpointState {
+  RUNTIME_CHECKPOINT_STATE_UNKNOWN = 0;
+  RUNTIME_CHECKPOINT_STATE_RUNNING = 1;
+  RUNTIME_CHECKPOINT_STATE_EXITED = 2;
+}
+
+message RuntimeCheckpoint {
+  RuntimeCheckpointState state = 1;
+  int32 init_process_pid = 2;
+  google.protobuf.Timestamp started_at = 3;
+  google.protobuf.Timestamp finished_at = 4;
+  optional int32 exit_code = 5;
+  string message = 6;
+  axern.control.common.v1.WorkloadDiagnosticCode diagnostic_code = 7;
+}
+
 message HugepageLimit {
   string page_size = 1;
   uint64 limit = 2;
@@ -250,8 +203,7 @@ message Rootfs {
   string lower_dir = 2;
   string root_dir = 3;
   bool readonly = 4;
-  reserved 5;
-  ImmutableRootfsMount immutable_mount = 6;
+  ImmutableRootfsMount immutable_mount = 5;
 }
 
 // ImmutableRootfsMount is emitted by the rootfs source owner. OCI runtime
@@ -268,21 +220,20 @@ message ImmutableRootfsMount {
 }
 
 message ContainerMetadata {
-  string ID = 1;
-  string runtime_handler = 3;
-  map<string, string> labels = 4;
-  string stdout = 6;
-  string stderr = 7;
+  string stdout = 1;
+  string stderr = 2;
 }
 
-message ContainerMetadataList {
-  map<string, ContainerMetadata> containers = 1;
+// NetworkLease is the durable owner binding for one host network resource.
+// The Allocation ID, rather than an OCI annotation, authorizes lookup and
+// cleanup after restart.
+message NetworkLease {
+  string allocation_id = 1;
+  string host_interface_name = 2;
+  string ip = 3;
+  string netns_path = 4;
 }
 
-message Slice {
-  repeated string items = 1;
-}
-
-message Map {
-  map<string, string> items = 1;
+message NetworkLedger {
+  repeated NetworkLease leases = 1;
 }

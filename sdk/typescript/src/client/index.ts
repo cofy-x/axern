@@ -10,12 +10,11 @@ import { readFileSync } from "node:fs";
 import { loadAxernContext, loadAxernEnv, normalizeProxyMode } from "../config/index.js";
 import { mapRpcError } from "../errors/index.js";
 import { serviceConstructor, unary } from "../generated/proto.js";
-import { NodeSandboxClient } from "../node/client.js";
+import { AllocationClient } from "../node/client.js";
 import { buildResourceSpec } from "../resources.js";
 import type { ResourceQuantity } from "../resources.js";
 import type { NetworkPolicy } from "../network-policy.js";
 import { TunnelControlClient } from "../tunnel/control.js";
-import type { VolumeMount } from "../types.js";
 import type { GatewayTransportOptions } from "../tunnel/relay.js";
 import { required } from "../validation.js";
 
@@ -38,16 +37,14 @@ export interface CreateEnvironmentOptions {
   labels?: Record<string, string>;
 }
 
-export interface CreateServiceOptions {
+export interface CreateRunOptions {
   namespace?: string;
   environmentId: string;
   argv?: string[];
   env?: Record<string, string>;
   cwd?: string;
-  runtimeClass?: string;
   networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
-  volumes?: readonly VolumeMount[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
   requestEphemeralStorage?: ResourceQuantity;
@@ -74,7 +71,6 @@ export class AxernClient {
   private readonly controlOptions: grpc.ChannelOptions;
   private readonly environmentControl: grpc.Client;
   private readonly runControl: grpc.Client;
-  private readonly serviceControl: grpc.Client;
   private readonly tunnelControl: grpc.Client;
   private readonly gatewayTransport: GatewayTransportOptions;
 
@@ -115,11 +111,9 @@ export class AxernClient {
       "EnvironmentControl",
     ]);
     const RunControl = serviceConstructor(["axern", "control", "run", "v1", "RunControl"]);
-    const ServiceControl = serviceConstructor(["axern", "control", "service", "v1", "ServiceControl"]);
     const TunnelControl = serviceConstructor(["axern", "control", "tunnel", "v1", "TunnelControl"]);
     this.environmentControl = new EnvironmentControl(this.endpoint, this.credentials, this.controlOptions);
     this.runControl = new RunControl(this.endpoint, this.credentials, this.controlOptions);
-    this.serviceControl = new ServiceControl(this.endpoint, this.credentials, this.controlOptions);
     this.tunnelControl = new TunnelControl(this.endpoint, this.credentials, this.controlOptions);
   }
 
@@ -143,7 +137,6 @@ export class AxernClient {
   close(): void {
     this.environmentControl.close();
     this.runControl.close();
-    this.serviceControl.close();
     this.tunnelControl.close();
   }
 
@@ -183,6 +176,44 @@ export class AxernClient {
     }
   }
 
+  async createRun(options: CreateRunOptions): Promise<Record<string, unknown>> {
+    const resources = buildResourceSpec(options);
+    try {
+      const response = await unary<Record<string, unknown>, { run: Record<string, unknown> }>(
+        this.runControl,
+        "CreateRun",
+        {
+          namespace: options.namespace ?? "default",
+          environment_id: required("environmentId", options.environmentId),
+          config: {
+            argv: options.argv ?? [],
+            env: options.env ?? {},
+            cwd: options.cwd ?? "",
+            ...(options.networkPolicy === undefined
+              ? {}
+              : { network: { egress_policy: options.networkPolicy.toWire() } }),
+            extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
+              capability: { name: capability.name, value: capability.value ?? "" },
+            })),
+            resources,
+          },
+          labels: options.labels ?? {},
+        },
+      );
+      return response.run;
+    } catch (error) {
+      throw mapRpcError(error, "create run");
+    }
+  }
+
+  async cancelRun(runId: string): Promise<void> {
+    try {
+      await unary(this.runControl, "CancelRun", { run_id: required("runId", runId) });
+    } catch (error) {
+      throw mapRpcError(error, "cancel run");
+    }
+  }
+
   async *watchRun(runId: string, afterVersion = 0): AsyncGenerator<Record<string, unknown>> {
     if (afterVersion < 0) {
       throw new Error("afterVersion must be non-negative");
@@ -214,6 +245,8 @@ export class AxernClient {
   }
 
   async *readRunOutput(runId: string, options: ReadRunOutputOptions = {}): AsyncGenerator<Record<string, unknown>> {
+    // Output is Allocation-local and may be unavailable after cleanup; callers
+    // that need durable bytes must consume and persist them before then.
     const response = await unary<Record<string, unknown>, { run?: Record<string, unknown> }>(
       this.runControl,
       "GetRun",
@@ -258,65 +291,8 @@ export class AxernClient {
     }
   }
 
-  async createService(options: CreateServiceOptions): Promise<Record<string, unknown>> {
-    const resources = buildResourceSpec(options);
-    try {
-      const response = await unary<Record<string, unknown>, { service: Record<string, unknown> }>(
-        this.serviceControl,
-        "CreateService",
-        {
-          namespace: options.namespace ?? "default",
-          environment_id: required("environmentId", options.environmentId),
-          replicas: 1,
-          config: {
-            argv: options.argv ?? [],
-            env: options.env ?? {},
-            cwd: options.cwd ?? "",
-            runtime_class: options.runtimeClass ?? "",
-            ...(options.networkPolicy === undefined
-              ? {}
-              : { network: { egress_policy: options.networkPolicy.toWire() } }),
-            extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
-              capability: { name: capability.name, value: capability.value ?? "" },
-            })),
-            volume_mounts: serviceVolumeMounts(options.volumes),
-            resources,
-          },
-          labels: options.labels ?? {},
-        },
-      );
-      return response.service;
-    } catch (error) {
-      throw mapRpcError(error, "create service");
-    }
-  }
-
-  async deleteService(serviceId: string): Promise<void> {
-    try {
-      await unary(this.serviceControl, "DeleteService", { service_id: required("serviceId", serviceId) });
-    } catch (error) {
-      throw mapRpcError(error, "delete service");
-    }
-  }
-
-  async listServiceReplicas(serviceId: string): Promise<Record<string, unknown>[]> {
-    try {
-      const response = await unary<Record<string, unknown>, { replicas?: Record<string, unknown>[] }>(
-        this.serviceControl,
-        "ListServiceReplicas",
-        {
-          service_id: required("serviceId", serviceId),
-          filter: { view: 2 },
-        },
-      );
-      return response.replicas ?? [];
-    } catch (error) {
-      throw mapRpcError(error, "list service replicas");
-    }
-  }
-
-  nodeSandbox(allocationId: string): NodeSandboxClient {
-    return new NodeSandboxClient({
+  allocation(allocationId: string): AllocationClient {
+    return new AllocationClient({
       allocationId: required("allocationId", allocationId),
       target: this.endpoint,
       credentials: this.credentials,
@@ -331,15 +307,6 @@ export class AxernClient {
   tunnelTransport(): GatewayTransportOptions {
     return { ...this.gatewayTransport };
   }
-}
-
-function serviceVolumeMounts(mounts: readonly VolumeMount[] | undefined): Record<string, unknown>[] {
-  return (mounts ?? []).map((mount) => ({
-    name: mount.name,
-    target: mount.target,
-    readonly: mount.readonly ?? false,
-    options: [...(mount.options ?? [])],
-  }));
 }
 
 function serverStream(client: grpc.Client, method: string, request: Record<string, unknown>): grpc.ClientReadableStream<Record<string, unknown>> {

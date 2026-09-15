@@ -16,25 +16,22 @@ import (
 )
 
 func TestWait(t *testing.T) {
-	runscHandler := &runtimeSpyHandler{name: "runsc", waitExitCode: 1}
-	altHandler := &runtimeSpyHandler{name: "alt-runtime", waitExitCode: 7}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc":       runscHandler,
-		"alt-runtime": altHandler,
-	})
+	runscHandler := &runtimeSpyHandler{name: "runsc", waitExitCode: 7}
+	s := newTestService(t,
+		runscHandler,
+	)
 
 	containerID := "axctl-test-wait"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
-		RuntimeHandler: "alt-runtime",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	resp, err := s.Wait(context.Background(), &runtime.WaitRequest{
 		ID: containerID,
 	})
 	assert.NoError(t, err)
-	assert.Equal(t, int32(7), resp.ExitCode)
+	if assert.NotNil(t, resp.ExitCode) {
+		assert.Equal(t, int32(7), *resp.ExitCode)
+	}
 }
 
 func TestWaitReturnsUnavailableWhenExitCodeUnknown(t *testing.T) {
@@ -42,23 +39,20 @@ func TestWaitReturnsUnavailableWhenExitCodeUnknown(t *testing.T) {
 	handler.waitFunc = func(context.Context, contract.HandlerOptions) (contract.Exit, error) {
 		return contract.Exit{}, fmt.Errorf("container exited but runtime exit status is unavailable: %w", contract.ErrExitStatusUnavailable)
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-wait-unknown"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)
 	assert.NoError(t, err)
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
+		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
-		st.ExitCode = -1
-		st.ExitCodeKnown = false
+		st.ExitCode = nil
 		st.Message = "container exited but runtime exit status is unavailable"
 		return st, nil
 	})
@@ -77,23 +71,20 @@ func TestWaitContinuesWhenStatusExitedButExitCodeUnknown(t *testing.T) {
 		<-waitReady
 		return contract.Exit{Status: 9}, nil
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{
-		"runsc": handler,
-	})
+	s := newTestService(t,
+		handler,
+	)
 
 	containerID := "axctl-test-wait-unknown-recover"
-	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{
-		ID:             containerID,
-		RuntimeHandler: "runsc",
-	})
+	s.containerManager.StoreMetadata(containerID, &apipb.ContainerMetadata{})
 	time.Sleep(200 * time.Millisecond)
 
 	c, err := s.containerManager.Get(containerID)
 	assert.NoError(t, err)
 	err = c.Status.UpdateSync(func(st container.Status) (container.Status, error) {
+		st.RuntimeState = apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_EXITED
 		st.FinishedAt = time.Now().Format(time.RFC3339Nano)
-		st.ExitCode = -1
-		st.ExitCodeKnown = false
+		st.ExitCode = nil
 		st.Message = "container exited but runtime exit status is unavailable"
 		return st, nil
 	})
@@ -117,6 +108,8 @@ func TestWaitContinuesWhenStatusExitedButExitCodeUnknown(t *testing.T) {
 	result := <-resultCh
 	assert.NoError(t, result.err)
 	if assert.NotNil(t, result.resp) {
-		assert.Equal(t, int32(9), result.resp.ExitCode)
+		if assert.NotNil(t, result.resp.ExitCode) {
+			assert.Equal(t, int32(9), *result.resp.ExitCode)
+		}
 	}
 }

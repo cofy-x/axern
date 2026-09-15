@@ -7,31 +7,18 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/eg
 import "axern/control/common/v1/common.proto";
 import "google/protobuf/timestamp.proto";
 
-enum EgressPolicyRecoveryState {
-  EGRESS_POLICY_RECOVERY_STATE_UNSPECIFIED = 0;
-  EGRESS_POLICY_RECOVERY_STATE_APPLIED = 1;
-  EGRESS_POLICY_RECOVERY_STATE_RECOVERED = 2;
-}
-
 message PreparedEgressPolicy {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string sandbox_ip = 3;
-  axern.control.common.v1.NetworkEgressPolicy policy = 4;
-  string policy_digest = 5;
-  int64 execution_revision = 6;
-  EgressPolicyRecoveryState recovery_state = 7;
-  google.protobuf.Timestamp updated_at = 8;
-  repeated string upstream_nameservers = 9;
+  string sandbox_ip = 2;
+  axern.control.common.v1.NetworkEgressPolicy policy = 3;
+  repeated string upstream_nameservers = 4;
 }
 
 message PreparePolicyRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
-  string sandbox_ip = 3;
-  axern.control.common.v1.NetworkEgressPolicy policy = 4;
-  int64 execution_revision = 5;
-  repeated string upstream_nameservers = 6;
+  string sandbox_ip = 2;
+  axern.control.common.v1.NetworkEgressPolicy policy = 3;
+  repeated string upstream_nameservers = 4;
 }
 
 message PreparePolicyResponse {
@@ -41,7 +28,6 @@ message PreparePolicyResponse {
 
 message DeletePolicyRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
 }
 
 message DeletePolicyResponse {
@@ -50,7 +36,6 @@ message DeletePolicyResponse {
 
 message GetPolicyRequest {
   string allocation_id = 1;
-  int64 attempt = 2;
 }
 
 message GetPolicyResponse {
@@ -65,16 +50,8 @@ message ListPoliciesResponse {
   repeated PreparedEgressPolicy policies = 1;
 }
 
-message ActiveEgressPolicy {
-  string allocation_id = 1;
-  int64 attempt = 2;
-  string sandbox_ip = 3;
-  string policy_digest = 4;
-  int64 execution_revision = 5;
-}
-
 message ReconcilePoliciesRequest {
-  repeated ActiveEgressPolicy active_policies = 1;
+  repeated string allocation_ids = 1;
 }
 
 message ReconcilePoliciesResponse {
@@ -96,17 +73,16 @@ message EgressManagerHealthRequest {}
 message EgressManagerHealth {
   EgressManagerStatus status = 1;
   int32 prepared_policy_count = 2;
-  int32 recovered_policy_count = 3;
-  google.protobuf.Timestamp last_reconcile_at = 4;
-  string last_reconcile_error = 5;
-  int32 last_reconcile_retained_count = 6;
-  int32 last_reconcile_deleted_count = 7;
-  int32 last_reconcile_active_policy_count = 8;
-  int32 last_reconcile_stale_policy_count = 9;
-  int32 last_reconcile_invalid_active_policy_count = 10;
-  bool dns_policy_self_test_ok = 11;
-  bool strict_egress_self_test_ok = 12;
-  int64 enforcement_revision = 13;
+  google.protobuf.Timestamp last_reconcile_at = 3;
+  string last_reconcile_error = 4;
+  int32 last_reconcile_retained_count = 5;
+  int32 last_reconcile_deleted_count = 6;
+  int32 last_reconcile_active_policy_count = 7;
+  int32 last_reconcile_stale_policy_count = 8;
+  int32 last_reconcile_invalid_active_policy_count = 9;
+  bool dns_policy_self_test_ok = 10;
+  bool strict_egress_self_test_ok = 11;
+  int64 enforcement_revision = 12;
 }
 
 message EgressManagerHealthResponse {

@@ -18,13 +18,16 @@ import (
 )
 
 type options struct {
-	rootDir     string
-	configPath  string
-	socketPath  string
-	grpcAddress string
-	httpAddress string
-	logLevel    string
-	logFile     string
+	enrollmentTokenFile   string
+	rootDir               string
+	configPath            string
+	socketPath            string
+	conformanceSocketPath string
+	networkSocketPath     string
+	grpcAddress           string
+	httpAddress           string
+	logLevel              string
+	logFile               string
 }
 
 func Run() error {
@@ -45,8 +48,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	hostname, _ := os.Hostname()
-	nodeID := cfg.PluginConfig.ControlPlaneNodeIDValue(hostname)
+	nodeID := cfg.PluginConfig.ControlPlaneNodeID
 	obs, err := sdkobs.Init(context.Background(), sdkobs.ConfigFromEnv(
 		sdkobs.WithServiceName("axnoded"),
 		sdkobs.WithComponent("axnoded"),
@@ -75,9 +77,12 @@ func Run() error {
 func parseFlags() (options, error) {
 	opts := options{}
 	flagSet := flagSet()
+	flagSet.StringVar(&opts.enrollmentTokenFile, "enrollment-token-file", "", "read-only initial registration token file; never used after certificate publication")
 	flagSet.StringVar(&opts.rootDir, "root", config.DefaultRootDir, "axnoded working root directory")
 	flagSet.StringVar(&opts.configPath, "config", "", "path to axnoded TOML config")
 	flagSet.StringVar(&opts.socketPath, "socket", config.DefaultSocketAddress, "axnoded gRPC unix socket")
+	flagSet.StringVar(&opts.conformanceSocketPath, "conformance-socket", "", "test-only local Allocation conformance Unix socket; disabled when empty")
+	flagSet.StringVar(&opts.networkSocketPath, "network-socket", config.DefaultNetworkSocketAddress, "axnoded machine-only Allocation network Unix socket")
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", "", "axnoded node gRPC TCP listen address")
 	flagSet.StringVar(&opts.httpAddress, "http-address", config.DefaultHttpAddress, "axnoded HTTP listen address")
 	flagSet.StringVar(&opts.logLevel, "log-level", "info", "log level: debug|info|warn|error")

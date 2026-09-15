@@ -12,8 +12,6 @@ ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
 ARG RUNSC_SOURCE=remote
 ARG RUNSC_CACHE_ARCH=aarch64
-ARG MC_SOURCE=remote
-ARG MC_CACHE_ARCH=arm64
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CARGO_HOME=/usr/local/cargo
 ENV RUSTUP_HOME=/usr/local/rustup
@@ -45,7 +43,8 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
     bash \
     bzip2 \
     busybox-static \
@@ -63,7 +62,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     linux-tools-common \
     linux-tools-generic \
     procps \
-    runc \
     util-linux \
     xfsprogs \
     && rm -rf /var/lib/apt/lists/partial
@@ -81,7 +79,6 @@ RUN go version
 RUN cargo --version
 
 COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
-COPY runtime/axnoded/.cache/minio/ /opt/minio-cache/
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
 COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
 
@@ -108,36 +105,16 @@ RUN set -eux; \
     /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 
-RUN set -eux; \
-    . /usr/local/share/axern/runtime-tools.sh; \
-    ARCH="$(dpkg --print-architecture)"; \
-    case "$ARCH" in \
-      amd64) MC_ARCH="amd64"; MC_SHA256="${AXERN_MC_SHA256_AMD64}" ;; \
-      arm64) MC_ARCH="arm64"; MC_SHA256="${AXERN_MC_SHA256_ARM64}" ;; \
-      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
-    esac; \
-    if [ "${MC_SOURCE}" = "local" ]; then \
-      cp "/opt/minio-cache/${MC_CACHE_ARCH}/mc" /tmp/mc; \
-    else \
-      URL="https://dl.min.io/client/mc/release/linux-${MC_ARCH}/archive/mc.${AXERN_MC_RELEASE}"; \
-      curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 300 -fsSLo /tmp/mc "${URL}"; \
-      printf '%s  %s\n' "${MC_SHA256}" /tmp/mc | sha256sum -c -; \
-    fi; \
-    install -m 0755 /tmp/mc /usr/local/bin/mc; \
-    rm -f /tmp/mc
-
 FROM node-runtime-base-build AS axnoded-builder
 WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
 COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
 COPY runtime/tunneld/go.mod runtime/tunneld/go.sum /workspace/runtime/tunneld/
-COPY runtime/volumed/go.mod runtime/volumed/go.sum /workspace/runtime/volumed/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
-COPY lib/go/agentbundle/go.mod /workspace/lib/go/agentbundle/go.mod
+COPY lib/go/executionlease/go.mod /workspace/lib/go/executionlease/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
-COPY lib/go/llmproxy/go.mod /workspace/lib/go/llmproxy/go.mod
 COPY lib/go/networkpolicy/go.mod /workspace/lib/go/networkpolicy/go.mod
 COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
@@ -146,10 +123,9 @@ RUN cat > /workspace/go.work <<'EOF'
 go 1.25.12
 
 use (
-	./lib/go/agentbundle
+	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref
-	./lib/go/llmproxy
 	./lib/go/networkpolicy
 	./lib/go/nodecapability
 	./lib/go/observability
@@ -157,7 +133,6 @@ use (
 	./runtime/axnoded
 	./runtime/egressd
 	./runtime/tunneld
-	./runtime/volumed
 	./sdk/go
 )
 EOF
@@ -169,7 +144,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 COPY runtime/axnoded/ /workspace/runtime/axnoded/
 COPY runtime/egressd/ /workspace/runtime/egressd/
 COPY runtime/tunneld/ /workspace/runtime/tunneld/
-COPY runtime/volumed/ /workspace/runtime/volumed/
 COPY network/bpfnet/ /workspace/network/bpfnet/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
@@ -179,7 +153,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     cd /workspace/runtime/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
-    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded-runtime-runner ./cmd/axnoded-runtime-runner && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
@@ -191,8 +164,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     cd /workspace/runtime/tunneld && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
-    cd /workspace/runtime/volumed && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/volumed ./cmd/volumed && \
     cd /workspace/network/bpfnet && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/bpfnetctl ./cmd/bpfnetctl
 
@@ -219,7 +190,8 @@ FROM node-runtime-base-build AS imagefsd-build-base
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get update && apt-get install -y \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
     build-essential \
     cmake \
     libssl-dev \
@@ -319,7 +291,6 @@ COPY --from=axnoded-builder /out/axnoded /usr/local/bin/axnoded
 COPY --from=axnoded-builder /out/axctl /usr/local/bin/axctl
 COPY --from=axnoded-builder /out/bpfnetctl /usr/local/bin/bpfnetctl
 COPY --from=axnoded-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd
-COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/dns-probe /usr/local/libexec/axnoded/dns-probe
 COPY --from=axnoded-builder /out/dns-fixture /usr/local/libexec/axnoded/dns-fixture
@@ -327,7 +298,6 @@ COPY --from=axnoded-builder /out/egressd /usr/local/bin/egressd
 COPY --from=axnoded-builder /out/egressdctl /usr/local/bin/egressdctl
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
 COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
-COPY --from=axnoded-builder /out/volumed /usr/local/bin/volumed
 COPY --from=imagemgr-builder /out/imagemgr /usr/local/bin/imagemgr
 COPY --from=imagefsd-builder /out/imagefsd /usr/local/bin/imagefsd
 

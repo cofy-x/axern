@@ -17,13 +17,11 @@ const (
 	StorageTargetRootFS           = "rootfs"
 	StorageTargetAxnodedState     = "axnoded_state"
 	StorageTargetImageCache       = "image_cache"
-	StorageTargetVolumeData       = "volume_data"
 	StorageTargetRuntimeFilestore = "runtime_filestore"
 
 	DefaultRootFSPath       = "/"
 	DefaultAxnodedStatePath = "/var/lib/axnoded"
 	DefaultImageCachePath   = "/var/lib/imagemgr"
-	DefaultVolumeDataPath   = "/var/lib/volumed"
 )
 
 type StorageTarget struct {
@@ -41,7 +39,6 @@ func DefaultStorageTargets(axnodedStatePath string) []StorageTarget {
 		{Target: StorageTargetRootFS, Path: DefaultRootFSPath},
 		{Target: StorageTargetAxnodedState, Path: axnodedStatePath},
 		{Target: StorageTargetImageCache, Path: DefaultImageCachePath},
-		{Target: StorageTargetVolumeData, Path: DefaultVolumeDataPath},
 	}
 }
 
@@ -93,11 +90,11 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 			entry.SystemReserveBytes = target.SystemReserveBytes
 			entry.AllocatableBytes = max(entry.CapacityBytes-target.SystemReserveBytes, 0)
 			if target.Target == StorageTargetRuntimeFilestore {
-				entry.ReservedBytes, entry.ActiveReservations = readWritableReservations(filepath.Join(target.Path, "reservations"))
+				entry.ChargedBytes, entry.ActiveAllocations = readWritableCharges(filepath.Join(target.Path, "allocation-charges"))
 				entry.AllocationUsedBytes = readVisibleWritableUsage(target.Path)
-				entry.UnlinkedBackingUsageUnknown = hasRunscReservations(filepath.Join(target.Path, "reservations"))
+				entry.UnlinkedBackingUsageUnknown = hasWritableCharges(filepath.Join(target.Path, "allocation-charges"))
 				entry.FilesystemType, entry.MountIdentity = storageMountFacts(target.Path)
-				snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes = entry.ReservedBytes
+				snapshot.Resources.EphemeralStorage.AxnodedCommittedBytes = entry.ChargedBytes
 				snapshot.Resources.EphemeralStorage.AxnodedUsedBytes = entry.AllocationUsedBytes
 				snapshot.Node.Capacity.EphemeralStorageBytes = entry.CapacityBytes
 				snapshot.Node.Allocatable.EphemeralStorageBytes = entry.AllocatableBytes
@@ -121,7 +118,7 @@ func (s *AxnodedSource) collectStorageInventory(now time.Time, snapshot *NodeInv
 
 func readVisibleWritableUsage(filestore string) int64 {
 	var used int64
-	for _, class := range []string{"projections", "runc", "runsc"} {
+	for _, class := range []string{"projections", "runsc"} {
 		_ = filepath.WalkDir(filepath.Join(filestore, class), func(_ string, entry os.DirEntry, err error) error {
 			if err != nil || entry == nil {
 				return nil
@@ -139,7 +136,7 @@ func readVisibleWritableUsage(filestore string) int64 {
 	return used
 }
 
-func hasRunscReservations(dir string) bool {
+func hasWritableCharges(dir string) bool {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return false
@@ -148,21 +145,12 @@ func hasRunscReservations(dir string) bool {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			continue
-		}
-		var value struct {
-			RuntimeName string `json:"runtime_name"`
-		}
-		if json.Unmarshal(data, &value) == nil && value.RuntimeName == "runsc" {
-			return true
-		}
+		return true
 	}
 	return false
 }
 
-func readWritableReservations(dir string) (int64, int64) {
+func readWritableCharges(dir string) (int64, int64) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return 0, 0

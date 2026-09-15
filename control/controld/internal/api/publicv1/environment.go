@@ -43,11 +43,11 @@ func (s *Server) GetEnvironment(ctx context.Context, req *environmentv1.GetEnvir
 }
 
 func (s *Server) ListEnvironments(ctx context.Context, req *environmentv1.ListEnvironmentsRequest) (*environmentv1.ListEnvironmentsResponse, error) {
-	envs, err := s.deps.Environments.ListEnvironments(ctx, req.GetFilter())
+	envs, nextCursor, err := s.deps.Environments.ListEnvironments(ctx, req.GetFilter())
 	if err != nil {
 		return nil, err
 	}
-	return &environmentv1.ListEnvironmentsResponse{Environments: envs}, nil
+	return &environmentv1.ListEnvironmentsResponse{Environments: envs, NextCursor: nextCursor}, nil
 }
 
 func (s *Server) DeleteEnvironment(ctx context.Context, req *environmentv1.DeleteEnvironmentRequest) (*environmentv1.DeleteEnvironmentResponse, error) {
@@ -59,7 +59,7 @@ func (s *Server) DeleteEnvironment(ctx context.Context, req *environmentv1.Delet
 		opErr = grpcstatus.Error(codes.InvalidArgument, "environment_id is required")
 		return nil, opErr
 	}
-	env, err := s.deps.Environments.DeleteEnvironment(ctx, id, s.deps.Now())
+	env, err := s.deps.Environments.DeleteEnvironment(ctx, id)
 	if err != nil {
 		opErr = err
 		return nil, err

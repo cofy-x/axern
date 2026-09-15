@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -31,9 +31,6 @@ func TestNewSnapshotInitializesHeatCollections(t *testing.T) {
 
 func TestNodeInfoJSONRoundTripsCapabilityOneof(t *testing.T) {
 	want := NodeInfo{CapabilitySnapshot: &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-a",
-		Sequence:       3,
-		SnapshotID:     "snapshot-3",
 		Observations: []*capabilityv1.CapabilityObservation{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
 				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
@@ -56,13 +53,13 @@ func TestNodeInfoJSONRoundTripsCapabilityOneof(t *testing.T) {
 func TestLocalityKeyFromRootfsConfig(t *testing.T) {
 	tests := []struct {
 		name string
-		cfg  langruntime.RootfsConfig
+		cfg  environmentcache.RootfsConfig
 		want string
 		ok   bool
 	}{
 		{
 			name: "local",
-			cfg: langruntime.RootfsConfig{
+			cfg: environmentcache.RootfsConfig{
 				SrcType: runtimeapi.RootfsSrcType_LOCAL,
 				Path:    "/tmp/../opt/rootfs",
 			},
@@ -71,32 +68,12 @@ func TestLocalityKeyFromRootfsConfig(t *testing.T) {
 		},
 		{
 			name: "image",
-			cfg: langruntime.RootfsConfig{
+			cfg: environmentcache.RootfsConfig{
 				SrcType:  runtimeapi.RootfsSrcType_IMAGE,
 				ImageUrl: "docker.io/library/nginx:latest",
 			},
 			want: "image:docker.io/library/nginx:latest",
 			ok:   true,
-		},
-		{
-			name: "s3",
-			cfg: langruntime.RootfsConfig{
-				SrcType:  runtimeapi.RootfsSrcType_S3,
-				Endpoint: "minio:9000",
-				Bucket:   "dist",
-				Object:   "/images/rootfs.raw",
-			},
-			want: "s3:minio:9000/dist/images/rootfs.raw",
-			ok:   true,
-		},
-		{
-			name: "missing object",
-			cfg: langruntime.RootfsConfig{
-				SrcType:  runtimeapi.RootfsSrcType_S3,
-				Endpoint: "minio:9000",
-				Bucket:   "dist",
-			},
-			ok: false,
 		},
 	}
 

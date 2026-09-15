@@ -12,13 +12,11 @@ import (
 
 func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 	var out bytes.Buffer
-	renderSandboxTable(&out, []*nodeoperatorv1.LocalSandbox{
+	renderSandboxTable(&out, []*nodeoperatorv1.LocalAllocation{
 		{
-			SandboxID:     "demo",
-			RuntimeClass:  "runsc",
-			State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
-			ExitCodeKnown: false,
-			Pid:           0,
+			AllocationID: "demo",
+			State:        nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_RUNNING,
+			Pid:          0,
 		},
 	})
 
@@ -27,13 +25,13 @@ func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("renderSandboxTable() returned %d lines, want 2:\n%s", len(lines), got)
 	}
-	for _, want := range []string{"SANDBOX ID", "EXIT CODE", "FINISHED AT"} {
+	for _, want := range []string{"ALLOCATION ID", "EXIT CODE", "FINISHED AT"} {
 		if !strings.Contains(lines[0], want) {
 			t.Fatalf("renderSandboxTable() header missing %q:\n%s", want, got)
 		}
 	}
 	fields := strings.Fields(lines[1])
-	wantFields := []string{"demo", "runsc", "RUNNING", "-", "-", "-", "-"}
+	wantFields := []string{"demo", "RUNNING", "-", "-", "-", "-"}
 	if len(fields) != len(wantFields) {
 		t.Fatalf("renderSandboxTable() fields = %v, want %v", fields, wantFields)
 	}
@@ -46,11 +44,9 @@ func TestRenderSandboxTableFormatsMissingValues(t *testing.T) {
 
 func TestRenderSandboxInspectKeepsUnknownExitCodeForExitedSandbox(t *testing.T) {
 	var out bytes.Buffer
-	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
-		SandboxID:     "demo",
-		RuntimeClass:  "runc",
-		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-		ExitCodeKnown: false,
+	renderSandboxInspect(&out, &nodeoperatorv1.LocalAllocation{
+		AllocationID: "demo",
+		State:        nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED,
 	})
 
 	got := out.String()
@@ -61,17 +57,16 @@ func TestRenderSandboxInspectKeepsUnknownExitCodeForExitedSandbox(t *testing.T) 
 
 func TestRenderSandboxInspectFormatsMissingValues(t *testing.T) {
 	var out bytes.Buffer
-	renderSandboxInspect(&out, &nodeoperatorv1.LocalSandbox{
-		SandboxID:     "demo",
-		RuntimeClass:  "runc",
-		State:         nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
-		ExitCodeKnown: true,
-		ExitCode:      0,
+	exitCode := int32(0)
+	renderSandboxInspect(&out, &nodeoperatorv1.LocalAllocation{
+		AllocationID: "demo",
+		State:        nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED,
+		ExitCode:     &exitCode,
 	})
 
 	got := out.String()
 	for _, want := range []string{
-		"Sandbox: demo",
+		"Allocation: demo",
 		"PID: -",
 		"Started At: -",
 		"Finished At: -",

@@ -147,11 +147,9 @@ type sessionDTO struct {
 	NodeID           string `json:"node_id,omitempty"`
 	Status           string `json:"status"`
 	RemotePort       int32  `json:"remote_port"`
-	LocalTarget      string `json:"local_target,omitempty"`
 	BoundAddr        string `json:"bound_addr,omitempty"`
 	RelayID          string `json:"relay_id,omitempty"`
 	ClientEdgeTarget string `json:"client_edge_target,omitempty"`
-	NodeEdgeTarget   string `json:"node_edge_target,omitempty"`
 	Reason           string `json:"reason,omitempty"`
 	ExpiresAt        string `json:"expires_at,omitempty"`
 }
@@ -221,8 +219,8 @@ func sessionDTOFromProto(session *controltunnelv1.TunnelSession) sessionDTO {
 	value := sessionDTO{
 		SessionID: session.GetSessionID(), AllocationID: session.GetAllocationID(), NodeID: session.GetNodeID(),
 		Status: enumValue(session.GetStatus().String(), "TUNNEL_SESSION_STATUS_"), RemotePort: session.GetRemotePort(),
-		LocalTarget: session.GetLocalTarget(), BoundAddr: session.GetBoundAddr(), RelayID: session.GetRelayID(),
-		ClientEdgeTarget: session.GetClientEdgeTarget(), NodeEdgeTarget: session.GetNodeEdgeTarget(), Reason: session.GetReason(),
+		BoundAddr: session.GetBoundAddr(), RelayID: session.GetRelayID(),
+		ClientEdgeTarget: session.GetClientEdgeTarget(), Reason: session.GetReason(),
 	}
 	if session.GetExpiresAt() != nil {
 		value.ExpiresAt = session.GetExpiresAt().AsTime().UTC().Format(time.RFC3339Nano)

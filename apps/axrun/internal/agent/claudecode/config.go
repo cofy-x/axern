@@ -27,7 +27,7 @@ func ConfigFromEnv() (Config, error) {
 		CWD:          strings.TrimSpace(firstNonEmpty(os.Getenv("AXRUN_CLAUDE_CODE_CWD"), os.Getenv("AXRUN_AGENT_CWD"))),
 		User:         strings.TrimSpace(firstNonEmpty(os.Getenv("AXRUN_CLAUDE_CODE_USER"), os.Getenv("AXRUN_AGENT_USER"))),
 		OutputFormat: strings.TrimSpace(firstNonEmpty(os.Getenv("AXRUN_CLAUDE_CODE_OUTPUT_FORMAT"), os.Getenv("AXRUN_AGENT_OUTPUT_FORMAT"))),
-		ConfigPath:   strings.TrimSpace(os.Getenv("AXERN_CONFIG")),
+		ConfigPath:   strings.TrimSpace(os.Getenv("AXRUN_CONFIG")),
 	}
 	timeoutText := strings.TrimSpace(firstNonEmpty(os.Getenv("AXRUN_CLAUDE_CODE_TIMEOUT_SEC"), os.Getenv("AXRUN_AGENT_TIMEOUT_SEC")))
 	if timeoutText != "" {

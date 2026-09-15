@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/natbench"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc/codes"
@@ -16,8 +17,8 @@ import (
 )
 
 func runVerifyStartup(cfg verifyStartupConfig) error {
-	if strings.TrimSpace(cfg.runtimeID) == "" {
-		cfg.runtimeID = fmt.Sprintf("startup-matrix-%s", strings.ReplaceAll(strings.TrimSpace(cfg.scenario), "/", "-"))
+	if strings.TrimSpace(cfg.environmentID) == "" {
+		cfg.environmentID = fmt.Sprintf("startup-matrix-%s", strings.ReplaceAll(strings.TrimSpace(cfg.scenario), "/", "-"))
 	}
 	if cfg.samples <= 0 {
 		return fmt.Errorf("samples must be greater than zero")
@@ -30,7 +31,7 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 		return fmt.Errorf("create stderr dir: %w", err)
 	}
 
-	rootfsConfig, rootfsKey, rootfsType, err := buildRootfsConfig(cfg.rootfsSrc, cfg.rootfsPath, cfg.imageURL, cfg.s3Endpoint, cfg.s3Bucket, cfg.s3Object, cfg.s3AccessKeyID, cfg.s3AccessKeySecret)
+	rootfsConfig, rootfsKey, rootfsType, err := buildRootfsConfig(cfg.rootfsSrc, cfg.rootfsPath, cfg.imageURL)
 	if err != nil {
 		return fmt.Errorf("build rootfs config: %w", err)
 	}
@@ -46,12 +47,12 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 
 	startedAt := time.Now().UTC()
 	if strings.TrimSpace(cfg.mode) == "warm" {
-		if err := primeWarmRuntime(conn, rootfsConfig, cfg.runtimeName, cfg.runtimeID, command, cfg.stdoutDir, cfg.stderrDir, cfg.omitStdio, cfg.waitBeforeDelete, cfg.expectedExit); err != nil {
+		if err := primeWarmRuntime(conn, rootfsConfig, config.RuntimeNameRunsc, cfg.environmentID, command, cfg.stdoutDir, cfg.stderrDir, cfg.omitStdio, cfg.waitBeforeDelete, cfg.expectedExit); err != nil {
 			return fmt.Errorf("prime warm runtime: %w", err)
 		}
 	}
 
-	before, err := natbench.CaptureStartupSnapshot(cfg.metricsURL, cfg.runtimeName, rootfsType)
+	before, err := natbench.CaptureStartupSnapshot(cfg.metricsURL, config.RuntimeNameRunsc, rootfsType)
 	if err != nil {
 		return fmt.Errorf("capture startup metrics before samples: %w", err)
 	}
@@ -59,11 +60,11 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 		if err := startAndDelete(
 			conn,
 			rootfsConfig,
-			cfg.runtimeName,
-			fmt.Sprintf("%s-%02d", cfg.runtimeID, i+1),
+			config.RuntimeNameRunsc,
+			fmt.Sprintf("%s-%02d", cfg.environmentID, i+1),
 			command,
-			filepathJoin(cfg.stdoutDir, fmt.Sprintf("%s-%02d.stdout", cfg.runtimeID, i+1)),
-			filepathJoin(cfg.stderrDir, fmt.Sprintf("%s-%02d.stderr", cfg.runtimeID, i+1)),
+			filepathJoin(cfg.stdoutDir, fmt.Sprintf("%s-%02d.stdout", cfg.environmentID, i+1)),
+			filepathJoin(cfg.stderrDir, fmt.Sprintf("%s-%02d.stderr", cfg.environmentID, i+1)),
 			cfg.omitStdio,
 			cfg.waitBeforeDelete,
 			cfg.expectedExit,
@@ -71,7 +72,7 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 			return fmt.Errorf("start/delete sample %d: %w", i+1, err)
 		}
 	}
-	after, err := natbench.CaptureStartupSnapshot(cfg.metricsURL, cfg.runtimeName, rootfsType)
+	after, err := natbench.CaptureStartupSnapshot(cfg.metricsURL, config.RuntimeNameRunsc, rootfsType)
 	if err != nil {
 		return fmt.Errorf("capture startup metrics after samples: %w", err)
 	}
@@ -83,7 +84,7 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 
 	report := natbench.StartupScenarioSampleReport{
 		Scenario:    strings.TrimSpace(cfg.scenario),
-		Runtime:     cfg.runtimeName,
+		Runtime:     config.RuntimeNameRunsc,
 		RootfsType:  rootfsType,
 		MountType:   strings.TrimSpace(cfg.mountType),
 		RootfsKey:   rootfsKey,
@@ -100,17 +101,16 @@ func runVerifyStartup(cfg verifyStartupConfig) error {
 	return nil
 }
 
-func primeWarmRuntime(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.RootfsSpec, runtimeName, runtimeID string, command []string, stdoutDir, stderrDir string, omitStdio bool, waitBeforeDelete bool, expectedExit int) error {
-	return startAndDelete(clients, rootfsConfig, runtimeName, runtimeID+"-prime", command, filepathJoin(stdoutDir, runtimeID+"-prime.stdout"), filepathJoin(stderrDir, runtimeID+"-prime.stderr"), omitStdio, waitBeforeDelete, expectedExit)
+func primeWarmRuntime(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.RootfsSpec, runtimeName, environmentID string, command []string, stdoutDir, stderrDir string, omitStdio bool, waitBeforeDelete bool, expectedExit int) error {
+	return startAndDelete(clients, rootfsConfig, runtimeName, environmentID+"-prime", command, filepathJoin(stdoutDir, environmentID+"-prime.stdout"), filepathJoin(stderrDir, environmentID+"-prime.stderr"), omitStdio, waitBeforeDelete, expectedExit)
 }
 
 func startAndDelete(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.RootfsSpec, runtimeName, sandboxID string, command []string, stdoutPath, stderrPath string, omitStdio bool, waitBeforeDelete bool, expectedExit int) error {
 	startCtx, cancelStart := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancelStart()
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: runtimeName,
-		Argv:         append([]string(nil), command...),
-		Cwd:          "/",
+		Argv: append([]string(nil), command...),
+		Cwd:  "/",
 	}
 	if !omitStdio {
 		spec.StdoutPath = stdoutPath
@@ -129,7 +129,7 @@ func startAndDelete(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.Ro
 		if err != nil {
 			return fmt.Errorf("wait sandbox: %w", err)
 		}
-		if waitResp.GetExitCode() != int32(expectedExit) {
+		if waitResp.ExitCode == nil || waitResp.GetExitCode() != int32(expectedExit) {
 			return fmt.Errorf("unexpected exit code: %d", waitResp.GetExitCode())
 		}
 	}

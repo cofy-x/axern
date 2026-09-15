@@ -3,7 +3,7 @@ run_local_run_smoke() {
   local endpoint="$2"
   local prefix="$3"
   local namespace="${prefix}-${env_name}-run-smoke-$(date +%s)"
-  local catalog_json env_json quota_json quota_list run_json run_get run_list cancel_json default_run_json failed_run_json
+  local env_json quota_json quota_list run_json run_get run_list cancel_json default_run_json failed_run_json
   local run_id="" default_run_id="" failed_run_id="" environment_id=""
   local rejected_run_error="" quota_error=""
   local quota_set="false"
@@ -38,9 +38,6 @@ run_local_run_smoke() {
     return "${rc}"
   }
   trap cleanup_local_run_smoke RETURN
-
-  catalog_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" catalog list -o json)"
-  local_smoke_assert_default_runtime_templates "${catalog_json}"
 
   env_json="$(local_smoke_create_environment "${namespace}")"
   environment_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["environment"]["id"])' <<<"${env_json}")"
@@ -108,7 +105,7 @@ run_local_run_smoke() {
   failed_run_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["run"]["id"])' <<<"${failed_run_json}")"
   [ -n "${failed_run_id}" ]
   run_get="$(local_smoke_wait_for_run_status "${failed_run_id}" failed)"
-  python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["run"]["status"] == "failed" and data["run"].get("exit_code_known", False) and data["run"].get("exit_code") == 42' <<<"${run_get}" >/dev/null
+  python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["run"]["status"] == "failed" and data["run"].get("exit_code") == 42' <<<"${run_get}" >/dev/null
   cancel_json="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" run cancel "${failed_run_id}" -o json)"
   python3 -c 'import json,sys; data=json.load(sys.stdin); assert data["run"]["id"] == sys.argv[1] and data["run"]["status"] == "failed"' "${failed_run_id}" <<<"${cancel_json}" >/dev/null
   failed_run_id=""

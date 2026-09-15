@@ -14,8 +14,8 @@ from axern_sdk.node.models import SandboxFileInfo
 from axern_sdk.node.protocol import file_info
 
 
-class NodeSandboxFileMixin:
-    """File and archive RPCs for ``NodeSandboxClient``."""
+class AllocationFileMixin:
+    """File and archive RPCs for ``AllocationClient``."""
 
     if TYPE_CHECKING:
         _allocation_id: str

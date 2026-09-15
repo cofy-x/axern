@@ -86,20 +86,20 @@ type fakeNamespaces struct {
 
 func (f *fakeNamespaces) CreateNamespace(_ context.Context, namespace string, _ time.Time) (*namespacev1.Namespace, error) {
 	f.created = namespace
-	return &namespacev1.Namespace{Namespace: namespace, Version: 1}, nil
+	return &namespacev1.Namespace{Namespace: namespace}, nil
 }
 
 func (f *fakeNamespaces) GetNamespace(_ context.Context, namespace string) (*namespacev1.Namespace, error) {
-	return &namespacev1.Namespace{Namespace: namespace, Version: 1}, nil
+	return &namespacev1.Namespace{Namespace: namespace}, nil
 }
 
 func (f *fakeNamespaces) ListNamespaces(context.Context) ([]*namespacev1.Namespace, error) {
-	return []*namespacev1.Namespace{{Namespace: "team-a", Version: 1}}, nil
+	return []*namespacev1.Namespace{{Namespace: "team-a"}}, nil
 }
 
 func (f *fakeNamespaces) DeleteNamespace(_ context.Context, namespace string, _ time.Time) (*namespacev1.Namespace, error) {
 	f.deleted = namespace
-	return &namespacev1.Namespace{Namespace: namespace, Version: 1}, nil
+	return &namespacev1.Namespace{Namespace: namespace}, nil
 }
 
 var _ Namespaces = (*fakeNamespaces)(nil)

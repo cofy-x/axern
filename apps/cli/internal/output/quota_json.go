@@ -4,7 +4,6 @@ import (
 	"io"
 
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -20,32 +19,24 @@ type NamespaceQuotaEventsJSON struct {
 	Events []*NamespaceQuotaEventJSON `json:"events"`
 }
 
-type NamespaceQuotaDescribeJSON struct {
-	Quota                    *NamespaceQuotaJSON `json:"quota"`
-	AdmissionBlockedServices []*ServiceJSON      `json:"admission_blocked_services,omitempty"`
-}
-
 type NamespaceQuotaEventJSON struct {
 	ID                             string `json:"id"`
 	Namespace                      string `json:"namespace"`
 	Type                           string `json:"type"`
-	WorkloadType                   string `json:"workload_type"`
-	WorkloadID                     string `json:"workload_id,omitempty"`
-	EnvironmentID                  string `json:"environment_id,omitempty"`
+	EnvironmentID                  string `json:"environment_id"`
 	Reason                         string `json:"reason"`
 	RequestedCPUMilli              int64  `json:"requested_cpu_milli"`
-	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
+	UsedCPUMilli                   int64  `json:"used_cpu_milli"`
 	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
 	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
 	RequestedMemoryBytes           int64  `json:"requested_memory_bytes"`
-	ReservedMemoryBytes            int64  `json:"reserved_memory_bytes"`
+	UsedMemoryBytes                int64  `json:"used_memory_bytes"`
 	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
 	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
 	RequestedEphemeralStorageBytes int64  `json:"requested_ephemeral_storage_bytes"`
-	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
+	UsedEphemeralStorageBytes      int64  `json:"used_ephemeral_storage_bytes"`
 	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
 	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
-	Message                        string `json:"message,omitempty"`
 	CreatedAt                      string `json:"created_at,omitempty"`
 }
 
@@ -53,14 +44,13 @@ type NamespaceQuotaJSON struct {
 	Namespace                      string `json:"namespace"`
 	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
 	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
-	ReservedCPUMilli               int64  `json:"reserved_cpu_milli"`
-	ReservedMemoryBytes            int64  `json:"reserved_memory_bytes"`
+	UsedCPUMilli                   int64  `json:"used_cpu_milli"`
+	UsedMemoryBytes                int64  `json:"used_memory_bytes"`
 	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
 	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
 	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
-	ReservedEphemeralStorageBytes  int64  `json:"reserved_ephemeral_storage_bytes"`
+	UsedEphemeralStorageBytes      int64  `json:"used_ephemeral_storage_bytes"`
 	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
-	Version                        int64  `json:"version"`
 	CreatedAt                      string `json:"created_at,omitempty"`
 	UpdatedAt                      string `json:"updated_at,omitempty"`
 }
@@ -91,17 +81,6 @@ func PrintNamespaceQuotaEventsJSON(w io.Writer, resp *quotav1.ListNamespaceQuota
 	return PrintJSON(w, out)
 }
 
-func PrintNamespaceQuotaDescribeJSON(w io.Writer, quota *quotav1.NamespaceQuota, services []*servicev1.Service) error {
-	out := NamespaceQuotaDescribeJSON{Quota: NewNamespaceQuotaJSON(quota)}
-	if len(services) > 0 {
-		out.AdmissionBlockedServices = make([]*ServiceJSON, 0, len(services))
-		for _, service := range services {
-			out.AdmissionBlockedServices = append(out.AdmissionBlockedServices, NewServiceJSON(service))
-		}
-	}
-	return PrintJSON(w, out)
-}
-
 func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQuotaEventJSON {
 	if event == nil {
 		return nil
@@ -110,23 +89,20 @@ func NewNamespaceQuotaEventJSON(event *quotav1.NamespaceQuotaEvent) *NamespaceQu
 		ID:                             event.GetID(),
 		Namespace:                      event.GetNamespace(),
 		Type:                           quotaEventTypeJSON(event.GetType()),
-		WorkloadType:                   quotaEventWorkloadTypeJSON(event.GetWorkloadType()),
-		WorkloadID:                     event.GetWorkloadID(),
 		EnvironmentID:                  event.GetEnvironmentID(),
 		Reason:                         quotaEventReason(event.GetReason()),
 		RequestedCPUMilli:              event.GetRequestedCpuMilli(),
-		ReservedCPUMilli:               event.GetReservedCpuMilli(),
+		UsedCPUMilli:                   event.GetUsedCpuMilli(),
 		CPUMilliLimit:                  optionalWrapperInt64(event.GetCpuMilliLimit()),
 		AvailableCPUMilli:              optionalWrapperInt64(event.GetAvailableCpuMilli()),
 		RequestedMemoryBytes:           event.GetRequestedMemoryBytes(),
-		ReservedMemoryBytes:            event.GetReservedMemoryBytes(),
+		UsedMemoryBytes:                event.GetUsedMemoryBytes(),
 		MemoryBytesLimit:               optionalWrapperInt64(event.GetMemoryBytesLimit()),
 		AvailableMemoryBytes:           optionalWrapperInt64(event.GetAvailableMemoryBytes()),
 		RequestedEphemeralStorageBytes: event.GetRequestedEphemeralStorageBytes(),
-		ReservedEphemeralStorageBytes:  event.GetReservedEphemeralStorageBytes(),
+		UsedEphemeralStorageBytes:      event.GetUsedEphemeralStorageBytes(),
 		EphemeralStorageBytesLimit:     optionalWrapperInt64(event.GetEphemeralStorageBytesLimit()),
 		AvailableEphemeralStorageBytes: optionalWrapperInt64(event.GetAvailableEphemeralStorageBytes()),
-		Message:                        event.GetMessage(),
 		CreatedAt:                      FormatProtoTimestamp(event.GetCreatedAt()),
 	}
 }
@@ -139,14 +115,13 @@ func NewNamespaceQuotaJSON(quota *quotav1.NamespaceQuota) *NamespaceQuotaJSON {
 		Namespace:                      quota.GetNamespace(),
 		CPUMilliLimit:                  optionalWrapperInt64(quota.GetCpuMilliLimit()),
 		MemoryBytesLimit:               optionalWrapperInt64(quota.GetMemoryBytesLimit()),
-		ReservedCPUMilli:               quota.GetReservedCpuMilli(),
-		ReservedMemoryBytes:            quota.GetReservedMemoryBytes(),
+		UsedCPUMilli:                   quota.GetUsedCpuMilli(),
+		UsedMemoryBytes:                quota.GetUsedMemoryBytes(),
 		AvailableCPUMilli:              optionalWrapperInt64(quota.GetAvailableCpuMilli()),
 		AvailableMemoryBytes:           optionalWrapperInt64(quota.GetAvailableMemoryBytes()),
 		EphemeralStorageBytesLimit:     optionalWrapperInt64(quota.GetEphemeralStorageBytesLimit()),
-		ReservedEphemeralStorageBytes:  quota.GetReservedEphemeralStorageBytes(),
+		UsedEphemeralStorageBytes:      quota.GetUsedEphemeralStorageBytes(),
 		AvailableEphemeralStorageBytes: optionalWrapperInt64(quota.GetAvailableEphemeralStorageBytes()),
-		Version:                        quota.GetVersion(),
 		CreatedAt:                      FormatProtoTimestamp(quota.GetCreatedAt()),
 		UpdatedAt:                      FormatProtoTimestamp(quota.GetUpdatedAt()),
 	}
@@ -157,17 +132,6 @@ func quotaEventTypeJSON(value quotav1.NamespaceQuotaEventType) string {
 		return "admission-rejected"
 	}
 	return ""
-}
-
-func quotaEventWorkloadTypeJSON(value quotav1.NamespaceQuotaEventWorkloadType) string {
-	switch value {
-	case quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_RUN:
-		return "run"
-	case quotav1.NamespaceQuotaEventWorkloadType_NAMESPACE_QUOTA_EVENT_WORKLOAD_TYPE_SERVICE:
-		return "service"
-	default:
-		return ""
-	}
 }
 
 func optionalWrapperInt64(value *wrapperspb.Int64Value) *int64 {

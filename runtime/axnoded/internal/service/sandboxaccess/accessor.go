@@ -8,9 +8,13 @@ import (
 )
 
 type Target struct {
-	ID      string
-	Labels  map[string]string
-	Handler contract.RuntimeHandler
+	ID                 string
+	SandboxdSocketPath string
+	Handler            Runtime
+}
+
+type Runtime interface {
+	FileService() contract.FileService
 }
 
 type Options struct {
@@ -47,7 +51,6 @@ func (a *Accessor) runningTarget(id string) (Target, error) {
 
 func handlerOptions(target Target) contract.HandlerOptions {
 	return contract.HandlerOptions{
-		ContainerID:     target.ID,
-		ContainerLabels: target.Labels,
+		ContainerID: target.ID,
 	}
 }

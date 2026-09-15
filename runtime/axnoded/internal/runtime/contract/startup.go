@@ -10,7 +10,7 @@ type StartupPhase string
 type StartupStep string
 
 const (
-	StartupPhaseLangRuntimeLookup   StartupPhase = "langruntime_lookup"
+	StartupPhaseEnvironmentLookup   StartupPhase = "environmentcache_lookup"
 	StartupPhaseRootfsPrepare       StartupPhase = "rootfs_prepare"
 	StartupPhaseResourceAllocate    StartupPhase = "resource_allocate"
 	StartupPhaseEgressPolicyPrepare StartupPhase = "egress_policy_prepare"
@@ -23,7 +23,6 @@ const (
 	StartupClassWarm                string       = "warm"
 	StartupRootfsTypeLocal          string       = "local"
 	StartupRootfsTypeImage          string       = "image"
-	StartupRootfsTypeS3             string       = "s3"
 	StartupRootfsTypeUnknown        string       = "unknown"
 )
 
@@ -65,8 +64,6 @@ func RootfsTypeLabel(rootfs *runtimeapi.RootfsConfig) string {
 		return StartupRootfsTypeLocal
 	case runtimeapi.RootfsSrcType_IMAGE:
 		return StartupRootfsTypeImage
-	case runtimeapi.RootfsSrcType_S3:
-		return StartupRootfsTypeS3
 	default:
 		return StartupRootfsTypeUnknown
 	}

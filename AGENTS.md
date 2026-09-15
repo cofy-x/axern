@@ -2,99 +2,35 @@
 
 ## Scope
 
-This file defines repository-wide rules for `axern`. Apply it to every task,
-then read the nearest subtree `AGENTS.md` before changing code there. A local
-contract may add stricter rules but cannot override this file.
+This file defines repository-wide rules for Axern. Read the nearest subtree `AGENTS.md` and owning README before changing code there; local contracts add only subsystem-specific constraints.
 
-## Minimum Context
+## Required Context
 
-Read only the context required for the task:
+- Use the [Module Guide](.x/module-guide.md) to locate ownership and the [Documentation Guide](docs/README.md) to locate durable product, architecture, verification, and operational contracts.
+- Treat the [Stable Domain Model](docs/product/domain-model.md) as authoritative for product objects, ownership, and lifecycle meaning.
+- Read the [Runtime Stack](.x/runtime-stack.md) only when a change crosses control, gateway, runtime, network, storage, or SDK boundaries.
+- Read [Coding Standards](.x/coding-standards.md) for language, layering, and validation conventions.
 
-1. Use the [Module Guide](.x/module-guide.md) to find the owning subtree. Read
-   its `AGENTS.md` when present and its `README.md`.
-2. Read [Project Overview](.x/project-overview.md) for root layout, workspace,
-   build orchestration, or placement changes.
-3. Read [Runtime Stack](.x/runtime-stack.md) only when behavior crosses service,
-   SDK, storage, runtime, gateway, or network boundaries.
-4. Read [Coding Standards](.x/coding-standards.md) for language rules and the
-   validation baseline.
-5. Use the [Documentation Guide](docs/README.md) to find product direction,
-   architecture, verification, and operational material.
+## Platform Boundaries
 
-Do not read every repository document by default. Subsystem-local work should
-normally need this file plus the local contract and README.
+- Axern is an open-source environment execution platform for agent evaluation, training, and executable data synthesis, not a general PaaS or an all-in-one benchmark, agent, or training product.
+- The durable execution model is `Environment -> Run -> Allocation`. `Sandbox` is an SDK facade over that chain; terminal, process, file, SSH, and Tunnel capabilities bind to an explicit, never-reused Allocation ID.
+- Higher-level evaluation, rollout, verifier, provider, budget, and training orchestration belongs above the execution platform in Axrun, Openbench, or another caller.
+- Runsc is the supported production sandbox backend. Missing required isolation or platform capability must fail closed.
+- PostgreSQL is the only authoritative central state backend. Before the public model stabilizes, update the initial schema and rebuild local databases instead of preserving obsolete internal schemas, protobuf gaps, aliases, or dual paths.
+- Keep public contracts in `sdk/proto`, executable products in `apps/`, platform services in their owning `control/`, `gateway/`, `runtime/`, or `network/` subtree, and genuinely shared internal libraries in `lib/`.
+- Keep root deployment contracts cloud-neutral; provider credentials, account setup, and regional orchestration belong outside this repository.
 
-## Sources Of Truth
+## Design Rules
 
-When documentation disagrees with executable configuration or code, verify the
-behavior and fix the stale document in the same change.
+- Prefer explicit ownership, narrow interfaces, simple data flow, and coherent long-term models over compatibility layers for uncommitted internal designs.
+- Put domain behavior in the owning package and keep composition roots limited to construction and lifecycle. Do not introduce catch-all packages, helper files, or bridge aliases that hide ownership.
+- When a durable contract changes, update all affected callers, generated code, tests, and authoritative documentation together.
 
-| Concern | Source of truth |
-| :--- | :--- |
-| Workspace membership | `go.work`, `Cargo.toml`, `pnpm-workspace.yaml`, `pyproject.toml` |
-| Root commands | `Makefile`, `mk/*.mk`, `make help` |
-| Public and internal RPC shapes | `sdk/proto` and generated-code checks |
-| Subsystem ownership and validation | nearest `AGENTS.md`; owning `README.md` when no local contract exists |
-| User and operator workflows | owning `README.md` or `docs/operations/` runbook |
-| Cross-subsystem runtime boundaries | `.x/runtime-stack.md` |
-| Long-term product direction | `docs/product/product-direction.md` |
+## Validation And Documentation
 
-## Repository Constraints
-
-- `apps/` contains executable product entrypoints.
-- `control/`, `gateway/`, `runtime/`, and `network/` contain platform services
-  and data planes owned by those areas.
-- `sdk/` contains public language SDKs and protobuf contracts; it does not
-  contain product applications.
-- `lib/` contains repository-internal libraries shared by multiple Axern
-  modules. Do not move single-module helpers there.
-- Keep Go, Rust, TypeScript, and Python as first-class workspaces. Add a
-  workspace member only when it has a concrete owner and update its workspace
-  configuration and relevant docs together.
-- Do not reintroduce template frontend, dashboard, Tauri, or unrelated demo
-  applications without an explicit product requirement.
-- Keep root deployment commands and `deploy/helm/` cloud-neutral. Provider-
-  specific values, credentials, cluster paths, and cloud resource orchestration
-  belong in an external workspace or provider repository.
-
-## Design Policy
-
-Axern is in active development. Prefer a coherent long-term model over a
-compatibility layer for an early internal design. Preserve compatibility only
-for a concrete external contract or when the user explicitly requests it.
-
-Keep domain ownership explicit, interfaces narrow, and data flow simple. A
-root-cause fix may update interfaces, schemas, control flow, or module
-boundaries when all affected callers, tests, generated code, and docs are
-updated together.
-
-## Completing A Change
-
-- Use the narrowest relevant validation from the local contract. After a
-  cohesive edit, run `make verify-changed-plan` and `make verify-changed`; the
-  repository planner is the shared source of truth for host-safe checks and
-  affected heavyweight CI scopes. Use root `make` targets for cross-workspace
-  changes.
-- Do not run Compose, kind, the full repository gate, or regional qualification
-  merely because a normal pull request is approaching merge. Run the affected
-  Linux or local truth path when selected by scope. Reserve `make verify-full`
-  for broad changes and asynchronous post-merge regression, and
-  `make verify-release` plus environment qualification for frozen release
-  candidates.
-- The `Post-Merge Full` workflow owns asynchronous Tier 3 regression for every
-  `main` commit. Do not make it a pull-request check. A newer `main` run may
-  supersede an in-progress ancestor, but release or promotion must wait for a
-  successful `Full Repository Regression` bound to the exact candidate commit.
-- For protobuf changes, run generation and generated-output checks before Go
-  compilation; generation replaces `sdk/go/gen` and must not run in parallel
-  with compilation.
-- Update documentation only when a durable contract, workflow, or user-visible
-  behavior changed. Do not add completion notes or implementation history to
-  normative docs; Git history already records the process.
-- If workspace membership changes, update the owning workspace file and the
-  module guide when routing or ownership changed.
-- If a public workflow or top-level area changes, update the root `README.md`
-  and the owning document.
-- If a cross-subsystem API, socket, lifecycle, or ownership boundary changes,
-  update `.x/runtime-stack.md` and every affected local contract or README.
-- After changing repository Markdown, run `make agent-doc-check`.
+- After a cohesive change, run `make verify-changed-plan` and `make verify-changed`; the repository planner selects the host-safe checks and affected heavyweight scopes.
+- Run the owning Linux, Compose, kind, or regional truth path only when the changed behavior requires it. Use `make verify-full` for broad asynchronous regression and `make verify-release` for frozen release candidates.
+- For protobuf changes, run generation and generated-output checks before compilation; generation replaces `sdk/go/gen` and must not run concurrently with consumers.
+- Keep current commands in owning READMEs or runbooks, current cross-component behavior in architecture documents, and durable rationale in decisions. Do not place implementation history or completion notes in normative documents.
+- Write English and localized Markdown prose, including list items and block quotes, as one source line per natural paragraph. Run `make agent-doc-check` after changing repository Markdown.

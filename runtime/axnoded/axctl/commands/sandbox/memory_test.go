@@ -5,13 +5,13 @@ import (
 	"strings"
 	"testing"
 
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestRenderSandboxMemoryIncludesBoundaryUsageAndEnforcement(t *testing.T) {
 	var out bytes.Buffer
 	renderSandboxMemory(&out, &controlnodev1.AllocationMemoryObservation{
-		AllocationID: "allocation-1", Attempt: 2, Revision: 9, Runtime: "runsc",
+		AllocationID: "allocation-1",
 		RequestBytes: 128, LimitBytes: 256, CurrentBytes: 64, PeakBytes: 192, PeakAvailable: true,
 		AnonBytes: 32, FileBytes: 16, ShmemBytes: 8, KernelBytes: 4,
 		EventOom: 1, EventOomKill: 1, EventOomGroupKill: 1,
@@ -22,8 +22,7 @@ func TestRenderSandboxMemoryIncludesBoundaryUsageAndEnforcement(t *testing.T) {
 
 	got := out.String()
 	for _, want := range []string{
-		"Allocation: allocation-1 (attempt 2)",
-		"Runtime: runsc",
+		"Allocation: allocation-1",
 		"Request / Limit: 128 / 256 bytes",
 		"peak source: kernel memory.peak",
 		"Anon / File / Shmem / Kernel: 32 / 16 / 8 / 4 bytes",

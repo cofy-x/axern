@@ -162,12 +162,18 @@ func (c *CgroupManager) completeRetiringCgroup(id string) error {
 	c.leases.Remove(id)
 	c.cgroups.Remove(id)
 	c.usingID.Remove(id)
+	if c.allocationLeases != nil && lease.GetAllocationID() != "" {
+		c.allocationLeases.Remove(lease.GetAllocationID())
+	}
 	if err := c.storeLocked(); err != nil {
 		// The kernel object is already gone, but durable ownership must remain
 		// until the ledger records that fact. Restoring the retiring lease keeps
 		// the commitment unavailable and makes the next GC pass idempotent.
 		c.leases.Set(id, lease)
 		c.cgroups.Set(id, struct{}{})
+		if c.allocationLeases != nil && lease.GetAllocationID() != "" {
+			c.allocationLeases.Set(lease.GetAllocationID(), id)
+		}
 		c.Unlock()
 		return fmt.Errorf("persist completed cgroup retirement: %w", err)
 	}

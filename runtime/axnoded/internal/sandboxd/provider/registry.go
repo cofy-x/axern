@@ -15,20 +15,18 @@ const (
 	ProviderNameFile    = "file"
 	ProviderNameProcess = "process"
 
-	CapabilityHealth       = wire.CapabilityHealth
-	CapabilityStatus       = wire.CapabilityStatus
-	CapabilitySupervisor   = wire.CapabilitySupervisor
-	CapabilityDiagnostics  = wire.CapabilityDiagnostics
-	CapabilityFile         = wire.CapabilityFile
-	CapabilityArchive      = wire.CapabilityArchive
-	CapabilityProcess      = wire.CapabilityProcess
-	CapabilityManagedProxy = wire.CapabilityManagedProxy
-	CapabilityPTY          = wire.CapabilityPTY
-	CapabilityProbe        = wire.CapabilityProbe
-	CapabilityPorts        = wire.CapabilityPorts
-	CapabilityMounts       = wire.CapabilityMounts
-	CapabilityComputerUse  = wire.CapabilityComputerUse
-	CapabilityBrowser      = wire.CapabilityBrowser
+	CapabilityHealth      = wire.CapabilityHealth
+	CapabilityStatus      = wire.CapabilityStatus
+	CapabilitySupervisor  = wire.CapabilitySupervisor
+	CapabilityDiagnostics = wire.CapabilityDiagnostics
+	CapabilityFile        = wire.CapabilityFile
+	CapabilityArchive     = wire.CapabilityArchive
+	CapabilityProcess     = wire.CapabilityProcess
+	CapabilityPTY         = wire.CapabilityPTY
+	CapabilityProbe       = wire.CapabilityProbe
+	CapabilityPorts       = wire.CapabilityPorts
+	CapabilityMounts      = wire.CapabilityMounts
+	CapabilityComputerUse = wire.CapabilityComputerUse
 )
 
 type Provider struct {

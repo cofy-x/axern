@@ -30,10 +30,9 @@ func run() error {
 	var (
 		listen          string
 		controlTarget   string
-		insecureControl bool
 		caCert          string
 		cert            string
-		key             string
+		cluster         string
 		relayCert       string
 		relayKey        string
 		relayID         string
@@ -48,18 +47,17 @@ func run() error {
 	)
 	flag.StringVar(&listen, "listen", "127.0.0.1:24100", "Tunnel relay gRPC listen address")
 	flag.StringVar(&controlTarget, "control-target", "127.0.0.1:24000", "controld gRPC target")
-	flag.BoolVar(&insecureControl, "insecure-control", false, "connect to controld without TLS")
 	flag.StringVar(&caCert, "tls-ca-cert", ".dev/certs/ca.crt", "controld CA certificate")
-	flag.StringVar(&cert, "tls-cert", ".dev/certs/client.crt", "client certificate for controld")
-	flag.StringVar(&key, "tls-key", ".dev/certs/client.key", "client key for controld")
-	flag.StringVar(&relayCert, "relay-tls-cert", ".dev/certs/controld.crt", "tunnel relay server certificate")
-	flag.StringVar(&relayKey, "relay-tls-key", ".dev/certs/controld.key", "tunnel relay server key")
+	flag.StringVar(&cert, "workload-bundle", ".dev/certs/tunneld.pem", "tunneld workload certificate and key PEM bundle")
+	flag.StringVar(&cluster, "workload-cluster", "axern.local", "workload URI trust domain")
+	flag.StringVar(&relayCert, "relay-tls-cert", ".dev/certs/tunneld.pem", "tunnel relay server certificate")
+	flag.StringVar(&relayKey, "relay-tls-key", ".dev/certs/tunneld.pem", "tunnel relay server key")
 	flag.StringVar(&relayID, "relay-id", "default", "stable tunnel relay id used in controld relay registry")
 	flag.BoolVar(&drain, "drain", false, "reject new tunnel peers while preserving process health for existing peers")
 	flag.IntVar(&maxSessions, "max-sessions", 10000, "maximum active tunnel relay sessions")
 	flag.IntVar(&sendQueueSize, "send-queue-size", 128, "per-peer relay frame send queue capacity")
 	flag.IntVar(&maxFrameBytes, "max-frame-bytes", 1024*1024, "maximum stream data frame payload size")
-	flag.DurationVar(&revalidate, "peer-revalidate-interval", 15*time.Second, "interval for revalidating connected tunnel peers; 0 disables")
+	flag.DurationVar(&revalidate, "peer-revalidate-interval", 15*time.Second, "interval for revalidating connected tunnel peers; must be in (0, 15s]")
 	flag.DurationVar(&pairWaitTimeout, "pair-wait-timeout", 30*time.Second, "maximum time a peer waits for its opposite peer")
 	flag.DurationVar(&pingInterval, "ping-interval", 15*time.Second, "relay protocol ping interval; 0 disables")
 	flag.DurationVar(&pongTimeout, "pong-timeout", 45*time.Second, "maximum time since last peer frame before closing")
@@ -67,8 +65,8 @@ func run() error {
 	if maxSessions < 0 {
 		return fmt.Errorf("-max-sessions must be >= 0")
 	}
-	if revalidate < 0 {
-		return fmt.Errorf("-peer-revalidate-interval must be >= 0")
+	if revalidate <= 0 || revalidate > 15*time.Second {
+		return fmt.Errorf("-peer-revalidate-interval must be in (0, 15s]")
 	}
 	if relayID == "" {
 		return fmt.Errorf("-relay-id is required")
@@ -88,7 +86,7 @@ func run() error {
 		defer cancel()
 		_ = obs.Shutdown(shutdownCtx)
 	}()
-	conn, err := control.Dial(ctx, controlTarget, control.TLSConfig{CACert: caCert, Cert: cert, Key: key}, insecureControl)
+	conn, err := control.Dial(ctx, controlTarget, caCert, cert, cluster)
 	if err != nil {
 		return err
 	}

@@ -100,7 +100,6 @@ type openSessionDTO struct {
 	LocalTarget      string `json:"local_target"`
 	RelayID          string `json:"relay_id,omitempty"`
 	ClientEdgeTarget string `json:"client_edge_target,omitempty"`
-	NodeEdgeTarget   string `json:"node_edge_target,omitempty"`
 }
 
 func renderOpenSession(cmd *cobra.Command, session *controltunnelv1.TunnelSession, localTarget string, runtime command.Runtime) error {
@@ -115,7 +114,7 @@ func renderOpenSession(cmd *cobra.Command, session *controltunnelv1.TunnelSessio
 		return output.PrintJSON(cmd.OutOrStdout(), openSessionDTO{
 			SessionID: session.GetSessionID(), AllocationID: session.GetAllocationID(), RemotePort: session.GetRemotePort(),
 			BoundAddr: session.GetBoundAddr(), LocalTarget: localTarget, RelayID: session.GetRelayID(),
-			ClientEdgeTarget: session.GetClientEdgeTarget(), NodeEdgeTarget: session.GetNodeEdgeTarget(),
+			ClientEdgeTarget: session.GetClientEdgeTarget(),
 		})
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "Tunnel session: %s\n", session.GetSessionID())

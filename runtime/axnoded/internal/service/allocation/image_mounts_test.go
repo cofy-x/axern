@@ -8,26 +8,25 @@ import (
 	"testing"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 )
 
 type imageMountTestMounter struct {
 	imagePaths map[string]string
 	mountErr   error
 	mountErrs  map[string]error
-	umounts    []langrtmanager.RootfsConfig
+	umounts    []environmentcache.RootfsConfig
 	reconciled []string
 }
 
-func (m *imageMountTestMounter) Resolve(cfg langrtmanager.RootfsConfig) (langrtmanager.RootfsConfig, error) {
+func (m *imageMountTestMounter) Resolve(cfg environmentcache.RootfsConfig) (environmentcache.RootfsConfig, error) {
 	if cfg.SrcType == runtime.RootfsSrcType_IMAGE {
 		cfg.LeaseID = "test-lease:" + cfg.ImageUrl
 	}
 	return cfg, nil
 }
 
-func (m *imageMountTestMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrtmanager.MountResult, error) {
+func (m *imageMountTestMounter) Mount(cfg environmentcache.RootfsConfig) (*environmentcache.MountResult, error) {
 	if m.mountErr != nil {
 		return nil, m.mountErr
 	}
@@ -36,24 +35,24 @@ func (m *imageMountTestMounter) Mount(cfg langrtmanager.RootfsConfig) (*langrtma
 	}
 	switch cfg.SrcType {
 	case runtime.RootfsSrcType_LOCAL:
-		mount, err := langrtmanager.DescribeLocalRootfs(cfg.Path)
-		return &langrtmanager.MountResult{Path: cfg.Path, ImmutableMount: mount}, err
+		mount, err := environmentcache.DescribeLocalRootfs(cfg.Path)
+		return &environmentcache.MountResult{Path: cfg.Path, ImmutableMount: mount}, err
 	case runtime.RootfsSrcType_IMAGE:
 		path := m.imagePaths[cfg.ImageUrl]
 		if err := os.MkdirAll(path, 0755); err != nil {
 			return nil, err
 		}
-		mount, err := langrtmanager.DescribeLocalRootfs(path)
+		mount, err := environmentcache.DescribeLocalRootfs(path)
 		if mount != nil {
 			mount.LeaseID = cfg.LeaseID
 		}
-		return &langrtmanager.MountResult{Path: path, ImmutableMount: mount}, err
+		return &environmentcache.MountResult{Path: path, ImmutableMount: mount}, err
 	default:
 		return nil, nil
 	}
 }
 
-func (m *imageMountTestMounter) Umount(cfg langrtmanager.RootfsConfig) error {
+func (m *imageMountTestMounter) Umount(cfg environmentcache.RootfsConfig) error {
 	m.umounts = append(m.umounts, cfg)
 	return nil
 }
@@ -70,24 +69,23 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 		t.Fatalf("MkdirAll(image bin) error = %v", err)
 	}
 
-	handler := &runtimeSpyHandler{name: "runsc", capabilities: contract.RuntimeCapabilities{CanExecDirect: true}}
-	tc := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	handler := &runtimeSpyHandler{name: "runsc"}
+	tc := newTestAllocationController(t, handler)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{
 		"example.com/axern/codex-tool:latest": imageDir,
 	}}
-	tc.lrtManager = langrtmanager.NewLanguageRuntimeManager(mounter)
-	tc.controller.lrtManager = tc.lrtManager
+	tc.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	tc.controller.environmentCache = tc.environmentCache
 
 	resp, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
-		ContainerID: "alloc-image-mount",
-		RuntimeTemplate: &runtime.RuntimeTemplate{
-			ID:      "task-runtime",
-			Sandbox: "runsc",
+		AllocationID: "alloc-image-mount",
+		Environment: &runtime.ResolvedEnvironment{
+			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
 				Type:   runtime.RootfsSrcType_LOCAL,
 				Source: &runtime.RootfsConfig_Path{Path: rootfsDir},
 			},
-			Command: []string{"/bin/sh", "-lc", "sleep 3600"},
+			Argv: []string{"/bin/sh", "-lc", "sleep 3600"},
 		},
 		ImageMounts: []*runtime.ImageMount{{
 			Image:  "example.com/axern/codex-tool:latest",
@@ -97,8 +95,8 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	if resp.GetID() != "alloc-image-mount" {
-		t.Fatalf("response id = %q, want alloc-image-mount", resp.GetID())
+	if resp.GetAllocationID() != "alloc-image-mount" {
+		t.Fatalf("response id = %q, want alloc-image-mount", resp.GetAllocationID())
 	}
 	mounts := handler.lastRequest.GetMounts()
 	if len(mounts) != 1 {
@@ -129,27 +127,25 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 	rootfsDir := t.TempDir()
 	imageDir := t.TempDir()
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
-		createError:  errors.New("create failed"),
+		name:        "runsc",
+		createError: errors.New("create failed"),
 	}
-	tc := newTestAllocationController(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	tc := newTestAllocationController(t, handler)
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{
 		"example.com/axern/tool:latest": imageDir,
 	}}
-	tc.lrtManager = langrtmanager.NewLanguageRuntimeManager(mounter)
-	tc.controller.lrtManager = tc.lrtManager
+	tc.environmentCache = environmentcache.NewEnvironmentCache(mounter)
+	tc.controller.environmentCache = tc.environmentCache
 
 	_, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
-		ContainerID: "alloc-image-mount-fail",
-		RuntimeTemplate: &runtime.RuntimeTemplate{
-			ID:      "task-runtime",
-			Sandbox: "runsc",
+		AllocationID: "alloc-image-mount-fail",
+		Environment: &runtime.ResolvedEnvironment{
+			ID: "task-runtime",
 			Rootfs: &runtime.RootfsConfig{
 				Type:   runtime.RootfsSrcType_LOCAL,
 				Source: &runtime.RootfsConfig_Path{Path: rootfsDir},
 			},
-			Command: []string{"/bin/sh", "-lc", "sleep 3600"},
+			Argv: []string{"/bin/sh", "-lc", "sleep 3600"},
 		},
 		ImageMounts: []*runtime.ImageMount{{
 			Image:  "example.com/axern/tool:latest",
@@ -192,7 +188,7 @@ func TestValidateImageMountTargetsRejectsProtectedAndOverlappingTargets(t *testi
 			name: "overlapping secret file mount",
 			request: &runtime.StartRequest{
 				ImageMounts: []*runtime.ImageMount{{Image: "image", Target: "/opt/axern/tools"}},
-				Mounts:      []*runtime.Mount{{Target: "/opt/axern/tools/secret/token"}},
+				SecretFiles: []*runtime.ResolvedSecretFile{{Path: "/opt/axern/tools/secret/token"}},
 			},
 		},
 		{
@@ -200,20 +196,6 @@ func TestValidateImageMountTargetsRejectsProtectedAndOverlappingTargets(t *testi
 			request: &runtime.StartRequest{ImageMounts: []*runtime.ImageMount{
 				{Image: "image-a", Target: "/opt/axern/tools"},
 				{Image: "image-b", Target: "/opt/axern/tools/codex"},
-			}},
-		},
-		{
-			name: "Claude public path overlaps sandbox mount",
-			request: &runtime.StartRequest{
-				ImageMounts: []*runtime.ImageMount{{Image: "claude", Target: "/__claude_code"}},
-				Mounts:      []*runtime.Mount{{Target: "/opt/axern/agents/claude-code/work"}},
-			},
-		},
-		{
-			name: "Claude public path overlaps another image mount",
-			request: &runtime.StartRequest{ImageMounts: []*runtime.ImageMount{
-				{Image: "claude", Target: "/__claude_code"},
-				{Image: "other", Target: "/opt/axern/agents/claude-code"},
 			}},
 		},
 	}

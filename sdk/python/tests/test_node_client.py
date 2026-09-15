@@ -69,8 +69,8 @@ class _AsyncProcessCall:
 
 
 class SandboxTest(unittest.TestCase):
-    def test_sync_node_file_browser_computer_and_capability_use_gateway_allocation_request(self) -> None:
-        from axern_sdk.node import NodeSandboxClient
+    def test_sync_node_file_computer_and_capability_use_gateway_allocation_request(self) -> None:
+        from axern_sdk.node import AllocationClient
         from axern_sdk.node import client as node_client_module
 
         calls: list[tuple[str, object, float | None]] = []
@@ -87,38 +87,30 @@ class SandboxTest(unittest.TestCase):
                 calls.append(("write", request, timeout))
                 return node_pb2.WriteFileResponse()
 
-            def BrowserOpen(self, request, timeout=None):
-                calls.append(("browser_open", request, timeout))
-                return node_pb2.BrowserStatusResponse(available=True, running=True, pid=88, url=request.url)
-
             def ComputerUseScreenshot(self, request, timeout=None):
                 calls.append(("computer_screenshot", request, timeout))
                 return node_pb2.ComputerUseScreenshotResponse(data=b"png", content_type="image/png")
 
             def CapabilityStatus(self, request, timeout=None):
                 calls.append(("capability_status", request, timeout))
-                return node_pb2.CapabilityStatusResponse(ready=True, capabilities=["browser"])
+                return node_pb2.CapabilityStatusResponse(ready=True, capabilities=["computer_use"])
 
-        client = NodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
+        client = AllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
             self.assertEqual(client.read_file("/tmp/out.txt", rpc_timeout=3), b"hello")
             client.write_file("/tmp/out.txt", b"hello", create_parents=False, rpc_timeout=3)
-            browser = client.browser_open("data:text/html,open", rpc_timeout=3)
             screenshot = client.computer_use_screenshot(rpc_timeout=3)
             capability = client.capability_status(rpc_timeout=3)
-
-        self.assertTrue(browser.running)
         self.assertEqual(screenshot.data, b"png")
         self.assertTrue(capability.ready)
-        self.assertEqual([name for name, _, _ in calls], ["read", "write", "browser_open", "computer_screenshot", "capability_status"])
+        self.assertEqual([name for name, _, _ in calls], ["read", "write", "computer_screenshot", "capability_status"])
         for _, request, timeout in calls:
             self.assertEqual(request.allocation_id, "alloc-1")
-            self.assertEqual(getattr(request, "attempt", 0), 0)
-            self.assertEqual(getattr(request, "execution_lease_token", ""), "")
+            self.assertFalse(hasattr(request, "execution_lease_token"))
             self.assertEqual(timeout, 3)
 
     def test_sync_process_and_exec_use_gateway_process_rpc(self) -> None:
-        from axern_sdk.node import NodeSandboxClient
+        from axern_sdk.node import AllocationClient
         from axern_sdk.node import client as node_client_module
 
         open_requests: list[object] = []
@@ -140,51 +132,23 @@ class SandboxTest(unittest.TestCase):
                     ]
                 )
 
-        client = NodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
+        client = AllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
+            process = client.process(["sh"], tty=True, initial_cols=120, initial_rows=40)
+            process.close()
             result = client.exec(["/bin/echo", "hello"])
 
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.stdout, b"hello")
         self.assertEqual(result.stderr, b"warn")
         self.assertEqual(open_requests[0].allocation_id, "alloc-1")
-        self.assertEqual(open_requests[0].attempt, 0)
-        self.assertEqual(open_requests[0].execution_lease_token, "")
-        self.assertEqual(list(open_requests[0].spec.argv), ["/bin/echo", "hello"])
-
-    def test_sync_exec_image_uses_gateway_unary_rpc(self) -> None:
-        from axern_sdk.node import ImageProcessMount, NodeSandboxClient
-        from axern_sdk.node import client as node_client_module
-
-        calls = []
-
-        class FakeStub:
-            def __init__(self, channel) -> None:
-                del channel
-
-            def ExecImage(self, request, timeout=None):
-                calls.append((request, timeout))
-                return node_pb2.ExecImageResponse(exit_code=0, stdout=b"ok")
-
-        client = NodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
-        with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
-            result = client.exec_image(
-                "alpine:latest",
-                ["echo", "ok"],
-                mounts=[ImageProcessMount(sandbox_path="/workspace", target_path="/mnt", readonly=True)],
-                rpc_timeout=5,
-            )
-
-        self.assertEqual(result.stdout, b"ok")
-        request, timeout = calls[0]
-        self.assertEqual(timeout, 5)
-        self.assertEqual(request.allocation_id, "alloc-1")
-        self.assertEqual(request.attempt, 0)
-        self.assertEqual(request.execution_lease_token, "")
-        self.assertEqual(request.spec.mounts[0].target_path, "/mnt")
+        self.assertEqual(open_requests[0].initial_size.cols, 120)
+        self.assertEqual(open_requests[0].initial_size.rows, 40)
+        self.assertFalse(hasattr(open_requests[0], "execution_lease_token"))
+        self.assertEqual(list(open_requests[1].spec.argv), ["/bin/echo", "hello"])
 
     def test_sync_archive_methods_use_gateway_streams(self) -> None:
-        from axern_sdk.node import NodeSandboxClient
+        from axern_sdk.node import AllocationClient
         from axern_sdk.node import client as node_client_module
 
         upload_requests = []
@@ -204,19 +168,17 @@ class SandboxTest(unittest.TestCase):
                 download_requests.append(request)
                 return iter([node_pb2.DownloadArchiveResponse(chunk=b"a"), node_pb2.DownloadArchiveResponse(chunk=b"b")])
 
-        client = NodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
+        client = AllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         out = bytearray()
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
             client.upload_archive("/workspace", lambda: iter([b"tar"]))
             client.download_archive("/workspace", out.extend)
 
         self.assertEqual(upload_requests[0].open.allocation_id, "alloc-1")
-        self.assertEqual(upload_requests[0].open.attempt, 0)
-        self.assertEqual(upload_requests[0].open.execution_lease_token, "")
+        self.assertFalse(hasattr(upload_requests[0].open, "execution_lease_token"))
         self.assertEqual(upload_requests[1].chunk, b"tar")
         self.assertEqual(download_requests[0].allocation_id, "alloc-1")
-        self.assertEqual(download_requests[0].attempt, 0)
-        self.assertEqual(download_requests[0].execution_lease_token, "")
+        self.assertFalse(hasattr(download_requests[0], "execution_lease_token"))
         self.assertEqual(bytes(out), b"ab")
 
     def test_sync_process_replays_prefetched_output_before_exit(self) -> None:
@@ -270,12 +232,12 @@ class SandboxTest(unittest.TestCase):
         capability = sandbox_rpc_error(
             FakeRpcError(
                 grpc.StatusCode.FAILED_PRECONDITION,
-                "sandboxd browser status failed: sandboxd /browser/status returned status 503 "
-                "(unavailable): browser crashed; sandboxd user process state=running; "
-                "providers 1/1 available; browser provider degraded: browser crashed; "
+                "sandboxd computer_use status failed: sandboxd /computer-use/status returned status 503 "
+                "(unavailable): computer_use crashed; sandboxd user process state=running; "
+                "providers 1/1 available; computer_use provider degraded: computer_use crashed; "
                 "missing dependencies: chromium (not found)",
             ),
-            operation="sandbox browser status",
+            operation="sandbox computer-use status",
         )
 
         self.assertIsInstance(timeout, SandboxTimeoutError)
@@ -295,10 +257,10 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(
             capability.capability,
             SandboxCapabilityErrorInfo(
-                capability="browser",
-                provider="browser",
+                capability="computer_use",
+                provider="computer_use",
                 provider_state="degraded",
-                reason="browser crashed",
+                reason="computer_use crashed",
                 missing_dependencies=("chromium (not found)",),
             ),
         )
@@ -306,8 +268,8 @@ class SandboxTest(unittest.TestCase):
 
 
 class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
-    async def test_async_node_file_browser_computer_and_capability_use_gateway_allocation_request(self) -> None:
-        from axern_sdk.node import AsyncNodeSandboxClient
+    async def test_async_node_file_computer_and_capability_use_gateway_allocation_request(self) -> None:
+        from axern_sdk.node import AsyncAllocationClient
         from axern_sdk.node import async_client as node_client_module
 
         calls: list[tuple[str, object, float | None]] = []
@@ -320,36 +282,28 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 calls.append(("read", request, timeout))
                 return node_pb2.ReadFileResponse(data=b"hello")
 
-            async def BrowserOpen(self, request, timeout=None):
-                calls.append(("browser_open", request, timeout))
-                return node_pb2.BrowserStatusResponse(available=True, running=True, pid=88, url=request.url)
-
             async def ComputerUseScreenshot(self, request, timeout=None):
                 calls.append(("computer_screenshot", request, timeout))
                 return node_pb2.ComputerUseScreenshotResponse(data=b"png", content_type="image/png")
 
             async def CapabilityStatus(self, request, timeout=None):
                 calls.append(("capability_status", request, timeout))
-                return node_pb2.CapabilityStatusResponse(ready=True, capabilities=["browser"])
+                return node_pb2.CapabilityStatusResponse(ready=True, capabilities=["computer_use"])
 
-        client = AsyncNodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
+        client = AsyncAllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
             self.assertEqual(await client.read_file("/tmp/out.txt", rpc_timeout=3), b"hello")
-            browser = await client.browser_open("data:text/html,open", rpc_timeout=3)
             screenshot = await client.computer_use_screenshot(rpc_timeout=3)
             capability = await client.capability_status(rpc_timeout=3)
-
-        self.assertTrue(browser.running)
         self.assertEqual(screenshot.data, b"png")
         self.assertTrue(capability.ready)
         for _, request, timeout in calls:
             self.assertEqual(request.allocation_id, "alloc-1")
-            self.assertEqual(getattr(request, "attempt", 0), 0)
-            self.assertEqual(getattr(request, "execution_lease_token", ""), "")
+            self.assertFalse(hasattr(request, "execution_lease_token"))
             self.assertEqual(timeout, 3)
 
     async def test_async_process_and_exec_use_gateway_process_rpc(self) -> None:
-        from axern_sdk.node import AsyncNodeSandboxClient
+        from axern_sdk.node import AsyncAllocationClient
         from axern_sdk.node import async_client as node_client_module
 
         calls: list[_AsyncProcessCall] = []
@@ -369,8 +323,10 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 calls.append(call)
                 return call
 
-        client = AsyncNodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
+        client = AsyncAllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
+            process = await client.process(["sh"], tty=True, initial_cols=120, initial_rows=40)
+            await process.close()
             result = await client.exec(["/bin/echo", "hello"])
 
         self.assertEqual(result.exit_code, 0)
@@ -378,13 +334,14 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.stderr, b"warn")
         open_request = calls[0].writes[0].open
         self.assertEqual(open_request.allocation_id, "alloc-1")
-        self.assertEqual(open_request.attempt, 0)
-        self.assertEqual(open_request.execution_lease_token, "")
-        self.assertEqual(list(open_request.spec.argv), ["/bin/echo", "hello"])
-        self.assertTrue(calls[0].done)
+        self.assertEqual(open_request.initial_size.cols, 120)
+        self.assertEqual(open_request.initial_size.rows, 40)
+        self.assertFalse(hasattr(open_request, "execution_lease_token"))
+        self.assertEqual(list(calls[1].writes[0].open.spec.argv), ["/bin/echo", "hello"])
+        self.assertTrue(calls[1].done)
 
     async def test_async_archive_methods_use_gateway_streams(self) -> None:
-        from axern_sdk.node import AsyncNodeSandboxClient
+        from axern_sdk.node import AsyncAllocationClient
         from axern_sdk.node import async_client as node_client_module
 
         upload_requests = []
@@ -409,19 +366,17 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 download_requests.append(request)
                 return download_stream()
 
-        client = AsyncNodeSandboxClient(client=_GatewayClient(), allocation_id="alloc-1")
+        client = AsyncAllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         out = bytearray()
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
             await client.upload_archive("/workspace", lambda: iter([b"tar"]))
             await client.download_archive("/workspace", out.extend)
 
         self.assertEqual(upload_requests[0].open.allocation_id, "alloc-1")
-        self.assertEqual(upload_requests[0].open.attempt, 0)
-        self.assertEqual(upload_requests[0].open.execution_lease_token, "")
+        self.assertFalse(hasattr(upload_requests[0].open, "execution_lease_token"))
         self.assertEqual(upload_requests[1].chunk, b"tar")
         self.assertEqual(download_requests[0].allocation_id, "alloc-1")
-        self.assertEqual(download_requests[0].attempt, 0)
-        self.assertEqual(download_requests[0].execution_lease_token, "")
+        self.assertFalse(hasattr(download_requests[0], "execution_lease_token"))
         self.assertEqual(bytes(out), b"ab")
 
     async def test_async_process_replays_prefetched_output_before_exit(self) -> None:

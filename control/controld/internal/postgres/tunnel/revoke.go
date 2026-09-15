@@ -33,7 +33,6 @@ func RevokeActiveForAllocationsTx(ctx context.Context, tx pgx.Tx, req RevokeActi
 		WITH due AS MATERIALIZED (
 			SELECT session_id FROM tunnel_sessions
 			WHERE allocation_id = ANY($2)
-			  AND revoked = FALSE
 			  AND status IN (
 				'TUNNEL_SESSION_STATUS_PENDING',
 				'TUNNEL_SESSION_STATUS_RUNNING',
@@ -48,7 +47,7 @@ func RevokeActiveForAllocationsTx(ctx context.Context, tx pgx.Tx, req RevokeActi
 			RETURNING revision
 		), updated AS (
 		UPDATE tunnel_sessions
-		SET status = $1, revoked = TRUE, reason = $3, updated_at = $4, revision = (SELECT revision FROM rev)
+		SET status = $1, reason = $3, updated_at = $4, revision = (SELECT revision FROM rev)
 		WHERE session_id IN (SELECT session_id FROM due)
 		  AND EXISTS (SELECT 1 FROM rev)
 			RETURNING session_id, status, reason, bound_addr

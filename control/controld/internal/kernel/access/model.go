@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -49,25 +51,22 @@ const (
 	RoleNamespaceAdmin  Role = "namespace_admin"
 	RoleNamespaceEditor Role = "namespace_editor"
 	RoleNamespaceViewer Role = "namespace_viewer"
-	RoleRolloutExecutor Role = "rollout_executor"
 )
 
 type Action string
 
 const (
-	ActionIdentityRead       Action = "identity.read"
-	ActionCatalogRead        Action = "catalog.read"
-	ActionNamespaceRead      Action = "namespace.read"
-	ActionNamespaceManage    Action = "namespace.manage"
-	ActionQuotaRead          Action = "quota.read"
-	ActionQuotaManage        Action = "quota.manage"
-	ActionResourceRead       Action = "resource.read"
-	ActionResourceWrite      Action = "resource.write"
-	ActionSandboxExecute     Action = "sandbox.execute"
-	ActionNamespaceAccess    Action = "namespace.access.manage"
-	ActionPlatformAccess     Action = "platform.access.manage"
-	ActionPlatformAdmin      Action = "platform.admin"
-	ActionRolloutWorkExecute Action = "rollout.work.execute"
+	ActionIdentityRead    Action = "identity.read"
+	ActionNamespaceRead   Action = "namespace.read"
+	ActionNamespaceManage Action = "namespace.manage"
+	ActionQuotaRead       Action = "quota.read"
+	ActionQuotaManage     Action = "quota.manage"
+	ActionResourceRead    Action = "resource.read"
+	ActionResourceWrite   Action = "resource.write"
+	ActionSandboxExecute  Action = "sandbox.execute"
+	ActionNamespaceAccess Action = "namespace.access.manage"
+	ActionPlatformAccess  Action = "platform.access.manage"
+	ActionPlatformAdmin   Action = "platform.admin"
 )
 
 type Principal struct {
@@ -76,19 +75,55 @@ type Principal struct {
 	DisplayName string
 	Kind        PrincipalKind
 	Status      PrincipalStatus
-	Version     int64
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }
 
 type Credential struct {
-	ID                  string
-	PrincipalID         string
-	Fingerprint         [sha256.Size]byte
-	CertificateNotAfter time.Time
-	Label               string
-	CreatedAt           time.Time
-	RevokedAt           *time.Time
+	Kind        CredentialKind
+	ID          string
+	PrincipalID string
+	Fingerprint [sha256.Size]byte
+	ExpiresAt   time.Time
+	Label       string
+	CreatedAt   time.Time
+	RevokedAt   *time.Time
+}
+
+type CredentialKind string
+
+const (
+	CredentialX509 CredentialKind = "x509_sha256"
+	CredentialSSH  CredentialKind = "ssh_sha256"
+)
+
+type CredentialMaterial struct {
+	Kind        CredentialKind
+	Fingerprint [sha256.Size]byte
+	ExpiresAt   time.Time
+}
+
+// ParseCredentialMaterial accepts exactly one authentication protocol. SSH
+// keys require an explicit expiry; X.509 expiry comes from the certificate.
+func ParseCredentialMaterial(der []byte, authorizedKey string, expiresAt time.Time) (CredentialMaterial, error) {
+	if (len(der) == 0) == (strings.TrimSpace(authorizedKey) == "") {
+		return CredentialMaterial{}, fmt.Errorf("%w: exactly one certificate or SSH public key is required", ErrInvalidArgument)
+	}
+	if len(der) > 0 {
+		if !expiresAt.IsZero() {
+			return CredentialMaterial{}, fmt.Errorf("%w: certificate expiry cannot be overridden", ErrInvalidArgument)
+		}
+		fingerprint, expiry, err := ParseCertificateDER(der)
+		return CredentialMaterial{Kind: CredentialX509, Fingerprint: fingerprint, ExpiresAt: expiry}, err
+	}
+	key, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(authorizedKey))
+	if err != nil || len(options) != 0 || len(strings.TrimSpace(string(rest))) != 0 || expiresAt.IsZero() {
+		return CredentialMaterial{}, fmt.Errorf("%w: one plain SSH public key and explicit expiry are required", ErrInvalidArgument)
+	}
+	if _, certificate := key.(*ssh.Certificate); certificate {
+		return CredentialMaterial{}, fmt.Errorf("%w: SSH certificates are not accepted as public keys", ErrInvalidArgument)
+	}
+	return CredentialMaterial{Kind: CredentialSSH, Fingerprint: sha256.Sum256(key.Marshal()), ExpiresAt: expiresAt.UTC()}, nil
 }
 
 type Binding struct {

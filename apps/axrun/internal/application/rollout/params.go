@@ -23,7 +23,6 @@ func normalizeParams(params Params) (Params, error) {
 	params.AgentAllowedTools = cleanStringSlice(params.AgentAllowedTools)
 	params.AgentPatchPath = strings.TrimSpace(params.AgentPatchPath)
 	params.Model = strings.TrimSpace(params.Model)
-	params.RuntimeClass = strings.TrimSpace(params.RuntimeClass)
 	params.RunID = strings.TrimSpace(params.RunID)
 	params.TaskSetRef = strings.TrimSpace(params.TaskSetRef)
 	params.SelectedTaskIDs = cleanStringSlice(params.SelectedTaskIDs)
@@ -159,7 +158,6 @@ func hasCreateOnlyParams(params Params) bool {
 		params.AgentPatchRequired ||
 		len(params.AgentEnv) != 0 ||
 		params.Model != "" ||
-		params.RuntimeClass != "" ||
 		params.RunID != "" ||
 		params.TaskSetRef != "" ||
 		len(params.SelectedTaskIDs) != 0 ||

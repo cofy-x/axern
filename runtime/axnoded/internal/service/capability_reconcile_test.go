@@ -14,7 +14,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestCapabilityVerificationRetriesOnlyInconclusiveResults(t *testing.T) {
@@ -89,9 +88,9 @@ func TestCapabilityVerificationRejectsInvalidRetrySchedule(t *testing.T) {
 }
 
 func TestCapabilityReconcileInterruptionRequestsRetryInsteadOfFailStop(t *testing.T) {
-	service := newTestService(t, map[string]contract.RuntimeHandler{"runc": runtimetest.NewFakeRuntimeHandler()})
-	dependency := &capabilityv1.CapabilityDependency{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT),
+	service := newTestService(t, runtimetest.NewFakeSandboxRuntime())
+	dependency := &capabilityv1.CapabilityRequirement{
+		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -102,37 +101,20 @@ func TestCapabilityReconcileInterruptionRequestsRetryInsteadOfFailStop(t *testin
 	}
 }
 
-func TestCapabilityConditionPersistenceFailureIsReturned(t *testing.T) {
-	service := newTestService(t, map[string]contract.RuntimeHandler{"runsc": runtimetest.NewFakeRuntimeHandler()})
-	dependency := &capabilityv1.CapabilityDependency{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING),
-		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
-	}
-	err := service.reportCapabilityCondition(
-		"missing-allocation", dependency,
-		capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_DEGRADED,
-		capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_ENFORCEMENT_LOST,
-		"dataplane unavailable",
-	)
-	if err == nil {
-		t.Fatal("condition persistence failure was discarded")
-	}
-}
-
 func TestPeriodicCapabilityAuditCoversOperationalAndFailStopDependencies(t *testing.T) {
-	port := &capabilityv1.CapabilityDependency{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING),
+	port := &capabilityv1.CapabilityRequirement{
+		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_DEGRADE,
 	}
-	memory := &capabilityv1.CapabilityDependency{
-		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT),
+	memory := &capabilityv1.CapabilityRequirement{
+		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP,
 	}
-	erofs := &capabilityv1.CapabilityDependency{
+	erofs := &capabilityv1.CapabilityRequirement{
 		Key:        capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS),
 		LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_ADMISSION_ONLY,
 	}
-	keys := periodicCapabilityAuditKeys([]*capabilityv1.CapabilityDependency{port, memory, erofs})
+	keys := periodicCapabilityAuditKeys([]*capabilityv1.CapabilityRequirement{port, memory, erofs})
 	if len(keys) != 2 {
 		t.Fatalf("periodic audit keys = %d, want operational and fail-stop only", len(keys))
 	}
@@ -185,53 +167,24 @@ func TestCapabilityReconcileWorkerOwnershipIsPerAllocationAndBounded(t *testing.
 	}
 }
 
-func TestVerifiedAllocationEnforcementDoesNotRefreshExpiredNodeEvidence(t *testing.T) {
-	now := time.Now().UTC()
-	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
-	observation := &capabilityv1.CapabilityObservation{
-		Key:          key,
-		State:        capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-		Provider:     capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_NETWORK_HEALTH,
-		ObservedAt:   timestamppb.New(now.Add(-21 * time.Minute)),
-		ValidUntil:   timestamppb.New(now.Add(-time.Minute)),
-		Evidence:     capabilitycontract.ConfigEvidence("sha256:" + strings.Repeat("a", 64)),
-		ReasonCode:   capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE,
-		Dependencies: nil,
-	}
-	capabilitycontract.NormalizeObservation(observation)
-	snapshot := &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-a",
-		Sequence:       1,
-		SnapshotID:     "snapshot-a",
-		CollectedAt:    timestamppb.New(now),
-		Observations:   []*capabilityv1.CapabilityObservation{observation},
-	}
-
-	state, reasonCode := verifiedCapabilityCondition(snapshot, key, now)
-	if state != capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_DEGRADED || reasonCode != capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DEPENDENCY_UNAVAILABLE {
-		t.Fatalf("state = %v, reason = %v", state, reasonCode)
-	}
-}
-
 func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.T) {
 	now := time.Now().UTC()
 	overlay := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
-	quota := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_XFS_PROJECT_QUOTA)
-	selfTest := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
-	hardLimit := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT)
+	selfTest := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST)
+	hardLimit := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT)
 	mountEvidence := capabilitycontract.MountEvidence(testCapabilityBootID, "42:/dev/loop0:/var/lib/axnoded/filestore")
 	filestore := observedProvider{
 		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_FILESTORE,
-		expected: []*capabilityv1.CapabilityKey{overlay, quota},
+		expected: []*capabilityv1.CapabilityKey{overlay},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			return []*capabilityv1.CapabilityObservation{availableObservation(overlay, mountEvidence), availableObservation(quota, mountEvidence)}, nil
+			return []*capabilityv1.CapabilityObservation{availableObservation(overlay, mountEvidence)}, nil
 		},
 	}
 	runtimeSelfTest := observedProvider{
-		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST,
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST,
 		expected: []*capabilityv1.CapabilityKey{selfTest},
 		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
-			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, "runc", sha256Digest([]byte("runc")), sha256Digest([]byte("config")))
+			evidence := capabilitycontract.RuntimeEvidence(testCapabilityBootID, sha256Digest([]byte("runsc")), sha256Digest([]byte("config")))
 			return []*capabilityv1.CapabilityObservation{availableObservation(selfTest, evidence)}, nil
 		},
 	}
@@ -243,11 +196,11 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	dependencies, err := capabilitycontract.ResolveDependencies(snapshot, []*capabilityv1.CapabilityKey{hardLimit}, now)
+	dependencies, err := capabilitycontract.ResolveRequirements(snapshot, []*capabilityv1.CapabilityKey{hardLimit}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service := newTestService(t, map[string]contract.RuntimeHandler{"runc": runtimetest.NewFakeRuntimeHandler()})
+	service := newTestService(t, runtimetest.NewFakeSandboxRuntime())
 	service.capabilityManager = manager
 	const allocationID = "post-create-fast-exit"
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(dependencies))
@@ -255,25 +208,26 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 		conditions = append(conditions, &capabilityv1.CapabilityCondition{
 			Key: capabilitycontract.CloneKey(dependency.GetKey()), State: capabilityv1.CapabilityConditionState_CAPABILITY_CONDITION_STATE_HEALTHY,
 			ReasonCode: capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_AVAILABLE, Message: "available",
-			ObservedAt: timestamppb.New(now), Proof: dependency.GetSelectedObservation(),
 		})
 	}
-	if _, err := service.allocationController().ReplaceCapabilityAdmission(allocationID, 1, "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", dependencies, conditions, now); err != nil {
+	if err := service.allocationController().StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, dependencies); err != nil {
 		t.Fatal(err)
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runc", EphemeralStorageLimitBytes: 64 << 20, RuncProjectID: 1234,
-		FilestoreMountIdentity: "42:/dev/loop0:/var/lib/axnoded/filestore",
-		BundlePath:             "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: now.UnixNano(),
+		EphemeralStorageLimitBytes: 64 << 20, RunscBackingDirectory: "/var/lib/axnoded/filestore/runsc",
+		RunscBackingDirectoryIdentity: "devino:v1:1:2",
+		RunscOverlayArg:               "root:dir=/var/lib/axnoded/filestore/runsc,size=67108864",
+		FilestoreMountIdentity:        "42:/dev/loop0:/var/lib/axnoded/filestore",
+		BundlePath:                    "/var/lib/axnoded/root/containers/" + allocationID, CreatedAtUnixNano: now.UnixNano(),
 	}
-	if err := service.allocationController().StoreLaunchVerification(allocationID, manifest, []*capabilityv1.CapabilityKey{hardLimit}, now); err != nil {
+	if err := service.allocationController().StoreVerifiedEnforcementManifest(allocationID, manifest, []*capabilityv1.CapabilityKey{hardLimit}, now); err != nil {
 		t.Fatal(err)
 	}
-	admitted, conditions, err := service.verifyPostCreateCapabilityDependencies(context.Background(), allocationID, dependencies, now)
+	admitted, conditions, err := service.verifyPostCreateCapabilityRequirements(context.Background(), allocationID, dependencies, now)
 	if err != nil {
 		t.Fatalf("post-create verification read mutable runtime state after exit: %v", err)
 	}
 	if len(admitted) != 1 || len(conditions) != 1 || !strings.Contains(conditions[0].GetMessage(), "before workload start") {
-		t.Fatalf("post-create proof projection = dependencies:%#v conditions:%#v", admitted, conditions)
+		t.Fatalf("post-create verification = requirements:%#v conditions:%#v", admitted, conditions)
 	}
 }

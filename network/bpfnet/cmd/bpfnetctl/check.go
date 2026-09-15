@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/cofy-x/axern/network/bpfnet"
 	"github.com/cofy-x/axern/network/bpfnet/internal/inspect"
@@ -60,22 +59,11 @@ func runCheck(args []string, stdout io.Writer) error {
 
 func evaluateReadiness(status bpfnet.Status, objects []inspect.ObjectInfo) checkResult {
 	checks := []checkItem{
-		checkBool("tc_ready", status.State.TCReady && !status.State.FullFallback, "tc dataplane is not ready or is in full fallback"),
+		checkBool("tc_ready", status.State.TCReady, "tc dataplane is not ready"),
 		checkBool("tc_filters", status.Attachment.IngressTCAttached && status.Attachment.EgressTCAttached, "tc ingress/egress filters are not both attached"),
 		checkBool("pinned_maps", status.Attachment.PinnedMapsReady, "required pinned maps are not all openable"),
 		checkBool("pinned_programs", status.Attachment.PinnedProgramsReady, "required pinned program objects are not all openable"),
 	}
-	if status.State.LocalOutCompat {
-		if status.State.LocalhostCompat {
-			checks = append(checks, checkBool("localhost_compat", true, ""))
-		} else {
-			checks = append(checks,
-				checkBool("localhost_path", status.State.LocalhostTCPDNAT && status.State.LocalhostPathReady, "localhost tcp path is not active"),
-				checkBool("localhost_links", status.Attachment.LocalhostLinksAttached, "localhost cgroup links are not all openable"),
-			)
-		}
-	}
-
 	for _, obj := range objects {
 		switch obj.Kind {
 		case "map":
@@ -83,9 +71,6 @@ func evaluateReadiness(status bpfnet.Status, objects []inspect.ObjectInfo) check
 		case "program":
 			checks = append(checks, checkObject("program:"+obj.Name, obj))
 		case "link":
-			if status.State.LocalhostCompat && isLocalhostLinkObject(obj.Name) {
-				continue
-			}
 			checks = append(checks, checkObject("link:"+obj.Name, obj))
 		}
 	}
@@ -98,10 +83,6 @@ func evaluateReadiness(status bpfnet.Status, objects []inspect.ObjectInfo) check
 		}
 	}
 	return result
-}
-
-func isLocalhostLinkObject(name string) bool {
-	return strings.HasPrefix(name, "localhost-")
 }
 
 func checkBool(name string, ok bool, message string) checkItem {

@@ -100,7 +100,7 @@ func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options 
 	if err := copySandboxdBinary(binaryPath, hostBinaryPath); err != nil {
 		return err
 	}
-	appendSandboxdRuntimeMounts(ociSpec, runtimeDir)
+	appendSandboxdEnvironmentMounts(ociSpec, runtimeDir)
 	ociSpec.Process.Args = []string{
 		SandboxdGuestBinaryPath,
 		"--socket", SandboxdGuestSocketPath,
@@ -148,7 +148,7 @@ func copySandboxdBinary(path, source string) error {
 	return nil
 }
 
-func appendSandboxdRuntimeMounts(ociSpec *spec.Spec, runtimeDir string) {
+func appendSandboxdEnvironmentMounts(ociSpec *spec.Spec, runtimeDir string) {
 	ociSpec.Mounts = append(ociSpec.Mounts, spec.Mount{
 		Destination: sandboxdRuntimeDir,
 		Type:        "bind",

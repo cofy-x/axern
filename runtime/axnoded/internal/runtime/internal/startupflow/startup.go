@@ -14,7 +14,6 @@ type Options struct {
 	RuntimeName    string
 	ContainerID    string
 	PIDFilePath    string
-	WaitCh         <-chan error
 	ReadyByState   func(context.Context) bool
 	ExitState      func() (contract.Exit, bool, error)
 	UnreadableExit func(string, string, error) error
@@ -39,29 +38,9 @@ func Wait(ctx context.Context, options Options) error {
 			return err
 		}
 
-		if options.WaitCh == nil {
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-ticker.C:
-			}
-			continue
-		}
-
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case err := <-options.WaitCh:
-			if options.ReadyByState != nil && options.ReadyByState(context.Background()) {
-				return nil
-			}
-			if ok, exitErr := acceptExitState(options); ok || exitErr != nil {
-				return exitErr
-			}
-			if err == nil {
-				return fmt.Errorf("%s run exited before startup handshake completed", options.RuntimeName)
-			}
-			return fmt.Errorf("%s run exited before container started: %w", options.RuntimeName, err)
 		case <-ticker.C:
 		}
 	}

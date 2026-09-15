@@ -5,10 +5,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cofy-x/axern/lib/go/agentbundle"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	"github.com/sirupsen/logrus"
 )
@@ -28,11 +26,11 @@ var protectedImageMountTargets = map[string]struct{}{
 	"/usr":   {},
 }
 
-func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConfig startplan.ExtraConfig) ([]*runtime.Mount, func(), error) {
+func (h *Controller) resolveImageMounts(request *runtime.StartRequest) ([]*runtime.Mount, func(), error) {
 	if request == nil || len(request.GetImageMounts()) == 0 {
 		return nil, func() {}, nil
 	}
-	if h == nil || h.lrtManager == nil {
+	if h == nil || h.environmentCache == nil {
 		return nil, nil, fmt.Errorf("image mount runtime manager is unavailable: %w", errord.ErrFailedPrecondition)
 	}
 	if err := validateImageMountTargets(request); err != nil {
@@ -40,7 +38,7 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 	}
 
 	mounts := make([]*runtime.Mount, 0, len(request.GetImageMounts()))
-	roots := make([]*langrtmanager.RootFS, 0, len(request.GetImageMounts()))
+	roots := make([]*environmentcache.RootFS, 0, len(request.GetImageMounts()))
 	cleanup := func() {
 		releaseImageMountRoots(roots)
 	}
@@ -49,17 +47,17 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 		if imageMount == nil {
 			continue
 		}
-		cfg := langrtmanager.RootfsConfig{
+		cfg := environmentcache.RootfsConfig{
 			SrcType:          runtime.RootfsSrcType_IMAGE,
 			ImageUrl:         strings.TrimSpace(imageMount.GetImage()),
-			DockerConfigJSON: strings.TrimSpace(extraConfig.DockerConfigJSON),
+			DockerConfigJSON: strings.TrimSpace(request.GetRegistryCredential().GetDockerConfigJson()),
 		}
-		resolved, err := h.lrtManager.ResolveRootfsConfig(cfg)
+		resolved, err := h.environmentCache.ResolveRootfsConfig(cfg)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("resolve image mount %q: %w", cfg.ImageUrl, err)
 		}
-		rootfs, err := h.lrtManager.GetRootfs(resolved)
+		rootfs, err := h.environmentCache.GetRootfs(resolved)
 		if err != nil {
 			cleanup()
 			return nil, nil, fmt.Errorf("mount image %q: %w", cfg.ImageUrl, err)
@@ -77,12 +75,12 @@ func (h *Controller) resolveImageMounts(request *runtime.StartRequest, extraConf
 		})
 	}
 
-	if err := h.rememberImageMountRoots(request.GetContainerID(), roots, request.GetImageMounts()); err != nil {
+	if err := h.rememberImageMountRoots(request.GetAllocationID(), roots, request.GetImageMounts()); err != nil {
 		releaseImageMountRoots(roots)
 		return nil, nil, fmt.Errorf("persist image mount ownership: %w", err)
 	}
 	return mounts, func() {
-		h.forgetImageMountRoots(request.GetContainerID())
+		h.forgetImageMountRoots(request.GetAllocationID())
 	}, nil
 }
 
@@ -90,7 +88,7 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 	seen := map[string]struct{}{}
 	for _, imageMount := range request.GetImageMounts() {
 		if imageMount == nil {
-			continue
+			return fmt.Errorf("image mount is required: %w", errord.ErrInvalidArgument)
 		}
 		image := strings.TrimSpace(imageMount.GetImage())
 		if image == "" {
@@ -101,26 +99,30 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 		if target == "." || !strings.HasPrefix(target, "/") || pathHasParentReference(rawTarget) {
 			return fmt.Errorf("image mount target %q must be an absolute container path below /: %w", rawTarget, errord.ErrInvalidArgument)
 		}
-		claimedTargets := agentbundle.ClaimedMountTargets(target)
-		for _, claimedTarget := range claimedTargets {
-			if _, protected := protectedImageMountTargets[claimedTarget]; protected {
-				return fmt.Errorf("image mount target %q is protected: %w", claimedTarget, errord.ErrInvalidArgument)
-			}
-			for existing := range seen {
-				if containerPathsOverlap(existing, claimedTarget) {
-					return fmt.Errorf("image mount target %q overlaps image mount target %q: %w", claimedTarget, existing, errord.ErrInvalidArgument)
-				}
-			}
-			if err := validateImageMountTargetDoesNotOverlapMounts(claimedTarget, request.GetRuntimeTemplate().GetMounts()); err != nil {
-				return err
-			}
-			if err := validateImageMountTargetDoesNotOverlapMounts(claimedTarget, request.GetMounts()); err != nil {
-				return err
+		if _, protected := protectedImageMountTargets[target]; protected {
+			return fmt.Errorf("image mount target %q is protected: %w", target, errord.ErrInvalidArgument)
+		}
+		for existing := range seen {
+			if containerPathsOverlap(existing, target) {
+				return fmt.Errorf("image mount target %q overlaps image mount target %q: %w", target, existing, errord.ErrInvalidArgument)
 			}
 		}
-		for _, claimedTarget := range claimedTargets {
-			seen[claimedTarget] = struct{}{}
+		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetEnvironment().GetMounts()); err != nil {
+			return err
 		}
+		if err := validateImageMountTargetDoesNotOverlapMounts(target, request.GetMounts()); err != nil {
+			return err
+		}
+		for _, secretFile := range request.GetSecretFiles() {
+			if secretFile == nil {
+				continue
+			}
+			secretTarget := path.Clean(strings.TrimSpace(secretFile.GetPath()))
+			if containerPathsOverlap(target, secretTarget) {
+				return fmt.Errorf("image mount target %q overlaps secret file target %q: %w", target, secretTarget, errord.ErrInvalidArgument)
+			}
+		}
+		seen[target] = struct{}{}
 	}
 	return nil
 }
@@ -156,7 +158,7 @@ func containerPathsOverlap(a, b string) bool {
 	return a == b || strings.HasPrefix(a, b+"/") || strings.HasPrefix(b, a+"/")
 }
 
-func releaseImageMountRoots(roots []*langrtmanager.RootFS) {
+func releaseImageMountRoots(roots []*environmentcache.RootFS) {
 	for _, rootfs := range roots {
 		if rootfs == nil {
 			continue

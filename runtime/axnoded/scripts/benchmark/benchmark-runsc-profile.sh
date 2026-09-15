@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-RUNTIME_UNDER_TEST="${RUNTIME_UNDER_TEST:-runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
-VERIFY_NGINX_BIN="${VERIFY_NGINX_BIN:-/usr/local/bin/verify-nginx}"
 VERIFY_EGRESS_BIN="${VERIFY_EGRESS_BIN:-/usr/local/bin/verify-egress}"
-VERIFY_UDP_BIN="${VERIFY_UDP_BIN:-/usr/local/bin/verify-udp}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
 BPFNET_PIN_PATH="${BPFNET_PIN_PATH:-/sys/fs/bpf/axern/bpfnet}"
 BENCHMARK_REQUESTS="${BENCHMARK_REQUESTS:-200}"
@@ -15,16 +12,9 @@ BENCHMARK_MULTI_CLIENT_COUNT="${BENCHMARK_MULTI_CLIENT_COUNT:-4}"
 BENCHMARK_SNAT_POST_GC_WAIT="${BENCHMARK_SNAT_POST_GC_WAIT:-12s}"
 BENCHMARK_PATHS="${BENCHMARK_PATHS:-}"
 BENCHMARK_PATHS="${BENCHMARK_PATHS// /}"
-EBPF_INGRESS_PROBE_NETNS="${EBPF_INGRESS_PROBE_NETNS:-}"
-EBPF_INGRESS_PROBE_ADDR="${EBPF_INGRESS_PROBE_ADDR:-}"
-EBPF_INGRESS_PROBE_CLIENT_ADDR="${EBPF_INGRESS_PROBE_CLIENT_ADDR:-}"
-VERIFY_SKIP_LOCALHOST="${VERIFY_SKIP_LOCALHOST:-false}"
-
-if [ "${RUNTIME_UNDER_TEST}" != "runsc" ]; then
-  echo "runsc_benchmark_skipped=true runtime=${RUNTIME_UNDER_TEST}" >&2
-  jq -n --arg runtime "${RUNTIME_UNDER_TEST}" --arg nat "${NAT_BACKEND}" '{runtime:$runtime,natBackend:$nat,paths:[]}'
-  exit 0
-fi
+EXTERNAL_NETWORK_PROBE_NETNS="${EXTERNAL_NETWORK_PROBE_NETNS:-}"
+EXTERNAL_NETWORK_PROBE_ADDR="${EXTERNAL_NETWORK_PROBE_ADDR:-}"
+EXTERNAL_NETWORK_PROBE_CLIENT_ADDR="${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR:-}"
 
 started_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
@@ -64,61 +54,18 @@ egress_path_suffix() {
 write_empty_report() {
   local path="$1"
   jq -n \
-    --arg runtime "${RUNTIME_UNDER_TEST}" \
+    --arg runtime "runsc" \
     --arg nat "${NAT_BACKEND}" \
     '{runtime:$runtime,natBackend:$nat,paths:[]}' >"${path}"
 }
 
 common_args=(
   -address "${SOCKET_ADDRESS}"
-  -runtime "${RUNTIME_UNDER_TEST}"
   -nat-backend "${NAT_BACKEND}"
   -benchmark-requests "${BENCHMARK_REQUESTS}"
   -benchmark-concurrency "${BENCHMARK_CONCURRENCY}"
   -benchmark-warmup-requests "${BENCHMARK_WARMUP_REQUESTS}"
 )
-
-if path_enabled external_tcp_ingress; then
-  nginx_args=(
-    "${common_args[@]}"
-    -rootfs /opt/nginx-rootfs
-    -stdout /tmp/axnoded-nginx-benchmark.stdout
-    -stderr /tmp/axnoded-nginx-benchmark.stderr
-    -listen-port 18080
-    -external-probe-netns "${EBPF_INGRESS_PROBE_NETNS}"
-    -external-probe-address "${EBPF_INGRESS_PROBE_ADDR}"
-    -benchmark-output /tmp/benchmark-nginx.json
-  )
-  if [ "${NAT_BACKEND}" = "ebpf" ]; then
-    nginx_args+=(-bpfnet-pin-path "${BPFNET_PIN_PATH}")
-  fi
-  if [ "${VERIFY_SKIP_LOCALHOST}" = "true" ]; then
-    nginx_args+=(-skip-localhost-check)
-  fi
-  "${VERIFY_NGINX_BIN}" "${nginx_args[@]}" >&2
-else
-  write_empty_report /tmp/benchmark-nginx.json
-fi
-
-if path_enabled external_udp_ingress; then
-  udp_args=(
-    "${common_args[@]}"
-    -rootfs /opt/sample-rootfs
-    -stdout /tmp/axnoded-udp-benchmark.stdout
-    -stderr /tmp/axnoded-udp-benchmark.stderr
-    -listen-port 15353
-    -target-port 1053
-    -external-probe-netns "${EBPF_INGRESS_PROBE_NETNS}"
-    -external-probe-address "${EBPF_INGRESS_PROBE_ADDR}"
-    -benchmark-output /tmp/benchmark-udp.json
-  )
-  if [ "${NAT_BACKEND}" = "ebpf" ]; then
-    udp_args+=(-bpfnet-pin-path "${BPFNET_PIN_PATH}")
-  fi
-  "${VERIFY_UDP_BIN}" "${udp_args[@]}" >&2
-else
-  write_empty_report /tmp/benchmark-udp.json
-fi
 
 egress_specs=()
 seen_egress_paths=","
@@ -150,9 +97,9 @@ if [ "${#egress_specs[@]}" -gt 0 ]; then
       -rootfs /opt/sample-rootfs
       -stdout "/tmp/axnoded-egress-benchmark-${suffix}.stdout"
       -stderr "/tmp/axnoded-egress-benchmark-${suffix}.stderr"
-      -external-probe-netns "${EBPF_INGRESS_PROBE_NETNS}"
-      -external-probe-address "${EBPF_INGRESS_PROBE_CLIENT_ADDR}"
-      -expected-source-ip "${EBPF_INGRESS_PROBE_ADDR}"
+      -external-probe-netns "${EXTERNAL_NETWORK_PROBE_NETNS}"
+      -external-probe-address "${EXTERNAL_NETWORK_PROBE_CLIENT_ADDR}"
+      -expected-source-ip "${EXTERNAL_NETWORK_PROBE_ADDR}"
       -benchmark-transports "${transport}"
       -benchmark-client-count "${client_count}"
       -benchmark-snat-post-gc-wait "${BENCHMARK_SNAT_POST_GC_WAIT}"
@@ -179,17 +126,15 @@ fi
 completed_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
 jq -n \
-  --arg runtime "${RUNTIME_UNDER_TEST}" \
+  --arg runtime "runsc" \
   --arg nat "${NAT_BACKEND}" \
   --arg started "${started_at}" \
   --arg completed "${completed_at}" \
-  --slurpfile nginx /tmp/benchmark-nginx.json \
-  --slurpfile udp /tmp/benchmark-udp.json \
   --slurpfile egress /tmp/benchmark-egress.json \
   '{
     runtime: $runtime,
     natBackend: $nat,
     startedAt: $started,
     completedAt: $completed,
-    paths: (($nginx[0].paths // []) + ($udp[0].paths // []) + ($egress[0].paths // []))
+    paths: ($egress[0].paths // [])
   }'

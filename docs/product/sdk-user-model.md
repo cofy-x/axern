@@ -1,55 +1,34 @@
 # SDK User Model
 
-This document defines the stable user-facing boundary shared by Axern SDKs and
-examples.
+This document defines the stable user-facing boundary shared by Axern SDKs and examples. Object identity, persistence, and ownership follow the [Stable Domain Model](domain-model.md).
 
 ## Principles
 
 - Keep the first runnable example short.
-- Expose Axern concepts through product nouns: `Sandbox`, `VolumeMount`, and
-  `Function`.
-- Preserve the platform ownership model. SDK helpers should compile to public
-  control-plane APIs instead of bypassing `controld`, `storaged`, `axnoded`, or
-  `volumed`.
-- Keep low-level clients available for advanced workflows, but make the happy
-  path obvious.
+- Expose Axern concepts through the small product vocabulary of `Environment`, `Run`, `Sandbox`, and `Tunnel`.
+- Treat `Environment -> Run -> Allocation` as the only durable execution model. `Sandbox` owns SDK ergonomics and cleanup around that chain; it is not a separately persisted resource or a hidden Service.
+- Preserve the platform ownership model. SDK helpers should compile to public control-plane APIs instead of bypassing control-plane admission or node-local execution ownership.
+- Keep low-level clients available for advanced workflows, but make the happy path obvious.
 
-## Sandbox Volumes
+## Sandbox Files And Outputs
 
-Sandboxes are service-backed, so they can use Service V1 volume mounts. The
-Python SDK should expose that with a small object rather than making users build
-protobuf messages.
+Sandbox writable files and retained stdout/stderr belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract. Download required files before termination. Run stdout/stderr remain readable after runtime cleanup until the control-plane `output_expires_at` deadline, for 15 minutes from cleanup initiation, subject to node-disk availability and the combined 64 MiB output limit. An upper-layer system owns durable publication of downloaded bytes.
 
 ```python
-from axern_sdk import AxernClient, Sandbox, VolumeMount
+from axern_sdk import AxernClient, Sandbox
 
 client = AxernClient.from_env()
 
-with Sandbox(
-    client=client,
-    template_id="python311",
-    volumes=[
-        VolumeMount("data", "/data"),
-        VolumeMount("cache", "/cache", readonly=True),
-    ],
-) as sandbox:
-    result = sandbox.exec("ls /data /cache", text=True, check=True)
-    print(result.stdout)
+with Sandbox(client=client, template_id="python311") as sandbox:
+    sandbox.write_text("/tmp/result.txt", "hello from axern\n")
+    sandbox.download_file("/tmp/result.txt", "result.txt", overwrite=False)
 ```
 
-`VolumeMount` is user intent. Storage placement, node publish, runtime mount
-injection, and release continue to flow through the existing
-`storaged -> controld -> axnoded -> volumed` chain.
-
-The first supported source is the Storage V1 local provider truth path. Object
-store datasets, NFS, PVCs, and image-backed data mounts should arrive as
-storage providers when their product contracts are concrete, not as SDK-only
-shortcuts.
+The downloaded file belongs to the caller's filesystem. It is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [storage lifetime contract](../architecture/storage-architecture.md) for recovery and rebuild rules.
 
 ## Connections
 
-SDK constructors require explicit endpoint and TLS configuration. Environment
-and context loading are explicit factories:
+SDK constructors require explicit endpoint and TLS configuration. Environment and context loading are explicit factories:
 
 ```python
 from axern_sdk import AxernClient
@@ -60,81 +39,15 @@ hk = AxernClient.from_context("~/.config/axern/config.json", "hk")
 
 `from_env()` reads:
 
-- `AXERN_ENDPOINT`, defaulting to the public gateway API endpoint
-  (`127.0.0.1:25000` in local dev)
+- `AXERN_ENDPOINT`, defaulting to the public gateway API endpoint (`127.0.0.1:25000` in local dev)
 - `AXERN_TLS_CA_CERT`
 - `AXERN_TLS_CERT`
 - `AXERN_TLS_KEY`
 
-`from_context()` reads the same versioned context schema used by the CLI. SDK
-constructors never inspect the user directory implicitly.
+`from_context()` reads the same versioned context schema used by the CLI. SDK constructors never inspect the user directory implicitly.
 
 ## Common Contract
 
-The Go, Python, and TypeScript SDKs consume the same versioned fixtures under
-`sdk/contracts/v1` for context and proxy behavior, resource quantities,
-sandbox sources, lifecycle operations, files, processes, archives, tunnels,
-and public error classification. Run `make sdk-contract-verify` before an SDK
-release.
+The Go, Python, and TypeScript SDKs consume the same versioned fixtures under `sdk/contracts/v1` for context and proxy behavior, resource quantities, sandbox sources, lifecycle operations, files, processes, archives, tunnels, and public error classification. Run `make sdk-contract-verify` before an SDK release.
 
-Public RPC errors preserve the operation, RPC code, server details,
-retryability, and allocation identity when one exists. Validation, not found,
-permission, timeout, cancellation, and unavailable failures remain distinct.
-SDKs do not retry mutating RPCs. Idempotent reads and service-watch reconnects
-may retry only within the caller's total deadline.
-
-## Function
-
-Function is the user-facing model for repeated event handling with a handler
-contract, timeout, warm pool, autoscaling, and optional initializer.
-
-The full product contract lives in
-[Function User Model](./function-user-model.md). The short shape is:
-
-```text
-hello/
-|-- function.yaml
-|-- payload.json
-`-- src/
-    `-- handler.py
-```
-
-Resource spec:
-
-```yaml
-api_version: axern/v1
-kind: Function
-metadata:
-  name: hello
-  namespace: default
-spec:
-  source:
-    template: python311
-  function:
-    runtime: python3.11
-    handler: handler.hello
-    initializer: handler.init
-    source: src
-    timeout_seconds: 600
-    scaling:
-      min_replicas: 0
-      max_replicas: 10
-      concurrency: 2
-```
-
-Python:
-
-```python
-from axern_sdk import AxernClient, Function
-
-client = AxernClient.from_env()
-fn = Function.from_dir(client, "./hello")
-
-fn.deploy()
-print(fn.invoke({"key": "axern"}))
-```
-
-Function deploy and invocation use the dedicated Function API. The worker
-environment, revision, scaling state, invocation result, and invocation history
-remain Function-owned semantics; they are not modeled as ordinary Run or
-Service invocation helpers.
+Public RPC errors preserve the operation, RPC code, server details, retryability, and allocation identity when one exists. Validation, not found, permission, timeout, cancellation, and unavailable failures remain distinct. SDKs do not retry mutating RPCs. Idempotent reads and Run-watch reconnects may retry only within the caller's total deadline.

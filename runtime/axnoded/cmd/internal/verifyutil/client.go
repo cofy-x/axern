@@ -11,23 +11,30 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
+	privateoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthgrpc "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/metadata"
 )
 
 const dialTimeout = 15 * time.Second
 
+const allocationAccessTokenMetadataKey = "x-axern-allocation-access-token"
+
 type NodeClients struct {
 	Lifecycle    privatenodev1.NodeLifecycleClient
 	Node         nodesandboxv1.NodeSandboxClient
+	Operator     privateoperatorv1.NodeOperatorClient
 	Health       healthgrpc.HealthClient
 	inventoryURL string
 	httpClient   *http.Client
 	conn         *grpc.ClientConn
+	operatorConn *grpc.ClientConn
 }
 
 type NodeClientOption func(*NodeClients)
@@ -39,10 +46,9 @@ func WithInventoryURL(url string) NodeClientOption {
 }
 
 type SandboxHandle struct {
-	clients    *NodeClients
-	SandboxID  string
-	Attempt    int64
-	LeaseToken string
+	clients     *NodeClients
+	SandboxID   string
+	AccessToken string
 }
 
 func DialGRPC(address string) (*grpc.ClientConn, error) {
@@ -95,6 +101,14 @@ func DialNodeClients(address string, options ...NodeClientOption) (*NodeClients,
 			option(clients)
 		}
 	}
+	operatorAddress := firstNonEmptyString(os.Getenv("AXNODED_OPERATOR_SOCKET"), config.DefaultSocketAddress)
+	operatorConn, err := DialGRPC(operatorAddress)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("dial node operator %s: %w", operatorAddress, err)
+	}
+	clients.Operator = privateoperatorv1.NewNodeOperatorClient(operatorConn)
+	clients.operatorConn = operatorConn
 	return clients, nil
 }
 
@@ -102,7 +116,11 @@ func (c *NodeClients) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
 	}
-	return c.conn.Close()
+	err := c.conn.Close()
+	if c.operatorConn != nil {
+		err = errors.Join(err, c.operatorConn.Close())
+	}
+	return err
 }
 
 func NewSandboxID(prefix string) string {
@@ -114,21 +132,15 @@ func NewSandboxID(prefix string) string {
 }
 
 func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID string, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
-	return CreateAllocationWithAttempt(ctx, clients, sandboxID, 1, spec)
-}
-
-func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sandboxID string, attempt int64, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
-	preparedSpec, err := prepareCapabilityDependencies(ctx, clients, spec)
+	preparedSpec, err := prepareCapabilityRequirements(ctx, clients, spec)
 	if err != nil {
 		return nil, fmt.Errorf("prepare capability dependencies: %w", err)
 	}
 	req := &privatenodev1.CreateAllocationRequest{
 		AllocationID: sandboxID,
-		Attempt:      attempt,
-		NodeID:       "",
 		Config:       preparedSpec,
 	}
 	resp, err := clients.Lifecycle.CreateAllocation(ctx, req)
@@ -136,10 +148,9 @@ func CreateAllocationWithAttempt(ctx context.Context, clients *NodeClients, sand
 		return nil, err
 	}
 	return &SandboxHandle{
-		clients:    clients,
-		SandboxID:  resp.GetAllocationID(),
-		Attempt:    resp.GetAttempt(),
-		LeaseToken: "verify-local-lease",
+		clients:     clients,
+		SandboxID:   resp.GetAllocationID(),
+		AccessToken: "verify-local-access",
 	}, nil
 }
 
@@ -152,34 +163,31 @@ func firstNonEmptyString(values ...string) string {
 	return ""
 }
 
-func GetAllocationStatus(ctx context.Context, clients *NodeClients, sandboxID string) (*privatenodev1.GetAllocationStatusResponse, error) {
-	return clients.Lifecycle.GetAllocationStatus(ctx, &privatenodev1.GetAllocationStatusRequest{
+func GetAllocationLifecycle(ctx context.Context, clients *NodeClients, sandboxID string) (*privatenodev1.GetAllocationLifecycleResponse, error) {
+	return clients.Lifecycle.GetAllocationLifecycle(ctx, &privatenodev1.GetAllocationLifecycleRequest{
 		AllocationID: sandboxID,
-		Attempt:      1,
 	})
 }
 
 func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) (*nodesandboxv1.ExecResponse, error) {
+	ctx = metadata.AppendToOutgoingContext(ctx, allocationAccessTokenMetadataKey, h.AccessToken)
 	return h.clients.Node.Exec(ctx, &nodesandboxv1.ExecRequest{
-		AllocationID:        h.SandboxID,
-		Attempt:             h.Attempt,
-		ExecutionLeaseToken: h.LeaseToken,
-		Spec:                spec,
+		AllocationID: h.SandboxID,
+		Spec:         spec,
 	})
 }
 
-func (h *SandboxHandle) Wait(ctx context.Context) (*nodesandboxv1.WaitSandboxResponse, error) {
-	return h.clients.Node.WaitSandbox(ctx, &nodesandboxv1.WaitSandboxRequest{
-		AllocationID:        h.SandboxID,
-		Attempt:             h.Attempt,
-		ExecutionLeaseToken: h.LeaseToken,
-	})
+func (h *SandboxHandle) Wait(ctx context.Context) (*privateoperatorv1.WaitResponse, error) {
+	return h.clients.Operator.Wait(ctx, &privateoperatorv1.WaitRequest{AllocationID: h.SandboxID})
 }
 
 func (h *SandboxHandle) Delete(ctx context.Context, timeoutSeconds int64) error {
-	_, err := h.clients.Lifecycle.DeleteAllocation(ctx, &privatenodev1.DeleteAllocationRequest{
-		AllocationID:   h.SandboxID,
-		Attempt:        h.Attempt,
+	return DeleteAllocation(ctx, h.clients, h.SandboxID, timeoutSeconds)
+}
+
+func DeleteAllocation(ctx context.Context, clients *NodeClients, allocationID string, timeoutSeconds int64) error {
+	_, err := clients.Lifecycle.DeleteAllocation(ctx, &privatenodev1.DeleteAllocationRequest{
+		AllocationID:   allocationID,
 		TimeoutSeconds: timeoutSeconds,
 	})
 	return err

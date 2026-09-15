@@ -17,11 +17,7 @@ func RenderTunnel(w io.Writer, session *tunnelcontrolv1.TunnelSession) {
 	fmt.Fprintf(w, "Node:         %s\n", session.GetNodeID())
 	fmt.Fprintf(w, "Status:       %s\n", trimEnumPrefix(session.GetStatus().String(), "TUNNEL_SESSION_STATUS_"))
 	fmt.Fprintf(w, "Remote:       127.0.0.1:%d\n", session.GetRemotePort())
-	fmt.Fprintf(w, "Local:        %s\n", session.GetLocalTarget())
-	fmt.Fprintf(w, "Relay:        %s\n", session.GetEdgeTarget())
-	if session.GetNodeEdgeTarget() != "" && session.GetNodeEdgeTarget() != session.GetEdgeTarget() {
-		fmt.Fprintf(w, "Node Relay:   %s\n", session.GetNodeEdgeTarget())
-	}
+	fmt.Fprintf(w, "Relay:        %s\n", session.GetClientEdgeTarget())
 	if session.GetBoundAddr() != "" {
 		fmt.Fprintf(w, "Bound:        %s\n", session.GetBoundAddr())
 	}
@@ -48,12 +44,12 @@ func RenderTunnelTable(w io.Writer, sessions []*tunnelcontrolv1.TunnelSession) {
 			session.GetAllocationID(),
 			trimEnumPrefix(session.GetStatus().String(), "TUNNEL_SESSION_STATUS_"),
 			fmt.Sprintf("%d", session.GetRemotePort()),
-			session.GetLocalTarget(),
+			session.GetClientEdgeTarget(),
 			session.GetBoundAddr(),
 			expires,
 		})
 	}
-	RenderTable(w, []string{"SESSION", "ALLOCATION", "STATUS", "REMOTE", "LOCAL", "BOUND", "EXPIRES"}, rows)
+	RenderTable(w, []string{"SESSION", "ALLOCATION", "STATUS", "REMOTE", "RELAY", "BOUND", "EXPIRES"}, rows)
 }
 
 func RenderTunnelEvents(w io.Writer, events []*tunnelcontrolv1.TunnelSessionEvent) {

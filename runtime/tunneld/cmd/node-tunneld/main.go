@@ -8,9 +8,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cofy-x/axern/runtime/tunneld/internal/control"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	"github.com/cofy-x/axern/lib/go/grpcclient"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
+	"google.golang.org/grpc"
 )
 
 func main() {
@@ -22,28 +24,24 @@ func main() {
 
 func run() error {
 	var (
-		nodeID          string
-		nodeAuthToken   string
-		controlTarget   string
-		operatorSocket  string
-		insecureControl bool
-		caCert          string
-		cert            string
-		key             string
-		runscBinary     string
-		runscRoot       string
-		runscIgnoreCG   bool
-		agentBinary     string
-		relayCACert     string
+		nodeID        string
+		controlTarget string
+		networkSocket string
+		caCert        string
+		cert          string
+		cluster       string
+		runscBinary   string
+		runscRoot     string
+		runscIgnoreCG bool
+		agentBinary   string
+		relayCACert   string
 	)
 	flag.StringVar(&nodeID, "node-id", os.Getenv("AXERN_NODE_ID"), "node id")
-	flag.StringVar(&nodeAuthToken, "node-auth-token", os.Getenv("AXERN_NODE_AUTH_TOKEN"), "node auth token used with node-control tunnel APIs")
 	flag.StringVar(&controlTarget, "control-target", "127.0.0.1:24000", "controld gRPC target")
-	flag.StringVar(&operatorSocket, "operator-socket", "/run/axnoded/axnoded.sock", "local axnoded operator Unix socket")
-	flag.BoolVar(&insecureControl, "insecure-control", false, "connect to controld without TLS")
+	flag.StringVar(&networkSocket, "network-socket", "/run/axnoded/network.sock", "local axnoded Allocation network Unix socket")
 	flag.StringVar(&caCert, "tls-ca-cert", ".dev/certs/ca.crt", "controld CA certificate")
-	flag.StringVar(&cert, "tls-cert", ".dev/certs/client.crt", "client certificate for controld")
-	flag.StringVar(&key, "tls-key", ".dev/certs/client.key", "client key for controld")
+	flag.StringVar(&cert, "identity-bundle", "/var/lib/axnoded/root/identity/node.pem", "axnoded-owned Node certificate and key bundle (read-only)")
+	flag.StringVar(&cluster, "workload-cluster", os.Getenv("AXERN_WORKLOAD_CLUSTER"), "workload URI trust domain")
 	flag.StringVar(&runscBinary, "runsc-binary", "/usr/local/bin/runsc", "runsc binary used for runsc tunnel agent exec")
 	flag.StringVar(&runscRoot, "runsc-root", "/var/lib/axnoded/root/runsc", "runsc root directory")
 	flag.BoolVar(&runscIgnoreCG, "runsc-ignore-cgroups", true, "pass --ignore-cgroups to runsc agent exec")
@@ -53,27 +51,26 @@ func run() error {
 	if nodeID == "" {
 		return fmt.Errorf("node-id is required")
 	}
-	if nodeAuthToken == "" {
-		return fmt.Errorf("node-auth-token is required")
+	if _, err := (workloadtls.Identity{Cluster: cluster, Role: "axnoded", NodeID: nodeID}).URI(); err != nil {
+		return err
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	controlConn, err := control.Dial(ctx, controlTarget, control.TLSConfig{CACert: caCert, Cert: cert, Key: key}, insecureControl)
+	controlConn, err := grpcclient.NewReadyClient(ctx, controlTarget, grpc.WithTransportCredentials(&workloadtls.Credentials{BundlePath: cert, TrustPath: caCert, Local: workloadtls.Identity{Cluster: cluster, Role: "axnoded", NodeID: nodeID}, Peer: workloadtls.Identity{Cluster: cluster, Role: "controld"}}), grpc.WithNoProxy())
 	if err != nil {
 		return err
 	}
 	defer controlConn.Close()
-	operatorConn, err := dialUnix(ctx, operatorSocket)
+	networkConn, err := dialUnix(ctx, networkSocket)
 	if err != nil {
 		return err
 	}
-	defer operatorConn.Close()
+	defer networkConn.Close()
 	d := &daemon{
-		nodeID:        nodeID,
-		nodeAuthToken: nodeAuthToken,
-		node:          nodev1.NewNodeControlClient(controlConn),
-		operator:      nodeoperatorv1.NewNodeOperatorClient(operatorConn),
-		running:       make(map[string]context.CancelFunc),
+		nodeID:  nodeID,
+		node:    nodev1.NewNodeControlClient(controlConn),
+		network: nodenetworkv1.NewAllocationNetworkClient(networkConn),
+		running: make(map[string]context.CancelFunc),
 		runsc: runscConfig{
 			binary:        runscBinary,
 			root:          runscRoot,

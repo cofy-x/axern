@@ -129,7 +129,7 @@ func (c *Controller) ExecStream(stream ExecStreamServer) error {
 
 func (c *Controller) Process(stream ProcessStreamServer) error {
 	ctx, op := sdkobs.StartOperation(stream.Context(), sdkobs.OperationConfig{
-		Name:        sandboxobs.SpanExecStream,
+		Name:        sandboxobs.SpanProcess,
 		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "process")},
 		Counter:     sandboxobs.MetricExecTotal,
 		Duration:    sandboxobs.MetricExecDuration,
@@ -200,15 +200,12 @@ func timeoutContext(parent context.Context, timeout int64) (context.Context, con
 func processTarget(target sandboxtarget.Target) Target {
 	return Target{
 		ID:      target.ID,
-		Labels:  target.Labels(),
 		Handler: target.Handler,
 	}
 }
 
 func addRuntimeMetric(op *sdkobs.Operation, target sandboxtarget.Target) {
-	if runtimeClass := target.RuntimeClass(); runtimeClass != "" {
-		op.AddMetricAttributes(attribute.String(sdkobs.AttrRuntime, runtimeClass))
-	}
+	op.AddMetricAttributes(attribute.String(sdkobs.AttrRuntime, "runsc"))
 }
 
 func recordStreamResult(op *sdkobs.Operation, result StreamResult) {

@@ -26,9 +26,6 @@ func (m *Manager) Delete(id string) error {
 			if err := m.CleanContainerRoot(id); err != nil {
 				return err
 			}
-			if m.idGenerator != nil {
-				m.idGenerator.ReleaseId(id)
-			}
 			return nil
 		}
 		return fmt.Errorf("collect resource for %s: %w", id, err)
@@ -46,9 +43,6 @@ func (m *Manager) DeleteAfterConfirmedRuntimeAbsence(id string) error {
 		if errors.Is(err, os.ErrNotExist) && !m.containers.Has(id) {
 			if err := m.CleanContainerRoot(id); err != nil {
 				return err
-			}
-			if m.idGenerator != nil {
-				m.idGenerator.ReleaseId(id)
 			}
 			return nil
 		}
@@ -97,7 +91,7 @@ func (m *Manager) DeleteAfterConfirmedRuntimeDelete(id string, resource Occupied
 			return fmt.Errorf("container %s has no durable status for confirmed runtime deletion", id)
 		}
 		if container.Status.Get().State() != apipb.ContainerState_CONTAINER_EXITED {
-			if err := m.SetExit(id, -1, false, time.Now().UTC(), "runtime deletion confirmed during failed-create rollback", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); err != nil {
+			if err := m.SetExit(id, nil, time.Now().UTC(), "runtime deletion confirmed during failed-create rollback", commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED); err != nil {
 				return fmt.Errorf("checkpoint confirmed runtime deletion for %s: %w", id, err)
 			}
 		}

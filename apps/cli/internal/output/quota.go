@@ -6,9 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cofy-x/axern/apps/cli/internal/workloaddiagnostic"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -18,13 +16,13 @@ func RenderNamespaceQuota(w io.Writer, quota *quotav1.NamespaceQuota) {
 	}
 	fmt.Fprintf(w, "Namespace: %s\n", quota.GetNamespace())
 	fmt.Fprintf(w, "CPU Limit: %s\n", formatOptionalQuotaCPU(quota.GetCpuMilliLimit()))
-	fmt.Fprintf(w, "CPU Reserved: %s\n", formatQuotaCPU(quota.GetReservedCpuMilli()))
+	fmt.Fprintf(w, "CPU Used: %s\n", formatQuotaCPU(quota.GetUsedCpuMilli()))
 	fmt.Fprintf(w, "CPU Available: %s\n", formatOptionalQuotaCPU(quota.GetAvailableCpuMilli()))
 	fmt.Fprintf(w, "Memory Limit: %s\n", formatOptionalQuotaMemory(quota.GetMemoryBytesLimit()))
-	fmt.Fprintf(w, "Memory Reserved: %s\n", formatQuotaMemory(quota.GetReservedMemoryBytes()))
+	fmt.Fprintf(w, "Memory Used: %s\n", formatQuotaMemory(quota.GetUsedMemoryBytes()))
 	fmt.Fprintf(w, "Memory Available: %s\n", formatOptionalQuotaMemory(quota.GetAvailableMemoryBytes()))
 	fmt.Fprintf(w, "Ephemeral Storage Limit: %s\n", formatOptionalQuotaMemory(quota.GetEphemeralStorageBytesLimit()))
-	fmt.Fprintf(w, "Ephemeral Storage Reserved: %s\n", formatQuotaMemory(quota.GetReservedEphemeralStorageBytes()))
+	fmt.Fprintf(w, "Ephemeral Storage Used: %s\n", formatQuotaMemory(quota.GetUsedEphemeralStorageBytes()))
 	fmt.Fprintf(w, "Ephemeral Storage Available: %s\n", formatOptionalQuotaMemory(quota.GetAvailableEphemeralStorageBytes()))
 }
 
@@ -36,33 +34,12 @@ func RenderNamespaceQuotaTable(w io.Writer, quotas []*quotav1.NamespaceQuota) {
 		}
 		rows = append(rows, []string{
 			quota.GetNamespace(),
-			formatQuotaCPUUsage(quota.GetReservedCpuMilli(), quota.GetCpuMilliLimit()),
-			formatQuotaMemoryUsage(quota.GetReservedMemoryBytes(), quota.GetMemoryBytesLimit()),
-			formatQuotaMemoryUsage(quota.GetReservedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
+			formatQuotaCPUUsage(quota.GetUsedCpuMilli(), quota.GetCpuMilliLimit()),
+			formatQuotaMemoryUsage(quota.GetUsedMemoryBytes(), quota.GetMemoryBytesLimit()),
+			formatQuotaMemoryUsage(quota.GetUsedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
 		})
 	}
 	RenderTable(w, []string{"NAMESPACE", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
-}
-
-func RenderNamespaceQuotaDescribe(w io.Writer, quota *quotav1.NamespaceQuota, services []*servicev1.Service) {
-	RenderNamespaceQuota(w, quota)
-	fmt.Fprintln(w, "Admission Blocked Services:")
-	if len(services) == 0 {
-		fmt.Fprintln(w, "-")
-		return
-	}
-	rows := make([][]string, 0, len(services))
-	for _, service := range services {
-		if service == nil {
-			continue
-		}
-		rows = append(rows, []string{
-			service.GetID(),
-			ServiceStatusLabel(service.GetStatus()),
-			workloaddiagnostic.AdmissionBlockedSummary(service.GetMessage()),
-		})
-	}
-	RenderTable(w, []string{"SERVICE", "STATUS", "ADMISSION"}, rows)
 }
 
 func RenderNamespaceQuotaEventTable(w io.Writer, events []*quotav1.NamespaceQuotaEvent) {
@@ -74,14 +51,14 @@ func RenderNamespaceQuotaEventTable(w io.Writer, events []*quotav1.NamespaceQuot
 		rows = append(rows, []string{
 			FormatProtoTimestamp(event.GetCreatedAt()),
 			event.GetNamespace(),
-			quotaEventWorkload(event),
+			event.GetEnvironmentID(),
 			quotaEventReason(event.GetReason()),
 			formatQuotaCPU(event.GetRequestedCpuMilli()),
 			formatQuotaMemory(event.GetRequestedMemoryBytes()),
 			formatQuotaMemory(event.GetRequestedEphemeralStorageBytes()),
 		})
 	}
-	RenderTable(w, []string{"CREATED", "NAMESPACE", "WORKLOAD", "REASON", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
+	RenderTable(w, []string{"CREATED", "NAMESPACE", "ENVIRONMENT", "REASON", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
 }
 
 func formatOptionalQuotaCPU(value *wrapperspb.Int64Value) string {
@@ -89,17 +66,6 @@ func formatOptionalQuotaCPU(value *wrapperspb.Int64Value) string {
 		return "unlimited"
 	}
 	return formatQuotaCPU(value.GetValue())
-}
-
-func quotaEventWorkload(event *quotav1.NamespaceQuotaEvent) string {
-	kind := strings.TrimPrefix(strings.ToLower(event.GetWorkloadType().String()), "namespace_quota_event_workload_type_")
-	if kind == "unspecified" || kind == "" {
-		kind = "-"
-	}
-	if event.GetWorkloadID() == "" {
-		return kind
-	}
-	return kind + "/" + event.GetWorkloadID()
 }
 
 func quotaEventReason(reason quotav1.NamespaceQuotaEventReason) string {
@@ -124,12 +90,12 @@ func formatOptionalQuotaMemory(value *wrapperspb.Int64Value) string {
 	return formatQuotaMemory(value.GetValue())
 }
 
-func formatQuotaCPUUsage(reserved int64, limit *wrapperspb.Int64Value) string {
-	return formatQuotaUsage(formatQuotaCPU(reserved), formatOptionalQuotaTableLimit(formatQuotaCPU, limit), reserved, limit)
+func formatQuotaCPUUsage(used int64, limit *wrapperspb.Int64Value) string {
+	return formatQuotaUsage(formatQuotaCPU(used), formatOptionalQuotaTableLimit(formatQuotaCPU, limit), used, limit)
 }
 
-func formatQuotaMemoryUsage(reserved int64, limit *wrapperspb.Int64Value) string {
-	return formatQuotaUsage(formatQuotaMemory(reserved), formatOptionalQuotaTableLimit(formatQuotaMemory, limit), reserved, limit)
+func formatQuotaMemoryUsage(used int64, limit *wrapperspb.Int64Value) string {
+	return formatQuotaUsage(formatQuotaMemory(used), formatOptionalQuotaTableLimit(formatQuotaMemory, limit), used, limit)
 }
 
 func formatOptionalQuotaTableLimit(format func(int64) string, value *wrapperspb.Int64Value) string {
@@ -139,15 +105,15 @@ func formatOptionalQuotaTableLimit(format func(int64) string, value *wrapperspb.
 	return format(value.GetValue())
 }
 
-func formatQuotaUsage(reservedText, limitText string, reserved int64, limit *wrapperspb.Int64Value) string {
-	text := fmt.Sprintf("%s / %s", reservedText, limitText)
+func formatQuotaUsage(usedText, limitText string, used int64, limit *wrapperspb.Int64Value) string {
+	text := fmt.Sprintf("%s / %s", usedText, limitText)
 	if limit == nil {
 		return text
 	}
-	if limit.GetValue() <= 0 || reserved <= 0 {
+	if limit.GetValue() <= 0 || used <= 0 {
 		return text + " (0%)"
 	}
-	percent := (reserved * 100) / limit.GetValue()
+	percent := (used * 100) / limit.GetValue()
 	if percent > 100 {
 		percent = 100
 	}

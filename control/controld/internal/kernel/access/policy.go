@@ -4,7 +4,7 @@ func Authorize(actor Actor, action Action, namespace string) bool {
 	if actor.Principal.Status != PrincipalStatusActive {
 		return false
 	}
-	if action == ActionIdentityRead || action == ActionCatalogRead {
+	if action == ActionIdentityRead {
 		return true
 	}
 	for _, binding := range actor.Bindings {
@@ -22,8 +22,6 @@ func allows(binding Binding, action Action, namespace string) bool {
 	switch binding.Role {
 	case RolePlatformAdmin:
 		return true
-	case RoleRolloutExecutor:
-		return action == ActionRolloutWorkExecute
 	case RoleNamespaceAdmin:
 		if binding.Namespace != namespace {
 			return false
@@ -70,13 +68,4 @@ func HasRole(actor Actor, role Role) bool {
 		}
 	}
 	return false
-}
-
-func IsRolloutDelegatableAction(action Action) bool {
-	switch action {
-	case ActionResourceRead, ActionResourceWrite, ActionSandboxExecute:
-		return true
-	default:
-		return false
-	}
 }

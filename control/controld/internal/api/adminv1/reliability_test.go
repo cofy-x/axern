@@ -19,19 +19,18 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 		Now: func() time.Time { return now },
 		Reliability: fakeReliability{
 			snapshot: consistencykernel.NewSnapshot(consistencykernel.Counts{
-				ActiveReservations: 3,
-				ActiveLeases:       2,
+				ActiveAllocations:  3,
+				ActiveAccessGrants: 2,
 				ActiveTunnels:      1,
 				ReconcileQueue:     4,
 			}, []consistencykernel.Issue{{
-				Code:         consistencykernel.IssueActiveReservationOnEndedAllocation,
+				Code:         consistencykernel.IssueActiveAccessGrantOnEndedAllocation,
 				Severity:     consistencykernel.SeverityError,
 				AllocationID: "alloc-a",
-				OwnerType:    "service",
-				OwnerID:      "svc-a",
+				RunID:        "run-a",
 				NodeID:       "node-a",
-				Status:       "ALLOCATION_STATUS_RELEASED",
-				Detail:       "active reservation remains after allocation ended",
+				Status:       "ALLOCATION_LIFECYCLE_STATE_RELEASED",
+				Detail:       "active access grant remains after allocation ended",
 			}}, true),
 		},
 	})
@@ -44,19 +43,14 @@ func TestCheckConsistencyMapsSnapshot(t *testing.T) {
 	if got.GetStatus() != adminv1.ConsistencyStatus_CONSISTENCY_STATUS_INCONSISTENT || !got.GetTruncated() {
 		t.Fatalf("snapshot status/truncated = %s/%v", got.GetStatus(), got.GetTruncated())
 	}
-	if got.GetCounts().GetActiveReservations() != 3 || got.GetCounts().GetAllocationLifecycleRetries() != 4 || got.GetCounts().GetIssues() != 1 {
+	if got.GetCounts().GetActiveAllocations() != 3 || got.GetCounts().GetAllocationLifecycleRetries() != 4 || got.GetCounts().GetIssues() != 1 {
 		t.Fatalf("counts = %+v", got.GetCounts())
 	}
-	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_RESERVATION_ON_ENDED_ALLOCATION {
+	if len(got.GetIssues()) != 1 || got.GetIssues()[0].GetCode() != adminv1.ConsistencyIssueCode_CONSISTENCY_ISSUE_CODE_ACTIVE_ACCESS_GRANT_ON_ENDED_ALLOCATION {
 		t.Fatalf("issues = %+v", got.GetIssues())
 	}
-	issue := got.GetIssues()[0]
-	if issue.GetRepairOwner() != adminv1.ConsistencyRepairOwner_CONSISTENCY_REPAIR_OWNER_WORKLOAD_CONTROLLER ||
-		issue.GetRepairAction() != adminv1.ConsistencyRepairAction_CONSISTENCY_REPAIR_ACTION_WORKLOAD_CLEANUP ||
-		issue.GetRepairTargetType() != adminv1.ConsistencyRepairTargetType_CONSISTENCY_REPAIR_TARGET_TYPE_SERVICE ||
-		issue.GetRepairTargetID() != "svc-a" ||
-		issue.GetAutomaticRepair() {
-		t.Fatalf("issue repair plan = owner:%s action:%s target:%s/%s automatic:%v", issue.GetRepairOwner(), issue.GetRepairAction(), issue.GetRepairTargetType(), issue.GetRepairTargetID(), issue.GetAutomaticRepair())
+	if got.GetIssues()[0].GetAllocationID() != "alloc-a" {
+		t.Fatalf("issue allocation = %q", got.GetIssues()[0].GetAllocationID())
 	}
 }
 
@@ -69,29 +63,9 @@ func TestGetAdminReliabilityHealthMapsDegradedHealth(t *testing.T) {
 				AllocationLifecycleRetries:    2,
 				DueAllocationLifecycleRetries: 1,
 				ReconcileUnhealthyComponents:  1,
-				StorageBindingHealth: adminkernel.StorageBindingHealth{
-					FailedBindings:         5,
-					ReleasingBindings:      6,
-					StuckReleasingBindings: 7,
-					InconsistentClaims:     8,
-					InvalidBindings:        9,
-				},
-				NodeVolumeHealth: adminkernel.NodeVolumeHealth{
-					UnhealthyNodes:                1,
-					PublishedVolumes:              2,
-					LastReconcileStaleAllocations: 3,
-					LastReconcileInvalidVolumes:   4,
-					Error:                         "volumed reconcile failed",
-				},
 				Signals: []adminkernel.ReliabilitySignal{{
 					Code:    adminkernel.ReliabilitySignalAllocationLifecycleRetries,
 					Message: "2 allocation lifecycle retry item(s), 1 due",
-				}, {
-					Code:    adminkernel.ReliabilitySignalStorageBindings,
-					Message: "1 failed storage binding(s), 0 stuck releasing",
-				}, {
-					Code:    adminkernel.ReliabilitySignalNodeVolumeManagers,
-					Message: "1 node(s) report unhealthy volume manager",
 				}},
 			},
 		},
@@ -108,25 +82,8 @@ func TestGetAdminReliabilityHealthMapsDegradedHealth(t *testing.T) {
 	if got.GetAllocationLifecycleRetries() != 2 || got.GetDueAllocationLifecycleRetries() != 1 || got.GetReconcileUnhealthyComponents() != 1 {
 		t.Fatalf("health counts = %+v", got)
 	}
-	if len(got.GetSignals()) != 3 ||
-		got.GetSignals()[0].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES ||
-		got.GetSignals()[1].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_STORAGE_BINDINGS ||
-		got.GetSignals()[2].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_NODE_VOLUME_MANAGERS {
+	if len(got.GetSignals()) != 1 || got.GetSignals()[0].GetCode() != adminv1.AdminReliabilitySignalCode_ADMIN_RELIABILITY_SIGNAL_CODE_ALLOCATION_LIFECYCLE_RETRIES {
 		t.Fatalf("signals = %+v", got.GetSignals())
-	}
-	if got.GetNodeVolumeHealth().GetUnhealthyNodes() != 1 ||
-		got.GetNodeVolumeHealth().GetPublishedVolumes() != 2 ||
-		got.GetNodeVolumeHealth().GetLastReconcileStaleAllocations() != 3 ||
-		got.GetNodeVolumeHealth().GetLastReconcileInvalidVolumes() != 4 ||
-		got.GetNodeVolumeHealth().GetError() != "volumed reconcile failed" {
-		t.Fatalf("node volume health = %+v", got.GetNodeVolumeHealth())
-	}
-	if got.GetStorageBindingHealth().GetFailedBindings() != 5 ||
-		got.GetStorageBindingHealth().GetReleasingBindings() != 6 ||
-		got.GetStorageBindingHealth().GetStuckReleasingBindings() != 7 ||
-		got.GetStorageBindingHealth().GetInconsistentClaims() != 8 ||
-		got.GetStorageBindingHealth().GetInvalidBindings() != 9 {
-		t.Fatalf("storage binding health = %+v", got.GetStorageBindingHealth())
 	}
 }
 

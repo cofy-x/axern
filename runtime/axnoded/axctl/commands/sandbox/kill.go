@@ -2,7 +2,6 @@ package sandbox
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/axctl/client"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
@@ -10,7 +9,7 @@ import (
 )
 
 type killRPCClient interface {
-	KillSandbox(sandboxID, signal string) (*nodeoperatorv1.KillSandboxResponse, error)
+	ForceTerminateAllocation(allocationID, reason string) (*nodeoperatorv1.ForceTerminateAllocationResponse, error)
 	Close() error
 }
 
@@ -19,22 +18,21 @@ var newKillRPCClient = func(ctx *cli.Context) (killRPCClient, error) {
 }
 
 var KillCmd = cli.Command{
-	Name:  "kill",
-	Usage: "Send a signal to a running sandbox on the current node",
+	Name:  "force-terminate",
+	Usage: "Break glass: force-terminate an Allocation and report an operator diagnostic",
 	Flags: []cli.Flag{
 		cli.StringFlag{
-			Name:  "signal, s",
-			Value: "TERM",
-			Usage: "signal name or number to send",
+			Name:  "reason",
+			Usage: "required audited reason for the break-glass action",
 		},
 	},
 	Action: func(context *cli.Context) error {
 		if context.NArg() != 1 {
-			return fmt.Errorf("exactly one sandbox id must be specified")
+			return fmt.Errorf("exactly one allocation id must be specified")
 		}
-		signal := strings.TrimSpace(context.String("signal"))
-		if signal == "" {
-			return fmt.Errorf("signal must not be empty")
+		reason := context.String("reason")
+		if reason == "" {
+			return fmt.Errorf("--reason is required")
 		}
 
 		opsClient, err := newKillRPCClient(context)
@@ -43,8 +41,8 @@ var KillCmd = cli.Command{
 		}
 		defer opsClient.Close()
 
-		if _, err := opsClient.KillSandbox(context.Args().First(), signal); err != nil {
-			return fmt.Errorf("kill failed: %v", err)
+		if _, err := opsClient.ForceTerminateAllocation(context.Args().First(), reason); err != nil {
+			return fmt.Errorf("force terminate allocation: %v", err)
 		}
 		return nil
 	},

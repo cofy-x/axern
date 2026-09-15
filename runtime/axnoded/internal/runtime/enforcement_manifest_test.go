@@ -9,7 +9,7 @@ import (
 
 func TestVerifyDurableEnforcementManifestRequiresExactImmutableContract(t *testing.T) {
 	durable := &apipb.AllocationEnforcementManifest{
-		RuntimeName: "runsc", MemoryLimitBytes: 1024, EphemeralStorageLimitBytes: 2048,
+		MemoryLimitBytes: 1024, EphemeralStorageLimitBytes: 2048,
 		CgroupPath: "/workload", RuntimeCgroupPath: "/workload/runtime",
 		CgroupBootID: "boot-1", CgroupMountIdentity: "mount-1",
 		CgroupParentInode: 10, CgroupLeafInode: 11, MemoryOomGroup: true,

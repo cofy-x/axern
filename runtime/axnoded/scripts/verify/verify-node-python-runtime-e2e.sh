@@ -14,7 +14,7 @@ CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_ADDRESS:-127.0.0.1:24101}"
 GATEWAY_CONTROL_PORT="${GATEWAY_CONTROL_PORT:-25000}"
 GATEWAY_HTTP_PORT="${GATEWAY_HTTP_PORT:-25080}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-python-runtime-e2e}"
-CONTROL_PLANE_NODE_AUTH_TOKEN="${CONTROL_PLANE_NODE_AUTH_TOKEN:-node-python-runtime-e2e-token}"
+CONTROL_PLANE_ENROLLMENT_TOKEN="${CONTROL_PLANE_ENROLLMENT_TOKEN:-node-python-runtime-e2e-credential-00000000}"
 PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axnoded-python-runtime-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axnoded-python-runtime-e2e-net}"
@@ -32,9 +32,6 @@ controld_log="$(mktemp)"
 python311_stdout="$(mktemp)"
 CONTROLD_CONTAINER_NAME="${CONTROLD_CONTAINER_NAME:-axnoded-python-runtime-e2e-controld}"
 GATEWAYD_CONTAINER_NAME="${GATEWAYD_CONTAINER_NAME:-axnoded-python-runtime-e2e-gatewayd}"
-STORAGED_CONTAINER_NAME="${STORAGED_CONTAINER_NAME:-axnoded-python-runtime-e2e-storaged}"
-STORAGED_GRPC_PORT="${STORAGED_GRPC_PORT:-24020}"
-STORAGED_HTTP_PORT="${STORAGED_HTTP_PORT:-24021}"
 
 CONTROLD_GRPC_HOST="${CONTROLD_GRPC_ADDRESS%:*}"
 CONTROLD_GRPC_PORT="${CONTROLD_GRPC_ADDRESS##*:}"
@@ -49,12 +46,11 @@ CONTROLD_HTTP_PORT="$(reserve_unique_host_port "${CONTROLD_HTTP_HOST}" 0 "${CONT
 CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}"
 NODE_GRPC_PORT="$(reserve_unique_host_port "${NODE_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}")"
 NODE_GRPC_ADDRESS="${NODE_GRPC_HOST}:${NODE_GRPC_PORT}"
+CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}")"
 
 dump_logs() {
   echo "--- controld log ---" >&2
   docker logs "${CONTROLD_CONTAINER_NAME}" >&2 || cat "${controld_log}" >&2 || true
-  echo "--- storaged log ---" >&2
-  docker logs "${STORAGED_CONTAINER_NAME}" >&2 || true
   echo "--- gatewayd log ---" >&2
   docker logs "${GATEWAYD_CONTAINER_NAME}" >&2 || true
   echo "--- controld /nodesz ---" >&2
@@ -83,7 +79,6 @@ wait_for_postgres() {
 
 cleanup() {
   docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
-  docker rm -f "${STORAGED_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${CONTROLD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
@@ -95,7 +90,6 @@ trap cleanup EXIT
 ensure_verify_image
 docker rm -f "${CONTROLD_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
-docker rm -f "${STORAGED_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
@@ -119,6 +113,8 @@ fi
 
 IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF}" bash "${ROOT_DIR}/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
 bash "${REPO_ROOT}/scripts/dev-mtls-certs.sh" "${cert_dir}" >/dev/null
+printf '%s\n' "${CONTROL_PLANE_ENROLLMENT_TOKEN}" > "${cert_dir}/enrollment-token"
+chmod 600 "${cert_dir}/enrollment-token"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" python --version >"${python311_stdout}"
 grep -q '^Python 3\.11\.' "${python311_stdout}"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" /bin/sh -lc 'python -m pip --version >/dev/null'
@@ -134,7 +130,8 @@ docker run --rm \
 docker run --rm \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/client.crt:/shared/certs/client.crt:ro" \
+  --volume "${cert_dir}/enrollment-token:/shared/certs/enrollment-token:ro" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld-access-bootstrap \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
@@ -142,31 +139,8 @@ docker run --rm \
     -display-name "Local Administrator" \
     -credential-label local-client \
     -certificate /shared/certs/client.crt \
-    -rollout-worker-certificate /shared/certs/rollout-worker.crt
-
-docker run -d \
-  --name "${STORAGED_CONTAINER_NAME}" \
-  --network "${POSTGRES_NETWORK_NAME}" \
-  --platform "${VERIFY_DOCKER_PLATFORM}" \
-  "${IMAGE_TAG}" \
-  /usr/local/bin/storaged \
-    -grpc-address "0.0.0.0:${STORAGED_GRPC_PORT}" \
-    -http-address "0.0.0.0:${STORAGED_HTTP_PORT}" \
-    -postgres-dsn "${CONTROLD_POSTGRES_DSN}" >/dev/null
-
-deadline=$((SECONDS + 60))
-while [ "${SECONDS}" -lt "${deadline}" ]; do
-  if docker exec "${STORAGED_CONTAINER_NAME}" curl -fsS "http://127.0.0.1:${STORAGED_HTTP_PORT}/healthz" >/dev/null 2>&1; then
-    break
-  fi
-  sleep 1
-done
-
-if ! docker exec "${STORAGED_CONTAINER_NAME}" curl -fsS "http://127.0.0.1:${STORAGED_HTTP_PORT}/healthz" >/dev/null 2>&1; then
-  echo "storaged did not become ready in time" >&2
-  dump_logs
-  exit 1
-fi
+    -node-id "${CONTROL_PLANE_NODE_ID}" \
+    -enrollment-token-file /shared/certs/enrollment-token
 
 docker run -d \
   --name "${CONTROLD_CONTAINER_NAME}" \
@@ -175,18 +149,21 @@ docker run -d \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
   -p "${CONTROLD_GRPC_HOST}:${CONTROLD_GRPC_PORT}:${CONTROLD_GRPC_PORT}" \
   -p "${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}:${CONTROLD_HTTP_PORT}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
-  -e "AXERN_RUNTIME_CATALOG_PYTHON311_IMAGE=${PYTHON_RUNTIME_IMAGE_REF}" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
+  --volume "${cert_dir}/controld.pem:/shared/certs/controld.pem:ro" \
+  --volume "${cert_dir}/private/signer.pem:/shared/certs/private/signer.pem:ro" \
+  -e "AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE=${PYTHON_RUNTIME_IMAGE_REF}" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_PORT}" \
     -http-address "0.0.0.0:${CONTROLD_HTTP_PORT}" \
     -tls-ca-cert /shared/certs/ca.crt \
-    -tls-cert /shared/certs/controld.crt \
-    -tls-key /shared/certs/controld.key \
+    -workload-bundle /shared/certs/controld.pem \
+    -workload-signer-bundle /shared/certs/private/signer.pem \
+    -workload-cluster axern.local \
+    -enrollment-address "0.0.0.0:${CONTROLD_ENROLLMENT_PORT}" \
     -secrets-master-key "test-only-master-key-32-bytes!!!" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
-    -storaged-target "${STORAGED_CONTAINER_NAME}:${STORAGED_GRPC_PORT}" \
     -log-level info >"${controld_log}" 2>&1
 
 deadline=$((SECONDS + 60))
@@ -207,18 +184,18 @@ docker run -d \
   --name "${GATEWAYD_CONTAINER_NAME}" \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
+  --volume "${cert_dir}/gatewayd.pem:/shared/certs/gatewayd.pem:ro" \
   "${IMAGE_TAG}" \
   /usr/local/bin/gatewayd \
     -control-target "controld:${CONTROLD_GRPC_PORT}" \
     -control-edge-address "0.0.0.0:${GATEWAY_CONTROL_PORT}" \
     -control-edge-tls-ca-cert /shared/certs/ca.crt \
-    -control-edge-tls-cert /shared/certs/gatewayd.crt \
-    -control-edge-tls-key /shared/certs/gatewayd.key \
+    -control-edge-tls-cert /shared/certs/gatewayd.pem \
+    -control-edge-tls-key /shared/certs/gatewayd.pem \
     -http-address "0.0.0.0:${GATEWAY_HTTP_PORT}" \
     -tls-ca-cert /shared/certs/ca.crt \
-    -tls-cert /shared/certs/gatewayd.crt \
-    -tls-key /shared/certs/gatewayd.key \
+    -workload-bundle /shared/certs/gatewayd.pem \
     -log-level info >/dev/null
 
 deadline=$((SECONDS + 60))
@@ -242,20 +219,20 @@ docker run -d \
   --add-host "host.docker.internal:host-gateway" \
   -p "${NODE_GRPC_HOST}:${NODE_GRPC_PORT}:${NODE_GRPC_PORT}" \
   --volume "${shared_run_dir}:/shared/run" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
   -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
   -e "AXNODED_GRPC_ADDRESS=0.0.0.0:${NODE_GRPC_PORT}" \
   -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
   -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
   -e "AXNODED_CONTROL_PLANE_TARGET=controld:${CONTROLD_GRPC_PORT}" \
+  -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=controld:${CONTROLD_ENROLLMENT_PORT}" \
   -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
-  -e "AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN=${CONTROL_PLANE_NODE_AUTH_TOKEN}" \
+  -e "AXNODED_ENROLLMENT_TOKEN_FILE=/bootstrap/enrollment-token" \
+    --volume "${cert_dir}/enrollment-token:/bootstrap/enrollment-token:ro" \
   -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_CONTAINER_NAME}:${NODE_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
   -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \
-  -e "AXNODED_CONTROL_PLANE_TLS_CERT=/shared/certs/node.crt" \
-  -e "AXNODED_CONTROL_PLANE_TLS_KEY=/shared/certs/node.key" \
   "${IMAGE_TAG}" \
   /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >/dev/null
 
@@ -278,8 +255,6 @@ if ! [ -S "${shared_run_dir}/axnoded.sock" ]; then
   dump_logs
   exit 1
 fi
-docker exec "${NODE_CONTAINER_NAME}" chmod 666 "${AXNODED_SOCKET}" >/dev/null 2>&1 || true
-
 if ! docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "curl -fsS http://127.0.0.1:23001/readyz >/dev/null"; then
   echo "node container did not become ready in time" >&2
   dump_logs
@@ -307,7 +282,9 @@ fi
 if ! docker run --rm \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}:/shared/certs:ro" \
+  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
+  --volume "${cert_dir}/client.crt:/shared/certs/client.crt:ro" \
+  --volume "${cert_dir}/client.key:/shared/certs/client.key:ro" \
   --volume "${REPO_ROOT}/sdk/python/tests/e2e/python_runtime_e2e.py:/tmp/python_runtime_e2e.py:ro" \
   -e AXERN_TLS_CA_CERT=/shared/certs/ca.crt \
   -e AXERN_TLS_CERT=/shared/certs/client.crt \
@@ -317,8 +294,7 @@ if ! docker run --rm \
   "${PYTHON_RUNTIME_IMAGE_REF}" \
   python /tmp/python_runtime_e2e.py \
     --endpoint "${GATEWAYD_CONTAINER_NAME}:${GATEWAY_CONTROL_PORT}" \
-    --runtime-id python311 \
-    --expected-image-ref "${PYTHON_RUNTIME_IMAGE_REF}"; then
+    --environment-id python311; then
   dump_logs
   exit 1
 fi

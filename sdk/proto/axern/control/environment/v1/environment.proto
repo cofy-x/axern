@@ -4,14 +4,45 @@ package axern.control.environment.v1;
 
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1;environmentv1";
 
-import "axern/control/catalog/v1/catalog.proto";
 import "google/protobuf/timestamp.proto";
+
+message EnvironmentMount {
+  string type = 1;
+  string source = 2;
+  string target = 3;
+  repeated string options = 4;
+}
+
+message OciImageDescriptor {
+  string digest = 1;
+  string media_type = 2;
+  int64 size_bytes = 3;
+  map<string, string> annotations = 4;
+}
+
+message OciBaselinePolicy {
+  repeated string capabilities = 1;
+  uint64 no_file_limit = 2;
+}
+
+message OciExecutionProfile {
+  OciBaselinePolicy baseline = 1;
+}
+
+message ResolvedEnvironmentSpec {
+  bool rootfs_readonly = 1;
+  repeated string image_default_argv = 2;
+  string default_cwd = 3;
+  map<string, string> default_env = 4;
+  repeated EnvironmentMount mounts = 5;
+  OciImageDescriptor image_descriptor = 6;
+  OciExecutionProfile execution_profile = 7;
+}
 
 message EnvironmentImageSource {
   string ref = 1;
-  string digest = 2;
-  bool rootfs_readonly = 3;
-  string registry_credential_id = 4;
+  bool rootfs_readonly = 2;
+  string registry_credential_id = 3;
 }
 
 message EnvironmentSpec {
@@ -21,35 +52,20 @@ message EnvironmentSpec {
   EnvironmentImageSource image = 4;
 }
 
-enum EnvironmentStatus {
-  ENVIRONMENT_STATUS_UNSPECIFIED = 0;
-  ENVIRONMENT_STATUS_PENDING = 1;
-  ENVIRONMENT_STATUS_READY = 2;
-  ENVIRONMENT_STATUS_FAILED = 3;
-  ENVIRONMENT_STATUS_DELETING = 4;
-  ENVIRONMENT_STATUS_DELETED = 5;
-}
-
 message Environment {
   string id = 1;
   string namespace = 2;
-  EnvironmentStatus status = 3;
-  EnvironmentSpec spec = 4;
-  string spec_hash = 5;
-  axern.control.catalog.v1.RuntimeTemplate resolved_template = 6;
-  map<string, string> labels = 7;
-  int64 version = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
-  string message = 11;
+  EnvironmentSpec spec = 3;
+  ResolvedEnvironmentSpec resolved_spec = 4;
+  map<string, string> labels = 5;
+  google.protobuf.Timestamp created_at = 6;
 }
 
 message ListFilter {
   string namespace = 1;
-  repeated EnvironmentStatus statuses = 2;
-  map<string, string> labels = 3;
-  string cursor = 4;
-  int32 page_size = 5;
+  map<string, string> labels = 2;
+  string cursor = 3;
+  int32 page_size = 4;
 }
 
 message CreateEnvironmentRequest {

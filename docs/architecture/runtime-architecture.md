@@ -1,66 +1,62 @@
 # Runtime Architecture
 
-Axern V1 separates the durable control plane from node-local execution:
+Object identity and ownership follow the [Stable Domain Model](../product/domain-model.md). This document describes the current component and traffic boundaries that implement it.
 
-- `controld` owns catalog, environments, runs, services, functions, allocations,
-  reservations, and execution leases.
-- `axnoded` owns node-local process/container execution and reports allocation
-  status back to `controld`. Probe and lifecycle workers enqueue observations
-  without waiting for control-plane I/O; the node reporter coalesces the latest
-  state per allocation, preserves terminal state, and retries bounded batches
-  with jittered exponential backoff. This queue is process-local; durable state
-  remains in `controld` and node inventory repairs state after node restarts.
-- `axnoded` also reports node inventory summaries that distinguish actively
-  known allocations from the subset already `RUNNING`, so `controld` can
-  reconcile missing allocations without failing normal startup in flight.
-- Each node summary contains one atomic typed capability snapshot. Atomic means
-  a coherent published generation, not simultaneous provider sampling; each
-  observation retains its own sample time and independent expiry. Axnoded owns
-  observations, the shared catalog owns derivation and loss policy, controld
-  owns transaction-time placement admission, and axnoded owns allocation-time
-  and periodic enforcement. See the
-  [Observed Capability Providers](observed-capability-providers.md) contract;
-  these platform capabilities are distinct from sandboxd operation discovery.
-- `controld` persists node identities as active or retired. Retirement is an
-  audited irreversible operation after workload, tunnel, lease, retry, and
-  storage state converges; retired identities are fenced from node auth and
-  placement, and replacement hosts use new node IDs.
-- The node summary includes an axnoded-owned aggregate `runtime_slots`
-  contract. Its capacity starts from `max_instance_num`, enabled node-local
-  pools constrain it, and disabled pools are omitted from that calculation.
-  Controld rejects reports that omit the aggregate instead of reconstructing it
-  from cgroup or interface diagnostics.
-- Node inventory also carries imagemgr image inventory as separate
-  imported-cache and mounted-workload counts. Imported images mean the image is
-  present in the node-local `imagemgr` OCI cache; mounted images mean the image
-  currently backs a workload rootfs mount.
-- Service readiness is a control-plane-visible concern: `axnoded` reports
-  `ready` and `readiness_message` separately from lifecycle `status`, and
-  `controld` gates service `READY` and rollout drain decisions on that
-  readiness signal.
-- Service rollout and autoscaling are Service capabilities for long-running,
-  replica-oriented workloads. `Run` stays a single-allocation lifecycle API;
-  Function owns revisions, worker scaling, and invocation history.
-- Public control-plane API names are `Environment`, `Run`, `Service`, and
-  `Function`.
-- Catalog templates and environments are runtime-neutral. Workloads select
-  `runsc` or `runc` through `ExecutionConfig.runtime_class`; omitted values
-  default to `runsc` in `controld` before placement and node lifecycle dispatch.
-- Gateway-forwarded sandbox execution is authorized by revocable internal
-  execution leases bound to `allocation_id`, `node_id`, `attempt`, and
-  `lease_type`; clients send allocation ids to `gatewayd`, not node targets or
-  lease tokens.
+Axern separates durable product intent from node-local execution:
+
+- `controld` and PostgreSQL own Environments, Runs, Allocations with their resource charges, allocation access grants, TunnelSessions, placement, authorization, and durable lifecycle state. Axnoded persists the locally received execution-lease deadline with its Allocation recovery record.
+- `axnoded` owns node-local Allocation execution, recovery, cleanup, and allocation-scoped reporting. Its local state and queues cannot become a second source of product truth.
+- `gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane protocols. It owns no placement, lifecycle, or durable product state.
+- `imagemgr`, `imagefsd`, `egressd`, `bpfnet`, and `tunneld` own narrow image, network, or relay responsibilities below the Run lifecycle.
+- SDK `Sandbox` objects compose the durable `Environment -> Run -> Allocation` chain. Axrun and other evaluation, training, or data-synthesis systems remain callers above the platform.
+
+## External And Internal Flows
+
+Public clients send Allocation identities to `gatewayd`, never node targets or private access tokens. Gatewayd forwards control RPCs to `controld`; for process, file, archive, terminal, and SSH operations it resolves the target and AllocationAccessGrant bound to that exact Allocation ID before forwarding to `axnoded`. The public request remains credential-free; gatewayd overwrites private access metadata on every backend attempt, and axnoded accepts exactly one non-empty value. Internal lifecycle and status paths remain direct.
+
+| Flow | Path | Authority |
+| --- | --- | --- |
+| Public control API | Client -> `gatewayd` -> `controld` | `controld` and PostgreSQL |
+| Process, file, archive, terminal, and SSH | Client -> `gatewayd` -> `axnoded` | Allocation and AllocationAccessGrant resolved by `controld`; execution owned by `axnoded` |
+| Allocation lifecycle | `controld` -> `axnoded` | `controld` owns intent; `axnoded` owns node-local execution |
+| Lifecycle and capability reporting | `axnoded` -> `controld` | Node observations originate at `axnoded`; Run result and Allocation convergence are committed by `controld` |
+| Tunnel client peer | Client -> `gatewayd` -> `tunneld` | TunnelSession belongs to `controld`; relay pairing belongs to `tunneld` |
+| Tunnel node peer | `axnoded` -> `tunneld` | Allocation-local binding belongs to `axnoded`; relay pairing belongs to `tunneld` |
 
 ```mermaid
 flowchart LR
     CLI["axern CLI / SDK"] --> Gateway["gatewayd"]
-    Gateway --> Ctrl["controld"]
+    Gateway -->|public control RPCs| Ctrl["controld"]
     Ctrl --> DB["Postgres"]
-    Node --> Snapshot["atomic capability snapshot"]
+    Node --> Snapshot["ordered atomic NodeSummary"]
     Snapshot --> Ctrl
-    Ctrl --> Node["axnoded lifecycle API"]
-    Node --> CtrlStatus["BatchReportAllocationStatus"]
-    CtrlStatus --> ServiceQueue["keyed service reconcile queue"]
-    Gateway --> Resolve["ResolveAllocationTerminal"]
-    Resolve --> NodeExec["NodeSandbox exec with internal allocation lease"]
+    Ctrl -->|Allocation lifecycle| Node["axnoded lifecycle API"]
+    Node --> CtrlStatus["BatchReportAllocationLifecycle"]
+    CtrlStatus --> RunState["Run result + Allocation lifecycle"]
+    Gateway -->|resolve target and lease| Ctrl
+    Gateway -->|Allocation-scoped operations| NodeExec["NodeSandbox with internal allocation lease"]
+    NodeExec --> Node
+    Gateway -->|client peer| Tunnel["tunneld"]
+    Node -->|node peer| Tunnel
 ```
+
+## Runtime Invariants
+
+- Runsc is the only supported production sandbox runtime; required isolation, network policy, and platform capability evidence fail closed. See [Observed Capability Providers](observed-capability-providers.md) and [Sandbox Network Policy](sandbox-network-policy.md).
+- Allocation lifecycle and exit observations are scoped to a globally unique, never-reused Allocation ID and project unambiguously into the owning Run. There is no Service replica, readiness, or rolling-update state machine.
+- Writable rootfs and workspace data is Allocation-local. Image ownership and output transfer follow the [Storage Architecture](storage-architecture.md).
+- Requests drive placement and resource charging, limits drive runtime enforcement, and node capacity remains typed evidence. See the [Resource Model](resource-model.md).
+- The private lifecycle request remains typed from `controld` through `axnoded`: resolved secrets, registry credentials, ports, network mode, and egress policy are validated before request identity is computed. JSON side channels and behavior-bearing OCI labels are not execution contracts.
+
+## Runtime Backend Boundary
+
+The public and control-plane model is backend-neutral today: Environment, Run, Allocation, resource charge, ExecutionLease, AllocationAccessGrant, SSH, TunnelSession, and Gateway routing carry only Allocation identity and typed execution requirements. Runsc container names, bundles, OCI state, and recovery checkpoints stay under `runtime/axnoded`.
+
+Axnoded is not yet ready to add Firecracker as a second implementation without node-local work. The concrete blockers are intentionally local:
+
+- lifecycle wiring stores one `runscHandler` and several recovery paths call it directly;
+- create planning, rootfs overlay enforcement, capability conformance, process/file transport, and sandboxd session establishment assume OCI/runsc artifacts;
+- node recovery inventory and terminal checkpoint recovery enumerate runsc containers directly;
+- cgroup and ephemeral-storage enforcement manifests contain runsc-specific verification details.
+
+Those blockers do not justify a second control-plane lifecycle, speculative backend fields, or an in-process runtime registry. If Firecracker is qualified later, it should ship as a separate node implementation and node pool that satisfies the existing Allocation lifecycle, process/file/session, recovery, and capability-evidence contracts. Backend-specific handles remain private to that implementation; the Allocation ID remains the only execution identity, and placement selects a node from immutable execution requirements rather than a user-visible backend name.

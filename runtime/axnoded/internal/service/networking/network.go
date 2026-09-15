@@ -10,9 +10,8 @@ import (
 )
 
 type SandboxNetwork struct {
-	IP           string
-	NetNSPath    string
-	RuntimeClass string
+	IP        string
+	NetNSPath string
 }
 
 func (c *Coordinator) NetworkForSandbox(containerID string) (*SandboxNetwork, error) {
@@ -33,14 +32,7 @@ func (c *Coordinator) NetworkForSandbox(containerID string) (*SandboxNetwork, er
 	if netDevice.NetNSPath == "" {
 		return nil, fmt.Errorf("container has no netns path: %w", errord.ErrFailedPrecondition)
 	}
-	runtimeClass := ""
-	if c.runtimeClass != nil {
-		runtimeClass, err = c.runtimeClass(containerID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return &SandboxNetwork{IP: netDevice.Ip.String(), NetNSPath: netDevice.NetNSPath, RuntimeClass: runtimeClass}, nil
+	return &SandboxNetwork{IP: netDevice.Ip.String(), NetNSPath: netDevice.NetNSPath}, nil
 }
 
 func (c *Coordinator) ContainerIP(containerID string) (string, error) {
@@ -59,7 +51,7 @@ func (c *Coordinator) ContainerIP(containerID string) (string, error) {
 }
 
 func (c *Coordinator) CleanupActivationNetwork(resource container.OccupiedResource) error {
-	device, ok := resource.ToLabels()[resourcemanager.ResourceAnnotationKeyPrefix+string(resourcemanager.InterfaceResourceName)]
+	device, ok := resource.Resources[resourcemanager.InterfaceResourceName]
 	if !ok {
 		return nil
 	}

@@ -13,48 +13,40 @@ import (
 )
 
 const runtimeExitStateStoreDirName = "runtime-exit-states"
+const runtimeName = "runsc"
 
 type Common struct {
-	binary              string
-	runtimeRunnerBinary string
-	containerRoot       string
-	runtimeRoot         string
-	exitStateRoot       string
-	executor            Executor
-	ociLoader           runtimeoci.Loader
-	initMonitorStarter  func(context.Context, InitMonitorStartOptions) error
+	binary        string
+	containerRoot string
+	runtimeRoot   string
+	exitStateRoot string
+	executor      Executor
+	ociLoader     runtimeoci.Loader
 }
 
 type Config struct {
-	Root                string
-	RuntimeName         string
-	RuntimeBinary       string
-	RuntimeRunnerBinary string
-	Loader              runtimeoci.Loader
+	Root          string
+	RuntimeBinary string
+	Loader        runtimeoci.Loader
 }
 
 func New(cfg Config) (*Common, error) {
-	runtimeRoot, containerRoot, err := ocicli.EnsureRuntimeDirs(cfg.Root, cfg.RuntimeName)
+	runtimeRoot, containerRoot, err := ocicli.EnsureRuntimeDirs(cfg.Root, runtimeName)
 	if err != nil {
 		return nil, err
 	}
-	exitStateRoot := filepath.Join(cfg.Root, runtimeExitStateStoreDirName, cfg.RuntimeName)
+	exitStateRoot := filepath.Join(cfg.Root, runtimeExitStateStoreDirName, runtimeName)
 	if err := os.MkdirAll(exitStateRoot, 0755); err != nil {
 		return nil, err
 	}
 	return &Common{
-		binary:              cfg.RuntimeBinary,
-		runtimeRunnerBinary: cfg.RuntimeRunnerBinary,
-		containerRoot:       containerRoot,
-		runtimeRoot:         runtimeRoot,
-		exitStateRoot:       exitStateRoot,
-		executor:            &SystemExecutor{},
-		ociLoader:           cfg.Loader,
+		binary:        cfg.RuntimeBinary,
+		containerRoot: containerRoot,
+		runtimeRoot:   runtimeRoot,
+		exitStateRoot: exitStateRoot,
+		executor:      &SystemExecutor{},
+		ociLoader:     cfg.Loader,
 	}, nil
-}
-
-func (c *Common) SetInitMonitorStarter(starter func(context.Context, InitMonitorStartOptions) error) {
-	c.initMonitorStarter = starter
 }
 
 func (c *Common) SetExecutor(executor Executor) {
@@ -65,16 +57,8 @@ func (c *Common) SetExecutor(executor Executor) {
 	c.executor = executor
 }
 
-func (c *Common) SetRuntimeRunnerBinary(path string) {
-	c.runtimeRunnerBinary = path
-}
-
 func (c *Common) Binary() string {
 	return c.binary
-}
-
-func (c *Common) RuntimeRunnerBinary() string {
-	return c.runtimeRunnerBinary
 }
 
 func (c *Common) ContainerRoot() string {

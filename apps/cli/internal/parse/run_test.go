@@ -30,7 +30,7 @@ func TestRunStatuses(t *testing.T) {
 func TestRunStatusesRejectsUnknownValue(t *testing.T) {
 	if _, err := RunStatuses([]string{"wat"}); err == nil {
 		t.Fatal("expected error for invalid run status")
-	} else if !strings.Contains(err.Error(), "queued, placed") {
+	} else if !strings.Contains(err.Error(), "placed, starting") {
 		t.Fatalf("error %q does not include valid values", err)
 	}
 }

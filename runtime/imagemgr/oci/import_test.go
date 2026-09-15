@@ -132,7 +132,7 @@ func TestHasImportedImage(t *testing.T) {
 	}
 }
 
-func TestImportImageMovesRefWithoutInvalidatingMountedGeneration(t *testing.T) {
+func TestImportImageMovesRefWithoutInvalidatingMountedContent(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()
 	imageRef := "example.local/mutable:dev"
@@ -140,33 +140,33 @@ func TestImportImageMovesRefWithoutInvalidatingMountedGeneration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	firstKey := importedCacheKey(first.GenerationDigest)
+	firstKey := importedCacheKey(first.ContentDigest)
 	mgr.setContainer(firstKey, &ContainerInfo{ImageURL: imageRef, MountPath: t.TempDir()})
 
 	second, err := mgr.ImportImageArchive(t.Context(), imageRef, writeMountableDockerArchiveWithContent(t, imageRef, "second"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.GenerationDigest == second.GenerationDigest {
-		t.Fatal("distinct manifests produced the same generation")
+	if first.ContentDigest == second.ContentDigest {
+		t.Fatal("distinct manifests produced the same content")
 	}
 	current, imported, err := mgr.ResolveImportedImageCacheKey(imageRef)
-	if err != nil || !imported || current != importedCacheKey(second.GenerationDigest) {
-		t.Fatalf("current generation = (%q, %t, %v)", current, imported, err)
+	if err != nil || !imported || current != importedCacheKey(second.ContentDigest) {
+		t.Fatalf("current content = (%q, %t, %v)", current, imported, err)
 	}
-	if retained, err := mgr.HasImportedGeneration(firstKey); err != nil || !retained {
-		t.Fatalf("old mounted generation retained = (%t, %v)", retained, err)
+	if retained, err := mgr.HasImportedContent(firstKey); err != nil || !retained {
+		t.Fatalf("old mounted content retained = (%t, %v)", retained, err)
 	}
 	if _, err := os.Stat(first.ArchivePath); err != nil {
-		t.Fatalf("old generation archive removed while mounted: %v", err)
+		t.Fatalf("old content archive removed while mounted: %v", err)
 	}
 
 	mgr.deleteContainer(firstKey)
-	if err := mgr.pruneImportedGenerations(); err != nil {
+	if err := mgr.pruneImportedContents(); err != nil {
 		t.Fatal(err)
 	}
-	if retained, err := mgr.HasImportedGeneration(firstKey); err != nil || retained {
-		t.Fatalf("unreferenced generation retained = (%t, %v)", retained, err)
+	if retained, err := mgr.HasImportedContent(firstKey); err != nil || retained {
+		t.Fatalf("unreferenced content retained = (%t, %v)", retained, err)
 	}
 }
 
@@ -181,23 +181,23 @@ func TestImportImageCanonicalizesDockerHubRef(t *testing.T) {
 		t.Fatalf("canonical ref = %q", result.ImageURL)
 	}
 	canonical, cacheKey, imported, err := mgr.ResolveImageCacheKey("docker.io/library/demo:dev")
-	if err != nil || !imported || canonical != result.ImageURL || cacheKey != importedCacheKey(result.GenerationDigest) {
+	if err != nil || !imported || canonical != result.ImageURL || cacheKey != importedCacheKey(result.ContentDigest) {
 		t.Fatalf("ResolveImageCacheKey() = (%q, %q, %t, %v)", canonical, cacheKey, imported, err)
 	}
-	digestRef := "index.docker.io/library/demo@" + result.GenerationDigest
+	digestRef := "index.docker.io/library/demo@" + result.ContentDigest
 	_, cacheKey, imported, err = mgr.ResolveImageCacheKey(digestRef)
-	if err != nil || !imported || cacheKey != importedCacheKey(result.GenerationDigest) {
-		t.Fatalf("resolve digest generation = (%q, %t, %v)", cacheKey, imported, err)
+	if err != nil || !imported || cacheKey != importedCacheKey(result.ContentDigest) {
+		t.Fatalf("resolve digest content = (%q, %t, %v)", cacheKey, imported, err)
 	}
 }
 
-func TestResolveImportedImageCacheKeyRejectsMissingGeneration(t *testing.T) {
+func TestResolveImportedImageCacheKeyRejectsMissingContent(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()
 
 	imageRef := "example.local/missing-digest:dev"
 	if err := mgr.store.db.Update(func(tx *bolt.Tx) error {
-		data, err := json.Marshal(importedRefRecord{ImageURL: imageRef, GenerationDigest: "sha256:" + strings.Repeat("0", 64)})
+		data, err := json.Marshal(importedRefRecord{ImageURL: imageRef, ContentDigest: "sha256:" + strings.Repeat("0", 64)})
 		if err != nil {
 			return err
 		}

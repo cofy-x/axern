@@ -7,7 +7,7 @@ import (
 
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -36,7 +36,7 @@ func TestPostgresAdminRetiresIdleNodeAndFencesReporter(t *testing.T) {
 	if err != nil || len(audit.GetEvents()) != 1 {
 		t.Fatalf("ListAdminAuditEvents() = %+v, %v", audit, err)
 	}
-	_, err = app.NodeV1Handler().ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now.Add(2 * time.Hour))})
+	_, err = app.NodeV1Handler().ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now.Add(2 * time.Hour))})
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("ReportNode(retired) error = %v", err)
 	}
@@ -49,7 +49,8 @@ func TestPostgresAdminRejectsRetiringNodeWithActiveAllocation(t *testing.T) {
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	app.now = func() time.Time { return now.Add(2 * time.Hour) }
-	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, owner_type, owner_id, node_id, status, config, created_at, updated_at) VALUES ('alloc-a', 'run', 'run-a', 'node-a', 'ALLOCATION_STATUS_RUNNING', '{}'::jsonb, $1, $1)`, now); err != nil {
+	insertAdminNodeTestRun(t, app, "run-a", now)
+	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $1, $1)`, now); err != nil {
 		t.Fatalf("insert active allocation: %v", err)
 	}
 	_, err := app.AdminV1Handler().RetireAdminNode(context.Background(), &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "host permanently removed"})
@@ -58,17 +59,75 @@ func TestPostgresAdminRejectsRetiringNodeWithActiveAllocation(t *testing.T) {
 	}
 }
 
-func TestPostgresAdminRetiresNodeWithHistoricalExitedAllocation(t *testing.T) {
+func TestPostgresAdminRetiresNodeWithReleasedAllocation(t *testing.T) {
 	app, _ := newPostgresTestServiceWithConfig(t, Config{HeartbeatFreshnessWindow: time.Hour, SummaryFreshnessWindow: time.Hour})
 	defer app.Close()
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	app.now = func() time.Time { return now.Add(2 * time.Hour) }
-	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, owner_type, owner_id, node_id, status, config, created_at, updated_at) VALUES ('alloc-a', 'run', 'run-a', 'node-a', 'ALLOCATION_STATUS_EXITED', '{}'::jsonb, $1, $1)`, now); err != nil {
-		t.Fatalf("insert exited allocation: %v", err)
+	insertAdminNodeTestRun(t, app, "run-a", now)
+	if _, err := app.db.Pool().Exec(context.Background(), `INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_RELEASED', 1, $1, $1)`, now); err != nil {
+		t.Fatalf("insert released allocation: %v", err)
+	}
+	if _, err := app.db.Pool().Exec(context.Background(), `UPDATE runs SET status = 'RUN_STATUS_FAILED' WHERE run_id = 'run-a'`); err != nil {
+		t.Fatalf("mark historical run terminal: %v", err)
 	}
 	if _, err := app.AdminV1Handler().RetireAdminNode(context.Background(), &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "host permanently removed"}); err != nil {
 		t.Fatalf("RetireAdminNode() error = %v", err)
+	}
+}
+
+func insertAdminNodeTestRun(t *testing.T, app *App, runID string, now time.Time) {
+	t.Helper()
+	if _, err := app.db.Pool().Exec(context.Background(), `
+		INSERT INTO namespaces (namespace, created_at)
+		VALUES ('default', $1)
+		ON CONFLICT (namespace) DO NOTHING
+	`, now); err != nil {
+		t.Fatalf("insert namespace: %v", err)
+	}
+	if _, err := app.db.Pool().Exec(context.Background(), `
+		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
+		VALUES ($1, 'default', 'env-test', 'RUN_STATUS_RUNNING', '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, '{}'::jsonb, $2, $2)
+	`, runID, now); err != nil {
+		t.Fatalf("insert run: %v", err)
+	}
+}
+
+func TestPostgresAdminRevokesBusyNodeWithoutReleasingAllocation(t *testing.T) {
+	app, _ := newPostgresTestServiceWithConfig(t, Config{HeartbeatFreshnessWindow: time.Hour, SummaryFreshnessWindow: time.Hour})
+	defer app.Close()
+	ctx := context.Background()
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	app.now = func() time.Time { return now }
+	registerReadyNode(t, app, "node-a", now)
+	insertAdminNodeTestRun(t, app, "run-a", now)
+	if _, err := app.db.Pool().Exec(ctx, "INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $1, $1)", now); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		resp, err := app.AdminV1Handler().RevokeAdminNode(ctx, &adminv1.RevokeAdminNodeRequest{NodeID: "node-a", OperatorReason: "compromised host"})
+		if err != nil || resp.GetNode().GetLifecycleStatus() != adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_REVOKED {
+			t.Fatalf("revoke: %v %v", resp, err)
+		}
+	}
+	var state string
+	if err := app.db.Pool().QueryRow(ctx, "SELECT lifecycle_state FROM allocations WHERE allocation_id = 'alloc-a'").Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "ALLOCATION_LIFECYCLE_STATE_ACTIVE" {
+		t.Fatal("revocation forged runtime cleanup")
+	}
+	if _, err := app.NodeV1Handler().ReportNode(ctx, &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now)}); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("revoked report: %v", err)
+	}
+	audit, err := app.AdminV1Handler().ListAdminAuditEvents(ctx, &adminv1.ListAdminAuditEventsRequest{Filter: &adminv1.AdminAuditEventFilter{Operation: adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE, TargetType: adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE, TargetID: "node-a"}})
+	if err != nil || len(audit.GetEvents()) != 1 {
+		t.Fatalf("revocation audit: %v %v", audit, err)
+	}
+	app.now = func() time.Time { return now.Add(2 * time.Hour) }
+	if _, err := app.AdminV1Handler().RetireAdminNode(ctx, &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "cleanup incomplete"}); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("retirement ignored allocation: %v", err)
 	}
 }

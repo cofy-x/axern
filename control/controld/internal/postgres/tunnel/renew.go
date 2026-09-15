@@ -37,30 +37,29 @@ func (s *Store) Renew(ctx context.Context, sessionID, clientToken string, ttl ti
 	}
 
 	row := tx.QueryRow(ctx, `SELECT `+sessionSelectColumns()+` FROM tunnel_sessions WHERE session_id = $1 FOR UPDATE`, sessionID)
-	current, clientHash, _, _, err := scanSession(row)
+	current, internal, err := scanSession(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Error(codes.NotFound, "tunnel session not found")
 	}
 	if err != nil {
 		return nil, err
 	}
-	if current.GetRevoked() || terminal(current.GetStatus()) {
+	if err := requireActiveNode(ctx, tx, current.GetNodeID()); err != nil {
+		return nil, err
+	}
+	if terminal(current.GetStatus()) {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel session is terminal")
 	}
-	if hashToken(clientToken) != clientHash {
+	if hashToken(clientToken) != internal.clientTokenHash {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "invalid tunnel client token")
 	}
 
-	revision, err := nextRevision(ctx, tx)
-	if err != nil {
-		return nil, err
-	}
 	row = tx.QueryRow(ctx, `
 		UPDATE tunnel_sessions
-		SET expires_at = $2, updated_at = $3, revision = $4
+		SET expires_at = GREATEST(expires_at, $2), updated_at = GREATEST(updated_at, $3)
 		WHERE session_id = $1
-		RETURNING `+sessionSelectColumns(), sessionID, expiresAt, now, revision)
-	session, _, _, _, err := scanSession(row)
+		RETURNING `+sessionSelectColumns(), sessionID, expiresAt, now)
+	session, _, err := scanSession(row)
 	if err != nil {
 		return nil, err
 	}

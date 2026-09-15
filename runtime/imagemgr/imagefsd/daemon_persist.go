@@ -39,11 +39,11 @@ func (d *Daemon) LoadExisted(metaFilePath string) error {
 		return fmt.Errorf("invalid json format, %w", err)
 	}
 
-	if d.meta.SourceType == "" {
-		d.meta.SourceType = SourceTypeOSS
+	if d.meta.SourceType != SourceTypeNydus {
+		return fmt.Errorf("unsupported persisted daemon source %q", d.meta.SourceType)
 	}
 
-	// Load backend config (works for both OSS and Nydus)
+	// Load backend config for Nydus
 	d.config = &BackendConfig{}
 	if err = d.loadBackendConfig(); err != nil {
 		return err
@@ -69,6 +69,6 @@ func (d *Daemon) applyConfig() error {
 	}
 	defer file.Close()
 
-	// Write backend config (works for both OSS and Nydus)
+	// Write backend config for Nydus
 	return json.NewEncoder(file).Encode(d.config)
 }

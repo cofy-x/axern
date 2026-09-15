@@ -24,7 +24,7 @@ func (d *Daemon) buildMountArgs() []string {
 		"--node-id", d.nodeID,
 	}
 
-	switch normalizeSourceType(d.meta.SourceType) {
+	switch d.meta.SourceType {
 	case SourceTypeNydus:
 		args = append(args,
 			"--cache-dir", d.meta.CacheDir,
@@ -37,10 +37,7 @@ func (d *Daemon) buildMountArgs() []string {
 		}
 		args = append(args, "--nydus-decoded-cache-bytes", fmt.Sprint(d.meta.DecodedCacheBytes))
 	default:
-		args = append(args,
-			"--cache-file", d.meta.CachePath,
-			"--src", SourceTypeOSS,
-		)
+		return nil
 	}
 
 	args = append(args,
@@ -75,6 +72,9 @@ func (d *Daemon) startDaemonProcess() {
 func (d *Daemon) startMountCommand(ctx context.Context, timing *TimedOperation) error {
 	stageStart := time.Now()
 	args := d.buildMountArgs()
+	if args == nil {
+		return fmt.Errorf("unsupported daemon source %q", d.meta.SourceType)
+	}
 	buildCmd := func() *exec.Cmd {
 		return exec.CommandContext(ctx, d.binPath, args...)
 	}

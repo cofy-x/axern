@@ -3,6 +3,7 @@ package pgnodes
 import (
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -13,32 +14,30 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *PGStore) Authenticate(ctx context.Context, nodeID, nodeAuthToken string) error {
-	nodeID = strings.TrimSpace(nodeID)
-	if nodeID == "" || strings.TrimSpace(nodeAuthToken) == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node auth token is required")
+func (s *PGStore) RequireActive(ctx context.Context, nodeID string) error {
+	if nodeID == "" {
+		return grpcstatus.Error(codes.PermissionDenied, "Node identity is required")
 	}
-	var hash, lifecycle string
-	err := s.db.Pool().QueryRow(ctx, `SELECT node_auth_token_hash, lifecycle_status FROM nodes WHERE node_id = $1`, nodeID).Scan(&hash, &lifecycle)
+	var lifecycle string
+	err := s.db.Pool().QueryRow(ctx, "SELECT lifecycle_status FROM nodes WHERE node_id=$1", nodeID).Scan(&lifecycle)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return grpcstatus.Error(codes.PermissionDenied, "node is not registered")
+		return grpcstatus.Error(codes.PermissionDenied, "Node identity is unknown")
 	}
 	if err != nil {
-		return fmt.Errorf("load node auth token: %w", err)
+		return fmt.Errorf("load Node admission: %w", err)
 	}
 	if lifecycle != "active" {
-		return grpcstatus.Error(codes.FailedPrecondition, "node is retired")
-	}
-	if strings.TrimSpace(hash) == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node auth token is not registered")
-	}
-	if hash != hashNodeAuthToken(nodeAuthToken) {
-		return grpcstatus.Error(codes.PermissionDenied, "invalid node auth token")
+		return grpcstatus.Error(codes.FailedPrecondition, "Node identity is not active")
 	}
 	return nil
 }
 
-func hashNodeAuthToken(token string) string {
+func hashEnrollmentToken(token string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(sum[:])
+}
+
+func enrollmentTokenHashMatches(hash, credential string) bool {
+	want := hashEnrollmentToken(credential)
+	return subtle.ConstantTimeCompare([]byte(hash), []byte(want)) == 1
 }

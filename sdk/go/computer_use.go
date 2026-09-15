@@ -105,7 +105,7 @@ func (s *Sandbox) ComputerUseKeyboard(ctx context.Context, options ComputerUseKe
 	return node.ComputerUseKeyboard(ctx, options)
 }
 
-func (n *NodeSandboxClient) ComputerUseStatus(ctx context.Context) (ComputerUseStatus, error) {
+func (n *AllocationClient) ComputerUseStatus(ctx context.Context) (ComputerUseStatus, error) {
 	if err := n.validate(); err != nil {
 		return ComputerUseStatus{}, err
 	}
@@ -122,7 +122,7 @@ func (n *NodeSandboxClient) ComputerUseStatus(ctx context.Context) (ComputerUseS
 	}, nil
 }
 
-func (n *NodeSandboxClient) ComputerUseScreenshot(ctx context.Context, options ...ComputerUseScreenshotOptions) (ComputerUseScreenshot, error) {
+func (n *AllocationClient) ComputerUseScreenshot(ctx context.Context, options ...ComputerUseScreenshotOptions) (ComputerUseScreenshot, error) {
 	if err := n.validate(); err != nil {
 		return ComputerUseScreenshot{}, err
 	}
@@ -136,7 +136,7 @@ func (n *NodeSandboxClient) ComputerUseScreenshot(ctx context.Context, options .
 	}, nil
 }
 
-func (n *NodeSandboxClient) ComputerUseDisplay(ctx context.Context) (ComputerUseDisplay, error) {
+func (n *AllocationClient) ComputerUseDisplay(ctx context.Context) (ComputerUseDisplay, error) {
 	if err := n.validate(); err != nil {
 		return ComputerUseDisplay{}, err
 	}
@@ -152,7 +152,7 @@ func (n *NodeSandboxClient) ComputerUseDisplay(ctx context.Context) (ComputerUse
 	}, nil
 }
 
-func (n *NodeSandboxClient) ComputerUseMouse(ctx context.Context, options ComputerUseMouseOptions) error {
+func (n *AllocationClient) ComputerUseMouse(ctx context.Context, options ComputerUseMouseOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}
@@ -162,7 +162,7 @@ func (n *NodeSandboxClient) ComputerUseMouse(ctx context.Context, options Comput
 	return nil
 }
 
-func (n *NodeSandboxClient) ComputerUseKeyboard(ctx context.Context, options ComputerUseKeyboardOptions) error {
+func (n *AllocationClient) ComputerUseKeyboard(ctx context.Context, options ComputerUseKeyboardOptions) error {
 	if err := n.validate(); err != nil {
 		return err
 	}

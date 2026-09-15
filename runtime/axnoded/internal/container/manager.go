@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -11,12 +12,15 @@ import (
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	"github.com/cofy-x/axern/runtime/axnoded/pkg/truncindex"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	cmap "github.com/orcaman/concurrent-map/v2"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 )
+
+type lifecycleRuntime interface {
+	ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error)
+	Wait(context.Context, contract.HandlerOptions) (contract.Exit, error)
+}
 
 type Manager struct {
 	// sandbox container root
@@ -24,7 +28,7 @@ type Manager struct {
 	recyclePath string
 
 	containers     cmap.ConcurrentMap[string, *Container]
-	serviceHandler cmap.ConcurrentMap[string, contract.RuntimeHandler]
+	runtimeHandler lifecycleRuntime
 	// resourceManagers is a map of resource manager, key is resource type
 	resourceManagers cmap.ConcurrentMap[string, resourcemanager.Manager]
 
@@ -33,10 +37,7 @@ type Manager struct {
 	workerMu  sync.Mutex
 	workers   sync.WaitGroup
 	// handle container event asynchronously, largest 200 events
-	syncEventChan chan Event
-	// check id is valid
-	idGenerator truncindex.UniqueIdGenerator
-
+	syncEventChan    chan Event
 	stopChan         chan struct{}
 	stopOnce         sync.Once
 	loopDone         chan struct{}
@@ -52,7 +53,10 @@ type Manager struct {
 	stopped               atomic.Bool
 }
 
-func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.RuntimeHandler], healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
+func NewManager(root string, handler lifecycleRuntime, healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
+	if handler == nil {
+		return nil, fmt.Errorf("runsc handler is required")
+	}
 	if err := Os().MkdirAll(filepath.Join(root, config.RecycleBin), 0755); err != nil {
 		return nil, err
 	}
@@ -61,10 +65,9 @@ func NewManager(root string, handlers cmap.ConcurrentMap[string, contract.Runtim
 		root:             filepath.Join(root, "containers"),
 		recyclePath:      filepath.Join(root, config.RecycleBin),
 		containers:       cmap.New[*Container](),
-		serviceHandler:   handlers,
+		runtimeHandler:   handler,
 		monitors:         cmap.New[*containerMonitor](),
 		resourceManagers: cmap.New[resourcemanager.Manager](),
-		idGenerator:      truncindex.NewTruncGenerator(config.SandboxContainerPrefix, []string{}),
 		syncEventChan:    make(chan Event, 4096),
 		stopChan:         make(chan struct{}),
 		loopDone:         make(chan struct{}),
@@ -103,57 +106,11 @@ func (m *Manager) SetExitClassifier(classifier func(Event) (commonv1.WorkloadDia
 	m.exitClassifier = classifier
 }
 
-func (m *Manager) Handlers() []contract.RuntimeHandler {
-	handlers := make([]contract.RuntimeHandler, 0, m.serviceHandler.Count())
-	for item := range m.serviceHandler.IterBuffered() {
-		handlers = append(handlers, item.Val)
-	}
-	return handlers
-}
-
 func (m *Manager) Get(id string) (*Container, error) {
 	if c, ok := m.containers.Get(id); ok {
 		return c, nil
 	}
 	return nil, errord.ErrNotFound
-}
-
-func (m *Manager) SetResources(id string, resources *runtimeapi.LinuxContainerResources, spec *commonv1.ResourceSpec) error {
-	c, ok := m.containers.Get(id)
-	if !ok || c == nil || c.Status == nil {
-		return errord.ErrNotFound
-	}
-	return c.Status.UpdateSync(func(status Status) (Status, error) {
-		copy := deepCopyOf(Status{LinuxResources: resources, ResourceSpec: spec})
-		status.LinuxResources = copy.LinuxResources
-		status.ResourceSpec = copy.ResourceSpec
-		return status, nil
-	})
-}
-
-func (m *Manager) UpdateLabels(id string, labels map[string]string) error {
-	c, ok := m.containers.Get(id)
-	if !ok {
-		return errord.ErrNotFound
-	}
-	if len(labels) == 0 {
-		return nil
-	}
-	metadata := proto.Clone(c.Metadata).(*runtimeapi.ContainerMetadata)
-	needUpdate := false
-	for k, v := range labels {
-		if metadata.Labels == nil {
-			metadata.Labels = make(map[string]string)
-		}
-		if metadata.Labels[k] != v {
-			metadata.Labels[k] = v
-			needUpdate = true
-		}
-	}
-	if !needUpdate {
-		return nil
-	}
-	return m.StoreMetadata(id, metadata)
 }
 
 func (m *Manager) List(option ...ListOption) []*Container {
@@ -187,31 +144,7 @@ func ListFilterById(id string) ListOption {
 			logrus.Errorf("ListFilterByID: Got invalid container %+v", c)
 			return false
 		}
-		return c.Metadata.ID == id
-	}
-}
-
-func ListFilterByLabels(labels map[string]string) ListOption {
-	return func(c *Container) bool {
-		if c == nil || c.Metadata == nil {
-			logrus.Errorf("ListFilterByLabels: Got invalid container %+v", c)
-			return false
-		}
-
-		if len(labels) == 0 {
-			return true
-		}
-
-		if c.Metadata.Labels == nil {
-			return false
-		}
-
-		for k, v := range labels {
-			if c.Metadata.Labels[k] != v && v != "" {
-				return false
-			}
-		}
-		return true
+		return c.ID == id
 	}
 }
 

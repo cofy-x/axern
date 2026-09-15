@@ -1,75 +1,23 @@
-# gatewayd Agent Contract
+# Gateway Agent Contract
 
 ## Purpose
 
-`gatewayd` is Axern's external control and data-plane gateway. It does not own
-placement, lifecycle, or durable state. It proxies public control APIs to
-`controld`, resolves service routes and terminal leases through `controld`, then
-forwards data-plane traffic to `axnoded` nodes.
+`gateway/gatewayd` is Axern's external control and Allocation-bound data-plane gateway. Read the [Gateway README](README.md) for endpoints, configuration, and package routing.
 
-## Layout
+## Ownership Boundaries
 
-- `main.go`: process bootstrap only.
-- `internal/app`: composition root, dependency construction, and lifecycle.
-- `internal/api/http`: HTTP adapter, service proxy, browser terminal, dashboard,
-  access logging, and URL path parsing.
-- `internal/api/control`: mTLS public control edge and raw gRPC proxy.
-- `internal/api/tunnel`: public tunnel relay edge that forwards client peers to
-  session-bound internal `tunneld` targets.
-- `internal/api/ssh`: optional SSH-compatible terminal adapter.
-- `internal/application/service`: service route resolve cache and endpoint
-  rotation.
-- `internal/application/terminal`: allocation terminal resolve/open use case.
-- `internal/application/artifact`: ticket-backed artifact stream orchestration,
-  range validation, limits, and backpressure.
-- `internal/api/artifact`: public `ArtifactData` streaming adapter.
-- `internal/adapters/artifact`: private controld ticket resolver and presigned
-  object-store reader; it never owns object-store credentials.
-- `internal/kernel`: narrow capability contracts shared across layers.
-- `internal/adapters`: concrete `controld` and `axnoded` gRPC clients.
-- `internal/config`, `internal/auth`, `internal/observability`: small support
-  packages.
+- `controld` owns placement, lifecycle, execution authority, and durable allocation access grants. Gatewayd proxies public control APIs and resolves explicit Allocation targets before forwarding process, file, archive, terminal, SSH, or Tunnel traffic.
+- Preserve `api -> application -> kernel <- adapters`; `internal/app` is the only composition root.
+- Keep protocol and transport concerns in `internal/api`, use-case orchestration in `internal/application`, narrow contracts in `internal/kernel`, and external gRPC clients in `internal/adapters`.
+- Do not place behavioral decisions in app wiring or hide route, access-grant, cache, or retry ownership in generic utilities.
+- Use the dedicated gateway mTLS identity for control-plane calls; never reuse an external client identity internally.
+- Use that same dedicated `gatewayd` workload certificate for the node data plane. Axnoded authorizes it only for `NodeSandbox`; gatewayd must never acquire `NodeLifecycle` or node-operator authority.
+- Every data-plane path must honor exact Allocation identity and allocation-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
+- SSH public keys and Terminal client certificates are Principal Credentials, authorized by controld for the target Allocation namespace. Keep Terminal on the client-mTLS control listener and HTTP health separate. Never restore gateway-wide bearer tokens or authorized-key files. Access loss closes the stream without changing Allocation execution authority.
 
-## Rules
+- Verify the resolved exact Node URI on outbound connections and include Node ID in connection-cache keys. Never use CN or a shared Node DNS alias for authorization.
 
-- Preserve the dependency direction: `api -> application -> kernel <- adapters`;
-  `internal/app` is the only composition root.
-- Do not make application or kernel packages depend on API packages, app wiring,
-  or concrete adapters.
-- Keep protocol details in `internal/api`; keep use-case orchestration in
-  `internal/application`; keep external gRPC clients in `internal/adapters`.
-- Do not add compatibility layers, transitional aliases, `New...With...`
-  constructor variants, or catch-all helper packages/files.
-- If `internal/app` starts making behavioral decisions beyond construction and
-  lifecycle, move that behavior into an application package.
-- Keep route/lease caching and retry behavior with the owner of the behavior;
-  do not hide it in generic utility packages.
-- Artifact bytes flow through gatewayd. Never expose a presigned/internal URL,
-  ticket, query, or Authorization value in responses, logs, metrics, or traces.
-  Keep artifact IDs out of metric labels and close every upstream body on all
-  client cancellation, short-read, and rejection paths.
-- Use the dedicated `gatewayd` mTLS identity for internal controld calls. The
-  private artifact resolver rejects the generic client and worker identities;
-  do not weaken that boundary or reuse `client.crt` for gatewayd.
+## Validation
 
-## Verification
-
-From `gateway/gatewayd`:
-
-```bash
-go test ./...
-go vet ./...
-```
-
-From the repo root:
-
-```bash
-make gatewayd-check-architecture
-```
-
-For integration-sensitive changes, also run the relevant smoke:
-
-```bash
-make local-compose-gateway-smoke
-make local-compose-tunnel-e2e
-```
+- Run `go test ./...` and `go vet ./...` from `gateway/gatewayd`, then `make gatewayd-check-architecture` from the repository root.
+- Run the relevant local Compose or SDK smoke selected by `make verify-changed` for integration-sensitive routing, process, file, archive, terminal, SSH, or Tunnel changes.

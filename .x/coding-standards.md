@@ -13,12 +13,9 @@ Rules and conventions for Axern contributors and agents.
 ## Design Judgment
 
 - Prefer simple data flow and explicit ownership over premature abstraction.
-- Add abstractions only when they clarify a real domain boundary, remove
-  meaningful duplication, or reduce maintenance risk.
-- Follow existing subsystem patterns before introducing a new style or helper
-  layer.
-- Keep compatibility layers out of new designs unless an external contract
-  requires them.
+- Add abstractions only when they clarify a real domain boundary, remove meaningful duplication, or reduce maintenance risk.
+- Follow existing subsystem patterns before introducing a new style or helper layer.
+- Keep compatibility layers out of new designs unless an external contract requires them.
 
 ## Go Interface Rules
 
@@ -31,7 +28,7 @@ Rules and conventions for Axern contributors and agents.
 ## Placement By Language
 
 | Language | Canonical location | Notes |
-| :--- | :--- | :--- |
+| :-- | :-- | :-- |
 | Go | active `go.work` members | Put product CLI code in `apps/cli`, Go SDK code in `sdk/go`, internal shared libraries in `lib/go`, and platform services in their owning `control/`, `gateway/`, `runtime/`, or `network/` subtree. |
 | Rust | `runtime/imagefsd` | Add new Rust workspace members only with a concrete platform owner and root docs updates. |
 | TypeScript | `sdk/typescript` | Use ESM only. |
@@ -40,23 +37,25 @@ Rules and conventions for Axern contributors and agents.
 ## Validation Baseline
 
 - Prefer root `make` targets when they exist for the scope of the change.
-- Use `make verify-changed-plan` and `make verify-changed` as the normal
-  repository handoff gate. The planner must remain host-safe and fail safe to
-  `make verify-fast-all` for unknown or root-orchestration changes.
+- Use `make verify-changed-plan` and `make verify-changed` as the normal repository handoff gate. The planner must remain host-safe and fail safe to `make verify-fast-all` for unknown or root-orchestration changes.
 - Changes to repository Markdown should run `make agent-doc-check`.
-- Cross-workspace or root-orchestration changes use `make verify-fast-all`;
-  add `make build` only when build wiring or produced binaries changed.
+- Cross-workspace or root-orchestration changes use `make verify-fast-all`; add `make build` only when build wiring or produced binaries changed.
 - Go changes should run the relevant package tests, subsystem validation, or the root `make test` for the affected `go.work` member.
 - Rust changes should run `cargo fmt --all --check` and `cargo test --workspace -- --test-threads=1`.
 - TypeScript changes under `sdk/typescript` should run `make sdk-typescript-verify`.
 - Python changes under `sdk/python` should run `make test-py` and `make lint-py`; run `uv build sdk/python` when package metadata or distribution behavior changes.
 - Shared protobuf contract changes should run `make protos`, `make proto-generated-check`, and `make -C sdk/proto lint`. Run generation and generated-output checks before Go compilation, never in parallel with it, because the generator replaces `sdk/go/gen` atomically at the workflow level rather than file by file.
-- Linux, Compose, kind, full-repository, and regional qualification tiers are
-  required only when selected by the owning contract and delivery stage. A
-  smaller smoke never substitutes for a release qualification receipt.
+- Linux, Compose, kind, full-repository, and regional qualification tiers are required only when selected by the owning contract and delivery stage. A smaller smoke never substitutes for a release qualification receipt.
+
+## Markdown Formatting
+
+- Keep each natural-language paragraph on one source line in both English and Chinese Markdown. Let editors and renderers soft-wrap it for display; do not insert line breaks merely to fit a terminal column width.
+- Apply the same rule to prose inside list items and block quotes. Use a blank line for a real paragraph or semantic boundary; a single newline inside prose must not stand in for punctuation or paragraph structure.
+- Preserve deliberate line breaks only when source line boundaries carry meaning, including nested lists, tables, code fences, command examples, frontmatter, diagrams, explicit Markdown or HTML breaks, and long URLs that cannot remain readable otherwise.
+- Run `make agent-doc-check` after changing repository Markdown; it checks both English and localized prose across `.md` and `.mdx` files.
 
 ## Repository Hygiene
 
-- Do not reintroduce removed template apps or dashboard code without an explicit product requirement.
-- Keep all code and documentation in English.
+- Add a top-level product app or dashboard only when it has an explicit product owner and requirement.
+- Keep code, comments, engineering documentation, and normative repository contracts in English. Localized public documentation may use its target language; the same Markdown formatting rules apply.
 - Follow the sync rules in the [Agent Contract](../AGENTS.md) when workspace, root orchestration, or top-level platform areas change.

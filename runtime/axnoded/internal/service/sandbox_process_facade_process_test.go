@@ -53,11 +53,10 @@ func TestProcessForwardsStdinSignalAndExit(t *testing.T) {
 		recvEOFWait: inputDone,
 	}
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
-		execSession:  session,
+		name:        "runsc",
+		execSession: session,
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-process")
 
 	stream := &processStreamServerStub{recvEOF: func() { close(inputDone) }, requests: []*runtime.ProcessRequest{
@@ -91,11 +90,10 @@ func TestProcessSendsOutputBeforeExit(t *testing.T) {
 		exit: contract.Exit{Timestamp: time.Now(), Status: 7},
 	}
 	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		capabilities: contract.RuntimeCapabilities{CanExecDirect: true},
-		execSession:  session,
+		name:        "runsc",
+		execSession: session,
 	}
-	s := newTestService(t, map[string]contract.RuntimeHandler{"runsc": handler})
+	s := newTestService(t, handler)
 	storeRunningExecContainer(t, s, "runsc", "axctl-process-order")
 
 	stream := &processStreamServerStub{requests: []*runtime.ProcessRequest{

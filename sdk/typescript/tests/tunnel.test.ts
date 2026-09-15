@@ -15,7 +15,7 @@ test("tunnel runtime starts connector, waits for client event, renews, and revok
   const calls: string[] = [];
   const control = {
     async createSession(options: Record<string, unknown>) {
-      calls.push(`create:${String(options.allocationId)}:${String(options.upstream)}:${String(options.proxyPort)}`);
+      calls.push(`create:${String(options.allocationId)}:${String(options.proxyPort)}`);
       return {
         session: {
           session_id: "tun-1",
@@ -74,7 +74,7 @@ test("tunnel runtime starts connector, waits for client event, renews, and revok
 
   await runtime.stop();
   assert.deepEqual(calls.slice(0, 5), [
-    "create:alloc-1:127.0.0.1:8080:8786",
+    "create:alloc-1:8786",
     "connector:tun-1:client-token:127.0.0.1:8080",
     "connector-start",
     "events:tun-1",

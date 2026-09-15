@@ -18,45 +18,31 @@ const (
 )
 
 type verifySmokeConfig struct {
-	address        string
-	rootfsSrc      string
-	rootfs         string
-	s3Endpoint     string
-	s3Bucket       string
-	s3Object       string
-	s3AccessKeyID  string
-	s3AccessSecret string
-	imageURL       string
-	runtimeName    string
-	runtimeID      string
-	stdoutPath     string
-	stderrPath     string
-	command        string
-	argvJSON       string
-	commandShell   string
-	expectStdout   string
-	expectStderr   string
-	expectedExit   int
+	address       string
+	rootfsSrc     string
+	rootfs        string
+	imageURL      string
+	environmentID string
+	stdoutPath    string
+	stderrPath    string
+	command       string
+	argvJSON      string
+	expectStdout  string
+	expectStderr  string
+	expectedExit  int
 }
 
 func parseFlags() verifySmokeConfig {
 	cfg := verifySmokeConfig{}
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
-	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local, s3, or image")
+	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
-	flag.StringVar(&cfg.s3Endpoint, "s3-endpoint", "", "S3/OSS endpoint for rootfs-src=s3")
-	flag.StringVar(&cfg.s3Bucket, "s3-bucket", "", "S3/OSS bucket for rootfs-src=s3")
-	flag.StringVar(&cfg.s3Object, "s3-object", "", "S3/OSS object for rootfs-src=s3")
-	flag.StringVar(&cfg.s3AccessKeyID, "s3-access-key-id", "", "S3/OSS access key id for rootfs-src=s3")
-	flag.StringVar(&cfg.s3AccessSecret, "s3-access-key-secret", "", "S3/OSS access key secret for rootfs-src=s3")
 	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
-	flag.StringVar(&cfg.runtimeName, "runtime", config.RuntimeNameRunsc, "sandbox runtime name under test")
-	flag.StringVar(&cfg.runtimeID, "runtime-id", "verify-runtime", "function runtime id")
+	flag.StringVar(&cfg.environmentID, "environment-id", "verify-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-verify.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-verify.stderr", "container stderr path")
-	flag.StringVar(&cfg.command, "command", "", "shell snippet executed as /bin/sh -c ...")
-	flag.StringVar(&cfg.argvJSON, "argv-json", "", "full JSON array argv, overrides -command and -command-shell when set")
-	flag.StringVar(&cfg.commandShell, "command-shell", "echo generic-axnoded-ok; echo generic-axnoded-err 1>&2; sleep 1", "legacy alias for -command")
+	flag.StringVar(&cfg.command, "command", "echo generic-axnoded-ok; echo generic-axnoded-err 1>&2; sleep 1", "shell snippet executed as /bin/sh -c ...")
+	flag.StringVar(&cfg.argvJSON, "argv-json", "", "full JSON array argv, overrides -command when set")
 	flag.StringVar(&cfg.expectStdout, "expect-stdout", "generic-axnoded-ok", "stdout substring expected after the container exits")
 	flag.StringVar(&cfg.expectStderr, "expect-stderr", "generic-axnoded-err", "stderr substring expected after the container exits")
 	flag.IntVar(&cfg.expectedExit, "expected-exit", 0, "expected container exit code")
@@ -65,29 +51,28 @@ func parseFlags() verifySmokeConfig {
 }
 
 func buildExecutionConfig(cfg verifySmokeConfig) (*privatenodev1.ResolvedExecutionConfig, error) {
-	commandToRun, err := resolveCommand(cfg.argvJSON, cfg.command, cfg.commandShell)
+	commandToRun, err := resolveCommand(cfg.argvJSON, cfg.command)
 	if err != nil {
 		return nil, err
 	}
-	rootfsSpec, err := buildRootfsSpec(cfg.rootfsSrc, cfg.rootfs, cfg.imageURL, cfg.s3Endpoint, cfg.s3Bucket, cfg.s3Object, cfg.s3AccessKeyID, cfg.s3AccessSecret)
+	rootfsSpec, err := buildRootfsSpec(cfg.rootfsSrc, cfg.rootfs, cfg.imageURL)
 	if err != nil {
 		return nil, err
 	}
 	spec := &privatenodev1.ResolvedExecutionConfig{
-		RuntimeClass: cfg.runtimeName,
-		Argv:         commandToRun,
-		Cwd:          "/",
-		StdoutPath:   cfg.stdoutPath,
-		StderrPath:   cfg.stderrPath,
+		Argv:       commandToRun,
+		Cwd:        "/",
+		StdoutPath: cfg.stdoutPath,
+		StderrPath: cfg.stderrPath,
 	}
 	rootfsSpec.Apply(spec)
 	return spec, nil
 }
 
-func resolveCommand(argvJSON, shellSnippet, legacyShellSnippet string) ([]string, error) {
-	return verifyutil.ResolveArgv(argvJSON, shellSnippet, legacyShellSnippet)
+func resolveCommand(argvJSON, shellSnippet string) ([]string, error) {
+	return verifyutil.ResolveArgv(argvJSON, shellSnippet, "")
 }
 
-func buildRootfsSpec(src, localPath, imageURL, endpoint, bucket, object, accessKeyID, accessKeySecret string) (*verifyutil.RootfsSpec, error) {
-	return verifyutil.BuildRootfsSpec(src, localPath, imageURL, endpoint, bucket, object, accessKeyID, accessKeySecret)
+func buildRootfsSpec(src, localPath, imageURL string) (*verifyutil.RootfsSpec, error) {
+	return verifyutil.BuildRootfsSpec(src, localPath, imageURL)
 }

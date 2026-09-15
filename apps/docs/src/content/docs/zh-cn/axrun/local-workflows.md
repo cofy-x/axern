@@ -15,7 +15,7 @@ axrun task build --file tasks/demo/taskset.yaml --output .axrun/tasksets/demo
 axrun task inspect .axrun/tasksets/demo
 ```
 
-`task init` 为起始任务写入显式的 `250m` CPU 和 `512Mi` 内存 request。请按实际 Agent 工作负载调整这些单 Episode 的 request，而不是依赖控制面回退值。在 Axern 暴露可强制执行的临时磁盘契约之前，`resources.disk` 会被拒绝。
+`task init` 为起始任务写入显式的 `250m` CPU 和 `512Mi` 内存 request。请按实际 Agent 工作负载调整这些单 Episode 的 request，而不是依赖控制面默认值。一次性 Allocation 本地存储使用 `request_ephemeral_storage` 与 `limit_ephemeral_storage`；它不是持久 Workspace 或 Volume。
 
 本地 Bundle 支持编译器开发。托管 Rollout 要求通过 Kova 发布的不可变 `repository@sha256:...` 引用：
 

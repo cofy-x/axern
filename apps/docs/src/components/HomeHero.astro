@@ -137,8 +137,8 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     </h1>
     <p class="ax-lede">
       {zh
-        ? '用 runsc 隔离不可信的智能体生成代码，用 runc 运行可信的长期服务——共享一套资源与生命周期模型。'
-        : 'Isolate untrusted agent-generated code with runsc. Run trusted long-lived services with runc. One resource and lifecycle model.'}
+        ? '用 runsc 隔离智能体生成代码——单一生产运行时，统一的资源与生命周期模型。'
+        : 'Isolate agent-generated code with runsc. One production runtime, one resource and lifecycle model.'}
     </p>
     <div class="ax-actions">
       <a class="ax-button ax-button--primary" href={`${base}/getting-started/`}>
@@ -151,7 +151,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <div class="ax-signals not-content" aria-label={zh ? '项目信息' : 'Project signals'}>
       <div class="ax-signal"><span>LICENSE</span><strong>Apache-2.0</strong></div>
       <div class="ax-signal"><span>HOSTING</span><strong>{zh ? '可自托管' : 'Self-hosted'}</strong></div>
-      <div class="ax-signal"><span>RUNTIME</span><strong>runc + runsc</strong></div>
+      <div class="ax-signal"><span>RUNTIME</span><strong>runsc</strong></div>
       <div class="ax-signal"><span>SDK</span><strong>Python · Go · TypeScript</strong></div>
     </div>
   </div>
@@ -170,10 +170,10 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         type="button"
         aria-pressed="false"
         aria-controls="axern-runtime-scene"
-        data-scene-mode="SERVICE"
+        data-scene-mode="BATCH"
       >
-        <span>{zh ? '长期服务' : 'Durable Service'}</span>
-        <strong>runc</strong>
+        <span>{zh ? '批量评测' : 'Evaluation Batch'}</span>
+        <strong>runsc</strong>
       </button>
     </div>
     <SandboxScene />
@@ -229,7 +229,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
   <div class="ax-section__heading">
     <p class="ax-eyebrow">{zh ? '从这里开始' : 'START HERE'}</p>
     <h2 id="ax-paths-heading">{zh ? '按你的目标进入文档' : 'Find your path through the docs'}</h2>
-    <p>{zh ? '一个平台覆盖一次性执行、常驻服务与可复现评测——从符合你目标的路径开始。' : 'One platform for one-shot execution, durable services, and reproducible evaluation—start from the path that matches your goal.'}</p>
+    <p>{zh ? '一个平台覆盖隔离执行、并发数据合成与可复现评测——从符合你目标的路径开始。' : 'One platform for isolated execution, concurrent data synthesis, and reproducible evaluation—start from the path that matches your goal.'}</p>
   </div>
   <div class="ax-workload-grid ax-workload-grid--paths not-content">
     <article>
@@ -290,7 +290,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <span class="ax-maturity__badge">PRE-1.0</span>
     <strong>{zh ? '当前适合评估与贡献' : 'Ready for evaluation and contribution'}</strong>
   </div>
-  <p>{zh ? '用于不可信多租户工作负载前，请评估认证、TLS、运行时隔离、镜像信任、网络策略、配额和持久化存储。' : 'Before running untrusted multi-tenant workloads, evaluate authentication, TLS, runtime isolation, image trust, network policy, quotas, and persistent storage.'}</p>
+  <p>{zh ? '用于不可信多租户工作负载前，请评估认证、TLS、运行时隔离、镜像信任、网络策略、配额和产物保留策略。' : 'Before running untrusted multi-tenant workloads, evaluate authentication, TLS, runtime isolation, image trust, network policy, quotas, and artifact retention.'}</p>
 </aside>
 
 <script>

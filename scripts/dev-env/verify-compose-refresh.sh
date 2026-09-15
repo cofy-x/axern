@@ -62,8 +62,6 @@ log "running compose smoke suite"
 run_with_retry 2 make local-compose-smoke
 run_with_retry 2 make local-compose-doctor-smoke
 run_with_retry 2 make local-compose-dns-doctor-smoke
-run_with_retry 2 make local-compose-gateway-smoke
-run_with_retry 2 make local-compose-service-volume-smoke
 run_with_retry 2 make local-compose-run-smoke
 run_with_retry 2 make local-compose-server-base-smoke
 run_with_retry 2 make local-compose-quota-smoke
@@ -76,15 +74,6 @@ run_cmd bash -lc 'source scripts/dev-env/lib.sh; local_smoke_assert_compose_admi
 log "checking compose admin reliability"
 run_cmd bash -lc 'source scripts/dev-env/lib.sh; local_smoke_report_reliability compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"'
 
-if [ "${COMPOSE_REFRESH_TUNNEL_E2E:-0}" = "1" ] || [ "${COMPOSE_REFRESH_TUNNEL_E2E:-0}" = "true" ]; then
-  run_with_retry 2 make local-compose-tunnel-e2e
-fi
-if [ "${COMPOSE_REFRESH_TUNNEL_BENCHMARK:-0}" = "1" ] || [ "${COMPOSE_REFRESH_TUNNEL_BENCHMARK:-0}" = "true" ]; then
-  run_with_retry 2 make tunnel-benchmark-compose
-fi
-if [ "${COMPOSE_REFRESH_IMAGE_SERVICE_SMOKE:-0}" = "1" ] || [ "${COMPOSE_REFRESH_IMAGE_SERVICE_SMOKE:-0}" = "true" ]; then
-  run_with_retry 2 make local-compose-image-service-smoke
-fi
 if [ "${LOCAL_COMPOSE_REGISTRY_IMAGE_SMOKE:-0}" = "1" ] || [ "${LOCAL_COMPOSE_REGISTRY_IMAGE_SMOKE:-0}" = "true" ]; then
   run_with_retry 2 make local-compose-registry-image-smoke
 fi

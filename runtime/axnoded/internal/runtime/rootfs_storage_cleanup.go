@@ -20,28 +20,28 @@ func rootfsViewCleanupContext() (context.Context, context.CancelFunc) {
 func cleanupOwnedRootfsStorage(
 	containerID string,
 	removeView func(context.Context, string) error,
-	releaseReservation func(string) error,
+	releaseCharge func(string) error,
 ) error {
 	cleanupCtx, cancel := rootfsViewCleanupContext()
 	defer cancel()
-	return cleanupOwnedRootfsStorageWithInterval(cleanupCtx, containerID, removeView, releaseReservation, rootfsViewCleanupRetryInterval)
+	return cleanupOwnedRootfsStorageWithInterval(cleanupCtx, containerID, removeView, releaseCharge, rootfsViewCleanupRetryInterval)
 }
 
 func cleanupOwnedRootfsStorageWithInterval(
 	ctx context.Context,
 	containerID string,
 	removeView func(context.Context, string) error,
-	releaseReservation func(string) error,
+	releaseCharge func(string) error,
 	retryInterval time.Duration,
 ) error {
 	for {
 		err := removeView(ctx, containerID)
 		if err == nil {
-			return releaseReservation(containerID)
+			return releaseCharge(containerID)
 		}
 		if !errors.Is(err, syscall.EBUSY) {
 			// The upper may still be mounted or referenced by a live runtime. Keep
-			// its reservation until reconciliation can prove it is safe to release.
+			// its charge until reconciliation can prove it is safe to release.
 			return err
 		}
 

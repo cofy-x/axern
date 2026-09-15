@@ -10,6 +10,47 @@ GENERATED_PATHS=(
 
 cd "${ROOT_DIR}"
 
+if rg -n 'PortSpec|PortProtocol|PORT_FORWARDING|repeated PortSpec|^[[:space:]]*reserved[[:space:]]' \
+	sdk/proto/axern/control/common/v1/common.proto \
+	sdk/proto/axern/control/capability/v1/capability.proto \
+	sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto \
+	runtime/axnoded/internal/apipb/v1/lifecycle.proto; then
+	echo "execution contracts must not reintroduce host-port publication or transition-only field reservations" >&2
+	exit 1
+fi
+
+if rg -n 'execution_lease_token' sdk/proto/axern/node/sandbox/v1/node.proto; then
+	echo "public NodeSandbox protobuf messages must not expose internal execution lease credentials" >&2
+	exit 1
+fi
+
+if awk '/message EnvironmentImageSource/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/environment/v1/environment.proto | rg -n 'digest'; then
+	echo "Environment image source must not duplicate the resolved OCI digest" >&2
+	exit 1
+fi
+
+if awk '/message Environment \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/environment/v1/environment.proto | rg -n 'deleted_at'; then
+	echo "Environment must use physical deletion rather than a public tombstone" >&2
+	exit 1
+fi
+
+if awk '/message ListFilter \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/environment/v1/environment.proto | rg -n 'include_deleted'; then
+	echo "Environment list must not expose the removed tombstone filter" >&2
+	exit 1
+fi
+
+run_message="$(awk '/message Run \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/run/v1/run.proto)"
+if ! rg -q 'EnvironmentSpec environment_spec' <<<"${run_message}" ||
+	! rg -q 'ResolvedEnvironmentSpec resolved_environment_spec' <<<"${run_message}"; then
+	echo "Run must carry both immutable Environment admission snapshots" >&2
+	exit 1
+fi
+
+if awk '/message NamespaceQuotaEvent \{/{inside=1} inside{print} inside && /^}/{exit}' sdk/proto/axern/control/quota/v1/quota.proto | rg -n 'run_id'; then
+	echo "rejected quota admission must not manufacture an identity for a Run that was never created" >&2
+	exit 1
+fi
+
 before="$(mktemp)"
 after="$(mktemp)"
 trap 'rm -f "${before}" "${after}"' EXIT

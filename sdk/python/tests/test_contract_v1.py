@@ -104,9 +104,8 @@ class ContractV1Test(unittest.TestCase):
         client_methods = {
             "environment_create": "create_environment",
             "environment_delete": "delete_environment",
-            "service_create": "create_service",
-            "service_delete": "delete_service",
-            "service_replicas": "list_service_replicas",
+            "run_create": "create_run",
+            "run_cancel": "cancel_run",
         }
         sandbox_methods = {
             "lifecycle_start": "start",

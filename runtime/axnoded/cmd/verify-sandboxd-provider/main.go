@@ -6,11 +6,10 @@ import (
 )
 
 type config struct {
-	mode            string
-	socketPath      string
-	mousePath       string
-	keyboardPath    string
-	browserOpenPath string
+	mode         string
+	socketPath   string
+	mousePath    string
+	keyboardPath string
 }
 
 type httpResult struct {
@@ -25,7 +24,7 @@ func main() {
 	case "baseline":
 		checkBaseline(client)
 	case "optional":
-		checkOptional(client, cfg.mousePath, cfg.keyboardPath, cfg.browserOpenPath)
+		checkOptional(client, cfg.mousePath, cfg.keyboardPath)
 	default:
 		fail("unsupported mode %q", cfg.mode)
 	}
@@ -37,7 +36,6 @@ func parseFlags() config {
 	flag.StringVar(&cfg.socketPath, "socket", "", "sandboxd Unix socket path")
 	flag.StringVar(&cfg.mousePath, "mouse-file", "", "expected computer-use mouse command output path")
 	flag.StringVar(&cfg.keyboardPath, "keyboard-file", "", "expected computer-use keyboard command output path")
-	flag.StringVar(&cfg.browserOpenPath, "browser-open-file", "", "expected browser open command output path")
 	flag.Parse()
 	if cfg.mode == "" {
 		fail("--mode is required")

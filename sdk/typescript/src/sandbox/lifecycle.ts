@@ -29,34 +29,31 @@ export function sandboxMetadata(options: SandboxOptions, state: SandboxState): S
   return {
     ...state,
     namespace: options.namespace ?? "default",
-    runtimeClass: options.runtimeClass ?? "",
     labels: sandboxLabels(options.labels),
     source: sandboxSource(options),
   };
 }
 
-export async function waitReadyReplica(
-  serviceId: string,
+export async function waitRunningRun(
+  runId: string,
   timeoutMs: number,
-  listReplicas: (serviceId: string) => Promise<Record<string, unknown>[]>,
+  watchRun: (runId: string) => AsyncIterable<Record<string, unknown>>,
 ): Promise<Record<string, unknown>> {
   const deadline = Date.now() + timeoutMs;
-  let lastReplicas: Record<string, unknown>[] = [];
-  while (Date.now() < deadline) {
-    lastReplicas = await listReplicas(serviceId);
-    const candidate = lastReplicas.find((replica) =>
-      replica.ready === true &&
-      replica.ended !== true &&
-      replica.outdated !== true &&
-      Number(replica.status ?? 0) === 4
-    );
-    if (candidate !== undefined) {
-      return candidate;
+  let lastRun: Record<string, unknown> | undefined;
+  for await (const run of watchRun(runId)) {
+    lastRun = run;
+    const status = Number(run.status ?? 0);
+    if (status === 4 && String(run.allocation_id ?? "") !== "") {
+      return run;
     }
-    await sleep(2_000);
+    if (status === 5 || status === 6 || status === 7) {
+      throw new Error(`run ${runId} became ${String(run.status ?? "")} before its sandbox allocation was running: ${String(run.message ?? "")}`);
+    }
+    if (Date.now() >= deadline) break;
   }
-  const details = lastReplicas.map((replica) => `${String(replica.id ?? "")}:${String(replica.status ?? "")}`).join(", ");
-  throw new SandboxTimeoutError(`service ${serviceId} did not produce a ready sandbox replica: ${details}`);
+  const details = lastRun === undefined ? "no state observed" : `${String(lastRun.status ?? "")}: ${String(lastRun.message ?? "")}`;
+  throw new SandboxTimeoutError(`run ${runId} did not reach a running sandbox allocation: ${details}`);
 }
 
 function sandboxSource(options: SandboxOptions): SandboxMetadata["source"] {
@@ -67,8 +64,4 @@ function sandboxSource(options: SandboxOptions): SandboxMetadata["source"] {
     return "image";
   }
   return "environment";
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

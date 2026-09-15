@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package axern.private.control.environment.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1;privateenvironmentv1";
+
+import "axern/control/environment/v1/environment.proto";
+
+message EnvironmentTemplate {
+  string id = 1;
+  string version = 2;
+  axern.control.environment.v1.ResolvedEnvironmentSpec resolved_spec = 3;
+}

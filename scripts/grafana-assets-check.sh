@@ -100,8 +100,6 @@ if ! jq -e '
 fi
 
 for metric in \
-  axern_controld_service_ready_duration_seconds_count \
-  axern_controld_service_replica_ready_duration_seconds_count \
   axern_axnoded_allocation_start_duration_seconds_count \
   axern_imagemgr_timed_operation_duration_seconds_count
 do
@@ -134,7 +132,7 @@ if ! jq -e '
   .panels[] | select(.id == 15) |
   .title == "Node BPFNet State" and
   .type == "table" and
-  (.targets | length) == 5 and
+  (.targets | length) == 2 and
   all(.targets[]; .instant == true and .format == "table")
 ' "${node_dashboard}" >/dev/null; then
   echo "Grafana node resources dashboard has an invalid BPFNet state table" >&2

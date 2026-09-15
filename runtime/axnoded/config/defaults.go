@@ -5,9 +5,10 @@ import "time"
 const (
 	StopTimeout = 10 * time.Second
 
-	DefaultSocketAddress = "/run/axnoded/axnoded.sock"
-	DefaultRootDir       = "/var/lib/axnoded"
-	DefaultTimeout       = time.Second * 10
+	DefaultSocketAddress        = "/run/axnoded/axnoded.sock"
+	DefaultNetworkSocketAddress = "/run/axnoded/network.sock"
+	DefaultRootDir              = "/var/lib/axnoded"
+	DefaultTimeout              = time.Second * 10
 
 	DefaultContainerRootDir = "/var/lib/axnoded/root"
 	DefaultStoreDir         = "/var/lib/axnoded/store"
@@ -15,10 +16,9 @@ const (
 	DefaultLogDir                        = "/var/log/axnoded"
 	DefaultImageLibDir                   = "/var/lib/axnoded/rootfs"
 	DefaultImageManagerSocket            = "/var/run/imagemgr.sock"
-	DefaultVolumeManagerSocket           = "/run/volumed/volumed.sock"
 	DefaultEgressManagerSocket           = "/run/egressd/egressd.sock"
-	DefaultIdleRuntimeRetentionTTL       = "5m"
-	DefaultIdleRuntimeRetentionMax       = 8
+	DefaultIdleEnvironmentRetentionTTL   = "5m"
+	DefaultIdleEnvironmentRetentionMax   = 8
 	DefaultResourcePoolReconcileInterval = "1s"
 	DefaultControlPlaneHeartbeatInterval = "5s"
 	DefaultControlPlaneNodeState         = "ready"
@@ -31,7 +31,7 @@ const (
 	DefaultCgroupRoot = "sandbox"
 	// RuntimeConformanceMemoryLimitBytes is the hard limit exercised inside the
 	// certification sandbox. RuntimeConformanceMemoryMaxBytes is the larger
-	// aggregate certification ceiling and capacity reservation, not a larger
+	// aggregate certification ceiling and capacity charge, not a larger
 	// per-allocation limit. Host lifecycle monitors inherit the internal domain;
 	// runtime processes in the sandbox remain charged to its 256 MiB limit.
 	RuntimeConformanceMemoryLimitBytes int64 = 256 << 20
@@ -39,11 +39,9 @@ const (
 
 	DefaultIPRange = "172.17.0.1/16"
 
-	DefaultRunscBinary         = "/usr/local/bin/runsc"
-	DefaultRuntimeRunnerBinary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
+	DefaultRunscBinary = "/usr/local/bin/runsc"
 
 	DefaultBPFNetPinPath                 = "/sys/fs/bpf/axern/bpfnet"
-	DefaultBPFNetMapSize                 = 16384
 	DefaultBPFNetSNATMapSize             = 262144
 	DefaultBPFNetSNATGCInterval          = "1s"
 	DefaultBPFNetSNATTCPIdleTimeout      = "5m"

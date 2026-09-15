@@ -21,17 +21,14 @@ ensure_kind_cluster
 export KUBECONFIG="$(k8s_kubeconfig_file)"
 
 ensure_host_image "${POSTGRES_IMAGE}"
-ensure_host_image "${MINIO_IMAGE}"
 load_image_to_cluster "${POSTGRES_IMAGE}"
-load_image_to_cluster "${MINIO_IMAGE}"
 
-bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
+AXERN_LOCAL_RUNTIME_NODE="${AXERN_LOCAL_RUNTIME_NODE:-${K8S_CLUSTER_NAME}-worker}" \
+  bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 IMAGE="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${CODING_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
-IMAGE="${CLAUDE_CODE_BUNDLE_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
-IMAGE="${CODEX_BUNDLE_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 
 echo "kind_up_ok=true"
 echo "kubeconfig=$(k8s_kubeconfig_file)"

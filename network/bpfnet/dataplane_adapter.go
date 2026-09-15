@@ -16,21 +16,9 @@ func defaultDataplaneFactory(cfg Config, _ commandRunner) dataplane {
 	}
 }
 
-func (d *dataplaneAdapter) EnsureAttached(uplinks []string, ipRange string, nativeRoutingCIDRs []string, services []Service) (dataplaneAttachment, error) {
-	attachment, err := d.inner.EnsureAttached(uplinks, ipRange, nativeRoutingCIDRs, toInternalServices(services))
-	return dataplaneAttachment{
-		LocalAddresses:       append([]string(nil), attachment.LocalAddresses...),
-		LocalhostTCPDNAT:     attachment.LocalhostTCPDNAT,
-		LocalhostAttachError: attachment.LocalhostAttachError,
-	}, err
-}
-
-func (d *dataplaneAdapter) UpsertService(service Service) error {
-	return d.inner.UpsertService(toInternalService(service))
-}
-
-func (d *dataplaneAdapter) DeleteService(service Service) error {
-	return d.inner.DeleteService(toInternalService(service))
+func (d *dataplaneAdapter) EnsureAttached(uplinks []string, ipRange string, nativeRoutingCIDRs []string) (dataplaneAttachment, error) {
+	_, err := d.inner.EnsureAttached(uplinks, ipRange, nativeRoutingCIDRs)
+	return dataplaneAttachment{}, err
 }
 
 func (d *dataplaneAdapter) CleanupStaleSNATMappings(policy SNATGCPolicy) (SNATGCResult, error) {
@@ -45,29 +33,9 @@ func (d *dataplaneAdapter) CleanupStaleSNATMappings(policy SNATGCPolicy) (SNATGC
 
 func toInternalConfig(cfg Config) internaldataplane.Config {
 	return internaldataplane.Config{
-		PinPath:          cfg.PinPath,
-		MapSize:          cfg.MapSize,
-		SNATMapSize:      cfg.SNATMapSize,
-		LocalOutCompat:   cfg.LocalOutCompat,
-		IptablesFallback: cfg.IptablesFallback,
+		PinPath:     cfg.PinPath,
+		SNATMapSize: cfg.SNATMapSize,
 	}
-}
-
-func toInternalService(service Service) internaldataplane.Service {
-	return internaldataplane.Service{
-		Protocol:   service.Protocol,
-		HostPort:   service.HostPort,
-		TargetIP:   service.TargetIP,
-		TargetPort: service.TargetPort,
-	}
-}
-
-func toInternalServices(services []Service) []internaldataplane.Service {
-	out := make([]internaldataplane.Service, 0, len(services))
-	for _, service := range services {
-		out = append(out, toInternalService(service))
-	}
-	return out
 }
 
 func toInternalSNATGCPolicy(policy SNATGCPolicy) internaldataplane.SNATGCPolicy {

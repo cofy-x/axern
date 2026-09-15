@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"net"
+	"time"
+
+	term "github.com/cofy-x/axern/gateway/gatewayd/internal/application/terminal"
 
 	"github.com/sirupsen/logrus"
 	gossh "golang.org/x/crypto/ssh"
@@ -63,18 +66,20 @@ func (s *Server) acceptLoop(ctx context.Context, ln net.Listener, errCh chan<- e
 
 func (s *Server) handleConn(parent context.Context, raw net.Conn) {
 	defer raw.Close()
+	_ = raw.SetDeadline(time.Now().Add(10 * time.Second))
 	conn, chans, reqs, err := gossh.NewServerConn(raw, s.config)
 	if err != nil {
 		logrus.WithError(err).Debug("ssh handshake failed")
 		return
 	}
 	defer conn.Close()
+	_ = raw.SetDeadline(time.Time{})
 	go gossh.DiscardRequests(reqs)
 
-	connCtx, cancel := context.WithCancel(parent)
+	connCtx, cancel := context.WithCancel(term.WithCredential(parent, conn.Permissions.Extensions["credential_fingerprint"], "ssh_sha256"))
 	defer cancel()
 	go func() {
-		<-parent.Done()
+		<-connCtx.Done()
 		_ = conn.Close()
 	}()
 

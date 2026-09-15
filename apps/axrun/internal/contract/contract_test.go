@@ -107,7 +107,7 @@ func TestValidateAgentRuntimeSpec(t *testing.T) {
 	}
 	problems = ValidateAgentRuntimeSpec(&domain.AgentRuntimeSpec{
 		Type:        domain.AgentRuntimeTypeAgentImage,
-		Image:       "axern/codex-bundle:dev",
+		Image:       "example.com/codex-agent:dev",
 		MountTarget: "/opt/axern",
 		BinDir:      "/opt/axern/bin",
 	})
@@ -117,7 +117,7 @@ func TestValidateAgentRuntimeSpec(t *testing.T) {
 	}
 	problems = ValidateAgentRuntimeSpec(&domain.AgentRuntimeSpec{
 		Type:        domain.AgentRuntimeTypeAgentImage,
-		Image:       "axern/codex-bundle:dev",
+		Image:       "example.com/codex-agent:dev",
 		MountTarget: "/opt/axern/agents/codex",
 		BinDir:      "/opt/axern/agents/codex/bin",
 	})

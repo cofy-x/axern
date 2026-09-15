@@ -7,15 +7,14 @@ import os
 import sys
 import time
 
-from axern_sdk import AxernClient, CatalogClient
+from axern_sdk import AxernClient, Sandbox
 from axern.control.run.v1 import run_pb2
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", required=True, help="controld gRPC address")
-    parser.add_argument("--runtime-id", default="python311", help="catalog runtime id")
-    parser.add_argument("--expected-image-ref", required=True, help="expected catalog image ref")
+    parser.add_argument("--environment-id", default="python311", help="deployment environment template id")
     return parser.parse_args()
 
 
@@ -28,17 +27,9 @@ def main() -> int:
         "tls_server_name": os.getenv("AXERN_TLS_SERVER_NAME") or None,
         "proxy_mode": os.getenv("AXERN_PROXY_MODE", "env"),
     }
-    catalog = CatalogClient(args.endpoint, **tls)
     client = AxernClient(args.endpoint, **tls)
     try:
-        template = catalog.get_runtime_template(args.runtime_id)
-        if template.id != args.runtime_id:
-            raise SystemExit(f"catalog returned unexpected runtime id: {template.id}")
-        image_ref = template.image_descriptor.annotations.get("org.opencontainers.image.ref.name", "")
-        if image_ref != args.expected_image_ref:
-            raise SystemExit(f"catalog returned image ref {image_ref!r}, want {args.expected_image_ref!r}")
-
-        environment = client.create_environment(template_id=args.runtime_id)
+        environment = client.create_environment(template_id=args.environment_id)
         if not environment.id:
             raise SystemExit("create_environment returned empty id")
 
@@ -59,25 +50,25 @@ def main() -> int:
                 raise SystemExit(f"run {run.id} did not finish within 30 seconds")
             time.sleep(0.2)
             run = client.runs.GetRun(run_pb2.GetRunRequest(run_id=run.id)).run
-        if run.status != run_pb2.RUN_STATUS_SUCCEEDED or not run.exit_code_known or run.exit_code != 0:
+        if run.status != run_pb2.RUN_STATUS_SUCCEEDED or not run.HasField("exit_code") or run.exit_code != 0:
             raise SystemExit(
                 f"run {run.id} failed: status={run.status} "
-                f"exit_code_known={run.exit_code_known} exit_code={run.exit_code}"
+                f"exit_code_present={run.HasField('exit_code')} exit_code={run.exit_code}"
             )
 
-        service = client.create_service(
-            environment_id=environment.id,
-            replicas=1,
-            argv=["python", "-c", "import time; time.sleep(30)"],
-        )
-        if not service.id:
-            raise SystemExit("create_service returned empty id")
+        with Sandbox(client=client, environment_id=environment.id) as sandbox:
+            result = sandbox.exec(
+                ["python", "-c", "print('python-sandbox-sdk-ok')"],
+                check=True,
+                text=True,
+            )
+            if result.stdout.strip() != "python-sandbox-sdk-ok":
+                raise SystemExit(f"sandbox exec returned unexpected output: {result.stdout!r}")
 
         print("verify_node_python_runtime_e2e_ok=true")
         return 0
     finally:
         client.close()
-        catalog.close()
 
 
 if __name__ == "__main__":

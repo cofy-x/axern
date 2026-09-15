@@ -12,7 +12,6 @@ import (
 	axernsdk "github.com/cofy-x/axern/sdk/go"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 )
 
 type Runtime struct {
@@ -42,29 +41,22 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 	if r.Config.ProxyMode == clientconfig.ProxyModeDirect {
 		options = append(options, axernsdk.WithDialOptions(grpc.WithNoProxy()))
 	}
-	if r.Config.RolloutExecutionLease != "" {
-		options = append(options, axernsdk.WithDialOptions(
-			grpc.WithChainUnaryInterceptor(rolloutExecutionUnary(r.Config.RolloutExecutionLease)),
-			grpc.WithChainStreamInterceptor(rolloutExecutionStream(r.Config.RolloutExecutionLease)),
-		))
-	}
 	client, err := axernsdk.NewClient(ctx, r.Config.Endpoint, options...)
 	if err != nil {
 		return nil, err
 	}
 	sb, err := axernsdk.NewSandbox(axernsdk.SandboxOptions{
-		Client:         client,
-		TemplateID:     r.Config.TemplateID,
-		Image:          r.Config.Image,
-		Namespace:      r.Config.NamespaceOrDefault(),
-		RuntimeClass:   r.Config.RuntimeClass,
-		RequestCPU:     axernsdk.ResourceQuantity(r.Config.RequestCPU),
-		RequestMemory:  axernsdk.ResourceQuantity(r.Config.RequestMemory),
-		LimitCPU:       axernsdk.ResourceQuantity(r.Config.LimitCPU),
-		LimitMemory:    axernsdk.ResourceQuantity(r.Config.LimitMemory),
-		Volumes:        workspaceVolumes(r.Config),
-		ImageMounts:    cloneImageMounts(r.Config.ImageMounts),
-		WorkspaceImage: r.Config.WorkspaceImage,
+		Client:                  client,
+		TemplateID:              r.Config.TemplateID,
+		Image:                   r.Config.Image,
+		Namespace:               r.Config.NamespaceOrDefault(),
+		RequestCPU:              axernsdk.ResourceQuantity(r.Config.RequestCPU),
+		RequestMemory:           axernsdk.ResourceQuantity(r.Config.RequestMemory),
+		RequestEphemeralStorage: axernsdk.ResourceQuantity(r.Config.RequestEphemeralStorage),
+		LimitCPU:                axernsdk.ResourceQuantity(r.Config.LimitCPU),
+		LimitMemory:             axernsdk.ResourceQuantity(r.Config.LimitMemory),
+		LimitEphemeralStorage:   axernsdk.ResourceQuantity(r.Config.LimitEphemeralStorage),
+		ImageMounts:             cloneImageMounts(r.Config.ImageMounts),
 	})
 	if err != nil {
 		_ = client.Close()
@@ -75,32 +67,7 @@ func (r Runtime) Create(ctx context.Context) (sandbox.Instance, error) {
 		_ = client.Close()
 		return nil, err
 	}
-	return instance{client: client, sandbox: sb, runtimeClass: r.Config.RuntimeClass}, nil
-}
-
-const rolloutExecutionLeaseMetadata = "x-axern-rollout-work-lease"
-
-func rolloutExecutionUnary(token string) grpc.UnaryClientInterceptor {
-	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-		return invoker(metadata.AppendToOutgoingContext(ctx, rolloutExecutionLeaseMetadata, token), method, req, reply, cc, opts...)
-	}
-}
-
-func rolloutExecutionStream(token string) grpc.StreamClientInterceptor {
-	return func(ctx context.Context, desc *grpc.StreamDesc, cc *grpc.ClientConn, method string, streamer grpc.Streamer, opts ...grpc.CallOption) (grpc.ClientStream, error) {
-		return streamer(metadata.AppendToOutgoingContext(ctx, rolloutExecutionLeaseMetadata, token), desc, cc, method, opts...)
-	}
-}
-
-func workspaceVolumes(config Config) []axernsdk.VolumeMount {
-	if !config.WorkspaceVolume {
-		return nil
-	}
-	return []axernsdk.VolumeMount{{
-		Name:    "workspace",
-		Target:  "/workspace",
-		Options: []string{"rbind"},
-	}}
+	return instance{client: client, sandbox: sb}, nil
 }
 
 func cloneImageMounts(mounts []axernsdk.ImageMount) []axernsdk.ImageMount {
@@ -111,9 +78,8 @@ func cloneImageMounts(mounts []axernsdk.ImageMount) []axernsdk.ImageMount {
 }
 
 type instance struct {
-	client       *axernsdk.Client
-	sandbox      *axernsdk.Sandbox
-	runtimeClass string
+	client  *axernsdk.Client
+	sandbox *axernsdk.Sandbox
 }
 
 func (i instance) Exec(ctx context.Context, command sandbox.ExecCommand, options sandbox.ExecOptions) (sandbox.ExecResult, error) {
@@ -122,18 +88,16 @@ func (i instance) Exec(ctx context.Context, command sandbox.ExecCommand, options
 		return sandbox.ExecResult{}, err
 	}
 	result, err := i.sandbox.Exec(ctx, value, axernsdk.ExecOptions{
-		Env:          options.Env,
-		Cwd:          options.CWD,
-		Timeout:      options.Timeout,
-		User:         options.User,
-		Check:        false,
-		ManagedProxy: axernManagedProxyOptions(options.ManagedProxy),
+		Env:     options.Env,
+		Cwd:     options.CWD,
+		Timeout: options.Timeout,
+		User:    options.User,
+		Check:   false,
 	})
 	execResult := sandbox.ExecResult{
-		ExitCode:           int(result.ExitCode),
-		Stdout:             result.StdoutString(),
-		Stderr:             result.StderrString(),
-		ManagedProxyReport: sandboxManagedProxyReport(result.ManagedProxyReport),
+		ExitCode: int(result.ExitCode),
+		Stdout:   result.StdoutString(),
+		Stderr:   result.StderrString(),
 	}
 	if err != nil && sandbox.IsFatalSandboxError(err) {
 		return execResult, &sandbox.SandboxDeathError{
@@ -142,30 +106,6 @@ func (i instance) Exec(ctx context.Context, command sandbox.ExecCommand, options
 		}
 	}
 	return execResult, err
-}
-
-func axernManagedProxyOptions(options *sandbox.ManagedProxyOptions) *axernsdk.ManagedProxyOptions {
-	if options == nil {
-		return nil
-	}
-	return &axernsdk.ManagedProxyOptions{
-		Provider:            options.Provider,
-		UpstreamBaseURL:     options.UpstreamBaseURL,
-		UpstreamBearerToken: options.UpstreamBearerToken,
-	}
-}
-
-func sandboxManagedProxyReport(report *axernsdk.ManagedProxyReport) *sandbox.ManagedProxyReport {
-	if report == nil {
-		return nil
-	}
-	return &sandbox.ManagedProxyReport{
-		Provider:      report.Provider,
-		RequestCount:  report.RequestCount,
-		ResponseCount: report.ResponseCount,
-		ErrorCount:    report.ErrorCount,
-		ReportJSON:    append([]byte(nil), report.ReportJSON...),
-	}
 }
 
 func execCommandValue(command sandbox.ExecCommand) (any, error) {
@@ -203,14 +143,6 @@ func (i instance) UploadDir(ctx context.Context, localPath string, remotePath st
 		return fmt.Errorf("make uploaded directory writable exited with status %d: %s", result.ExitCode, strings.TrimSpace(result.Stderr))
 	}
 	return nil
-}
-
-func (i instance) MaterializeTaskAssets(ctx context.Context, sourcePath, target string, kind sandbox.TaskAssetKind) error {
-	sdkKind := axernsdk.TaskAssetKindVerifier
-	if kind == sandbox.TaskAssetKindOracle {
-		sdkKind = axernsdk.TaskAssetKindOracle
-	}
-	return i.sandbox.MaterializeTaskAssets(ctx, sourcePath, target, sdkKind)
 }
 
 func (i instance) PathExists(ctx context.Context, path string) (bool, error) {
@@ -261,23 +193,12 @@ func (i instance) State() (sandbox.State, error) {
 	if err != nil {
 		return sandbox.State{}, err
 	}
-	out := sandbox.State{
-		EnvironmentID:         state.EnvironmentID,
-		ServiceID:             state.ServiceID,
-		AllocationID:          state.AllocationID,
-		NodeID:                state.NodeID,
-		RuntimeClass:          i.runtimeClass,
-		VerifierMaterializeMs: state.VerifierMaterializeMs,
-	}
-	if preparation := state.WorkspacePreparation; preparation != nil {
-		out.PayloadFormat = preparation.GetPayloadFormat()
-		out.PayloadDigest = preparation.GetPayloadDigest()
-		out.CacheHit = preparation.GetCacheHit()
-		out.ImageResolveMs = preparation.GetImageResolveMs()
-		out.ImagePullMs = preparation.GetImagePullMs()
-		out.CowPrepareMs = preparation.GetCowPrepareMs()
-	}
-	return out, nil
+	return sandbox.State{
+		EnvironmentID: state.EnvironmentID,
+		RunID:         state.RunID,
+		AllocationID:  state.AllocationID,
+		NodeID:        state.NodeID,
+	}, nil
 }
 
 func (i instance) Close(ctx context.Context) error {

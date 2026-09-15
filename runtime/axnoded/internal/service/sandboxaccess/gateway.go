@@ -15,7 +15,6 @@ import (
 
 const (
 	CapabilityComputerUse = wire.CapabilityComputerUse
-	CapabilityBrowser     = wire.CapabilityBrowser
 	CapabilityProbe       = wire.CapabilityProbe
 )
 
@@ -32,7 +31,7 @@ func (a *Accessor) ClientForCapability(ctx context.Context, id string, capabilit
 	if err != nil {
 		return nil, SandboxdCapabilityError(wire.CapabilityDiagnostics, "read", err)
 	}
-	latest := runtimesandboxd.SnapshotFromDiagnostics(target.Snapshot.SocketPath, diagnostics)
+	latest := runtimesandboxd.SnapshotFromDiagnostics(target.SocketPath, diagnostics)
 	if err := latest.RequireCapability(capability); err != nil {
 		return nil, err
 	}
@@ -67,10 +66,7 @@ func (a *Accessor) gatewayTarget(ctx context.Context, id string) (gatewayTarget,
 	if err != nil {
 		return gatewayTarget{}, err
 	}
-	sandboxdTarget, err := runtimesandboxd.TargetFromLabels(target.Labels)
-	if err != nil {
-		return gatewayTarget{}, err
-	}
+	sandboxdTarget := runtimesandboxd.TargetForSocket(target.SandboxdSocketPath)
 	return gatewayTarget{Target: sandboxdTarget}, nil
 }
 

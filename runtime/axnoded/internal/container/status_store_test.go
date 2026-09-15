@@ -1,24 +1,25 @@
 package container
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUpdateSync(t *testing.T) {
 	const NewPid = 456
-	const SuccessKey = "success"
+	const SuccessKey = "2026-09-13T12:00:01Z"
 
 	containerRoot := t.TempDir()
 	ss := statusStorage{
 		path: filepath.Join(containerRoot, config.ContainerStatusFile),
 		status: Status{
-			Pid:       123,
-			StartedAt: "202308201132",
+			RuntimeState: apipb.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+			Pid:          123,
+			StartedAt:    "2026-09-13T12:00:00Z",
 		},
 	}
 
@@ -41,11 +42,11 @@ func TestUpdateSync(t *testing.T) {
 	assert.Equal(t, ss.status.FinishedAt, SuccessKey)
 }
 
-func TestLoadStatusHydratesPIDFromRuntimeFile(t *testing.T) {
+func TestLoadStatusDoesNotInferLifecycleFromRuntimePIDFile(t *testing.T) {
 	containerRoot := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(containerRoot, "runtime.pid"), []byte("196\n"), 0644))
 
 	status, err := LoadStatus(containerRoot)
 	assert.NoError(t, err)
-	assert.Equal(t, 196, status.Get().Pid)
+	assert.Equal(t, apipb.ContainerState_CONTAINER_UNKNOWN, status.Get().State())
+	assert.Equal(t, 0, status.Get().Pid)
 }

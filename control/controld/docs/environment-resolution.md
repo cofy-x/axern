@@ -1,0 +1,47 @@
+# Environment Resolution
+
+Controld may resolve deployment-owned template IDs from embedded declarative configuration. These templates are private policy inputs, not public resources: they have no service, authorization action, query API, database table, or lifecycle. The default distribution recognizes:
+
+- `python311`
+- `server-base`
+- `coding-base`
+- `desktop-base`
+
+Embedded template metadata uses release-facing image refs. Local compose and kind truth environments keep the same template ids but override image refs with `AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE`, `AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE`, `AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE`, and `AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE`, usually pointing to repo-built `:dev` images imported into the node-local image cache.
+
+Template resolution does not own agent or tool images. Callers may attach an explicit immutable image through the generic read-only `image_mounts` execution input; no separate identity or lifecycle is created.
+
+Templates do not declare or select an OCI runtime implementation. Axern's execution boundary is `runsc`; it is platform implementation policy rather than workload input or a placement dimension.
+
+## Environment Sources
+
+Environments support two execution-source modes:
+
+- template-backed via `template_id` / `template_version`
+- image-backed via public OCI `image.ref`, resolved by `controld` to a digest
+
+Image-backed environments can optionally reference a controld-managed registry credential secret via `image.registry_credential_id`. The referenced secret must be type `DOCKER_CONFIG_JSON`. `EnvironmentSpec.image` records normalized source intent only: the reference, read-only policy, and credential reference. Resolved OCI digest, media type, size, and canonical reference annotations belong exclusively to `resolved_spec.image_descriptor`; they are not copied back into the source.
+
+`resolved_spec` is the normalized immutable runtime input for both modes, so Run admission and node lifecycle paths consume one execution shape. Template ID and version remain private resolution inputs; image, mounts, defaults, and execution profile live in the Environment's resolved specification. An Environment is immutable; changing the source creates another Environment and a new Run.
+
+Run admission copies both normalized source intent and the resolved execution specification into the Run in the same transaction that creates its Allocation, resource charge, capability requirements, and node lifecycle intent. Node creation and crash recovery consume that Run-owned snapshot rather than reading the Environment row again. Environment deletion is therefore a physical delete: later lookup returns not found, while every admitted Run remains independently interpretable and rebuildable. Environment has no deletion tombstone, synthetic status machine, hash identity, optimistic version, or mutable message.
+
+Environments contain immutable workload inputs and remain independent from node implementation details.
+
+## Execution Profile
+
+Each template's `resolved_spec.execution_profile` describes node-side OCI execution policy, including runtime baseline capabilities, `RLIMIT_NOFILE`, capability-annotation behavior, network namespace annotation keys, and resource-field ignore annotations.
+
+`desktop-base` sets the sandbox environment required for sandboxd's `computer_use` provider. There is no parallel template-capability declaration; the resolved execution input and node capability admission are the only facts consumed by execution.
+
+`controld` owns this template policy as part of Environment resolution. Nodes consume the resolved profile instead of silently applying unrelated global defaults.
+
+## Workload Command Defaults
+
+Workloads may omit `config.argv`. In that case, the selected node keeps the OCI image default `ENTRYPOINT` / `CMD`. Any explicit `config.argv` overrides the image default command.
+
+The resolved `image_default_argv` is informational metadata for built-in images, not a control-plane bootstrap override.
+
+## Secrets
+
+Execution configs can project immutable controld-managed secrets into workloads through `secret_env` and `secret_files`. Secret values are encrypted at rest in Postgres and are never returned in plaintext after create. A typed relational reference protects every required Secret from deletion while an Environment or non-terminal Run depends on it; optional Run references deliberately do not acquire that deletion lock. Run terminalization removes its active Secret references in the same transaction as the terminal result.

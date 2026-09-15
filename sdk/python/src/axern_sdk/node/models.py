@@ -13,22 +13,6 @@ ExecOutput: TypeAlias = bytes | str
 
 
 @dataclass(frozen=True, slots=True)
-class ImageProcessMount:
-    """Host-backed sandbox path shared into an image-backed process."""
-
-    sandbox_path: str
-    target_path: str
-    readonly: bool = False
-    options: tuple[str, ...] = ()
-
-
-def workspace_mount(path: str = "/workspace") -> ImageProcessMount:
-    """Share a sandbox workspace path at the same path in an image process."""
-
-    return ImageProcessMount(sandbox_path=path, target_path=path)
-
-
-@dataclass(frozen=True, slots=True)
 class ExecResult:
     """Collected result from a sandbox process execution."""
 
@@ -73,8 +57,8 @@ class ExecResult:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecStreamEvent:
-    """One output or exit event from a streamed sandbox execution."""
+class ProcessEvent:
+    """One output or exit event from an Allocation-scoped process."""
 
     stream: Literal["stdout", "stderr", "exit"]
     data: bytes = b""
@@ -155,19 +139,7 @@ class ComputerUseDisplay:
 
 
 @dataclass(frozen=True, slots=True)
-class BrowserStatus:
-    """Browser capability status for a sandbox desktop session."""
-
-    available: bool
-    command: str = ""
-    running: bool = False
-    pid: int = 0
-    url: str = ""
-    reason: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class CapabilityDependencyStatus:
+class CapabilityProviderDependencyStatus:
     """One dependency check reported by a sandbox capability provider."""
 
     name: str
@@ -185,7 +157,7 @@ class CapabilityProviderStatus:
     capabilities: tuple[str, ...] = ()
     backend: str = ""
     reason: str = ""
-    dependencies: tuple[CapabilityDependencyStatus, ...] = ()
+    dependencies: tuple[CapabilityProviderDependencyStatus, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

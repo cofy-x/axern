@@ -20,9 +20,7 @@ The same instrumentation also writes stage timing summaries to the standard `ima
 go run ./cmd/imagemgr \
   -root /tmp/imagemgr \
   -imagefsd_bin /usr/local/bin/imagefsd \
-  -oss_template ./configs/oss_backend.json.example \
   -nydus_template ./configs/nydus_registry.json.example \
-  -oss_auths_path ./oss_auths.json.example \
   -registry_auths_path ./registry_auths.json.example \
   -http_sock /tmp/imagemgr.sock \
   -enable_tracing
@@ -55,7 +53,6 @@ Three timed-operation helpers are used:
 The most useful stage groupings when reading logs are:
 
 - Nydus registry path: `fetch_image`, `check_nydus_format`, `extract_bootstrap`
-- OSS API mount path: `parse_request`, `validate_dependencies`, `prepare_options`, `create_daemon`, `get_daemon`, `daemon_mount`, `loop_mount`
 - Nydus API mount path: `validate_request`, `check_existing_daemon`, `mount_existing_daemon`, `prepare_options`, `create_daemon`, `get_daemon`, `daemon_mount`
 - imagefsd daemon startup path: `clean_mount_point`, `apply_config`, `fetch_bootstrap`, `wait_daemon_running`, `start_daemon_process`, `save_metadata`, `wait_mount_ready`
 - imagefsd daemon teardown path: `signal_stop`, `send_sigterm`, `wait_graceful_exit`, `send_sigkill`, `wait_forced_exit`, `clean_mount_point`

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
-	rolloutkernel "github.com/cofy-x/axern/control/controld/internal/kernel/rollout"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 )
 
@@ -20,13 +19,13 @@ func TestBootstrapResolveAndLastAdministratorGuard(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
 	fingerprint := sha256.Sum256([]byte("platform-admin-certificate"))
-	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Platform Administrator", "bootstrap", fingerprint, now.Add(24*time.Hour), now); err != nil {
+	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Platform Administrator", "bootstrap", []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: fingerprint, ExpiresAt: now.Add(24 * time.Hour)}}, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Platform Administrator", "bootstrap", fingerprint, now.Add(24*time.Hour), now); err != nil {
+	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Platform Administrator", "bootstrap", []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: fingerprint, ExpiresAt: now.Add(24 * time.Hour)}}, now); err != nil {
 		t.Fatalf("exact bootstrap retry: %v", err)
 	}
-	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Different", "bootstrap", fingerprint, now.Add(24*time.Hour), now); err == nil {
+	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Different", "bootstrap", []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: fingerprint, ExpiresAt: now.Add(24 * time.Hour)}}, now); err == nil {
 		t.Fatal("mismatched bootstrap succeeded")
 	}
 	actor, err := store.ResolveActor(ctx, fingerprint, now)
@@ -42,33 +41,43 @@ func TestBootstrapResolveAndLastAdministratorGuard(t *testing.T) {
 	}
 }
 
-func TestValidateRolloutExecutionLeaseIsNamespaceAndExpiryScoped(t *testing.T) {
+func TestBootstrapSSHCredentialIsAtomicAndNeverReactivated(t *testing.T) {
 	db := newAccessTestDB(t)
 	store := NewStore(db)
 	ctx := context.Background()
-	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
-	statements := []struct {
-		query string
-		args  []any
-	}{
-		{`INSERT INTO namespaces(namespace,version,created_at,updated_at) VALUES ('team-a',1,$1,$1),('team-b',1,$1,$1)`, []any{now}},
-		{`INSERT INTO rollouts(rollout_id,namespace,status,start_policy,spec,spec_hash,labels,version,created_at) VALUES ('rol-access','team-a','ROLLOUT_STATUS_RUNNING','ROLLOUT_START_POLICY_AUTO','{}','hash','{}',1,$1)`, []any{now}},
-		{`INSERT INTO rollout_episodes(episode_id,rollout_id,task_id,task_digest,attempt_index,execution_generation,status,created_at) VALUES ('ep-access','rol-access','task','digest',1,1,'EPISODE_STATUS_LEASED',$1)`, []any{now}},
-		{`INSERT INTO rollout_work_items(work_id,kind,rollout_id,episode_id,execution_generation,status,next_run_at,claim_owner,lease_token_hash,lease_expires_at,created_at,updated_at) VALUES ('wrk-access','WORK_KIND_EPISODE','rol-access','ep-access',1,'LEASED',$1,'worker',$2,$3,$1,$1)`, []any{now, rolloutkernel.HashToken("lease-token"), now.Add(time.Minute)}},
+	now := time.Now().UTC().Truncate(time.Second)
+	credentials := []accesskernel.CredentialMaterial{
+		{Kind: accesskernel.CredentialX509, Fingerprint: sha256.Sum256([]byte("bootstrap certificate")), ExpiresAt: now.Add(time.Hour)},
+		{Kind: accesskernel.CredentialSSH, Fingerprint: sha256.Sum256([]byte("bootstrap SSH key")), ExpiresAt: now.Add(time.Hour)},
 	}
-	for _, statement := range statements {
-		if _, err := db.Pool().Exec(ctx, statement.query, statement.args...); err != nil {
-			t.Fatal(err)
-		}
+	bootstrap := func(values []accesskernel.CredentialMaterial) error {
+		return store.BootstrapPlatformAdmin(ctx, "admin", "Administrator", "bootstrap", values, now)
 	}
-	if err := store.ValidateRolloutExecutionLease(ctx, "lease-token", "team-a", now); err != nil {
-		t.Fatalf("valid lease: %v", err)
+	if err := bootstrap(append(credentials, credentials[1])); err == nil {
+		t.Fatal("duplicate credential accepted")
 	}
-	if err := store.ValidateRolloutExecutionLease(ctx, "lease-token", "team-b", now); err == nil {
-		t.Fatal("cross-namespace lease succeeded")
+	var count int
+	if err := db.Pool().QueryRow(ctx, `SELECT count(*) FROM principals`).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("partial bootstrap persisted: %d %v", count, err)
 	}
-	if err := store.ValidateRolloutExecutionLease(ctx, "lease-token", "team-a", now.Add(2*time.Minute)); err == nil {
-		t.Fatal("expired lease succeeded")
+	if err := bootstrap(credentials); err != nil {
+		t.Fatal(err)
+	}
+	if err := bootstrap(credentials); err != nil {
+		t.Fatalf("exact retry: %v", err)
+	}
+	actor, err := store.ResolveActor(ctx, credentials[1].Fingerprint, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RevokeCredential(ctx, actor.Principal.ID, actor.Credential.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := bootstrap(credentials); err == nil {
+		t.Fatal("bootstrap reactivated revoked SSH key")
+	}
+	if _, err := store.ResolveActor(ctx, credentials[1].Fingerprint, now); !errors.Is(err, accesskernel.ErrUnauthenticated) {
+		t.Fatalf("revoked key resolved: %v", err)
 	}
 }
 
@@ -78,7 +87,7 @@ func TestGrantNamespaceBindingRequiresExistingNamespace(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 30, 8, 0, 0, 0, time.UTC)
 	adminFingerprint := sha256.Sum256([]byte("platform-admin-certificate"))
-	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Platform Administrator", "bootstrap", adminFingerprint, now.Add(24*time.Hour), now); err != nil {
+	if err := store.BootstrapPlatformAdmin(ctx, "platform-admin", "Platform Administrator", "bootstrap", []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: adminFingerprint, ExpiresAt: now.Add(24 * time.Hour)}}, now); err != nil {
 		t.Fatal(err)
 	}
 	admin, err := store.ResolveActor(ctx, adminFingerprint, now)
@@ -92,7 +101,7 @@ func TestGrantNamespaceBindingRequiresExistingNamespace(t *testing.T) {
 	if _, err := store.GrantBinding(ctx, admin.Principal.ID, principal.ID, accesskernel.ScopeNamespace, "missing", accesskernel.RoleNamespaceViewer, now); !errors.Is(err, accesskernel.ErrNotFound) {
 		t.Fatalf("GrantBinding(missing namespace)=%v, want not found", err)
 	}
-	if _, err := db.Pool().Exec(ctx, `INSERT INTO namespaces(namespace,version,created_at,updated_at) VALUES('team-a',1,$1,$1)`, now); err != nil {
+	if _, err := db.Pool().Exec(ctx, `INSERT INTO namespaces(namespace,created_at) VALUES('team-a',$1)`, now); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.GrantBinding(ctx, admin.Principal.ID, principal.ID, accesskernel.ScopeNamespace, "team-a", accesskernel.RoleNamespaceViewer, now); err != nil {
@@ -118,4 +127,37 @@ func newAccessTestDB(t *testing.T) *postgres.DB {
 		t.Fatal(err)
 	}
 	return db
+}
+
+func TestSSHCredentialSharesPrincipalRevocationButCannotReplaceAdminCertificate(t *testing.T) {
+	db := newAccessTestDB(t)
+	store := NewStore(db)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	fingerprint := sha256.Sum256([]byte("admin-certificate"))
+	if err := store.BootstrapPlatformAdmin(ctx, "admin", "Administrator", "bootstrap", []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: fingerprint, ExpiresAt: now.Add(time.Hour)}}, now); err != nil {
+		t.Fatal(err)
+	}
+	actor, err := store.ResolveActor(ctx, fingerprint, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sshHash := sha256.Sum256([]byte("ssh-wire-public-key"))
+	credential, err := store.AddCredential(ctx, actor.Principal.ID, actor.Principal.ID, "ssh", accesskernel.CredentialMaterial{Kind: accesskernel.CredentialSSH, Fingerprint: sshHash, ExpiresAt: now.Add(time.Hour)}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sshActor, err := store.ResolveActor(ctx, sshHash, now)
+	if err != nil || sshActor.Principal.ID != actor.Principal.ID || sshActor.Credential.Kind != accesskernel.CredentialSSH {
+		t.Fatalf("SSH actor: %+v, %v", sshActor, err)
+	}
+	if _, err := store.RevokeCredential(ctx, actor.Principal.ID, actor.Credential.ID, now); !errors.Is(err, accesskernel.ErrFailedPrecondition) {
+		t.Fatalf("removed last management credential: %v", err)
+	}
+	if _, err := store.RevokeCredential(ctx, actor.Principal.ID, credential.ID, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.ResolveActor(ctx, sshHash, now); !errors.Is(err, accesskernel.ErrUnauthenticated) {
+		t.Fatalf("revoked SSH credential resolved: %v", err)
+	}
 }

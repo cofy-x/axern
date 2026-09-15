@@ -1,9 +1,9 @@
 ---
-title: Computer Use 与浏览器
-description: 用 SDK 驱动 Sandbox 的显示、鼠标和键盘，并从 Python 自动化托管浏览器。
+title: Computer Use
+description: 通过绑定 Allocation 的 SDK 操作驱动 Sandbox 的显示、鼠标和键盘。
 ---
 
-Computer Use 让 Agent 观察和操作 Sandbox 的图形会话：查询能力和会话状态、截屏，并通过节点数据面注入鼠标和键盘输入。Python SDK 还额外提供一流的托管浏览器 API，用于 Web 自动化。
+Computer Use 让 Agent 观察和操作 Sandbox 的图形会话：查询能力和会话状态、截屏，并通过节点数据面注入鼠标和键盘输入。
 
 所有操作都是 Sandbox 方法——作用于 Sandbox 持有的 Allocation，并要求工作负载镜像提供显示会话。
 
@@ -56,19 +56,12 @@ await sandbox.computerUseKeyboard({ text: "hello", delayMs: 20 });
 
 截屏接受 `region`、`format`、`quality` 和 `scale`；`computer_use_display()` / `computerUseDisplay()` 描述当前显示几何。鼠标动作覆盖移动、点击、拖拽（`to_x`/`to_y`）和滚动（`direction`/`amount`），按键默认主键；键盘输入接受文本、单个 `key`（如 `Escape`）或 `keys` 组合键。
 
-## 托管浏览器（Python）
+## 浏览器自动化属于工作负载
 
-Python SDK 可以驱动 Sandbox 内的托管浏览器，无需手动编写显示脚本：
+Axern 不拥有独立的浏览器生命周期。需要浏览器自动化的调用方通过进程执行安装和启动 Playwright、Chromium 或其他浏览器，再使用工作负载代码或 Computer Use 驱动它。浏览器版本、配置、凭据和清理因此属于不可变 Environment 及其 Allocation，而不会形成新的持久平台对象。
 
 ```python
-sandbox.browser_open("https://example.com")
-sandbox.browser_navigate("https://example.com/docs")
-sandbox.browser_click(320, 200)
-sandbox.browser_type("axern", delay_ms=30)
-print(sandbox.browser_status())
-sandbox.browser_close()
+result = sandbox.exec("python", "-c", "from playwright.sync_api import sync_playwright; print('caller-owned browser')")
 ```
-
-`browser_resize(width, height)` 改变视口，`browser_wait(timeout_ms=...)` 等待导航稳定。每个浏览器和 Computer Use 方法在 `AsyncSandbox` 上都有异步变体。
 
 可运行示例在仓库的 [`sdk/python/examples/computer_use.py`](https://github.com/cofy-x/axern/blob/main/sdk/python/examples/computer_use.py)。

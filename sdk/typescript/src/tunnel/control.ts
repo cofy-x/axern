@@ -16,7 +16,6 @@ export class TunnelControlClient {
 
   async createSession(options: {
     allocationId: string;
-    upstream: string;
     proxyPort: number;
     ttlSeconds: number;
     readyTimeoutMs: number;
@@ -28,7 +27,6 @@ export class TunnelControlClient {
         {
           allocation_id: required("allocationId", options.allocationId),
           remote_port: options.proxyPort,
-          local_target: required("upstream", options.upstream),
           ttl: duration(options.ttlSeconds * 1000),
           wait_ready: true,
           ready_timeout: duration(options.readyTimeoutMs),

@@ -20,7 +20,6 @@ func TestWaitReadyOrExitReturnsReadySuccess(t *testing.T) {
 		"/bundle",
 		meta,
 		func(context.Context, string, *apipb.ContainerMetadata) error {
-			meta.Labels = map[string]string{LabelReady: "true"}
 			return nil
 		},
 		func(string) (contract.Exit, bool, error) {
@@ -30,9 +29,6 @@ func TestWaitReadyOrExitReturnsReadySuccess(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("WaitReadyOrExit() error = %v", err)
-	}
-	if meta.Labels[LabelReady] != "true" {
-		t.Fatalf("ready label = %q, want true", meta.Labels[LabelReady])
 	}
 }
 
@@ -60,12 +56,6 @@ func TestWaitReadyOrExitReturnsExitWithoutWaitingForReadyTimeout(t *testing.T) {
 	if elapsed := time.Since(start); elapsed >= time.Second {
 		t.Fatalf("WaitReadyOrExit() elapsed = %v, want fast exit recovery", elapsed)
 	}
-	if meta.Labels[LabelReady] != "false" {
-		t.Fatalf("ready label = %q, want false", meta.Labels[LabelReady])
-	}
-	if meta.Labels[LabelUserState] != "exited" {
-		t.Fatalf("user state label = %q, want exited", meta.Labels[LabelUserState])
-	}
 }
 
 func TestWaitReadyOrExitAcceptsNonZeroExitBeforeReady(t *testing.T) {
@@ -86,12 +76,6 @@ func TestWaitReadyOrExitAcceptsNonZeroExitBeforeReady(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("WaitReadyOrExit() error = %v", err)
-	}
-	if meta.Labels[LabelReady] != "false" {
-		t.Fatalf("ready label = %q, want false", meta.Labels[LabelReady])
-	}
-	if meta.Labels[LabelUserState] != "exited" {
-		t.Fatalf("user state label = %q, want exited", meta.Labels[LabelUserState])
 	}
 }
 

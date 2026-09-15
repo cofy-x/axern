@@ -8,13 +8,9 @@ import (
 	"os"
 	"strings"
 
-	agentprofilev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/agentprofile/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	rolloutv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/rollout/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	servicev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/service/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	artifactv1 "github.com/cofy-x/axern/sdk/go/gen/axern/data/artifact/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"github.com/cofy-x/axern/sdk/go/internal/grpcclient"
 	"google.golang.org/grpc"
@@ -24,18 +20,14 @@ import (
 
 // Client is the root Axern Go SDK client.
 type Client struct {
-	conn          *grpc.ClientConn
-	ownsConn      bool
-	dialOptions   []grpc.DialOption
-	relayOptions  relayOptions
-	environments  environmentv1.EnvironmentControlClient
-	agentProfiles agentprofilev1.AgentProfileControlClient
-	rollouts      rolloutv1.RolloutControlClient
-	runs          runv1.RunControlClient
-	services      servicev1.ServiceControlClient
-	tunnels       tunnelcontrolv1.TunnelControlClient
-	nodes         nodesandboxv1.NodeSandboxClient
-	artifacts     artifactv1.ArtifactDataClient
+	conn         *grpc.ClientConn
+	ownsConn     bool
+	dialOptions  []grpc.DialOption
+	relayOptions relayOptions
+	environments environmentv1.EnvironmentControlClient
+	runs         runv1.RunControlClient
+	tunnels      tunnelcontrolv1.TunnelControlClient
+	nodes        nodesandboxv1.NodeSandboxClient
 }
 
 // ClientOption configures a Client.
@@ -159,18 +151,14 @@ func NewClient(ctx context.Context, target string, options ...ClientOption) (*Cl
 		ownsConn = true
 	}
 	return &Client{
-		conn:          conn,
-		ownsConn:      ownsConn,
-		dialOptions:   append([]grpc.DialOption(nil), config.dialOptions...),
-		relayOptions:  config.relayOptions,
-		environments:  environmentv1.NewEnvironmentControlClient(conn),
-		agentProfiles: agentprofilev1.NewAgentProfileControlClient(conn),
-		rollouts:      rolloutv1.NewRolloutControlClient(conn),
-		runs:          runv1.NewRunControlClient(conn),
-		services:      servicev1.NewServiceControlClient(conn),
-		tunnels:       tunnelcontrolv1.NewTunnelControlClient(conn),
-		nodes:         nodesandboxv1.NewNodeSandboxClient(conn),
-		artifacts:     artifactv1.NewArtifactDataClient(conn),
+		conn:         conn,
+		ownsConn:     ownsConn,
+		dialOptions:  append([]grpc.DialOption(nil), config.dialOptions...),
+		relayOptions: config.relayOptions,
+		environments: environmentv1.NewEnvironmentControlClient(conn),
+		runs:         runv1.NewRunControlClient(conn),
+		tunnels:      tunnelcontrolv1.NewTunnelControlClient(conn),
+		nodes:        nodesandboxv1.NewNodeSandboxClient(conn),
 	}, nil
 }
 

@@ -8,7 +8,7 @@ export { AxernClient } from "./client/index.js";
 export type {
   AxernClientOptions,
   CreateEnvironmentOptions,
-  CreateServiceOptions,
+  CreateRunOptions,
 } from "./client/index.js";
 export { loadAxernContext, loadAxernEnv } from "./config/index.js";
 export type { AxernConfig } from "./config/index.js";
@@ -27,8 +27,8 @@ export {
   SandboxTimeoutError,
   SandboxValidationError,
 } from "./errors/index.js";
-export { NodeSandboxClient } from "./node/client.js";
-export type { NodeSandboxClientOptions } from "./node/client.js";
+export { AllocationClient } from "./node/client.js";
+export type { AllocationClientOptions } from "./node/client.js";
 export { SandboxProcess } from "./node/process.js";
 export type { ResourceQuantity } from "./resources.js";
 export { Sandbox } from "./sandbox/index.js";
@@ -37,7 +37,7 @@ export { NetworkPolicy, cidrRule, portRange } from "./network-policy.js";
 export type { CIDRRule, PortRange, StrictNetworkPolicyOptions } from "./network-policy.js";
 export type {
   ChmodOptions,
-  CapabilityDependencyStatus,
+  CapabilityProviderDependencyStatus,
   CapabilityProviderStatus,
   CapabilityProviderSummary,
   CapabilityStatus,
@@ -55,9 +55,6 @@ export type {
   DownloadDirOptions,
   ExecOptions,
   ExecResult,
-  ImageExecOptions,
-  ImageProcessMount,
-  ImageProcessOptions,
   MkdirOptions,
   MoveOptions,
   NodeCallOptions,
@@ -73,8 +70,6 @@ export type {
   TunnelOptions,
   UploadArchiveOptions,
   UploadDirOptions,
-  VolumeMount,
   WriteFileOptions,
 } from "./types.js";
-export { workspaceMount } from "./types.js";
 export { AXERN_VERSION, platformName } from "./version.js";

@@ -26,7 +26,7 @@ func Command(runtime command.Runtime) *cobra.Command {
 		}
 		p := resp.GetPrincipal()
 		c := resp.GetCredential()
-		fmt.Fprintf(cmd.OutOrStdout(), "Principal:  %s (%s)\nKind:       %s\nCredential: %s\nExpires:    %s\n", p.GetName(), p.GetPrincipalID(), p.GetKind(), c.GetLabel(), c.GetCertificateNotAfter().AsTime().Format("2006-01-02T15:04:05Z"))
+		fmt.Fprintf(cmd.OutOrStdout(), "Principal:  %s (%s)\nKind:       %s\nCredential: %s\nExpires:    %s\n", p.GetName(), p.GetPrincipalID(), p.GetKind(), c.GetLabel(), c.GetExpiresAt().AsTime().Format("2006-01-02T15:04:05Z"))
 		for _, role := range resp.GetRoles() {
 			scope := role.GetScopeType()
 			if role.GetNamespace() != "" {

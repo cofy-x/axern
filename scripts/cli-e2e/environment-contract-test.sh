@@ -5,11 +5,13 @@ AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 python3 - \
   "${AXERN_ROOT}/scripts/cli-e2e/environment.sh" \
-  "${AXERN_ROOT}/scripts/cli-e2e/lib.sh" <<'PY'
+  "${AXERN_ROOT}/scripts/cli-e2e/lib.sh" \
+  "${AXERN_ROOT}/deploy/images/lib/node-all-in-one-entrypoint.sh" <<'PY'
 import ipaddress
 import pathlib
 import re
 import sys
+import subprocess
 
 environment = pathlib.Path(sys.argv[1]).read_text()
 library = pathlib.Path(sys.argv[2]).read_text()
@@ -21,12 +23,17 @@ for required in (
     '--add-host "host.docker.internal:host-gateway"',
     '-e "AXNODED_NETWORK_IP_RANGE=${AXNODED_NETWORK_IP_RANGE}"',
     '-e "AXNODED_CONTROL_PLANE_TARGET=host.docker.internal:${CONTROLD_GRPC_ADDRESS##*:}"',
+    '-e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=host.docker.internal:${CONTROLD_ENROLLMENT_PORT}"',
 ):
     if required not in node_run:
         raise SystemExit(f"CLI E2E node container is missing host control-plane routing: {required}")
 
 if '-grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}"' not in environment:
     raise SystemExit("CLI E2E controld must listen beyond host loopback for the node container")
+if '-enrollment-address "0.0.0.0:${CONTROLD_ENROLLMENT_PORT}"' not in environment:
+    raise SystemExit("CLI E2E must use the independently allocated enrollment port")
+if 'CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port ' not in library:
+    raise SystemExit("CLI E2E must exclude existing listeners when allocating enrollment port")
 if 'if ! node_control_plane_tcp_ready; then' not in environment:
     raise SystemExit("CLI E2E must fail fast when the node cannot reach the host control plane")
 
@@ -41,6 +48,18 @@ if ipaddress.ip_interface(node_range.group(1)).network.overlaps(
     ipaddress.ip_network("172.17.0.0/16")
 ):
     raise SystemExit("CLI E2E node sandbox network must not overlap Docker's default bridge")
+entrypoint = pathlib.Path(sys.argv[3]).read_text()
+probe = re.search(r'^wait_node_dependency\(\) \{\n.*?^\}', entrypoint, re.M | re.S)
+if probe is None:
+    raise SystemExit("node entrypoint must probe live dependency APIs")
+for command in ("http://unix/inventory", 'egressdctl -socket "${EGRESSD_SOCKET}" health', "imagefsd stats-locality"):
+    if command not in entrypoint:
+        raise SystemExit(f"missing dependency health check: {command}")
+for test in (
+    'calls=0; timeout() { shift; "$@"; }; sleep() { :; }; probe() { calls=$((calls+1)); [ "$calls" -ge 3 ]; }; wait_node_dependency fixture $$ probe; [ "$calls" = 3 ]',
+    'timeout() { return 1; }; kill() { return 1; }; if wait_node_dependency dead $$ false; then exit 1; fi',
+):
+    subprocess.run(["bash", "-eu"], input=probe.group(0) + "\n" + test, text=True, check=True)
 PY
 
 echo "cli_e2e_environment_contract_ok=true"

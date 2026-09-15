@@ -112,7 +112,7 @@ func TestHarnessOnRequestEnforcesDefaultPermissionMode(t *testing.T) {
 	}
 }
 
-func TestHarnessRunWritesRemoteConfigWithManagedProxyConfig(t *testing.T) {
+func TestHarnessRunWritesDirectProviderConfig(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.json")
 	if err := os.WriteFile(configPath, []byte(`{
   "agent_profiles": {
@@ -137,11 +137,6 @@ func TestHarnessRunWritesRemoteConfigWithManagedProxyConfig(t *testing.T) {
 		Task:        domain.TaskInstance{ID: "task-1"},
 		Sandbox:     sb,
 		Instruction: "Do it",
-		ManagedProxy: &sandbox.ManagedProxyOptions{
-			Provider:            "anthropic",
-			UpstreamBaseURL:     "https://api.deepseek.com/anthropic",
-			UpstreamBearerToken: "sk-test",
-		},
 	})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -153,13 +148,13 @@ func TestHarnessRunWritesRemoteConfigWithManagedProxyConfig(t *testing.T) {
 		t.Fatalf("commands = %d, want 1", len(sb.commands))
 	}
 	configScript := sb.commands[0].Shell()
-	if !strings.Contains(configScript, "ANTHROPIC_BASE_URL") || !strings.Contains(configScript, "${AXERN_MANAGED_PROXY_BASE_URL}") {
+	if !strings.Contains(configScript, "ANTHROPIC_BASE_URL") || !strings.Contains(configScript, "https://api.deepseek.com/anthropic") {
 		t.Fatalf("config command = %#v", sb.commands[0])
 	}
 	if !strings.Contains(configScript, "claude -p") {
 		t.Fatalf("agent command missing: %#v", sb.commands[0])
 	}
-	if sb.options.Env["ANTHROPIC_API_KEY"] != "axern-local-adapter" {
+	if sb.options.Env["ANTHROPIC_API_KEY"] != "sk-test" {
 		t.Fatalf("env = %#v", sb.options.Env)
 	}
 	if sb.options.User != "" {
@@ -180,11 +175,11 @@ func TestHarnessProfileDoesNotInferSandboxUser(t *testing.T) {
 		Task: domain.TaskInstance{ID: "task-1"},
 	})
 
-	if plan.User != defaultBundleUser {
+	if plan.User != defaultAgentImageUser {
 		t.Fatalf("user = %q, want portable non-root bundle user", plan.User)
 	}
-	if plan.Env["HOME"] != defaultBundleHome {
-		t.Fatalf("HOME = %q, want %q", plan.Env["HOME"], defaultBundleHome)
+	if plan.Env["HOME"] != defaultAgentImageHome {
+		t.Fatalf("HOME = %q, want %q", plan.Env["HOME"], defaultAgentImageHome)
 	}
 }
 
@@ -207,7 +202,7 @@ func TestHarnessPreservesExplicitSandboxUser(t *testing.T) {
 	}
 }
 
-func TestHarnessPreservesExplicitBundleHome(t *testing.T) {
+func TestHarnessPreservesExplicitAgentImageHome(t *testing.T) {
 	plan := New(Config{Env: map[string]string{"HOME": "/custom-home"}}).launchPlan(agent.Request{
 		Agent: domain.AgentSpec{
 			Name: "claude-code",
@@ -248,15 +243,12 @@ func TestHarnessRunWrapsAgentImageCommandWithRemoteConfig(t *testing.T) {
 	}
 	h := New(Config{ConfigPath: configPath})
 	h.Launcher = launcher
-	if _, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "claude-code", Profile: "deepseek"}); err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
 	result, err := h.Run(context.Background(), agent.Request{
 		Agent: domain.AgentSpec{
 			Name: "claude-code",
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:    domain.AgentRuntimeTypeAgentImage,
-				Image:   "axern/claude-code-bundle:dev",
+				Image:   "example.com/claude-code-agent:dev",
 				Profile: "deepseek",
 				Command: []string{"bash", "-lc", "printf ok"},
 				User:    "axern",
@@ -267,11 +259,6 @@ func TestHarnessRunWrapsAgentImageCommandWithRemoteConfig(t *testing.T) {
 		Task:        domain.TaskInstance{ID: "task-1"},
 		Sandbox:     &fakeSandbox{},
 		Instruction: "Do it",
-		ManagedProxy: &sandbox.ManagedProxyOptions{
-			Provider:            "anthropic",
-			UpstreamBaseURL:     "https://api.deepseek.com/anthropic",
-			UpstreamBearerToken: "sk-test",
-		},
 	})
 	if err != nil {
 		t.Fatalf("Run returned error: %v", err)
@@ -280,51 +267,10 @@ func TestHarnessRunWrapsAgentImageCommandWithRemoteConfig(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 	command := launcher.plan.Command.Shell()
-	for _, expected := range []string{"ANTHROPIC_BASE_URL", "${AXERN_MANAGED_PROXY_BASE_URL}", "claude -p"} {
+	for _, expected := range []string{"ANTHROPIC_BASE_URL", "https://api.deepseek.com/anthropic", "claude -p"} {
 		if !strings.Contains(command, expected) {
 			t.Fatalf("wrapped command missing %q: %s", expected, command)
 		}
-	}
-}
-
-func TestHarnessManagedProxyConfigReturnsSetupFromProfile(t *testing.T) {
-	configPath := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(configPath, []byte(`{
-  "agent_profiles": {
-    "profiles": {
-      "deepseek": {
-        "agent": "claude-code",
-        "provider": "anthropic",
-        "wire_api": "anthropic_messages",
-        "upstream": "https://api.deepseek.com/anthropic",
-        "token": "sk-test"
-      }
-    }
-  }
-}`), 0o600); err != nil {
-		t.Fatalf("write config: %v", err)
-	}
-	h := New(Config{ConfigPath: configPath})
-	setup, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "claude-code", Profile: "deepseek"})
-	if err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
-	if setup == nil {
-		t.Fatal("ManagedProxyConfig returned nil")
-	}
-	if setup.Upstream == nil || setup.Upstream.String() != "https://api.deepseek.com/anthropic" || setup.Token != "sk-test" || setup.ProviderType != agent.ProviderAnthropic {
-		t.Fatalf("setup = %#v", setup)
-	}
-}
-
-func TestHarnessManagedProxyConfigReturnsNilWithoutProfile(t *testing.T) {
-	h := New(Config{})
-	setup, err := h.ManagedProxyConfig(domain.AgentSpec{Name: "claude-code"})
-	if err != nil {
-		t.Fatalf("ManagedProxyConfig returned error: %v", err)
-	}
-	if setup != nil {
-		t.Fatalf("ManagedProxyConfig should return nil without profile, got %#v", setup)
 	}
 }
 
@@ -340,7 +286,7 @@ func TestHarnessRunUsesAgentRuntimeExecutionSpec(t *testing.T) {
 			Name: "claude-code",
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:           domain.AgentRuntimeTypeAgentImage,
-				Image:          "axern/claude-code-bundle:dev",
+				Image:          "example.com/claude-code-agent:dev",
 				Command:        []string{"bash", "-lc", "printf ok"},
 				Workdir:        "/workspace",
 				User:           "axrun",
@@ -366,7 +312,7 @@ func TestHarnessRunUsesAgentRuntimeExecutionSpec(t *testing.T) {
 	}
 	if result.LauncherKind != domain.AgentLauncherKindAgentImage ||
 		result.RuntimeType != domain.AgentRuntimeTypeAgentImage ||
-		result.RuntimeImage != "axern/claude-code-bundle:dev" {
+		result.RuntimeImage != "example.com/claude-code-agent:dev" {
 		t.Fatalf("result launcher metadata = %#v", result)
 	}
 	command := launcher.plan.Command.Shell()
@@ -374,13 +320,13 @@ func TestHarnessRunUsesAgentRuntimeExecutionSpec(t *testing.T) {
 		t.Fatalf("command = %#v", launcher.plan.Command)
 	}
 	if launcher.plan.CWD != "/workspace" || launcher.plan.User != "axrun" || launcher.plan.Timeout != 9*time.Second ||
-		launcher.plan.BundleMountTarget != "/opt/axern/agents/claude-code" {
+		launcher.plan.ImageMountTarget != "/opt/axern/agents/claude-code" {
 		t.Fatalf("plan = %#v", launcher.plan)
 	}
 	if launcher.plan.Env["RUNTIME_ENV"] != "yes" ||
 		launcher.plan.Env["AXRUN_AGENT_RUNTIME_TYPE"] != string(domain.AgentRuntimeTypeAgentImage) ||
-		launcher.plan.Env["AXRUN_AGENT_RUNTIME_IMAGE"] != "axern/claude-code-bundle:dev" ||
-		launcher.plan.Env["AXRUN_AGENT_BUNDLE_MOUNT_TARGET"] != "/opt/axern/agents/claude-code" ||
+		launcher.plan.Env["AXRUN_AGENT_RUNTIME_IMAGE"] != "example.com/claude-code-agent:dev" ||
+		launcher.plan.Env["AXRUN_AGENT_IMAGE_MOUNT_TARGET"] != "/opt/axern/agents/claude-code" ||
 		launcher.plan.Env["AXRUN_AGENT_SESSION_MODE"] != string(domain.AgentSessionModeCreate) ||
 		launcher.plan.Env["AXRUN_AGENT_SESSION_ID"] != "session-1" ||
 		launcher.plan.Env["AXRUN_AGENT_MAX_TURNS"] != "42" ||
@@ -398,7 +344,7 @@ func TestHarnessLaunchPlanUsesRuntimeProfileForEnv(t *testing.T) {
 			Profile: "top-level-profile",
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:    domain.AgentRuntimeTypeAgentImage,
-				Image:   "axern/claude-code-bundle:dev",
+				Image:   "example.com/claude-code-agent:dev",
 				Command: []string{"bash", "-lc", "true"},
 				Profile: "runtime-profile",
 			},
@@ -410,7 +356,7 @@ func TestHarnessLaunchPlanUsesRuntimeProfileForEnv(t *testing.T) {
 	if plan.Profile != "runtime-profile" ||
 		plan.LauncherKind != domain.AgentLauncherKindAgentImage ||
 		plan.RuntimeType != domain.AgentRuntimeTypeAgentImage ||
-		plan.Image != "axern/claude-code-bundle:dev" ||
+		plan.Image != "example.com/claude-code-agent:dev" ||
 		plan.Env["AXRUN_AGENT_PROFILE"] != "runtime-profile" ||
 		plan.Env["ANTHROPIC_API_KEY"] != "axern-local-adapter" {
 		t.Fatalf("plan = %#v", plan)
@@ -519,7 +465,7 @@ func TestHarnessBuildsAgentImageLaunchPlanForAgentImageRuntime(t *testing.T) {
 			Name: "claude-code",
 			Runtime: &domain.AgentRuntimeSpec{
 				Type:    domain.AgentRuntimeTypeAgentImage,
-				Image:   "ghcr.io/cofy-x/claude-code-bundle:latest",
+				Image:   "example.com/claude-code-agent:latest",
 				Command: []string{"bash", "-lc", "true"},
 			},
 		},
@@ -533,11 +479,11 @@ func TestHarnessBuildsAgentImageLaunchPlanForAgentImageRuntime(t *testing.T) {
 	if plan.RuntimeType != domain.AgentRuntimeTypeAgentImage {
 		t.Fatalf("runtime_type = %q", plan.RuntimeType)
 	}
-	if plan.Image != "ghcr.io/cofy-x/claude-code-bundle:latest" {
+	if plan.Image != "example.com/claude-code-agent:latest" {
 		t.Fatalf("runtime_image = %q", plan.Image)
 	}
-	if plan.BundleMountTarget != "/opt/axern/agents/claude-code" {
-		t.Fatalf("bundle_mount_target = %q", plan.BundleMountTarget)
+	if plan.ImageMountTarget != "/opt/axern/agents/claude-code" {
+		t.Fatalf("image_mount_target = %q", plan.ImageMountTarget)
 	}
 }
 

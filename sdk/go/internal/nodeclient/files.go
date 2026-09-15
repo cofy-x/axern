@@ -51,14 +51,6 @@ func (c *Client) WriteFile(ctx context.Context, path string, data []byte, create
 	return err
 }
 
-func (c *Client) MaterializeTaskAssets(ctx context.Context, sourcePath, target string, kind nodesandboxv1.TaskAssetKind) (int64, error) {
-	response, err := c.nodes.MaterializeTaskAssets(ctx, &nodesandboxv1.MaterializeTaskAssetsRequest{AllocationID: c.allocationID, SourcePath: sourcePath, Target: target, Kind: kind})
-	if err != nil {
-		return 0, err
-	}
-	return response.GetDurationMs(), nil
-}
-
 func (c *Client) Exists(ctx context.Context, path string) (bool, error) {
 	response, err := c.nodes.Exists(ctx, &nodesandboxv1.ExistsRequest{
 		AllocationID: c.allocationID,

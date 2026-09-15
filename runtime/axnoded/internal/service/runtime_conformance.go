@@ -18,10 +18,10 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/handlerregistry"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -48,13 +48,12 @@ const (
 	runtimeConformanceKindEphemeral runtimeConformanceKind = "ephemeral-storage"
 )
 
-type runtimeConformanceProbe func(context.Context, string, runtimeConformanceKind) error
+type runtimeConformanceProbe func(context.Context, runtimeConformanceKind) error
 
 type runtimeConformanceProvider struct {
 	mu               sync.Mutex
 	cfg              config.Config
-	registry         *handlerregistry.Registry
-	runtime          string
+	handler          contract.SandboxRuntime
 	kind             runtimeConformanceKind
 	provider         capabilityv1.CapabilityProvider
 	expected         *capabilityv1.CapabilityKey
@@ -103,29 +102,22 @@ func (c *runtimeFileDigestCache) Digest(path string) (string, error) {
 	return digest, nil
 }
 
-func runtimeConformanceCapabilityProvider(cfg config.Config, registry *handlerregistry.Registry, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
+func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.SandboxRuntime, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
 	// The call sites use the closed runtime/kind matrix below. Keep each
 	// provider single-keyed: provider ownership and recovery are tracked per
 	// observation, so combining enforcement boundaries would couple their
 	// failure and refresh lifecycles again.
-	provider := capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNC_SELF_TEST
-	fact := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_ENFORCEMENT_SELF_TEST
+	provider := capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST
+	fact := capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST
 	if kind == runtimeConformanceKindEphemeral {
-		fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_ENFORCEMENT_SELF_TEST
-	}
-	if runtimeName == config.RuntimeNameRunsc {
-		provider = capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_RUNSC_SELF_TEST
-		fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST
-		if kind == runtimeConformanceKindEphemeral {
-			fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST
-		}
+		fact = capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST
 	}
 	cache := newRuntimeFileDigestCache()
 	if len(caches) > 0 && caches[0] != nil {
 		cache = caches[0]
 	}
 	return &runtimeConformanceProvider{
-		cfg: cfg, registry: registry, runtime: runtimeName, kind: kind, provider: provider, bootID: bootID, probe: probe,
+		cfg: cfg, handler: handler, kind: kind, provider: provider, bootID: bootID, probe: probe,
 		expected: capabilitycontract.PlatformKey(fact), digestCache: cache,
 	}
 }
@@ -181,7 +173,7 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.nextProbe = time.Time{}
 	} else if err == nil && (identityChanged || probeDue) {
 		probeCtx, cancel := context.WithTimeout(ctx, runtimeConformanceTimeout)
-		err = p.probe(probeCtx, p.runtime, p.kind)
+		err = p.probe(probeCtx, p.kind)
 		cancel()
 		p.identity = identity
 		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
@@ -190,6 +182,13 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
 		p.failures = 0
 		p.nextProbe = time.Time{}
+		if errors.Is(err, resources.ErrMemoryCapacityUnavailable) {
+			// No sandbox was created: admission lacked a current capacity
+			// sample. Do not latch this as failed destructive certification.
+			p.lastErrorUnknown = true
+			p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DEPENDENCY_UNAVAILABLE
+			p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(1))
+		}
 	} else if err != nil && (p.lastProbe.IsZero() || p.nextProbe.IsZero() || !now.Before(p.nextProbe)) {
 		p.identity = identity
 		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
@@ -201,7 +200,7 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 	}
 	var evidence *capabilityv1.CapabilityEvidence
 	if binaryDigest != "" && configDigest != "" {
-		evidence = capabilitycontract.RuntimeEvidence(p.bootID, p.runtime, binaryDigest, configDigest)
+		evidence = capabilitycontract.RuntimeEvidence(p.bootID, binaryDigest, configDigest)
 	}
 	if p.lastErr != nil {
 		observation := failedObservation(p.expected, evidence, p.lastReasonCode, p.lastErr.Error())
@@ -246,12 +245,9 @@ func setObservationTime(observations []*capabilityv1.CapabilityObservation, obse
 }
 
 func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, configDigest string, err error) {
-	runtimeCfg, configured := p.cfg.PluginConfig.RuntimeConfig.NormalizedRuntimeConfigs()[p.runtime]
-	if !configured {
-		return "", "", "", fmt.Errorf("runtime %q is not configured", p.runtime)
-	}
-	if _, loaded := p.registry.Get(p.runtime); !loaded {
-		return "", "", "", fmt.Errorf("runtime %q handler is not loaded", p.runtime)
+	runtimeCfg := p.cfg.PluginConfig.RuntimeConfig.Runsc
+	if p.handler == nil {
+		return "", "", "", errors.New("runsc handler is not loaded")
 	}
 	runtimeBinary, err := exec.LookPath(strings.TrimSpace(runtimeCfg.Binary))
 	if err != nil {
@@ -265,14 +261,6 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("digest runtime base spec: %w", err)
 	}
-	runner, err := exec.LookPath(p.cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinaryPath())
-	if err != nil {
-		return "", "", "", fmt.Errorf("resolve runtime runner binary: %w", err)
-	}
-	runnerDigest, err := p.digestCache.Digest(runner)
-	if err != nil {
-		return "", "", "", fmt.Errorf("digest runtime runner binary: %w", err)
-	}
 	mode, err := p.cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
 	if err != nil {
 		return "", "", "", err
@@ -281,7 +269,7 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("marshal runtime options: %w", err)
 	}
-	configPayload := strings.Join([]string{baseSpecDigest, runnerDigest, string(options), mode}, "\x00")
+	configPayload := strings.Join([]string{baseSpecDigest, string(options), mode}, "\x00")
 	digest := sha256.Sum256([]byte(configPayload))
 	configDigest = "sha256:" + hex.EncodeToString(digest[:])
 	return binaryDigest + ":" + configDigest, binaryDigest, configDigest, nil
@@ -296,7 +284,7 @@ func digestFile(path string) (string, error) {
 	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
-func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runtimeName string, kind runtimeConformanceKind) (retErr error) {
+func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, kind runtimeConformanceKind) (retErr error) {
 	rootfs, err := materializeRuntimeConformanceRootfs(
 		h.config.PluginConfig.RuntimeConfig.FilestoreDir,
 		runtimeConformanceFixture,
@@ -304,18 +292,18 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
-	runtimeID := "capability-selftest-" + runtimeName + "-" + string(kind)
+	environmentID := "capability-selftest-runsc-" + string(kind)
 	// Providers are serialized per runtime/kind. A deterministic allocation ID
 	// makes interrupted probes reconcilable and prevents retries from creating
 	// an unbounded series of orphan bundles.
-	allocationID := runtimeID + "-allocation"
+	allocationID := environmentID + "-allocation"
 	preflightCtx, preflightCancel := context.WithTimeout(ctx, runtimeConformanceCleanup)
-	if err := h.cleanupRuntimeConformanceAllocation(preflightCtx, runtimeName, allocationID); err != nil {
+	if err := h.cleanupRuntimeConformanceAllocation(preflightCtx, allocationID); err != nil {
 		preflightCancel()
 		return fmt.Errorf("cleanup previous runtime conformance sandbox: %w", err)
 	}
 	preflightCancel()
-	request, err := runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs, kind)
+	request, err := runtimeConformanceStartRequest(allocationID, environmentID, rootfs, kind)
 	if err != nil {
 		return err
 	}
@@ -334,7 +322,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		// cleanup window inside the provider's 60-second conformance budget.
 		deleteCtx, cancel := context.WithTimeout(context.Background(), runtimeConformanceCleanup)
 		defer cancel()
-		if err := h.cleanupRuntimeConformanceAllocation(deleteCtx, runtimeName, allocationID); err != nil {
+		if err := h.cleanupRuntimeConformanceAllocation(deleteCtx, allocationID); err != nil {
 			if retErr == nil {
 				retErr = fmt.Errorf("cleanup self-test allocation: %w", err)
 			} else {
@@ -342,7 +330,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 			}
 			return
 		}
-		if err := h.lrtManager.EvictIdleRuntime(deleteCtx, runtimeID, langrtmanager.RetentionReasonSelfTest); err != nil {
+		if err := h.environmentCache.EvictIdleEnvironment(deleteCtx, environmentID, environmentcache.RetentionReasonSelfTest); err != nil {
 			if retErr == nil {
 				retErr = fmt.Errorf("cleanup self-test runtime: %w", err)
 			} else {
@@ -352,11 +340,8 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	}()
 	startAttempted = true
 	response, err := h.allocationController().StartInternalConformance(operationCtx, request)
-	if err != nil || response == nil || response.GetCode() != 0 {
+	if err != nil || response == nil || response.GetAllocationID() == "" {
 		message := "empty response"
-		if response != nil {
-			message = response.GetMessage()
-		}
 		return fmt.Errorf("start runtime conformance sandbox: %w", firstRuntimeConformanceError(err, message))
 	}
 	if kind == runtimeConformanceKindEphemeral {
@@ -366,7 +351,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	} else if kind == runtimeConformanceKindMemory {
 		return h.verifyRuntimeConformanceMemoryOOM(operationCtx, allocationID)
 	}
-	platform, err := runtimeConformancePlatform(runtimeName, kind)
+	platform, err := runtimeConformancePlatform(kind)
 	if err != nil {
 		return err
 	}
@@ -375,7 +360,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
-	verification := h.verifyAllocationCapability(operationCtx, allocationID, &capabilityv1.CapabilityDependency{Key: key, LossPolicy: lossPolicy})
+	verification := h.verifyAllocationCapability(operationCtx, allocationID, &capabilityv1.CapabilityRequirement{Key: key, LossPolicy: lossPolicy})
 	if verification.State != contract.CapabilityVerificationVerified {
 		return fmt.Errorf("verify %s conformance: %s", platform, verificationMessage(verification))
 	}
@@ -394,7 +379,7 @@ func runtimeConformanceOperationContext(parent context.Context) (context.Context
 	return ctx, cancel, nil
 }
 
-func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, runtimeName, allocationID string) error {
+func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, allocationID string) error {
 	_, err := h.allocationController().Delete(ctx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 0})
 	if err == nil {
 		return h.verifyRuntimeConformanceCleanup(ctx, allocationID)
@@ -408,9 +393,9 @@ func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context
 	// ownership record, so complete the same ordered cleanup from the reserved
 	// self-test identity: runtime/storage, network activation, resources/bundle,
 	// and finally allocation state.
-	handler, ok := h.runtimeHandlers.Get(runtimeName)
-	if !ok {
-		return fmt.Errorf("runtime handler %s is unavailable", runtimeName)
+	handler := h.runscHandler
+	if handler == nil {
+		return errors.New("runsc handler is unavailable")
 	}
 	resource, resourceErr := h.containerManager.CollectResourceByID(allocationID)
 	if resourceErr != nil && !errors.Is(resourceErr, os.ErrNotExist) {
@@ -448,7 +433,6 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 	paths := []string{
 		filepath.Join(h.config.RootDir, "containers", allocationID),
 		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "projections", allocationID),
-		filepath.Join(h.config.PluginConfig.RuntimeConfig.FilestoreDir, "runc", allocationID),
 	}
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
@@ -485,30 +469,29 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 	}
 }
 
-func runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
+func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
 	request := &runtimev1.StartRequest{
-		ContainerID: allocationID,
-		RuntimeTemplate: &runtimev1.RuntimeTemplate{
-			ID:      runtimeID,
-			Sandbox: runtimeName,
+		AllocationID: allocationID,
+		Environment: &runtimev1.ResolvedEnvironment{
+			ID: environmentID,
 			Rootfs: &runtimev1.RootfsConfig{
 				Type:     runtimev1.RootfsSrcType_LOCAL,
 				Source:   &runtimev1.RootfsConfig_Path{Path: rootfs},
 				Readonly: kind == runtimeConformanceKindMemory,
 			},
-			Command: []string{"/bin/busybox", "sleep", "120"},
-			Cwd:     "/",
+			Argv: []string{"/bin/busybox", "sleep", "120"},
+			Cwd:  "/",
 		},
 	}
 	switch kind {
 	case runtimeConformanceKindMemory:
-		request.RuntimeTemplate.Command = []string{"/bin/memory-hog"}
+		request.Environment.Argv = []string{"/bin/memory-hog"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 			Limits:   &commonv1.ResourceQuantity{MemoryBytes: runtimeConformanceMemoryLimit},
 		}
 	case runtimeConformanceKindEphemeral:
-		request.RuntimeTemplate.Command = []string{"/bin/sh", "-c", "printf 'pending\\n' > /.axern-quota-result; if /bin/busybox dd if=/dev/zero of=/.axern-quota-probe bs=1M count=96 conv=fsync; then result=not_enforced; else result=enforced; fi; rm -f /.axern-quota-probe; printf '%s\\n' \"$result\" > /.axern-quota-result; exec /bin/busybox sleep 120"}
+		request.Environment.Argv = []string{"/bin/sh", "-c", "printf 'pending\\n' > /.axern-quota-result; if /bin/busybox dd if=/dev/zero of=/.axern-quota-probe bs=1M count=96 conv=fsync; then result=not_enforced; else result=enforced; fi; rm -f /.axern-quota-probe; printf '%s\\n' \"$result\" > /.axern-quota-result; exec /bin/busybox sleep 120"}
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},
 			Limits:   &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},
@@ -519,18 +502,14 @@ func runtimeConformanceStartRequest(allocationID, runtimeID, runtimeName, rootfs
 	return request, nil
 }
 
-func runtimeConformancePlatform(runtimeName string, kind runtimeConformanceKind) (capabilityv1.PlatformCapability, error) {
-	switch {
-	case runtimeName == config.RuntimeNameRunc && kind == runtimeConformanceKindMemory:
-		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_MEMORY_HARD_LIMIT, nil
-	case runtimeName == config.RuntimeNameRunsc && kind == runtimeConformanceKindMemory:
+func runtimeConformancePlatform(kind runtimeConformanceKind) (capabilityv1.PlatformCapability, error) {
+	switch kind {
+	case runtimeConformanceKindMemory:
 		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT, nil
-	case runtimeName == config.RuntimeNameRunc && kind == runtimeConformanceKindEphemeral:
-		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT, nil
-	case runtimeName == config.RuntimeNameRunsc && kind == runtimeConformanceKindEphemeral:
+	case runtimeConformanceKindEphemeral:
 		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, nil
 	default:
-		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_UNSPECIFIED, fmt.Errorf("unsupported runtime conformance runtime=%q kind=%q", runtimeName, kind)
+		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_UNSPECIFIED, fmt.Errorf("unsupported runsc conformance kind %q", kind)
 	}
 }
 
@@ -565,7 +544,7 @@ func (h *sandboxService) verifyRuntimeConformanceMemoryOOM(ctx context.Context, 
 	if manifest == nil || manifest.GetMemoryLimitBytes() != runtimeConformanceMemoryLimit {
 		return fmt.Errorf("runtime conformance memory enforcement manifest is unavailable or inconsistent")
 	}
-	if h.allocationController().LaunchVerification(allocationID) == nil {
+	if h.allocationController().VerifiedEnforcementManifest(allocationID) == nil {
 		return fmt.Errorf("runtime conformance create-time memory verification is unavailable")
 	}
 	ticker := time.NewTicker(100 * time.Millisecond)

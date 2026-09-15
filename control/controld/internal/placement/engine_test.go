@@ -10,15 +10,12 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/node/v1"
-	"google.golang.org/protobuf/proto"
+	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestHasWarmRuntimeSlotUsesAggregateContract(t *testing.T) {
 	pools := &nodev1.PoolsSummary{
-		Cgroup:       &nodev1.PoolState{},
-		Interface:    &nodev1.PoolState{Idle: 4},
 		RuntimeSlots: &nodev1.PoolState{Idle: 4},
 	}
 	if !hasWarmRuntimeSlot(pools) {
@@ -37,7 +34,6 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 		Records: []*nodekernel.Record{
 			record("stale-heartbeat", []string{"runsc"}, readySummary(base.Add(10*time.Second)), base),
 			record("stale-summary", []string{"runsc"}, readySummary(base), base.Add(20*time.Second)),
-			record("runtime-mismatch", []string{"runc"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
 			record("eligible", []string{"runsc"}, readySummary(base.Add(20*time.Second)), base.Add(20*time.Second)),
 		},
 	}
@@ -46,20 +42,18 @@ func TestPlanReturnsRejectedCandidatesWithExplicitReasons(t *testing.T) {
 		RootfsKey:  "local:/tmp/rootfs",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:  nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:    "runsc",
 	}, base.Add(20*time.Second))
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "eligible" {
 		t.Fatalf("unexpected eligible candidates: %#v", eligible)
 	}
-	if len(rejected) != 3 {
-		t.Fatalf("expected 3 rejected candidates, got %d", len(rejected))
+	if len(rejected) != 2 {
+		t.Fatalf("expected 2 rejected candidates, got %d", len(rejected))
 	}
-	assertRejectedReasons(t, rejected[0], "runtime-mismatch", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_RUNTIME_UNSUPPORTED)
-	assertRejectedReasons(t, rejected[1], "stale-heartbeat", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_HEARTBEAT)
-	assertRejectedReasons(t, rejected[2], "stale-summary",
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_STALE_SUMMARY,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_MEMORY_BUDGET_UNAVAILABLE,
+	assertRejectedReasons(t, rejected[0], "stale-heartbeat", placementkernel.RejectionReasonStaleHeartbeat)
+	assertRejectedReasons(t, rejected[1], "stale-summary",
+		placementkernel.RejectionReasonStaleSummary,
+		placementkernel.RejectionReasonNetworkUnsupported,
+		placementkernel.RejectionReasonNodeMemoryBudgetUnavailable,
 	)
 }
 
@@ -84,25 +78,23 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 		RootfsKey:  "image:repo/app:oci",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:    "runsc",
 	}, now)
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "remote-node" {
 		t.Fatalf("expected only remote node to be eligible for oci: %#v %#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "local-node", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE)
+	assertRejectedReasons(t, rejected[0], "local-node", placementkernel.RejectionReasonImagemgrUnavailable)
 
 	eligible, rejected = engine.Plan(snapshot, &placementkernel.Request{
 		RootfsKey:  "image:repo/app:nydus",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_NYDUS,
-		Runtime:    "runsc",
 	}, now)
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "remote-node" {
 		t.Fatalf("expected only remote node to be eligible for nydus: %#v %#v", eligible, rejected)
 	}
 	assertRejectedReasons(t, rejected[0], "local-node",
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEMGR_UNAVAILABLE,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_IMAGEFSD_UNAVAILABLE,
+		placementkernel.RejectionReasonImagemgrUnavailable,
+		placementkernel.RejectionReasonImagefsdUnavailable,
 	)
 }
 
@@ -112,13 +104,13 @@ func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
 	summary := readySummary(now)
 	summary.Locality = []*nodev1.LocalitySummary{{Key: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_EROFS, Mounted: true}}
 	record := record("node-erofs", []string{"runsc"}, summary, now)
-	request := &placementkernel.Request{RootfsKey: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_OCI, Runtime: "runsc"}
+	request := &placementkernel.Request{RootfsKey: rootfsKey, RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE, MountType: nodev1.MountType_MOUNT_TYPE_OCI}
 
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{record}}, request, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("without EROFS evidence eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-erofs", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED)
+	assertRejectedReasons(t, rejected[0], "node-erofs", placementkernel.RejectionReasonCapabilityUnsupported)
 
 	erofs := availableCapabilitySnapshot(now, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS).GetObservations()[0]
 	summary.CapabilitySnapshot.Observations = append(summary.CapabilitySnapshot.Observations, erofs)
@@ -135,76 +127,30 @@ func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
 	}
 }
 
-func TestPlanPrefersBetterBpfnetWhenPortsAreRequested(t *testing.T) {
-	engine := NewEngine(Config{})
-	now := time.Date(2026, 4, 21, 14, 0, 0, 0, time.UTC)
-
-	baseline := readySummary(now)
-	baseline.Locality = []*nodev1.LocalitySummary{{
-		Key:                        "image:repo/app:latest",
-		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:                  nodev1.MountType_MOUNT_TYPE_OCI,
-		Mounted:                    true,
-		RetainedRootfsCount:        1,
-		RetainedRuntimeCount:       1,
-		ChunkdbRecentAccessAgeSecs: 5,
-		PeerHealthyCount:           2,
-		PeerHintedCount:            1,
-	}}
-	needsFallback := proto.Clone(baseline).(*nodev1.NodeSummary)
-	needsFallback.Components.Bpfnet.Ready = false
-	needsFallback.Components.Bpfnet.NeedsFullDnatFallback = true
-
-	snapshot := nodekernel.Snapshot{
-		Records: []*nodekernel.Record{
-			record("node-fallback", []string{"runsc"}, needsFallback, now),
-			record("node-preferred", []string{"runsc"}, baseline, now),
-		},
-	}
-
-	eligible, _ := engine.Plan(snapshot, &placementkernel.Request{
-		RootfsKey:  "image:repo/app:latest",
-		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:    "runsc",
-		Ports:      []string{"8080/tcp"},
-	}, now)
-	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-preferred" {
-		t.Fatalf("unexpected eligible candidates: %#v", eligible)
-	}
-	if !eligible[0].GetRank().GetBpfnetPreferred() {
-		t.Fatalf("expected top-ranked node to have preferred bpfnet: %#v", eligible[0])
-	}
-}
-
 func TestPlanSortsByFixedTuple(t *testing.T) {
 	engine := NewEngine(Config{})
 	now := time.Date(2026, 4, 21, 15, 0, 0, 0, time.UTC)
 
 	hot := readySummary(now)
-	hot.Resources.AxnodedUsedMilli = 300
-	hot.Resources.AxnodedUsedBytes = 3000
 	hot.Locality = []*nodev1.LocalitySummary{{
 		Key:                        "image:repo/app:latest",
 		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                  nodev1.MountType_MOUNT_TYPE_OCI,
 		Mounted:                    true,
 		RetainedRootfsCount:        2,
-		RetainedRuntimeCount:       1,
+		RetainedEnvironmentCount:   1,
 		ChunkdbRecentAccessAgeSecs: 5,
 		PeerHealthyCount:           3,
 		PeerHintedCount:            2,
 	}}
 	warm := readySummary(now)
-	warm.Resources.AxnodedUsedMilli = 100
-	warm.Resources.AxnodedUsedBytes = 1000
 	warm.Locality = []*nodev1.LocalitySummary{{
 		Key:                        "image:repo/app:latest",
 		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                  nodev1.MountType_MOUNT_TYPE_OCI,
 		Mounted:                    false,
 		RetainedRootfsCount:        1,
-		RetainedRuntimeCount:       1,
+		RetainedEnvironmentCount:   1,
 		ChunkdbRecentAccessAgeSecs: 20,
 		PeerHealthyCount:           1,
 		PeerHintedCount:            1,
@@ -219,12 +165,11 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 		RootfsKey:  "image:repo/app:latest",
 		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:  nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:    "runsc",
 	}, now)
 	if len(eligible) != 2 || eligible[0].GetNodeID() != "node-hot" || eligible[1].GetNodeID() != "node-warm" {
 		t.Fatalf("unexpected candidate order: %#v", eligible)
 	}
-	if eligible[0].GetState() != nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_ELIGIBLE {
+	if eligible[0].GetState() != placementkernel.CandidateStateEligible {
 		t.Fatalf("expected eligible state, got %#v", eligible[0])
 	}
 }
@@ -242,9 +187,6 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		MemoryBytes: 1024,
 	}
 	setTestMemoryCapacity(restricted, 1024)
-	restricted.Resources.AxnodedCommittedMilli = 900
-	restricted.Resources.AxnodedCommittedBytes = 900
-	restricted.MemoryBudget.LocalCommitmentBytes = 900
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -254,10 +196,8 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		RootfsKey:                       "image:repo/app:latest",
 		RootfsType:                      nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                       nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:                         "runsc",
 		RequestedCpuMilli:               200,
 		RequestedMemoryBytes:            256,
-		Ports:                           []string{"tcp:8080:80"},
 		Network:                         "bridge",
 		ExtensionCapabilityRequirements: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: "example.com/gpu"}}},
 		NodeSelector:                    map[string]string{"zone": "us-west-1"},
@@ -266,13 +206,10 @@ func TestPlanRejectsSelectorCapabilityAndResourceAdmission(t *testing.T) {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
 	}
 	assertRejectedReasons(t, rejected[0], "node-a",
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_DRAINING,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_SELECTOR_MISMATCH,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_PORTS_UNSUPPORTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NETWORK_UNSUPPORTED,
-		nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_CAPABILITY_UNSUPPORTED,
+		placementkernel.RejectionReasonNodeDraining,
+		placementkernel.RejectionReasonNodeSelectorMismatch,
+		placementkernel.RejectionReasonNetworkUnsupported,
+		placementkernel.RejectionReasonCapabilityUnsupported,
 	)
 }
 
@@ -286,8 +223,6 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		MemoryBytes: 2048,
 	}
 	setTestMemoryCapacity(summary, 2048)
-	summary.Resources.AxnodedCommittedBytes = 1800
-	summary.MemoryBudget.LocalCommitmentBytes = 1800
 
 	eligible, rejected := engine.Plan(nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -297,52 +232,47 @@ func TestPlanRejectsInsufficientMemory(t *testing.T) {
 		RootfsKey:            "image:repo/app:latest",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:            nodev1.MountType_MOUNT_TYPE_OCI,
-		Runtime:              "runsc",
-		RequestedMemoryBytes: 512,
+		RequestedMemoryBytes: 2049,
 	}, now)
 	if len(eligible) != 0 {
 		t.Fatalf("expected no eligible candidates, got %#v", eligible)
 	}
-	assertRejectedReasons(t, rejected[0], "node-mem", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+	assertRejectedReasons(t, rejected[0], "node-mem", placementkernel.RejectionReasonInsufficientMemory)
 }
 
-func TestPlanIgnoresDiagnosticMemoryAggregateWhenLocalLedgerHasCapacity(t *testing.T) {
+func TestPlanIgnoresNodeLocalCommitmentForDurableAllocationAccounting(t *testing.T) {
 	now := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 4000, MemoryBytes: 2048}
 	setTestMemoryCapacity(summary, 2048)
-	summary.MemoryBudget.LocalCommitmentBytes = 256
-	// This inventory aggregate may lag or include diagnostic runtime state. It
-	// must not become a third commitment ledger.
-	summary.Resources.AxnodedCommittedBytes = 2000
+	summary.Diagnostics.Memory.LocalCommitmentBytes = 256
 
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-memory-ledger", []string{"runsc"}, summary, now),
 	}}, &placementkernel.Request{
 		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
-		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 512,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, RequestedMemoryBytes: 512,
 	}, now)
 	if len(eligible) != 1 || len(rejected) != 0 {
-		t.Fatalf("eligible=%#v rejected=%#v, want node admitted from local commitment ledger", eligible, rejected)
+		t.Fatalf("eligible=%#v rejected=%#v, want registry prefilter to defer charge accounting to PostgreSQL", eligible, rejected)
 	}
 }
 
-func TestPlanCountsNodeLocalRetiringMemoryCommitment(t *testing.T) {
+func TestPlanDoesNotTreatRetiringMemoryAsAllocationCharge(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
-	summary.MemoryBudget.LocalCommitmentBytes = 15 << 30
-	summary.MemoryBudget.CleanupDebtBytes = 15 << 30
-	summary.MemoryBudget.RetiringCgroupCount = 1
+	summary.Diagnostics.Memory.LocalCommitmentBytes = 15 << 30
+	summary.Diagnostics.Memory.CleanupDebtBytes = 15 << 30
+	summary.Diagnostics.Memory.RetiringCgroupCount = 1
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-retiring", []string{"runsc"}, summary, now),
 	}}, &placementkernel.Request{
 		RootfsKey: "local:/tmp/rootfs", RootfsType: nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
-		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, Runtime: "runsc", RequestedMemoryBytes: 2 << 30,
+		MountType: nodev1.MountType_MOUNT_TYPE_LOCAL, RequestedMemoryBytes: 2 << 30,
 	}, now)
-	if len(eligible) != 0 || len(rejected) != 1 {
+	if len(eligible) != 1 || len(rejected) != 0 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-retiring", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
 }
 
 func TestPlanCPUOvercommitPolicy(t *testing.T) {
@@ -351,7 +281,6 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
 	setTestMemoryCapacity(summary, 1<<30)
-	summary.Resources.AxnodedCommittedMilli = 1500
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-cpu", []string{"runsc"}, summary, now),
@@ -360,7 +289,6 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:           "runsc",
 		RequestedCpuMilli: 400,
 	}, now)
 	if len(eligible) != 1 || eligible[0].GetNodeID() != "node-cpu" || len(rejected) != 0 {
@@ -371,13 +299,12 @@ func TestPlanCPUOvercommitPolicy(t *testing.T) {
 		RootfsKey:         "local:/tmp/rootfs",
 		RootfsType:        nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:         nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:           "runsc",
-		RequestedCpuMilli: 600,
+		RequestedCpuMilli: 2100,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("expected node-cpu rejected, got eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-cpu", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_CPU)
+	assertRejectedReasons(t, rejected[0], "node-cpu", placementkernel.RejectionReasonInsufficientCPU)
 }
 
 func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
@@ -386,8 +313,6 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 1000, MemoryBytes: 1 << 30}
 	setTestMemoryCapacity(summary, 1<<30)
-	summary.Resources.AxnodedCommittedBytes = 900 << 20
-	summary.MemoryBudget.LocalCommitmentBytes = 900 << 20
 
 	snapshot := nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-mem-overcommit", []string{"runsc"}, summary, now),
@@ -396,43 +321,41 @@ func TestPlanMemoryDoesNotOvercommit(t *testing.T) {
 		RootfsKey:            "local:/tmp/rootfs",
 		RootfsType:           nodev1.RootfsType_ROOTFS_TYPE_LOCAL,
 		MountType:            nodev1.MountType_MOUNT_TYPE_LOCAL,
-		Runtime:              "runsc",
-		RequestedMemoryBytes: 200 << 20,
+		RequestedMemoryBytes: (1 << 30) + 1,
 	}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("expected node rejected for memory, got eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-mem-overcommit", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_INSUFFICIENT_MEMORY)
+	assertRejectedReasons(t, rejected[0], "node-mem-overcommit", placementkernel.RejectionReasonInsufficientMemory)
 }
 
 func TestPlanRejectsRetiredNodeAsNonRetryable(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	retired := record("node-retired", []string{"runsc"}, readySummary(now), now)
 	retired.Lifecycle = nodekernel.LifecycleRetired
-	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{retired}}, &placementkernel.Request{Runtime: "runsc", MountType: nodev1.MountType_MOUNT_TYPE_LOCAL}, now)
+	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{retired}}, &placementkernel.Request{MountType: nodev1.MountType_MOUNT_TYPE_LOCAL}, now)
 	if len(eligible) != 0 || len(rejected) != 1 {
 		t.Fatalf("eligible=%#v rejected=%#v", eligible, rejected)
 	}
-	assertRejectedReasons(t, rejected[0], "node-retired", nodev1.PlacementRejectionReason_PLACEMENT_REJECTION_REASON_NODE_RETIRED)
+	assertRejectedReasons(t, rejected[0], "node-retired", placementkernel.RejectionReasonNodeRetired)
 }
 
 func record(nodeID string, runtimes []string, summary *nodev1.NodeSummary, updatedAt time.Time) *nodekernel.Record {
 	return &nodekernel.Record{
-		NodeID:       nodeID,
-		Lifecycle:    nodekernel.LifecycleActive,
-		Runtimes:     append([]string(nil), runtimes...),
-		Summary:      summary,
-		RegisteredAt: updatedAt,
-		UpdatedAt:    updatedAt,
+		NodeID:          nodeID,
+		Lifecycle:       nodekernel.LifecycleActive,
+		Summary:         summary,
+		AdmittedAt:      updatedAt,
+		LastHeartbeatAt: updatedAt,
 	}
 }
 
-func assertRejectedReasons(t *testing.T, candidate *nodev1.PlacementCandidate, nodeID string, want ...nodev1.PlacementRejectionReason) {
+func assertRejectedReasons(t *testing.T, candidate *placementkernel.Evaluation, nodeID string, want ...placementkernel.RejectionReason) {
 	t.Helper()
 	if candidate.GetNodeID() != nodeID {
 		t.Fatalf("candidate node_id = %q, want %q", candidate.GetNodeID(), nodeID)
 	}
-	if candidate.GetState() != nodev1.PlacementCandidateState_PLACEMENT_CANDIDATE_STATE_REJECTED {
+	if candidate.GetState() != placementkernel.CandidateStateRejected {
 		t.Fatalf("candidate state = %v, want rejected", candidate.GetState())
 	}
 	got := candidate.GetRejectionReasons()
@@ -451,15 +374,11 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		CollectedAt: timestamppb.New(collectedAt),
 		NodeState:   nodev1.NodeState_NODE_STATE_READY,
 		CapabilitySnapshot: availableCapabilitySnapshot(collectedAt,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_PORT_FORWARDING,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
-			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNC_EPHEMERAL_STORAGE_HARD_LIMIT,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 			capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		),
-		Resources: &nodev1.ResourcesSummary{
-			AxnodedUsedMilli: 100,
-			AxnodedUsedBytes: 1000,
-		},
 		Allocatable: &commonv1.ResourceQuantity{
 			CpuMilli:    8000,
 			MemoryBytes: 16 << 30,
@@ -469,18 +388,19 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 			MemoryBytes: 20 << 30,
 		},
 		MemoryBudget: &nodev1.NodeMemoryBudget{
-			PhysicalCapacityBytes:     20 << 30,
-			SourceAllocatableBytes:    17 << 30,
-			SystemReserveBytes:        1 << 30,
-			EffectiveAllocatableBytes: 16 << 30,
-			CapacityIdentity:          "test-boot:test-mount:test-root",
-			Mode:                      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
-			SampledAt:                 timestamppb.New(collectedAt),
+			SourceAllocatableBytes: 17 << 30,
+			SystemReserveBytes:     1 << 30,
+			CapacityIdentity:       "test-boot:test-mount:test-root",
+			Mode:                   nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+			SampledAt:              timestamppb.New(collectedAt),
 		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8},
-			Cgroup:       &nodev1.PoolState{Idle: 1, Capacity: 8},
-			Interface:    &nodev1.PoolState{Idle: 1, Capacity: 8},
+		},
+		Diagnostics: &nodev1.NodeDiagnostics{
+			Memory:        &nodev1.NodeMemoryDiagnostics{},
+			CgroupPool:    &nodev1.PoolState{Idle: 1, Capacity: 8},
+			InterfacePool: &nodev1.PoolState{Idle: 1, Capacity: 8},
 		},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded: &nodev1.AxnodedSummary{
@@ -496,12 +416,9 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 				Reachable: true,
 			},
 			Bpfnet: &nodev1.BpfNetSummary{
-				State:                 nodev1.ComponentState_COMPONENT_STATE_READY,
-				Enabled:               true,
-				Ready:                 true,
-				NeedsSnatFallback:     false,
-				NeedsFullDnatFallback: false,
-				NeedsLocalhostCompat:  false,
+				State:   nodev1.ComponentState_COMPONENT_STATE_READY,
+				Enabled: true,
+				Ready:   true,
 			},
 		},
 	}
@@ -522,10 +439,10 @@ func setTestMemoryCapacity(summary *nodev1.NodeSummary, effective int64) {
 	summary.Allocatable.MemoryBytes = effective
 	summary.Capacity.MemoryBytes = physical
 	summary.MemoryBudget = &nodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes: physical, SourceAllocatableBytes: physical, SystemReserveBytes: reserve,
-		EffectiveAllocatableBytes: effective, CapacityIdentity: "test-boot:test-mount:test-root",
-		Mode:      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
-		SampledAt: summary.GetCollectedAt(),
+		SourceAllocatableBytes: physical, SystemReserveBytes: reserve,
+		CapacityIdentity: "test-boot:test-mount:test-root",
+		Mode:             nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+		SampledAt:        summary.GetCollectedAt(),
 	}
 }
 

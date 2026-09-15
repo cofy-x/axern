@@ -2,30 +2,6 @@ package admin
 
 import "testing"
 
-func TestValidateRetryReason(t *testing.T) {
-	for _, value := range []string{"create", "delete", " CREATE "} {
-		if err := ValidateRetryReason(value); err != nil {
-			t.Fatalf("ValidateRetryReason(%q) error = %v", value, err)
-		}
-	}
-	for _, value := range []string{"", "start"} {
-		if err := ValidateRetryReason(value); err == nil {
-			t.Fatalf("ValidateRetryReason(%q) unexpectedly succeeded", value)
-		}
-	}
-}
-
-func TestValidateOwnerType(t *testing.T) {
-	for _, value := range []string{"", "run", "service", " SERVICE "} {
-		if err := ValidateOwnerType(value); err != nil {
-			t.Fatalf("ValidateOwnerType(%q) error = %v", value, err)
-		}
-	}
-	if err := ValidateOwnerType("node"); err == nil {
-		t.Fatal("ValidateOwnerType(node) unexpectedly succeeded")
-	}
-}
-
 func TestValidateOperatorReason(t *testing.T) {
 	if err := ValidateOperatorReason("operator checked retry"); err != nil {
 		t.Fatalf("ValidateOperatorReason(valid) error = %v", err)
@@ -35,21 +11,8 @@ func TestValidateOperatorReason(t *testing.T) {
 	}
 }
 
-func TestValidateVolumeStatus(t *testing.T) {
-	for _, value := range []string{"pending", "bound", "published", "releasing", "failed", "deleted", " FAILED "} {
-		if err := ValidateVolumeStatus(value); err != nil {
-			t.Fatalf("ValidateVolumeStatus(%q) error = %v", value, err)
-		}
-	}
-	for _, value := range []string{"", "mounted"} {
-		if err := ValidateVolumeStatus(value); err == nil {
-			t.Fatalf("ValidateVolumeStatus(%q) unexpectedly succeeded", value)
-		}
-	}
-}
-
 func TestValidateAuditOperation(t *testing.T) {
-	for _, value := range []string{"", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationRetryStorageBinding, " CLEAR-ALLOCATION-LIFECYCLE-RETRY "} {
+	for _, value := range []string{"", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, " CLEAR-ALLOCATION-LIFECYCLE-RETRY "} {
 		if err := ValidateAuditOperation(value); err != nil {
 			t.Fatalf("ValidateAuditOperation(%q) error = %v", value, err)
 		}
@@ -60,7 +23,7 @@ func TestValidateAuditOperation(t *testing.T) {
 }
 
 func TestValidateAuditTargetType(t *testing.T) {
-	for _, value := range []string{"", AuditTargetTypeAllocation, AuditTargetTypeStorageBinding, " ALLOCATION "} {
+	for _, value := range []string{"", AuditTargetTypeAllocation, " ALLOCATION "} {
 		if err := ValidateAuditTargetType(value); err != nil {
 			t.Fatalf("ValidateAuditTargetType(%q) error = %v", value, err)
 		}

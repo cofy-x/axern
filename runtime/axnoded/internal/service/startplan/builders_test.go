@@ -6,19 +6,19 @@ import (
 	"unsafe"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	langrtmanager "github.com/cofy-x/axern/runtime/axnoded/internal/langruntime"
+	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 )
 
-func TestBuildContainerRootfsPreservesLanguageRuntimeSettings(t *testing.T) {
+func TestBuildContainerRootfsPreservesPreparedEnvironmentSettings(t *testing.T) {
 	rootfsDir := t.TempDir()
-	rootfsSource, err := langrtmanager.NewRootFS(
-		langrtmanager.RootfsConfig{SrcType: apipb.RootfsSrcType_LOCAL, Path: rootfsDir},
-		langrtmanager.NewDefaultMounter(false, ""), nil,
+	rootfsSource, err := environmentcache.NewRootFS(
+		environmentcache.RootfsConfig{SrcType: apipb.RootfsSrcType_LOCAL, Path: rootfsDir},
+		environmentcache.NewDefaultMounter(false, ""), nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lrt := &langrtmanager.LanguageRuntime{
+	lrt := &environmentcache.PreparedEnvironment{
 		Readonly: false,
 		RootFS:   rootfsSource,
 	}
@@ -28,7 +28,7 @@ func TestBuildContainerRootfsPreservesLanguageRuntimeSettings(t *testing.T) {
 		t.Fatal("BuildContainerRootfs() = nil")
 	}
 	if rootfs.Readonly {
-		t.Fatalf("Readonly = true, want false from LanguageRuntime")
+		t.Fatalf("Readonly = true, want false from PreparedEnvironment")
 	}
 	if rootfs.RootDir != rootfsDir {
 		t.Fatalf("RootDir = %q, want %q", rootfs.RootDir, rootfsDir)
@@ -40,9 +40,9 @@ func TestBuildContainerRootfsPreservesLanguageRuntimeSettings(t *testing.T) {
 
 func TestBuildContainerRootfsPreservesConfiguredReadonly(t *testing.T) {
 	rootfsDir := t.TempDir()
-	lrt := &langrtmanager.LanguageRuntime{
+	lrt := &environmentcache.PreparedEnvironment{
 		Readonly: true,
-		RootFS:   &langrtmanager.RootFS{},
+		RootFS:   &environmentcache.RootFS{},
 	}
 	setRootFSPath(t, lrt.RootFS, rootfsDir)
 
@@ -56,19 +56,19 @@ func TestBuildContainerRootfsPreservesConfiguredReadonly(t *testing.T) {
 }
 
 func TestBuildCreateContainerRequestUsesImageDefaultsWhenCommandEmpty(t *testing.T) {
-	lrt := &langrtmanager.LanguageRuntime{
-		RootFS: &langrtmanager.RootFS{},
+	lrt := &environmentcache.PreparedEnvironment{
+		RootFS: &environmentcache.RootFS{},
 	}
-	setRootFSImageConfig(t, lrt.RootFS, &langrtmanager.ImageConfig{
+	setRootFSImageConfig(t, lrt.RootFS, &environmentcache.ImageConfig{
 		Entrypoint: []string{"/usr/bin/supervisord"},
 		Cmd:        []string{"-c", "/etc/supervisor/conf.d/supervisord.conf"},
 		WorkingDir: "/home/axern",
 	})
 
 	req := &apipb.StartRequest{
-		RuntimeTemplate: &apipb.RuntimeTemplate{Sandbox: "runsc"},
+		Environment: &apipb.ResolvedEnvironment{},
 	}
-	containerReq := BuildCreateContainerRequest(lrt, req, nil, nil, "")
+	containerReq := BuildCreateContainerRequest(lrt, req, nil)
 	if got := containerReq.GetCommand(); !reflect.DeepEqual(got, []string{"/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"}) {
 		t.Fatalf("command = %#v, want image entrypoint plus cmd", got)
 	}
@@ -78,22 +78,21 @@ func TestBuildCreateContainerRequestUsesImageDefaultsWhenCommandEmpty(t *testing
 }
 
 func TestBuildCreateContainerRequestExplicitCommandOverridesImageDefaults(t *testing.T) {
-	lrt := &langrtmanager.LanguageRuntime{
-		RootFS: &langrtmanager.RootFS{},
+	lrt := &environmentcache.PreparedEnvironment{
+		RootFS: &environmentcache.RootFS{},
 	}
-	setRootFSImageConfig(t, lrt.RootFS, &langrtmanager.ImageConfig{
+	setRootFSImageConfig(t, lrt.RootFS, &environmentcache.ImageConfig{
 		Cmd:        []string{"/image-default"},
 		WorkingDir: "/image",
 	})
 
 	req := &apipb.StartRequest{
-		RuntimeTemplate: &apipb.RuntimeTemplate{
-			Sandbox: "runsc",
-			Command: []string{"/bin/sh", "-lc", "sleep 60"},
-			Cwd:     "/workspace",
+		Environment: &apipb.ResolvedEnvironment{
+			Argv: []string{"/bin/sh", "-lc", "sleep 60"},
+			Cwd:  "/workspace",
 		},
 	}
-	containerReq := BuildCreateContainerRequest(lrt, req, nil, nil, "")
+	containerReq := BuildCreateContainerRequest(lrt, req, nil)
 	if got := containerReq.GetCommand(); !reflect.DeepEqual(got, []string{"/bin/sh", "-lc", "sleep 60"}) {
 		t.Fatalf("command = %#v, want explicit request command", got)
 	}
@@ -102,13 +101,13 @@ func TestBuildCreateContainerRequestExplicitCommandOverridesImageDefaults(t *tes
 	}
 }
 
-func setRootFSPath(t *testing.T, rf *langrtmanager.RootFS, path string) {
+func setRootFSPath(t *testing.T, rf *environmentcache.RootFS, path string) {
 	t.Helper()
 	field := reflect.ValueOf(rf).Elem().FieldByName("path")
 	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().SetString(path)
 }
 
-func setRootFSImageConfig(t *testing.T, rf *langrtmanager.RootFS, config *langrtmanager.ImageConfig) {
+func setRootFSImageConfig(t *testing.T, rf *environmentcache.RootFS, config *environmentcache.ImageConfig) {
 	t.Helper()
 	field := reflect.ValueOf(rf).Elem().FieldByName("imageConfig")
 	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(config))

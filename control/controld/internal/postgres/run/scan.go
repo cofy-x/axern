@@ -1,37 +1,29 @@
 package pgrun
 
 import (
+	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
-	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
-	leasekernel "github.com/cofy-x/axern/control/controld/internal/kernel/lease"
-	workloadkernel "github.com/cofy-x/axern/control/controld/internal/kernel/workload"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	"github.com/jackc/pgx/v5/pgtype"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func environmentSelectSQL() string {
-	return `SELECT environment_id, namespace, status, spec_hash, spec, resolved_template,
-		labels, version, created_at, updated_at, message FROM environments`
+	return `SELECT environment_id, namespace, spec, resolved_spec, labels, created_at FROM environments`
 }
 
 func runSelectSQL() string {
-	return `SELECT run_id, namespace, environment_id, allocation_id, attempt, status,
-		config, labels, version, created_at, updated_at, exit_code, exit_code_known, diagnostic_code, message,
-		COALESCE((SELECT revision FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt), 0),
-		(SELECT observed_at FROM allocation_capability_condition_sets s WHERE s.allocation_id = runs.allocation_id AND s.allocation_attempt = runs.attempt),
-		COALESCE((
-			SELECT jsonb_build_object('conditions', COALESCE(jsonb_agg(c.condition ORDER BY c.capability_key_id), '[]'::jsonb))
-			FROM allocation_capability_conditions c WHERE c.allocation_id = runs.allocation_id AND c.allocation_attempt = runs.attempt
-		), '{"conditions":[]}'::jsonb)
-		FROM runs`
+	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
+		r.config, r.environment_spec, r.resolved_environment_spec, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message,
+		a.node_id, a.output_expires_at,
+		COALESCE((SELECT conditions FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id), '{}'::jsonb)
+		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
 }
 
 type scanner interface {
@@ -40,57 +32,71 @@ type scanner interface {
 
 func scanEnvironment(row scanner) (*environmentv1.Environment, error) {
 	var (
-		env                    environmentv1.Environment
-		statusText             string
-		specJSON, templateJSON []byte
-		labelsJSON             []byte
-		createdAt, updatedAt   time.Time
+		env                        environmentv1.Environment
+		specJSON, resolvedSpecJSON []byte
+		labelsJSON                 []byte
+		createdAt                  time.Time
 	)
-	if err := row.Scan(&env.ID, &env.Namespace, &statusText, &env.SpecHash, &specJSON, &templateJSON, &labelsJSON, &env.Version, &createdAt, &updatedAt, &env.Message); err != nil {
+	if err := row.Scan(&env.ID, &env.Namespace, &specJSON, &resolvedSpecJSON, &labelsJSON, &createdAt); err != nil {
 		return nil, err
 	}
-	env.Status = environmentkernel.ParseStatus(statusText)
 	env.Spec = &environmentv1.EnvironmentSpec{}
 	if err := protojson.Unmarshal(specJSON, env.Spec); err != nil {
 		return nil, fmt.Errorf("unmarshal environment spec: %w", err)
 	}
-	env.ResolvedTemplate = &catalogv1.RuntimeTemplate{}
-	if err := protojson.Unmarshal(templateJSON, env.ResolvedTemplate); err != nil {
-		return nil, fmt.Errorf("unmarshal resolved template: %w", err)
+	env.ResolvedSpec = &environmentv1.ResolvedEnvironmentSpec{}
+	if err := protojson.Unmarshal(resolvedSpecJSON, env.ResolvedSpec); err != nil {
+		return nil, fmt.Errorf("unmarshal resolved environment spec: %w", err)
 	}
 	env.Labels = unmarshalJSONMap(labelsJSON)
 	env.CreatedAt = timestamppb.New(createdAt)
-	env.UpdatedAt = timestamppb.New(updatedAt)
 	return &env, nil
 }
 
 func scanRun(row scanner) (*runv1.Run, error) {
 	var (
-		run                                              runv1.Run
-		statusText                                       string
-		diagnosticCodeText                               string
-		configJSON, labelsJSON, capabilityConditionsJSON []byte
-		createdAt, updatedAt                             time.Time
-		capabilityRevision                               int64
-		capabilityObservedAt                             pgtype.Timestamptz
+		run                         runv1.Run
+		statusText                  string
+		diagnosticCodeText          string
+		configJSON                  []byte
+		environmentSpecJSON         []byte
+		resolvedEnvironmentSpecJSON []byte
+		labelsJSON                  []byte
+		capabilityConditionsJSON    []byte
+		createdAt, updatedAt        time.Time
+		exitCode                    sql.NullInt32
+		outputExpiry                sql.NullTime
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &run.Attempt, &statusText, &configJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &run.ExitCode, &run.ExitCodeKnown, &diagnosticCodeText, &run.Message, &capabilityRevision, &capabilityObservedAt, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &outputExpiry, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
-	run.DiagnosticCode = workloadkernel.ResolveDiagnostic(workloadkernel.ParseDiagnosticCode(diagnosticCodeText), runDiagnosticAllocationStatus(run.GetStatus(), run.GetExitCodeKnown()), run.GetMessage())
+	if outputExpiry.Valid {
+		run.OutputExpiresAt = timestamppb.New(outputExpiry.Time)
+	}
+	if exitCode.Valid {
+		value := exitCode.Int32
+		run.ExitCode = &value
+	}
+	run.DiagnosticCode = parseWorkloadDiagnosticCode(diagnosticCodeText)
 	run.Config = &commonv1.ExecutionConfig{}
 	if err := protojson.Unmarshal(configJSON, run.Config); err != nil {
 		return nil, fmt.Errorf("unmarshal run config: %w", err)
+	}
+	run.EnvironmentSpec = &environmentv1.EnvironmentSpec{}
+	if err := protojson.Unmarshal(environmentSpecJSON, run.EnvironmentSpec); err != nil {
+		return nil, fmt.Errorf("unmarshal run environment spec: %w", err)
+	}
+	run.ResolvedEnvironmentSpec = &environmentv1.ResolvedEnvironmentSpec{}
+	if err := protojson.Unmarshal(resolvedEnvironmentSpecJSON, run.ResolvedEnvironmentSpec); err != nil {
+		return nil, fmt.Errorf("unmarshal run resolved environment spec: %w", err)
 	}
 	run.Labels = unmarshalJSONMap(labelsJSON)
 	conditionSet := &capabilityv1.CapabilityConditionSet{}
 	if err := protojson.Unmarshal(capabilityConditionsJSON, conditionSet); err != nil {
 		return nil, fmt.Errorf("unmarshal run capability conditions: %w", err)
 	}
-	if capabilityRevision > 0 && capabilityObservedAt.Valid {
-		conditionSet.Revision = capabilityRevision
-		conditionSet.ObservedAt = timestamppb.New(capabilityObservedAt.Time)
+	if conditionSet.GetObservedAt() != nil {
 		run.CapabilityConditions = conditionSet
 	}
 	run.CreatedAt = timestamppb.New(createdAt)
@@ -98,30 +104,9 @@ func scanRun(row scanner) (*runv1.Run, error) {
 	return &run, nil
 }
 
-func runDiagnosticAllocationStatus(status runv1.RunStatus, exitCodeKnown bool) commonv1.AllocationStatus {
-	switch status {
-	case runv1.RunStatus_RUN_STATUS_FAILED:
-		if exitCodeKnown {
-			return commonv1.AllocationStatus_ALLOCATION_STATUS_EXITED
-		}
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_FAILED
-	default:
-		return commonv1.AllocationStatus_ALLOCATION_STATUS_UNSPECIFIED
+func parseWorkloadDiagnosticCode(value string) commonv1.WorkloadDiagnosticCode {
+	if number, ok := commonv1.WorkloadDiagnosticCode_value[strings.TrimSpace(value)]; ok {
+		return commonv1.WorkloadDiagnosticCode(number)
 	}
-}
-
-func scanLease(row scanner) (*commonv1.ExecutionLease, error) {
-	var (
-		lease     commonv1.ExecutionLease
-		leaseType string
-		expiresAt time.Time
-		tokenHash string
-	)
-	if err := row.Scan(&lease.LeaseID, &lease.AllocationID, &lease.NodeID, &lease.NodeTarget, &lease.Attempt, &leaseType, &expiresAt, &lease.Revision, &lease.Revoked, &tokenHash); err != nil {
-		return nil, err
-	}
-	lease.LeaseType = leasekernel.ParseType(leaseType)
-	lease.ExpiresAt = timestamppb.New(expiresAt)
-	lease.ValidationTokenHash = tokenHash
-	return &lease, nil
+	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED
 }

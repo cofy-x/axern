@@ -12,7 +12,7 @@ func TestStartWaitsForSandboxdBeforeRuntimeVerification(t *testing.T) {
 	var gotBundlePath string
 	var gotMeta *apipb.ContainerMetadata
 	ready := false
-	meta := &apipb.ContainerMetadata{ID: "allocation-a"}
+	meta := &apipb.ContainerMetadata{}
 	started, err := Start(
 		t.Context(),
 		&contract.PreparedContainer{ContainerID: "allocation-a", BundlePath: "/tmp/bundle", Metadata: meta},

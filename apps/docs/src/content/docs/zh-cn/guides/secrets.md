@@ -36,15 +36,17 @@ axern secret get <secret-id>
 axern secret delete <secret-id>
 ```
 
-Secret 是不可变的。轮换采用替换式工作流：
+Secret 是不可变的。Environment 或未终止 Run 的必需引用存在时，PostgreSQL 会拒绝删除；Run 的 optional 投影不会阻止删除。轮换采用替换式工作流：
 
 1. 用新值创建一个新 Secret。
 2. 更新或替换所有引用旧 Secret ID 的资源。
-3. 等待新的 Service、Function、Run 或 Environment 版本就绪并验证工作负载。
+3. 等待替换后的 Run 或 Environment 生效并验证工作负载。
 4. 确认没有活跃资源引用后，才删除旧 Secret。
 
-轮换 Environment 的仓库凭据时需要创建新 Environment，因为 Environment 本身不可变，然后把工作负载指向新 Environment。`secret-env` 和 `secret-file` 投影则更新 Service 或 Function Spec，让其不可变版本滚动发布。
+轮换 Environment 的仓库凭据时需要创建新 Environment，因为 Environment 本身不可变，然后把工作负载指向新 Environment。`secret-env` 和 `secret-file` 投影则通过提交引用新 Secret 的 Run 完成替换。
 
 :::note
-Secret 存放平台凭据材料，如镜像仓库拉取凭据。Agent Provider token 有专用存储，明文不经过通用 API：交互式 Workspace 用本地 `axern agent` Profile，托管 Rollout 用版本化的 [Axrun Profile](/zh-cn/axrun/)。
+
+Secret 存放平台凭据材料，如镜像仓库拉取凭据。Agent Provider token 应由评测或训练 harness 的凭据存储管理；只有 Sandbox 明确需要时才投影进工作负载。
+
 :::

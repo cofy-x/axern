@@ -13,17 +13,16 @@ import (
 )
 
 type agentFlowRequest struct {
-	store        Store
-	paths        Paths
-	task         domain.TaskInstance
-	episode      domain.Episode
-	sandbox      sandbox.Instance
-	harness      agent.Harness
-	trajectory   *trajectoryRecorder
-	now          func() time.Time
-	managedProxy *sandbox.ManagedProxyOptions
-	recorder     *proxy.Recorder
-	baseline     *WorkspaceBaseline
+	store      Store
+	paths      Paths
+	task       domain.TaskInstance
+	episode    domain.Episode
+	sandbox    sandbox.Instance
+	harness    agent.Harness
+	trajectory *trajectoryRecorder
+	now        func() time.Time
+	recorder   *proxy.Recorder
+	baseline   *WorkspaceBaseline
 }
 
 // agentFlowMetrics carries timing and usage data from the agent phase
@@ -73,15 +72,14 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 	}
 
 	result, err := request.harness.Run(ctx, agent.Request{
-		Agent:        episode.Agent,
-		Model:        episode.Model,
-		Task:         request.task,
-		Episode:      episode,
-		Sandbox:      request.sandbox,
-		Instruction:  request.task.Instruction,
-		ArtifactDir:  request.paths.ArtifactDir,
-		ManagedProxy: request.managedProxy,
-		Recorder:     request.recorder,
+		Agent:       episode.Agent,
+		Model:       episode.Model,
+		Task:        request.task,
+		Episode:     episode,
+		Sandbox:     request.sandbox,
+		Instruction: request.task.Instruction,
+		ArtifactDir: request.paths.ArtifactDir,
+		Recorder:    request.recorder,
 	})
 	agentTimedOut := false
 	if err != nil {
@@ -111,11 +109,6 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 			agent:    episode.Agent,
 			baseline: request.baseline,
 		}, &result); err != nil {
-			return agentFlowResult{Episode: episode}, err
-		}
-	}
-	if len(result.ManagedProxyReportJSON) > 0 {
-		if err := proxy.ImportManagedProxyReport(request.recorder, result.ManagedProxyReportJSON); err != nil {
 			return agentFlowResult{Episode: episode}, err
 		}
 	}

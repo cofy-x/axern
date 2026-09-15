@@ -8,12 +8,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
+	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
+	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
 )
 
 const bootstrapTimeout = 60 * time.Second
@@ -33,8 +36,10 @@ func run(ctx context.Context, args []string) error {
 	name := flags.String("principal-name", "platform-admin", "initial platform administrator name")
 	displayName := flags.String("display-name", "Platform Administrator", "initial platform administrator display name")
 	certificatePath := flags.String("certificate", "", "initial platform administrator certificate PEM path")
-	rolloutWorkerCertificatePath := flags.String("rollout-worker-certificate", "", "managed rollout worker certificate PEM path")
+	sshPublicKeyPath := flags.String("ssh-public-key", "", "optional initial administrator SSH public key; expires with the bootstrap certificate")
 	label := flags.String("credential-label", "bootstrap-admin", "initial credential label")
+	nodeID := flags.String("node-id", "", "optional initial admitted node ID")
+	enrollmentTokenPath := flags.String("enrollment-token-file", "", "file containing the initial Node enrollment token")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -49,6 +54,18 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	credentials := []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: fingerprint, ExpiresAt: notAfter}}
+	if strings.TrimSpace(*sshPublicKeyPath) != "" {
+		publicKey, err := os.ReadFile(filepath.Clean(*sshPublicKeyPath))
+		if err != nil {
+			return fmt.Errorf("read bootstrap SSH public key: %w", err)
+		}
+		material, err := accesskernel.ParseCredentialMaterial(nil, string(publicKey), notAfter)
+		if err != nil {
+			return err
+		}
+		credentials = append(credentials, material)
+	}
 	db, err := postgres.Open(ctx, *dsn)
 	if err != nil {
 		return err
@@ -57,23 +74,24 @@ func run(ctx context.Context, args []string) error {
 	if err := db.CheckMigrations(ctx); err != nil {
 		return err
 	}
-	store := pgaccess.NewStore(db)
 	now := time.Now().UTC()
-	if err := store.BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now); err != nil {
+	if err := pgaccess.NewStore(db).BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), credentials, now); err != nil {
 		return err
 	}
-	if strings.TrimSpace(*rolloutWorkerCertificatePath) == "" {
-		return errors.New("rollout worker certificate path is required")
+	if strings.TrimSpace(*nodeID) == "" && strings.TrimSpace(*enrollmentTokenPath) == "" {
+		return nil
 	}
-	rolloutDER, err := readCertificateDER(*rolloutWorkerCertificatePath)
+	if strings.TrimSpace(*nodeID) == "" || strings.TrimSpace(*enrollmentTokenPath) == "" {
+		return errors.New("node-id and enrollment-token-file must be provided together")
+	}
+	credential, err := os.ReadFile(filepath.Clean(*enrollmentTokenPath))
 	if err != nil {
-		return err
+		return fmt.Errorf("read Node enrollment token: %w", err)
 	}
-	rolloutFingerprint, rolloutNotAfter, err := accesskernel.ParseCertificateDER(rolloutDER)
-	if err != nil {
-		return err
-	}
-	return store.BootstrapRolloutExecutor(ctx, rolloutFingerprint, rolloutNotAfter, now)
+	return pgadmin.NewStore(db).BootstrapNode(ctx, adminkernel.AdmitNodeRequest{
+		NodeID:          strings.TrimSpace(*nodeID),
+		EnrollmentToken: string(credential), OperatorReason: "initial node identity bootstrap", Now: now,
+	})
 }
 
 func readCertificateDER(path string) ([]byte, error) {

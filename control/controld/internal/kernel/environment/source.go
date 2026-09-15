@@ -4,14 +4,14 @@ import (
 	"context"
 	"strings"
 
-	catalogv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/catalog/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	privateenvironmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-type CatalogReader interface {
-	Get(id, version string) (*catalogv1.RuntimeTemplate, bool)
+type TemplateReader interface {
+	Get(id, version string) (*privateenvironmentv1.EnvironmentTemplate, bool)
 }
 
 type ImageResolver interface {
@@ -20,7 +20,7 @@ type ImageResolver interface {
 
 type ResolvedImage struct {
 	Ref        string
-	Descriptor *catalogv1.OciImageDescriptor
+	Descriptor *environmentv1.OciImageDescriptor
 }
 
 type ResolveOptions struct {
@@ -31,7 +31,7 @@ type RegistryCredentialResolver interface {
 	ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error)
 }
 
-func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catalog CatalogReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *catalogv1.RuntimeTemplate, error) {
+func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, templates TemplateReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	if spec == nil {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "spec is required")
 	}
@@ -44,12 +44,12 @@ func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, catal
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "one of template_id or image.ref is required")
 	}
 	if templateID != "" {
-		return resolveTemplateSpec(catalog, spec)
+		return resolveTemplateSpec(templates, spec)
 	}
 	return resolveImageSpec(ctx, images, credentials, spec)
 }
 
-func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.RuntimeTemplate, error) {
+func resolveTemplateSpec(templates TemplateReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	templateID := strings.TrimSpace(spec.GetTemplateID())
 	if strings.TrimSpace(spec.GetImage().GetRegistryCredentialID()) != "" {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.registry_credential_id is only valid with image.ref")
@@ -57,30 +57,27 @@ func resolveTemplateSpec(catalog CatalogReader, spec *environmentv1.EnvironmentS
 	if spec.GetImage().GetRootfsReadonly() {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.rootfs_readonly is only valid with image.ref")
 	}
-	template, ok := catalog.Get(templateID, spec.GetTemplateVersion())
+	template, ok := templates.Get(templateID, spec.GetTemplateVersion())
 	if !ok {
-		return nil, nil, grpcstatus.Errorf(codes.NotFound, "runtime template %q not found", templateID)
+		return nil, nil, grpcstatus.Errorf(codes.NotFound, "environment template %q not found", templateID)
 	}
-	if strings.TrimSpace(template.GetImageDescriptor().GetDigest()) == "" {
-		return nil, nil, grpcstatus.Errorf(codes.FailedPrecondition, "runtime template %q is not digest pinned", templateID)
+	if strings.TrimSpace(template.GetResolvedSpec().GetImageDescriptor().GetDigest()) == "" {
+		return nil, nil, grpcstatus.Errorf(codes.FailedPrecondition, "environment template %q is not digest pinned", templateID)
 	}
 	normalized := &environmentv1.EnvironmentSpec{
 		Namespace:       NormalizeNamespace(spec.GetNamespace()),
 		TemplateID:      templateID,
 		TemplateVersion: template.GetVersion(),
 	}
-	return normalized, template, nil
+	return normalized, template.GetResolvedSpec(), nil
 }
 
-func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *catalogv1.RuntimeTemplate, error) {
+func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	if images == nil {
 		return nil, nil, grpcstatus.Error(codes.FailedPrecondition, "image resolution is not configured")
 	}
 	if strings.TrimSpace(spec.GetTemplateVersion()) != "" {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "template_version is only valid with template_id")
-	}
-	if strings.TrimSpace(spec.GetImage().GetDigest()) != "" {
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.digest is output-only")
 	}
 	registryCredentialID := strings.TrimSpace(spec.GetImage().GetRegistryCredentialID())
 	opts := ResolveOptions{}
@@ -108,27 +105,17 @@ func resolveImageSpec(ctx context.Context, images ImageResolver, credentials Reg
 		Namespace: NormalizeNamespace(spec.GetNamespace()),
 		Image: &environmentv1.EnvironmentImageSource{
 			Ref:                  strings.TrimSpace(resolved.Ref),
-			Digest:               strings.TrimSpace(resolved.Descriptor.GetDigest()),
 			RootfsReadonly:       spec.GetImage().GetRootfsReadonly(),
 			RegistryCredentialID: registryCredentialID,
 		},
 	}
-	return normalized, synthesizeImageTemplate(normalized, resolved.Descriptor), nil
+	return normalized, synthesizeImageSpec(normalized, resolved.Descriptor), nil
 }
 
-func synthesizeImageTemplate(spec *environmentv1.EnvironmentSpec, descriptor *catalogv1.OciImageDescriptor) *catalogv1.RuntimeTemplate {
+func synthesizeImageSpec(spec *environmentv1.EnvironmentSpec, descriptor *environmentv1.OciImageDescriptor) *environmentv1.ResolvedEnvironmentSpec {
 	image := spec.GetImage()
-	return &catalogv1.RuntimeTemplate{
-		ID:              image.GetRef(),
-		Version:         image.GetDigest(),
+	return &environmentv1.ResolvedEnvironmentSpec{
 		ImageDescriptor: descriptor,
 		RootfsReadonly:  image.GetRootfsReadonly(),
-		Capabilities: &catalogv1.RuntimeTemplateCapabilities{
-			SupportsExec:             true,
-			SupportsExecStream:       true,
-			SupportsLongLivedProcess: true,
-			SupportsPorts:            true,
-		},
-		Description: "Image-backed runtime environment.",
 	}
 }

@@ -20,8 +20,6 @@ import type {
   DownloadArchiveOptions,
   ExecOptions,
   ExecResult,
-  ImageExecOptions,
-  ImageProcessOptions,
   MkdirOptions,
   MoveOptions,
   NodeCallOptions,
@@ -36,25 +34,24 @@ import { uploadArchive, downloadArchive } from "./archive.js";
 import { capabilityStatus } from "./capabilities.js";
 import * as computerUse from "./computer_use.js";
 import { process as startProcess } from "./attached_process.js";
-import { processImage as startImageProcess } from "./attached_process.js";
 import { NodeClientContext } from "./context.js";
-import { exec, execImage } from "./exec.js";
+import { exec } from "./exec.js";
 import * as files from "./files.js";
 import type { SandboxProcess } from "./process.js";
 
-export interface NodeSandboxClientOptions {
+export interface AllocationClientOptions {
   allocationId: string;
   target: string;
   credentials: grpc.ChannelCredentials;
   channelOptions?: grpc.ChannelOptions;
 }
 
-export class NodeSandboxClient {
+export class AllocationClient {
   readonly allocationId: string;
 
   private readonly ctx: NodeClientContext;
 
-  constructor(options: NodeSandboxClientOptions) {
+  constructor(options: AllocationClientOptions) {
     this.allocationId = options.allocationId;
     this.ctx = new NodeClientContext(options);
   }
@@ -67,13 +64,7 @@ export class NodeSandboxClient {
     return startProcess(this.ctx, command, options);
   }
 
-  async execImage(image: string, command: Command, options: ImageExecOptions = {}): Promise<ExecResult> {
-    return execImage(this.ctx, image, command, options);
-  }
 
-  async processImage(image: string, command: Command, options: ImageProcessOptions = {}): Promise<SandboxProcess> {
-    return startImageProcess(this.ctx, image, command, options);
-  }
 
   async capabilityStatus(options: NodeCallOptions = {}): Promise<CapabilityStatus> {
     return capabilityStatus(this.ctx, options);

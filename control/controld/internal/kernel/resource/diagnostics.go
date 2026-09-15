@@ -1,39 +1,30 @@
 package resource
 
-import "strings"
-
 const AdmissionErrorDomain = "axern.control.resource_admission"
 
 type AdmissionRejectionReason string
 
 const (
-	AdmissionRejectionNamespaceQuotaExceeded  AdmissionRejectionReason = "NAMESPACE_QUOTA_EXCEEDED"
-	AdmissionRejectionNodeReservationCapacity AdmissionRejectionReason = "NODE_RESERVATION_CAPACITY_EXHAUSTED"
-	AdmissionRejectionPlacementCapacity       AdmissionRejectionReason = "PLACEMENT_CAPACITY_EXHAUSTED"
-	AdmissionRejectionNodeSelection           AdmissionRejectionReason = "NODE_SELECTION_ERROR"
+	AdmissionRejectionNamespaceQuotaExceeded AdmissionRejectionReason = "NAMESPACE_QUOTA_EXCEEDED"
+	AdmissionRejectionNodeCapacity           AdmissionRejectionReason = "NODE_CAPACITY_EXHAUSTED"
+	AdmissionRejectionPlacementCapacity      AdmissionRejectionReason = "PLACEMENT_CAPACITY_EXHAUSTED"
+	AdmissionRejectionNodeSelection          AdmissionRejectionReason = "NODE_SELECTION_ERROR"
 )
 
 type AdmissionDiagnosticCode string
 
 const (
-	AdmissionDiagnosticUnspecified             AdmissionDiagnosticCode = ""
-	AdmissionDiagnosticNamespaceQuotaExceeded  AdmissionDiagnosticCode = "namespace_quota_exceeded"
-	AdmissionDiagnosticNodeReservationCapacity AdmissionDiagnosticCode = "node_reservation_capacity_exhausted"
-	AdmissionDiagnosticPlacementCapacity       AdmissionDiagnosticCode = "placement_capacity_exhausted"
-	AdmissionDiagnosticNodeSelection           AdmissionDiagnosticCode = "node_selection_error"
+	AdmissionDiagnosticUnspecified            AdmissionDiagnosticCode = ""
+	AdmissionDiagnosticNamespaceQuotaExceeded AdmissionDiagnosticCode = "namespace_quota_exceeded"
+	AdmissionDiagnosticNodeCapacity           AdmissionDiagnosticCode = "node_capacity_exhausted"
+	AdmissionDiagnosticPlacementCapacity      AdmissionDiagnosticCode = "placement_capacity_exhausted"
+	AdmissionDiagnosticNodeSelection          AdmissionDiagnosticCode = "node_selection_error"
 )
 
 type QuotaEventType string
 
 const (
 	QuotaEventTypeAdmissionRejected QuotaEventType = "admission_rejected"
-)
-
-type QuotaEventWorkloadType string
-
-const (
-	QuotaEventWorkloadRun     QuotaEventWorkloadType = "run"
-	QuotaEventWorkloadService QuotaEventWorkloadType = "service"
 )
 
 type QuotaEventReason string
@@ -50,8 +41,8 @@ func AdmissionDiagnosticForReason(reason AdmissionRejectionReason) AdmissionDiag
 	switch reason {
 	case AdmissionRejectionNamespaceQuotaExceeded:
 		return AdmissionDiagnosticNamespaceQuotaExceeded
-	case AdmissionRejectionNodeReservationCapacity:
-		return AdmissionDiagnosticNodeReservationCapacity
+	case AdmissionRejectionNodeCapacity:
+		return AdmissionDiagnosticNodeCapacity
 	case AdmissionRejectionPlacementCapacity:
 		return AdmissionDiagnosticPlacementCapacity
 	case AdmissionRejectionNodeSelection:
@@ -64,7 +55,7 @@ func AdmissionDiagnosticForReason(reason AdmissionRejectionReason) AdmissionDiag
 func AdmissionReasonBlocksCapacity(reason AdmissionRejectionReason) bool {
 	switch reason {
 	case AdmissionRejectionNamespaceQuotaExceeded,
-		AdmissionRejectionNodeReservationCapacity,
+		AdmissionRejectionNodeCapacity,
 		AdmissionRejectionPlacementCapacity:
 		return true
 	default:
@@ -88,28 +79,4 @@ func QuotaEventReasonForEvaluation(evaluation QuotaEvaluation) QuotaEventReason 
 	default:
 		return QuotaEventReasonExceeded
 	}
-}
-
-func MessageIndicatesAdmissionBlocked(message string) bool {
-	message = normalizeDiagnosticMessage(message)
-	if message == "" {
-		return false
-	}
-	if strings.Contains(message, "namespace quota exceeded") ||
-		strings.Contains(message, "no node has remaining reservation capacity") {
-		return true
-	}
-	return MessageIndicatesCapacityBlock(message)
-}
-
-func MessageIndicatesCapacityBlock(message string) bool {
-	message = normalizeDiagnosticMessage(message)
-	return strings.Contains(message, "insufficient_cpu") ||
-		strings.Contains(message, "insufficient_memory") ||
-		strings.Contains(message, "insufficient_ephemeral_storage") ||
-		strings.Contains(message, "effective_allocatable")
-}
-
-func normalizeDiagnosticMessage(message string) string {
-	return strings.ToLower(strings.TrimSpace(message))
 }

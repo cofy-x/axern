@@ -230,12 +230,14 @@ func TestRegisterAllowsUnlimitedSessions(t *testing.T) {
 	}
 }
 
-func TestPeerRevalidateIntervalCanBeDisabled(t *testing.T) {
+func TestPeerRevalidateIntervalCannotBeDisabledOrUnbounded(t *testing.T) {
 	t.Parallel()
 
-	server := New(fakeControl{}, WithPeerRevalidateInterval(0))
-	if server.peerRevalidateInterval != 0 {
-		t.Fatalf("peerRevalidateInterval = %s, want 0", server.peerRevalidateInterval)
+	for _, interval := range []time.Duration{0, -time.Second, time.Minute} {
+		server := New(fakeControl{}, WithPeerRevalidateInterval(interval))
+		if server.peerRevalidateInterval != 15*time.Second {
+			t.Fatalf("peerRevalidateInterval = %s, want 15s", server.peerRevalidateInterval)
+		}
 	}
 }
 
@@ -295,7 +297,7 @@ func TestRevalidationClosesTerminalSession(t *testing.T) {
 	}
 }
 
-func TestRevalidationKeepsPeerOnTransientFailure(t *testing.T) {
+func TestRevalidationClosesPeerOnControlFailure(t *testing.T) {
 	t.Parallel()
 
 	var calls atomic.Int32
@@ -316,16 +318,9 @@ func TestRevalidationKeepsPeerOnTransientFailure(t *testing.T) {
 	if err := peer.Send(peerOpen("session-1", tunnelcontrolv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT)); err != nil {
 		t.Fatalf("send peer open: %v", err)
 	}
-	time.Sleep(50 * time.Millisecond)
-	if err := peer.Send(&tunnelv1.TunnelFrame{Payload: &tunnelv1.TunnelFrame_Ping{Ping: &tunnelv1.Ping{ID: "still-open"}}}); err != nil {
-		t.Fatalf("send ping after transient revalidation failure: %v", err)
-	}
-	got, err := peer.Recv()
-	if err != nil {
-		t.Fatalf("recv pong after transient revalidation failure: %v", err)
-	}
-	if got.GetPong().GetID() != "still-open" {
-		t.Fatalf("pong id = %q, want still-open", got.GetPong().GetID())
+	_, err = peer.Recv()
+	if grpcstatus.Code(err) != codes.Unavailable {
+		t.Fatalf("Recv() error = %v, want Unavailable", err)
 	}
 }
 
