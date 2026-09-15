@@ -27,16 +27,6 @@ func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, prev
 		return nil, fmt.Errorf("validate capability snapshot: %w", err)
 	}
 	previousSnapshot := previous.GetCapabilitySnapshot()
-	if err := persistCapabilityInstance(ctx, tx, nodeID, previousSnapshot, nextSnapshot); err != nil {
-		return nil, err
-	}
-	idempotent, err := validateSnapshotAdvance(previousSnapshot, nextSnapshot)
-	if err != nil {
-		return nil, err
-	}
-	if idempotent {
-		return nil, nil
-	}
 	transitions, err := capabilityTransitions(previousSnapshot, nextSnapshot, reportedAt)
 	if err != nil {
 		return nil, err
@@ -44,48 +34,48 @@ func persistCapabilityReport(ctx context.Context, tx pgx.Tx, nodeID string, prev
 	return transitions, nil
 }
 
-func persistCapabilityInstance(ctx context.Context, tx pgx.Tx, nodeID string, previous, next *capabilityv1.CapabilitySnapshot) error {
+func persistNodeObservationInstance(ctx context.Context, tx pgx.Tx, nodeID string, previous, next *nodev1.NodeSummary) error {
 	var lastSequence int64
 	err := tx.QueryRow(ctx, `
 		SELECT last_sequence
-		FROM node_capability_instances
+		FROM node_observation_instances
 		WHERE node_id = $1 AND node_instance_id = $2
 		FOR UPDATE
 	`, nodeID, next.GetNodeInstanceID()).Scan(&lastSequence)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("load node capability instance: %w", err)
+		return fmt.Errorf("load node observation instance: %w", err)
 	}
 	instanceKnown := err == nil
 	if previous != nil && previous.GetNodeInstanceID() != next.GetNodeInstanceID() && instanceKnown {
-		return fmt.Errorf("capability node instance %q was already superseded and cannot become active again", next.GetNodeInstanceID())
+		return fmt.Errorf("node observation instance %q was already superseded and cannot become active again", next.GetNodeInstanceID())
 	}
 	if previous == nil && instanceKnown {
-		return fmt.Errorf("capability node instance %q exists without a current node summary", next.GetNodeInstanceID())
+		return fmt.Errorf("node observation instance %q exists without a current node summary", next.GetNodeInstanceID())
 	}
 	if instanceKnown && next.GetSequence() < lastSequence {
-		return fmt.Errorf("capability node instance %q sequence regressed below durable sequence %d", next.GetNodeInstanceID(), lastSequence)
+		return fmt.Errorf("node observation instance %q sequence regressed below durable sequence %d", next.GetNodeInstanceID(), lastSequence)
 	}
 	if !instanceKnown {
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO node_capability_instances (
+			INSERT INTO node_observation_instances (
 				node_id, node_instance_id, last_sequence
 			) VALUES ($1, $2, $3)
 		`, nodeID, next.GetNodeInstanceID(), next.GetSequence()); err != nil {
-			return fmt.Errorf("insert node capability instance: %w", err)
+			return fmt.Errorf("insert node observation instance: %w", err)
 		}
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE node_capability_instances
+		UPDATE node_observation_instances
 		SET last_sequence = $3
 		WHERE node_id = $1 AND node_instance_id = $2
 	`, nodeID, next.GetNodeInstanceID(), next.GetSequence()); err != nil {
-		return fmt.Errorf("update node capability instance: %w", err)
+		return fmt.Errorf("update node observation instance: %w", err)
 	}
 	return nil
 }
 
-func validateSnapshotAdvance(previous, next *capabilityv1.CapabilitySnapshot) (bool, error) {
+func validateNodeObservationAdvance(previous, next *nodev1.NodeSummary) (bool, error) {
 	if previous == nil {
 		return false, nil
 	}
@@ -94,9 +84,15 @@ func validateSnapshotAdvance(previous, next *capabilityv1.CapabilitySnapshot) (b
 	}
 	if next.GetSequence() > previous.GetSequence() {
 		if next.GetCollectedAt().AsTime().Before(previous.GetCollectedAt().AsTime()) {
-			return false, fmt.Errorf("capability snapshot collected_at must not move backwards within node instance %q", next.GetNodeInstanceID())
+			return false, fmt.Errorf("node observation collected_at must not move backwards within node instance %q", next.GetNodeInstanceID())
 		}
-		if !sameObservationKeys(previous, next) {
+		if next.GetCapabilitySnapshot().GetCollectedAt().AsTime().Before(previous.GetCapabilitySnapshot().GetCollectedAt().AsTime()) {
+			return false, fmt.Errorf("capability observation collected_at must not move backwards within node instance %q", next.GetNodeInstanceID())
+		}
+		if next.GetMemoryBudget().GetSampledAt().AsTime().Before(previous.GetMemoryBudget().GetSampledAt().AsTime()) {
+			return false, fmt.Errorf("memory boundary sampled_at must not move backwards within node instance %q", next.GetNodeInstanceID())
+		}
+		if !sameObservationKeys(previous.GetCapabilitySnapshot(), next.GetCapabilitySnapshot()) {
 			return false, fmt.Errorf("capability observation ownership cannot change within node instance %q", next.GetNodeInstanceID())
 		}
 		return false, nil
@@ -104,7 +100,7 @@ func validateSnapshotAdvance(previous, next *capabilityv1.CapabilitySnapshot) (b
 	if next.GetSequence() == previous.GetSequence() && proto.Equal(next, previous) {
 		return true, nil
 	}
-	return false, fmt.Errorf("capability snapshot sequence must increase within node instance %q", next.GetNodeInstanceID())
+	return false, fmt.Errorf("node observation sequence must increase within node instance %q", next.GetNodeInstanceID())
 }
 
 func sameObservationKeys(left, right *capabilityv1.CapabilitySnapshot) bool {

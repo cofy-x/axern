@@ -10,7 +10,11 @@ import (
 type Target struct {
 	ID                 string
 	SandboxdSocketPath string
-	Handler            contract.SandboxRuntime
+	Handler            Runtime
+}
+
+type Runtime interface {
+	FileService() contract.FileService
 }
 
 type Options struct {

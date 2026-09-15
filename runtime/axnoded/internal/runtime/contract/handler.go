@@ -27,8 +27,6 @@ type PreparedContainer struct {
 // AllocationRuntime is the fail-closed lifecycle contract for workload
 // allocations. Allocation starts must be split into OCI create and start so
 // allocation-specific enforcement can be verified before user code executes.
-// SandboxRuntime.CreateContainer remains available to node-owned auxiliary
-// containers whose lifecycle is not an allocation lifecycle.
 type AllocationRuntime interface {
 	SandboxRuntime
 	PrepareContainer(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*PreparedContainer, error)
@@ -86,7 +84,6 @@ type SandboxRuntime interface {
 	AllocationEnforcementManifestProvider
 	HostRequirements() HostRequirements
 	Version(context.Context) (*apipb.RuntimeVersion, error)
-	CreateContainer(context.Context, *apipb.CreateContainerRequest, HandlerOptions) (*apipb.ContainerMetadata, error)
 	DeleteContainer(context.Context, *apipb.DeleteContainerRequest, HandlerOptions) (*apipb.DeleteContainerResponse, error)
 	KillContainer(context.Context, *apipb.SignalContainerRequest, HandlerOptions) (*apipb.SignalContainerResponse, error)
 	ListContainers(context.Context, HandlerOptions) ([]*UnionContainerState, error)

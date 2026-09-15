@@ -188,7 +188,7 @@ func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 
 func TestNodeControlRequiresNodeWorkloadIdentity(t *testing.T) {
 	i := &Interceptor{}
-	method := "/axern.private.control.node.v1.NodeControl/RegisterNode"
+	method := "/axern.private.control.node.v1.NodeControl/ReportNode"
 	called := false
 	handler := func(context.Context, any) (any, error) {
 		called = true

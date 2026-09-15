@@ -128,18 +128,6 @@ func TestDefaultConfigSetsImageManagerSocket(t *testing.T) {
 	}
 }
 
-func TestDefaultConfigSetsRuntimeRunnerBinary(t *testing.T) {
-	cfg := DefaultConfig()
-	if cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinary != DefaultRuntimeRunnerBinary {
-		t.Fatalf("expected runtime runner binary %q, got %q",
-			DefaultRuntimeRunnerBinary, cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinary)
-	}
-	if cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinaryPath() != DefaultRuntimeRunnerBinary {
-		t.Fatalf("expected runtime runner binary path %q, got %q",
-			DefaultRuntimeRunnerBinary, cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinaryPath())
-	}
-}
-
 func TestDefaultConfigEnablesRunscSUID(t *testing.T) {
 	cfg := DefaultConfig()
 	runsc := cfg.PluginConfig.RuntimeConfig.Runsc

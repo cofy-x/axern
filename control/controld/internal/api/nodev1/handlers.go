@@ -27,27 +27,6 @@ const (
 	allocationLifecycleReportStagePersistStatus    = "persist_status"
 )
 
-func (s *Server) RegisterNode(ctx context.Context, req *controlnodev1.RegisterNodeRequest) (*controlnodev1.RegisterNodeResponse, error) {
-	nodeID := strings.TrimSpace(req.GetNodeID())
-	if nodeID == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "node_id is required")
-	}
-	record, err := s.deps.NodeStore.Register(ctx, nodekernel.RegisterParams{
-		NodeID:        nodeID,
-		NodeTarget:    req.GetNodeTarget(),
-		NodeAuthToken: req.GetNodeAuthToken(),
-		Now:           s.deps.Now(),
-	})
-	if err != nil {
-		if grpcstatus.Code(err) != codes.Unknown {
-			return nil, err
-		}
-		return nil, grpcstatus.Errorf(codes.Internal, "persist node registration: %v", err)
-	}
-	s.deps.Registry.Register(record.NodeID, record.NodeTarget, record.LastHeartbeatAt)
-	return &controlnodev1.RegisterNodeResponse{}, nil
-}
-
 func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRequest) (*controlnodev1.ReportNodeResponse, error) {
 	nodeID := strings.TrimSpace(req.GetNodeID())
 	ctx, span := sdkobs.Start(ctx, ctrlobs.SpanNodeReport, attribute.String(sdkobs.AttrNodeID, nodeID))

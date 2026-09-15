@@ -6,7 +6,6 @@ const (
 	SpanHTTP                         = "axnoded.http"
 	SpanAllocationStart              = "axnoded.allocation.start"
 	SpanAllocationDelete             = "axnoded.allocation.delete"
-	SpanControlPlaneRegister         = "axnoded.control_plane.register"
 	SpanControlPlaneReportNode       = "axnoded.control_plane.report_node"
 	SpanControlPlaneReportAllocation = "axnoded.control_plane.report_allocation_lifecycle"
 	SpanRootFSPrepare                = "axnoded.rootfs.prepare"

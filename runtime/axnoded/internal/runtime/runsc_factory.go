@@ -68,11 +68,10 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 	}
 
 	common, err := ocihost.New(ocihost.Config{
-		Root:                cfg.RootDir,
-		RuntimeName:         config.RuntimeNameRunsc,
-		RuntimeBinary:       runtimeCfg.Binary,
-		RuntimeRunnerBinary: cfg.RuntimeConfig.RuntimeRunnerBinaryPath(),
-		Loader:              loader,
+		Root:          cfg.RootDir,
+		RuntimeName:   config.RuntimeNameRunsc,
+		RuntimeBinary: runtimeCfg.Binary,
+		Loader:        loader,
 	})
 	if err != nil {
 		return nil, err

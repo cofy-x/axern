@@ -61,36 +61,33 @@ enum NodeMemoryBudgetMode {
 }
 
 message NodeMemoryBudget {
-  // Physical capacity reported by the selected node resource source. This is
-  // a consistency/diagnostic fact and is never added to allocatable memory.
-  int64 physical_capacity_bytes = 1;
   // The resource source's schedulable value before the Axern system reserve.
-  int64 source_allocatable_bytes = 2;
+  int64 source_allocatable_bytes = 1;
   // A finite value further caps source_allocatable_bytes; zero with
   // delegated_root_limit_finite=false represents kernel `max`.
-  int64 delegated_root_limit_bytes = 3;
-  bool delegated_root_limit_finite = 4;
-  int64 system_reserve_bytes = 5;
-  int64 effective_allocatable_bytes = 6;
-  int64 local_commitment_bytes = 7;
-  int64 cleanup_debt_bytes = 8;
-  int64 internal_current_bytes = 9;
+  int64 delegated_root_limit_bytes = 2;
+  bool delegated_root_limit_finite = 3;
+  int64 system_reserve_bytes = 4;
   // Identity of the capacity domain. Production uses the boot-scoped cgroup
   // mount/root identity; disabled_dev uses a boot-scoped resource-source
   // identity and cannot satisfy runtime hard-limit requirements.
-  string capacity_identity = 10;
-  google.protobuf.Timestamp sampled_at = 11;
-  int32 retiring_cgroup_count = 12;
-  int64 oldest_retiring_age_seconds = 13;
-  bool system_reserve_exhausted = 14;
-  NodeMemoryBudgetMode mode = 15;
+  string capacity_identity = 5;
+  google.protobuf.Timestamp sampled_at = 6;
+  bool system_reserve_exhausted = 7;
+  NodeMemoryBudgetMode mode = 8;
 }
 
 message PoolsSummary {
-  PoolState cgroup = 1;
-  PoolState interface = 2;
   // Required aggregate runtime capacity contract owned by axnoded.
-  PoolState runtime_slots = 3;
+  PoolState runtime_slots = 1;
+}
+
+message NodeMemoryDiagnostics {
+  int64 local_commitment_bytes = 1;
+  int64 cleanup_debt_bytes = 2;
+  int64 internal_current_bytes = 3;
+  int32 retiring_cgroup_count = 4;
+  int64 oldest_retiring_age_seconds = 5;
 }
 
 message AxnodedSummary {
@@ -126,6 +123,8 @@ message BpfNetSummary {
 }
 
 message NodeStorageSummary {
+  // Storage summaries are diagnostic telemetry. Scheduling consumes only the
+  // canonical ephemeral_storage_bytes values in NodeSummary.
   string target = 1;
   int64 capacity_bytes = 2;
   int64 used_bytes = 3;
@@ -143,6 +142,13 @@ message NodeStorageSummary {
   string mount_identity = 15;
   int64 allocation_used_bytes = 16;
   bool unlinked_backing_usage_unknown = 17;
+}
+
+message NodeDiagnostics {
+  NodeMemoryDiagnostics memory = 1;
+  repeated NodeStorageSummary storage = 2;
+  PoolState cgroup_pool = 3;
+  PoolState interface_pool = 4;
 }
 
 message ComponentsSummary {
@@ -171,26 +177,24 @@ message LocalitySummary {
 }
 
 message NodeSummary {
-  google.protobuf.Timestamp collected_at = 1;
-  PoolsSummary pools = 2;
-  ComponentsSummary components = 3;
-  repeated LocalitySummary locality = 4;
-  NodeState node_state = 5;
-  map<string, string> labels = 6;
-  axern.control.capability.v1.CapabilitySnapshot capability_snapshot = 7;
-  axern.control.common.v1.ResourceQuantity capacity = 8;
-  axern.control.common.v1.ResourceQuantity allocatable = 9;
-  repeated NodeStorageSummary storage = 10;
-  NodeMemoryBudget memory_budget = 11;
+  // Ordering applies to the complete atomic observation, not to one payload
+  // such as capabilities. A node process chooses a fresh instance identity and
+  // increments sequence for every publication.
+  string node_instance_id = 1;
+  int64 sequence = 2;
+  google.protobuf.Timestamp collected_at = 3;
+  PoolsSummary pools = 4;
+  ComponentsSummary components = 5;
+  repeated LocalitySummary locality = 6;
+  NodeState node_state = 7;
+  map<string, string> labels = 8;
+  axern.control.capability.v1.CapabilitySnapshot capability_snapshot = 9;
+  // These are the sole scheduling capacity and allocatable facts.
+  axern.control.common.v1.ResourceQuantity capacity = 10;
+  axern.control.common.v1.ResourceQuantity allocatable = 11;
+  NodeMemoryBudget memory_budget = 12;
+  NodeDiagnostics diagnostics = 13;
 }
-
-message RegisterNodeRequest {
-  string node_id = 1;
-  string node_target = 2;
-  string node_auth_token = 3;
-}
-
-message RegisterNodeResponse {}
 
 message ReportNodeRequest {
   string node_id = 1;
@@ -353,7 +357,6 @@ message ReportTunnelSessionStatusRequest {
 message ReportTunnelSessionStatusResponse {}
 
 service NodeControl {
-  rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse) {}
   rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
   rpc BatchReportAllocationLifecycle(BatchReportAllocationLifecycleRequest) returns (BatchReportAllocationLifecycleResponse) {}
   rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}

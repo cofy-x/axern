@@ -1,6 +1,7 @@
 package sandboxtarget
 
 import (
+	"context"
 	"fmt"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -9,21 +10,30 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 )
 
+type Runtime interface {
+	Wait(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	KillContainer(context.Context, *runtime.SignalContainerRequest, contract.HandlerOptions) (*runtime.SignalContainerResponse, error)
+	ExecContainer(context.Context, *runtime.ExecContainerRequest, contract.HandlerOptions) (*runtime.ExecContainerResponse, error)
+	OpenExecSession(context.Context, *runtime.ExecSessionOpen, contract.HandlerOptions) (contract.Session, error)
+	ProcessService() contract.ProcessService
+	FileService() contract.FileService
+}
+
 type Options struct {
 	GetContainer func(id string) (*container.Container, error)
-	RunscHandler contract.SandboxRuntime
+	RunscHandler Runtime
 }
 
 type Resolver struct {
 	getContainer func(id string) (*container.Container, error)
-	runscHandler contract.SandboxRuntime
+	runscHandler Runtime
 }
 
 type Target struct {
 	ID        string
 	Metadata  *runtime.ContainerMetadata
 	Container *container.Container
-	Handler   contract.SandboxRuntime
+	Handler   Runtime
 }
 
 func NewResolver(options Options) *Resolver {

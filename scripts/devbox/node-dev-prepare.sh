@@ -42,8 +42,6 @@ mkdir -p \
   "${IMAGEFSD_DIR}/chunkdb"
 
 bash "${ROOT_DIR}/scripts/dev-mtls-certs.sh" "${DEV_DIR}/certs" >/dev/null
-go -C "${ROOT_DIR}/runtime/axnoded" build -o "${BIN_DIR}/axnoded-runtime-runner" ./cmd/axnoded-runtime-runner
-
 cat > "${AXNODED_DIR}/config.toml" <<EOF
 rootDir = "${AXNODED_DIR}/root"
 storeDir = "${AXNODED_DIR}/store"
@@ -72,7 +70,6 @@ max_instance_num = 8
 [plugin.runtime]
 image_lib_dir = "${AXNODED_DIR}/rootfs"
 image_manager_socket = "${RUN_DIR}/imagemgr.sock"
-runtime_runner_binary = "${BIN_DIR}/axnoded-runtime-runner"
 cgroup_enforcement = "disabled_dev"
 filestore_dir = "${AXNODED_DIR}/filestore"
 filestore_mode = "loopback_dev"

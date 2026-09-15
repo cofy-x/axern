@@ -21,9 +21,9 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 - `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded `exec`, `exec_stream`, `process`, `exec_image`, `process_image`, `wait`, archive transfer, and allocation HTTP proxy. Public messages never carry access credentials; axnoded accepts an AllocationAccessGrant only from private incoming gRPC metadata and rejects missing or ambiguous values. Streaming operations acknowledge a validated grant before consuming request data or producing sandbox output.
 - `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status.
 - `axern.private.node.operator.v1.NodeOperator`: local Unix-socket operator workflows for `axctl`.
-- `axern.private.control.node.v1.NodeControl`: outbound registration, node reports with complete execution-lease snapshots, coalesced Allocation lifecycle batches, and allocation-access-grant replication with `controld`.
+- `axern.private.control.node.v1.NodeControl`: ordered atomic node reports with complete execution-lease snapshots, coalesced Allocation lifecycle batches, and allocation-access-grant replication with `controld`.
 
-The reporter uses a durable node identity. If an operator retires that identity, `controld` rejects registration, reports, status batches, and watches; the host must be removed and any replacement must use a new node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
+The reporter uses a durable administrative Node identity and a fresh process identity for observation ordering. Its first authenticated complete report creates the active Node row; there is no separate empty registration operation. If an operator retires the Node identity, `controld` rejects reports, status batches, and watches; the host must be removed and any replacement must use a new Node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
 
 Node lifecycle requests carry resolved secret env vars, resolved secret files, request-scoped registry auth, ports, network mode, egress policy, and read-only image mounts as typed fields. `axnoded` validates that contract before computing its request digest or creating side effects, materializes inputs into the Allocation-local runtime environment, and cleans up Allocation-scoped files on teardown. It does not pack execution behavior into JSON or OCI labels. Writable rootfs and workspace data are Allocation-local; durable outputs require explicit output delivery.
 
@@ -63,7 +63,7 @@ Example daemon invocation:
 
 `make release-cli` is Linux-only. Build `axctl` inside the shared devbox or the verification container.
 
-`make release-binary` also builds `output/axnoded-runtime-runner`, the host lifecycle helper that persists the runsc runtime wait result. The build also includes `output/axern-sandboxd`, the sandbox-local PID 1 supervisor. Packaged node images install runtime helpers at `/usr/local/libexec/axnoded/`.
+`make release-binary` also builds `output/axern-sandboxd`, the sandbox-local PID 1 supervisor. Packaged node images install it at `/usr/local/libexec/axnoded/`.
 
 ## Documentation
 

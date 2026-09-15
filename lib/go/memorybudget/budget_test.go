@@ -13,7 +13,6 @@ func TestValidateAcceptsFiniteDelegatedRootBudget(t *testing.T) {
 	budget := validBudget()
 	budget.DelegatedRootLimitFinite = true
 	budget.DelegatedRootLimitBytes = 6 << 30
-	budget.EffectiveAllocatableBytes = 5 << 30
 	if err := Validate(budget); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
@@ -21,17 +20,15 @@ func TestValidateAcceptsFiniteDelegatedRootBudget(t *testing.T) {
 
 func TestValidateAcceptsDisabledDevelopmentCapacityWithoutClaimingCgroupAccounting(t *testing.T) {
 	budget := &nodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes:     8 << 30,
-		SourceAllocatableBytes:    6 << 30,
-		EffectiveAllocatableBytes: 6 << 30,
-		CapacityIdentity:          "disabled-dev:boot=test:source=node-resources",
-		SampledAt:                 timestamppb.New(time.Now().UTC()),
-		Mode:                      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_DISABLED_DEV,
+		SourceAllocatableBytes: 6 << 30,
+		CapacityIdentity:       "disabled-dev:boot=test:source=node-resources",
+		SampledAt:              timestamppb.New(time.Now().UTC()),
+		Mode:                   nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_DISABLED_DEV,
 	}
 	if err := Validate(budget); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
-	budget.InternalCurrentBytes = 1
+	budget.SystemReserveExhausted = true
 	if err := Validate(budget); err == nil {
 		t.Fatal("Validate() accepted disabled_dev internal cgroup accounting")
 	}
@@ -51,10 +48,7 @@ func TestValidateRejectsInconsistentOrAmbiguousBudgets(t *testing.T) {
 		name   string
 		mutate func(*nodev1.NodeMemoryBudget)
 	}{
-		{name: "wrong effective allocatable", mutate: func(b *nodev1.NodeMemoryBudget) { b.EffectiveAllocatableBytes++ }},
-		{name: "cleanup exceeds commitment", mutate: func(b *nodev1.NodeMemoryBudget) { b.CleanupDebtBytes = b.LocalCommitmentBytes + 1 }},
 		{name: "unbounded root with limit", mutate: func(b *nodev1.NodeMemoryBudget) { b.DelegatedRootLimitBytes = 1 }},
-		{name: "source exceeds physical", mutate: func(b *nodev1.NodeMemoryBudget) { b.SourceAllocatableBytes = b.PhysicalCapacityBytes + 1 }},
 		{name: "missing identity", mutate: func(b *nodev1.NodeMemoryBudget) { b.CapacityIdentity = "" }},
 	}
 	for _, tt := range tests {
@@ -93,8 +87,8 @@ func TestValidateSummaryBindsEffectiveAllocatableAndSampleGeneration(t *testing.
 	budget.SampledAt = timestamppb.New(now)
 	summary := &nodev1.NodeSummary{
 		CollectedAt: timestamppb.New(now), MemoryBudget: budget,
-		Capacity:    &commonv1.ResourceQuantity{MemoryBytes: budget.GetPhysicalCapacityBytes()},
-		Allocatable: &commonv1.ResourceQuantity{MemoryBytes: budget.GetEffectiveAllocatableBytes()},
+		Capacity:    &commonv1.ResourceQuantity{MemoryBytes: 8 << 30},
+		Allocatable: &commonv1.ResourceQuantity{MemoryBytes: EffectiveAllocatable(budget)},
 	}
 	if err := ValidateSummary(summary, now); err != nil {
 		t.Fatalf("ValidateSummary() error = %v", err)
@@ -104,11 +98,11 @@ func TestValidateSummaryBindsEffectiveAllocatableAndSampleGeneration(t *testing.
 		t.Fatal("ValidateSummary() accepted mismatched allocatable")
 	}
 	summary.Allocatable.MemoryBytes--
-	summary.Capacity.MemoryBytes++
+	summary.Capacity.MemoryBytes = budget.GetSourceAllocatableBytes() - 1
 	if err := ValidateSummary(summary, now); err == nil {
-		t.Fatal("ValidateSummary() accepted mismatched physical capacity")
+		t.Fatal("ValidateSummary() accepted source allocatable above physical capacity")
 	}
-	summary.Capacity.MemoryBytes--
+	summary.Capacity.MemoryBytes = 8 << 30
 	summary.CollectedAt = timestamppb.New(now.Add(-time.Second))
 	if err := ValidateSummary(summary, now); err == nil {
 		t.Fatal("ValidateSummary() accepted a sample newer than its summary")
@@ -117,9 +111,7 @@ func TestValidateSummaryBindsEffectiveAllocatableAndSampleGeneration(t *testing.
 
 func validBudget() *nodev1.NodeMemoryBudget {
 	return &nodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes: 8 << 30, SourceAllocatableBytes: 8 << 30, SystemReserveBytes: 1 << 30,
-		EffectiveAllocatableBytes: 7 << 30, LocalCommitmentBytes: 2 << 30,
-		CleanupDebtBytes: 1 << 30, InternalCurrentBytes: 256 << 20,
+		SourceAllocatableBytes: 8 << 30, SystemReserveBytes: 1 << 30,
 		CapacityIdentity: "boot:mount:root:sandbox", SampledAt: timestamppb.New(time.Now().UTC()),
 		Mode: nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
 	}

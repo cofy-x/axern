@@ -19,18 +19,28 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 				Capacity:    int32(snapshot.Pools.RuntimeSlots.Capacity),
 				Unavailable: int32(snapshot.Pools.RuntimeSlots.Unavailable),
 			},
-			Cgroup: &nodev1.PoolState{
+		},
+		Diagnostics: &nodev1.NodeDiagnostics{
+			CgroupPool: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.Cgroup.Using),
 				Idle:        int32(snapshot.Pools.Cgroup.Idle),
 				Capacity:    int32(snapshot.Pools.Cgroup.Capacity),
 				Unavailable: int32(snapshot.Pools.Cgroup.Unavailable),
 			},
-			Interface: &nodev1.PoolState{
+			InterfacePool: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.Interface.Using),
 				Idle:        int32(snapshot.Pools.Interface.Idle),
 				Capacity:    int32(snapshot.Pools.Interface.Capacity),
 				Unavailable: int32(snapshot.Pools.Interface.Unavailable),
 			},
+			Memory: &nodev1.NodeMemoryDiagnostics{
+				LocalCommitmentBytes:     snapshot.Node.MemoryBudget.LocalCommitmentBytes,
+				CleanupDebtBytes:         snapshot.Node.MemoryBudget.CleanupDebtBytes,
+				InternalCurrentBytes:     snapshot.Node.MemoryBudget.InternalCurrentBytes,
+				RetiringCgroupCount:      int32(snapshot.Node.MemoryBudget.RetiringCgroupCount),
+				OldestRetiringAgeSeconds: snapshot.Node.MemoryBudget.OldestRetiringAgeSeconds,
+			},
+			Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
 		},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded: &nodev1.AxnodedSummary{
@@ -74,22 +84,14 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			CpuMilli: snapshot.Node.Allocatable.CpuMilli, MemoryBytes: snapshot.Node.Allocatable.MemoryBytes,
 			EphemeralStorageBytes: snapshot.Node.Allocatable.EphemeralStorageBytes,
 		},
-		Storage: make([]*nodev1.NodeStorageSummary, 0, len(snapshot.Storage)),
 		MemoryBudget: &nodev1.NodeMemoryBudget{
-			PhysicalCapacityBytes:     snapshot.Node.MemoryBudget.PhysicalCapacityBytes,
-			SourceAllocatableBytes:    snapshot.Node.MemoryBudget.SourceAllocatableBytes,
-			DelegatedRootLimitBytes:   snapshot.Node.MemoryBudget.DelegatedRootLimitBytes,
-			DelegatedRootLimitFinite:  snapshot.Node.MemoryBudget.DelegatedRootLimitFinite,
-			SystemReserveBytes:        snapshot.Node.MemoryBudget.SystemReserveBytes,
-			EffectiveAllocatableBytes: snapshot.Node.MemoryBudget.EffectiveAllocatableBytes,
-			LocalCommitmentBytes:      snapshot.Node.MemoryBudget.LocalCommitmentBytes,
-			CleanupDebtBytes:          snapshot.Node.MemoryBudget.CleanupDebtBytes,
-			InternalCurrentBytes:      snapshot.Node.MemoryBudget.InternalCurrentBytes,
-			CapacityIdentity:          snapshot.Node.MemoryBudget.CapacityIdentity,
-			Mode:                      memoryBudgetModeToProto(snapshot.Node.MemoryBudget.Mode),
-			RetiringCgroupCount:       int32(snapshot.Node.MemoryBudget.RetiringCgroupCount),
-			OldestRetiringAgeSeconds:  snapshot.Node.MemoryBudget.OldestRetiringAgeSeconds,
-			SystemReserveExhausted:    snapshot.Node.MemoryBudget.SystemReserveExhausted,
+			SourceAllocatableBytes:   snapshot.Node.MemoryBudget.SourceAllocatableBytes,
+			DelegatedRootLimitBytes:  snapshot.Node.MemoryBudget.DelegatedRootLimitBytes,
+			DelegatedRootLimitFinite: snapshot.Node.MemoryBudget.DelegatedRootLimitFinite,
+			SystemReserveBytes:       snapshot.Node.MemoryBudget.SystemReserveBytes,
+			CapacityIdentity:         snapshot.Node.MemoryBudget.CapacityIdentity,
+			Mode:                     memoryBudgetModeToProto(snapshot.Node.MemoryBudget.Mode),
+			SystemReserveExhausted:   snapshot.Node.MemoryBudget.SystemReserveExhausted,
 		},
 	}
 	if !snapshot.Node.MemoryBudget.SampledAt.IsZero() {
@@ -114,7 +116,7 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 		})
 	}
 	for _, entry := range snapshot.Storage {
-		summary.Storage = append(summary.Storage, &nodev1.NodeStorageSummary{
+		summary.Diagnostics.Storage = append(summary.Diagnostics.Storage, &nodev1.NodeStorageSummary{
 			Target:                      entry.Target,
 			CapacityBytes:               entry.CapacityBytes,
 			UsedBytes:                   entry.UsedBytes,

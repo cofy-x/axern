@@ -35,8 +35,8 @@ func (r *RunscServiceHandler) DeleteContainer(ctx context.Context, request *apip
 // sandbox state lock until the workload exits. Calling "delete --force"
 // directly can therefore deadlock: delete waits for run while run cannot
 // finish its state transition. A forced delete must signal the sandbox first,
-// allowing the runtime runner to reap runsc and release the lock, and only
-// then remove the stopped OCI state.
+// allowing runsc to finish and release the lock, and only then remove the
+// stopped OCI state.
 func (r *RunscServiceHandler) deleteRuntimeContainer(ctx context.Context, containerID string, force bool) error {
 	var stopErr error
 	if force {

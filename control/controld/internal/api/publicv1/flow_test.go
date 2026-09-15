@@ -189,9 +189,6 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	public := app.PublicV1Handler()
 	node := app.NodeV1Handler()
 
-	if _, err := node.RegisterNode(context.Background(), &nodev1.RegisterNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", NodeAuthToken: "test-node-token"}); err != nil {
-		t.Fatalf("RegisterNode() error = %v", err)
-	}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}

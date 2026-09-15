@@ -130,7 +130,7 @@ func readyNodeSummary(collectedAt time.Time, storage []*nodev1.NodeStorageSummar
 				Ready: true,
 			},
 		},
-		Storage: storage,
+		Diagnostics: &nodev1.NodeDiagnostics{Storage: storage},
 	}
 }
 

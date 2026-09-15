@@ -115,10 +115,11 @@ message AllocationState {
 }
 
 // AllocationCapabilityReconcileState is the durable node-local intent to
-// re-evaluate an Allocation against the latest node observation. The sequence
-// is the CapabilitySnapshot order; there is no second capability generation.
+// re-evaluate an Allocation against the latest node-local capability
+// observation. The sequence changes only when work is merged into this
+// Allocation intent, so a worker cannot acknowledge over concurrent work.
 message AllocationCapabilityReconcileState {
-  int64 pending_observation_sequence = 1;
+  int64 pending_intent_sequence = 1;
   bool terminating = 2;
   string last_error = 3;
 }

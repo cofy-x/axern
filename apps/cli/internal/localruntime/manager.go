@@ -703,11 +703,11 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 				}
 				add("gateway_connectivity", gatewayOK, "gateway_connectivity_reachable", "gateway_connectivity_unreachable", gatewayMessage, "inspect `axern local logs gatewayd` and verify local firewall settings")
 				nodeOK, nodeReason := m.nodeReadiness(ctx, &http.Client{Timeout: 3 * time.Second}, m.doctorNodeID(), localDefaultWorkloadCapabilities)
-				nodeMessage := "local node is registered with fresh heartbeat and inventory"
+				nodeMessage := "local node has reported fresh heartbeat and inventory"
 				if !nodeOK {
 					nodeMessage = nodeReason
 				}
-				add("node_registration", nodeOK, "node_registration_healthy", "node_registration_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
+				add("node_observation", nodeOK, "node_observation_healthy", "node_observation_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
 			}
 		}
 	}
@@ -932,6 +932,7 @@ type localNodeReadinessPayload struct {
 		Fresh        bool   `json:"fresh"`
 		SummaryFresh bool   `json:"summary_fresh"`
 		Summary      struct {
+			Sequence   uint64 `json:"sequence"`
 			Components struct {
 				Axnoded struct {
 					Ready bool `json:"ready"`
@@ -946,7 +947,6 @@ type localNodeReadinessPayload struct {
 				} `json:"runtime_slots"`
 			} `json:"pools"`
 			CapabilitySnapshot struct {
-				Sequence     uint64                       `json:"sequence"`
 				Observations []localCapabilityObservation `json:"observations"`
 			} `json:"capability_snapshot"`
 		} `json:"summary"`
@@ -1012,8 +1012,8 @@ func evaluateLocalNodeReadiness(payload localNodeReadinessPayload, expectedNodeI
 		if len(requiredCapabilities) == 0 {
 			return true, ""
 		}
-		if node.Summary.CapabilitySnapshot.Sequence == 0 {
-			return false, "local capability snapshot is warming"
+		if node.Summary.Sequence == 0 {
+			return false, "local node observation is warming"
 		}
 		observations := make(map[capabilityv1.PlatformCapability]localCapabilityObservation, len(node.Summary.CapabilitySnapshot.Observations))
 		for _, observation := range node.Summary.CapabilitySnapshot.Observations {
@@ -1031,7 +1031,7 @@ func evaluateLocalNodeReadiness(payload localNodeReadinessPayload, expectedNodeI
 		}
 		return true, ""
 	}
-	return false, fmt.Sprintf("local node %q is not registered", expectedNodeID)
+	return false, fmt.Sprintf("local node %q has not reported", expectedNodeID)
 }
 
 func localCapabilityUnavailableReason(capability capabilityv1.PlatformCapability, observation localCapabilityObservation, present bool, observations map[capabilityv1.PlatformCapability]localCapabilityObservation) string {

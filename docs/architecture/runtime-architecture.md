@@ -28,7 +28,7 @@ flowchart LR
     CLI["axern CLI / SDK"] --> Gateway["gatewayd"]
     Gateway -->|public control RPCs| Ctrl["controld"]
     Ctrl --> DB["Postgres"]
-    Node --> Snapshot["atomic capability snapshot"]
+    Node --> Snapshot["ordered atomic NodeSummary"]
     Snapshot --> Ctrl
     Ctrl -->|Allocation lifecycle| Node["axnoded lifecycle API"]
     Node --> CtrlStatus["BatchReportAllocationLifecycle"]
@@ -59,4 +59,4 @@ Axnoded is not yet ready to add Firecracker as a second implementation without n
 - node recovery inventory and terminal checkpoint recovery enumerate runsc containers directly;
 - cgroup and ephemeral-storage enforcement manifests contain runsc-specific verification details.
 
-Those blockers do not justify a second control-plane lifecycle or speculative backend fields. A future Firecracker change should first introduce one narrow Allocation runtime registry inside axnoded, then implement the existing create/start/observe/stop/delete/recover and process/file/session contracts. Backend-specific handles must remain in the node recovery record and adapter; the Allocation ID remains the only execution identity.
+Those blockers do not justify a second control-plane lifecycle, speculative backend fields, or an in-process runtime registry. If Firecracker is qualified later, it should ship as a separate node implementation and node pool that satisfies the existing Allocation lifecycle, process/file/session, recovery, and capability-evidence contracts. Backend-specific handles remain private to that implementation; the Allocation ID remains the only execution identity, and placement selects a node from immutable execution requirements rather than a user-visible backend name.

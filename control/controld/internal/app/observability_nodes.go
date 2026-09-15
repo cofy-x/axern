@@ -89,11 +89,11 @@ func (a *App) observeNodeResources(ctx context.Context, observe sdkobs.Int64Gaug
 
 func (a *App) observeNodePools(_ context.Context, observe sdkobs.Int64GaugeObserver) error {
 	for _, record := range a.readyNodeRecords() {
-		cgroup := record.Summary.GetPools().GetCgroup()
+		cgroup := record.Summary.GetDiagnostics().GetCgroupPool()
 		if cgroup != nil {
 			observeNodePool(observe, record.NodeID, "cgroup", int64(cgroup.GetIdle()), int64(cgroup.GetUsing()), int64(cgroup.GetCapacity()), int64(cgroup.GetUnavailable()))
 		}
-		iface := record.Summary.GetPools().GetInterface()
+		iface := record.Summary.GetDiagnostics().GetInterfacePool()
 		if iface != nil {
 			observeNodePool(observe, record.NodeID, "interface", int64(iface.GetIdle()), int64(iface.GetUsing()), int64(iface.GetCapacity()), int64(iface.GetUnavailable()))
 		}
@@ -103,7 +103,7 @@ func (a *App) observeNodePools(_ context.Context, observe sdkobs.Int64GaugeObser
 
 func (a *App) observeNodeStorage(_ context.Context, observe sdkobs.Int64GaugeObserver) error {
 	for _, record := range a.readyNodeRecords() {
-		for _, storage := range record.Summary.GetStorage() {
+		for _, storage := range record.Summary.GetDiagnostics().GetStorage() {
 			observeNodeStorage(observe, record.NodeID, storage)
 		}
 	}

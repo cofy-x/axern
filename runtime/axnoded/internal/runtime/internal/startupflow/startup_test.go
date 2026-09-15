@@ -26,39 +26,6 @@ func TestWaitReturnsWhenPIDFileExists(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestWaitReportsSupervisorExitBeforeReady(t *testing.T) {
-	waitCh := make(chan error, 1)
-	waitCh <- errors.New("exit status 7")
-	close(waitCh)
-
-	err := Wait(context.Background(), Options{
-		RuntimeName: "runsc",
-		ContainerID: "axctl-test",
-		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
-		WaitCh:      waitCh,
-	})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "runsc run exited before container started")
-	assert.Contains(t, err.Error(), "exit status 7")
-}
-
-func TestWaitReportsSupervisorCleanExitBeforeReady(t *testing.T) {
-	waitCh := make(chan error, 1)
-	waitCh <- nil
-	close(waitCh)
-
-	err := Wait(context.Background(), Options{
-		RuntimeName: "runsc",
-		ContainerID: "axctl-test",
-		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
-		WaitCh:      waitCh,
-	})
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "runsc run exited before startup handshake completed")
-}
-
 func TestWaitAcceptsPersistedRuntimeExitBeforeReady(t *testing.T) {
 	err := Wait(context.Background(), Options{
 		RuntimeName: "runsc",
@@ -85,63 +52,6 @@ func TestWaitAcceptsCleanPersistedRuntimeExitBeforeReady(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestWaitAcceptsReadyStateAfterSupervisorExit(t *testing.T) {
-	waitCh := make(chan error, 1)
-	waitCh <- nil
-	close(waitCh)
-
-	err := Wait(context.Background(), Options{
-		RuntimeName: "runsc",
-		ContainerID: "axctl-test",
-		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
-		WaitCh:      waitCh,
-		ReadyByState: func(context.Context) bool {
-			return true
-		},
-	})
-
-	assert.NoError(t, err)
-}
-
-func TestWaitAcceptsCleanPersistedRuntimeExitAfterSupervisorExit(t *testing.T) {
-	waitCh := make(chan error, 1)
-	waitCh <- nil
-	close(waitCh)
-	exitStateCalls := 0
-
-	err := Wait(context.Background(), Options{
-		RuntimeName: "runsc",
-		ContainerID: "axctl-test",
-		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
-		WaitCh:      waitCh,
-		ExitState: func() (contract.Exit, bool, error) {
-			exitStateCalls++
-			return contract.Exit{Status: 0}, true, nil
-		},
-	})
-
-	assert.NoError(t, err)
-	assert.Equal(t, 1, exitStateCalls)
-}
-
-func TestWaitAcceptsPersistedRuntimeExitAfterSupervisorExit(t *testing.T) {
-	waitCh := make(chan error, 1)
-	waitCh <- nil
-	close(waitCh)
-
-	err := Wait(context.Background(), Options{
-		RuntimeName: "runsc",
-		ContainerID: "axctl-test",
-		PIDFilePath: filepath.Join(t.TempDir(), "missing.pid"),
-		WaitCh:      waitCh,
-		ExitState: func() (contract.Exit, bool, error) {
-			return contract.Exit{Status: 7}, true, nil
-		},
-	})
-
-	assert.NoError(t, err)
-}
-
 func TestWaitUsesUnreadableExitMapper(t *testing.T) {
 	errUnreadable := errors.New("bad exit json")
 
@@ -160,7 +70,7 @@ func TestWaitUsesUnreadableExitMapper(t *testing.T) {
 	assert.True(t, errors.Is(err, errUnreadable))
 }
 
-func TestWaitReturnsContextErrorWithoutWaitChannel(t *testing.T) {
+func TestWaitReturnsContextError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
 	defer cancel()
 

@@ -6,97 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
-	sandboxobs "github.com/cofy-x/axern/runtime/axnoded/internal/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/trace"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 )
 
 var errRuntimeCleanupPending = errors.New("runtime cleanup remains pending")
-
-func (h *Controller) createContainer(
-	ctx context.Context,
-	lrt *environmentcache.PreparedEnvironment,
-	templateRequest *apipb.CreateContainerRequest,
-	request *apipb.CreateContainerRequest,
-	resourceSpec *commonv1.ResourceSpec,
-	phaseRecorder contract.StartupPhaseRecorder,
-) (*apipb.CreateContainerResponse, string, error) {
-	traceID, spanID := trace.GetContextID(ctx)
-	response := new(apipb.CreateContainerResponse)
-	start := time.Now()
-	var err error
-	defer func() {
-		if err != nil {
-			logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("CreateContainer failed, traceID: %v, spanID: %v, err: %v", traceID, spanID, err)
-		}
-	}()
-
-	resourceAllocateStart := time.Now()
-	resourceCtx, resourceSpan := sdkobs.Start(ctx, sandboxobs.SpanResourceAllocate,
-		attribute.String(sdkobs.AttrAllocationID, request.GetID()),
-		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
-	)
-	handler, resource, err := h.prepareContainerCreate(ctx, traceID.String(), request, resourceSpec)
-	if err != nil {
-		resourceSpan.RecordError(err)
-		resourceSpan.SetStatus(codes.Error, "resource allocate")
-	} else {
-		resourceSpan.SetAttributes(attribute.String(sdkobs.AttrResult, sdkobs.ResultOK))
-	}
-	resourceSpan.End()
-	if phaseRecorder != nil {
-		phaseRecorder.RecordStartupPhase(contract.StartupPhaseResourceAllocate, time.Since(resourceAllocateStart))
-	}
-	if err != nil {
-		return response, "", err
-	}
-
-	_, runtimeSpan := sdkobs.Start(resourceCtx, sandboxobs.SpanRuntimeCreate,
-		attribute.String(sdkobs.AttrAllocationID, resource.ID),
-		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
-	)
-	options, err := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
-	if err != nil {
-		return response, "", h.cleanupCreatedRuntime(handler, resource, err)
-	}
-	metaData, err := handler.CreateContainer(ctx, request, options)
-	if err != nil {
-		runtimeSpan.RecordError(err)
-		runtimeSpan.SetStatus(codes.Error, "runtime create")
-	} else {
-		runtimeSpan.SetAttributes(attribute.String(sdkobs.AttrResult, sdkobs.ResultOK))
-	}
-	runtimeSpan.End()
-	if err != nil {
-		logrus.WithField(trace.ContextKeyTraceId, traceID).Errorf("runtime handler create container failed: %v", err)
-		h.cleanupFailedContainerCreate(traceID.String(), resource.ID, metaData)
-		return response, "", h.cleanupCreatedRuntime(handler, resource, err)
-	}
-	if metaData == nil {
-		return response, "", h.cleanupCreatedRuntime(handler, resource, errors.New("runtime returned no container metadata"))
-	}
-	response.ID = resource.ID
-	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
-		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("persist created container metadata: %w", err))
-	}
-	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, handler); err != nil {
-		return response, "", h.cleanupCreatedRuntime(handler, resource, fmt.Errorf("register created container monitor: %w", err))
-	}
-	logrus.WithField(trace.ContextKeyTraceId, traceID).Infof("CreateContainer %s success, traceID: %v, spanID: %v, cost: %v", resource.ID, traceID, spanID, time.Since(start).String())
-
-	return response, containerIPFromResource(resource), nil
-}
 
 // createAllocation deliberately uses the OCI create/start split. The
 // created runtime and all host-side storage/cgroup state exist at the gate,

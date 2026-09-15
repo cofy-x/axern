@@ -71,8 +71,7 @@ func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 	summary.Capacity.MemoryBytes = 16 << 30
 	summary.Allocatable.MemoryBytes = 7 << 30
 	summary.MemoryBudget = &controlnodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes: 16 << 30, SourceAllocatableBytes: 8 << 30, SystemReserveBytes: 1 << 30,
-		EffectiveAllocatableBytes: 7 << 30, CapacityIdentity: "boot:mount:root:sandbox",
+		SourceAllocatableBytes: 8 << 30, SystemReserveBytes: 1 << 30, CapacityIdentity: "boot:mount:root:sandbox",
 		Mode:      controlnodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
 		SampledAt: timestamppb.New(now),
 	}
@@ -93,12 +92,13 @@ func TestValidateNodeMemoryBudgetRequiresCanonicalFreshSummary(t *testing.T) {
 func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.T) {
 	now := time.Date(2026, 7, 10, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
-	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{
 		NodeID:        "node-a",
 		NodeAuthToken: "token-a",
+		Summary:       controldtest.ReadySummary(now),
 		Now:           now,
 	}); err != nil {
-		t.Fatalf("register node: %v", err)
+		t.Fatalf("report node: %v", err)
 	}
 	allocations := &fakeAllocationControl{}
 	server := New(Dependencies{
@@ -225,7 +225,7 @@ func TestBatchReportAllocationLifecycleAuthenticatesAndForwardsBatch(t *testing.
 func TestBatchReportAllocationCapabilityConditionsIsAuthenticatedAndConditionOnly(t *testing.T) {
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
 	nodeStore := controldtest.NewMemoryNodeStore()
-	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{NodeID: "node-a", NodeAuthToken: "token-a", Now: now}); err != nil {
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{NodeID: "node-a", NodeAuthToken: "token-a", Summary: controldtest.ReadySummary(now), Now: now}); err != nil {
 		t.Fatal(err)
 	}
 	allocations := &fakeAllocationControl{}
@@ -272,13 +272,14 @@ func validCapabilityConditionReport(now time.Time) *controlnodev1.AllocationCapa
 func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	now := time.Now().UTC()
 	nodeStore := controldtest.NewMemoryNodeStore()
-	if _, err := nodeStore.Register(context.Background(), nodekernel.RegisterParams{
+	if _, err := nodeStore.Report(context.Background(), nodekernel.ReportParams{
 		NodeID:        "node-a",
 		NodeTarget:    "127.0.0.1:25000",
 		NodeAuthToken: "token-a",
+		Summary:       controldtest.ReadySummary(now),
 		Now:           now,
 	}); err != nil {
-		t.Fatalf("register node: %v", err)
+		t.Fatalf("report node: %v", err)
 	}
 	tunnels := &fakeTunnelControl{}
 	server := New(Dependencies{

@@ -42,13 +42,6 @@ func (f *FakeSandboxRuntime) Version(ctx context.Context) (*runtimeapi.RuntimeVe
 	}, getErrorFromContext(ctx)
 }
 
-func (f *FakeSandboxRuntime) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
-	return &apipb.ContainerMetadata{
-		Stdout: request.GetStdout(),
-		Stderr: request.GetStderr(),
-	}, getErrorFromContext(ctx)
-}
-
 func (f *FakeSandboxRuntime) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
 	return &apipb.AllocationEnforcementManifest{
 		BundlePath:        "/fake/" + containerID,

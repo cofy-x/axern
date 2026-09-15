@@ -15,48 +15,6 @@ import (
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
 
-func (r *RunscServiceHandler) CreateContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
-	cgroupStart := time.Now()
-	effectiveRequest, preparedOptions, err := r.prepareCreateRequest(request, options)
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeCgroupPrepare, time.Since(cgroupStart))
-	if err != nil {
-		return nil, err
-	}
-	options = preparedOptions
-	options.EphemeralStorageLimitBytes = effectiveRequest.GetEphemeralStorageLimitBytes()
-	if err := r.writableCapacity.Charge(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
-		return nil, err
-	}
-	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, options)
-	if err != nil {
-		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		return nil, err
-	}
-	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), ImmutableMount: rootfsview.ImmutableMountFromProto(effectiveRequest.GetRootfs().GetImmutableMount())}); err != nil {
-		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		return metaData, err
-	}
-	overlayArgsStart := time.Now()
-	overlayArgs, err := r.overlayArgsForBundle(bundlePath, effectiveRequest.GetEphemeralStorageLimitBytes())
-	if err != nil {
-		options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
-		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		return nil, err
-	}
-	overlayValue := ""
-	if len(overlayArgs) > 0 {
-		overlayValue = overlayArgs[len(overlayArgs)-1]
-	}
-	overlayArgs = runscSandboxdArgs(overlayArgs)
-	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
-	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, overlayValue); err != nil {
-		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
-		return nil, err
-	}
-
-	return r.launchRun(ctx, options, bundlePath, metaData, overlayArgs)
-}
-
 func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
 	cgroupStart := time.Now()
 	effectiveRequest, preparedOptions, err := r.prepareCreateRequest(request, options)

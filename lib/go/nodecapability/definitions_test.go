@@ -160,8 +160,8 @@ func TestValidateSnapshotRejectsOrderingAndMalformedFacts(t *testing.T) {
 	if err := ValidateSnapshot(testSnapshot(now, future), now.Add(time.Second)); err == nil {
 		t.Fatal("observation after snapshot publication was accepted")
 	}
-	if err := ValidateSnapshot(&capabilityv1.CapabilitySnapshot{NodeInstanceID: "instance", Sequence: 0, CollectedAt: timestamppb.New(now)}, now); err == nil {
-		t.Fatal("non-positive snapshot sequence was accepted")
+	if err := ValidateSnapshot(&capabilityv1.CapabilitySnapshot{}, now); err == nil {
+		t.Fatal("snapshot without publication time was accepted")
 	}
 }
 
@@ -229,7 +229,7 @@ func TestEvaluateObservationTransitionIgnoresRefreshAndDetectsStateChange(t *tes
 	previousObservation := testObservation(key, now)
 	currentObservation := testObservation(key, now.Add(5*time.Second))
 	previous := testSnapshot(now, previousObservation)
-	current := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "instance", Sequence: 2, CollectedAt: timestamppb.New(now.Add(5 * time.Second)), Observations: []*capabilityv1.CapabilityObservation{currentObservation}}
+	current := &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(now.Add(5 * time.Second)), Observations: []*capabilityv1.CapabilityObservation{currentObservation}}
 	if _, changed := EvaluateObservationTransition(previous, previousObservation, now, current, currentObservation, now.Add(5*time.Second)); changed {
 		t.Fatal("ordinary refresh created a transition")
 	}
@@ -273,7 +273,7 @@ func testObservation(key *capabilityv1.CapabilityKey, now time.Time) *capability
 }
 
 func testSnapshot(collectedAt time.Time, observations ...*capabilityv1.CapabilityObservation) *capabilityv1.CapabilitySnapshot {
-	return &capabilityv1.CapabilitySnapshot{NodeInstanceID: "instance", Sequence: 1, CollectedAt: timestamppb.New(collectedAt), Observations: observations}
+	return &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(collectedAt), Observations: observations}
 }
 
 func testDigest(value string) string {

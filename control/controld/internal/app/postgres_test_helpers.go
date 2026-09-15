@@ -44,14 +44,6 @@ func newPostgresTestServiceWithConfig(t *testing.T, cfg Config) (*App, *controld
 
 func registerReadyNode(t *testing.T, app *App, nodeID string, now time.Time) {
 	t.Helper()
-	node := app.NodeV1Handler()
-	if _, err := node.RegisterNode(context.Background(), &nodev1.RegisterNodeRequest{
-		NodeID:        nodeID,
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-	}); err != nil {
-		t.Fatalf("RegisterNode() error = %v", err)
-	}
 	reportReadyNodeSnapshot(t, app, nodeID, now, 1)
 }
 
@@ -59,7 +51,7 @@ func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Tim
 	t.Helper()
 	node := app.NodeV1Handler()
 	summary := controldtest.ReadySummary(now)
-	summary.CapabilitySnapshot.Sequence = sequence
+	summary.Sequence = sequence
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
 		NodeID:        nodeID,
 		NodeTarget:    "127.0.0.1:25000",

@@ -94,9 +94,6 @@ func TestCreateEnvironmentWithRegistryCredentialUsesDockerConfigSecret(t *testin
 	node := service.NodeV1Handler()
 	now := time.Now().UTC()
 
-	if _, err := node.RegisterNode(context.Background(), &nodev1.RegisterNodeRequest{NodeID: "node-registry-ref", NodeTarget: "127.0.0.1:25002", NodeAuthToken: "test-node-token"}); err != nil {
-		t.Fatalf("RegisterNode() error = %v", err)
-	}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-registry-ref", NodeTarget: "127.0.0.1:25002", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
@@ -172,9 +169,6 @@ func TestRequiredRunSecretReferenceEndsWithRunLifecycle(t *testing.T) {
 	node := service.NodeV1Handler()
 	now := time.Now().UTC()
 
-	if _, err := node.RegisterNode(context.Background(), &nodev1.RegisterNodeRequest{NodeID: "node-secret-ref", NodeTarget: "127.0.0.1:25001", NodeAuthToken: "test-node-token"}); err != nil {
-		t.Fatalf("RegisterNode() error = %v", err)
-	}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-secret-ref", NodeTarget: "127.0.0.1:25001", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}

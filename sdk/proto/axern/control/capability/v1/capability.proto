@@ -113,10 +113,8 @@ message CapabilityObservation {
 }
 
 message CapabilitySnapshot {
-  string node_instance_id = 1;
-  int64 sequence = 2;
-  google.protobuf.Timestamp collected_at = 3;
-  repeated CapabilityObservation observations = 4;
+  google.protobuf.Timestamp collected_at = 1;
+  repeated CapabilityObservation observations = 2;
 }
 
 message ExtensionCapabilityRequirement {

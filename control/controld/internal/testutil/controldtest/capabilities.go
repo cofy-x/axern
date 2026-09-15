@@ -69,7 +69,6 @@ func AvailableCapabilitySnapshot(observedAt time.Time, platforms ...capabilityv1
 		return left < right
 	})
 	return &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "test-node-instance", Sequence: 1,
 		CollectedAt: timestamppb.New(observedAt), Observations: observations,
 	}
 }

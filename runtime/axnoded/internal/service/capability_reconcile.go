@@ -42,22 +42,19 @@ func (h *sandboxService) handleCapabilityTransitions(_ context.Context, transiti
 	}
 	manifests := h.allocationController().CapabilityRequirementManifests()
 	for allocationID, dependencies := range manifests {
-		keys := make([]*capabilityv1.CapabilityKey, 0, len(transitions))
-		sequence := int64(0)
+		matched := false
 		for _, transition := range transitions {
 			dependency := matchingDependency(dependencies, transition.Key)
 			if dependency == nil || dependency.GetLossPolicy() == capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_ADMISSION_ONLY {
 				continue
 			}
-			keys = append(keys, capabilitycontract.CloneKey(transition.Key))
-			if transition.Sequence > sequence {
-				sequence = transition.Sequence
-			}
+			matched = true
+			break
 		}
-		if len(keys) == 0 {
+		if !matched {
 			continue
 		}
-		if err := h.allocationController().MergeCapabilityReconcile(allocationID, sequence); err != nil {
+		if err := h.allocationController().MergeCapabilityReconcile(allocationID); err != nil {
 			logrus.WithError(err).WithField("allocation_id", allocationID).Error("persist capability reconcile work")
 			continue
 		}
@@ -80,8 +77,8 @@ func matchingDependency(requirements []*capabilityv1.CapabilityRequirement, key 
 }
 
 // startCapabilityReconcileWorker establishes allocation-level single ownership.
-// New observation sequences are persisted before this call and are picked up
-// by the running worker's next loop rather than being dropped.
+// New intent sequences are persisted before this call and are picked up by
+// the running worker's next loop rather than being acknowledged over.
 func (h *sandboxService) startCapabilityReconcileWorker(allocationID string) {
 	if !h.acquireCapabilityReconcileWorker(allocationID) {
 		return
@@ -156,7 +153,7 @@ func (h *sandboxService) startPendingCapabilityReconcileWorkers() {
 	sort.Strings(allocationIDs)
 	for _, allocationID := range allocationIDs {
 		state := h.allocationController().CapabilityReconcileState(allocationID)
-		if state == nil || (!state.GetTerminating() && state.GetPendingObservationSequence() == 0) {
+		if state == nil || (!state.GetTerminating() && state.GetPendingIntentSequence() == 0) {
 			continue
 		}
 		h.startCapabilityReconcileWorker(allocationID)
@@ -184,9 +181,7 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 			h.startPendingCapabilityReconcileWorkers()
 			currentAuditShard := auditShard
 			auditShard = nextCapabilityAuditShard(auditShard)
-			snapshot := h.capabilityManager.Snapshot()
-			sequence := snapshot.GetSequence()
-			if sequence <= 0 {
+			if h.capabilityManager.Snapshot() == nil {
 				continue
 			}
 			for allocationID, dependencies := range h.allocationController().CapabilityRequirementManifests() {
@@ -197,7 +192,7 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 				if len(keys) == 0 {
 					continue
 				}
-				if err := h.allocationController().MergeCapabilityReconcile(allocationID, sequence); err != nil {
+				if err := h.allocationController().MergeCapabilityReconcile(allocationID); err != nil {
 					logrus.WithError(err).WithField("allocation_id", allocationID).Warn("persist periodic capability audit")
 					continue
 				}
@@ -249,8 +244,8 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 			h.failStopAllocation(ctx, allocationID, errors.New(state.GetLastError()))
 			return
 		}
-		sequence := state.GetPendingObservationSequence()
-		if sequence == 0 {
+		intentSequence := state.GetPendingIntentSequence()
+		if intentSequence == 0 {
 			return
 		}
 		if _, _, err := h.ReconcileAllocationCapabilities(ctx, allocationID); err != nil {
@@ -263,7 +258,7 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 		if current := h.allocationController().CapabilityReconcileState(allocationID); current != nil && current.GetTerminating() {
 			continue
 		}
-		if err := h.allocationController().AckCapabilityReconcile(allocationID, sequence, false, nil); err != nil {
+		if err := h.allocationController().AckCapabilityReconcile(allocationID, intentSequence, false, nil); err != nil {
 			logrus.WithError(err).WithField("allocation_id", allocationID).Error("ack capability reconcile work")
 			if !waitCapabilityReconcileRetry(ctx) {
 				return

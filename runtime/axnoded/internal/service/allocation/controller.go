@@ -184,28 +184,6 @@ func (c *Controller) RestoreAllocationState(runtimeInventory map[string]struct{}
 	return nil
 }
 
-func (c *Controller) PrepareResolvedEnvironment(ctx context.Context, fr *runtime.ResolvedEnvironment) (*environmentcache.PreparedEnvironment, error) {
-	lrt, _, err := c.ensurePreparedEnvironment(ctx, fr)
-	return lrt, err
-}
-
-func (c *Controller) PrepareResolvedEnvironmentWithSummary(ctx context.Context, fr *runtime.ResolvedEnvironment) (*environmentcache.PreparedEnvironment, EnvironmentPrepareSummary, error) {
-	return c.ensurePreparedEnvironment(ctx, fr)
-}
-
-func (c *Controller) CreateRuntimeContainer(ctx context.Context, lrt *environmentcache.PreparedEnvironment, templateRequest, createRequest *runtime.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec, recorder contract.StartupPhaseRecorder) (*runtime.CreateContainerResponse, string, error) {
-	return c.createContainer(ctx, lrt, templateRequest, createRequest, resourceSpec, recorder)
-}
-
-func (c *Controller) DeleteRuntimeContainer(ctx context.Context, containerID string) error {
-	_, err := c.deleteContainer(ctx, &runtime.DeleteContainerRequest{ID: containerID, Timeout: 0})
-	return err
-}
-
-func (c *Controller) DeleteRuntimeContainerWithHandler(ctx context.Context, request *runtime.DeleteContainerRequest, handler contract.SandboxRuntime, traceID, spanID string) (*runtime.DeleteContainerResponse, error) {
-	return c.deleteContainerWithRuntime(ctx, request, handler, traceID, spanID)
-}
-
 func (c *Controller) ContainerIP(containerID string) string {
 	if c == nil || c.containers() == nil {
 		return ""

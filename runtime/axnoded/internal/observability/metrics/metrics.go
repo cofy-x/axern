@@ -79,7 +79,6 @@ const (
 	MetricCapabilityObservationExpiry               = "axern.axnoded_capability_observation_expiry_seconds"
 	MetricCapabilityTransitionTotal                 = "axern.axnoded_capability_transition_total"
 	MetricCapabilityRecoveryDebounceTotal           = "axern.axnoded_capability_recovery_debounce_total"
-	MetricCapabilitySnapshotSequence                = "axern.axnoded_capability_snapshot_sequence"
 	MetricCapabilityAllocationVerificationTotal     = "axern.axnoded_capability_allocation_verification_total"
 	MetricCapabilityFailStopCleanupTotal            = "axern.axnoded_capability_fail_stop_cleanup_total"
 )
@@ -631,10 +630,6 @@ func RecordCapabilityTransition(capability, provider, state, reason string) {
 
 func RecordCapabilityRecoveryDebounce(capability, provider string) {
 	recordCounter(MetricCapabilityRecoveryDebounceTotal, "Observed capability recoveries waiting for the required independent success samples.", attribute.String("capability", capability), attribute.String("provider", provider))
-}
-
-func RecordCapabilitySnapshotSequence(sequence int64) {
-	recordGauge(MetricCapabilitySnapshotSequence, "Current observed capability snapshot sequence.", float64(sequence))
 }
 
 func RecordCapabilityAllocationVerification(runtime, result string) {

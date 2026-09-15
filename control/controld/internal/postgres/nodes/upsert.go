@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -24,6 +25,8 @@ type nodeUpsertParams struct {
 	NodeAuthToken string
 	Now           time.Time
 }
+
+const maxNodeObservationInstanceIDBytes = 128
 
 func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodekernel.Record, error) {
 	nodeID := strings.TrimSpace(params.NodeID)
@@ -82,10 +85,11 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 				return nil, fmt.Errorf("unmarshal previous node summary: %w", err)
 			}
 		}
-		if previous != nil &&
-			previous.GetCapabilitySnapshot().GetNodeInstanceID() == params.Summary.GetCapabilitySnapshot().GetNodeInstanceID() &&
-			params.Summary.GetCollectedAt().AsTime().Before(previous.GetCollectedAt().AsTime()) {
-			return nil, fmt.Errorf("node summary collected_at must not move backwards within node instance %q", params.Summary.GetCapabilitySnapshot().GetNodeInstanceID())
+		if _, err := validateNodeObservationAdvance(previous, params.Summary); err != nil {
+			return nil, err
+		}
+		if err := persistNodeObservationInstance(ctx, tx, nodeID, previous, params.Summary); err != nil {
+			return nil, err
 		}
 		transitions, err := persistCapabilityReport(ctx, tx, nodeID, previous, params.Summary, params.Now)
 		if err != nil {
@@ -136,6 +140,13 @@ func validateSummaryPublication(summary *nodev1.NodeSummary, reportedAt time.Tim
 	collectedAt := summary.GetCollectedAt().AsTime()
 	if collectedAt.After(reportedAt.Add(time.Minute)) {
 		return fmt.Errorf("node summary collected_at is in the future")
+	}
+	instanceID := summary.GetNodeInstanceID()
+	if strings.TrimSpace(instanceID) == "" || instanceID != strings.TrimSpace(instanceID) || !utf8.ValidString(instanceID) || len(instanceID) > maxNodeObservationInstanceIDBytes {
+		return fmt.Errorf("node summary node_instance_id must be a non-empty UTF-8 identity of at most %d bytes without surrounding whitespace", maxNodeObservationInstanceIDBytes)
+	}
+	if summary.GetSequence() <= 0 {
+		return fmt.Errorf("node summary sequence must be positive")
 	}
 	snapshot := summary.GetCapabilitySnapshot()
 	if snapshot == nil || snapshot.GetCollectedAt() == nil {

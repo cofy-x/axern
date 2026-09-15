@@ -16,8 +16,6 @@ import (
 
 func TestHasWarmRuntimeSlotUsesAggregateContract(t *testing.T) {
 	pools := &nodev1.PoolsSummary{
-		Cgroup:       &nodev1.PoolState{},
-		Interface:    &nodev1.PoolState{Idle: 4},
 		RuntimeSlots: &nodev1.PoolState{Idle: 4},
 	}
 	if !hasWarmRuntimeSlot(pools) {
@@ -247,7 +245,7 @@ func TestPlanIgnoresNodeLocalCommitmentForDurableAllocationAccounting(t *testing
 	summary := readySummary(now)
 	summary.Allocatable = &commonv1.ResourceQuantity{CpuMilli: 4000, MemoryBytes: 2048}
 	setTestMemoryCapacity(summary, 2048)
-	summary.MemoryBudget.LocalCommitmentBytes = 256
+	summary.Diagnostics.Memory.LocalCommitmentBytes = 256
 
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-memory-ledger", []string{"runsc"}, summary, now),
@@ -263,9 +261,9 @@ func TestPlanIgnoresNodeLocalCommitmentForDurableAllocationAccounting(t *testing
 func TestPlanDoesNotTreatRetiringMemoryAsAllocationCharge(t *testing.T) {
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)
 	summary := readySummary(now)
-	summary.MemoryBudget.LocalCommitmentBytes = 15 << 30
-	summary.MemoryBudget.CleanupDebtBytes = 15 << 30
-	summary.MemoryBudget.RetiringCgroupCount = 1
+	summary.Diagnostics.Memory.LocalCommitmentBytes = 15 << 30
+	summary.Diagnostics.Memory.CleanupDebtBytes = 15 << 30
+	summary.Diagnostics.Memory.RetiringCgroupCount = 1
 	eligible, rejected := NewEngine(Config{}).Plan(nodekernel.Snapshot{Records: []*nodekernel.Record{
 		record("node-retiring", []string{"runsc"}, summary, now),
 	}}, &placementkernel.Request{
@@ -390,18 +388,19 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 			MemoryBytes: 20 << 30,
 		},
 		MemoryBudget: &nodev1.NodeMemoryBudget{
-			PhysicalCapacityBytes:     20 << 30,
-			SourceAllocatableBytes:    17 << 30,
-			SystemReserveBytes:        1 << 30,
-			EffectiveAllocatableBytes: 16 << 30,
-			CapacityIdentity:          "test-boot:test-mount:test-root",
-			Mode:                      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
-			SampledAt:                 timestamppb.New(collectedAt),
+			SourceAllocatableBytes: 17 << 30,
+			SystemReserveBytes:     1 << 30,
+			CapacityIdentity:       "test-boot:test-mount:test-root",
+			Mode:                   nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+			SampledAt:              timestamppb.New(collectedAt),
 		},
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8},
-			Cgroup:       &nodev1.PoolState{Idle: 1, Capacity: 8},
-			Interface:    &nodev1.PoolState{Idle: 1, Capacity: 8},
+		},
+		Diagnostics: &nodev1.NodeDiagnostics{
+			Memory:        &nodev1.NodeMemoryDiagnostics{},
+			CgroupPool:    &nodev1.PoolState{Idle: 1, Capacity: 8},
+			InterfacePool: &nodev1.PoolState{Idle: 1, Capacity: 8},
 		},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded: &nodev1.AxnodedSummary{
@@ -440,10 +439,10 @@ func setTestMemoryCapacity(summary *nodev1.NodeSummary, effective int64) {
 	summary.Allocatable.MemoryBytes = effective
 	summary.Capacity.MemoryBytes = physical
 	summary.MemoryBudget = &nodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes: physical, SourceAllocatableBytes: physical, SystemReserveBytes: reserve,
-		EffectiveAllocatableBytes: effective, CapacityIdentity: "test-boot:test-mount:test-root",
-		Mode:      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
-		SampledAt: summary.GetCollectedAt(),
+		SourceAllocatableBytes: physical, SystemReserveBytes: reserve,
+		CapacityIdentity: "test-boot:test-mount:test-root",
+		Mode:             nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+		SampledAt:        summary.GetCollectedAt(),
 	}
 }
 

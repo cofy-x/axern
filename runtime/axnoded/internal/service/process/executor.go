@@ -18,7 +18,13 @@ func NewExecutor() *Executor {
 
 type Target struct {
 	ID      string
-	Handler contract.SandboxRuntime
+	Handler Runtime
+}
+
+type Runtime interface {
+	ExecContainer(context.Context, *apipb.ExecContainerRequest, contract.HandlerOptions) (*apipb.ExecContainerResponse, error)
+	OpenExecSession(context.Context, *apipb.ExecSessionOpen, contract.HandlerOptions) (contract.Session, error)
+	ProcessService() contract.ProcessService
 }
 
 type StreamResult int

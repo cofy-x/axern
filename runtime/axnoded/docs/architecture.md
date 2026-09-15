@@ -21,7 +21,7 @@ flowchart TB
     Allocation --> Container["internal/container"]
     Allocation --> NodeState["internal/nodestate"]
     Allocation --> Runtime["internal/runtime"]
-    Capability --> Inventory["atomic capability snapshot"]
+    Capability --> Inventory["ordered atomic NodeSummary"]
     Capability --> Allocation
 
     Access --> RuntimeClient["internal/runtime/sandboxd"]
@@ -124,7 +124,7 @@ Create invariants:
 - Rootfs/image resolution goes through `internal/environmentcache` and `imagemgr`.
 - Runtime cleanup inputs may be checkpointed in container metadata, but OCI annotations are never resource ownership or Allocation identity. Durable `AllocationState`, the cgroup ledger, and egressd records own their respective cleanup obligations.
 - Environment template identity and image/workspace ownership are committed in one allocation record. Durable deletion precedes releasing in-memory handles, so a failed state write cannot silently discard cleanup ownership.
-- Immutable requirements, the verified enforcement manifest, and the latest pending Node observation sequence share the Allocation record. Per-Allocation mutation serialization prevents concurrent updates from reverting newer intent. Capability fail-stop termination has one durable node-local owner.
+- Immutable requirements, the verified enforcement manifest, and the pending capability reconcile intent share the Allocation record. The intent sequence increments only when work is merged and prevents an in-flight worker from acknowledging over a concurrent transition; it is not capability evidence or an observation version. Per-Allocation mutation serialization prevents concurrent updates from reverting newer intent. Capability fail-stop termination has one durable node-local owner.
 - Reconcile acknowledgement failures retain pending work for retry. Event-triggered reconciliation plus the bounded sharded audit covers both `DEGRADE` and `FAIL_STOP`; each pass rebuilds one complete condition projection. There is no control-plane capability reconcile queue.
 - Recovery distinguishes an admitted create intent from an execution with a verified enforcement manifest without adding a second durable lifecycle object. Absence from a complete runsc inventory proves an intent has no runtime; runsc `created` proves the workload never started. Both use ordered failed-start cleanup. Running or unknown runtime state without verified enforcement remains untouched and fails node startup. Image-lease reconciliation is suppressed whenever any retained live Allocation cannot be reconstructed completely.
 - Persistent-state recovery starts only after the configured runsc executor has loaded. Transient host cleanup, filestore, or runtime-state contention keeps the process NotReady and retries with bounded exponential backoff until the process context is canceled; there is no partial execution stack.

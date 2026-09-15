@@ -15,21 +15,19 @@ import (
 const runtimeExitStateStoreDirName = "runtime-exit-states"
 
 type Common struct {
-	binary              string
-	runtimeRunnerBinary string
-	containerRoot       string
-	runtimeRoot         string
-	exitStateRoot       string
-	executor            Executor
-	ociLoader           runtimeoci.Loader
+	binary        string
+	containerRoot string
+	runtimeRoot   string
+	exitStateRoot string
+	executor      Executor
+	ociLoader     runtimeoci.Loader
 }
 
 type Config struct {
-	Root                string
-	RuntimeName         string
-	RuntimeBinary       string
-	RuntimeRunnerBinary string
-	Loader              runtimeoci.Loader
+	Root          string
+	RuntimeName   string
+	RuntimeBinary string
+	Loader        runtimeoci.Loader
 }
 
 func New(cfg Config) (*Common, error) {
@@ -42,13 +40,12 @@ func New(cfg Config) (*Common, error) {
 		return nil, err
 	}
 	return &Common{
-		binary:              cfg.RuntimeBinary,
-		runtimeRunnerBinary: cfg.RuntimeRunnerBinary,
-		containerRoot:       containerRoot,
-		runtimeRoot:         runtimeRoot,
-		exitStateRoot:       exitStateRoot,
-		executor:            &SystemExecutor{},
-		ociLoader:           cfg.Loader,
+		binary:        cfg.RuntimeBinary,
+		containerRoot: containerRoot,
+		runtimeRoot:   runtimeRoot,
+		exitStateRoot: exitStateRoot,
+		executor:      &SystemExecutor{},
+		ociLoader:     cfg.Loader,
 	}, nil
 }
 
@@ -60,16 +57,8 @@ func (c *Common) SetExecutor(executor Executor) {
 	c.executor = executor
 }
 
-func (c *Common) SetRuntimeRunnerBinary(path string) {
-	c.runtimeRunnerBinary = path
-}
-
 func (c *Common) Binary() string {
 	return c.binary
-}
-
-func (c *Common) RuntimeRunnerBinary() string {
-	return c.runtimeRunnerBinary
 }
 
 func (c *Common) ContainerRoot() string {

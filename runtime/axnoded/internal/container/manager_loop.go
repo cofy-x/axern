@@ -222,7 +222,7 @@ func (m *Manager) StartMonitor(id string, metaData *apipb.ContainerMetadata) err
 	return nil
 }
 
-func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *containerMonitor, handler contract.SandboxRuntime) {
+func (m *Manager) monitorContainer(ctx context.Context, id string, monitor *containerMonitor, handler lifecycleRuntime) {
 	logrus.Infof("start monitor container %s", id)
 	defer logrus.Infof("stop monitor container %s", id)
 

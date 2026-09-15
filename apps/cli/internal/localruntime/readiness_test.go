@@ -66,7 +66,7 @@ func TestLocalNodeReadinessPayloadRejectsIncompleteNodeState(t *testing.T) {
 			payload.Nodes[0].Summary.Components.Imagemgr.Reachable = false
 		}},
 		{name: "runtime slots absent", mutate: func(payload *localNodeReadinessPayload) { payload.Nodes[0].Summary.Pools.RuntimeSlots = nil }},
-		{name: "capability snapshot warming", mutate: func(payload *localNodeReadinessPayload) { payload.Nodes[0].Summary.CapabilitySnapshot.Sequence = 0 }},
+		{name: "node observation warming", mutate: func(payload *localNodeReadinessPayload) { payload.Nodes[0].Summary.Sequence = 0 }},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -80,7 +80,7 @@ func TestLocalNodeReadinessPayloadRejectsIncompleteNodeState(t *testing.T) {
 }
 
 func TestLocalNodeReadinessPayloadDecodesDebugCapabilityKeys(t *testing.T) {
-	body := fmt.Sprintf(`{"nodes":[{"node_id":"node-local","fresh":true,"summary_fresh":true,"summary":{"components":{"axnoded":{"ready":true},"imagemgr":{"reachable":true}},"pools":{"runtime_slots":{"capacity":16}},"capability_snapshot":{"sequence":1,"observations":[{"key":{"Kind":{"Platform":%d}},"state":%d},{"key":{"Kind":{"Platform":%d}},"state":%d}]}}}]}`,
+	body := fmt.Sprintf(`{"nodes":[{"node_id":"node-local","fresh":true,"summary_fresh":true,"summary":{"sequence":1,"components":{"axnoded":{"ready":true},"imagemgr":{"reachable":true}},"pools":{"runtime_slots":{"capacity":16}},"capability_snapshot":{"observations":[{"key":{"Kind":{"Platform":%d}},"state":%d},{"key":{"Kind":{"Platform":%d}},"state":%d}]}}}]}`,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)
 	var payload localNodeReadinessPayload
@@ -99,6 +99,7 @@ func readyLocalNodePayload(validUntil time.Time) localNodeReadinessPayload {
 		Fresh        bool   `json:"fresh"`
 		SummaryFresh bool   `json:"summary_fresh"`
 		Summary      struct {
+			Sequence   uint64 `json:"sequence"`
 			Components struct {
 				Axnoded struct {
 					Ready bool `json:"ready"`
@@ -113,7 +114,6 @@ func readyLocalNodePayload(validUntil time.Time) localNodeReadinessPayload {
 				} `json:"runtime_slots"`
 			} `json:"pools"`
 			CapabilitySnapshot struct {
-				Sequence     uint64                       `json:"sequence"`
 				Observations []localCapabilityObservation `json:"observations"`
 			} `json:"capability_snapshot"`
 		} `json:"summary"`
@@ -127,7 +127,7 @@ func readyLocalNodePayload(validUntil time.Time) localNodeReadinessPayload {
 	node.Summary.Pools.RuntimeSlots = &struct {
 		Capacity int64 `json:"capacity"`
 	}{Capacity: 16}
-	node.Summary.CapabilitySnapshot.Sequence = 1
+	node.Summary.Sequence = 1
 	for _, platform := range localDefaultWorkloadCapabilities {
 		var observation localCapabilityObservation
 		observation.Key.Kind.Platform = platform

@@ -21,10 +21,9 @@ import (
 type fakeNodeControlServer struct {
 	nodev1.UnimplementedNodeControlServer
 
-	mu            sync.Mutex
-	registerCalls []*nodev1.RegisterNodeRequest
-	reportCalls   []*nodev1.ReportNodeRequest
-	statusCalls   []*nodev1.BatchReportAllocationLifecycleRequest
+	mu          sync.Mutex
+	reportCalls []*nodev1.ReportNodeRequest
+	statusCalls []*nodev1.BatchReportAllocationLifecycleRequest
 }
 
 type fakeNodeControlProvider struct {
@@ -37,14 +36,6 @@ func (p fakeNodeControlProvider) Client(context.Context) (nodev1.NodeControlClie
 
 func (p fakeNodeControlProvider) Close() error {
 	return nil
-}
-
-func (s *fakeNodeControlServer) RegisterNode(ctx context.Context, req *nodev1.RegisterNodeRequest) (*nodev1.RegisterNodeResponse, error) {
-	_ = ctx
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.registerCalls = append(s.registerCalls, req)
-	return &nodev1.RegisterNodeResponse{}, nil
 }
 
 func (s *fakeNodeControlServer) ReportNode(ctx context.Context, req *nodev1.ReportNodeRequest) (*nodev1.ReportNodeResponse, error) {
@@ -96,14 +87,14 @@ func TestReporterSkipsHeartbeatUntilInventoryReady(t *testing.T) {
 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	if len(fake.registerCalls) == 0 {
-		t.Fatal("expected register call")
-	}
 	if len(fake.reportCalls) == 0 {
 		t.Fatal("expected report call after inventory became ready")
 	}
 	if fake.reportCalls[0].GetSummary() == nil || fake.reportCalls[0].GetSummary().GetCollectedAt() == nil {
 		t.Fatalf("expected report call to carry summary.collected_at: %#v", fake.reportCalls[0])
+	}
+	if fake.reportCalls[0].GetSummary().GetNodeInstanceID() == "" || fake.reportCalls[0].GetSummary().GetSequence() == 0 {
+		t.Fatalf("expected ordered node observation: %#v", fake.reportCalls[0])
 	}
 }
 
@@ -190,9 +181,6 @@ func TestReporterCanUseRealGRPCClient(t *testing.T) {
 
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	if len(fake.registerCalls) == 0 {
-		t.Fatal("expected register call")
-	}
 	if len(fake.reportCalls) == 0 {
 		t.Fatal("expected report call")
 	}

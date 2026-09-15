@@ -19,7 +19,6 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	NodeControl_RegisterNode_FullMethodName                              = "/axern.private.control.node.v1.NodeControl/RegisterNode"
 	NodeControl_ReportNode_FullMethodName                                = "/axern.private.control.node.v1.NodeControl/ReportNode"
 	NodeControl_BatchReportAllocationLifecycle_FullMethodName            = "/axern.private.control.node.v1.NodeControl/BatchReportAllocationLifecycle"
 	NodeControl_BatchReportAllocationCapabilityConditions_FullMethodName = "/axern.private.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions"
@@ -32,7 +31,6 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeControlClient interface {
-	RegisterNode(ctx context.Context, in *RegisterNodeRequest, opts ...grpc.CallOption) (*RegisterNodeResponse, error)
 	ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error)
 	BatchReportAllocationLifecycle(ctx context.Context, in *BatchReportAllocationLifecycleRequest, opts ...grpc.CallOption) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, in *BatchReportAllocationCapabilityConditionsRequest, opts ...grpc.CallOption) (*BatchReportAllocationCapabilityConditionsResponse, error)
@@ -47,15 +45,6 @@ type nodeControlClient struct {
 
 func NewNodeControlClient(cc grpc.ClientConnInterface) NodeControlClient {
 	return &nodeControlClient{cc}
-}
-
-func (c *nodeControlClient) RegisterNode(ctx context.Context, in *RegisterNodeRequest, opts ...grpc.CallOption) (*RegisterNodeResponse, error) {
-	out := new(RegisterNodeResponse)
-	err := c.cc.Invoke(ctx, NodeControl_RegisterNode_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *nodeControlClient) ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error) {
@@ -162,7 +151,6 @@ func (c *nodeControlClient) ReportTunnelSessionStatus(ctx context.Context, in *R
 // All implementations must embed UnimplementedNodeControlServer
 // for forward compatibility
 type NodeControlServer interface {
-	RegisterNode(context.Context, *RegisterNodeRequest) (*RegisterNodeResponse, error)
 	ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error)
 	BatchReportAllocationLifecycle(context.Context, *BatchReportAllocationLifecycleRequest) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error)
@@ -176,9 +164,6 @@ type NodeControlServer interface {
 type UnimplementedNodeControlServer struct {
 }
 
-func (UnimplementedNodeControlServer) RegisterNode(context.Context, *RegisterNodeRequest) (*RegisterNodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method RegisterNode not implemented")
-}
 func (UnimplementedNodeControlServer) ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportNode not implemented")
 }
@@ -208,24 +193,6 @@ type UnsafeNodeControlServer interface {
 
 func RegisterNodeControlServer(s grpc.ServiceRegistrar, srv NodeControlServer) {
 	s.RegisterService(&NodeControl_ServiceDesc, srv)
-}
-
-func _NodeControl_RegisterNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RegisterNodeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeControlServer).RegisterNode(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeControl_RegisterNode_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeControlServer).RegisterNode(ctx, req.(*RegisterNodeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeControl_ReportNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -349,10 +316,6 @@ var NodeControl_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "axern.private.control.node.v1.NodeControl",
 	HandlerType: (*NodeControlServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "RegisterNode",
-			Handler:    _NodeControl_RegisterNode_Handler,
-		},
 		{
 			MethodName: "ReportNode",
 			Handler:    _NodeControl_ReportNode_Handler,

@@ -205,7 +205,7 @@ func TestProxyUnknownServiceRejectsNonPublicControlService(t *testing.T) {
 	defer proxyConn.Close()
 
 	var out rawMessage
-	err = proxyConn.Invoke(context.Background(), "/axern.private.control.node.v1.NodeControl/RegisterNode", rawMessage("hello"), &out)
+	err = proxyConn.Invoke(context.Background(), "/axern.private.control.node.v1.NodeControl/ReportNode", rawMessage("hello"), &out)
 	if grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("Invoke() error code = %s, want PermissionDenied; err=%v", grpcstatus.Code(err), err)
 	}

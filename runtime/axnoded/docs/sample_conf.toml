@@ -57,7 +57,6 @@ image_manager_enabled = true
 image_lib_dir = "/var/lib/axnoded/rootfs"
 image_manager_socket = "/var/run/imagemgr.sock"
 egress_manager_socket = "/run/egressd/egressd.sock"
-runtime_runner_binary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
 idle_environment_retention_ttl = "5m"
 idle_environment_retention_max = 8
 # Set to false for local-rootfs-only setups that do not run imagemgr.

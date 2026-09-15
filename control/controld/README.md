@@ -4,7 +4,7 @@
 
 `controld` owns:
 
-- node registration, heartbeat, summary, active inventory ingest, node-availability reconciliation, and audited irreversible node retirement
+- authenticated atomic node observations, heartbeat freshness, active inventory ingest, node-availability reconciliation, and audited irreversible node retirement
 - authenticated allocation lifecycle batch ingest with durable Run projection
 - Environment and Run lifecycle control
 - Allocation resource admission, execution liveness authority, allocation access grants, and TunnelSessions
@@ -19,7 +19,7 @@ Run creation freezes the Environment source and resolved runtime input, then per
 
 Runtime-slot admission consumes only axnoded's aggregate `runtime_slots` summary. Individual cgroup and interface pools are diagnostic details. `ReportNode` rejects summaries that omit `runtime_slots`; releases that add a required node-summary contract must rebuild controld and axnoded together.
 
-Node reports also carry one atomic typed capability snapshot. Runsc memory and ephemeral-storage hard limits depend on matching conformance evidence; no alternate-runtime evidence can satisfy them. Controld derives immutable workload requirements, rechecks the current Node observation while candidate rows are locked, and persists those requirements with the Allocation. Capability changes are emitted only as metrics; there is no transition table or capability queue. The shared [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md) document is the canonical contract for provider evidence and loss policy.
+Each `ReportNode` publication is one ordered atomic observation covering scheduling quantities, component health, capability evidence, memory-boundary validation, and separate diagnostics. Runsc memory and ephemeral-storage hard limits depend on matching conformance evidence; no alternate-runtime evidence can satisfy them. Controld derives immutable workload requirements, rechecks the current Node observation while candidate rows are locked, and persists those requirements with the Allocation. Capability changes are emitted only as metrics; there is no transition table or capability queue. The shared [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md) document is the canonical contract for provider evidence and loss policy.
 
 Rootfs locality covers local directories and registry images (OCI/Nydus), not raw object-store mounts.
 

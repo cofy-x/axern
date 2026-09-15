@@ -12,13 +12,11 @@ import (
 )
 
 type NodeStore interface {
-	Register(ctx context.Context, params nodekernel.RegisterParams) (*nodekernel.Record, error)
 	Report(ctx context.Context, params nodekernel.ReportParams) (*nodekernel.Record, error)
 	Authenticate(ctx context.Context, nodeID, nodeAuthToken string) error
 }
 
 type NodeRegistry interface {
-	Register(nodeID, nodeTarget string, now time.Time)
 	Report(nodeID, nodeTarget string, summary *controlnodev1.NodeSummary, now time.Time)
 }
 

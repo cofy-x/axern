@@ -44,6 +44,31 @@ func TestStoreAllocationIntentOwnsImmutableResourceSpec(t *testing.T) {
 	assert.True(t, proto.Equal(got, persisted.GetResources()))
 }
 
+func TestCapabilityReconcileIntentDoesNotLoseConcurrentOrPostRestartWork(t *testing.T) {
+	store := storetest.NewMockStore()
+	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
+	const allocationID = "allocation-capability-reconcile"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil))
+
+	require.NoError(t, fixture.controller.MergeCapabilityReconcile(allocationID))
+	first := fixture.controller.CapabilityReconcileState(allocationID).GetPendingIntentSequence()
+	require.Equal(t, int64(1), first)
+
+	// Work merged while the first evaluation is running must survive its ack.
+	require.NoError(t, fixture.controller.MergeCapabilityReconcile(allocationID))
+	require.NoError(t, fixture.controller.AckCapabilityReconcile(allocationID, first, false, nil))
+	second := fixture.controller.CapabilityReconcileState(allocationID).GetPendingIntentSequence()
+	require.Equal(t, int64(2), second)
+	require.NoError(t, fixture.controller.AckCapabilityReconcile(allocationID, second, false, nil))
+	require.Nil(t, fixture.controller.CapabilityReconcileState(allocationID))
+
+	// Once acknowledged, a fresh node process does not need to recover or
+	// exceed a manager-global cursor before it can enqueue new work.
+	require.NoError(t, fixture.controller.MergeCapabilityReconcile(allocationID))
+	require.Equal(t, int64(1), fixture.controller.CapabilityReconcileState(allocationID).GetPendingIntentSequence())
+}
+
 func (s *failingAllocationStateStore) PutRecord(bucket, key string, value proto.Message) error {
 	if bucket == config.AllocationStateBucket && s.puts.Add(1) > s.putsBeforeFailure {
 		return errors.New("allocation state store unavailable")

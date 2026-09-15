@@ -8,42 +8,16 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
-func TestCreateRuntimeContainerUsesHostRequirements(t *testing.T) {
-	const allocationID = "allocation-host-requirements"
-	handler := &runtimeSpyHandler{
-		name:         "runsc",
-		requirements: contract.HostRequirements{},
-	}
-	fixture := newTestAllocationController(t,
-		handler,
-	)
-
-	resp, _, err := fixture.controller.CreateRuntimeContainer(context.Background(), nil, nil, &apipb.CreateContainerRequest{
-		ID: allocationID,
-		Rootfs: &apipb.Rootfs{
-			RootDir:  t.TempDir(),
-			Readonly: false,
-		},
-		Command: []string{"/bin/true"},
-	}, nil, nil)
-
-	assert.NoError(t, err)
-	assert.Equal(t, allocationID, resp.GetID())
-	assert.Equal(t, 1, handler.createCalls)
-	assert.Empty(t, handler.lastOptions.AllocatedResources)
-}
-
-func TestDeleteRuntimeContainerWithHandlerForceDelete(t *testing.T) {
+func TestDeleteContainerWithRuntimeForceDelete(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
 	fixture := newTestAllocationController(t, handler)
 
-	resp, err := fixture.controller.DeleteRuntimeContainerWithHandler(context.Background(), &apipb.DeleteContainerRequest{
+	resp, err := fixture.controller.deleteContainerWithRuntime(context.Background(), &apipb.DeleteContainerRequest{
 		ID:      "axctl-delete-force",
 		Timeout: 0,
 	}, handler, "trace-id", "span-id")
@@ -54,14 +28,14 @@ func TestDeleteRuntimeContainerWithHandlerForceDelete(t *testing.T) {
 	assert.True(t, handler.lastDeleteOptions.ForceDelete)
 }
 
-func TestDeleteRuntimeContainerWithHandlerTimeoutFallsBackToForceDelete(t *testing.T) {
+func TestDeleteContainerWithRuntimeTimeoutFallsBackToForceDelete(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
 		deleteErrors: []error{fmt.Errorf("boom")},
 	}
 	fixture := newTestAllocationController(t, handler)
 
-	resp, err := fixture.controller.DeleteRuntimeContainerWithHandler(context.Background(), &apipb.DeleteContainerRequest{
+	resp, err := fixture.controller.deleteContainerWithRuntime(context.Background(), &apipb.DeleteContainerRequest{
 		ID:      "axctl-delete-fallback",
 		Timeout: 1,
 	}, handler, "trace-id", "span-id")
@@ -74,13 +48,13 @@ func TestDeleteRuntimeContainerWithHandlerTimeoutFallsBackToForceDelete(t *testi
 	assert.True(t, handler.deleteOptionCalls[1].ForceDelete)
 }
 
-func TestDeleteRuntimeContainerWithHandlerRuntimeNotFoundIsIdempotent(t *testing.T) {
+func TestDeleteContainerWithRuntimeNotFoundIsIdempotent(t *testing.T) {
 	handler := &runtimeSpyHandler{
 		name:         "runsc",
 		deleteErrors: []error{status.Error(codes.NotFound, "not found")},
 	}
 	fixture := newTestAllocationController(t, handler)
-	resp, err := fixture.controller.DeleteRuntimeContainerWithHandler(context.Background(), &apipb.DeleteContainerRequest{
+	resp, err := fixture.controller.deleteContainerWithRuntime(context.Background(), &apipb.DeleteContainerRequest{
 		ID:      "axctl-delete-runtime-not-found",
 		Timeout: 0,
 	}, handler, "trace-id", "span-id")

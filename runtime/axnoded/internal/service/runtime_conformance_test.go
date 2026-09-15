@@ -219,16 +219,14 @@ func runtimeConformanceTestConfig(t *testing.T, cgroupMode string) config.Config
 	directory := t.TempDir()
 	binary := filepath.Join(directory, "runtime")
 	baseSpec := filepath.Join(directory, "config.json")
-	runner := filepath.Join(directory, "runner")
-	for path, payload := range map[string]string{binary: "runtime", baseSpec: "{}", runner: "runner"} {
+	for path, payload := range map[string]string{binary: "runtime", baseSpec: "{}"} {
 		if err := os.WriteFile(path, []byte(payload), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	return config.Config{PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
-		CgroupEnforcement:   cgroupMode,
-		RuntimeRunnerBinary: runner,
-		Runsc:               config.RuntimeInstanceConfig{Binary: binary, BaseSpec: baseSpec},
+		CgroupEnforcement: cgroupMode,
+		Runsc:             config.RuntimeInstanceConfig{Binary: binary, BaseSpec: baseSpec},
 	}}}
 }
 

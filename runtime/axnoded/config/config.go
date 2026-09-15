@@ -62,10 +62,6 @@ type RuntimeConfig struct {
 	// explicit development mode and rejects hard memory limits.
 	CgroupEnforcement string `toml:"cgroup_enforcement" json:"cgroupEnforcement"`
 
-	// RuntimeRunnerBinary is the axnoded-owned helper that runs one OCI runtime
-	// invocation and persists its exit state.
-	RuntimeRunnerBinary string `toml:"runtime_runner_binary" json:"runtimeRunnerBinary"`
-
 	// ImageLibDir is the file to store image lib. Read image line by line.
 	ImageLibDir string `toml:"image_lib_dir" json:"imageLibDir"`
 
@@ -158,14 +154,6 @@ func (c RuntimeConfig) ImageManagerSocketPath() string {
 		return DefaultImageManagerSocket
 	}
 	return sockPath
-}
-
-func (c RuntimeConfig) RuntimeRunnerBinaryPath() string {
-	value := strings.TrimSpace(c.RuntimeRunnerBinary)
-	if value == "" {
-		return DefaultRuntimeRunnerBinary
-	}
-	return value
 }
 
 func (c RuntimeConfig) IdleEnvironmentRetentionTTLDuration() (time.Duration, error) {
@@ -556,7 +544,6 @@ func DefaultConfig() Config {
 				},
 				CgroupEnforcement:                 CgroupEnforcementRequired,
 				ImageLibDir:                       DefaultImageLibDir,
-				RuntimeRunnerBinary:               DefaultRuntimeRunnerBinary,
 				ImageManagerEnabled:               boolPtr(true),
 				ImageManagerSocket:                DefaultImageManagerSocket,
 				EgressManagerSocket:               DefaultEgressManagerSocket,

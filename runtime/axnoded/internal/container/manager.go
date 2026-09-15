@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -16,13 +17,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type lifecycleRuntime interface {
+	ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error)
+	Wait(context.Context, contract.HandlerOptions) (contract.Exit, error)
+}
+
 type Manager struct {
 	// sandbox container root
 	root        string
 	recyclePath string
 
 	containers     cmap.ConcurrentMap[string, *Container]
-	runtimeHandler contract.SandboxRuntime
+	runtimeHandler lifecycleRuntime
 	// resourceManagers is a map of resource manager, key is resource type
 	resourceManagers cmap.ConcurrentMap[string, resourcemanager.Manager]
 
@@ -47,7 +53,7 @@ type Manager struct {
 	stopped               atomic.Bool
 }
 
-func NewManager(root string, handler contract.SandboxRuntime, healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
+func NewManager(root string, handler lifecycleRuntime, healthChan chan bool, managers ...resourcemanager.Manager) (*Manager, error) {
 	if handler == nil {
 		return nil, fmt.Errorf("runsc handler is required")
 	}
@@ -98,10 +104,6 @@ func (m *Manager) SetExitClassifier(classifier func(Event) (commonv1.WorkloadDia
 		return
 	}
 	m.exitClassifier = classifier
-}
-
-func (m *Manager) SandboxRuntime() contract.SandboxRuntime {
-	return m.runtimeHandler
 }
 
 func (m *Manager) Get(id string) (*Container, error) {

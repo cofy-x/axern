@@ -29,6 +29,21 @@ func (c *Common) RuntimeExitStatePath(containerID string) string {
 	return filepath.Join(c.exitStateRoot, containerID+".json")
 }
 
+func (c *Common) PrepareContainerStatePaths(containerID string) (string, string, error) {
+	if err := c.EnsureContainerPath(containerID); err != nil {
+		return "", "", err
+	}
+
+	exitStatePath := c.RuntimeExitStatePath(containerID)
+	pidFilePath := c.RuntimePIDFilePath(containerID)
+	for _, path := range []string{exitStatePath, pidFilePath} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return "", "", err
+		}
+	}
+	return pidFilePath, exitStatePath, nil
+}
+
 func (c *Common) RemoveContainerState(containerID string) error {
 	var errs []error
 	for _, path := range []string{c.RuntimeExitStatePath(containerID)} {

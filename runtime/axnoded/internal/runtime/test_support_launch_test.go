@@ -105,39 +105,6 @@ exit 0
 	return binPath
 }
 
-func writeFakeRuntimeRunnerBinary(t *testing.T, rootDir string) string {
-	t.Helper()
-
-	binDir := filepath.Join(rootDir, "bin")
-	if err := os.MkdirAll(binDir, 0755); err != nil {
-		t.Fatalf("mkdir bin dir: %v", err)
-	}
-	binPath := filepath.Join(binDir, "axnoded-runtime-runner")
-	script := `#!/bin/sh
-runtime=""
-exit_state=""
-pid_file=""
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --runtime-binary) runtime="$2"; shift 2 ;;
-    --exit-state) exit_state="$2"; shift 2 ;;
-    --pid-file) pid_file="$2"; shift 2 ;;
-    --) shift; break ;;
-    *) echo "unexpected arg: $1" >&2; exit 2 ;;
-  esac
-done
-mkdir -p "$(dirname "$exit_state")" "$(dirname "$pid_file")"
-"$runtime" "$@"
-code=$?
-printf '{"exitCode":%s,"finishedAt":"2024-01-01T00:00:00Z"}\n' "$code" > "$exit_state"
-exit "$code"
-`
-	if err := os.WriteFile(binPath, []byte(script), 0755); err != nil {
-		t.Fatalf("write fake runtime runner binary: %v", err)
-	}
-	return binPath
-}
-
 func disableSandboxReadyWait(t *testing.T, handler any) {
 	t.Helper()
 

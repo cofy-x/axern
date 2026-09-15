@@ -42,20 +42,24 @@ func TestRunscCreateContainerRecordsStartupPhases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
-	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
 	disableSandboxReadyWait(t, handler)
 	handler.ignoreCgroups = true
 
 	recorder := &startupPhaseRecorderSpy{}
-	meta, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
+	options := contract.HandlerOptions{
 		ContainerID:          "runsc-startup-test",
 		StartupPhaseRecorder: recorder,
-	})
+	}
+	prepared, err := handler.PrepareContainer(context.Background(), newLocalCreateRequest(t), options)
 	if err != nil {
-		t.Fatalf("CreateContainer() error = %v", err)
+		t.Fatalf("PrepareContainer() error = %v", err)
+	}
+	meta, err := handler.StartPreparedContainer(context.Background(), prepared, options)
+	if err != nil {
+		t.Fatalf("StartPreparedContainer() error = %v", err)
 	}
 	if meta == nil {
-		t.Fatal("CreateContainer() returned nil metadata")
+		t.Fatal("StartPreparedContainer() returned nil metadata")
 	}
 	assertRecordedStartupPhases(t, recorder, contract.StartupPhaseRuntimeBundle, contract.StartupPhaseRuntimeLaunch)
 }

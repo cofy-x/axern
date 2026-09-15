@@ -86,10 +86,6 @@ func (f *fakeAvailabilityNodeStore) Load(context.Context) ([]*nodekernel.Record,
 	return f.records, nil
 }
 
-func (f *fakeAvailabilityNodeStore) Register(context.Context, nodekernel.RegisterParams) (*nodekernel.Record, error) {
-	panic("unexpected Register call")
-}
-
 func (f *fakeAvailabilityNodeStore) Report(context.Context, nodekernel.ReportParams) (*nodekernel.Record, error) {
 	panic("unexpected Report call")
 }

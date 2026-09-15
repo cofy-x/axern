@@ -53,7 +53,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     mkdir -p /out && \
     cd /workspace/runtime/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
-    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded-runtime-runner ./cmd/axnoded-runtime-runner && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-egress ./cmd/verify-egress && \
@@ -170,7 +169,6 @@ COPY runtime/axnoded/scripts/ /workspace/scripts/
 RUN find /workspace/scripts -type f -name '*.sh' -exec chmod +x {} +
 
 COPY --from=axnoded-builder /out/axnoded /usr/local/bin/axnoded
-COPY --from=axnoded-builder /out/axnoded-runtime-runner /usr/local/libexec/axnoded/axnoded-runtime-runner
 COPY --from=axnoded-builder /out/egress-probe /usr/local/libexec/axnoded/egress-probe
 COPY --from=axnoded-builder /out/verify-egress /usr/local/bin/verify-egress
 COPY --from=axnoded-builder /out/verify-smoke /usr/local/bin/verify-smoke

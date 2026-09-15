@@ -257,14 +257,6 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("digest runtime base spec: %w", err)
 	}
-	runner, err := exec.LookPath(p.cfg.PluginConfig.RuntimeConfig.RuntimeRunnerBinaryPath())
-	if err != nil {
-		return "", "", "", fmt.Errorf("resolve runtime runner binary: %w", err)
-	}
-	runnerDigest, err := p.digestCache.Digest(runner)
-	if err != nil {
-		return "", "", "", fmt.Errorf("digest runtime runner binary: %w", err)
-	}
 	mode, err := p.cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
 	if err != nil {
 		return "", "", "", err
@@ -273,7 +265,7 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("marshal runtime options: %w", err)
 	}
-	configPayload := strings.Join([]string{baseSpecDigest, runnerDigest, string(options), mode}, "\x00")
+	configPayload := strings.Join([]string{baseSpecDigest, string(options), mode}, "\x00")
 	digest := sha256.Sum256([]byte(configPayload))
 	configDigest = "sha256:" + hex.EncodeToString(digest[:])
 	return binaryDigest + ":" + configDigest, binaryDigest, configDigest, nil

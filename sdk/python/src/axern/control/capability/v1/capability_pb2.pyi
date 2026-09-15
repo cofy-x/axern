@@ -189,16 +189,12 @@ class CapabilityObservation(_message.Message):
     def __init__(self, key: _Optional[_Union[CapabilityKey, _Mapping]] = ..., state: _Optional[_Union[CapabilityState, str]] = ..., provider: _Optional[_Union[CapabilityProvider, str]] = ..., observed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., valid_until: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., evidence: _Optional[_Union[CapabilityEvidence, _Mapping]] = ..., reason_code: _Optional[_Union[CapabilityReasonCode, str]] = ..., reason: _Optional[str] = ...) -> None: ...
 
 class CapabilitySnapshot(_message.Message):
-    __slots__ = ("node_instance_id", "sequence", "collected_at", "observations")
-    NODE_INSTANCE_ID_FIELD_NUMBER: _ClassVar[int]
-    SEQUENCE_FIELD_NUMBER: _ClassVar[int]
+    __slots__ = ("collected_at", "observations")
     COLLECTED_AT_FIELD_NUMBER: _ClassVar[int]
     OBSERVATIONS_FIELD_NUMBER: _ClassVar[int]
-    node_instance_id: str
-    sequence: int
     collected_at: _timestamp_pb2.Timestamp
     observations: _containers.RepeatedCompositeFieldContainer[CapabilityObservation]
-    def __init__(self, node_instance_id: _Optional[str] = ..., sequence: _Optional[int] = ..., collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observations: _Optional[_Iterable[_Union[CapabilityObservation, _Mapping]]] = ...) -> None: ...
+    def __init__(self, collected_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., observations: _Optional[_Iterable[_Union[CapabilityObservation, _Mapping]]] = ...) -> None: ...
 
 class ExtensionCapabilityRequirement(_message.Message):
     __slots__ = ("capability",)

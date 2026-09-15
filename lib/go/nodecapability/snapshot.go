@@ -10,7 +10,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// ResolveRequirements verifies the latest ordered Node observation and returns
+// ResolveRequirements verifies the latest Node capability observation and returns
 // only the immutable requirements that travel with an Allocation.
 func ResolveRequirements(snapshot *capabilityv1.CapabilitySnapshot, keys []*capabilityv1.CapabilityKey, now time.Time) ([]*capabilityv1.CapabilityRequirement, error) {
 	if err := ValidateRequirementKeys(keys); err != nil {
@@ -182,11 +182,8 @@ func ValidateSnapshot(snapshot *capabilityv1.CapabilitySnapshot, now time.Time) 
 	if snapshot == nil {
 		return fmt.Errorf("capability snapshot is required")
 	}
-	if snapshot.GetNodeInstanceID() == "" || snapshot.GetSequence() <= 0 || snapshot.GetCollectedAt() == nil {
-		return fmt.Errorf("capability snapshot node_instance_id, positive sequence, and collected_at are required")
-	}
-	if err := validateBoundedIdentity("node_instance_id", snapshot.GetNodeInstanceID()); err != nil {
-		return err
+	if snapshot.GetCollectedAt() == nil {
+		return fmt.Errorf("capability snapshot collected_at is required")
 	}
 	if err := snapshot.GetCollectedAt().CheckValid(); err != nil {
 		return fmt.Errorf("capability snapshot collected_at: %w", err)

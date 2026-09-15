@@ -213,15 +213,16 @@ CREATE TABLE allocation_capability_conditions (
 	conditions JSONB NOT NULL CHECK (jsonb_typeof(conditions) = 'object')
 );
 
--- Durable ordering fence for capability observations from a concrete node
+-- Durable ordering fence for complete observations from a concrete node
 -- process. This is not an observation cache: only the greatest accepted
 -- sequence is retained so duplicate or delayed reports cannot replace newer
 -- facts after a controld restart.
-CREATE TABLE node_capability_instances (
+CREATE TABLE node_observation_instances (
 	node_id TEXT NOT NULL REFERENCES nodes(node_id) ON DELETE CASCADE,
 	node_instance_id TEXT NOT NULL,
 	last_sequence BIGINT NOT NULL,
 	PRIMARY KEY (node_id, node_instance_id),
+	CHECK (length(convert_to(node_instance_id, 'UTF8')) BETWEEN 1 AND 128),
 	CHECK (last_sequence > 0)
 );
 

@@ -73,7 +73,7 @@ Use the full root `verify-all` only when a release or broad runtime change needs
 
 ## Release Assets
 
-`make release-binary` builds `output/axnoded`, `output/axnoded-runtime-runner`, and `output/axern-sandboxd`. Packaged node images install `axern-sandboxd` at `/usr/local/libexec/axnoded/axern-sandboxd`.
+`make release-binary` builds `output/axnoded` and `output/axern-sandboxd`. Packaged node images install `axern-sandboxd` at `/usr/local/libexec/axnoded/axern-sandboxd`.
 
 Changing binary names, install paths, or node image packaging is a cross-runtime packaging change. Update deployment values and runtime docs together, then run `make verify-sandboxd-packaging`.
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -364,10 +365,10 @@ func (h *Controller) replaceCapabilityConditionsLocked(allocationID string, cond
 	return proto.Clone(set).(*capabilityv1.CapabilityConditionSet), nil
 }
 
-func (h *Controller) MergeCapabilityReconcile(allocationID string, sequence int64) error {
+func (h *Controller) MergeCapabilityReconcile(allocationID string) error {
 	allocationID = strings.TrimSpace(allocationID)
-	if allocationID == "" || sequence <= 0 {
-		return errors.New("allocation id and positive observation sequence are required")
+	if allocationID == "" {
+		return errors.New("allocation id is required")
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
@@ -385,9 +386,10 @@ func (h *Controller) MergeCapabilityReconcile(allocationID string, sequence int6
 	} else {
 		reconcile = proto.Clone(reconcile).(*apipb.AllocationCapabilityReconcileState)
 	}
-	if sequence > reconcile.GetPendingObservationSequence() {
-		reconcile.PendingObservationSequence = sequence
+	if reconcile.GetPendingIntentSequence() == math.MaxInt64 {
+		return errors.New("capability reconcile intent sequence exhausted")
 	}
+	reconcile.PendingIntentSequence++
 	desired.CapabilityReconcile = reconcile
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist capability reconcile intent: %w", err)
@@ -428,15 +430,15 @@ func (h *Controller) AckCapabilityReconcile(allocationID string, processedSequen
 		return nil
 	}
 	reconcile = proto.Clone(reconcile).(*apipb.AllocationCapabilityReconcileState)
-	if processedSequence >= reconcile.GetPendingObservationSequence() {
-		reconcile.PendingObservationSequence = 0
+	if processedSequence == reconcile.GetPendingIntentSequence() {
+		reconcile.PendingIntentSequence = 0
 	}
 	reconcile.Terminating = terminating
 	reconcile.LastError = ""
 	if lastErr != nil {
 		reconcile.LastError = capabilitycontract.BoundedReason(lastErr.Error())
 	}
-	if reconcile.GetPendingObservationSequence() == 0 && !reconcile.GetTerminating() && reconcile.GetLastError() == "" {
+	if reconcile.GetPendingIntentSequence() == 0 && !reconcile.GetTerminating() && reconcile.GetLastError() == "" {
 		desired.CapabilityReconcile = nil
 	} else {
 		desired.CapabilityReconcile = reconcile
@@ -976,8 +978,8 @@ func validateCapabilityReconcileState(state *apipb.AllocationCapabilityReconcile
 	if len(state.GetLastError()) > capabilitycontract.MaxReasonBytes {
 		return errors.New("capability reconcile error exceeds its bounded payload")
 	}
-	if state.GetPendingObservationSequence() < 0 {
-		return errors.New("pending capability observation sequence cannot be negative")
+	if state.GetPendingIntentSequence() < 0 {
+		return errors.New("pending capability reconcile intent sequence cannot be negative")
 	}
 	return nil
 }

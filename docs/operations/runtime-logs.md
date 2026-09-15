@@ -8,8 +8,8 @@ For local compose and kind commands, see [Local Troubleshooting](../../deploy/lo
 
 | Component | Log or stream | What to look for |
 | --- | --- | --- |
-| `controld` | process stdout/stderr | node registration, heartbeat freshness, node summary ingest, placement rejections, allocation dispatch, Run/Allocation state, gateway and tunnel target resolution |
-| `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane registration/report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
+| `controld` | process stdout/stderr | node observation ingest, heartbeat freshness, placement rejections, allocation dispatch, Run/Allocation state, gateway and tunnel target resolution |
+| `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
 | `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, allocation netns lookup, axnoded operator socket access, relay connection failures |
 | `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
 | `egressd` | process stdout/stderr | policy prepare/delete fencing, persistent recovery, orphan reconciliation, enforcement health |
@@ -64,7 +64,7 @@ Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runsc 
 
 | Component      | Owns                                                                                                                 |
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `controld`     | node registration, placement, allocation dispatch, gateway/tunnel resolution                                         |
+| `controld`     | node observation, placement, allocation dispatch, gateway/tunnel resolution                                          |
 | `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, operator socket |
 | `egressd`      | node-local egress policy persistence, recovery, reconciliation, and host enforcement                                 |
 | `imagemgr`     | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle                                 |

@@ -82,17 +82,15 @@ release: release-binary release-cli
 	@echo "$(ONI)  release  $(RELEASE) done."
 
 release-binary:
-	@echo "$(ONI)  build binaries at output/axnoded, output/axnoded-runtime-runner, and output/axern-sandboxd"
+	@echo "$(ONI)  build binaries at output/axnoded and output/axern-sandboxd"
 	@mkdir -p output
 ifeq ($(GOOS),linux)
 	@echo "build args: $(GO_LDFLAGS)"
 	@go build -o output/axnoded -tags "seccomp apparmor" $(GO_LDFLAGS) ./cmd/axnoded
-	@go build -o output/axnoded-runtime-runner $(GO_LDFLAGS) ./cmd/axnoded-runtime-runner
 	@CGO_ENABLED=0 go build -o output/axern-sandboxd $(GO_LDFLAGS) ./cmd/axern-sandboxd
 else
 	@echo "cross-platform build binary at $(GOOS)"
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o output/axnoded -tags "seccomp apparmor" $(GO_LDFLAGS) ./cmd/axnoded
-	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o output/axnoded-runtime-runner $(GO_LDFLAGS) ./cmd/axnoded-runtime-runner
 	@CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o output/axern-sandboxd $(GO_LDFLAGS) ./cmd/axern-sandboxd
 endif
 

@@ -57,18 +57,11 @@ func (h *runtimeSpyHandler) Version(_ context.Context) (*apipb.RuntimeVersion, e
 	return &apipb.RuntimeVersion{Version: "test"}, nil
 }
 
-func (h *runtimeSpyHandler) CreateContainer(_ context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
+func (h *runtimeSpyHandler) PrepareContainer(_ context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
 	h.createCalls++
 	h.lastOptions = options
 	h.lastRequest = request
-	return &apipb.ContainerMetadata{}, nil
-}
-
-func (h *runtimeSpyHandler) PrepareContainer(ctx context.Context, request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*contract.PreparedContainer, error) {
-	metadata, err := h.CreateContainer(ctx, request, options)
-	if err != nil {
-		return nil, err
-	}
+	metadata := &apipb.ContainerMetadata{}
 	return &contract.PreparedContainer{ContainerID: options.ContainerID, BundlePath: "/fake/" + options.ContainerID, Metadata: metadata}, nil
 }
 

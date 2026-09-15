@@ -31,8 +31,6 @@ func TestNewSnapshotInitializesHeatCollections(t *testing.T) {
 
 func TestNodeInfoJSONRoundTripsCapabilityOneof(t *testing.T) {
 	want := NodeInfo{CapabilitySnapshot: &capabilityv1.CapabilitySnapshot{
-		NodeInstanceID: "instance-a",
-		Sequence:       3,
 		Observations: []*capabilityv1.CapabilityObservation{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
 				Platform: capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,

@@ -102,7 +102,7 @@ make devbox-stack-restart SERVICE=controld
 Restart behavior is dependency-aware:
 
 - `gatewayd`: restarts only `gatewayd`.
-- `axnoded`: rebuilds the dev runtime runner, then restarts `axnoded` and `node-tunneld`.
+- `axnoded`: restarts `axnoded` and `node-tunneld`.
 - `egressd`: restarts `egressd`, `axnoded`, and `node-tunneld`.
 - `imagemgr`: restarts `imagemgr`, `axnoded`, and `node-tunneld`.
 - `imagefsd`: rebuilds `imagefsd`, then restarts `imagefsd`, `imagemgr`, `axnoded`, and `node-tunneld`.
@@ -126,8 +126,6 @@ make imagemgr-dev-run
 make egressd-dev-run
 make axnoded-dev-run
 ```
-
-`node-dev-prepare` also builds `.dev/stack/bin/axnoded-runtime-runner` and writes that path into `.dev/axnoded/config.toml`, so `axnoded-dev-run` and VS Code's `Axnoded: Debug daemon` use the same one-shot OCI runtime helper as the standalone stack.
 
 Stop the standalone stack before switching to single-service debugging:
 

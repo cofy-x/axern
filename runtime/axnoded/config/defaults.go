@@ -38,8 +38,7 @@ const (
 
 	DefaultIPRange = "172.17.0.1/16"
 
-	DefaultRunscBinary         = "/usr/local/bin/runsc"
-	DefaultRuntimeRunnerBinary = "/usr/local/libexec/axnoded/axnoded-runtime-runner"
+	DefaultRunscBinary = "/usr/local/bin/runsc"
 
 	DefaultBPFNetPinPath                 = "/sys/fs/bpf/axern/bpfnet"
 	DefaultBPFNetSNATMapSize             = 262144

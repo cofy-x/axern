@@ -319,7 +319,6 @@ prepare_workspace_config() {
 
 build_runtime_artifacts() {
   make -C "${ROOT_DIR}" imagefsd-build >/dev/null
-  CGO_ENABLED=0 go -C "${ROOT_DIR}/runtime/axnoded" build -o "${BIN_DIR}/axnoded-runtime-runner" ./cmd/axnoded-runtime-runner
   CGO_ENABLED=0 go -C "${ROOT_DIR}/runtime/tunneld" build -o "${BIN_DIR}/tunnel-agent" ./cmd/tunnel-agent
 }
 

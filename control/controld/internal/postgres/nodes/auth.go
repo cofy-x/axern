@@ -21,7 +21,7 @@ func (s *PGStore) Authenticate(ctx context.Context, nodeID, nodeAuthToken string
 	var hash, lifecycle string
 	err := s.db.Pool().QueryRow(ctx, `SELECT node_auth_token_hash, lifecycle_status FROM nodes WHERE node_id = $1`, nodeID).Scan(&hash, &lifecycle)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return grpcstatus.Error(codes.PermissionDenied, "node is not registered")
+		return grpcstatus.Error(codes.PermissionDenied, "node identity is unknown")
 	}
 	if err != nil {
 		return fmt.Errorf("load node auth token: %w", err)
@@ -30,7 +30,7 @@ func (s *PGStore) Authenticate(ctx context.Context, nodeID, nodeAuthToken string
 		return grpcstatus.Error(codes.FailedPrecondition, "node is retired")
 	}
 	if strings.TrimSpace(hash) == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node auth token is not registered")
+		return grpcstatus.Error(codes.PermissionDenied, "node authentication credential is unavailable")
 	}
 	if hash != hashNodeAuthToken(nodeAuthToken) {
 		return grpcstatus.Error(codes.PermissionDenied, "invalid node auth token")

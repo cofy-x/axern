@@ -27,23 +27,6 @@ func NewMemoryNodeStore() *MemoryNodeStore {
 	return &MemoryNodeStore{records: map[string]*nodekernel.Record{}, tokenHashs: map[string]string{}}
 }
 
-func (s *MemoryNodeStore) Register(ctx context.Context, params nodekernel.RegisterParams) (*nodekernel.Record, error) {
-	_ = ctx
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if err := s.checkOrSetTokenLocked(params.NodeID, params.NodeAuthToken); err != nil {
-		return nil, err
-	}
-	record := s.records[params.NodeID]
-	if record == nil {
-		record = &nodekernel.Record{NodeID: params.NodeID, Lifecycle: nodekernel.LifecycleActive, RegisteredAt: params.Now}
-		s.records[params.NodeID] = record
-	}
-	record.NodeTarget = params.NodeTarget
-	record.LastHeartbeatAt = params.Now
-	return cloneNodeRecord(record), nil
-}
-
 func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportParams) (*nodekernel.Record, error) {
 	_ = ctx
 	s.mu.Lock()
@@ -107,18 +90,22 @@ func hashNodeAuthToken(token string) string {
 
 func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 	return &nodev1.NodeSummary{
+		NodeInstanceID:     "test-node-instance",
+		Sequence:           max(collectedAt.UTC().UnixNano(), 1),
 		CollectedAt:        timestamppb.New(collectedAt),
 		NodeState:          nodev1.NodeState_NODE_STATE_READY,
 		CapabilitySnapshot: readyCapabilitySnapshot(collectedAt),
 		Allocatable:        &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 16 << 30, EphemeralStorageBytes: 64 << 30},
 		Capacity:           &commonv1.ResourceQuantity{CpuMilli: 8000, MemoryBytes: 20 << 30, EphemeralStorageBytes: 64 << 30},
 		MemoryBudget: &nodev1.NodeMemoryBudget{
-			PhysicalCapacityBytes: 20 << 30, SourceAllocatableBytes: 17 << 30, SystemReserveBytes: 1 << 30,
-			EffectiveAllocatableBytes: 16 << 30, CapacityIdentity: "test-boot:test-mount:test-root",
+			SourceAllocatableBytes: 17 << 30, SystemReserveBytes: 1 << 30, CapacityIdentity: "test-boot:test-mount:test-root",
 			Mode:      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
 			SampledAt: timestamppb.New(collectedAt),
 		},
-		Pools: &nodev1.PoolsSummary{RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8}, Cgroup: &nodev1.PoolState{Idle: 1, Capacity: 8}, Interface: &nodev1.PoolState{Idle: 1, Capacity: 8}},
+		Pools: &nodev1.PoolsSummary{RuntimeSlots: &nodev1.PoolState{Idle: 8, Capacity: 8}},
+		Diagnostics: &nodev1.NodeDiagnostics{
+			CgroupPool: &nodev1.PoolState{Idle: 1, Capacity: 8}, InterfacePool: &nodev1.PoolState{Idle: 1, Capacity: 8},
+		},
 		Components: &nodev1.ComponentsSummary{
 			Axnoded:  &nodev1.AxnodedSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Ready: true},
 			Imagemgr: &nodev1.ImagemgrSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Reachable: true},
@@ -138,13 +125,7 @@ func readyCapabilitySnapshot(collectedAt time.Time) *capabilityv1.CapabilitySnap
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS,
 	}
-	snapshot := AvailableCapabilitySnapshot(collectedAt, platforms...)
-	sequence := collectedAt.UTC().UnixNano()
-	if sequence <= 0 {
-		sequence = 1
-	}
-	snapshot.Sequence = sequence
-	return snapshot
+	return AvailableCapabilitySnapshot(collectedAt, platforms...)
 }
 
 // SetReadySummaryMemory rewrites the complete, internally consistent memory
@@ -167,13 +148,11 @@ func SetReadySummaryMemory(summary *nodev1.NodeSummary, effectiveAllocatableByte
 	summary.Capacity.MemoryBytes = physicalCapacityBytes
 	sampledAt := summary.GetCollectedAt()
 	summary.MemoryBudget = &nodev1.NodeMemoryBudget{
-		PhysicalCapacityBytes:     physicalCapacityBytes,
-		SourceAllocatableBytes:    physicalCapacityBytes,
-		SystemReserveBytes:        systemReserveBytes,
-		EffectiveAllocatableBytes: effectiveAllocatableBytes,
-		CapacityIdentity:          "test-boot:test-mount:test-root",
-		Mode:                      nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
-		SampledAt:                 sampledAt,
+		SourceAllocatableBytes: physicalCapacityBytes,
+		SystemReserveBytes:     systemReserveBytes,
+		CapacityIdentity:       "test-boot:test-mount:test-root",
+		Mode:                   nodev1.NodeMemoryBudgetMode_NODE_MEMORY_BUDGET_MODE_CGROUP_V2,
+		SampledAt:              sampledAt,
 	}
 }
 

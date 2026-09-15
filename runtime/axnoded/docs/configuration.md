@@ -36,7 +36,7 @@ If either path is wrong or not writable, startup, restart recovery, and containe
 | `control_plane_target` | `controld` node-control endpoint. | Empty disables the reporter. |
 | `control_plane_node_id` | Stable node identity reported to `controld`. | Empty falls back to hostname. |
 | `control_plane_node_target` | Internal address that `gatewayd` and `controld` can use to reach this node. | Needed when gateway forwarding crosses host boundaries. |
-| `control_plane_node_auth_token` | Node auth token for control-plane registration. | Required by secured control-plane deployments. |
+| `control_plane_node_auth_token` | Node auth token for control-plane reports and lifecycle coordination. | Required by secured control-plane deployments. |
 | `control_plane_heartbeat_interval` | Node report interval. | Empty or non-positive falls back to `5s`. |
 | `control_plane_node_resource_source` | Source for reported node capacity, allocatable resources, and placement labels. | Use `kubernetes` in Kubernetes deployments so axnoded reports Node API `status.capacity`, `status.allocatable`, and `metadata.labels`; use `host` for local or bare-metal nodes. |
 | `control_plane_kubernetes_node_name` | Kubernetes Node object name used when `control_plane_node_resource_source = "kubernetes"`. | In Helm deployments this is populated from `spec.nodeName`; otherwise empty falls back to `control_plane_node_id`. |
@@ -47,7 +47,7 @@ If either path is wrong or not writable, startup, restart recovery, and containe
 | `[[node_extension_capabilities]]` | Exact-match extension facts using `name` and optional `value`. | Names must use `<dns-domain>/<name>`; Axern-owned domains are rejected. Platform capabilities cannot be configured. |
 | `[plugin.control_plane_node_labels]` | Explicit placement labels. | Empty keys are ignored and values are trimmed. Explicit labels override labels collected from the Kubernetes Node object. |
 
-Check the deployment Prometheus/LGTM metrics exported through OTEL, such as `axern_axnoded_control_plane_rpc_total` and `axern_axnoded_control_plane_report_total`, plus axnoded logs when registration or heartbeat behavior looks wrong. For allocation lifecycle delivery, inspect `/control-planez` and `axern_axnoded_allocation_lifecycle_oldest_pending_age_seconds`, `axern_axnoded_allocation_lifecycle_consecutive_failures`, and `axern_axnoded_allocation_lifecycle_retry_delay_seconds`.
+Check the deployment Prometheus/LGTM metrics exported through OTEL, such as `axern_axnoded_control_plane_rpc_total` and `axern_axnoded_control_plane_report_total`, plus axnoded logs when node-report or heartbeat behavior looks wrong. For allocation lifecycle delivery, inspect `/control-planez` and `axern_axnoded_allocation_lifecycle_oldest_pending_age_seconds`, `axern_axnoded_allocation_lifecycle_consecutive_failures`, and `axern_axnoded_allocation_lifecycle_retry_delay_seconds`.
 
 Extension capability declarations are config-static facts. Platform facts are owned by probes and derived policy, and therefore have no configuration list or operator override.
 
@@ -109,7 +109,6 @@ Useful symptoms:
 | `image_manager_enabled` | Enables `imagemgr` for image-backed rootfs and inventory. | Defaults to true. Set false for local-rootfs-only setups. |
 | `image_lib_dir` | Local rootfs/image library directory. | Used by image/rootfs flows under axnoded. |
 | `image_manager_socket` | Unix socket for `imagemgr`. | Ignored when `image_manager_enabled = false`; default is `/var/run/imagemgr.sock`. |
-| `runtime_runner_binary` | Host lifecycle helper used to monitor OCI init/runtime processes and durably persist their exact wait status. | Defaults to `/usr/local/libexec/axnoded/axnoded-runtime-runner`; packaged node images install it there. |
 | `egress_manager_socket` | Trusted node-local `egressd` Unix socket used for fail-closed sandbox policy lifecycle. | Defaults to `/run/egressd/egressd.sock`; absence keeps policy capabilities unavailable without affecting unrestricted sandboxes. |
 | `idle_environment_retention_ttl` | How long idle environment templates/rootfs state remain warm. | Empty falls back to `5m`. |
 | `idle_environment_retention_max` | Max retained static environment templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |

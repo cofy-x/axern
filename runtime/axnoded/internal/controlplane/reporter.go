@@ -14,6 +14,7 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/proto"
@@ -60,6 +61,9 @@ type Reporter struct {
 	conditionBatcher     *allocationConditionBatcher
 	conditionBatcherOnce sync.Once
 	lifecycleOutbox      *AllocationLifecycleOutbox
+	publicationMu        sync.Mutex
+	nodeInstanceID       string
+	sequence             int64
 
 	stopCh    chan struct{}
 	changeCh  chan struct{}
@@ -101,6 +105,7 @@ func NewReporter(
 		summaryBuilder:  summaryBuilder,
 		lifecycleOutbox: lifecycleOutbox,
 		control:         control,
+		nodeInstanceID:  uuid.NewString(),
 		stopCh:          make(chan struct{}),
 		changeCh:        make(chan struct{}, 1),
 	}
@@ -122,7 +127,6 @@ func (r *Reporter) Start() {
 		r.wg.Add(1)
 		go func() {
 			defer r.wg.Done()
-			r.register()
 			r.report()
 
 			ticker := time.NewTicker(r.interval)
@@ -205,37 +209,6 @@ func (r *Reporter) Stop() {
 	})
 }
 
-func (r *Reporter) register() {
-	ctx, op := sdkobs.StartOperation(context.Background(), sdkobs.OperationConfig{
-		Name:        sandboxobs.SpanControlPlaneRegister,
-		SpanAttrs:   []attribute.KeyValue{attribute.String(sdkobs.AttrNodeID, r.nodeID)},
-		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "register")},
-		Counter:     sandboxobs.MetricControlPlaneReportTotal,
-		Duration:    sandboxobs.MetricControlPlaneReportDuration,
-	})
-	var opErr error
-	defer func() { op.End(opErr) }()
-	req := &nodev1.RegisterNodeRequest{
-		NodeID:        r.nodeID,
-		NodeTarget:    r.nodeTarget,
-		NodeAuthToken: r.nodeAuthToken,
-	}
-	started := time.Now()
-	if err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
-		_, err := client.RegisterNode(ctx, req)
-		return err
-	}); err != nil {
-		op.SetErrorStatus("register node")
-		opErr = err
-		metrics.RecordControlPlaneRPC("register", "error")
-		metrics.RecordControlPlaneRPCDuration("register", "error", time.Since(started).Seconds())
-		logrus.WithError(err).Warn("control-plane register failed")
-		return
-	}
-	metrics.RecordControlPlaneRPC("register", "ok")
-	metrics.RecordControlPlaneRPCDuration("register", "ok", time.Since(started).Seconds())
-}
-
 func (r *Reporter) report() {
 	ctx, op := sdkobs.StartOperation(context.Background(), sdkobs.OperationConfig{
 		Name:        sandboxobs.SpanControlPlaneReportNode,
@@ -253,9 +226,22 @@ func (r *Reporter) report() {
 		return
 	}
 	summary := r.summaryBuilder(snapshot)
+	if summary == nil {
+		op.SetResult(sdkobs.ResultSkipped)
+		metrics.RecordControlPlaneRPC("report", "skipped")
+		return
+	}
 	if summary != nil && summary.GetCollectedAt() == nil && !snapshot.Node.CollectedAt.IsZero() {
 		summary.CollectedAt = timestamppb.New(snapshot.Node.CollectedAt)
 	}
+	r.publicationMu.Lock()
+	defer r.publicationMu.Unlock()
+	if r.nodeInstanceID == "" {
+		r.nodeInstanceID = uuid.NewString()
+	}
+	r.sequence++
+	summary.NodeInstanceID = r.nodeInstanceID
+	summary.Sequence = r.sequence
 	req := &nodev1.ReportNodeRequest{
 		NodeID:        r.nodeID,
 		Summary:       summary,

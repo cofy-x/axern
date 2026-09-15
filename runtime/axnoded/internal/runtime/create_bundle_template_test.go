@@ -23,7 +23,6 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
-	handler.common.SetRuntimeRunnerBinary(writeFakeRuntimeRunnerBinary(t, rootDir))
 	disableSandboxReadyWait(t, handler)
 	handler.ignoreCgroups = true
 
@@ -32,7 +31,7 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 	profile.Baseline.NoFileLimit = 2097152
 	templateSource := &runtimeoci.TemplateOptions{Request: newLocalCreateRequest(t)}
 	for idx := 0; idx < 2; idx++ {
-		_, err := handler.CreateContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
+		_, err := handler.PrepareContainer(context.Background(), newLocalCreateRequest(t), contract.HandlerOptions{
 			ContainerID:           fmt.Sprintf("runsc-template-%d", idx),
 			RootfsType:            contract.StartupRootfsTypeLocal,
 			BundleTemplateCarrier: carrier,
@@ -40,7 +39,7 @@ func TestRunscCreateContainerUsesBundleTemplateCarrier(t *testing.T) {
 			ExecutionProfile:      &profile,
 		})
 		if err != nil {
-			t.Fatalf("CreateContainer(%d) error = %v", idx, err)
+			t.Fatalf("PrepareContainer(%d) error = %v", idx, err)
 		}
 	}
 

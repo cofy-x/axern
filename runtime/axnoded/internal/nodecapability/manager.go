@@ -9,7 +9,6 @@ import (
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -58,7 +57,6 @@ type providerSlot struct {
 }
 
 type Transition struct {
-	Sequence int64
 	Key      *capabilityv1.CapabilityKey
 	Previous *capabilityv1.CapabilityObservation
 	Current  *capabilityv1.CapabilityObservation
@@ -92,8 +90,6 @@ type Manager struct {
 	ownerByKey         map[string]capabilityv1.CapabilityProvider
 	batchBySlot        map[string]*ObservationBatch
 	recoveryByKey      map[string]recoveryState
-	nodeInstanceID     string
-	sequence           int64
 	snapshot           *capabilityv1.CapabilitySnapshot
 	initialized        bool
 	transitionHandlers []TransitionHandler
@@ -107,7 +103,6 @@ func NewManager(providers ...Provider) (*Manager, error) {
 		ownerByKey:         make(map[string]capabilityv1.CapabilityProvider),
 		batchBySlot:        make(map[string]*ObservationBatch),
 		recoveryByKey:      make(map[string]recoveryState),
-		nodeInstanceID:     uuid.NewString(),
 		runtimeProbeSerial: make(chan struct{}, 1),
 		deliveryWake:       make(chan struct{}, 1),
 	}
@@ -492,7 +487,7 @@ func (m *Manager) normalizeBatch(slot *providerSlot, sampledAt, completedAt time
 }
 
 func validateBatch(provider capabilityv1.CapabilityProvider, observations []*capabilityv1.CapabilityObservation, now time.Time) error {
-	snapshot := &capabilityv1.CapabilitySnapshot{NodeInstanceID: "batch", Sequence: 1, CollectedAt: timestamppb.New(now), Observations: observations}
+	snapshot := &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(now), Observations: observations}
 	if err := capabilitycontract.ValidateSnapshot(snapshot, now); err != nil {
 		return fmt.Errorf("malformed %s batch: %w", provider, err)
 	}
@@ -509,10 +504,10 @@ func (m *Manager) unknownBatch(slot *providerSlot, sampledAt, completedAt time.T
 }
 
 func (m *Manager) publish(ctx context.Context, now time.Time) (*capabilityv1.CapabilitySnapshot, error) {
-	// Provider schedulers publish independently, but snapshot sequence,
-	// transition derivation, and ordered handler delivery form one serial
+	// Provider schedulers publish independently, but snapshot replacement,
+	// transition derivation, and handler delivery form one serial
 	// publication log. Without this lock, two providers can derive transitions
-	// from the same previous snapshot and deliver generations out of order.
+	// from the same previous snapshot and deliver publications out of order.
 	m.publishMu.Lock()
 	defer m.publishMu.Unlock()
 	m.mu.Lock()
@@ -582,10 +577,8 @@ func (m *Manager) publish(ctx context.Context, now time.Time) (*capabilityv1.Cap
 		m.mu.Unlock()
 		return nil, fmt.Errorf("snapshot publication time moved backwards")
 	}
-	m.sequence++
-	candidate := &capabilityv1.CapabilitySnapshot{NodeInstanceID: m.nodeInstanceID, Sequence: m.sequence, CollectedAt: timestamppb.New(now), Observations: ordered}
+	candidate := &capabilityv1.CapabilitySnapshot{CollectedAt: timestamppb.New(now), Observations: ordered}
 	if err := capabilitycontract.ValidateSnapshot(candidate, now); err != nil {
-		m.sequence--
 		m.mu.Unlock()
 		return nil, fmt.Errorf("validate collected capability snapshot: %w", err)
 	}
@@ -741,7 +734,7 @@ func (m *Manager) AdmitDependencies(requirements []*capabilityv1.CapabilityRequi
 	}
 	admitted, err := capabilitycontract.ResolveRequirements(snapshot, keys, now)
 	if err != nil {
-		return nil, nil, fmt.Errorf("verify requirements against node observation %s/%d: %w", snapshot.GetNodeInstanceID(), snapshot.GetSequence(), err)
+		return nil, nil, fmt.Errorf("verify requirements against node capability observation: %w", err)
 	}
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(admitted))
 	for _, dependency := range admitted {
@@ -855,7 +848,7 @@ func snapshotTransitions(previous, current *capabilityv1.CapabilitySnapshot) []*
 		if !changed {
 			continue
 		}
-		transitions = append(transitions, &Transition{Sequence: current.GetSequence(), Key: capabilitycontract.CloneKey(observation.GetKey()), Previous: cloneObservation(old[id]), Current: cloneObservation(observation)})
+		transitions = append(transitions, &Transition{Key: capabilitycontract.CloneKey(observation.GetKey()), Previous: cloneObservation(old[id]), Current: cloneObservation(observation)})
 	}
 	return transitions
 }

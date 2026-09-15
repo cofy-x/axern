@@ -12,8 +12,6 @@ func TestReportedActiveInstancesUsesStrongestOccupancySignal(t *testing.T) {
 			ActiveAllocationIds: []string{"a", "b"},
 		}},
 		Pools: &nodev1.PoolsSummary{
-			Cgroup:       &nodev1.PoolState{Using: 3},
-			Interface:    &nodev1.PoolState{Using: 4},
 			RuntimeSlots: &nodev1.PoolState{Using: 4},
 		},
 	}
