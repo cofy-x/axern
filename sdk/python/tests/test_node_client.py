@@ -134,14 +134,18 @@ class SandboxTest(unittest.TestCase):
 
         client = AllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
+            process = client.process(["sh"], tty=True, initial_cols=120, initial_rows=40)
+            process.close()
             result = client.exec(["/bin/echo", "hello"])
 
         self.assertEqual(result.exit_code, 0)
         self.assertEqual(result.stdout, b"hello")
         self.assertEqual(result.stderr, b"warn")
         self.assertEqual(open_requests[0].allocation_id, "alloc-1")
+        self.assertEqual(open_requests[0].initial_size.cols, 120)
+        self.assertEqual(open_requests[0].initial_size.rows, 40)
         self.assertFalse(hasattr(open_requests[0], "execution_lease_token"))
-        self.assertEqual(list(open_requests[0].spec.argv), ["/bin/echo", "hello"])
+        self.assertEqual(list(open_requests[1].spec.argv), ["/bin/echo", "hello"])
 
     def test_sync_archive_methods_use_gateway_streams(self) -> None:
         from axern_sdk.node import AllocationClient
@@ -321,6 +325,8 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
 
         client = AsyncAllocationClient(client=_GatewayClient(), allocation_id="alloc-1")
         with patch.object(node_client_module.node_pb2_grpc, "NodeSandboxStub", FakeStub):
+            process = await client.process(["sh"], tty=True, initial_cols=120, initial_rows=40)
+            await process.close()
             result = await client.exec(["/bin/echo", "hello"])
 
         self.assertEqual(result.exit_code, 0)
@@ -328,9 +334,11 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.stderr, b"warn")
         open_request = calls[0].writes[0].open
         self.assertEqual(open_request.allocation_id, "alloc-1")
+        self.assertEqual(open_request.initial_size.cols, 120)
+        self.assertEqual(open_request.initial_size.rows, 40)
         self.assertFalse(hasattr(open_request, "execution_lease_token"))
-        self.assertEqual(list(open_request.spec.argv), ["/bin/echo", "hello"])
-        self.assertTrue(calls[0].done)
+        self.assertEqual(list(calls[1].writes[0].open.spec.argv), ["/bin/echo", "hello"])
+        self.assertTrue(calls[1].done)
 
     async def test_async_archive_methods_use_gateway_streams(self) -> None:
         from axern_sdk.node import AsyncAllocationClient

@@ -11,8 +11,10 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/grpcclient"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
+	privateoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,10 +29,12 @@ const allocationAccessTokenMetadataKey = "x-axern-allocation-access-token"
 type NodeClients struct {
 	Lifecycle    privatenodev1.NodeLifecycleClient
 	Node         nodesandboxv1.NodeSandboxClient
+	Operator     privateoperatorv1.NodeOperatorClient
 	Health       healthgrpc.HealthClient
 	inventoryURL string
 	httpClient   *http.Client
 	conn         *grpc.ClientConn
+	operatorConn *grpc.ClientConn
 }
 
 type NodeClientOption func(*NodeClients)
@@ -97,6 +101,14 @@ func DialNodeClients(address string, options ...NodeClientOption) (*NodeClients,
 			option(clients)
 		}
 	}
+	operatorAddress := firstNonEmptyString(os.Getenv("AXNODED_OPERATOR_SOCKET"), config.DefaultSocketAddress)
+	operatorConn, err := DialGRPC(operatorAddress)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("dial node operator %s: %w", operatorAddress, err)
+	}
+	clients.Operator = privateoperatorv1.NewNodeOperatorClient(operatorConn)
+	clients.operatorConn = operatorConn
 	return clients, nil
 }
 
@@ -104,7 +116,11 @@ func (c *NodeClients) Close() error {
 	if c == nil || c.conn == nil {
 		return nil
 	}
-	return c.conn.Close()
+	err := c.conn.Close()
+	if c.operatorConn != nil {
+		err = errors.Join(err, c.operatorConn.Close())
+	}
+	return err
 }
 
 func NewSandboxID(prefix string) string {
@@ -116,10 +132,6 @@ func NewSandboxID(prefix string) string {
 }
 
 func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID string, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
-	return CreateAllocationWithBinding(ctx, clients, sandboxID, "", 0, spec)
-}
-
-func CreateAllocationWithBinding(ctx context.Context, clients *NodeClients, sandboxID, nodeID string, leaseTTL time.Duration, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
@@ -128,10 +140,8 @@ func CreateAllocationWithBinding(ctx context.Context, clients *NodeClients, sand
 		return nil, fmt.Errorf("prepare capability dependencies: %w", err)
 	}
 	req := &privatenodev1.CreateAllocationRequest{
-		AllocationID:             sandboxID,
-		NodeID:                   nodeID,
-		Config:                   preparedSpec,
-		ExecutionLeaseTtlSeconds: int64(leaseTTL / time.Second),
+		AllocationID: sandboxID,
+		Config:       preparedSpec,
 	}
 	resp, err := clients.Lifecycle.CreateAllocation(ctx, req)
 	if err != nil {
@@ -167,16 +177,17 @@ func (h *SandboxHandle) Exec(ctx context.Context, spec *nodesandboxv1.ExecSpec) 
 	})
 }
 
-func (h *SandboxHandle) Wait(ctx context.Context) (*nodesandboxv1.WaitSandboxResponse, error) {
-	ctx = metadata.AppendToOutgoingContext(ctx, allocationAccessTokenMetadataKey, h.AccessToken)
-	return h.clients.Node.WaitSandbox(ctx, &nodesandboxv1.WaitSandboxRequest{
-		AllocationID: h.SandboxID,
-	})
+func (h *SandboxHandle) Wait(ctx context.Context) (*privateoperatorv1.WaitResponse, error) {
+	return h.clients.Operator.Wait(ctx, &privateoperatorv1.WaitRequest{AllocationID: h.SandboxID})
 }
 
 func (h *SandboxHandle) Delete(ctx context.Context, timeoutSeconds int64) error {
-	_, err := h.clients.Lifecycle.DeleteAllocation(ctx, &privatenodev1.DeleteAllocationRequest{
-		AllocationID:   h.SandboxID,
+	return DeleteAllocation(ctx, h.clients, h.SandboxID, timeoutSeconds)
+}
+
+func DeleteAllocation(ctx context.Context, clients *NodeClients, allocationID string, timeoutSeconds int64) error {
+	_, err := clients.Lifecycle.DeleteAllocation(ctx, &privatenodev1.DeleteAllocationRequest{
+		AllocationID:   allocationID,
 		TimeoutSeconds: timeoutSeconds,
 	})
 	return err

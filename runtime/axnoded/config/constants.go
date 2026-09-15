@@ -14,12 +14,7 @@ const (
 	CgroupEnforcementDisabledDev = "disabled_dev"
 )
 
-// Sandbox service related constants.
-const (
-	UnknownVersion = "unknown"
-
-	SandboxServiceName = "sandbox"
-)
+const UnknownVersion = "unknown"
 
 const (
 	ContainerSpecFile   = "config.json"

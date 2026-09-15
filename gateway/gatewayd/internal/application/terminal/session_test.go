@@ -17,9 +17,11 @@ import (
 
 func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) {
 	t.Parallel()
-	stale := &fakeExecStream{headerErr: status.Error(codes.Unauthenticated, "stale lease")}
-	fresh := &fakeExecStream{}
-	nodes := &fakeExecStreamer{streams: []*fakeExecStream{stale, fresh}}
+	stale := &fakeProcessStream{headerErr: status.Error(codes.Unauthenticated, "stale lease")}
+	fresh := &fakeProcessStream{responses: []*nodesandboxv1.ProcessResponse{{
+		Payload: &nodesandboxv1.ProcessResponse_Ready{Ready: &nodesandboxv1.ProcessReady{}},
+	}}}
+	nodes := &fakeProcessStreamer{streams: []*fakeProcessStream{stale, fresh}}
 	resolver := &fakeTerminalResolver{responses: []*gatewayv1.ResolveAllocationTerminalResponse{{
 		AllocationID: "alloc-1",
 		NodeID:       "node-new",
@@ -59,7 +61,7 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	nodes := &fakeExecStreamer{streams: []*fakeExecStream{{headerErr: status.Error(codes.Unauthenticated, "stale lease")}}}
+	nodes := &fakeProcessStreamer{streams: []*fakeProcessStream{{headerErr: status.Error(codes.Unauthenticated, "stale lease")}}}
 	resolver := &fakeTerminalResolver{}
 	manager := NewManager(resolver, nodes, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Hour}, nil, nil)
 
@@ -76,9 +78,9 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	}
 }
 
-func TestExecStreamOpenRequestUsesShellTTYAndAllocation(t *testing.T) {
+func TestProcessOpenRequestUsesShellTTYAndAllocation(t *testing.T) {
 	t.Parallel()
-	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -93,9 +95,9 @@ func TestExecStreamOpenRequestUsesShellTTYAndAllocation(t *testing.T) {
 	}
 }
 
-func TestExecStreamOpenRequestUsesCustomArgv(t *testing.T) {
+func TestProcessOpenRequestUsesCustomArgv(t *testing.T) {
 	t.Parallel()
-	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -107,9 +109,9 @@ func TestExecStreamOpenRequestUsesCustomArgv(t *testing.T) {
 	}
 }
 
-func TestExecStreamOpenRequestUsesCustomArgvTTY(t *testing.T) {
+func TestProcessOpenRequestUsesCustomArgvTTY(t *testing.T) {
 	t.Parallel()
-	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -120,9 +122,19 @@ func TestExecStreamOpenRequestUsesCustomArgvTTY(t *testing.T) {
 	}
 }
 
-func TestExecStreamOpenRequestUsesEnv(t *testing.T) {
+func TestProcessOpenRequestCarriesInitialTerminalSize(t *testing.T) {
 	t.Parallel()
-	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{AllocationID: "alloc-1"}, OpenOptions{
+		TTY: true, InitialCols: 120, InitialRows: 40,
+	})
+	if size := req.GetOpen().GetInitialSize(); size.GetCols() != 120 || size.GetRows() != 40 {
+		t.Fatalf("initial terminal size = %#v", size)
+	}
+}
+
+func TestProcessOpenRequestUsesEnv(t *testing.T) {
+	t.Parallel()
+	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -134,9 +146,9 @@ func TestExecStreamOpenRequestUsesEnv(t *testing.T) {
 	}
 }
 
-func TestExecStreamOpenRequestUsesUser(t *testing.T) {
+func TestProcessOpenRequestUsesUser(t *testing.T) {
 	t.Parallel()
-	req := execStreamOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -149,11 +161,11 @@ func TestExecStreamOpenRequestUsesUser(t *testing.T) {
 
 func TestSessionWriteResizeAndRecv(t *testing.T) {
 	t.Parallel()
-	stream := &fakeExecStream{
-		responses: []*nodesandboxv1.ExecStreamResponse{
-			{Payload: &nodesandboxv1.ExecStreamResponse_Stdout{Stdout: []byte("out")}},
-			{Payload: &nodesandboxv1.ExecStreamResponse_Stderr{Stderr: []byte("err")}},
-			{Payload: &nodesandboxv1.ExecStreamResponse_Exit{Exit: &nodesandboxv1.ExecExit{ExitCode: 7, Message: "done"}}},
+	stream := &fakeProcessStream{
+		responses: []*nodesandboxv1.ProcessResponse{
+			{Payload: &nodesandboxv1.ProcessResponse_Stdout{Stdout: []byte("out")}},
+			{Payload: &nodesandboxv1.ProcessResponse_Stderr{Stderr: []byte("err")}},
+			{Payload: &nodesandboxv1.ProcessResponse_Exit{Exit: &nodesandboxv1.ExecExit{ExitCode: 7, Message: "done"}}},
 		},
 	}
 	session := &Session{stream: stream}
@@ -190,19 +202,19 @@ func TestSessionWriteResizeAndRecv(t *testing.T) {
 	}
 }
 
-type fakeExecStream struct {
-	sent       []*nodesandboxv1.ExecStreamRequest
-	responses  []*nodesandboxv1.ExecStreamResponse
+type fakeProcessStream struct {
+	sent       []*nodesandboxv1.ProcessRequest
+	responses  []*nodesandboxv1.ProcessResponse
 	headerErr  error
 	closeCalls int
 }
 
-func (f *fakeExecStream) Send(req *nodesandboxv1.ExecStreamRequest) error {
+func (f *fakeProcessStream) Send(req *nodesandboxv1.ProcessRequest) error {
 	f.sent = append(f.sent, req)
 	return nil
 }
 
-func (f *fakeExecStream) Recv() (*nodesandboxv1.ExecStreamResponse, error) {
+func (f *fakeProcessStream) Recv() (*nodesandboxv1.ProcessResponse, error) {
 	if len(f.responses) == 0 {
 		return nil, io.EOF
 	}
@@ -211,28 +223,28 @@ func (f *fakeExecStream) Recv() (*nodesandboxv1.ExecStreamResponse, error) {
 	return resp, nil
 }
 
-func (f *fakeExecStream) Header() (metadata.MD, error) {
+func (f *fakeProcessStream) Header() (metadata.MD, error) {
 	if f.headerErr != nil {
 		return nil, f.headerErr
 	}
 	return metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1"), nil
 }
-func (f *fakeExecStream) Trailer() metadata.MD { return nil }
-func (f *fakeExecStream) CloseSend() error {
+func (f *fakeProcessStream) Trailer() metadata.MD { return nil }
+func (f *fakeProcessStream) CloseSend() error {
 	f.closeCalls++
 	return nil
 }
-func (f *fakeExecStream) Context() context.Context { return context.Background() }
-func (f *fakeExecStream) SendMsg(any) error        { return nil }
-func (f *fakeExecStream) RecvMsg(any) error        { return nil }
+func (f *fakeProcessStream) Context() context.Context { return context.Background() }
+func (f *fakeProcessStream) SendMsg(any) error        { return nil }
+func (f *fakeProcessStream) RecvMsg(any) error        { return nil }
 
-type fakeExecStreamer struct {
-	streams []*fakeExecStream
+type fakeProcessStreamer struct {
+	streams []*fakeProcessStream
 	targets []string
 	tokens  []string
 }
 
-func (f *fakeExecStreamer) ExecStream(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ExecStreamClient, error) {
+func (f *fakeProcessStreamer) Process(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ProcessClient, error) {
 	f.targets = append(f.targets, target)
 	md, _ := metadata.FromOutgoingContext(ctx)
 	values := md.Get(nodekernel.AllocationAccessGrantTokenMetadata)
@@ -242,7 +254,7 @@ func (f *fakeExecStreamer) ExecStream(ctx context.Context, target string) (nodes
 		f.tokens = append(f.tokens, "")
 	}
 	if len(f.streams) == 0 {
-		return nil, errors.New("unexpected exec stream")
+		return nil, errors.New("unexpected process stream")
 	}
 	stream := f.streams[0]
 	f.streams = f.streams[1:]

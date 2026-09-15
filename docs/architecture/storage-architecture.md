@@ -6,12 +6,12 @@ Axern separates durable control state from Allocation-local writable files. Pers
 
 | Data | Owner and location | Lifetime |
 | --- | --- | --- |
-| Workload intent, Allocations and their resource charges, placement, access grants, TunnelSessions, and result metadata | `controld` and PostgreSQL | Durable control state; not a filesystem or process-output stream |
+| Workload intent, Allocations and their resource charges, placement, access grants, TunnelSessions, and Run result metadata | `controld` and PostgreSQL | Durable control state; contains no stdout, file bytes, or durable output references |
 | Writable sandbox rootfs and Allocation-local workspace | `axnoded` and node-local runtime filestore | One Allocation; no persistence promise across Allocation replacement or node loss |
 | Immutable rootfs, read-only image bundles, and image caches | `imagemgr` and `imagefsd` where required | Image-owned cache and live mount leases, separate from writable workload data |
 | Allocation ownership, cleanup intent, resource state, and recovery records | `axnoded` and its process-owned embedded database | Node-local recovery; not a second shared control-plane database |
 
-PostgreSQL is the only authoritative central state backend. Downloaded outputs belong to the caller or an upper-layer system; object storage is never authoritative execution state or a writable POSIX working directory for an Allocation. Axern does not currently define a generic public Artifact root.
+PostgreSQL is the only authoritative central state backend. Output bytes remain Allocation-local until streamed or downloaded; after cleanup they are unavailable from Axern. Downloaded outputs belong to the caller or an upper-layer system. Object storage is never authoritative execution state or a writable POSIX working directory for an Allocation, and Axern does not define a generic public Artifact root.
 
 ## Allocation-Local Filesystems
 

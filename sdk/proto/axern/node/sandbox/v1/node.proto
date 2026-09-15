@@ -30,24 +30,9 @@ message ExecResponse {
   bool stderr_truncated = 5;
 }
 
-message ExecStreamOpen {
-  ExecSpec spec = 1;
-  string allocation_id = 2;
-  TerminalResize initial_size = 3;
-}
-
 message TerminalResize {
   uint32 cols = 1;
   uint32 rows = 2;
-}
-
-message ExecStreamRequest {
-  oneof payload {
-    ExecStreamOpen open = 1;
-    bytes stdin = 2;
-    TerminalResize resize = 3;
-    bool close_stdin = 4;
-  }
 }
 
 message ExecExit {
@@ -55,17 +40,10 @@ message ExecExit {
   string message = 2;
 }
 
-message ExecStreamResponse {
-  oneof payload {
-    bytes stdout = 1;
-    bytes stderr = 2;
-    ExecExit exit = 3;
-  }
-}
-
 message ProcessOpen {
   ExecSpec spec = 1;
   string allocation_id = 2;
+  TerminalResize initial_size = 3;
 }
 
 message ProcessSignal {
@@ -91,25 +69,6 @@ message ProcessResponse {
     ExecExit exit = 3;
     ProcessReady ready = 4;
   }
-}
-
-// Lifecycle
-
-enum SandboxProcessState {
-  SANDBOX_PROCESS_STATE_UNSPECIFIED = 0;
-  SANDBOX_PROCESS_STATE_RUNNING = 1;
-  SANDBOX_PROCESS_STATE_EXITED = 2;
-  SANDBOX_PROCESS_STATE_UNKNOWN = 3;
-}
-
-message WaitSandboxRequest {
-  string allocation_id = 1;
-}
-
-message WaitSandboxResponse {
-  SandboxProcessState state = 1;
-  optional int32 exit_code = 2;
-  string message = 3;
 }
 
 enum OutputStream {
@@ -377,9 +336,7 @@ message ComputerUseKeyboardResponse {}
 
 service NodeSandbox {
   rpc Exec(ExecRequest) returns (ExecResponse) {}
-  rpc ExecStream(stream ExecStreamRequest) returns (stream ExecStreamResponse) {}
   rpc Process(stream ProcessRequest) returns (stream ProcessResponse) {}
-  rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
   rpc CapabilityStatus(CapabilityStatusRequest) returns (CapabilityStatusResponse) {}
   rpc StatFile(StatFileRequest) returns (StatFileResponse) {}

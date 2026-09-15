@@ -20,9 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	NodeSandbox_Exec_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Exec"
-	NodeSandbox_ExecStream_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ExecStream"
 	NodeSandbox_Process_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/Process"
-	NodeSandbox_WaitSandbox_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/WaitSandbox"
 	NodeSandbox_ReadOutput_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
 	NodeSandbox_CapabilityStatus_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus"
 	NodeSandbox_StatFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/StatFile"
@@ -50,9 +48,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeSandboxClient interface {
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
-	ExecStream(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ExecStreamClient, error)
 	Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error)
-	WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error)
 	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
 	CapabilityStatus(ctx context.Context, in *CapabilityStatusRequest, opts ...grpc.CallOption) (*CapabilityStatusResponse, error)
 	StatFile(ctx context.Context, in *StatFileRequest, opts ...grpc.CallOption) (*StatFileResponse, error)
@@ -92,39 +88,8 @@ func (c *nodeSandboxClient) Exec(ctx context.Context, in *ExecRequest, opts ...g
 	return out, nil
 }
 
-func (c *nodeSandboxClient) ExecStream(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ExecStreamClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[0], NodeSandbox_ExecStream_FullMethodName, opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeSandboxExecStreamClient{stream}
-	return x, nil
-}
-
-type NodeSandbox_ExecStreamClient interface {
-	Send(*ExecStreamRequest) error
-	Recv() (*ExecStreamResponse, error)
-	grpc.ClientStream
-}
-
-type nodeSandboxExecStreamClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeSandboxExecStreamClient) Send(m *ExecStreamRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeSandboxExecStreamClient) Recv() (*ExecStreamResponse, error) {
-	m := new(ExecStreamResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func (c *nodeSandboxClient) Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[1], NodeSandbox_Process_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[0], NodeSandbox_Process_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -154,17 +119,8 @@ func (x *nodeSandboxProcessClient) Recv() (*ProcessResponse, error) {
 	return m, nil
 }
 
-func (c *nodeSandboxClient) WaitSandbox(ctx context.Context, in *WaitSandboxRequest, opts ...grpc.CallOption) (*WaitSandboxResponse, error) {
-	out := new(WaitSandboxResponse)
-	err := c.cc.Invoke(ctx, NodeSandbox_WaitSandbox_FullMethodName, in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *nodeSandboxClient) ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_ReadOutput_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[1], NodeSandbox_ReadOutput_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +260,7 @@ func (c *nodeSandboxClient) Touch(ctx context.Context, in *TouchRequest, opts ..
 }
 
 func (c *nodeSandboxClient) UploadArchive(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_UploadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_UploadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_UploadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +294,7 @@ func (x *nodeSandboxUploadArchiveClient) CloseAndRecv() (*UploadArchiveResponse,
 }
 
 func (c *nodeSandboxClient) DownloadArchive(ctx context.Context, in *DownloadArchiveRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_DownloadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_DownloadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -419,9 +375,7 @@ func (c *nodeSandboxClient) ComputerUseKeyboard(ctx context.Context, in *Compute
 // for forward compatibility
 type NodeSandboxServer interface {
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
-	ExecStream(NodeSandbox_ExecStreamServer) error
 	Process(NodeSandbox_ProcessServer) error
-	WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error)
 	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
 	CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error)
 	StatFile(context.Context, *StatFileRequest) (*StatFileResponse, error)
@@ -452,14 +406,8 @@ type UnimplementedNodeSandboxServer struct {
 func (UnimplementedNodeSandboxServer) Exec(context.Context, *ExecRequest) (*ExecResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Exec not implemented")
 }
-func (UnimplementedNodeSandboxServer) ExecStream(NodeSandbox_ExecStreamServer) error {
-	return status.Errorf(codes.Unimplemented, "method ExecStream not implemented")
-}
 func (UnimplementedNodeSandboxServer) Process(NodeSandbox_ProcessServer) error {
 	return status.Errorf(codes.Unimplemented, "method Process not implemented")
-}
-func (UnimplementedNodeSandboxServer) WaitSandbox(context.Context, *WaitSandboxRequest) (*WaitSandboxResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method WaitSandbox not implemented")
 }
 func (UnimplementedNodeSandboxServer) ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error {
 	return status.Errorf(codes.Unimplemented, "method ReadOutput not implemented")
@@ -552,32 +500,6 @@ func _NodeSandbox_Exec_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _NodeSandbox_ExecStream_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeSandboxServer).ExecStream(&nodeSandboxExecStreamServer{stream})
-}
-
-type NodeSandbox_ExecStreamServer interface {
-	Send(*ExecStreamResponse) error
-	Recv() (*ExecStreamRequest, error)
-	grpc.ServerStream
-}
-
-type nodeSandboxExecStreamServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeSandboxExecStreamServer) Send(m *ExecStreamResponse) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeSandboxExecStreamServer) Recv() (*ExecStreamRequest, error) {
-	m := new(ExecStreamRequest)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 func _NodeSandbox_Process_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(NodeSandboxServer).Process(&nodeSandboxProcessServer{stream})
 }
@@ -602,24 +524,6 @@ func (x *nodeSandboxProcessServer) Recv() (*ProcessRequest, error) {
 		return nil, err
 	}
 	return m, nil
-}
-
-func _NodeSandbox_WaitSandbox_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(WaitSandboxRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(NodeSandboxServer).WaitSandbox(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: NodeSandbox_WaitSandbox_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeSandboxServer).WaitSandbox(ctx, req.(*WaitSandboxRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeSandbox_ReadOutput_Handler(srv interface{}, stream grpc.ServerStream) error {
@@ -1008,10 +912,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeSandbox_Exec_Handler,
 		},
 		{
-			MethodName: "WaitSandbox",
-			Handler:    _NodeSandbox_WaitSandbox_Handler,
-		},
-		{
 			MethodName: "CapabilityStatus",
 			Handler:    _NodeSandbox_CapabilityStatus_Handler,
 		},
@@ -1081,12 +981,6 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "ExecStream",
-			Handler:       _NodeSandbox_ExecStream_Handler,
-			ServerStreams: true,
-			ClientStreams: true,
-		},
 		{
 			StreamName:    "Process",
 			Handler:       _NodeSandbox_Process_Handler,

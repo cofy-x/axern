@@ -216,7 +216,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if !fake.capabilityStatusSeen {
 		t.Fatal("capability status call was not observed")
 	}
-	process, err := sandbox.Process(ctx, []string{"cat"}, ProcessOptions{})
+	process, err := sandbox.Process(ctx, []string{"cat"}, ProcessOptions{TTY: true, InitialCols: 120, InitialRows: 40})
 	if err != nil {
 		t.Fatalf("process: %v", err)
 	}
@@ -236,6 +236,9 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 	if processOutput.ExitCode != 0 || processResult.ExitCode != 0 || string(processOutput.Stdout) != "process-ok\n" {
 		t.Fatalf("unexpected process output=%+v result=%+v", processOutput, processResult)
+	}
+	if fake.processInitialCols != 120 || fake.processInitialRows != 40 {
+		t.Fatalf("process initial size = %dx%d, want 120x40", fake.processInitialCols, fake.processInitialRows)
 	}
 	_ = process.Close()
 	root := t.TempDir()
@@ -609,6 +612,8 @@ type fakeAxernServer struct {
 	processSendScripted    bool
 	processOmitExit        bool
 	processCloseOnScript   bool
+	processInitialCols     uint32
+	processInitialRows     uint32
 	capabilityStatusSeen   bool
 	computerUseStatusSeen  bool
 	computerUseScreenSeen  bool
@@ -742,6 +747,8 @@ func (f *fakeAxernServer) Process(stream nodesandboxv1.NodeSandbox_ProcessServer
 	if request.GetOpen() == nil {
 		return nil
 	}
+	f.processInitialCols = request.GetOpen().GetInitialSize().GetCols()
+	f.processInitialRows = request.GetOpen().GetInitialSize().GetRows()
 	if f.processStarted != nil {
 		f.processStartedOnce.Do(func() { close(f.processStarted) })
 	}

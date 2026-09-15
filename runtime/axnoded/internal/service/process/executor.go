@@ -93,13 +93,14 @@ func (e *Executor) OpenProcess(ctx context.Context, target Target, open *runtime
 		return nil, errord.ErrInvalidContainer
 	}
 	return target.Handler.ProcessService().OpenProcess(ctx, &apipb.ProcessOpen{
-		ID:      open.GetID(),
-		Command: open.GetCommand(),
-		Tty:     open.GetTty(),
-		Timeout: open.GetTimeout(),
-		Env:     open.GetEnv(),
-		Cwd:     open.GetCwd(),
-		User:    open.GetUser(),
+		ID:          open.GetID(),
+		Command:     open.GetCommand(),
+		Tty:         open.GetTty(),
+		Timeout:     open.GetTimeout(),
+		Env:         open.GetEnv(),
+		Cwd:         open.GetCwd(),
+		User:        open.GetUser(),
+		InitialSize: open.GetInitialSize(),
 	}, contract.HandlerOptions{
 		ContainerID: target.ID,
 	})

@@ -9,6 +9,7 @@ import (
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -49,7 +50,7 @@ func TestGRPCClientReusesConnectionPerTarget(t *testing.T) {
 	go server.Serve(lis)
 	defer server.Stop()
 
-	client := NewGRPCClient()
+	client := NewGRPCClient(insecure.NewCredentials())
 	defer client.Close()
 	if _, err := client.client(context.Background(), lis.Addr().String()); err != nil {
 		t.Fatalf("first client: %v", err)
@@ -83,7 +84,7 @@ func TestGRPCClientDiscardsUnavailableConnection(t *testing.T) {
 	go server.Serve(lis)
 	defer server.Stop()
 
-	client := NewGRPCClient()
+	client := NewGRPCClient(insecure.NewCredentials())
 	defer client.Close()
 	_, err = client.DeleteAllocation(context.Background(), lis.Addr().String(), &privatenodev1.DeleteAllocationRequest{
 		AllocationID: "alloc-test",
@@ -114,7 +115,7 @@ func TestGRPCClientRetriesRecoverableDeleteOnFreshConnection(t *testing.T) {
 	go server.Serve(lis)
 	defer server.Stop()
 
-	client := NewGRPCClient()
+	client := NewGRPCClient(insecure.NewCredentials())
 	defer client.Close()
 	if _, err := client.DeleteAllocation(context.Background(), lis.Addr().String(), &privatenodev1.DeleteAllocationRequest{
 		AllocationID: "alloc-test",

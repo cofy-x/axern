@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 EXPECT_MOUNT_TYPE="${EXPECT_MOUNT_TYPE:?EXPECT_MOUNT_TYPE is required}"
 PROBE_PATH="${PROBE_PATH:?PROBE_PATH is required}"
@@ -100,7 +101,7 @@ for runtime_name in runsc; do
   fi
 
   /usr/local/bin/verify-smoke \
-    -address "${AXNODED_SOCKET}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "${EXPECT_MOUNT_TYPE}-e2e-${runtime_name}" \
     -rootfs-src image \
     -image-url "${IMAGE_URL}" \

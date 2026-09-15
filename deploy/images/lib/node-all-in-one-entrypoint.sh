@@ -4,8 +4,12 @@ set -euo pipefail
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 EGRESSD_SOCKET="${EGRESSD_SOCKET:-/run/egressd/egressd.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-}"
 AXNODED_NETWORK_SOCKET="${AXNODED_NETWORK_SOCKET:-/run/axnoded/network.sock}"
 AXNODED_GRPC_ADDRESS="${AXNODED_GRPC_ADDRESS:-}"
+AXNODED_NODE_TLS_CA_CERT="${AXNODED_NODE_TLS_CA_CERT:-${AXNODED_CONTROL_PLANE_TLS_CA_CERT:-}}"
+AXNODED_NODE_TLS_CERT="${AXNODED_NODE_TLS_CERT:-${AXNODED_CONTROL_PLANE_TLS_CERT:-}}"
+AXNODED_NODE_TLS_KEY="${AXNODED_NODE_TLS_KEY:-${AXNODED_CONTROL_PLANE_TLS_KEY:-}}"
 AXNODED_HTTP_ADDRESS="${AXNODED_HTTP_ADDRESS:-0.0.0.0:23001}"
 AXNODED_FILESTORE_DIR="${AXNODED_FILESTORE_DIR:-/var/lib/axnoded/filestore}"
 AXNODED_FILESTORE_MODE="${AXNODED_FILESTORE_MODE:-loopback_dev}"
@@ -406,7 +410,15 @@ axnoded_args=(
   -log-file "${AXNODED_LOG}"
 )
 if [ -n "${AXNODED_GRPC_ADDRESS}" ]; then
-  axnoded_args+=(-grpc-address "${AXNODED_GRPC_ADDRESS}")
+  axnoded_args+=(
+    -grpc-address "${AXNODED_GRPC_ADDRESS}"
+    -node-tls-ca-cert "${AXNODED_NODE_TLS_CA_CERT}"
+    -node-tls-cert "${AXNODED_NODE_TLS_CERT}"
+    -node-tls-key "${AXNODED_NODE_TLS_KEY}"
+  )
+fi
+if [ -n "${AXNODED_CONFORMANCE_SOCKET}" ]; then
+  axnoded_args+=(-conformance-socket "${AXNODED_CONFORMANCE_SOCKET}")
 fi
 
 /usr/local/bin/axnoded "${axnoded_args[@]}" &

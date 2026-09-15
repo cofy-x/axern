@@ -57,8 +57,8 @@ class ExecResult:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecStreamEvent:
-    """One output or exit event from a streamed sandbox execution."""
+class ProcessEvent:
+    """One output or exit event from an Allocation-scoped process."""
 
     stream: Literal["stdout", "stderr", "exit"]
     data: bytes = b""

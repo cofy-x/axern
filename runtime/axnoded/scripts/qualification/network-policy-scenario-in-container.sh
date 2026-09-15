@@ -299,6 +299,7 @@ cgroup_children_converged() {
 }
 
 if ! verify-network-policy-qualification \
+  --axnoded-socket "${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}" \
   --network-backend "${network_backend}" \
   --ip-family "${ip_family}" \
   --policy-mode "${policy_mode}" \

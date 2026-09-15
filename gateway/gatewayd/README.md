@@ -4,6 +4,8 @@
 
 It does not own placement, lifecycle, or durable state, and internal service traffic does not route through it by default. It resolves explicit Allocation targets through `controld`, then forwards traffic directly to the selected `axnoded` node using allocation-scoped access grants without creating a second control plane. Public `NodeSandbox` messages contain only the Allocation identity and operation input; gatewayd replaces any caller-supplied private access metadata and sends the controld-issued token only on the gateway-to-node gRPC hop.
 
+Gateway-to-node traffic uses the dedicated `gatewayd` workload certificate and verifies the stable node server name `axern-node`. By default the node client inherits `-tls-ca-cert`, `-tls-cert`, and `-tls-key`; `-node-tls-ca-cert`, `-node-tls-cert`, `-node-tls-key`, and `-node-tls-server-name` provide an explicit separate trust configuration when required.
+
 External CLI and SDK control-plane gRPC traffic should terminate at `gatewayd`'s control edge listener, which is enabled by default. `controld` stays private inside the cluster; `gatewayd` verifies external client mTLS and forwards public control RPCs to the internal `controld` target with the dedicated `gatewayd` certificate. Caller-supplied internal identity metadata is discarded; gatewayd injects only the fingerprint of the leaf certificate it verified. Controld resolves that fingerprint to a durable Principal and applies platform or namespace role bindings on every RPC.
 
 Tunnel foreground clients use the same public control edge. `gatewayd` registers `axern.tunnel.v1.TunnelRelay`, resolves the session-bound internal relay target through the private `GatewayControl` service, and forwards only client peers to `tunneld`. Peer authentication remains bound to the tunnel session token; gatewayd does not bypass it or treat the data stream as a public resource-management RPC. Node peers continue to connect directly to internal `tunneld` targets.
@@ -53,7 +55,7 @@ Gateway data-plane routes are Allocation-bound and resolve their target through 
 
 ## SSH Terminal
 
-When SSH is enabled, `ssh <allocation_id>@<gateway-host> -p <ssh-port>` opens an interactive `/bin/sh` session in the allocation through the same allocation-scoped lease and `axnoded` `ExecStream` path used by the browser terminal. Use `ssh -t <allocation_id>@<gateway-host> -p <ssh-port> /bin/bash` to request a different interactive shell. Container users can be selected by sending `AXERN_EXEC_USER` in the SSH environment; the `axern ssh --user` command sets this for the common CLI path. The gateway terminates SSH; containers do not need to run `sshd`.
+When SSH is enabled, `ssh <allocation_id>@<gateway-host> -p <ssh-port>` opens an interactive `/bin/sh` session in the allocation through the same allocation-scoped `Process` stream used by the browser terminal. Use `ssh -t <allocation_id>@<gateway-host> -p <ssh-port> /bin/bash` to request a different interactive shell. Container users can be selected by sending `AXERN_EXEC_USER` in the SSH environment; the `axern ssh --user` command sets this for the common CLI path. The gateway terminates SSH; containers do not need to run `sshd`.
 
 The SSH surface supports interactive `shell` sessions and non-interactive `exec` commands. Shell exec requests such as `/bin/bash` or `/bin/bash -l` are started directly; arbitrary exec requests run through `/bin/sh -lc` without a TTY unless the client requested one. It does not support SFTP, SCP, SSH agent forwarding, X11 forwarding, or SSH TCP forwarding.
 
@@ -90,6 +92,7 @@ Key flags/env:
 - `-control-edge-tls-ca-cert`, `-control-edge-tls-cert`, `-control-edge-tls-key`
 - `-tunnel-relay-target`
 - `-tunnel-relay-tls-ca-cert`, `-tunnel-relay-tls-server-name`
+- `-node-tls-ca-cert`, `-node-tls-cert`, `-node-tls-key`, `-node-tls-server-name`
 - `-read-header-timeout`, `-read-timeout`, `-write-timeout`, `-idle-timeout`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
 - `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`

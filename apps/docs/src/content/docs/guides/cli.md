@@ -82,7 +82,7 @@ axern run --file run.yaml
 
 OCI images are the portable default for new workloads. A deployment may also document built-in template IDs for curated toolchains; pass one with `--template` without creating a second template lifecycle.
 
-By default, `run` attaches to stdout/stderr and exits with the remote command's exit code. Use `--detach` for asynchronous creation, then inspect it with `axern run get`, `axern run list`, or `axern run logs --follow`. The [Runs guide](/guides/run/) covers the full lifecycle, spec fields, and output retention.
+By default, `run` attaches to stdout/stderr and exits with the remote command's exit code. Use `--detach` for asynchronous creation, then inspect it with `axern run get`, `axern run list`, or `axern run logs --follow`. The [Runs guide](/guides/run/) covers the full lifecycle, spec fields, and Allocation-local output availability.
 
 ## Pass credentials without putting values in argv
 

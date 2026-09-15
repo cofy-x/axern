@@ -18,15 +18,15 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 
 `axnoded` serves these gRPC surfaces:
 
-- `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded process, terminal, file/archive, readiness, and Computer Use operations for one explicit Allocation. Public messages never carry access credentials; axnoded accepts an AllocationAccessGrant only from private incoming gRPC metadata and rejects missing or ambiguous values. Streaming operations acknowledge a validated grant before consuming request data or producing sandbox output.
-- `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status.
+- `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded process, terminal, file/archive, readiness, and Computer Use operations for one explicit Allocation. The routable node listener accepts this service only from the verified `gatewayd` mTLS identity. Public messages never carry access credentials; axnoded accepts an AllocationAccessGrant only from private incoming gRPC metadata and rejects missing or ambiguous values. Streaming operations acknowledge a validated grant before consuming request data or producing sandbox output.
+- `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status, accepted on the routable listener only from the verified `controld` mTLS identity.
 - `axern.private.node.operator.v1.NodeOperator`: root-only local operator inspection, Allocation-scoped exec/wait, and audited break-glass workflows for `axctl`.
 - `axern.private.node.network.v1.AllocationNetwork`: narrow machine-only Allocation network resolution for `node-tunneld`, registered on a separate Unix socket.
 - `axern.private.control.node.v1.NodeControl`: ordered atomic node reports with complete execution-lease snapshots, coalesced Allocation lifecycle batches, and allocation-access-grant replication with `controld`.
 
 The reporter uses a durable, explicitly admitted Node identity and a fresh process identity for observation ordering. An administrator must admit the Node ID and random credential before the first complete report; the mutable node target is observation data, and reports cannot create identities or rotate credentials. If an operator retires the Node identity, `controld` rejects reports, status batches, and watches; the host must be removed and any replacement must use a new Node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
 
-Node lifecycle requests carry resolved secret env vars, resolved secret files, request-scoped registry auth, ports, network mode, egress policy, and read-only image mounts as typed fields. `axnoded` validates that contract before computing its request digest or creating side effects, materializes inputs into the Allocation-local runtime environment, and cleans up Allocation-scoped files on teardown. It does not pack execution behavior into JSON or OCI labels. Writable rootfs and workspace data are Allocation-local; durable outputs require explicit output delivery.
+Node lifecycle requests carry resolved secret env vars, resolved secret files, request-scoped registry auth, ports, network mode, egress policy, and read-only image mounts as typed fields. `axnoded` validates that contract before computing its request digest or creating side effects, materializes inputs into the Allocation-local runtime environment, and cleans up Allocation-scoped files on teardown. It does not pack execution behavior into JSON or OCI labels. Writable rootfs, retained stdout/stderr, and workspace data are Allocation-local; callers must transfer required bytes before teardown.
 
 ## Architecture
 
@@ -136,11 +136,16 @@ Default local endpoints:
 
 - root-only operator Unix socket: `/run/axnoded/axnoded.sock`
 - machine-only Allocation network Unix socket: `/run/axnoded/network.sock`
+- optional root-only local conformance Unix socket: disabled in production; verification images use `/run/axnoded/conformance.sock`
 - repo-local dev socket: `.dev/run/axnoded.sock`
 - repo-local machine socket: `.dev/run/axnoded-network.sock`
 - HTTP operator surface: `127.0.0.1:23001`
 
-When `-grpc-address` is configured, `axnoded` can expose a routable TCP listener for `NodeSandbox` and `NodeLifecycle`.
+When `-grpc-address` is configured, `axnoded` requires `-node-tls-ca-cert`, `-node-tls-cert`, and `-node-tls-key`. The listener requires client certificates and enforces an explicit service matrix: `gatewayd` may call only `NodeSandbox`, while `controld` may call only `NodeLifecycle`. The node certificate must be valid for the stable server name `axern-node`.
+
+Externally supplied PKI must therefore issue the node certificate with an `axern-node` DNS SAN and server authentication usage, and issue the `controld` and `gatewayd` workload certificates with client authentication usage. The bundled development and Helm certificate paths satisfy this contract.
+
+Local lifecycle conformance is never registered on the operator socket or the routable listener. It is available only when `-conformance-socket` is explicitly configured, accepts only unbound local Allocations, and refuses to create, inspect, or delete any control-plane-bound Allocation.
 
 `NodeOperator` remains root-only and Unix-socket-only. Its `Exec`, `ExecStream`, and `Wait` methods operate on the exact Allocation identity and cannot advance Allocation lifecycle. Destructive incident recovery is limited to reason-bearing `ForceTerminateAllocation` and `ForceCleanupAllocation`; normal cancellation and cleanup remain control-plane operations.
 

@@ -160,51 +160,6 @@ func TestProcessRetriesTransientLeaseBeforeReadingClientInput(t *testing.T) {
 	}
 }
 
-func TestExecStreamRefreshesLeaseBeforeBridgingClientInput(t *testing.T) {
-	h := newHarnessWithOptions(t, Options{
-		AccessGrantRetryAttempts: 2,
-		AccessGrantRetryDelay:    time.Nanosecond,
-	})
-	defer h.Close()
-	h.resolver.tokens = []string{"stale-token", "fresh-token"}
-	h.backend.failExecStreamLeaseOnce = true
-
-	stream, err := h.client.ExecStream(context.Background())
-	if err != nil {
-		t.Fatalf("ExecStream open returned error: %v", err)
-	}
-	if err := stream.Send(&nodesandboxv1.ExecStreamRequest{
-		Payload: &nodesandboxv1.ExecStreamRequest_Open{Open: &nodesandboxv1.ExecStreamOpen{
-			AllocationID: "alloc-public",
-			Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"echo", "ok"}},
-		}},
-	}); err != nil {
-		t.Fatalf("ExecStream send open returned error: %v", err)
-	}
-	if err := stream.CloseSend(); err != nil {
-		t.Fatalf("ExecStream CloseSend returned error: %v", err)
-	}
-	resp, err := stream.Recv()
-	if err != nil {
-		t.Fatalf("ExecStream Recv returned error: %v", err)
-	}
-	if string(resp.GetStdout()) != "ok" {
-		t.Fatalf("stdout = %q, want ok", resp.GetStdout())
-	}
-	if got := len(h.resolver.requests); got != 2 {
-		t.Fatalf("resolve calls = %d, want 2", got)
-	}
-	if got := len(h.backend.execStreamOpens); got != 2 {
-		t.Fatalf("backend opens = %d, want 2", got)
-	}
-	if got := h.backend.execStreamLeaseTokens[0]; got != "stale-token" {
-		t.Fatalf("first token = %q, want stale-token", got)
-	}
-	if got := h.backend.execStreamLeaseTokens[1]; got != "fresh-token" {
-		t.Fatalf("second token = %q, want fresh-token", got)
-	}
-}
-
 func TestProcessEndsWhenUpstreamEndsBeforeClientCloseSend(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
@@ -510,13 +465,10 @@ type fakeBackend struct {
 	processOpen                    *nodesandboxv1.ProcessOpen
 	processLeaseToken              string
 	failProcessReadyOnce           bool
-	failExecStreamLeaseOnce        bool
 	failUploadArchiveLeaseOnce     bool
 	failDownloadArchiveLeaseOnce   bool
 	failDownloadArchiveAfterChunk  bool
 	omitDownloadArchiveLeaseHeader bool
-	execStreamOpens                []*nodesandboxv1.ExecStreamOpen
-	execStreamLeaseTokens          []string
 	uploadArchiveOpens             []*nodesandboxv1.UploadArchiveOpen
 	uploadArchiveLeaseTokens       []string
 	uploadArchiveData              []byte
@@ -547,30 +499,6 @@ func (b *fakeBackend) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream no
 		Data:       []byte("done\n"),
 		NextCursor: "cursor-1",
 		Terminal:   true,
-	})
-}
-
-func (b *fakeBackend) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) error {
-	req, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-	b.execStreamOpens = append(b.execStreamOpens, req.GetOpen())
-	b.execStreamLeaseTokens = append(b.execStreamLeaseTokens, backendLeaseToken(stream.Context()))
-	if b.failExecStreamLeaseOnce {
-		b.failExecStreamLeaseOnce = false
-		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
-	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
-		return err
-	}
-	if err := stream.Send(&nodesandboxv1.ExecStreamResponse{
-		Payload: &nodesandboxv1.ExecStreamResponse_Stdout{Stdout: []byte("ok")},
-	}); err != nil {
-		return err
-	}
-	return stream.Send(&nodesandboxv1.ExecStreamResponse{
-		Payload: &nodesandboxv1.ExecStreamResponse_Exit{Exit: &nodesandboxv1.ExecExit{ExitCode: 0}},
 	})
 }
 

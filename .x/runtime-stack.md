@@ -9,8 +9,8 @@ clients / SDKs / Axrun
   -> gatewayd          unified external control and Allocation data edge
      -> controld       durable Environment / Run / Allocation authority
         -> PostgreSQL  central control state
-        -> axnoded     Allocation lifecycle dispatch
-     -> axnoded        process, file, archive, terminal, and SSH forwarding
+        -> axnoded     Allocation lifecycle dispatch over controld mTLS authority
+     -> axnoded        process, file, archive, terminal, and SSH over gatewayd mTLS authority
      -> tunneld        Tunnel client peer
 
 axnoded
@@ -39,6 +39,7 @@ Shared API contracts live under `sdk/proto`; generated client code lives in the 
 - The only durable execution chain is `Environment -> Run -> Allocation`; SDK `Sandbox` is a facade over it.
 - Runsc is the only supported production runtime. Missing isolation, policy, or required capability evidence fails closed.
 - Public clients address `gatewayd`, never node targets or internal execution leases. Internal lifecycle and status traffic does not route through the gateway.
+- Axnoded's routable listener admits `NodeLifecycle` only from `controld` and `NodeSandbox` only from `gatewayd`. Root-only operator, machine network resolution, and optional local conformance use separate Unix sockets; production does not enable conformance lifecycle authority.
 - Node capability observations, admission policy, and enforcement follow the [Observed Capability Providers](../docs/architecture/observed-capability-providers.md) contract.
 - Resource requests drive placement and reservation; limits are runtime enforcement ceilings. See the [Resource Model](../docs/architecture/resource-model.md).
 - Writable rootfs and workspace data is Allocation-local. Callers must download or export required outputs before cleanup; Axern has no reusable persistent Volume or generic public Artifact root.

@@ -64,6 +64,7 @@ message ProcessOpen {
   map<string, string> env = 5;
   string cwd = 6;
   string user = 7;
+  TerminalResize initial_size = 8;
 }
 
 message ProcessSignal {

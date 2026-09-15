@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from axern_sdk import (
     AsyncSandbox,
     ExecResult,
-    ExecStreamEvent,
+    ProcessEvent,
     Sandbox,
     SandboxConnectionError,
     SandboxExecError,
@@ -70,6 +70,28 @@ class SandboxTest(unittest.TestCase):
         with self.assertRaises(SandboxNotStartedError):
             sandbox.exec(["true"])
 
+    def test_process_forwards_initial_terminal_size(self) -> None:
+        client = _FakeClient()
+        calls = []
+
+        class FakeNodeClient:
+            def __init__(self, **kwargs) -> None:
+                del kwargs
+
+            def process(self, argv, **kwargs):
+                calls.append({"argv": argv, **kwargs})
+                return object()
+
+        with Sandbox(
+            client=client,
+            image="docker.io/library/python:3.12-slim",
+            _node_client_factory=FakeNodeClient,
+        ) as sandbox:
+            sandbox.process(["sh"], tty=True, initial_cols=120, initial_rows=40)
+
+        self.assertEqual(calls[0]["initial_cols"], 120)
+        self.assertEqual(calls[0]["initial_rows"], 40)
+
     def test_exec_stream_proxies_node_events(self) -> None:
         client = _FakeClient()
 
@@ -78,8 +100,8 @@ class SandboxTest(unittest.TestCase):
                 del kwargs
 
             def exec_stream(self, argv, **kwargs):
-                yield ExecStreamEvent(stream="stdout", data=b"hello")
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="stdout", data=b"hello")
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         with Sandbox(
             client=client,
@@ -105,7 +127,7 @@ class SandboxTest(unittest.TestCase):
                 pass
 
             def events(self):
-                yield ExecStreamEvent(stream="stdout", data=b"partial")
+                yield ProcessEvent(stream="stdout", data=b"partial")
 
         class FakeNodeClient(AllocationClient):
             def process(self, *args, **kwargs):
@@ -140,7 +162,7 @@ class SandboxTest(unittest.TestCase):
                 pass
 
             def events(self):
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         class FakeNodeClient(AllocationClient):
             def process(self, *args, **kwargs):
@@ -167,7 +189,7 @@ class SandboxTest(unittest.TestCase):
                 pass
 
             def events(self):
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         class FakeNodeClient(AllocationClient):
             def process(self, argv, **kwargs):
@@ -197,8 +219,8 @@ class SandboxTest(unittest.TestCase):
                 pass
 
             def events(self):
-                yield ExecStreamEvent(stream="stdout", data=self.seen_input)
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="stdout", data=self.seen_input)
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         class FakeNodeClient(AllocationClient):
             def process(self, *args, **kwargs):
@@ -262,8 +284,8 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 del kwargs
 
             async def exec_stream(self, argv, **kwargs):
-                yield ExecStreamEvent(stream="stdout", data=b"hello")
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="stdout", data=b"hello")
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         async with AsyncSandbox(
             client=client,
@@ -289,7 +311,7 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 pass
 
             async def events(self):
-                yield ExecStreamEvent(stream="stdout", data=b"partial")
+                yield ProcessEvent(stream="stdout", data=b"partial")
 
         class FakeNodeClient(AsyncAllocationClient):
             async def process(self, *args, **kwargs):
@@ -324,7 +346,7 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 pass
 
             async def events(self):
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         class FakeNodeClient(AsyncAllocationClient):
             async def process(self, *args, **kwargs):
@@ -351,7 +373,7 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 pass
 
             async def events(self):
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         class FakeNodeClient(AsyncAllocationClient):
             async def process(self, argv, **kwargs):
@@ -382,8 +404,8 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
 
             async def events(self):
                 await asyncio.sleep(0)
-                yield ExecStreamEvent(stream="stdout", data=self.seen_input)
-                yield ExecStreamEvent(stream="exit", exit_code=0)
+                yield ProcessEvent(stream="stdout", data=self.seen_input)
+                yield ProcessEvent(stream="exit", exit_code=0)
 
         class FakeNodeClient(AsyncAllocationClient):
             async def process(self, *args, **kwargs):

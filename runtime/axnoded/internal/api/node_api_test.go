@@ -49,8 +49,8 @@ type fakeNodeSandboxService struct {
 	reportedExitCode        int32
 	reportedKnown           bool
 	reportedMessage         string
-	execStreamFunc          func(service.ExecStreamServer) error
 	processFunc             func(service.ProcessStreamServer) error
+	controlPlaneIDs         map[string]bool
 }
 
 func allocationAccessIncomingContext(parent context.Context, token string) context.Context {
@@ -66,9 +66,7 @@ func (f *fakeNodeSandboxService) Delete(context.Context, *runtimev1.DeleteReques
 	return nil, nil
 }
 func (f *fakeNodeSandboxService) ExecStream(stream service.ExecStreamServer) error {
-	if f.execStreamFunc != nil {
-		return f.execStreamFunc(stream)
-	}
+	_ = stream
 	return nil
 }
 func (f *fakeNodeSandboxService) Process(stream service.ProcessStreamServer) error {
@@ -78,6 +76,9 @@ func (f *fakeNodeSandboxService) Process(stream service.ProcessStreamServer) err
 	return nil
 }
 func (f *fakeNodeSandboxService) Ready() bool { return true }
+func (f *fakeNodeSandboxService) IsControlPlaneAllocation(allocationID string) bool {
+	return f.controlPlaneIDs[allocationID]
+}
 func (f *fakeNodeSandboxService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
 	return nodeinventory.NewSnapshot(), false
 }
@@ -265,45 +266,6 @@ func (f *fakeNodeSandboxService) Wait(ctx context.Context, req *runtimev1.WaitRe
 	return &runtimev1.WaitResponse{ExitCode: func() *int32 { value := int32(17); return &value }(), Message: "done"}, nil
 }
 
-type fakeNodeSandboxExecStream struct {
-	ctx      context.Context
-	requests []*nodesandboxv1.ExecStreamRequest
-	sent     []*nodesandboxv1.ExecStreamResponse
-	header   metadata.MD
-}
-
-func (f *fakeNodeSandboxExecStream) Send(resp *nodesandboxv1.ExecStreamResponse) error {
-	f.sent = append(f.sent, resp)
-	return nil
-}
-
-func (f *fakeNodeSandboxExecStream) Recv() (*nodesandboxv1.ExecStreamRequest, error) {
-	if len(f.requests) == 0 {
-		return nil, io.EOF
-	}
-	req := f.requests[0]
-	f.requests = f.requests[1:]
-	return req, nil
-}
-
-func (f *fakeNodeSandboxExecStream) SetHeader(md metadata.MD) error {
-	f.header = metadata.Join(f.header, md)
-	return nil
-}
-func (f *fakeNodeSandboxExecStream) SendHeader(md metadata.MD) error {
-	f.header = metadata.Join(f.header, md)
-	return nil
-}
-func (f *fakeNodeSandboxExecStream) SetTrailer(metadata.MD) {}
-func (f *fakeNodeSandboxExecStream) Context() context.Context {
-	if f.ctx != nil {
-		return f.ctx
-	}
-	return context.Background()
-}
-func (f *fakeNodeSandboxExecStream) SendMsg(any) error { return nil }
-func (f *fakeNodeSandboxExecStream) RecvMsg(any) error { return io.EOF }
-
 type fakeNodeSandboxProcessStream struct {
 	ctx      context.Context
 	requests []*nodesandboxv1.ProcessRequest
@@ -411,6 +373,16 @@ func (f *fakeNodeSandboxDownloadArchiveStream) Context() context.Context {
 func (f *fakeNodeSandboxDownloadArchiveStream) SendMsg(any) error { return nil }
 func (f *fakeNodeSandboxDownloadArchiveStream) RecvMsg(any) error { return io.EOF }
 
+func TestLocalNodeSandboxRejectsControlPlaneAllocation(t *testing.T) {
+	t.Parallel()
+	service := &fakeNodeSandboxService{controlPlaneIDs: map[string]bool{"alloc-bound": true}}
+	server := &nodeSandboxServer{svc: service, nodeID: "node-a", localOnly: true}
+	_, err := server.validateDirectAuth(allocationAccessIncomingContext(context.Background(), "verify-local-access"), "alloc-bound")
+	if grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("validateDirectAuth() code = %v, want permission denied", grpcstatus.Code(err))
+	}
+}
+
 func TestNodeSandboxExecBridgesRequest(t *testing.T) {
 	t.Parallel()
 
@@ -454,54 +426,6 @@ func TestNodeSandboxExecBridgesRequest(t *testing.T) {
 	}
 }
 
-func TestNodeSandboxExecStreamExitDoesNotReportAllocationExit(t *testing.T) {
-	t.Parallel()
-
-	fakeService := &fakeNodeSandboxService{
-		execStreamFunc: func(stream service.ExecStreamServer) error {
-			req, err := stream.Recv()
-			if err != nil {
-				return err
-			}
-			if req.GetOpen().GetID() != "alloc-123" {
-				t.Fatalf("exec stream target id = %q, want alloc-123", req.GetOpen().GetID())
-			}
-			if req.GetOpen().GetUser() != "axern" {
-				t.Fatalf("exec stream user = %q, want axern", req.GetOpen().GetUser())
-			}
-			return stream.Send(&runtimev1.ExecStreamResponse{
-				Payload: &runtimev1.ExecStreamResponse_Exit{Exit: &runtimev1.ExecExit{
-					ExitCode: 0,
-					Message:  "exec session done",
-				}},
-			})
-		},
-	}
-	server := NewNodeSandboxServer(fakeService, "node-a")
-	stream := &fakeNodeSandboxExecStream{
-		ctx: allocationAccessIncomingContext(context.Background(), "lease-token"),
-		requests: []*nodesandboxv1.ExecStreamRequest{{
-			Payload: &nodesandboxv1.ExecStreamRequest_Open{Open: &nodesandboxv1.ExecStreamOpen{
-				AllocationID: "alloc-123",
-				Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"/bin/sh"}, Tty: true, User: "axern"},
-			}},
-		}},
-	}
-
-	if err := server.ExecStream(stream); err != nil {
-		t.Fatalf("ExecStream() error = %v", err)
-	}
-	if fakeService.reportedAllocationID != "" {
-		t.Fatalf("ExecStream reported allocation exit for %q", fakeService.reportedAllocationID)
-	}
-	if len(stream.sent) != 1 || stream.sent[0].GetExit().GetMessage() != "exec session done" {
-		t.Fatalf("unexpected exec stream responses = %#v", stream.sent)
-	}
-	if got := stream.header.Get(accessGrantAcceptedHeaderKey); len(got) != 1 || got[0] != "1" {
-		t.Fatalf("allocation access grant acceptance header = %#v, want 1", got)
-	}
-}
-
 func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 	t.Parallel()
 
@@ -513,6 +437,9 @@ func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 			}
 			if open.GetOpen().GetID() != "alloc-123" || open.GetOpen().GetCommand()[0] != "/bin/sh" {
 				t.Fatalf("unexpected process open = %#v", open.GetOpen())
+			}
+			if size := open.GetOpen().GetInitialSize(); size.GetCols() != 120 || size.GetRows() != 40 {
+				t.Fatalf("unexpected initial terminal size = %#v", size)
 			}
 			next, err := stream.Recv()
 			if err != nil {
@@ -531,6 +458,7 @@ func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 			{Payload: &nodesandboxv1.ProcessRequest_Open{Open: &nodesandboxv1.ProcessOpen{
 				AllocationID: "alloc-123",
 				Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"/bin/sh"}, Tty: true},
+				InitialSize:  &nodesandboxv1.TerminalResize{Cols: 120, Rows: 40},
 			}}},
 			{Payload: &nodesandboxv1.ProcessRequest_Stdin{Stdin: []byte("payload")}},
 		},
@@ -584,29 +512,6 @@ func assertAllocationAccessGrantAccepted(t *testing.T, header metadata.MD) {
 	t.Helper()
 	if got := header.Get(accessGrantAcceptedHeaderKey); len(got) != 1 || got[0] != "1" {
 		t.Fatalf("allocation access grant acceptance header = %#v, want 1", got)
-	}
-}
-
-func TestNodeSandboxWaitReportsExit(t *testing.T) {
-	t.Parallel()
-
-	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
-
-	resp, err := server.WaitSandbox(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.WaitSandboxRequest{
-		AllocationID: "alloc-123",
-	})
-	if err != nil {
-		t.Fatalf("WaitSandbox() error = %v", err)
-	}
-	if resp.GetState() != nodesandboxv1.SandboxProcessState_SANDBOX_PROCESS_STATE_EXITED {
-		t.Fatalf("wait state = %v, want EXITED", resp.GetState())
-	}
-	if resp.ExitCode == nil || resp.GetExitCode() != 17 {
-		t.Fatalf("wait response = %#v, want exit_code=17 known=true", resp)
-	}
-	if fakeService.reportedAllocationID != "alloc-123" || fakeService.reportedExitCode != 17 || !fakeService.reportedKnown {
-		t.Fatalf("reported status = allocation=%q exit=%d known=%v", fakeService.reportedAllocationID, fakeService.reportedExitCode, fakeService.reportedKnown)
 	}
 }
 

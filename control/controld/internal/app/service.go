@@ -35,6 +35,7 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	privateenvironmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1"
 	"github.com/google/uuid"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -60,8 +61,9 @@ type Config struct {
 	TunnelRelays             string
 	ResourcePolicy           resourcekernel.AdmissionPolicy
 
-	NodeLifecycle nodebridge.LifecycleClient
-	ImageResolver environmentkernel.ImageResolver
+	NodeLifecycle            nodebridge.LifecycleClient
+	NodeTransportCredentials credentials.TransportCredentials
+	ImageResolver            environmentkernel.ImageResolver
 }
 
 type App struct {
@@ -190,7 +192,7 @@ func (a *App) configureDependencies(cfg Config) error {
 	if cfg.NodeLifecycle != nil {
 		a.nodeLifecycle = cfg.NodeLifecycle
 	} else {
-		a.nodeLifecycle = nodebridge.NewGRPCClient()
+		a.nodeLifecycle = nodebridge.NewGRPCClient(cfg.NodeTransportCredentials)
 	}
 
 	if cfg.PostgresDSN == "" {

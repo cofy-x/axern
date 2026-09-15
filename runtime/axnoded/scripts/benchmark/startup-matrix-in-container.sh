@@ -25,6 +25,7 @@ STARTUP_MATRIX_OMIT_STDIO="${STARTUP_MATRIX_OMIT_STDIO:-true}"
 
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
 INVENTORY_URL="${INVENTORY_URL:-http://127.0.0.1:23001/inventoryz}"
 VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-$(resolve_verify_docker_platform_local)}"
@@ -113,7 +114,7 @@ metricsz_wait_capability_snapshot
 
 cmd=(
   /usr/local/bin/verify-startup
-  -address "${AXNODED_SOCKET}"
+  -address "${AXNODED_CONFORMANCE_SOCKET}"
   -metrics-url "${METRICS_URL}"
   -inventory-url "${INVENTORY_URL}"
   -scenario "${STARTUP_MATRIX_SCENARIO}"

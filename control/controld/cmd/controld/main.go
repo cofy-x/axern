@@ -104,6 +104,10 @@ func run() error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	tlsConfig, err := loadServerTLS(opts)
+	if err != nil {
+		return err
+	}
 
 	svc, err := app.New(app.Config{
 		LifecycleContext:         ctx,
@@ -117,6 +121,12 @@ func run() error {
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
 		},
+		NodeTransportCredentials: credentials.NewTLS(&tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			RootCAs:      tlsConfig.ClientCAs,
+			Certificates: tlsConfig.Certificates,
+			ServerName:   "axern-node",
+		}),
 	})
 	if err != nil {
 		return err
@@ -128,10 +138,6 @@ func run() error {
 	}
 	if !hasAdmin {
 		return errors.New("access bootstrap is incomplete: no active platform administrator")
-	}
-	tlsConfig, err := loadServerTLS(opts)
-	if err != nil {
-		return err
 	}
 	authorization := authz.New(svc.AccessControl())
 	grpcOptions := []grpc.ServerOption{

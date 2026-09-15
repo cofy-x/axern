@@ -15,7 +15,7 @@ from axern_sdk.node.models import (
     ComputerUseStatus,
     ExecCommand,
     ExecResult,
-    ExecStreamEvent,
+    ProcessEvent,
     SandboxFileInfo,
     SandboxFileKind,
 )
@@ -36,7 +36,7 @@ __all__ = [
     "ComputerUseStatus",
     "ExecCommand",
     "ExecResult",
-    "ExecStreamEvent",
+    "ProcessEvent",
     "AllocationClient",
     "ProcessResult",
     "SandboxFileInfo",

@@ -39,20 +39,10 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecResponse.FromString,
                 _registered_method=True)
-        self.ExecStream = channel.stream_stream(
-                '/axern.node.sandbox.v1.NodeSandbox/ExecStream',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamResponse.FromString,
-                _registered_method=True)
         self.Process = channel.stream_stream(
                 '/axern.node.sandbox.v1.NodeSandbox/Process',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.FromString,
-                _registered_method=True)
-        self.WaitSandbox = channel.unary_unary(
-                '/axern.node.sandbox.v1.NodeSandbox/WaitSandbox',
-                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
-                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.FromString,
                 _registered_method=True)
         self.ReadOutput = channel.unary_stream(
                 '/axern.node.sandbox.v1.NodeSandbox/ReadOutput',
@@ -165,19 +155,7 @@ class NodeSandboxServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
-    def ExecStream(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
     def Process(self, request_iterator, context):
-        """Missing associated documentation comment in .proto file."""
-        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
-        context.set_details('Method not implemented!')
-        raise NotImplementedError('Method not implemented!')
-
-    def WaitSandbox(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -311,20 +289,10 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecResponse.SerializeToString,
             ),
-            'ExecStream': grpc.stream_stream_rpc_method_handler(
-                    servicer.ExecStream,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamResponse.SerializeToString,
-            ),
             'Process': grpc.stream_stream_rpc_method_handler(
                     servicer.Process,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.SerializeToString,
-            ),
-            'WaitSandbox': grpc.unary_unary_rpc_method_handler(
-                    servicer.WaitSandbox,
-                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.FromString,
-                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.SerializeToString,
             ),
             'ReadOutput': grpc.unary_stream_rpc_method_handler(
                     servicer.ReadOutput,
@@ -465,33 +433,6 @@ class NodeSandbox:
             _registered_method=True)
 
     @staticmethod
-    def ExecStream(request_iterator,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.stream_stream(
-            request_iterator,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/ExecStream',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecStreamResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
     def Process(request_iterator,
             target,
             options=(),
@@ -508,33 +449,6 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/Process',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ProcessResponse.FromString,
-            options,
-            channel_credentials,
-            insecure,
-            call_credentials,
-            compression,
-            wait_for_ready,
-            timeout,
-            metadata,
-            _registered_method=True)
-
-    @staticmethod
-    def WaitSandbox(request,
-            target,
-            options=(),
-            channel_credentials=None,
-            call_credentials=None,
-            insecure=False,
-            compression=None,
-            wait_for_ready=None,
-            timeout=None,
-            metadata=None):
-        return grpc.experimental.unary_unary(
-            request,
-            target,
-            '/axern.node.sandbox.v1.NodeSandbox/WaitSandbox',
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxRequest.SerializeToString,
-            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.WaitSandboxResponse.FromString,
             options,
             channel_credentials,
             insecure,

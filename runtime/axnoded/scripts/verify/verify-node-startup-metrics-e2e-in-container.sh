@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
@@ -28,7 +29,7 @@ start_container() {
   local stderr_path="$4"
 
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "${environment_id}" \
     -stdout "${stdout_path}" \
     -stderr "${stderr_path}" \
@@ -46,14 +47,14 @@ for runtime_name in runsc; do
     echo "cold start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
-  axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${cold_id}"
+  verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${cold_id}"
 
   warm_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.warm.stdout" "/tmp/${runtime_name}.warm.stderr")"
   [ -n "${warm_id}" ] || {
     echo "warm start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
-  axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${warm_id}"
+  verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${warm_id}"
 done
 
 for runtime_name in runsc; do

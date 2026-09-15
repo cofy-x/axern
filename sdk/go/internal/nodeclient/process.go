@@ -45,6 +45,7 @@ func (c *Client) Process(ctx context.Context, argv []string, options Options) (*
 		Payload: &nodesandboxv1.ProcessRequest_Open{
 			Open: &nodesandboxv1.ProcessOpen{
 				AllocationID: c.allocationID,
+				InitialSize:  processInitialSize(options),
 				Spec: &nodesandboxv1.ExecSpec{
 					Argv:           append([]string(nil), argv...),
 					Env:            cloneMap(options.Env),
@@ -72,6 +73,13 @@ func (c *Client) Process(ctx context.Context, argv []string, options Options) (*
 		process.pending = append(process.pending, first)
 	}
 	return process, nil
+}
+
+func processInitialSize(options Options) *nodesandboxv1.TerminalResize {
+	if options.InitialCols == 0 || options.InitialRows == 0 {
+		return nil
+	}
+	return &nodesandboxv1.TerminalResize{Cols: options.InitialCols, Rows: options.InitialRows}
 }
 
 func (p *Process) Write(data []byte) error {

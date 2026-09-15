@@ -35,7 +35,10 @@ export type ProcessEvent =
   | { kind: "stderr"; data: Buffer }
   | { kind: "exit"; exitCode: number; message: string };
 
-export interface ProcessOptions extends Omit<ExecOptions, "check"> {}
+export interface ProcessOptions extends Omit<ExecOptions, "check"> {
+  initialCols?: number;
+  initialRows?: number;
+}
 
 
 export interface ProcessResult {

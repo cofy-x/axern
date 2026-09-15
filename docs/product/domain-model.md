@@ -60,7 +60,7 @@ An Environment does not contain replicas, rollout, service discovery, readiness 
 
 ### Run
 
-A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, its admitted Environment snapshot, exactly one Allocation, cancellation, terminal result, failure classification, and any explicit output references.
+A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, its admitted Environment snapshot, exactly one Allocation, cancellation, terminal result, and failure classification. Axern currently stores no durable output object or output reference on Run.
 
 The stable state projection is:
 
@@ -172,13 +172,13 @@ An SDK may create a temporary Environment, create and wait for the Run, expose t
 
 Closing a Sandbox terminates or cancels its Run according to the SDK contract, revokes subordinate sessions, and performs bounded idempotent cleanup. Cleanup errors must not mask the original startup or execution failure.
 
-## Results And Durable Outputs
+## Results And Allocation-Local Outputs
 
-Run result is part of the Run contract: terminal status, exit-code knowledge, failure classification, message, usage, and explicit output references.
+Run result is durable control-plane metadata: terminal status, exit-code knowledge, failure classification, message, and usage. It does not make stdout, stderr, or sandbox files durable.
 
-Axern does not currently define a generic public Artifact root object. A future artifact API may expose immutable, content-identified output subordinate to a Run and Namespace only when ownership, upload commit, integrity, retention, authorization, and garbage collection are defined together. It must not expose object storage as a mutable POSIX Volume.
+Stdout, stderr, and files remain owned by the Allocation and are readable only while its node-local output state exists. Callers must stream or download required bytes before Allocation cleanup, then persist them in an upper-layer evaluation, training, or dataset system if needed.
 
-Large stdout, files, and object bytes do not belong in PostgreSQL. PostgreSQL stores result metadata and references; node output and object storage retain their own explicit lifetime contracts.
+Axern does not define a generic public Artifact root object or imply an object-storage backend. Large stdout, files, and object bytes do not belong in PostgreSQL; PostgreSQL stores only Run result metadata.
 
 ## State Ownership
 

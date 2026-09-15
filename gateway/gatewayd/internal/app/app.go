@@ -34,7 +34,15 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	if err != nil {
 		return nil, err
 	}
-	nodes := nodebridge.NewDialer(obs)
+	nodes, err := nodebridge.NewDialer(cfg.NodeTLSCACert, cfg.NodeTLSCert, cfg.NodeTLSKey, cfg.NodeTLSServerName, obs)
+	if err != nil {
+		_ = controlClient.Close()
+		return nil, err
+	}
+	closeDependencies := func() {
+		_ = nodes.Close()
+		_ = controlClient.Close()
+	}
 	token := auth.DevToken{Token: cfg.DevToken}
 	metrics := observability.NewMetrics(obs)
 	terminalManager := term.NewManager(controlClient, nodes, terminalOptions(cfg), metrics, obs)
@@ -43,6 +51,7 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	if cfg.SSHEnabled {
 		sshServer, err = sshapi.New(cfg.SSHAddress, cfg.SSHHostKey, cfg.SSHAuthorizedKeys, terminalManager, metrics, obs)
 		if err != nil {
+			closeDependencies()
 			return nil, err
 		}
 	}
@@ -53,6 +62,10 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 		Key:     cfg.ControlEdgeTLSKey,
 	}, obs)
 	if err != nil {
+		if sshServer != nil {
+			_ = sshServer.Close()
+		}
+		closeDependencies()
 		return nil, err
 	}
 	tunnelServer, err := tunnelapi.New(tunnelapi.Options{
@@ -64,6 +77,11 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 		DialOptions: obs.GRPCDialOptions(),
 	})
 	if err != nil {
+		controlServer.Close()
+		if sshServer != nil {
+			_ = sshServer.Close()
+		}
+		closeDependencies()
 		return nil, err
 	}
 	controlServer.RegisterTunnelRelay(tunnelServer)

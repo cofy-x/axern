@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 from axern.common.file.v1 import file_pb2
 from axern.node.sandbox.v1 import node_pb2
 from axern_sdk.node.models import ExecResult, SandboxFileInfo, SandboxFileKind
@@ -26,27 +24,6 @@ def exec_spec(
         user=user,
         tty=tty,
     )
-
-
-
-
-def exec_stream_requests(
-    *,
-    allocation_id: str,
-    spec: node_pb2.ExecSpec,
-    input: bytes,
-) -> Iterator[node_pb2.ExecStreamRequest]:
-    yield node_pb2.ExecStreamRequest(
-        open=node_pb2.ExecStreamOpen(
-            allocation_id=allocation_id,
-            spec=spec,
-        )
-    )
-    chunk_size = 32 * 1024
-    for offset in range(0, len(input), chunk_size):
-        yield node_pb2.ExecStreamRequest(stdin=input[offset : offset + chunk_size])
-    yield node_pb2.ExecStreamRequest(close_stdin=True)
-
 
 def file_info(info: file_pb2.SandboxFileInfo) -> SandboxFileInfo:
     return SandboxFileInfo(

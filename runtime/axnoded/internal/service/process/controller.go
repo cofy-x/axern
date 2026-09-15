@@ -129,7 +129,7 @@ func (c *Controller) ExecStream(stream ExecStreamServer) error {
 
 func (c *Controller) Process(stream ProcessStreamServer) error {
 	ctx, op := sdkobs.StartOperation(stream.Context(), sdkobs.OperationConfig{
-		Name:        sandboxobs.SpanExecStream,
+		Name:        sandboxobs.SpanProcess,
 		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "process")},
 		Counter:     sandboxobs.MetricExecTotal,
 		Duration:    sandboxobs.MetricExecDuration,

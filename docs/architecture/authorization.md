@@ -12,7 +12,7 @@ The HTTP websocket terminal and SSH-compatible terminal are gateway-owned data p
 
 Gateway-owned allocation target resolution, tunnel relay target resolution, and terminal resolution use the private `GatewayControl` service. Gatewayd does not call public resource services without a Principal. Tunnel peers remain authenticated by their short-lived session token at the relay, independently of control-plane Principal authentication. Peer token validation and relay event reporting live on the private `TunnelRelayControl` service, which accepts only the verified `tunneld` workload certificate.
 
-`NodeControl` likewise accepts only the verified `axern-node` workload certificate. Internal workload services are therefore explicit authenticated boundaries, not unauthenticated exceptions to public authorization.
+`NodeControl` likewise accepts only the verified `axern-node` workload certificate. In the reverse direction, axnoded's routable listener requires client mTLS and authorizes by service: `controld` alone receives `NodeLifecycle`, while `gatewayd` alone receives `NodeSandbox`. The two identities cannot exercise each other's node authority. Internal workload services are therefore explicit authenticated boundaries, not unauthenticated exceptions to public authorization.
 
 ## Node-local operator authorization
 
@@ -21,6 +21,8 @@ The node-local operator API is a privileged administrative boundary, not an unau
 Operator `Exec`, `ExecStream`, and `Wait` target an already admitted Allocation and reuse its normal process/runtime implementation. They do not advance Allocation desired state. Destructive node-local recovery is an explicitly named break-glass authority with terminal reporting, diagnostic, and idempotent cleanup obligations; routine cancellation and deletion remain control-plane operations.
 
 Node-local daemons use purpose-specific machine interfaces. In particular, a tunnel component that only resolves an Allocation network namespace must not share a socket or principal whose ambient authority also permits exec, termination, cleanup, or broad diagnostics. Socket separation, service registration, ownership, and deployment identities must preserve that least-privilege boundary.
+
+Runtime conformance uses a third, explicitly configured root-only Unix socket. It can create and inspect only unbound local Allocations and fails closed when an Allocation ID belongs to a control-plane admission record. Production does not enable this socket.
 
 ## Roles
 

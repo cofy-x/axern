@@ -7,7 +7,6 @@ import (
 
 	obsmetrics "github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -19,6 +18,7 @@ type nodeSandboxServer struct {
 	svc             service.SandboxService
 	nodeID          string
 	accessGrantAuth DirectAccessGrantValidator
+	localOnly       bool
 }
 
 type DirectAccessGrantValidator interface {
@@ -44,12 +44,6 @@ type directAuthTarget struct {
 	targetID     string
 }
 
-type allocationExitReport struct {
-	allocationID string
-	exitCode     *int32
-	message      string
-}
-
 func NewNodeSandboxServer(svc service.SandboxService, nodeID string, accessGrantAuth ...DirectAccessGrantValidator) nodesandboxv1.NodeSandboxServer {
 	var validator DirectAccessGrantValidator
 	if len(accessGrantAuth) > 0 {
@@ -62,11 +56,21 @@ func NewNodeSandboxServer(svc service.SandboxService, nodeID string, accessGrant
 	}
 }
 
+func NewLocalNodeSandboxServer(svc service.NodeService, nodeID string) nodesandboxv1.NodeSandboxServer {
+	return &nodeSandboxServer{svc: svc, nodeID: nodeID, localOnly: true}
+}
+
 func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string) (directAuthTarget, error) {
 	allocationID = strings.TrimSpace(allocationID)
 	accessTokens := metadata.ValueFromIncomingContext(ctx, accessGrantTokenMetadataKey)
 	if allocationID == "" || len(accessTokens) != 1 || strings.TrimSpace(accessTokens[0]) == "" {
 		return directAuthTarget{}, grpcstatus.Error(codes.Unauthenticated, "allocation_id and internal allocation access metadata are required")
+	}
+	if s.localOnly {
+		svc, ok := s.svc.(interface{ IsControlPlaneAllocation(string) bool })
+		if !ok || svc.IsControlPlaneAllocation(allocationID) {
+			return directAuthTarget{}, grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot access a control-plane-bound Allocation")
+		}
 	}
 	accessToken := strings.TrimSpace(accessTokens[0])
 	visibilityCtx, cancel := context.WithTimeout(ctx, accessGrantVisibilityWaitTimeout)
@@ -97,16 +101,4 @@ func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID
 		allocationID: allocationID,
 		targetID:     allocationID,
 	}, nil
-}
-
-func (s *nodeSandboxServer) reportExit(report allocationExitReport) {
-	s.svc.ReportAllocationLifecycle(
-		report.allocationID,
-		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
-		report.exitCode,
-		false,
-		"",
-		report.message,
-		time.Now().UTC(),
-	)
 }

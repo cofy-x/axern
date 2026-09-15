@@ -15,7 +15,7 @@ from axern_sdk.node import (
     AsyncSandboxProcess,
     ExecCommand,
     ExecResult,
-    ExecStreamEvent,
+    ProcessEvent,
 )
 from axern_sdk.sandbox.async_capabilities import AsyncSandboxCapabilityMixin
 from axern_sdk.sandbox.async_computer_use import AsyncSandboxComputerUseMixin
@@ -308,7 +308,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-    ) -> AsyncIterator[ExecStreamEvent]:
+    ) -> AsyncIterator[ProcessEvent]:
         async for event in self._node_client().exec_stream(
             command,
             env=env,
@@ -334,6 +334,8 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         timeout_seconds: int = 0,
         user: str = "",
         tty: bool = False,
+        initial_cols: int = 0,
+        initial_rows: int = 0,
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
@@ -345,6 +347,8 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
+            initial_cols=initial_cols,
+            initial_rows=initial_rows,
             shell=shell,
             lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,

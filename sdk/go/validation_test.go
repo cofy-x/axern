@@ -39,6 +39,9 @@ func TestExecAndProcessOptionValidation(t *testing.T) {
 	if _, err := node.Process(context.Background(), "true", ProcessOptions{Timeout: -time.Second}); !IsValidation(err) {
 		t.Fatalf("Process negative timeout error = %v, want validation", err)
 	}
+	if _, err := node.Process(context.Background(), "true", ProcessOptions{InitialCols: 80}); !IsValidation(err) {
+		t.Fatalf("Process incomplete initial size error = %v, want validation", err)
+	}
 }
 
 func TestAllocationClientValidation(t *testing.T) {

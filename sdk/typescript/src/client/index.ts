@@ -245,6 +245,8 @@ export class AxernClient {
   }
 
   async *readRunOutput(runId: string, options: ReadRunOutputOptions = {}): AsyncGenerator<Record<string, unknown>> {
+    // Output is Allocation-local and may be unavailable after cleanup; callers
+    // that need durable bytes must consume and persist them before then.
     const response = await unary<Record<string, unknown>, { run?: Record<string, unknown> }>(
       this.runControl,
       "GetRun",

@@ -13,11 +13,13 @@ import (
 
 // ProcessOptions configures an attached sandbox process.
 type ProcessOptions struct {
-	Env     map[string]string
-	Cwd     string
-	Timeout time.Duration
-	User    string
-	TTY     bool
+	Env         map[string]string
+	Cwd         string
+	Timeout     time.Duration
+	User        string
+	TTY         bool
+	InitialCols uint32
+	InitialRows uint32
 }
 
 // ProcessEventKind identifies a process stream event.
@@ -98,11 +100,13 @@ func (n *AllocationClient) Process(ctx context.Context, command any, options Pro
 		return nil, err
 	}
 	process, err := n.rpcClient().Process(ctx, argv, nodeclient.Options{
-		Env:     options.Env,
-		Cwd:     options.Cwd,
-		Timeout: options.Timeout,
-		User:    options.User,
-		TTY:     options.TTY,
+		Env:         options.Env,
+		Cwd:         options.Cwd,
+		Timeout:     options.Timeout,
+		User:        options.User,
+		TTY:         options.TTY,
+		InitialCols: options.InitialCols,
+		InitialRows: options.InitialRows,
 	})
 	if err != nil {
 		return nil, mapRPCError(err, "sandbox process", n.allocationID)
@@ -302,6 +306,9 @@ func mapProcessError(err error, operation, allocationID string) error {
 func validateProcessOptions(options ProcessOptions) error {
 	if options.Timeout < 0 {
 		return positiveDurationError("timeout")
+	}
+	if (options.InitialCols == 0) != (options.InitialRows == 0) {
+		return validationError("initial_size", "cols and rows must both be zero or both be positive")
 	}
 	return nil
 }

@@ -309,7 +309,7 @@ class AsyncAxernClient:
         follow: bool = False,
         timeout: float | None = None,
     ) -> AsyncGenerator[node_pb2.ReadOutputResponse, None]:
-        """Yield stdout/stderr events, resuming transient disconnects by cursor."""
+        """Yield Allocation-local output; consume required bytes before cleanup."""
 
         if not run_id.strip():
             raise ValueError("run_id is required")

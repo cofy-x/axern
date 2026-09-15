@@ -63,16 +63,6 @@ func (s *Server) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) (*nod
 	return response, err
 }
 
-func (s *Server) WaitSandbox(ctx context.Context, req *nodesandboxv1.WaitSandboxRequest) (*nodesandboxv1.WaitSandboxResponse, error) {
-	var response *nodesandboxv1.WaitSandboxResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.WaitSandbox(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
 func (s *Server) CapabilityStatus(ctx context.Context, req *nodesandboxv1.CapabilityStatusRequest) (*nodesandboxv1.CapabilityStatusResponse, error) {
 	var response *nodesandboxv1.CapabilityStatusResponse
 	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
@@ -241,38 +231,6 @@ func (s *Server) ComputerUseKeyboard(ctx context.Context, req *nodesandboxv1.Com
 		return err
 	})
 	return response, err
-}
-
-func (s *Server) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) error {
-	first, err := stream.Recv()
-	if err != nil {
-		return streamOpenError(err, "exec stream")
-	}
-	open := first.GetOpen()
-	if open == nil {
-		return grpcstatus.Error(codes.InvalidArgument, "exec stream must start with open")
-	}
-	return s.withResolvedClient(stream.Context(), open, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		up, err := client.ExecStream(backendCtx)
-		if err != nil {
-			return err
-		}
-		defer up.CloseSend()
-		if err := up.Send(first); err != nil {
-			return markAccessGrantOpenRejection(err)
-		}
-		header, err := acceptedAllocationAccessGrantHeader(up, "exec stream", func() error {
-			_, err := up.Recv()
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		if err := stream.SendHeader(header); err != nil {
-			return err
-		}
-		return bridgeExecStream(stream, up)
-	})
 }
 
 func (s *Server) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {

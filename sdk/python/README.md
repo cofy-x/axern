@@ -94,7 +94,7 @@ with Sandbox(
     client=client,
     image="docker.io/library/python:3.12-slim",
 ) as sandbox:
-    sandbox.write_text("/tmp/result.txt", "durable output candidate\n")
+    sandbox.write_text("/tmp/result.txt", "allocation-local output\n")
     sandbox.download_file("/tmp/result.txt", "result.txt")
 ```
 

@@ -3,9 +3,9 @@ package observability
 import sdkobs "github.com/cofy-x/axern/lib/go/observability"
 
 const (
-	SpanSSHSession             = "gateway.ssh.session"
-	SpanTerminalResolve        = "gateway.terminal.resolve"
-	SpanTerminalExecStreamOpen = "gateway.terminal.exec_stream.open"
+	SpanSSHSession          = "gateway.ssh.session"
+	SpanTerminalResolve     = "gateway.terminal.resolve"
+	SpanTerminalProcessOpen = "gateway.terminal.process.open"
 )
 
 var (
@@ -29,13 +29,13 @@ var (
 		Name:        "axern.gateway_terminal_resolve_duration_seconds",
 		Description: "Gateway terminal resolve latency.",
 	}
-	MetricTerminalExecStreamOpenTotal = sdkobs.Instrument{
-		Name:        "axern.gateway_terminal_exec_stream_open_total",
-		Description: "Gateway terminal exec stream opens.",
+	MetricTerminalProcessOpenTotal = sdkobs.Instrument{
+		Name:        "axern.gateway_terminal_process_open_total",
+		Description: "Gateway terminal process opens.",
 	}
-	MetricTerminalExecStreamOpenDuration = sdkobs.Instrument{
-		Name:        "axern.gateway_terminal_exec_stream_open_duration_seconds",
-		Description: "Gateway terminal exec stream open latency.",
+	MetricTerminalProcessOpenDuration = sdkobs.Instrument{
+		Name:        "axern.gateway_terminal_process_open_duration_seconds",
+		Description: "Gateway terminal process open latency.",
 	}
 	MetricSSHSessionTotal = sdkobs.Instrument{
 		Name:        "axern.gateway_ssh_session_total",

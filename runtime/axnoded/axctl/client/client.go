@@ -55,7 +55,9 @@ func (c *Client) Close() error {
 func (c *Client) Healthz() string {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	resp, err := c.healthzClient.Check(ctx, &healthgrpc.HealthCheckRequest{Service: "sandbox"})
+	resp, err := c.healthzClient.Check(ctx, &healthgrpc.HealthCheckRequest{
+		Service: nodeoperatorv1.NodeOperator_ServiceDesc.ServiceName,
+	})
 	if err != nil {
 		return err.Error()
 	}

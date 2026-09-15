@@ -13,6 +13,7 @@ const (
 	DefaultTLSKey             = ".dev/certs/gatewayd.key"
 	DefaultControlEdgeTLSCert = ".dev/certs/gatewayd.crt"
 	DefaultControlEdgeTLSKey  = ".dev/certs/gatewayd.key"
+	DefaultNodeTLSServerName  = "axern-node"
 )
 
 type Config struct {
@@ -28,6 +29,10 @@ type Config struct {
 	TLSCACert                 string
 	TLSCert                   string
 	TLSKey                    string
+	NodeTLSCACert             string
+	NodeTLSCert               string
+	NodeTLSKey                string
+	NodeTLSServerName         string
 	DevToken                  string
 	SSHEnabled                bool
 	SSHAddress                string

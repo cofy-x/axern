@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
@@ -13,7 +14,7 @@ mounted_image=""
 
 cleanup() {
   if [ -n "${container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}" >/dev/null 2>&1 || true
   fi
   if [ -n "${mounted_image}" ]; then
     payload="$(jq -cn --arg image_url "${mounted_image}" '{image_url:$image_url,lease_id:"node-inventory-e2e",owner:"verification"}')"
@@ -115,8 +116,7 @@ metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HA
 
 container_id="$(
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
-    -node-id node-verify \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "${environment_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
@@ -134,12 +134,13 @@ container_id="$(
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
-  "axnoded inventory to report a running container" \
+  "axnoded inventory to isolate a running conformance container from Allocation accounting" \
   "${axnoded_inventory}" \
   30 \
-  '.components.axnoded.running_containers >= 1 and .resources.cpu.axnoded_committed_milli > 0 and .resources.memory.axnoded_committed_bytes > 0 and .resources.cpu.axnoded_unbounded_count == 0 and .resources.memory.axnoded_unbounded_count == 0 and .resources.memory.axnoded_used_bytes >= 0 and (.sources.axnoded.status == "ready" or .sources.axnoded.status == "warming" or .sources.axnoded.status == "degraded")'
+  '.components.axnoded.running_containers >= 1 and .pools.cgroup.using >= 1 and .pools.interface.using >= 1 and .resources.cpu.axnoded_committed_milli == 0 and .resources.memory.axnoded_committed_bytes == 0 and .resources.cpu.axnoded_unbounded_count == 0 and .resources.memory.axnoded_unbounded_count == 0 and ((.components.axnoded.active_allocation_ids // []) | index($allocation_id) == null) and ((.components.axnoded.running_allocation_ids // []) | index($allocation_id) == null) and (.sources.axnoded.status == "ready" or .sources.axnoded.status == "warming" or .sources.axnoded.status == "degraded")' \
+  --arg allocation_id "${container_id}"
 
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 fetch_axnoded_inventory "${axnoded_inventory}"
@@ -152,8 +153,7 @@ wait_for_jq \
 request_only_id="verify-inventory-request-only-$$"
 container_id="$(
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
-    -node-id node-verify \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "${request_only_id}" \
     -request-cpu-milli 250 \
     -request-memory-mib 128 \
@@ -169,12 +169,13 @@ container_id="$(
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
-  "axnoded inventory to account request-only committed resources" \
+  "axnoded inventory to keep request-only conformance resources out of Allocation accounting" \
   "${axnoded_inventory}" \
   30 \
-  '.components.axnoded.running_containers >= 1 and .resources.cpu.axnoded_committed_milli >= 250 and .resources.memory.axnoded_committed_bytes >= 134217728 and .resources.memory.axnoded_unbounded_count == 0'
+  '.components.axnoded.running_containers >= 1 and .pools.cgroup.using >= 1 and .resources.cpu.axnoded_committed_milli == 0 and .resources.memory.axnoded_committed_bytes == 0 and .resources.memory.axnoded_unbounded_count == 0 and ((.components.axnoded.active_allocation_ids // []) | index($allocation_id) == null)' \
+  --arg allocation_id "${container_id}"
 
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 payload="$(jq -cn --arg image_url "${IMAGE_URL}" '{image_url:$image_url,lease_id:"node-inventory-e2e",owner:"verification"}')"

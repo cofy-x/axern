@@ -11,28 +11,28 @@ import (
 )
 
 type verifyCLIConfig struct {
-	address          string
-	nodeID           string
-	environmentID    string
-	rootfsSrc        string
-	rootfsPath       string
-	imageURL         string
-	stdoutPath       string
-	stderrPath       string
-	shellCommand     string
-	requestCPUMilli  float64
-	requestMemoryMiB float64
-	limitCPUMilli    float64
-	limitMemoryMiB   float64
-	createTimeout    time.Duration
-	userEnvFlags     verifyutil.StringSliceFlag
-	mountFlags       verifyutil.StringSliceFlag
+	address            string
+	environmentID      string
+	rootfsSrc          string
+	rootfsPath         string
+	imageURL           string
+	stdoutPath         string
+	stderrPath         string
+	shellCommand       string
+	requestCPUMilli    float64
+	requestMemoryMiB   float64
+	limitCPUMilli      float64
+	limitMemoryMiB     float64
+	createTimeout      time.Duration
+	deleteAllocationID string
+	deleteTimeout      time.Duration
+	userEnvFlags       verifyutil.StringSliceFlag
+	mountFlags         verifyutil.StringSliceFlag
 }
 
 func parseFlags() verifyCLIConfig {
 	cfg := verifyCLIConfig{}
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
-	flag.StringVar(&cfg.nodeID, "node-id", "", "bind the verification allocation to this control-plane node")
 	flag.StringVar(&cfg.environmentID, "environment-id", "", "runtime id")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfsPath, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
@@ -45,6 +45,8 @@ func parseFlags() verifyCLIConfig {
 	flag.Float64Var(&cfg.limitCPUMilli, "limit-cpu-milli", 0, "CPU limit in milli-CPU units for StartRequest resources")
 	flag.Float64Var(&cfg.limitMemoryMiB, "limit-memory-mib", 0, "memory limit in MiB for StartRequest resources")
 	flag.DurationVar(&cfg.createTimeout, "create-timeout", defaultCreateSandboxTimeout, "timeout for CreateAllocation")
+	flag.StringVar(&cfg.deleteAllocationID, "delete-allocation", "", "delete one local conformance Allocation instead of creating one")
+	flag.DurationVar(&cfg.deleteTimeout, "delete-timeout", 2*time.Minute, "timeout for DeleteAllocation")
 	flag.Var(&cfg.userEnvFlags, "user-env", "dynamic user env in KEY=VALUE form (repeatable)")
 	flag.Var(&cfg.mountFlags, "mount", "dynamic bind mount in SOURCE:TARGET[:options] form (repeatable)")
 	flag.Parse()

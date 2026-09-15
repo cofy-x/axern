@@ -10,7 +10,7 @@ import (
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 )
 
@@ -26,10 +26,11 @@ const idempotentRPCAttempts = 2
 type GRPCClient struct {
 	mu    sync.Mutex
 	conns map[string]*grpc.ClientConn
+	creds credentials.TransportCredentials
 }
 
-func NewGRPCClient() *GRPCClient {
-	return &GRPCClient{conns: make(map[string]*grpc.ClientConn)}
+func NewGRPCClient(creds credentials.TransportCredentials) *GRPCClient {
+	return &GRPCClient{conns: make(map[string]*grpc.ClientConn), creds: creds}
 }
 
 func (c *GRPCClient) CreateAllocation(ctx context.Context, target string, req *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error) {
@@ -112,7 +113,7 @@ func (c *GRPCClient) clientConn(ctx context.Context, target string) (privatenode
 		dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		var err error
-		conn, err = dial(dialCtx, target)
+		conn, err = dial(dialCtx, target, c.creds)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -145,12 +146,15 @@ func isRecoverableNodeRPCError(err error) bool {
 	return status.Code(err) == codes.Unavailable
 }
 
-func dial(ctx context.Context, target string) (*grpc.ClientConn, error) {
+func dial(ctx context.Context, target string, creds credentials.TransportCredentials) (*grpc.ClientConn, error) {
+	if creds == nil {
+		return nil, fmt.Errorf("node mTLS transport credentials are required")
+	}
 	conn, err := grpcclient.NewReadyClient(
 		ctx,
 		target,
 		grpc.WithNoProxy(),
-		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithTransportCredentials(creds.Clone()),
 	)
 	if err != nil {
 		return nil, err

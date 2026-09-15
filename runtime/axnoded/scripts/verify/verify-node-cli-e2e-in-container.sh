@@ -5,6 +5,7 @@ if [[ "${AXERN_E2E_TRACE:-0}" == "1" ]]; then
 fi
 
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 
 for _ in $(seq 1 40); do
   if [ -S "${AXNODED_SOCKET}" ] && curl -fsS "http://127.0.0.1:23001/readyz" >/dev/null 2>&1; then
@@ -28,7 +29,7 @@ start_container() {
   local shell_command="${4:-sleep 300}"
   local output
   output="$(verify-cli \
-    -address "${AXNODED_SOCKET}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -stdout "${stdout_path}" \
     -stderr "${stderr_path}" \
     -shell-command "${shell_command}")"

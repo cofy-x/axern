@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 IMAGE_URL="${IMAGE_URL:?IMAGE_URL is required}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
 AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL:-15s}"
@@ -14,7 +15,7 @@ container_id=""
 
 cleanup() {
   if [ -n "${container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -84,7 +85,7 @@ start_container() {
   local stderr_path="$4"
 
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "${environment_id}" \
     -rootfs-src image \
     -image-url "${IMAGE_URL}" \
@@ -135,7 +136,7 @@ container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${ru
   echo "first start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 # Imagemgr is the authoritative lease owner, so verify it before waiting for
@@ -166,7 +167,7 @@ container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${ru
   echo "second start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 fetch_axnoded_inventory "${inventory_file}"
@@ -214,7 +215,7 @@ container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${ru
   echo "third start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}"
 container_id=""
 
 metrics_output="$(fetch_metrics)"

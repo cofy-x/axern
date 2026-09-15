@@ -121,20 +121,24 @@ mount -o loop,ro "${VERIFY_ROOTFS_IMAGE}" /opt/sample-rootfs
   -root /var/lib/axnoded \
   -config /tmp/axnoded-config.toml \
   -socket "${SOCKET_ADDRESS}" \
+  -conformance-socket "${SOCKET_ADDRESS}.conformance" \
   -http-address 127.0.0.1:23001 \
   -log-level debug \
   -log-file /tmp/axnoded.log &
 
 AXNODED_PID=$!
 
+export AXNODED_CONFORMANCE_SOCKET="${SOCKET_ADDRESS}.conformance"
+export AXNODED_OPERATOR_SOCKET="${SOCKET_ADDRESS}"
+
 for _ in $(seq 1 30); do
-  if [ -S "${SOCKET_ADDRESS}" ] && curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
+  if [ -S "${SOCKET_ADDRESS}" ] && [ -S "${AXNODED_CONFORMANCE_SOCKET}" ] && curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
     break
   fi
   sleep 1
 done
 
-if ! [ -S "${SOCKET_ADDRESS}" ] || ! curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
+if ! [ -S "${SOCKET_ADDRESS}" ] || ! [ -S "${AXNODED_CONFORMANCE_SOCKET}" ] || ! curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
   echo "axnoded did not become ready in time" >&2
   echo "--- axnoded log tail ---" >&2
   tail -n 120 /tmp/axnoded.log >&2 || true
@@ -212,10 +216,10 @@ if [ "${VERIFY_BPFNETCTL:-false}" = "true" ]; then
   assert_bpfnetctl_ready before_allocation
 fi
 
-ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
+ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${AXNODED_CONFORMANCE_SOCKET}" \
   NAT_BACKEND="${NAT_BACKEND}" \
   bash "${ROOT_DIR}/scripts/verify/verify-generic-core.sh"
-ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${SOCKET_ADDRESS}" \
+ROOT_DIR="${ROOT_DIR}" SOCKET_ADDRESS="${AXNODED_CONFORMANCE_SOCKET}" \
   NAT_BACKEND="${NAT_BACKEND}" \
   EXTERNAL_NETWORK_PROBE_NETNS="${EXTERNAL_NETWORK_PROBE_NETNS}" \
   EXTERNAL_NETWORK_PROBE_ADDR="${EXTERNAL_NETWORK_PROBE_HOST_ADDR}" \

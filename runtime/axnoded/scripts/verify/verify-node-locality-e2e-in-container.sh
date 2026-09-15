@@ -3,6 +3,7 @@ set -euo pipefail
 
 IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 AXNODED_HTTP_URL="${AXNODED_HTTP_URL:-http://127.0.0.1:23001}"
 OCI_IMAGE_URL="${OCI_IMAGE_URL:?OCI_IMAGE_URL is required}"
 NYDUS_IMAGE_URL="${NYDUS_IMAGE_URL:?NYDUS_IMAGE_URL is required}"
@@ -48,10 +49,10 @@ dump_locality_context() {
 
 cleanup() {
   if [ -n "${oci_container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${oci_container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${oci_container_id}" >/dev/null 2>&1 || true
   fi
   if [ -n "${nydus_container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${nydus_container_id}" >/dev/null 2>&1 || true
+    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${nydus_container_id}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -126,7 +127,7 @@ start_container() {
   local create_output_path="/tmp/${environment_id}.create.out"
 
   if ! verify-cli \
-    -address "${AXNODED_SOCKET}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "${environment_id}" \
     -rootfs-src image \
     -image-url "${image_url}" \
@@ -166,7 +167,7 @@ oci_container_id="$(start_container "oci-start" "${oci_environment_id}" "${OCI_I
   echo "OCI locality start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${oci_container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${oci_container_id}"
 oci_container_id=""
 
 log_phase "oci-retention-assert"
@@ -195,7 +196,7 @@ wait_for_jq \
   'any(.heat.locality[]?; .key == $locality_key and .mount_type == "nydus" and .mounted == true and .nydus_daemon_alive == true and .chunkdb_total_chunks >= 0 and .peer_healthy_count >= 0 and .peer_hinted_count >= 0)' \
   --arg locality_key "${nydus_locality_key}"
 
-axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${nydus_container_id}"
+verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${nydus_container_id}"
 nydus_container_id=""
 
 echo "verify_node_locality_e2e_ok=true"

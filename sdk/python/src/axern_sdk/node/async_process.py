@@ -10,7 +10,7 @@ import grpc
 
 from axern.node.sandbox.v1 import node_pb2
 from axern_sdk.errors import SandboxConnectionError
-from axern_sdk.node.models import ExecStreamEvent
+from axern_sdk.node.models import ProcessEvent
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,15 +123,15 @@ class AsyncSandboxProcess:
             raise RuntimeError("sandbox process is closed")
         await self._call.write(request)
 
-    def _event_from_response(self, response) -> ExecStreamEvent | None:
+    def _event_from_response(self, response) -> ProcessEvent | None:
         payload = response.WhichOneof("payload")
         if payload == "stdout":
-            return ExecStreamEvent(stream="stdout", data=bytes(response.stdout))
+            return ProcessEvent(stream="stdout", data=bytes(response.stdout))
         if payload == "stderr":
-            return ExecStreamEvent(stream="stderr", data=bytes(response.stderr))
+            return ProcessEvent(stream="stderr", data=bytes(response.stderr))
         if payload == "exit":
             self._exit = AsyncProcessResult(exit_code=response.exit.exit_code, message=response.exit.message)
-            return ExecStreamEvent(stream="exit", exit_code=response.exit.exit_code, message=response.exit.message)
+            return ProcessEvent(stream="exit", exit_code=response.exit.exit_code, message=response.exit.message)
         return None
 
     async def _done_writing(self) -> None:

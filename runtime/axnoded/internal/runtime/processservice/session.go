@@ -20,12 +20,13 @@ func New(openSessionFn OpenSessionFunc) contract.ProcessService {
 
 func (s sessionBackedProcessService) OpenProcess(ctx context.Context, request *apipb.ProcessOpen, options contract.HandlerOptions) (contract.Session, error) {
 	return s.openSessionFn(ctx, &apipb.ExecSessionOpen{
-		ID:      request.GetID(),
-		Command: request.GetCommand(),
-		Tty:     request.GetTty(),
-		Envs:    processKeyValues(request.GetEnv()),
-		Cwd:     request.GetCwd(),
-		User:    request.GetUser(),
+		ID:          request.GetID(),
+		Command:     request.GetCommand(),
+		Tty:         request.GetTty(),
+		Envs:        processKeyValues(request.GetEnv()),
+		Cwd:         request.GetCwd(),
+		User:        request.GetUser(),
+		InitialSize: request.GetInitialSize(),
 	}, options)
 }
 

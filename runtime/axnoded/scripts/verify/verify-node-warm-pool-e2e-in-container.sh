@@ -3,6 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
+AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 METRICS_URL="${METRICS_URL:-http://127.0.0.1:23001/debug/metricsz}"
 # shellcheck source-path=SCRIPTDIR/..
 source "${SCRIPT_DIR}/../lib/metricsz.sh"
@@ -12,7 +13,7 @@ declare -a container_ids=()
 cleanup() {
   for container_id in "${container_ids[@]}"; do
     if [ -n "${container_id}" ]; then
-      axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}" >/dev/null 2>&1 || true
+      verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${container_id}" >/dev/null 2>&1 || true
     fi
   done
 }
@@ -35,7 +36,7 @@ metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HA
 start_container() {
   local index="$1"
   verify-cli \
-    -address "${AXNODED_SOCKET}" \
+    -address "${AXNODED_CONFORMANCE_SOCKET}" \
     -environment-id "warm-pool-runsc-${index}" \
     -stdout "/tmp/warm-pool.${index}.stdout" \
     -stderr "/tmp/warm-pool.${index}.stderr" \

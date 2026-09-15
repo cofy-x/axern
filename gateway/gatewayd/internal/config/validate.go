@@ -25,6 +25,18 @@ func validate(cfg Config) (Config, error) {
 	if strings.TrimSpace(cfg.TLSCACert) == "" || strings.TrimSpace(cfg.TLSCert) == "" || strings.TrimSpace(cfg.TLSKey) == "" {
 		return Config{}, fmt.Errorf("tls-ca-cert, tls-cert, and tls-key are required")
 	}
+	if strings.TrimSpace(cfg.NodeTLSCACert) == "" {
+		cfg.NodeTLSCACert = cfg.TLSCACert
+	}
+	if strings.TrimSpace(cfg.NodeTLSCert) == "" {
+		cfg.NodeTLSCert = cfg.TLSCert
+	}
+	if strings.TrimSpace(cfg.NodeTLSKey) == "" {
+		cfg.NodeTLSKey = cfg.TLSKey
+	}
+	if strings.TrimSpace(cfg.NodeTLSCACert) == "" || strings.TrimSpace(cfg.NodeTLSCert) == "" || strings.TrimSpace(cfg.NodeTLSKey) == "" || strings.TrimSpace(cfg.NodeTLSServerName) == "" {
+		return Config{}, fmt.Errorf("node-tls-ca-cert, node-tls-cert, node-tls-key, and node-tls-server-name are required")
+	}
 	if strings.TrimSpace(cfg.SSHAddress) == "" {
 		cfg.SSHAddress = DefaultSSHAddress
 	}

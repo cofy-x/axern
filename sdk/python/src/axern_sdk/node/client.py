@@ -15,9 +15,17 @@ from axern_sdk.node.capability_client import AllocationCapabilityMixin
 from axern_sdk.node.commands import exec_argv
 from axern_sdk.node.computer_use_client import AllocationComputerUseMixin
 from axern_sdk.node.file_client import AllocationFileMixin
-from axern_sdk.node.models import ExecCommand, ExecResult, ExecStreamEvent
+from axern_sdk.node.models import ExecCommand, ExecResult, ProcessEvent
 from axern_sdk.node.process import SandboxProcess, process_request_iterator
 from axern_sdk.node.protocol import exec_spec, text_exec_result
+
+
+def _process_initial_size(cols: int, rows: int) -> node_pb2.TerminalResize | None:
+    if (cols == 0) != (rows == 0):
+        raise ValueError("initial_cols and initial_rows must both be zero or both be positive")
+    if cols < 0 or rows < 0:
+        raise ValueError("initial_cols and initial_rows must both be positive")
+    return None if cols == 0 else node_pb2.TerminalResize(cols=cols, rows=rows)
 
 
 class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, AllocationFileMixin):
@@ -84,7 +92,7 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-    ) -> Iterator[ExecStreamEvent]:
+    ) -> Iterator[ProcessEvent]:
         argv = exec_argv(command, shell=shell)
         stdin = b"" if input is None else input.encode(encoding, errors=errors) if isinstance(input, str) else input
         process = self.process(
@@ -116,18 +124,24 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         timeout_seconds: int = 0,
         user: str = "",
         tty: bool = False,
+        initial_cols: int = 0,
+        initial_rows: int = 0,
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> SandboxProcess:
         argv = exec_argv(command, shell=shell)
+        initial_size = _process_initial_size(initial_cols, initial_rows)
         channel = self._gateway_channel()
         requests: queue.Queue[object | None] = queue.Queue()
+        open_payload = node_pb2.ProcessOpen(
+            allocation_id=self._allocation_id,
+            spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
+        )
+        if initial_size is not None:
+            open_payload.initial_size.CopyFrom(initial_size)
         open_request = node_pb2.ProcessRequest(
-            open=node_pb2.ProcessOpen(
-                allocation_id=self._allocation_id,
-                spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
-            )
+            open=open_payload
         )
         try:
             responses = node_pb2_grpc.NodeSandboxStub(channel).Process(
@@ -145,7 +159,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         except grpc.RpcError as exc:
             requests.put(None)
             raise sandbox_rpc_error(exc, operation="sandbox process", allocation_id=self._allocation_id) from exc
-
 
     def _call_unary(
         self,

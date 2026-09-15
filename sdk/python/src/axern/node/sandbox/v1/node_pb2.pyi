@@ -8,22 +8,11 @@ from typing import ClassVar as _ClassVar, Optional as _Optional, Union as _Union
 
 DESCRIPTOR: _descriptor.FileDescriptor
 
-class SandboxProcessState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
-    __slots__ = ()
-    SANDBOX_PROCESS_STATE_UNSPECIFIED: _ClassVar[SandboxProcessState]
-    SANDBOX_PROCESS_STATE_RUNNING: _ClassVar[SandboxProcessState]
-    SANDBOX_PROCESS_STATE_EXITED: _ClassVar[SandboxProcessState]
-    SANDBOX_PROCESS_STATE_UNKNOWN: _ClassVar[SandboxProcessState]
-
 class OutputStream(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     OUTPUT_STREAM_UNSPECIFIED: _ClassVar[OutputStream]
     OUTPUT_STREAM_STDOUT: _ClassVar[OutputStream]
     OUTPUT_STREAM_STDERR: _ClassVar[OutputStream]
-SANDBOX_PROCESS_STATE_UNSPECIFIED: SandboxProcessState
-SANDBOX_PROCESS_STATE_RUNNING: SandboxProcessState
-SANDBOX_PROCESS_STATE_EXITED: SandboxProcessState
-SANDBOX_PROCESS_STATE_UNKNOWN: SandboxProcessState
 OUTPUT_STREAM_UNSPECIFIED: OutputStream
 OUTPUT_STREAM_STDOUT: OutputStream
 OUTPUT_STREAM_STDERR: OutputStream
@@ -73,16 +62,6 @@ class ExecResponse(_message.Message):
     stderr_truncated: bool
     def __init__(self, exit_code: _Optional[int] = ..., stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., stdout_truncated: _Optional[bool] = ..., stderr_truncated: _Optional[bool] = ...) -> None: ...
 
-class ExecStreamOpen(_message.Message):
-    __slots__ = ("spec", "allocation_id", "initial_size")
-    SPEC_FIELD_NUMBER: _ClassVar[int]
-    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    INITIAL_SIZE_FIELD_NUMBER: _ClassVar[int]
-    spec: ExecSpec
-    allocation_id: str
-    initial_size: TerminalResize
-    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., initial_size: _Optional[_Union[TerminalResize, _Mapping]] = ...) -> None: ...
-
 class TerminalResize(_message.Message):
     __slots__ = ("cols", "rows")
     COLS_FIELD_NUMBER: _ClassVar[int]
@@ -90,18 +69,6 @@ class TerminalResize(_message.Message):
     cols: int
     rows: int
     def __init__(self, cols: _Optional[int] = ..., rows: _Optional[int] = ...) -> None: ...
-
-class ExecStreamRequest(_message.Message):
-    __slots__ = ("open", "stdin", "resize", "close_stdin")
-    OPEN_FIELD_NUMBER: _ClassVar[int]
-    STDIN_FIELD_NUMBER: _ClassVar[int]
-    RESIZE_FIELD_NUMBER: _ClassVar[int]
-    CLOSE_STDIN_FIELD_NUMBER: _ClassVar[int]
-    open: ExecStreamOpen
-    stdin: bytes
-    resize: TerminalResize
-    close_stdin: bool
-    def __init__(self, open: _Optional[_Union[ExecStreamOpen, _Mapping]] = ..., stdin: _Optional[bytes] = ..., resize: _Optional[_Union[TerminalResize, _Mapping]] = ..., close_stdin: _Optional[bool] = ...) -> None: ...
 
 class ExecExit(_message.Message):
     __slots__ = ("exit_code", "message")
@@ -111,23 +78,15 @@ class ExecExit(_message.Message):
     message: str
     def __init__(self, exit_code: _Optional[int] = ..., message: _Optional[str] = ...) -> None: ...
 
-class ExecStreamResponse(_message.Message):
-    __slots__ = ("stdout", "stderr", "exit")
-    STDOUT_FIELD_NUMBER: _ClassVar[int]
-    STDERR_FIELD_NUMBER: _ClassVar[int]
-    EXIT_FIELD_NUMBER: _ClassVar[int]
-    stdout: bytes
-    stderr: bytes
-    exit: ExecExit
-    def __init__(self, stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., exit: _Optional[_Union[ExecExit, _Mapping]] = ...) -> None: ...
-
 class ProcessOpen(_message.Message):
-    __slots__ = ("spec", "allocation_id")
+    __slots__ = ("spec", "allocation_id", "initial_size")
     SPEC_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    INITIAL_SIZE_FIELD_NUMBER: _ClassVar[int]
     spec: ExecSpec
     allocation_id: str
-    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ...) -> None: ...
+    initial_size: TerminalResize
+    def __init__(self, spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., allocation_id: _Optional[str] = ..., initial_size: _Optional[_Union[TerminalResize, _Mapping]] = ...) -> None: ...
 
 class ProcessSignal(_message.Message):
     __slots__ = ("signal",)
@@ -164,22 +123,6 @@ class ProcessResponse(_message.Message):
     exit: ExecExit
     ready: ProcessReady
     def __init__(self, stdout: _Optional[bytes] = ..., stderr: _Optional[bytes] = ..., exit: _Optional[_Union[ExecExit, _Mapping]] = ..., ready: _Optional[_Union[ProcessReady, _Mapping]] = ...) -> None: ...
-
-class WaitSandboxRequest(_message.Message):
-    __slots__ = ("allocation_id",)
-    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    allocation_id: str
-    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
-
-class WaitSandboxResponse(_message.Message):
-    __slots__ = ("state", "exit_code", "message")
-    STATE_FIELD_NUMBER: _ClassVar[int]
-    EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
-    MESSAGE_FIELD_NUMBER: _ClassVar[int]
-    state: SandboxProcessState
-    exit_code: int
-    message: str
-    def __init__(self, state: _Optional[_Union[SandboxProcessState, str]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ...) -> None: ...
 
 class ReadOutputRequest(_message.Message):
     __slots__ = ("allocation_id", "cursor", "follow")

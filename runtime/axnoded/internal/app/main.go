@@ -18,14 +18,18 @@ import (
 )
 
 type options struct {
-	rootDir           string
-	configPath        string
-	socketPath        string
-	networkSocketPath string
-	grpcAddress       string
-	httpAddress       string
-	logLevel          string
-	logFile           string
+	rootDir               string
+	configPath            string
+	socketPath            string
+	conformanceSocketPath string
+	networkSocketPath     string
+	grpcAddress           string
+	nodeTLSCACert         string
+	nodeTLSCert           string
+	nodeTLSKey            string
+	httpAddress           string
+	logLevel              string
+	logFile               string
 }
 
 func Run() error {
@@ -79,13 +83,20 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.rootDir, "root", config.DefaultRootDir, "axnoded working root directory")
 	flagSet.StringVar(&opts.configPath, "config", "", "path to axnoded TOML config")
 	flagSet.StringVar(&opts.socketPath, "socket", config.DefaultSocketAddress, "axnoded gRPC unix socket")
+	flagSet.StringVar(&opts.conformanceSocketPath, "conformance-socket", "", "test-only local Allocation conformance Unix socket; disabled when empty")
 	flagSet.StringVar(&opts.networkSocketPath, "network-socket", config.DefaultNetworkSocketAddress, "axnoded machine-only Allocation network Unix socket")
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", "", "axnoded node gRPC TCP listen address")
+	flagSet.StringVar(&opts.nodeTLSCACert, "node-tls-ca-cert", "", "CA certificate used to verify controld and gatewayd mTLS clients")
+	flagSet.StringVar(&opts.nodeTLSCert, "node-tls-cert", "", "axnoded server certificate for the node gRPC listener")
+	flagSet.StringVar(&opts.nodeTLSKey, "node-tls-key", "", "axnoded server private key for the node gRPC listener")
 	flagSet.StringVar(&opts.httpAddress, "http-address", config.DefaultHttpAddress, "axnoded HTTP listen address")
 	flagSet.StringVar(&opts.logLevel, "log-level", "info", "log level: debug|info|warn|error")
 	flagSet.StringVar(&opts.logFile, "log-file", "", "log file path; stderr is used when empty")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		return options{}, err
+	}
+	if strings.TrimSpace(opts.grpcAddress) != "" && (strings.TrimSpace(opts.nodeTLSCACert) == "" || strings.TrimSpace(opts.nodeTLSCert) == "" || strings.TrimSpace(opts.nodeTLSKey) == "") {
+		return options{}, fmt.Errorf("node-tls-ca-cert, node-tls-cert, and node-tls-key are required when grpc-address is configured")
 	}
 	return opts, nil
 }

@@ -14,11 +14,13 @@ type Client struct {
 }
 
 type Options struct {
-	Env     map[string]string
-	Cwd     string
-	Timeout time.Duration
-	User    string
-	TTY     bool
+	Env         map[string]string
+	Cwd         string
+	Timeout     time.Duration
+	User        string
+	TTY         bool
+	InitialCols uint32
+	InitialRows uint32
 }
 
 type Result struct {

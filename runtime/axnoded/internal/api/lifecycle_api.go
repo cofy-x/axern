@@ -33,6 +33,7 @@ type serviceLike interface {
 	StartControlPlaneAllocation(context.Context, string, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
 	DeleteControlPlaneAllocation(context.Context, string, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	HasControlPlaneAllocation(string, string) bool
+	IsControlPlaneAllocation(string) bool
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
 }
@@ -83,6 +84,16 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 	}
 	requestNodeID := strings.TrimSpace(req.GetNodeID())
 	leaseTTL := time.Duration(req.GetExecutionLeaseTtlSeconds()) * time.Second
+	if s.allowLocal && requestNodeID != "" {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint accepts only unbound local Allocations")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if s.allowLocal && s.svc.IsControlPlaneAllocation(req.GetAllocationID()) {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot create or replace a control-plane-bound Allocation")
+		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
+		return nil, resultErr
+	}
 	if requestNodeID == "" && !s.allowLocal {
 		resultErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
@@ -172,6 +183,16 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		return nil, resultErr
 	}
 	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	if s.allowLocal && requestNodeID != "" {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot delete control-plane-bound Allocations")
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
+	}
+	if s.allowLocal && s.svc.IsControlPlaneAllocation(req.GetAllocationID()) {
+		resultErr = grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot delete a control-plane-bound Allocation")
+		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
+		return nil, resultErr
+	}
 	if requestNodeID == "" && !s.allowLocal {
 		resultErr = grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
 		recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, resultErr)
@@ -234,6 +255,12 @@ func (s *nodeLifecycleServer) GetAllocationLifecycle(ctx context.Context, req *n
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
 	requestNodeID := strings.TrimSpace(req.GetNodeID())
+	if s.allowLocal && requestNodeID != "" {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot inspect control-plane-bound Allocations")
+	}
+	if s.allowLocal && s.svc.IsControlPlaneAllocation(req.GetAllocationID()) {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "the conformance endpoint cannot inspect a control-plane-bound Allocation")
+	}
 	if requestNodeID == "" && !s.allowLocal {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "node_id is required on the control-plane lifecycle endpoint")
 	}

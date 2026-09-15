@@ -9,6 +9,7 @@ import (
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -21,20 +22,22 @@ type Resolver interface {
 
 type Manager struct {
 	control Resolver
-	nodes   nodekernel.ExecStreamer
+	nodes   nodekernel.ProcessStreamer
 	options Options
 	metrics *observability.Metrics
 	obs     *sdkobs.Handle
 }
 
 type OpenOptions struct {
-	Argv []string
-	Env  map[string]string
-	User string
-	TTY  bool
+	Argv        []string
+	Env         map[string]string
+	User        string
+	TTY         bool
+	InitialCols uint32
+	InitialRows uint32
 }
 
-func NewManager(control Resolver, nodes nodekernel.ExecStreamer, options Options, metrics *observability.Metrics, obs *sdkobs.Handle) *Manager {
+func NewManager(control Resolver, nodes nodekernel.ProcessStreamer, options Options, metrics *observability.Metrics, obs *sdkobs.Handle) *Manager {
 	if options.IdleTimeout <= 0 {
 		options.IdleTimeout = 10 * time.Minute
 	}
@@ -101,40 +104,40 @@ func (m *Manager) OpenResolved(ctx context.Context, resolved *gatewayv1.ResolveA
 }
 
 func (m *Manager) OpenResolvedWithOptions(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (*Session, error) {
-	stream, err := m.openExecStream(ctx, resolved, opts)
+	stream, err := m.openProcess(ctx, resolved, opts)
 	if err != nil {
 		return nil, err
 	}
 	return &Session{stream: stream}, nil
 }
 
-func (m *Manager) openExecStream(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (stream execStream, err error) {
+func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (stream processStream, err error) {
 	allocationID := strings.TrimSpace(resolved.GetAllocationID())
 	attrs := []attribute.KeyValue{
 		attribute.String(sdkobs.AttrAllocationID, allocationID),
 		attribute.String(sdkobs.AttrNodeID, resolved.GetNodeID()),
 	}
 	ctx, op := m.obs.StartOperation(ctx, sdkobs.OperationConfig{
-		Name:        observability.SpanTerminalExecStreamOpen,
+		Name:        observability.SpanTerminalProcessOpen,
 		SpanAttrs:   attrs,
-		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "exec_stream_open")},
-		Counter:     observability.MetricTerminalExecStreamOpenTotal,
-		Duration:    observability.MetricTerminalExecStreamOpenDuration,
+		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "process_open")},
+		Counter:     observability.MetricTerminalProcessOpenTotal,
+		Duration:    observability.MetricTerminalProcessOpenDuration,
 	})
 	defer func() {
 		if err != nil {
-			op.SetErrorStatus("exec stream open failed")
+			op.SetErrorStatus("process open failed")
 		}
 		op.End(err)
 	}()
 	current := resolved
 	for attempt := 1; attempt <= m.options.AccessGrantRetryAttempts; attempt++ {
 		backendCtx := nodekernel.WithAllocationAccessGrant(ctx, current.GetAccessGrant().GetPlaintextToken())
-		stream, err = m.nodes.ExecStream(backendCtx, current.GetNodeTarget())
+		stream, err = m.nodes.Process(backendCtx, current.GetNodeTarget())
 		if err != nil {
 			return nil, err
 		}
-		err = stream.Send(execStreamOpenRequest(current, opts))
+		err = stream.Send(processOpenRequest(current, opts))
 		if err == nil {
 			var header metadata.MD
 			header, err = stream.Header()
@@ -143,6 +146,13 @@ func (m *Manager) openExecStream(ctx context.Context, resolved *gatewayv1.Resolv
 				if err == nil {
 					err = status.Error(codes.FailedPrecondition, "node did not acknowledge allocation access grant before terminal output")
 				}
+			}
+		}
+		if err == nil {
+			var ready *nodesandboxv1.ProcessResponse
+			ready, err = stream.Recv()
+			if err == nil && ready.GetReady() == nil {
+				err = status.Error(codes.FailedPrecondition, "node process stream did not return ready after open")
 			}
 		}
 		if err == nil {

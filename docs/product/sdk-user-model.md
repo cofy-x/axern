@@ -12,7 +12,7 @@ This document defines the stable user-facing boundary shared by Axern SDKs and e
 
 ## Sandbox Files And Outputs
 
-Sandbox writable files belong to one Allocation. Reusable persistent volumes are not part of the SDK contract; download required files before terminating the Sandbox. An upper-layer system may publish the downloaded bytes under its own output contract.
+Sandbox writable files and retained stdout/stderr belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract; stream or download required bytes before terminating the Sandbox because Allocation cleanup makes them unavailable from Axern. An upper-layer system may publish the downloaded bytes under its own output contract.
 
 ```python
 from axern_sdk import AxernClient, Sandbox

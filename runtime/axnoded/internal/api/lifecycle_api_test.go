@@ -24,6 +24,7 @@ type fakeNodeLifecycleService struct {
 	deleteErr            error
 	admittedDependencies []*capabilityv1.CapabilityRequirement
 	startResponseID      string
+	controlPlaneIDs      map[string]bool
 }
 
 func (f *fakeNodeLifecycleService) Start(ctx context.Context, req *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
@@ -104,6 +105,26 @@ func TestNodeLifecycleCreateAllocationRequiresLeaseOnlyForControlPlaneBinding(t 
 	}
 }
 
+func TestLocalNodeLifecycleCannotOperateControlPlaneAllocation(t *testing.T) {
+	t.Parallel()
+	service := &fakeNodeLifecycleService{controlPlaneIDs: map[string]bool{"alloc-bound": true}}
+	server := NewLocalNodeLifecycleServer(service, "node-a")
+
+	_, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+		AllocationID: "alloc-bound",
+		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
+	})
+	if grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("CreateAllocation() code = %v, want permission denied", grpcstatus.Code(err))
+	}
+	if _, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{AllocationID: "alloc-bound"}); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("DeleteAllocation() code = %v, want permission denied", grpcstatus.Code(err))
+	}
+	if _, err := server.GetAllocationLifecycle(context.Background(), &nodelifecyclev1.GetAllocationLifecycleRequest{AllocationID: "alloc-bound"}); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("GetAllocationLifecycle() code = %v, want permission denied", grpcstatus.Code(err))
+	}
+}
+
 func (f *fakeNodeLifecycleService) DeleteControlPlaneAllocation(ctx context.Context, _ string, req *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error) {
 	_ = ctx
 	f.deleteRequests = append(f.deleteRequests, req)
@@ -121,6 +142,10 @@ func (f *fakeNodeLifecycleService) DeleteControlPlaneAllocation(ctx context.Cont
 
 func (f *fakeNodeLifecycleService) HasControlPlaneAllocation(allocationID, _ string) bool {
 	return strings.TrimSpace(allocationID) != ""
+}
+
+func (f *fakeNodeLifecycleService) IsControlPlaneAllocation(allocationID string) bool {
+	return f.controlPlaneIDs[strings.TrimSpace(allocationID)]
 }
 
 func (f *fakeNodeLifecycleService) List(ctx context.Context, req *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error) {

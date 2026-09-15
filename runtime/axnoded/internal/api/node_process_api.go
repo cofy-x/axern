@@ -67,13 +67,14 @@ func convertProcessRequest(in *nodesandboxv1.ProcessRequest, targetID string) (*
 		return &runtimev1.ProcessRequest{
 			Payload: &runtimev1.ProcessRequest_Open{
 				Open: &runtimev1.ProcessOpen{
-					ID:      targetID,
-					Command: append([]string(nil), payload.Open.GetSpec().GetArgv()...),
-					Tty:     payload.Open.GetSpec().GetTty(),
-					Timeout: payload.Open.GetSpec().GetTimeoutSeconds(),
-					Env:     cloneStringMap(payload.Open.GetSpec().GetEnv()),
-					Cwd:     payload.Open.GetSpec().GetCwd(),
-					User:    payload.Open.GetSpec().GetUser(),
+					ID:          targetID,
+					Command:     append([]string(nil), payload.Open.GetSpec().GetArgv()...),
+					Tty:         payload.Open.GetSpec().GetTty(),
+					Timeout:     payload.Open.GetSpec().GetTimeoutSeconds(),
+					Env:         cloneStringMap(payload.Open.GetSpec().GetEnv()),
+					Cwd:         payload.Open.GetSpec().GetCwd(),
+					User:        payload.Open.GetSpec().GetUser(),
+					InitialSize: convertProcessInitialSize(payload.Open.GetInitialSize()),
 				},
 			},
 		}, nil
@@ -88,6 +89,13 @@ func convertProcessRequest(in *nodesandboxv1.ProcessRequest, targetID string) (*
 	default:
 		return nil, grpcstatus.Error(codes.InvalidArgument, "unsupported process payload")
 	}
+}
+
+func convertProcessInitialSize(in *nodesandboxv1.TerminalResize) *runtimev1.TerminalResize {
+	if in == nil {
+		return nil
+	}
+	return &runtimev1.TerminalResize{Cols: in.GetCols(), Rows: in.GetRows()}
 }
 
 func convertProcessResponse(in *runtimev1.ProcessResponse) *nodesandboxv1.ProcessResponse {

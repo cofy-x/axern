@@ -16,8 +16,16 @@ from axern_sdk.node.commands import exec_argv
 from axern_sdk.node.async_file_client import AsyncAllocationFileMixin
 from axern_sdk.node.async_process import AsyncSandboxProcess
 from axern_sdk.node.async_computer_use_client import AsyncAllocationComputerUseMixin
-from axern_sdk.node.models import ExecCommand, ExecResult, ExecStreamEvent
+from axern_sdk.node.models import ExecCommand, ExecResult, ProcessEvent
 from axern_sdk.node.protocol import exec_spec, text_exec_result
+
+
+def _process_initial_size(cols: int, rows: int) -> node_pb2.TerminalResize | None:
+    if (cols == 0) != (rows == 0):
+        raise ValueError("initial_cols and initial_rows must both be zero or both be positive")
+    if cols < 0 or rows < 0:
+        raise ValueError("initial_cols and initial_rows must both be positive")
+    return None if cols == 0 else node_pb2.TerminalResize(cols=cols, rows=rows)
 
 
 class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationComputerUseMixin, AsyncAllocationFileMixin):
@@ -84,7 +92,7 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-    ) -> AsyncIterator[ExecStreamEvent]:
+    ) -> AsyncIterator[ProcessEvent]:
         argv = exec_argv(command, shell=shell)
         stdin = b"" if input is None else input.encode(encoding, errors=errors) if isinstance(input, str) else input
         process = await self.process(
@@ -110,20 +118,26 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         timeout_seconds: int = 0,
         user: str = "",
         tty: bool = False,
+        initial_cols: int = 0,
+        initial_rows: int = 0,
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-        ) -> AsyncSandboxProcess:
+    ) -> AsyncSandboxProcess:
         argv = exec_argv(command, shell=shell)
+        initial_size = _process_initial_size(initial_cols, initial_rows)
         channel = self._gateway_channel()
         try:
             call = node_pb2_grpc.NodeSandboxStub(channel).Process(timeout=rpc_timeout)
+            open_payload = node_pb2.ProcessOpen(
+                allocation_id=self._allocation_id,
+                spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
+            )
+            if initial_size is not None:
+                open_payload.initial_size.CopyFrom(initial_size)
             await call.write(
                 node_pb2.ProcessRequest(
-                    open=node_pb2.ProcessOpen(
-                        allocation_id=self._allocation_id,
-                        spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
-                    )
+                    open=open_payload
                 )
             )
             first = await call.read()
@@ -135,7 +149,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
             return AsyncSandboxProcess(channel=channel, call=call, prefetched=[first], close_channel=False)
         except grpc.aio.AioRpcError as exc:
             raise sandbox_rpc_error(exc, operation="sandbox process", allocation_id=self._allocation_id) from exc
-
 
     async def _call_unary(
         self,
@@ -193,7 +206,7 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         self,
         process: AsyncSandboxProcess,
         input: bytes,
-    ) -> AsyncIterator[ExecStreamEvent]:
+    ) -> AsyncIterator[ProcessEvent]:
         sender = asyncio.create_task(self._write_process_input(process, input))
         exit_seen = getattr(process, "returncode", None) is not None
         try:

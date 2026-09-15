@@ -2,6 +2,10 @@ package nodebridge
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"os"
 	"sync"
 	"time"
 
@@ -9,17 +13,34 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials"
 )
 
 type Dialer struct {
 	mu    sync.Mutex
 	conns map[string]*grpc.ClientConn
 	obs   *sdkobs.Handle
+	creds credentials.TransportCredentials
 }
 
-func NewDialer(obs *sdkobs.Handle) *Dialer {
-	return &Dialer{conns: make(map[string]*grpc.ClientConn), obs: obs}
+func NewDialer(caCert, certPath, keyPath, serverName string, obs *sdkobs.Handle) (*Dialer, error) {
+	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return nil, fmt.Errorf("load gateway node mTLS key pair: %w", err)
+	}
+	caPEM, err := os.ReadFile(caCert)
+	if err != nil {
+		return nil, fmt.Errorf("read gateway node mTLS CA: %w", err)
+	}
+	roots := x509.NewCertPool()
+	if !roots.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("parse gateway node mTLS CA %q", caCert)
+	}
+	return &Dialer{
+		conns: make(map[string]*grpc.ClientConn),
+		obs:   obs,
+		creds: credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots, Certificates: []tls.Certificate{cert}, ServerName: serverName}),
+	}, nil
 }
 
 func (d *Dialer) Close() error {
@@ -43,7 +64,7 @@ func (d *Dialer) client(ctx context.Context, target string) (nodesandboxv1.NodeS
 		dialCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		var err error
-		options := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+		options := []grpc.DialOption{grpc.WithTransportCredentials(d.creds.Clone())}
 		if d.obs != nil {
 			options = append(options, d.obs.GRPCDialOptions()...)
 		}
@@ -67,10 +88,10 @@ func (d *Dialer) NodeSandbox(ctx context.Context, target string) (nodesandboxv1.
 	return d.client(ctx, target)
 }
 
-func (d *Dialer) ExecStream(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ExecStreamClient, error) {
+func (d *Dialer) Process(ctx context.Context, target string) (nodesandboxv1.NodeSandbox_ProcessClient, error) {
 	client, err := d.client(ctx, target)
 	if err != nil {
 		return nil, err
 	}
-	return client.ExecStream(ctx)
+	return client.Process(ctx)
 }

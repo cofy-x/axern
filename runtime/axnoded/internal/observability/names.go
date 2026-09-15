@@ -11,6 +11,7 @@ const (
 	SpanRootFSPrepare                = "axnoded.rootfs.prepare"
 	SpanExec                         = "axnoded.exec"
 	SpanExecStream                   = "axnoded.exec_stream"
+	SpanProcess                      = "axnoded.process"
 	SpanResourceAllocate             = "axnoded.resource.allocate"
 	SpanRuntimeCreate                = "axnoded.runtime.create"
 	SpanStatusReport                 = "axnoded.status.report"

@@ -169,8 +169,10 @@ openSession:
 		Env: map[string]string{
 			"TERM": termName,
 		},
-		User: containerUser,
-		TTY:  tty,
+		User:        containerUser,
+		TTY:         tty,
+		InitialCols: initialCols,
+		InitialRows: initialRows,
 	})
 	if err != nil {
 		_, _ = io.WriteString(channel.Stderr(), "terminal target unavailable: "+err.Error()+"\n")
@@ -182,10 +184,6 @@ openSession:
 		return
 	}
 	defer session.Close()
-	if initialCols > 0 && initialRows > 0 {
-		_ = session.Resize(initialCols, initialRows)
-	}
-
 	var lastActivity atomic.Int64
 	touch := func() { lastActivity.Store(time.Now().UnixNano()) }
 	touch()

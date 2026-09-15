@@ -40,7 +40,16 @@ cert_matches_requested_names() {
   if ! openssl x509 -in "${gateway_crt}" -noout -purpose 2>/dev/null | grep -q '^SSL client : Yes'; then
     return 1
   fi
+  if ! openssl x509 -in "${server_crt}" -noout -purpose 2>/dev/null | grep -q '^SSL client : Yes'; then
+    return 1
+  fi
   if ! openssl x509 -in "${node_crt}" -noout -subject -nameopt RFC2253 2>/dev/null | grep -Eq '^subject= ?CN=axern-node$'; then
+    return 1
+  fi
+  if ! openssl x509 -in "${node_crt}" -noout -purpose 2>/dev/null | grep -q '^SSL server : Yes'; then
+    return 1
+  fi
+  if ! openssl x509 -in "${node_crt}" -noout -purpose 2>/dev/null | grep -q '^SSL client : Yes'; then
     return 1
   fi
   return 0
@@ -150,11 +159,11 @@ EOF
     -extfile "${tmp_dir}/${name}.cnf" >/dev/null 2>&1
 }
 
-make_server_cert "controld" "${server_key}" "${server_crt}"
+make_server_cert "controld" "${server_key}" "${server_crt}" "serverAuth,clientAuth"
 make_server_cert "gatewayd" "${gateway_key}" "${gateway_crt}" "serverAuth,clientAuth"
 make_server_cert "tunneld" "${tunnel_key}" "${tunnel_crt}" "serverAuth,clientAuth"
 make_client_cert "axern-dev-client" "${client_key}" "${client_crt}"
-make_client_cert "axern-node" "${node_key}" "${node_crt}"
+make_server_cert "axern-node" "${node_key}" "${node_crt}" "serverAuth,clientAuth"
 
 chmod 0600 "${OUT_DIR}"/*.key
 echo "dev_mtls_certs_dir=${OUT_DIR}"

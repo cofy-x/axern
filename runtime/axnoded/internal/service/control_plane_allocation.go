@@ -32,3 +32,7 @@ func (h *sandboxService) DeleteControlPlaneAllocation(ctx context.Context, nodeI
 func (h *sandboxService) HasControlPlaneAllocation(allocationID, nodeID string) bool {
 	return h != nil && h.allocationController().AdmittedAllocationMatches(allocationID, strings.TrimSpace(nodeID))
 }
+
+func (h *sandboxService) IsControlPlaneAllocation(allocationID string) bool {
+	return h != nil && h.allocationController().HasAdmittedAllocation(allocationID)
+}

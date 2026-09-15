@@ -2,6 +2,8 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"fmt"
 	"net"
@@ -24,6 +26,7 @@ import (
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	grpc_health "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
@@ -51,6 +54,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	var localLis net.Listener
 	var localGRPCServer *grpc.Server
 	var localHealthServer *grpc_health.Server
+	var conformanceLis net.Listener
+	var conformanceGRPCServer *grpc.Server
+	var conformanceHealthServer *grpc_health.Server
 	var networkLis net.Listener
 	var networkGRPCServer *grpc.Server
 	hostname, _ := os.Hostname()
@@ -87,10 +93,25 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			localOptions = append(localOptions, grpc.StatsHandler(handler))
 		}
 		localGRPCServer = grpc.NewServer(localOptions...)
-		nodesandboxv1.RegisterNodeSandboxServer(localGRPCServer, api.NewNodeSandboxServer(svc, nodeID, accessGrantValidator))
-		nodelifecyclev1.RegisterNodeLifecycleServer(localGRPCServer, api.NewLocalNodeLifecycleServer(svc, nodeID))
 		nodeoperatorv1.RegisterNodeOperatorServer(localGRPCServer, api.NewNodeOperatorServer(svc))
 		healthpb.RegisterHealthServer(localGRPCServer, localHealthServer)
+	}
+
+	if strings.TrimSpace(opts.conformanceSocketPath) != "" {
+		conformanceLis, err = listenUnix(opts.conformanceSocketPath, 0o600)
+		if err != nil {
+			return fmt.Errorf("listen conformance grpc %s: %w", opts.conformanceSocketPath, err)
+		}
+		defer conformanceLis.Close()
+		conformanceHealthServer = grpc_health.NewServer()
+		conformanceOptions := []grpc.ServerOption{grpc.UnaryInterceptor(trace.InjectTraceInterceptor)}
+		if handler := obs.GRPCServerStatsHandler(); handler != nil {
+			conformanceOptions = append(conformanceOptions, grpc.StatsHandler(handler))
+		}
+		conformanceGRPCServer = grpc.NewServer(conformanceOptions...)
+		nodesandboxv1.RegisterNodeSandboxServer(conformanceGRPCServer, api.NewLocalNodeSandboxServer(svc, nodeID))
+		nodelifecyclev1.RegisterNodeLifecycleServer(conformanceGRPCServer, api.NewLocalNodeLifecycleServer(svc, nodeID))
+		healthpb.RegisterHealthServer(conformanceGRPCServer, conformanceHealthServer)
 	}
 
 	if strings.TrimSpace(opts.networkSocketPath) != "" {
@@ -115,7 +136,16 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		defer nodeLis.Close()
 
 		nodeHealthServer = grpc_health.NewServer()
-		nodeOptions := []grpc.ServerOption{grpc.UnaryInterceptor(trace.InjectTraceInterceptor)}
+		tlsConfig, tlsErr := loadNodeServerTLS(opts)
+		if tlsErr != nil {
+			return tlsErr
+		}
+		authority := api.NewNodeIngressAuthority()
+		nodeOptions := []grpc.ServerOption{
+			grpc.Creds(credentials.NewTLS(tlsConfig)),
+			grpc.ChainUnaryInterceptor(authority.Unary, trace.InjectTraceInterceptor),
+			grpc.StreamInterceptor(authority.Stream),
+		}
 		if handler := obs.GRPCServerStatsHandler(); handler != nil {
 			nodeOptions = append(nodeOptions, grpc.StatsHandler(handler))
 		}
@@ -127,7 +157,13 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 
 	healthCtx, stopHealth := context.WithCancel(context.Background())
 	defer stopHealth()
-	go publishHealth(healthCtx, svc, localHealthServer, nodeHealthServer)
+	healthEndpoints := []healthEndpoint{
+		{server: localHealthServer, services: []string{nodeoperatorv1.NodeOperator_ServiceDesc.ServiceName}},
+		{server: conformanceHealthServer, services: []string{nodesandboxv1.NodeSandbox_ServiceDesc.ServiceName, nodelifecyclev1.NodeLifecycle_ServiceDesc.ServiceName}},
+		{server: nodeHealthServer, services: []string{nodesandboxv1.NodeSandbox_ServiceDesc.ServiceName, nodelifecyclev1.NodeLifecycle_ServiceDesc.ServiceName}},
+	}
+	updateHealth(svc, healthEndpoints...)
+	go publishHealth(healthCtx, svc, healthEndpoints...)
 
 	httpServer := &http.Server{
 		Addr:              opts.httpAddress,
@@ -139,6 +175,12 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	if localGRPCServer != nil {
 		go func() {
 			localErrCh <- localGRPCServer.Serve(localLis)
+		}()
+	}
+	conformanceErrCh := make(chan error, 1)
+	if conformanceGRPCServer != nil {
+		go func() {
+			conformanceErrCh <- conformanceGRPCServer.Serve(conformanceLis)
 		}()
 	}
 	networkErrCh := make(chan error, 1)
@@ -167,6 +209,10 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		if err != nil {
 			runErr = fmt.Errorf("local grpc server exited: %w", err)
 		}
+	case err := <-conformanceErrCh:
+		if err != nil {
+			runErr = fmt.Errorf("conformance grpc server exited: %w", err)
+		}
 	case err := <-networkErrCh:
 		if err != nil {
 			runErr = fmt.Errorf("Allocation network grpc server exited: %w", err)
@@ -182,13 +228,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	}
 
 	stopHealth()
-	if nodeHealthServer != nil {
-		nodeHealthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
-		nodeHealthServer.SetServingStatus(config.SandboxServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
-	}
-	if localHealthServer != nil {
-		localHealthServer.SetServingStatus("", healthpb.HealthCheckResponse_NOT_SERVING)
-		localHealthServer.SetServingStatus(config.SandboxServiceName, healthpb.HealthCheckResponse_NOT_SERVING)
+	for _, endpoint := range healthEndpoints {
+		setHealthStatus(endpoint, healthpb.HealthCheckResponse_NOT_SERVING)
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), config.StopTimeout)
@@ -201,6 +242,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	go func() {
 		if localGRPCServer != nil {
 			localGRPCServer.GracefulStop()
+		}
+		if conformanceGRPCServer != nil {
+			conformanceGRPCServer.GracefulStop()
 		}
 		if nodeGRPCServer != nil {
 			nodeGRPCServer.GracefulStop()
@@ -216,6 +260,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		if localGRPCServer != nil {
 			localGRPCServer.Stop()
 		}
+		if conformanceGRPCServer != nil {
+			conformanceGRPCServer.Stop()
+		}
 		if nodeGRPCServer != nil {
 			nodeGRPCServer.Stop()
 		}
@@ -230,32 +277,62 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	return runErr
 }
 
-func publishHealth(ctx context.Context, svc service.SandboxService, healthServers ...*grpc_health.Server) {
+func loadNodeServerTLS(opts options) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(opts.nodeTLSCert, opts.nodeTLSKey)
+	if err != nil {
+		return nil, fmt.Errorf("load node tls key pair: %w", err)
+	}
+	caPEM, err := os.ReadFile(opts.nodeTLSCACert)
+	if err != nil {
+		return nil, fmt.Errorf("read node tls ca cert: %w", err)
+	}
+	clientCAs := x509.NewCertPool()
+	if !clientCAs.AppendCertsFromPEM(caPEM) {
+		return nil, fmt.Errorf("parse node tls ca cert %q", opts.nodeTLSCACert)
+	}
+	return &tls.Config{
+		MinVersion:   tls.VersionTLS12,
+		Certificates: []tls.Certificate{cert},
+		ClientCAs:    clientCAs,
+		ClientAuth:   tls.RequireAndVerifyClientCert,
+	}, nil
+}
+
+type healthEndpoint struct {
+	server   *grpc_health.Server
+	services []string
+}
+
+func publishHealth(ctx context.Context, svc service.SandboxService, endpoints ...healthEndpoint) {
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
-
-	update := func() {
-		status := healthpb.HealthCheckResponse_NOT_SERVING
-		if svc.Ready() {
-			status = healthpb.HealthCheckResponse_SERVING
-		}
-		for _, healthServer := range healthServers {
-			if healthServer == nil {
-				continue
-			}
-			healthServer.SetServingStatus("", status)
-			healthServer.SetServingStatus(config.SandboxServiceName, status)
-		}
-	}
-
-	update()
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			update()
+			updateHealth(svc, endpoints...)
 		}
+	}
+}
+
+func updateHealth(svc service.SandboxService, endpoints ...healthEndpoint) {
+	status := healthpb.HealthCheckResponse_NOT_SERVING
+	if svc.Ready() {
+		status = healthpb.HealthCheckResponse_SERVING
+	}
+	for _, endpoint := range endpoints {
+		setHealthStatus(endpoint, status)
+	}
+}
+
+func setHealthStatus(endpoint healthEndpoint, status healthpb.HealthCheckResponse_ServingStatus) {
+	if endpoint.server == nil {
+		return
+	}
+	endpoint.server.SetServingStatus("", status)
+	for _, serviceName := range endpoint.services {
+		endpoint.server.SetServingStatus(serviceName, status)
 	}
 }
 

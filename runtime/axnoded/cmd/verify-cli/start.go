@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cofy-x/axern/lib/go/executionlease"
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
 	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
@@ -18,6 +17,15 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 		return fmt.Errorf("dial axnoded: %w", err)
 	}
 	defer clients.Close()
+	if cfg.deleteAllocationID != "" {
+		deleteTimeout := cfg.deleteTimeout
+		if deleteTimeout <= 0 {
+			deleteTimeout = 2 * time.Minute
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
+		defer cancel()
+		return verifyutil.DeleteAllocation(ctx, clients, cfg.deleteAllocationID, 0)
+	}
 
 	rootfsSpec, err := verifyutil.BuildRootfsSpec(
 		cfg.rootfsSrc,
@@ -53,12 +61,7 @@ func runVerifyCLI(cfg verifyCLIConfig) error {
 	rootfsSpec.Apply(spec)
 
 	allocationID := verifyutil.NewSandboxID(cfg.environmentID)
-	var handle *verifyutil.SandboxHandle
-	if cfg.nodeID == "" {
-		handle, err = verifyutil.CreateAllocation(ctx, clients, allocationID, spec)
-	} else {
-		handle, err = verifyutil.CreateAllocationWithBinding(ctx, clients, allocationID, cfg.nodeID, executionlease.TTL, spec)
-	}
+	handle, err := verifyutil.CreateAllocation(ctx, clients, allocationID, spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}

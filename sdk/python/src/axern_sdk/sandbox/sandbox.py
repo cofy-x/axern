@@ -12,7 +12,7 @@ from axern_sdk.errors import SandboxNotStartedError, SandboxTimeoutError
 from axern_sdk.node import (
     ExecCommand,
     ExecResult,
-    ExecStreamEvent,
+    ProcessEvent,
     AllocationClient,
     SandboxProcess,
 )
@@ -342,7 +342,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
-    ) -> Iterator[ExecStreamEvent]:
+    ) -> Iterator[ProcessEvent]:
         return self._node_client().exec_stream(
             command,
             env=env,
@@ -367,6 +367,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         timeout_seconds: int = 0,
         user: str = "",
         tty: bool = False,
+        initial_cols: int = 0,
+        initial_rows: int = 0,
         shell: bool | None = None,
         lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
@@ -378,6 +380,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
+            initial_cols=initial_cols,
+            initial_rows=initial_rows,
             shell=shell,
             lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
