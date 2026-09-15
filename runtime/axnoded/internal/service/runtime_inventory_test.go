@@ -103,7 +103,7 @@ func TestRecoverTerminalRuntimeCheckpointBeforeCleanup(t *testing.T) {
 	assert.Equal(t, exitedAt, container.ParseTimestampTime(status.FinishedAt))
 }
 
-func TestRecoverTerminalRuntimeCheckpointFailsClosedWithoutExactExit(t *testing.T) {
+func TestRecoverTerminalRuntimeCheckpointPreservesUnavailableExit(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
 	handler := inventoryTestHandler{SandboxRuntime: runsc, waitErr: contract.ErrExitStatusUnavailable}
 	service := runtimeInventoryTestService(t, handler)
@@ -112,10 +112,12 @@ func TestRecoverTerminalRuntimeCheckpointFailsClosedWithoutExactExit(t *testing.
 	err := service.recoverTerminalRuntimeCheckpoints(context.Background(), runtimeInventory{
 		"terminal": {ID: "terminal", Status: contract.ContainerStatusExited},
 	})
-	require.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	require.NoError(t, err)
 	item, getErr := service.containerManager.Get("terminal")
 	require.NoError(t, getErr)
-	assert.Equal(t, runtimeapi.ContainerState_CONTAINER_UNKNOWN, item.Status.Get().State())
+	assert.Equal(t, runtimeapi.ContainerState_CONTAINER_EXITED, item.Status.Get().State())
+	assert.Nil(t, item.Status.Get().ExitCode)
+	assert.Contains(t, item.Status.Get().Message, "exit status unavailable")
 }
 
 func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
@@ -220,4 +222,18 @@ func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]struct{}{"durable": {}}, durable.allIDs())
 	assert.Equal(t, map[string]struct{}{"session": {}}, discard.allIDs())
+}
+
+func TestRecoverTerminalRuntimeCheckpointRejectsUncertainWait(t *testing.T) {
+	runsc := runtimetest.NewFakeSandboxRuntime()
+	handler := inventoryTestHandler{SandboxRuntime: runsc, waitErr: context.DeadlineExceeded}
+	service := runtimeInventoryTestService(t, handler)
+	require.NoError(t, service.containerManager.StoreMetadata("terminal", &runtimeapi.ContainerMetadata{}))
+	err := service.recoverTerminalRuntimeCheckpoints(context.Background(), runtimeInventory{
+		"terminal": {ID: "terminal", Status: contract.ContainerStatusExited},
+	})
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	item, err := service.containerManager.Get("terminal")
+	require.NoError(t, err)
+	assert.Equal(t, runtimeapi.ContainerState_CONTAINER_UNKNOWN, item.Status.Get().State())
 }

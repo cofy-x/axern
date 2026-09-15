@@ -5,6 +5,7 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -30,8 +31,8 @@ func NormalizeAdmitNodeRequest(in AdmitNodeRequest) AdmitNodeRequest {
 }
 
 func ValidateAdmitNodeRequest(req AdmitNodeRequest) error {
-	if req.NodeID == "" {
-		return grpcstatus.Error(codes.InvalidArgument, "node_id is required")
+	if err := workloadtls.ValidateNodeID(req.NodeID); err != nil {
+		return grpcstatus.Error(codes.InvalidArgument, err.Error())
 	}
 	if req.EnrollmentToken == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "enrollment_token is required")
@@ -76,6 +77,23 @@ func ValidateRetireNodeRequest(req RetireNodeRequest) error {
 	}
 	if req.HeartbeatWindow <= 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "heartbeat freshness window is required")
+	}
+	return nil
+}
+
+type RevokeNodeRequest struct {
+	NodeID         string
+	OperatorReason string
+	Now            time.Time
+}
+
+func NormalizeRevokeNodeRequest(in RevokeNodeRequest) RevokeNodeRequest {
+	return RevokeNodeRequest{NodeID: strings.TrimSpace(in.NodeID), OperatorReason: strings.TrimSpace(in.OperatorReason), Now: in.Now.UTC()}
+}
+
+func ValidateRevokeNodeRequest(req RevokeNodeRequest) error {
+	if req.NodeID == "" || req.OperatorReason == "" || req.Now.IsZero() {
+		return grpcstatus.Error(codes.InvalidArgument, "node_id, operator_reason and revocation time are required")
 	}
 	return nil
 }

@@ -20,6 +20,7 @@ import (
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -181,6 +182,13 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
 		p.failures = 0
 		p.nextProbe = time.Time{}
+		if errors.Is(err, resources.ErrMemoryCapacityUnavailable) {
+			// No sandbox was created: admission lacked a current capacity
+			// sample. Do not latch this as failed destructive certification.
+			p.lastErrorUnknown = true
+			p.lastReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DEPENDENCY_UNAVAILABLE
+			p.nextProbe = p.lastProbe.Add(runtimeProbeRetryDelay(1))
+		}
 	} else if err != nil && (p.lastProbe.IsZero() || p.nextProbe.IsZero() || !now.Before(p.nextProbe)) {
 		p.identity = identity
 		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -74,9 +73,8 @@ func (h *sandboxService) initNodeInventory() error {
 		}
 		memoryCapacityObserver = func(resources.MemoryCapacitySnapshot) error { return nil }
 	}
-	hostname, _ := os.Hostname()
 	h.nodeInventorySource = nodeinventory.NewAxnodedSource(nodeinventory.AxnodedSourceOptions{
-		NodeID: h.config.PluginConfig.ControlPlaneNodeIDValue(hostname),
+		NodeID: h.config.PluginConfig.ControlPlaneNodeID,
 		Ready:  h.Ready,
 		RuntimeCount: func() int {
 			if h.runscHandler == nil {
@@ -184,7 +182,7 @@ func nodeResourceProvider(cfg config.PluginConfig) (nodeinventory.NodeResourcePr
 	switch source {
 	case config.ControlPlaneNodeResourceSourceKubernetes:
 		provider, err := nodeinventory.NewKubernetesNodeResourceProvider(nodeinventory.KubernetesNodeResourceProviderOptions{
-			NodeName: cfg.ControlPlaneKubernetesNodeNameValue(cfg.ControlPlaneNodeIDValue("")),
+			NodeName: cfg.ControlPlaneKubernetesNodeName,
 		})
 		if err != nil {
 			logrus.WithError(err).Warn("kubernetes node resource provider unavailable")

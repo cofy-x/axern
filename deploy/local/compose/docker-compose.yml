@@ -188,7 +188,7 @@ services:
       AXNODED_CONTROL_PLANE_TARGET: controld:24000
       AXNODED_CONTROL_PLANE_NODE_ID: ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
       AXNODED_CONTROL_PLANE_NODE_TARGET: node:24010
-      AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN: ${ENROLLMENT_TOKEN}
+      AXNODED_ENROLLMENT_TOKEN_FILE: /bootstrap/enrollment-token
       AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL: 1s
       AXNODED_CONTROL_PLANE_TLS_CA_CERT: /certs/ca.crt
       AXERN_WORKLOAD_CLUSTER: axern.local
@@ -208,6 +208,7 @@ services:
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES},axern.node_id=${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
     volumes:
       - "${COMPOSE_STATE_DIR}/run:/shared/run"
+      - "${COMPOSE_STATE_DIR}/enrollment-token:/bootstrap/enrollment-token:ro"
       - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
       - "${COMPOSE_STATE_DIR}/axnoded:/var/lib/axnoded"
       - "node-imagemgr-state:/var/lib/imagemgr"

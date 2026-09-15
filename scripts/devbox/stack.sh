@@ -20,14 +20,6 @@ POSTGRES_DSN="${POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@$
 AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
-if [ -z "${AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN:-}" ]; then
-  mkdir -p "${DEV_DIR}"
-  if [ ! -s "${DEV_DIR}/enrollment-token" ]; then
-    openssl rand -hex 32 > "${DEV_DIR}/enrollment-token"
-    chmod 600 "${DEV_DIR}/enrollment-token"
-  fi
-  AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN="$(cat "${DEV_DIR}/enrollment-token")"
-fi
 AXERN_DEV_TOKEN="${AXERN_DEV_TOKEN:-axern-local-dev}"
 AXERN_SECRETS_MASTER_KEY="${AXERN_SECRETS_MASTER_KEY:-local-only-master-key-32-bytes!!}"
 
@@ -322,7 +314,6 @@ prepare_workspace_config() {
   AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET}" \
   AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
   AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET}" \
-  AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN="${AXERN_DEV_CONTROL_PLANE_ENROLLMENT_TOKEN}" \
   bash "${ROOT_DIR}/scripts/devbox/node-dev-prepare.sh"
 }
 
@@ -420,6 +411,7 @@ start_axnoded() {
     -C '${ROOT_DIR}/runtime/axnoded' run ./cmd/axnoded \
     -root '${DEV_DIR}/axnoded' \
     -config '${DEV_DIR}/axnoded/config.toml' \
+    -enrollment-token-file '${DEV_DIR}/enrollment-token' \
     -socket '${RUN_DIR}/axnoded.sock' \
     -network-socket '${RUN_DIR}/axnoded-network.sock' \
     -grpc-address 127.0.0.1:23000 \

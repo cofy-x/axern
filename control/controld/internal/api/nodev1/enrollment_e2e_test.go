@@ -163,14 +163,14 @@ func TestNodeEnrollmentTLSPostgresE2E(t *testing.T) {
 	if _, err := node.RenewNodeCertificate(ctx, &nodev1.RenewNodeCertificateRequest{NodeID: "node-two", CsrDer: csr}); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("cross-node renewal: %v", err)
 	}
-	if _, err := admin.RetireNode(ctx, adminkernel.RetireNodeRequest{NodeID: "node-one", OperatorReason: "e2e revocation", Now: time.Now(), HeartbeatWindow: time.Minute}); err != nil {
+	if _, err := admin.RevokeNode(ctx, adminkernel.RevokeNodeRequest{NodeID: "node-one", OperatorReason: "e2e revocation", Now: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
 	// Revocation must also reject an already established TLS connection.
 	if _, err := node.RenewNodeCertificate(ctx, renewReq); status.Code(err) != codes.PermissionDenied {
-		t.Fatalf("retired renewal on old connection: %v", err)
+		t.Fatalf("revoked renewal on old connection: %v", err)
 	}
 	if _, err := retryClient.EnrollNode(ctx, req); status.Code(err) != codes.Unauthenticated {
-		t.Fatalf("retired replay: %v", err)
+		t.Fatalf("revoked replay: %v", err)
 	}
 }

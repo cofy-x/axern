@@ -31,8 +31,9 @@ node_secret_args=()
 node_helm_args=()
 node_index=0
 for kubernetes_node in $(kubectl get nodes -o name | sed 's#node/##'); do
-  axern_node_id="node-${kubernetes_node}"
-  node_helm_args+=(--set-string "node.enrollment.nodes[${node_index}]=${kubernetes_node}")
+  axern_node_id="node-$(openssl rand -hex 16)"
+  node_helm_args+=(--set-string "node.enrollment.nodes[${node_index}].nodeName=${kubernetes_node}"
+                    --set-string "node.enrollment.nodes[${node_index}].nodeID=${axern_node_id}")
   node_index=$((node_index + 1))
   openssl rand -hex 32 > "${enrollment_token_dir}/${axern_node_id}"
   chmod 600 "${enrollment_token_dir}/${axern_node_id}"
@@ -122,6 +123,14 @@ axern context import-kubernetes local \
 
 不要在 `authorizedKeys` 为默认值（空）时启用 SSH，否则 Gateway 没有任何可认证的客户端密钥。请限制 SSH 私钥文件权限，并在共享集群使用前审视 host-key 处理方式。
 
+## 节点身份运维
+
+将显式的 `nodeName` / `nodeID` 绑定保存到部署 values，普通升级不得重新生成身份。注册 token 是独立只读文件，不进入节点配置或环境变量。证书持久发布后可移除 token Secret；节点重启和自动续期不再读取它。续期在证书剩余 7–8 小时时触发，失败采用有界、带抖动的退避重试。
+
+使用 `axern admin node revoke <node-id> --operator-reason <reason>` 可立即撤回授权，不要求节点空闲。这不代表资源已经清理：终止和释放仍由 Allocation 生命周期负责，已签发或进行中的授权受原有 TTL 限制。被攻陷的主机还必须在外部隔离。`node retire` 仍须等清理与访问义务收敛后才能执行。
+
+主机替换、状态丢失或身份过期必须使用新 Node ID 和新节点状态，即使 Kubernetes 复用了同一主机名。先隔离并清理旧主机；不得通过删除运行中状态或复用 token 绕过恢复约束。
+
 ## 持久化部署之前
 
 内置 PostgreSQL 和单节点默认值仅用于评估。运行共享或生产工作负载前，请审视以下 Chart 配置项：
@@ -129,7 +138,7 @@ axern context import-kubernetes local \
 - **Release 产物：** 统一锁定 Chart、镜像和 CLI 版本，安装 CLI 前校验其 checksum。
 - **集群前提：** 确认所需的 Kubernetes/Helm 版本、`runsc` 运行时可用性、运行时与镜像服务所需的节点权限、默认 NAT 数据面所需的 eBPF 内核能力（`node.network.natBackend=iptables` 是显式回退项），以及每个调度节点到镜像仓库的可达性。
 - **Gateway 暴露：** 用显式管理的 Service 或 Ingress 替换本地 port-forward，配置 TLS 服务器名称和网络策略；除非交互式工作流需要，保持 SSH 关闭。
-- **Secret：** 用 `secrets.existingSecret` 提供 master key 和 gateway token；用 `postgres.existingSecret` 提供数据库凭据；用 `node.enrollment.existingSecret` 为每个已准入 Node ID 提供独立一次性注册 token。在把 DaemonSet 调度到新的 Kubernetes Node 前，先加入对应的 `node-<kubernetes-node-name>` key，并通过管理 API 准入该身份。
+- **Secret：** 用 `secrets.existingSecret` 提供 master key 和 gateway token；用 `postgres.existingSecret` 提供数据库凭据；用 `node.enrollment.existingSecret` 为每个已准入 Node ID 提供独立一次性注册 token。在把 DaemonSet 调度到新的 Kubernetes Node 前，先加入对应的 `nodeID` key，并通过管理 API 准入该身份。
 - **持久存储：** 设置 `postgres.persistence.enabled=true` 并搭配拓扑感知的 `ReadWriteOnce` StorageClass；不要在 `emptyDir` 回退上运行持久环境。
 - **调度：** 为 `scheduling.platform`、`scheduling.observability` 和 `scheduling.runtime` 配置专用节点池标签和对应的 `NoSchedule` Taint。
 - **可观测：** 内置的 Prometheus、Tempo、Loki、Grafana 栈是持久的但单副本；在 `observability` 下规划保留周期和存储容量。

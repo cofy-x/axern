@@ -18,6 +18,7 @@ func (s *Store) ListNodeExecutionAllocationIDs(ctx context.Context, nodeID strin
 		SELECT a.allocation_id
 		FROM allocations a
 		JOIN runs r ON r.run_id = a.run_id
+		JOIN nodes n ON n.node_id = a.node_id AND n.lifecycle_status = 'active'
 		WHERE a.node_id = $1
 		  AND a.lifecycle_state IN ($2, $3, $4)
 		  AND r.status NOT IN ($5, $6, $7)

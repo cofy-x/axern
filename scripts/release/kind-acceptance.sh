@@ -58,7 +58,8 @@ kubectl --namespace "${namespace}" create secret generic axern-pki \
   --from-file=client.key="${state_dir}/pki/client.key"
 kubectl --namespace "${namespace}" create secret generic axern-pki-signer \
   --from-file=signer.pem="${state_dir}/pki/private/signer.pem"
-release_node_id="node-$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')"
+release_node_name="$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')"
+release_node_id="node-$(openssl rand -hex 16)"
 release_enrollment_token_file="${state_dir}/enrollment-token"
 openssl rand -hex 32 > "${release_enrollment_token_file}"
 chmod 600 "${release_enrollment_token_file}"
@@ -71,7 +72,8 @@ helm_args=(
   --wait --timeout 15m
   --set-string "node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}"
   --set-string "node.enrollment.existingSecret=enrollment-token"
-  --set-string "node.enrollment.nodes[0]=${release_node_id#node-}"
+  --set-string "node.enrollment.nodes[0].nodeName=${release_node_name}"
+  --set-string "node.enrollment.nodes[0].nodeID=${release_node_id}"
 )
 if [[ "${chart}" == oci://* ]]; then
   helm_args+=(--version "${tag#v}")

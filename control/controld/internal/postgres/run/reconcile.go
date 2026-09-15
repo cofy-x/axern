@@ -117,6 +117,13 @@ func (s *Store) LoadStartAllocation(ctx context.Context, allocationID string) (*
 		if err != nil {
 			return err
 		}
+		var nodeActive bool
+		if err := tx.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM nodes WHERE node_id = $1 AND lifecycle_status = 'active')", alloc.NodeID).Scan(&nodeActive); err != nil {
+			return err
+		}
+		if !nodeActive {
+			return grpcstatus.Error(codes.FailedPrecondition, "Node identity is not active")
+		}
 		out = &runkernel.StartAllocation{
 			Run:         run,
 			Environment: env,

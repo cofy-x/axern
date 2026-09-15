@@ -85,7 +85,7 @@ docker exec axern-local-node-1 sh -lc 'find /var/lib/imagemgr/daemons -maxdepth 
 Config:
 
 ```bash
-docker exec axern-local-node-1 sed '/^control_plane_enrollment_token =/d' /var/lib/axnoded/node-config.toml
+docker exec axern-local-node-1 cat /var/lib/axnoded/node-config.toml
 ```
 
 ### Kind
@@ -114,7 +114,7 @@ kubectl -n axern-local exec "${NODE_POD}" -- sh -lc 'find /var/lib/imagemgr/daem
 Config:
 
 ```bash
-kubectl -n axern-local exec "${NODE_POD}" -- sed '/^control_plane_enrollment_token =/d' /var/lib/axnoded/node-config.toml
+kubectl -n axern-local exec "${NODE_POD}" -- cat /var/lib/axnoded/node-config.toml
 ```
 
 ## Troubleshooting By Symptom

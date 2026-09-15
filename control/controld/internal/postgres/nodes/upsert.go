@@ -48,8 +48,8 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 	if err != nil {
 		return nil, fmt.Errorf("load Node admission: %w", err)
 	}
-	if lifecycle == string(nodekernel.LifecycleRetired) {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "node is retired")
+	if lifecycle != string(nodekernel.LifecycleActive) {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "node identity is not active")
 	}
 
 	if _, err := tx.Exec(ctx, `

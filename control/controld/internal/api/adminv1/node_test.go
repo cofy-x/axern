@@ -120,3 +120,7 @@ func (f *fakeCapabilityDiagnostics) GetAllocationCapabilityDiagnostics(_ context
 	f.allocationID = allocationID
 	return f.allocation, nil
 }
+
+func (f *fakeNodeAdmin) RevokeNode(ctx context.Context, nodeID, reason string, now time.Time) (*nodekernel.Record, error) {
+	return f.RetireNode(ctx, nodeID, reason, now)
+}

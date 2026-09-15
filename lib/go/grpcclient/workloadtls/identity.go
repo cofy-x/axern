@@ -18,6 +18,14 @@ type Identity struct {
 	NodeID  string
 }
 
+// ValidateNodeID applies the same identifier contract at admission and TLS boundaries.
+func ValidateNodeID(nodeID string) error {
+	if !component.MatchString(nodeID) {
+		return fmt.Errorf("invalid workload Node identity")
+	}
+	return nil
+}
+
 func (i Identity) URI() (*url.URL, error) {
 	if !trustDomain.MatchString(i.Cluster) {
 		return nil, fmt.Errorf("invalid workload trust domain")
@@ -25,8 +33,8 @@ func (i Identity) URI() (*url.URL, error) {
 	path := "/service/" + i.Role
 	switch i.Role {
 	case "axnoded":
-		if !component.MatchString(i.NodeID) || i.NodeID == "." || i.NodeID == ".." {
-			return nil, fmt.Errorf("invalid workload Node identity")
+		if err := ValidateNodeID(i.NodeID); err != nil {
+			return nil, err
 		}
 		path = "/node/" + i.NodeID
 	case "controld", "gatewayd", "tunneld":

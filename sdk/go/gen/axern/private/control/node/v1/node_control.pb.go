@@ -1621,9 +1621,9 @@ func (x *ReportNodeRequest) GetNodeTarget() string {
 
 type ReportNodeResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Complete authority snapshot for Allocations currently allowed to execute
-	// on this node. Absence revokes authority; TTL is measured from receipt on
-	// the node so correctness does not depend on synchronized wall clocks.
+	// Explicit finite grants for Allocations currently allowed to execute.
+	// Absence does not revoke an existing deadline: a response can race Create.
+	// TTL is measured from receipt on the node; expired authority is not revived.
 	ExecutionLeases []*AllocationExecutionLease `protobuf:"bytes,1,rep,name=execution_leases,json=executionLeases,proto3" json:"execution_leases,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache

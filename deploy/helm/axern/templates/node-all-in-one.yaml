@@ -5,9 +5,15 @@
 {{- fail "node.memorySystemReserveBytes must be a positive decimal integer" -}}
 {{- end }}
 {{- $root := . -}}
-{{- $nodes := required "node.enrollment.nodes must explicitly list Kubernetes node names" .Values.node.enrollment.nodes -}}
+{{- $nodes := required "node.enrollment.nodes must explicitly bind nodeID to nodeName" .Values.node.enrollment.nodes -}}
 {{- $seen := dict -}}
-{{- range $nodeName := $nodes }}
+{{- $identities := dict -}}
+{{- range $node := $nodes }}
+{{- $nodeName := required "nodeName is required" $node.nodeName -}}
+{{- $nodeID := required "nodeID is required" $node.nodeID -}}
+{{- if or (not (regexMatch "^[A-Za-z0-9][A-Za-z0-9._-]*$" $nodeID)) (gt (len $nodeID) 253) }}{{ fail "invalid nodeID" }}{{ end -}}
+{{- if hasKey $identities $nodeID }}{{ fail "duplicate nodeID" }}{{ end -}}
+{{- $_ := set $identities $nodeID true -}}
 {{- if hasKey $seen $nodeName }}{{ fail "duplicate node.enrollment.nodes entry" }}{{ end -}}
 {{- $_ := set $seen $nodeName true -}}
 {{- $deploymentKey := trunc 16 (sha256sum $nodeName) -}}
@@ -154,14 +160,9 @@ spec:
               {{- if .Values.node.sysctls.userMaxUserNamespaces }}
               echo {{ .Values.node.sysctls.userMaxUserNamespaces | quote }} > /proc/sys/user/max_user_namespaces
               {{- end }}
-              export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
+              export AXNODED_CONTROL_PLANE_NODE_ID={{ $nodeID | quote }}
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
-              enrollment_token_path="/enrollment-tokens/${AXNODED_CONTROL_PLANE_NODE_ID}"
-              if [ ! -s "${enrollment_token_path}" ]; then
-                echo "missing Node enrollment token at ${enrollment_token_path}" >&2
-                exit 1
-              fi
-              export AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN="$(cat "${enrollment_token_path}")"
+              export AXNODED_ENROLLMENT_TOKEN_FILE="/enrollment-tokens/${AXNODED_CONTROL_PLANE_NODE_ID}"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
             - containerPort: 24010
@@ -208,10 +209,11 @@ spec:
         - name: enrollment-tokens
           secret:
             secretName: {{ $enrollmentTokenSecret }}
+            optional: true
             defaultMode: 384
             items:
-              - key: {{ printf "node-%s" $nodeName | quote }}
-                path: {{ printf "node-%s" $nodeName | quote }}
+              - key: {{ $nodeID | quote }}
+                path: {{ $nodeID | quote }}
         - name: shared-run
           emptyDir: {}
         - name: axnoded-state

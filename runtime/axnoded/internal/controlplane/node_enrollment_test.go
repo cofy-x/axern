@@ -75,16 +75,26 @@ func TestNodeEnrollmentRecoversReplyAndRenewsWithoutToken(t *testing.T) {
 	}
 	identity := workloadtls.Identity{Cluster: "cluster.test", Role: "axnoded", NodeID: "node-one"}
 	client := &enrollmentClientFixture{issuer: workloadtls.Issuer{Certificate: ca, Key: key, Cluster: identity.Cluster}, identity: identity}
+	tokenFile := filepath.Join(dir, "bootstrap-token")
+	if err := os.WriteFile(tokenFile, []byte("enrollment-token"), 0400); err != nil {
+		t.Fatal(err)
+	}
 	first := &NodeEnrollment{Client: client, Identity: identity, BundlePath: bundle, TrustPath: trust}
-	if err := first.Ensure(context.Background(), "enrollment-token"); err == nil {
+	if err := first.Bootstrap(context.Background(), tokenFile); err == nil {
 		t.Fatal("lost response not reported")
 	}
 	recovered := &NodeEnrollment{Client: client, Identity: identity, BundlePath: bundle, TrustPath: trust}
-	if err := recovered.Ensure(context.Background(), "enrollment-token"); err != nil {
+	if err := recovered.Bootstrap(context.Background(), tokenFile); err != nil {
 		t.Fatal(err)
 	}
 	if client.enrollCalls != 2 {
 		t.Fatalf("enrollment calls=%d", client.enrollCalls)
+	}
+	if err := os.Remove(tokenFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovered.Bootstrap(context.Background(), tokenFile); err != nil {
+		t.Fatalf("restart needs removed bootstrap token: %v", err)
 	}
 	before, err := recovered.current()
 	if err != nil {
@@ -120,7 +130,16 @@ func TestNodeEnrollmentRecoversReplyAndRenewsWithoutToken(t *testing.T) {
 	}
 	conflicting := *recovered
 	conflicting.Identity.NodeID = "node-two"
-	if err := conflicting.Ensure(context.Background(), "enrollment-token"); err == nil {
+	if err := conflicting.Bootstrap(context.Background(), tokenFile); err == nil {
 		t.Fatal("existing identity rebound to another Node")
+	}
+	if client.enrollCalls != 2 {
+		t.Fatal("identity conflict attempted re-enrollment")
+	}
+	if err := os.WriteFile(bundle, []byte("invalid certificate"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := recovered.Bootstrap(context.Background(), tokenFile); err == nil {
+		t.Fatal("invalid published identity accepted")
 	}
 }

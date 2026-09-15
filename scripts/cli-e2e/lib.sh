@@ -159,6 +159,7 @@ dump_logs() {
   docker logs "${NODE_CONTAINER_NAME}" >&2 || true
   dump_node_control_plane_route
   dump_node_log_tail "axnoded" "/var/log/axnoded/axnoded.log" 160
+  dump_node_log_tail "imagefsd" "/var/lib/imagemgr/logs/imagefsd.log" 80
   dump_node_log_tail "imagemgr" "/var/lib/imagemgr/logs/imagemgr.log" 120
   dump_node_log_tail "node-tunneld" "/var/log/axnoded/node-tunneld.log" 120
 }
@@ -175,7 +176,7 @@ dump_node_log_tail() {
   local path="$2"
   local lines="$3"
   echo "--- ${label} log tail ---" >&2
-  docker exec "${NODE_CONTAINER_NAME}" sh -lc "test -f '${path}' && tail -n '${lines}' '${path}'" >&2 || true
+  docker cp "${NODE_CONTAINER_NAME}:${path}" - | tar -xOf - | tail -n "${lines}" >&2 || true
 }
 
 node_control_plane_tcp_ready() {
@@ -277,6 +278,11 @@ wait_for_running_run_allocation() {
         printf '%s\n' "${allocation_id}"
         return 0
       fi
+    fi
+    if [ -n "${run_get_json}" ] && python3 -c 'import json,sys; sys.exit(0 if json.load(sys.stdin)["run"].get("status") in ("failed", "succeeded", "cancelled") else 1)' <<<"${run_get_json}" >/dev/null 2>&1; then
+      echo "${label} reached a terminal state before running: ${run_get_json}" >&2
+      dump_logs
+      return 1
     fi
     sleep 2
   done

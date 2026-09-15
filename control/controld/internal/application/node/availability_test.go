@@ -145,3 +145,15 @@ func (f *fakeAvailabilityAllocations) ListNodeExecutionAllocationIDs(context.Con
 	f.executionListCalls++
 	return append([]string(nil), f.executionIDs...), nil
 }
+
+func TestAvailabilityReconcilesRevokedNodeWithFreshHeartbeat(t *testing.T) {
+	now := time.Now()
+	allocations := &fakeAvailabilityAllocations{}
+	err := NewAvailabilityReconciler(AvailabilityReconcilerDeps{
+		Nodes:       &fakeAvailabilityNodeStore{records: []*nodekernel.Record{{NodeID: "revoked", Lifecycle: nodekernel.LifecycleRevoked, LastHeartbeatAt: now}}},
+		Allocations: allocations, HeartbeatWindow: time.Minute,
+	}).ReconcileUnavailableNodes(context.Background(), now)
+	if err != nil || len(allocations.unavailableNodeIDs) != 1 {
+		t.Fatalf("revoked cleanup not driven: %v %v", allocations.unavailableNodeIDs, err)
+	}
+}

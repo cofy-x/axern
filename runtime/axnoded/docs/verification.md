@@ -87,7 +87,7 @@ Changing binary names, install paths, or node image packaging is a cross-runtime
 | bpfnet diagnostics               | Pinned program readiness and managed runtime diagnostics                                                      | `make verify-bpfnetctl-e2e`               |
 | network-policy Linux correctness | Hermetic 16-cell runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
 
-Runtime recovery tests must preserve the lifecycle evidence boundary: a missing `status.pb` is unknown rather than implicitly running, live runsc inventory may repair only PID/start identity, and an exited runsc container must yield an exact `Wait` result before terminal outbox seeding or deletion. Cover both the successful exact-exit checkpoint and the fail-closed path where that result is unavailable. Allocation resource accounting must read the immutable `AllocationState.resource_spec`; the runtime checkpoint must not carry a second resource or enforcement copy.
+Runtime recovery tests must preserve the lifecycle evidence boundary: a missing `status.pb` is unknown rather than implicitly running, live runsc inventory may repair only PID/start identity, and an exited runsc container must yield a `Wait` result or its explicit exit-status-unavailable error before terminal outbox seeding or deletion. Cover exact-exit recovery, confirmed termination without a fabricated exit code, and fail-closed recovery on other Wait errors. Allocation resource accounting must read the immutable `AllocationState.resource_spec`; the runtime checkpoint must not carry a second resource or enforcement copy.
 
 ## Node And Image Layers
 

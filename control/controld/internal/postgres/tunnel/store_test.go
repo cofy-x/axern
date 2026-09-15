@@ -571,3 +571,33 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 		t.Fatalf("insert allocation: %v", err)
 	}
 }
+
+func TestRevokedNodeRejectsTunnelCreationRenewalAndPeers(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Now().UTC()
+	insertTunnelTestAllocation(t, db, "alloc-revoked", now)
+	ctx := tunnelTestContext()
+	result, err := store.Create(ctx, tunnelkernel.CreateParams{AllocationID: "alloc-revoked", Now: now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := result.Session.GetSessionID()
+	if _, err := store.ValidatePeer(ctx, id, tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, result.ClientToken, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, "UPDATE nodes SET lifecycle_status='revoked' WHERE node_id=$1", result.Session.GetNodeID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Create(ctx, tunnelkernel.CreateParams{AllocationID: "alloc-revoked", Now: now}); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("revoked create: %v", err)
+	}
+	if _, err := store.Renew(ctx, id, result.ClientToken, time.Minute, now); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("revoked renew: %v", err)
+	}
+	for _, kind := range []tunnelv1.TunnelPeerKind{tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_NODE} {
+		if _, err := store.ValidatePeer(ctx, id, kind, result.ClientToken, now); grpcstatus.Code(err) != codes.PermissionDenied {
+			t.Fatalf("revoked peer: %v", err)
+		}
+	}
+}

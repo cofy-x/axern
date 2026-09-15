@@ -17,6 +17,10 @@ import (
 
 const memoryCapacityFreshness = 15 * time.Second
 
+// ErrMemoryCapacityUnavailable means resource admission was rejected before
+// runtime creation. It is not evidence of failed runtime enforcement.
+var ErrMemoryCapacityUnavailable = errors.New("node memory capacity observation is unavailable or stale")
+
 // Recycle is a one-way assigned -> retiring transition. A cgroup that ever
 // belonged to an allocation is never returned to the warm pool.
 func (c *CgroupManager) Recycle(id string) error {
@@ -155,7 +159,7 @@ func (c *CgroupManager) Allocate(opt AllocateOption) (Resource, error) {
 		if !capacityFresh {
 			c.Unlock()
 			metrics.RecordMemoryAdmission("capacity_unavailable")
-			return EmptyStringResource, fmt.Errorf("node memory capacity observation is unavailable or stale")
+			return EmptyStringResource, ErrMemoryCapacityUnavailable
 		}
 		if capacity.SystemReserveExhausted {
 			c.Unlock()

@@ -67,7 +67,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		if !active {
 			return nil, errord.ToGRPC(fmt.Errorf("durably verified allocation has no active runtime: %w", errord.ErrFailedPrecondition))
 		}
-		if err := controller.ReplaceExecutionLeases(map[string]time.Duration{request.GetAllocationID(): leaseTTL}, time.Now().UTC()); err != nil {
+		if err := controller.RenewExecutionLeases(map[string]time.Duration{request.GetAllocationID(): leaseTTL}, time.Now().UTC()); err != nil {
 			return nil, errord.ToGRPC(err)
 		}
 		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "replayed")

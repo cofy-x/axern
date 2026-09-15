@@ -2,7 +2,6 @@ package controlplane
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -231,8 +230,7 @@ func NewNodeReporter(
 	if err != nil {
 		return nil, err
 	}
-	hostname, _ := os.Hostname()
-	nodeID := cfg.PluginConfig.ControlPlaneNodeIDValue(hostname)
+	nodeID := cfg.PluginConfig.ControlPlaneNodeID
 	control, err := nodecontrol.NewNodeControlClientProvider(target, cfg.PluginConfig.ControlPlaneTLSCACertValue(), filepath.Join(cfg.RootDir, "identity", "node.pem"), cfg.PluginConfig.WorkloadCluster, nodeID)
 	if err != nil {
 		return nil, err

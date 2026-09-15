@@ -20,6 +20,7 @@
 - Keep debug HTTP read-only. Durable retry operations and audit/reliability models belong to the admin application and Postgres boundaries.
 - The implementation follows the [Stable Domain Model](../../docs/product/domain-model.md); writable files and output bytes remain Allocation-local and Axern defines no generic Artifact root.
 
+- Node revocation withdraws authority without claiming cleanup. Keep it in the Node lifecycle and existing audit/Allocation reconciliation paths; never bypass retirement blockers or introduce a certificate lifecycle shadow.
 - Node enrollment signs one CSR under the admitted Node row lock; normal NodeControl requires exact URI identity and current admission, never enrollment tokens. Keep signing material control-only.
 
 ## Validation

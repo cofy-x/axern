@@ -230,8 +230,8 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	if got := cfg.ControlPlaneTargetValue(); got != "127.0.0.1:24000" {
 		t.Fatalf("ControlPlaneTargetValue() = %q, want %q", got, "127.0.0.1:24000")
 	}
-	if got := cfg.ControlPlaneNodeIDValue("host-a"); got != "host-a" {
-		t.Fatalf("ControlPlaneNodeIDValue() = %q, want host-a", got)
+	if err := cfg.ValidateNodeIdentity(); err == nil {
+		t.Fatal("missing explicit node identity accepted")
 	}
 	interval, err := cfg.ControlPlaneHeartbeatIntervalDuration()
 	if err != nil {
@@ -279,17 +279,12 @@ func TestPluginConfigControlPlaneHelpers(t *testing.T) {
 	if source != ControlPlaneNodeResourceSourceKubernetes {
 		t.Fatalf("ControlPlaneNodeResourceSourceValue() = %q, want kubernetes", source)
 	}
-	if got := cfg.ControlPlaneKubernetesNodeNameValue("fallback"); got != "node-a" {
-		t.Fatalf("ControlPlaneKubernetesNodeNameValue() = %q, want node-a", got)
-	}
+
 	cfg.ControlPlaneNodeResourceSource = "unknown"
 	if _, err := cfg.ControlPlaneNodeResourceSourceValue(); err == nil {
 		t.Fatal("expected unknown ControlPlaneNodeResourceSourceValue() to fail")
 	}
-	cfg.ControlPlaneKubernetesNodeName = ""
-	if got := cfg.ControlPlaneKubernetesNodeNameValue("fallback"); got != "fallback" {
-		t.Fatalf("fallback ControlPlaneKubernetesNodeNameValue() = %q, want fallback", got)
-	}
+
 }
 
 func TestControlPlaneHeartbeatIntervalRejectsUnsafeExecutionLeaseCadence(t *testing.T) {

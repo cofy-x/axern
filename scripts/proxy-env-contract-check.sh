@@ -126,7 +126,7 @@ PY
 
 rendered="$(helm template axern "${AXERN_ROOT}/deploy/helm/axern" \
   --set-string 'node.memorySystemReserveBytes=1' \
-  --set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0]=test-node' \
+  --set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0].nodeName=test-node' --set-string 'node.enrollment.nodes[0].nodeID=test-identity' \
   --set-string 'proxyEnv.HTTP_PROXY=http://host.docker.internal:18080' \
   --set-string 'proxyEnv.NO_PROXY=localhost\,127.0.0.1\,.svc')"
 grep -Fq 'HTTP_PROXY: "http://host.docker.internal:18080"' <<<"${rendered}"

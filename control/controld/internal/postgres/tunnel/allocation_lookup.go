@@ -31,5 +31,19 @@ func lookupAllocation(ctx context.Context, tx pgx.Tx, allocationID string) (*all
 	if err != nil {
 		return nil, err
 	}
+	if err := requireActiveNode(ctx, tx, alloc.NodeID); err != nil {
+		return nil, err
+	}
 	return &alloc, nil
+}
+
+func requireActiveNode(ctx context.Context, tx pgx.Tx, nodeID string) error {
+	var lifecycle string
+	if err := tx.QueryRow(ctx, "SELECT lifecycle_status FROM nodes WHERE node_id = $1 FOR SHARE", nodeID).Scan(&lifecycle); err != nil {
+		return err
+	}
+	if lifecycle != "active" {
+		return grpcstatus.Error(codes.PermissionDenied, "Node identity is not active")
+	}
+	return nil
 }

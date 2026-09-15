@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'echo "server-base verification failed at line ${LINENO}: ${BASH_COMMAND}" >&2' ERR
 
 retry_local_http() {
   local attempt=0
@@ -19,9 +20,23 @@ retry_local_http() {
   return 1
 }
 
-pgrep -x supervisord >/dev/null
-pgrep -x sshd >/dev/null
-pgrep -x nginx >/dev/null
+wait_services() {
+  local attempt
+  for attempt in {1..30}; do
+    if pgrep -x supervisord >/dev/null &&
+      pgrep -x sshd >/dev/null &&
+      pgrep -x nginx >/dev/null; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "server-base services did not become ready" >&2
+  ps -ef >&2
+  return 1
+}
+
+# Running means the sandbox started, not that its supervised services are ready.
+wait_services
 sshd -T | grep -i "^passwordauthentication no$" >/dev/null
 sshd -T | grep -i "^kbdinteractiveauthentication no$" >/dev/null
 sshd -T | grep -i "^permitrootlogin no$" >/dev/null

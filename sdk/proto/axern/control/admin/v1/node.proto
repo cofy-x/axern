@@ -10,7 +10,8 @@ import "axern/control/capability/v1/capability.proto";
 enum AdminNodeLifecycleStatus {
   ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED = 0;
   ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE = 1;
-  ADMIN_NODE_LIFECYCLE_STATUS_RETIRED = 2;
+  ADMIN_NODE_LIFECYCLE_STATUS_REVOKED = 2;
+  ADMIN_NODE_LIFECYCLE_STATUS_RETIRED = 3;
 }
 
 message AdminNode {
@@ -45,6 +46,15 @@ message AdmitAdminNodeResponse {
   AdminNode node = 1;
 }
 
+message RevokeAdminNodeRequest {
+  string node_id = 1;
+  string operator_reason = 2;
+}
+
+message RevokeAdminNodeResponse {
+  AdminNode node = 1;
+}
+
 message RetireAdminNodeRequest {
   string node_id = 1;
   string operator_reason = 2;
@@ -76,6 +86,7 @@ message GetAllocationCapabilityDiagnosticsResponse {
 service NodeAdmin {
   rpc AdmitAdminNode(AdmitAdminNodeRequest) returns (AdmitAdminNodeResponse) {}
   rpc ListAdminNodes(ListAdminNodesRequest) returns (ListAdminNodesResponse) {}
+  rpc RevokeAdminNode(RevokeAdminNodeRequest) returns (RevokeAdminNodeResponse) {}
   rpc RetireAdminNode(RetireAdminNodeRequest) returns (RetireAdminNodeResponse) {}
   rpc GetNodeCapabilitySnapshot(GetNodeCapabilitySnapshotRequest) returns (GetNodeCapabilitySnapshotResponse) {}
   rpc GetAllocationCapabilityDiagnostics(GetAllocationCapabilityDiagnosticsRequest) returns (GetAllocationCapabilityDiagnosticsResponse) {}

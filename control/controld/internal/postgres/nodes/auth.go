@@ -27,7 +27,7 @@ func (s *PGStore) RequireActive(ctx context.Context, nodeID string) error {
 		return fmt.Errorf("load Node admission: %w", err)
 	}
 	if lifecycle != "active" {
-		return grpcstatus.Error(codes.FailedPrecondition, "Node is retired")
+		return grpcstatus.Error(codes.FailedPrecondition, "Node identity is not active")
 	}
 	return nil
 }

@@ -75,7 +75,7 @@ func (h *sandboxService) applyExecutionLeases(leases []*nodecontrolpb.Allocation
 		}
 		ttls[allocationID] = ttl
 	}
-	return h.allocationController().ReplaceExecutionLeases(ttls, receivedAt)
+	return h.allocationController().RenewExecutionLeases(ttls, receivedAt)
 }
 
 func (h *sandboxService) notifyNodeInventoryChanged() {

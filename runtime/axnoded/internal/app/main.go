@@ -18,6 +18,7 @@ import (
 )
 
 type options struct {
+	enrollmentTokenFile   string
 	rootDir               string
 	configPath            string
 	socketPath            string
@@ -47,8 +48,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-	hostname, _ := os.Hostname()
-	nodeID := cfg.PluginConfig.ControlPlaneNodeIDValue(hostname)
+	nodeID := cfg.PluginConfig.ControlPlaneNodeID
 	obs, err := sdkobs.Init(context.Background(), sdkobs.ConfigFromEnv(
 		sdkobs.WithServiceName("axnoded"),
 		sdkobs.WithComponent("axnoded"),
@@ -77,6 +77,7 @@ func Run() error {
 func parseFlags() (options, error) {
 	opts := options{}
 	flagSet := flagSet()
+	flagSet.StringVar(&opts.enrollmentTokenFile, "enrollment-token-file", "", "read-only initial registration token file; never used after certificate publication")
 	flagSet.StringVar(&opts.rootDir, "root", config.DefaultRootDir, "axnoded working root directory")
 	flagSet.StringVar(&opts.configPath, "config", "", "path to axnoded TOML config")
 	flagSet.StringVar(&opts.socketPath, "socket", config.DefaultSocketAddress, "axnoded gRPC unix socket")

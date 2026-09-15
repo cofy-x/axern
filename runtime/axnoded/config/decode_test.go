@@ -49,3 +49,15 @@ func TestDecodeSampleConfiguration(t *testing.T) {
 		t.Fatalf("sample configuration does not match the node contract: %v", err)
 	}
 }
+
+func TestConnectedNodeRequiresExplicitIdentity(t *testing.T) {
+	const base = "[plugin]\ncontrol_plane_target = 'controld:24000'\ncontrol_plane_enrollment_target = 'controld:24002'\nworkload_cluster = 'cluster.test'\ncontrol_plane_tls_ca_cert = '/trust.pem'\n"
+	for _, id := range []string{"", "node/id", " node-id", "../node"} {
+		if _, err := Decode([]byte(base + "control_plane_node_id = '" + id + "'\n")); err == nil {
+			t.Fatalf("invalid node identity %q accepted", id)
+		}
+	}
+	if _, err := Decode([]byte(base + "control_plane_node_id = 'explicit-node'\n")); err != nil {
+		t.Fatal(err)
+	}
+}

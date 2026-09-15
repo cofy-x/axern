@@ -12,6 +12,7 @@ import (
 type NodeClient interface {
 	AdmitAdminNode(context.Context, *adminv1.AdmitAdminNodeRequest, ...grpc.CallOption) (*adminv1.AdmitAdminNodeResponse, error)
 	ListAdminNodes(context.Context, *adminv1.ListAdminNodesRequest, ...grpc.CallOption) (*adminv1.ListAdminNodesResponse, error)
+	RevokeAdminNode(context.Context, *adminv1.RevokeAdminNodeRequest, ...grpc.CallOption) (*adminv1.RevokeAdminNodeResponse, error)
 	RetireAdminNode(context.Context, *adminv1.RetireAdminNodeRequest, ...grpc.CallOption) (*adminv1.RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(context.Context, *adminv1.GetNodeCapabilitySnapshotRequest, ...grpc.CallOption) (*adminv1.GetNodeCapabilitySnapshotResponse, error)
 	GetAllocationCapabilityDiagnostics(context.Context, *adminv1.GetAllocationCapabilityDiagnosticsRequest, ...grpc.CallOption) (*adminv1.GetAllocationCapabilityDiagnosticsResponse, error)
@@ -32,6 +33,10 @@ func (c NodeControl) List(ctx context.Context, lifecycle string) (*adminv1.ListA
 	return c.client.ListAdminNodes(ctx, &adminv1.ListAdminNodesRequest{LifecycleStatus: ParseNodeLifecycle(lifecycle)})
 }
 
+func (c NodeControl) Revoke(ctx context.Context, nodeID, operatorReason string) (*adminv1.RevokeAdminNodeResponse, error) {
+	return c.client.RevokeAdminNode(ctx, &adminv1.RevokeAdminNodeRequest{NodeID: strings.TrimSpace(nodeID), OperatorReason: strings.TrimSpace(operatorReason)})
+}
+
 func (c NodeControl) Retire(ctx context.Context, nodeID, operatorReason string) (*adminv1.RetireAdminNodeResponse, error) {
 	return c.client.RetireAdminNode(ctx, &adminv1.RetireAdminNodeRequest{NodeID: strings.TrimSpace(nodeID), OperatorReason: strings.TrimSpace(operatorReason)})
 }
@@ -50,6 +55,8 @@ func ParseNodeLifecycle(value string) adminv1.AdminNodeLifecycleStatus {
 		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED
 	case "active":
 		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE
+	case "revoked":
+		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_REVOKED
 	case "retired":
 		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_RETIRED
 	default:
@@ -59,7 +66,7 @@ func ParseNodeLifecycle(value string) adminv1.AdminNodeLifecycleStatus {
 
 func ValidateNodeLifecycle(value string) error {
 	if ParseNodeLifecycle(value) == adminv1.AdminNodeLifecycleStatus(-1) {
-		return fmt.Errorf("node status must be active or retired")
+		return fmt.Errorf("node status must be active, revoked or retired")
 	}
 	return nil
 }

@@ -180,3 +180,32 @@ raise SystemExit(f"allocation-reconcilez missing {allocation_id} lifecycle_state
     exit 1
   }
 }
+
+# Exercise public CLI -> gateway -> controld revocation against a running
+# allocation. The node remains reachable for control-owned cleanup, but cannot
+# renew execution or authenticate new reports.
+verify_node_revocation() {
+  local created run_id allocation_id response state deadline
+  verify_node_identity_recovery
+  created="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run --detach -o json --environment "${environment_id}" -- /bin/sh -lc 'sleep 300')"
+  run_id="$(json_query "revocation run" 'json.load(sys.stdin)["run"]["id"]' "${created}")"
+  allocation_id="$(wait_for_running_run_allocation "${run_id}" "revocation run")"
+  response="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin node revoke "${CONTROL_PLANE_NODE_ID}" --operator-reason "cli e2e revoke busy node" -o json)"
+  [ "$(json_query "revoked node" 'json.load(sys.stdin)["lifecycle_status"]' "${response}")" = revoked ]
+  "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" admin audit list --operation revoke-node --target-type node --target-id "${CONTROL_PLANE_NODE_ID}" -o json >"${cli_object_output}"
+  grep -q "cli e2e revoke busy node" "${cli_object_output}"
+  [[ "${allocation_id}" =~ ^[A-Za-z0-9_-]+$ ]] || return 1
+  deadline=$((SECONDS + 120))
+  while [ "${SECONDS}" -lt "${deadline}" ]; do
+    state="$(docker exec "${POSTGRES_CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -Atc "SELECT lifecycle_state FROM allocations WHERE allocation_id='${allocation_id}'")"
+    if [ "${state}" = ALLOCATION_LIFECYCLE_STATE_RELEASED ]; then
+      "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" run get "${run_id}" -o json >"${cli_object_output}"
+      grep -q '"status": "failed"' "${cli_object_output}"
+      return
+    fi
+    sleep 1
+  done
+  echo "revoked Node did not safely release its Allocation" >&2
+  dump_logs
+  return 1
+}

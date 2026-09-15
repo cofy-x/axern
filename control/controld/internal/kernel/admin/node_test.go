@@ -37,3 +37,11 @@ func TestValidateAdmitNodeRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestAdmissionRejectsUnrepresentableNodeIdentity(t *testing.T) {
+	for _, id := range []string{"../node", "node/alias", " node", ".", ".."} {
+		if err := ValidateAdmitNodeRequest(AdmitNodeRequest{NodeID: id, EnrollmentToken: "01234567890123456789012345678901", OperatorReason: "test", Now: time.Now()}); status.Code(err) != codes.InvalidArgument {
+			t.Fatalf("invalid identity %q: %v", id, err)
+		}
+	}
+}

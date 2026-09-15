@@ -256,3 +256,47 @@ func scanAdminNode(row adminNodeScanner) (*nodekernel.Record, error) {
 	record.RetiredReason = strings.TrimSpace(record.RetiredReason)
 	return &record, nil
 }
+
+// RevokeNode withdraws authority without claiming that runtime resources are
+// absent. It locks only the Node; cleanup remains the Allocation owner's work.
+func (s *Store) RevokeNode(ctx context.Context, req adminkernel.RevokeNodeRequest) (*nodekernel.Record, error) {
+	req = adminkernel.NormalizeRevokeNodeRequest(req)
+	if err := adminkernel.ValidateRevokeNodeRequest(req); err != nil {
+		return nil, err
+	}
+	tx, err := s.db.Pool().Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var lifecycle string
+	if err := tx.QueryRow(ctx, "SELECT lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE", req.NodeID).Scan(&lifecycle); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, grpcstatus.Error(codes.NotFound, "node not found")
+		}
+		return nil, err
+	}
+	if lifecycle == string(nodekernel.LifecycleRetired) {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "node is retired")
+	}
+	if lifecycle == string(nodekernel.LifecycleActive) {
+		if _, err := tx.Exec(ctx, "UPDATE nodes SET lifecycle_status = 'revoked' WHERE node_id = $1", req.NodeID); err != nil {
+			return nil, err
+		}
+		if err := insertAdminAuditEvent(ctx, tx, adminAuditEvent{
+			EventID: "admaudit-" + uuid.NewString(), Operation: adminkernel.AuditOperationRevokeNode,
+			TargetType: adminkernel.AuditTargetNode, TargetID: req.NodeID,
+			OperatorReason: req.OperatorReason, CreatedAt: req.Now,
+		}); err != nil {
+			return nil, err
+		}
+	}
+	record, err := loadAdminNode(ctx, tx, req.NodeID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return record, nil
+}

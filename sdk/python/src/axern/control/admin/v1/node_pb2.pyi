@@ -15,9 +15,11 @@ class AdminNodeLifecycleStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper
     __slots__ = ()
     ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED: _ClassVar[AdminNodeLifecycleStatus]
     ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE: _ClassVar[AdminNodeLifecycleStatus]
+    ADMIN_NODE_LIFECYCLE_STATUS_REVOKED: _ClassVar[AdminNodeLifecycleStatus]
     ADMIN_NODE_LIFECYCLE_STATUS_RETIRED: _ClassVar[AdminNodeLifecycleStatus]
 ADMIN_NODE_LIFECYCLE_STATUS_UNSPECIFIED: AdminNodeLifecycleStatus
 ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE: AdminNodeLifecycleStatus
+ADMIN_NODE_LIFECYCLE_STATUS_REVOKED: AdminNodeLifecycleStatus
 ADMIN_NODE_LIFECYCLE_STATUS_RETIRED: AdminNodeLifecycleStatus
 
 class AdminNode(_message.Message):
@@ -69,6 +71,20 @@ class AdmitAdminNodeRequest(_message.Message):
     def __init__(self, node_id: _Optional[str] = ..., enrollment_token: _Optional[str] = ..., operator_reason: _Optional[str] = ...) -> None: ...
 
 class AdmitAdminNodeResponse(_message.Message):
+    __slots__ = ("node",)
+    NODE_FIELD_NUMBER: _ClassVar[int]
+    node: AdminNode
+    def __init__(self, node: _Optional[_Union[AdminNode, _Mapping]] = ...) -> None: ...
+
+class RevokeAdminNodeRequest(_message.Message):
+    __slots__ = ("node_id", "operator_reason")
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_REASON_FIELD_NUMBER: _ClassVar[int]
+    node_id: str
+    operator_reason: str
+    def __init__(self, node_id: _Optional[str] = ..., operator_reason: _Optional[str] = ...) -> None: ...
+
+class RevokeAdminNodeResponse(_message.Message):
     __slots__ = ("node",)
     NODE_FIELD_NUMBER: _ClassVar[int]
     node: AdminNode

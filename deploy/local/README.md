@@ -5,7 +5,7 @@ These repository workflows are for Axern contributors building the current check
 This directory contains the repo-supported local truth environments:
 
 - `compose/`: Docker Compose deployment
-- `kind/`: repo-managed 3-node kind deployment
+- `kind/`: repo-managed 3-node kind cluster with one explicitly pinned Axern runtime node
 - `k8s/`: manifests shared by the kind flow
 - `otel/`: optional local OpenTelemetry/LGTM config
 - `state/`: generated local PKI, CLI env files, SSH keys, and runtime state
@@ -146,6 +146,8 @@ make kind-axern-nydus-smoke
 
 The local node-all-in-one image starts `imagefsd serve-chunk` alongside `imagemgr`. Its Unix socket lives at `/var/lib/imagemgr/chunk_db/chunkserver.sock`, so `imagemgr /inventory` can report chunkdb/locality state without degrading `imagefsd` readiness.
 
+The node entrypoint probes imagemgr inventory, egressd health, and imagefsd locality over their real APIs before starting axnoded. Socket files can survive a crash and are not readiness evidence. Dependency checks have bounded calls and fail when the owned child exits or the startup deadline expires.
+
 Refresh verification can opt into those broader checks:
 
 ```bash
@@ -281,3 +283,7 @@ Local `node-all-in-one` capacity defaults:
 - `AXNODED_CGROUP_CACHE_SIZE=16`
 
 Override them when bringing an environment up if a test needs a larger local node.
+
+## Local Node Identity
+
+The single local Kubernetes runtime uses the explicit `node-k8s-local` identity, independent of the host running the migration Job. Kind pins it to `<cluster-name>-worker`; other multi-node local clusters must set `AXERN_LOCAL_RUNTIME_NODE`. Use Helm explicit per-host identity bindings for multiple Axern runtime nodes. Bootstrap tokens mount read-only and are not copied into configuration or environment contents. Never reuse these development identities across independent deployments.

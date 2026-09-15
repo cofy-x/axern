@@ -11,13 +11,14 @@ import (
 )
 
 type NodeLifecycleStore interface {
+	RevokeNode(context.Context, adminkernel.RevokeNodeRequest) (*nodekernel.Record, error)
 	AdmitNode(ctx context.Context, req adminkernel.AdmitNodeRequest) (*nodekernel.Record, error)
 	ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error)
 	RetireNode(ctx context.Context, req adminkernel.RetireNodeRequest) (*nodekernel.Record, error)
 }
 
 type NodeRegistryUpdater interface {
-	MarkRetired(nodeID string, retiredAt time.Time, reason string)
+	SyncLifecycle(nodeID string, lifecycle nodekernel.LifecycleStatus, retiredAt time.Time, reason string)
 }
 
 func (c NodeControl) AdmitNode(ctx context.Context, nodeID, enrollmentToken, operatorReason string, now time.Time) (*nodekernel.Record, error) {
@@ -64,7 +65,25 @@ func (c NodeControl) RetireNode(ctx context.Context, nodeID, operatorReason stri
 		return nil, err
 	}
 	if c.registry != nil {
-		c.registry.MarkRetired(record.NodeID, record.RetiredAt, record.RetiredReason)
+		c.registry.SyncLifecycle(record.NodeID, record.Lifecycle, record.RetiredAt, record.RetiredReason)
+	}
+	return record, nil
+}
+
+func (c NodeControl) RevokeNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error) {
+	req := adminkernel.NormalizeRevokeNodeRequest(adminkernel.RevokeNodeRequest{NodeID: nodeID, OperatorReason: operatorReason, Now: now})
+	if err := adminkernel.ValidateRevokeNodeRequest(req); err != nil {
+		return nil, err
+	}
+	if c.store == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
+	}
+	record, err := c.store.RevokeNode(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	if c.registry != nil {
+		c.registry.SyncLifecycle(record.NodeID, record.Lifecycle, record.RetiredAt, record.RetiredReason)
 	}
 	return record, nil
 }

@@ -30,7 +30,7 @@ import (
 )
 
 func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Handle) error {
-	svc, err := service.NewSandboxService(ctx, cfg)
+	svc, err := service.NewSandboxService(ctx, cfg, opts.enrollmentTokenFile)
 	if err != nil {
 		return fmt.Errorf("create sandbox service: %w", err)
 	}
@@ -57,8 +57,7 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	var conformanceHealthServer *grpc_health.Server
 	var networkLis net.Listener
 	var networkGRPCServer *grpc.Server
-	hostname, _ := os.Hostname()
-	nodeID := cfg.PluginConfig.ControlPlaneNodeIDValue(hostname)
+	nodeID := cfg.PluginConfig.ControlPlaneNodeID
 	controlPlaneConfig := cfg.PluginConfig
 	accessGrantCache := controlplane.NewAccessGrantCache()
 	var accessGrantValidator api.DirectAccessGrantValidator

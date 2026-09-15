@@ -18,7 +18,7 @@ tunneld:
 
 node:
   enrollment:
-    nodes: [] # Fill with the actual Kubernetes Node names before installation.
+    nodes: [] # Explicit records: {nodeName: worker-a, nodeID: independently-assigned-id}
     existingSecret: enrollment-token
   image:
     repository: axern/local-node-all-in-one

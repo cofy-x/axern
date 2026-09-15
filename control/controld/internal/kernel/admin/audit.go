@@ -12,6 +12,7 @@ const (
 	AuditOperationForceAllocationLifecycleRetry = "force_allocation_lifecycle_retry"
 	AuditOperationFailAllocationLifecycleRetry  = "fail_allocation_lifecycle_retry"
 	AuditOperationClearAllocationLifecycleRetry = "clear_allocation_lifecycle_retry"
+	AuditOperationRevokeNode                    = "revoke_node"
 	AuditOperationRetireNode                    = "retire_node"
 	AuditOperationAdmitNode                     = "admit_node"
 	AuditOperationCreatePrincipal               = "principal.create"
@@ -67,7 +68,7 @@ func NormalizeAuditEventFilter(in AuditEventFilter) AuditEventFilter {
 
 func ValidateAuditEventFilter(filter AuditEventFilter) error {
 	switch filter.Operation {
-	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationAdmitNode, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
+	case "", AuditOperationForceAllocationLifecycleRetry, AuditOperationFailAllocationLifecycleRetry, AuditOperationClearAllocationLifecycleRetry, AuditOperationAdmitNode, AuditOperationRevokeNode, AuditOperationRetireNode, AuditOperationCreatePrincipal, AuditOperationDisablePrincipal, AuditOperationAddCredential, AuditOperationRevokeCredential, AuditOperationGrantRoleBinding, AuditOperationRevokeRoleBinding, AuditOperationBootstrapAccess:
 	default:
 		return grpcstatus.Errorf(codes.InvalidArgument, "unsupported admin audit operation %q", filter.Operation)
 	}

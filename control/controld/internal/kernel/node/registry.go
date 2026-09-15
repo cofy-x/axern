@@ -40,6 +40,7 @@ type LifecycleStatus string
 
 const (
 	LifecycleActive  LifecycleStatus = "active"
+	LifecycleRevoked LifecycleStatus = "revoked"
 	LifecycleRetired LifecycleStatus = "retired"
 )
 
@@ -67,24 +68,9 @@ func (r *Registry) Report(nodeID string, nodeTarget string, summary *nodev1.Node
 	record.LastHeartbeatAt = now
 }
 
-func (r *Registry) MarkRetired(nodeID string, retiredAt time.Time, reason string) {
-	if r == nil {
-		return
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	record := r.nodes[nodeID]
-	if record == nil {
-		return
-	}
-	record.Lifecycle = LifecycleRetired
-	record.RetiredAt = retiredAt
-	record.RetiredReason = reason
-}
-
 // SyncLifecycle applies the persistent lifecycle state without replacing fresher
 // process-local heartbeat and summary data. It lets every controld replica
-// converge after an administrative retirement.
+// converge after administrative revocation or retirement.
 func (r *Registry) SyncLifecycle(nodeID string, lifecycle LifecycleStatus, retiredAt time.Time, reason string) {
 	if r == nil {
 		return
@@ -93,9 +79,10 @@ func (r *Registry) SyncLifecycle(nodeID string, lifecycle LifecycleStatus, retir
 	defer r.mu.Unlock()
 	record := r.nodes[nodeID]
 	if record == nil {
-		return
+		record = &Record{NodeID: nodeID}
+		r.nodes[nodeID] = record
 	}
-	if record.Lifecycle == LifecycleRetired && lifecycle != LifecycleRetired {
+	if record.Lifecycle == LifecycleRetired && lifecycle != LifecycleRetired || record.Lifecycle == LifecycleRevoked && lifecycle == LifecycleActive {
 		return
 	}
 	record.Lifecycle = lifecycle
@@ -161,7 +148,7 @@ func (r *Registry) DebugNodes(now time.Time, heartbeatWindow, summaryWindow time
 		if !record.Active() {
 			heartbeatFresh = false
 			summaryFresh = false
-			freshnessState = "retired"
+			freshnessState = string(record.Lifecycle)
 		}
 		out = append(out, DebugNode{
 			NodeID:           record.NodeID,

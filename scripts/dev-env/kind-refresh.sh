@@ -21,6 +21,7 @@ export KUBECONFIG="$(k8s_kubeconfig_file)"
 kind export kubeconfig --name "${K8S_CLUSTER_NAME}" --kubeconfig "${KUBECONFIG}" >/dev/null
 
 AXERN_K8S_RESET_POSTGRES="${AXERN_K8S_RESET_POSTGRES:-1}" \
+  AXERN_LOCAL_RUNTIME_NODE="${AXERN_LOCAL_RUNTIME_NODE:-${K8S_CLUSTER_NAME}-worker}" \
   bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 
 if [ "${AXERN_KIND_REFRESH_IMPORT_RUNTIME_IMAGES:-1}" = "1" ] || [ "${AXERN_KIND_REFRESH_IMPORT_RUNTIME_IMAGES:-1}" = "true" ]; then

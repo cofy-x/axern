@@ -1,6 +1,6 @@
 # Node Placement and Leases
 
-`controld` performs placement for Runs and Allocation reconciliation. Placement stays separate from node-internal execution details; realtime exec still goes directly to the selected node.
+`controld` performs placement for Runs and Allocation reconciliation. Placement stays separate from node-internal execution details; public exec is mediated by gatewayd and authorized against the selected Allocation binding.
 
 ## Node Reporter
 
@@ -46,12 +46,13 @@ The Admin reliability API reports process-local background reconciler health for
 
 ## Node Lifecycle
 
-Postgres stores Node identity independently from heartbeat freshness. Active Nodes participate in placement and fleet health; retired Nodes remain as audit and historical Allocation references but cannot register, report, authenticate, or receive new Allocations. Retirement is irreversible and replacement hosts must use a new Node ID.
+Postgres stores Node identity independently from heartbeat freshness. Active Nodes participate in placement and fleet health; revoked Nodes lose authorization immediately without claiming their resources are clean. The existing availability worker drives their Allocation termination and cleanup. Retired Nodes remain as audit and historical Allocation references but cannot register, report, authenticate, or receive new Allocations. Retirement is irreversible and replacement hosts must use a new Node ID.
 
 Inspect and retire nodes through the typed admin workflow:
 
 ```bash
 axern admin node list --status active
+axern admin node revoke <node-id> --operator-reason "withdraw compromised node authority"
 axern admin node retire <node-id> --operator-reason "host permanently removed"
 ```
 
@@ -132,7 +133,7 @@ The control-plane availability reconciler sweeps Nodes whose heartbeat is outsid
 
 ## Execution Authority And Data-Plane Access
 
-ExecutionLease is finite liveness authority, not a token or database entity. Every successful authenticated `ReportNode` response returns the complete set of non-terminal Allocations bound to that Node with a TTL. Axnoded measures deadlines from its local receipt clock, persists them in the sole Allocation recovery record, and durably records termination intent before stopping an omitted or expired Allocation. Failed heartbeats never extend authority; delayed successful responses cannot arrive out of order because one reporter loop owns heartbeat delivery. The default five-second heartbeat renews a thirty-second lease.
+ExecutionLease is finite liveness authority, not a token or database entity. Every successful authenticated `ReportNode` response returns the complete set of non-terminal Allocations bound to that Node with a TTL. Axnoded measures deadlines from its local receipt clock, persists them in the sole Allocation recovery record, and durably records termination intent before stopping an expired Allocation. Omitted grants retain their existing finite deadline because a response can race a new Create. Renewal only extends explicitly granted, still-valid authority; expired execution cannot be revived. Failed heartbeats never extend authority; delayed successful responses cannot arrive out of order because one reporter loop owns heartbeat delivery. The default five-second heartbeat renews a thirty-second lease.
 
 AllocationAccessGrant is separate request-scoped data-plane authority. PostgreSQL stores grant token hashes, expiry, revocation, and delivery revision. `WatchAllocationAccessGrants` replicates hash-only validation material to the bound Node. Public CLI and SDK clients receive neither access tokens nor Node targets. An access grant cannot keep a sandbox alive, and an ExecutionLease cannot authorize process, file, archive, terminal, SSH, or Tunnel traffic.
 

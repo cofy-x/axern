@@ -35,6 +35,13 @@ func (s *Store) IssueAllocationAccessGrant(ctx context.Context, allocationID str
 		if err := tx.QueryRow(ctx, "SELECT lifecycle_state, output_expires_at FROM allocations WHERE allocation_id = $1 FOR UPDATE", allocationID).Scan(&state, &outputExpiry); err != nil {
 			return err
 		}
+		var nodeLifecycle string
+		if err := tx.QueryRow(ctx, "SELECT lifecycle_status FROM nodes WHERE node_id = $1 FOR SHARE", alloc.NodeID).Scan(&nodeLifecycle); err != nil {
+			return err
+		}
+		if nodeLifecycle != "active" {
+			return grpcstatus.Error(codes.FailedPrecondition, "Node identity is not active")
+		}
 		switch purpose {
 		case gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE:
 			if state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String() {

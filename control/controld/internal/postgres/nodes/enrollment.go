@@ -14,7 +14,7 @@ import (
 	"google.golang.org/grpc/status"
 )
 
-// Enroll serializes first issuance with Node retirement. Signing and recording
+// Enroll serializes first issuance with Node revocation and retirement. Signing and recording
 // its reply happen before commit; no certificate is returned on commit failure.
 func (s *PGStore) Enroll(ctx context.Context, request nodekernel.EnrollmentRequest, signer nodekernel.EnrollmentSigner) ([]byte, error) {
 	tx, err := s.db.Pool().Begin(ctx)
@@ -81,7 +81,7 @@ func (s *PGStore) RenewCertificate(ctx context.Context, nodeID string, csrDER []
 		return nil, err
 	}
 	if lifecycle != "active" {
-		return nil, status.Error(codes.PermissionDenied, "node identity is retired")
+		return nil, status.Error(codes.PermissionDenied, "node identity is not active")
 	}
 	certificate, err := signer.SignNode(csrDER, nodeID, now)
 	if err != nil {

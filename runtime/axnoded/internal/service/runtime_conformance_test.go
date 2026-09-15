@@ -11,9 +11,35 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
+
+func TestRuntimeConformanceDefersMissingAdmissionCapacityWithoutLatchingFailure(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	calls := 0
+	provider := runtimeConformanceCapabilityProvider(cfg, runtimetest.NewFakeSandboxRuntime(), runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, runtimeConformanceKind) error {
+		calls++
+		if calls == 1 {
+			return resources.ErrMemoryCapacityUnavailable
+		}
+		return nil
+	})
+	now := time.Now().UTC()
+	for _, offset := range []time.Duration{0, time.Second} {
+		observations, err := provider.Observe(t.Context(), now.Add(offset))
+		if err != nil || observations[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN || calls != 1 {
+			t.Fatalf("capacity-wait observation=%v err=%v calls=%d", observations, err, calls)
+		}
+	}
+	for _, offset := range []time.Duration{10 * time.Second, time.Hour} {
+		observations, err := provider.Observe(t.Context(), now.Add(offset))
+		if err != nil || observations[0].GetState() != capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE || calls != 2 {
+			t.Fatalf("certified observation=%v err=%v calls=%d", observations, err, calls)
+		}
+	}
+}
 
 func TestRuntimeConformanceProvidersKeepMemoryAndEphemeralIndependent(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementDisabledDev)

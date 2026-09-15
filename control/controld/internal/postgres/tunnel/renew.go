@@ -44,6 +44,9 @@ func (s *Store) Renew(ctx context.Context, sessionID, clientToken string, ttl ti
 	if err != nil {
 		return nil, err
 	}
+	if err := requireActiveNode(ctx, tx, current.GetNodeID()); err != nil {
+		return nil, err
+	}
 	if terminal(current.GetStatus()) {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel session is terminal")
 	}

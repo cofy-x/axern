@@ -176,6 +176,7 @@ axnoded-dev-run: node-dev-prepare ## Run axnoded in the repo-local Linux dev wor
 		exec $(GO) -C $(ROOTDIR)/runtime/axnoded run ./cmd/axnoded \
 			-root '$(AXNODED_DEV_DIR)' \
 			-config '$(AXNODED_DEV_DIR)/config.toml' \
+			-enrollment-token-file '$(NODE_DEV_DIR)/enrollment-token' \
 			-socket '$(NODE_DEV_RUN_DIR)/axnoded.sock' \
 			-grpc-address '127.0.0.1:23000' \
 			-http-address '127.0.0.1:23001' \
@@ -185,6 +186,7 @@ axnoded-dev-run: node-dev-prepare ## Run axnoded in the repo-local Linux dev wor
 		exec env GO='$(GO)' '$(ROOTDIR)/scripts/devbox/sudo-go.sh' -C '$(ROOTDIR)/runtime/axnoded' run ./cmd/axnoded \
 			-root '$(AXNODED_DEV_DIR)' \
 			-config '$(AXNODED_DEV_DIR)/config.toml' \
+			-enrollment-token-file '$(NODE_DEV_DIR)/enrollment-token' \
 			-socket '$(NODE_DEV_RUN_DIR)/axnoded.sock' \
 			-grpc-address '127.0.0.1:23000' \
 			-http-address '127.0.0.1:23001' \

@@ -70,11 +70,8 @@ spec:
               value: controld:24002
             - name: AXNODED_CONTROL_PLANE_TLS_CA_CERT
               value: /certs/ca.crt
-            - name: AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: enrollment-token
-                  key: enrollment-token
+            - name: AXNODED_ENROLLMENT_TOKEN_FILE
+              value: /bootstrap/enrollment-token
             # Match the verification runtime's local-only 1 GiB reserve:
             # a 512 MiB conformance charge must coexist with node daemons.
             # Production deployments must use a measured qualification receipt.
@@ -84,7 +81,7 @@ spec:
             - /bin/bash
             - -lc
             - |
-              export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
+              export AXNODED_CONTROL_PLANE_NODE_ID="node-k8s-local"
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
@@ -97,6 +94,9 @@ spec:
             initialDelaySeconds: 4
             periodSeconds: 3
           volumeMounts:
+            - name: enrollment-token
+              mountPath: /bootstrap
+              readOnly: true
             - name: certs
               mountPath: /certs
               readOnly: true
@@ -109,6 +109,11 @@ spec:
             - name: egressd-state
               mountPath: /var/lib/egressd
       volumes:
+        - name: enrollment-token
+          secret:
+            secretName: enrollment-token
+            optional: true
+            defaultMode: 384
         - name: certs
           secret:
             secretName: controld-pki

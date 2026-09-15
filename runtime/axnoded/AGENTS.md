@@ -25,6 +25,7 @@
 - Keep test adapters in explicit test-support packages and keep production packages free of bridge aliases, catch-all helpers, and convenience `pkg` layers.
 - Treat proto, config, runsc execution, capability, image-manager, and network changes as cross-owner contracts; update their authoritative code and documents together. A future isolation backend must ship as a separately qualified node implementation/pool, not as a second handler selected from Allocation metadata.
 
+- Connected nodes require an explicit Node ID. Bootstrap tokens are separate read-only file inputs, never configuration fields or environment contents. An existing identity must never read bootstrap material; renewal is deadline-driven with bounded retry, not a durable queue.
 - Node keys and pending enrollment CSR belong to the durable node root. Certificate maintenance must not prevent recovery or ExecutionLease enforcement; expired identity never falls back to registration.
 
 ## Validation

@@ -183,26 +183,24 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	return nil
 }
 
-// ReplaceExecutionLeases applies a complete control-plane authority snapshot.
-// Missing Allocations are revoked immediately. Deadlines use the node receipt
-// clock and are persisted with the sole Allocation recovery record.
-func (h *Controller) ReplaceExecutionLeases(ttls map[string]time.Duration, receivedAt time.Time) error {
+// RenewExecutionLeases applies only explicitly granted authority. Absence is
+// not revocation: an in-flight response may precede another Allocation create.
+// Missing grants expire at their existing finite deadline; cancellation owns
+// explicit cleanup. Expired authority cannot be revived by a late response.
+func (h *Controller) RenewExecutionLeases(ttls map[string]time.Duration, receivedAt time.Time) error {
 	if h == nil {
 		return nil
 	}
 	h.stateMu.RLock()
 	ids := make([]string, 0, len(h.allocationStates))
 	for allocationID, state := range h.allocationStates {
-		if state != nil && strings.TrimSpace(state.record.GetNodeID()) != "" {
+		if state != nil && strings.TrimSpace(state.record.GetNodeID()) != "" && ttls[allocationID] > 0 {
 			ids = append(ids, allocationID)
 		}
 	}
 	h.stateMu.RUnlock()
 	for _, allocationID := range ids {
-		expiresAt := int64(0)
-		if ttl := ttls[allocationID]; ttl > 0 {
-			expiresAt = receivedAt.Add(ttl).UTC().UnixNano()
-		}
+		expiresAt := receivedAt.Add(ttls[allocationID]).UTC().UnixNano()
 		unlock := h.recordMutationLocks.Lock(allocationID)
 		h.stateMu.RLock()
 		state := h.allocationStates[allocationID]
@@ -213,6 +211,11 @@ func (h *Controller) ReplaceExecutionLeases(ttls map[string]time.Duration, recei
 		}
 		desired := cloneAllocationRecord(state.record)
 		h.stateMu.RUnlock()
+		currentDeadline := desired.GetExecutionLeaseExpiresAtUnixNano()
+		if currentDeadline <= receivedAt.UnixNano() || expiresAt <= currentDeadline {
+			unlock()
+			continue
+		}
 		desired.ExecutionLeaseExpiresAtUnixNano = expiresAt
 		if err := h.persistAllocationRecord(desired); err != nil {
 			unlock()

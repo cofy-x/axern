@@ -40,7 +40,7 @@ A concept does not become a product object merely because it has a struct, a dat
 | `Principal` | Stable human, workload, or administrative identity independent from its current credential | `controld` and PostgreSQL |
 | `Credential` | Rotatable or revocable authentication material for a Principal | `controld` and PostgreSQL |
 | `RoleBinding` | Platform- or namespace-scoped authorization assigned to a Principal | `controld` and PostgreSQL |
-| `Node` | Administrative identity for one unit of execution supply, with an audited active/retired lifecycle | `controld`; observations originate from `axnoded` |
+| `Node` | Administrative identity for one unit of execution supply, with an audited active/revoked/retired lifecycle | `controld`; observations originate from `axnoded` |
 
 Built-in templates are deployment-managed, read-only inputs used while resolving an Environment. They have no public identity, lifecycle, API, or database table. Caller-supplied tool or agent images use ordinary read-only image mounts and do not become product objects.
 
@@ -90,7 +90,7 @@ Platform workload identities for gatewayd, axnoded, and tunneld remain distinct 
 
 ### Node
 
-Node identity is durable and independent from heartbeat freshness. Retirement is an audited, irreversible administrative transition and requires Allocations, access grants, tunnels, lifecycle delivery, and cleanup blockers to converge. A replacement host uses a new Node ID; a stale host must not regain authority by reusing a retired identity.
+Node identity is durable and independent from heartbeat freshness and hostnames. Explicit deployment bindings map a Kubernetes node name to a never-reused Node ID. Emergency revocation is an audited, irreversible `active -> revoked` transition that withdraws authority even while Allocations exist; it neither releases resource charges nor certifies cleanup. Retirement is an audited, irreversible administrative transition and requires Allocations, access grants, tunnels, lifecycle delivery, and cleanup blockers to converge. A replacement host uses a new Node ID; a stale host must not regain authority by reusing a retired identity.
 
 ## Durable Subordinate Execution Records
 
@@ -125,11 +125,11 @@ A failed or timed-out delete RPC is not evidence that resources are free. The ch
 
 ### Node Transport Identity
 
-Node admission and irreversible retirement belong to the Node row. A one-hour enrollment token authorizes exactly one CSR, with a bounded transaction receipt for retry recovery. Node keys originate on the node and certificates renew under the exact Node URI; certificates do not create a second Node lifecycle. Normal NodeControl RPCs use verified URI identity plus current admission, never bootstrap tokens, CN, DNS aliases, or OCI metadata. Execution authority remains Allocation-scoped and finite even when certificate renewal is unavailable.
+Node admission, revocation, and irreversible retirement belong to the Node row. A one-hour enrollment token authorizes exactly one CSR, with a bounded transaction receipt for retry recovery. Node keys originate on the node and certificates renew under the exact Node URI; certificates do not create a second Node lifecycle. Normal NodeControl RPCs use verified URI identity plus current admission, never bootstrap tokens, CN, DNS aliases, or OCI metadata. Execution authority remains Allocation-scoped and finite even when certificate renewal is unavailable. Bootstrap material is a separate read-only file, never long-running configuration; after certificate publication it is not read. Renewal is a reconstructible deadline-driven task, not a durable queue. Revocation blocks new placement, access grants, Tunnel creation/renewal and certificate renewal; already issued authority is bounded by existing TTLs and peer revalidation. In-flight requests may complete within those bounds. A compromised host requires external fencing: certificate revocation is not physical proof of stopped execution.
 
 ### ExecutionLease
 
-ExecutionLease is finite liveness authority for exactly one Allocation on its bound Node. Each successful authenticated node heartbeat returns the complete currently authorized Allocation set and a TTL. Axnoded measures the deadline from its local receipt clock, persists it with the sole Allocation recovery record, and stops an omitted or expired Allocation fail-closed. There is no separate control-plane lease table, generation, or revision.
+ExecutionLease is finite liveness authority for exactly one Allocation on its bound Node. Each successful authenticated node heartbeat returns the complete currently authorized Allocation set and a TTL. Axnoded measures the deadline from its local receipt clock, persists it with the sole Allocation recovery record, and stops an expired Allocation fail-closed. A missing grant never erases existing finite authority: responses can race new creates. Renewal only extends explicitly granted, still-valid deadlines; a late response cannot revive expired authority. There is no separate control-plane lease table, generation, or revision.
 
 `AllocationAccessGrant` is separate short-lived data-plane authority. PostgreSQL stores its token hash, Allocation ID, Node ID, exact operation purpose, expiry, revocation and per-Node delivery revision; plaintext is returned only to gatewayd. The node watches hash-only grants and acknowledges a grant before consuming input or producing output. Public SDKs receive neither mechanism, and authority for one Allocation never authorizes another.
 

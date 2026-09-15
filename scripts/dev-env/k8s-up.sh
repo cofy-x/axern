@@ -6,12 +6,16 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 require_cmd kubectl
 require_cmd curl
 # This local manifest has one explicitly provisioned development identity.
-# Multi-node deployments must use the chart\'s per-node token projections.
-k8s_node_names="$(kubectl get nodes -o jsonpath=\'{range .items[*]}{.metadata.name}{"\\n"}{end}\')"
-if [ "$(printf \'%s\\n\' "${k8s_node_names}" | wc -l | tr -d \' \')" != 1 ]; then
-  echo "local Kubernetes bootstrap requires exactly one node; use Helm for per-node enrollment" >&2
-  exit 1
+# Multi-node deployments must use the chart's per-node token projections.
+k8s_runtime_node="${AXERN_LOCAL_RUNTIME_NODE:-}"
+if [ -z "${k8s_runtime_node}" ]; then
+  k8s_runtime_node="$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')"
+  if [ "$(printf '%s\n' "${k8s_runtime_node}" | wc -l | tr -d ' ')" != 1 ]; then
+    echo "set AXERN_LOCAL_RUNTIME_NODE to pin the single local runtime identity; use Helm for multiple Axern nodes" >&2
+    exit 1
+  fi
 fi
+kubectl get node "${k8s_runtime_node}" -o name >/dev/null
 begin_env_lock "${K8S_ENV_NAME}"
 trap 'end_env_lock "${K8S_ENV_NAME}"' EXIT
 
@@ -98,7 +102,7 @@ kubectl -n "${K8S_NAMESPACE}" wait --for=condition=complete job/controld-migrate
 kubectl apply -f "${DEPLOY_ROOT}/k8s/controld.yaml"
 kubectl apply -f "${DEPLOY_ROOT}/k8s/tunneld.yaml"
 kubectl patch --local -f "${DEPLOY_ROOT}/k8s/node-all-in-one.yaml" --type=json \
-  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchFields/0/values/0\",\"value\":\"${k8s_node_names}\"}]" \
+  -p "[{\"op\":\"replace\",\"path\":\"/spec/template/spec/affinity/nodeAffinity/requiredDuringSchedulingIgnoredDuringExecution/nodeSelectorTerms/0/matchFields/0/values/0\",\"value\":\"${k8s_runtime_node}\"}]" \
   -o yaml | kubectl apply -f -
 kubectl apply -f "${DEPLOY_ROOT}/k8s/gatewayd.yaml"
 

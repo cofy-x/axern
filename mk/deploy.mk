@@ -135,14 +135,14 @@ endef
 helm-lint: helm-contract-check ## Lint the Axern Helm chart
 	$(HELM) lint '$(AXERN_HELM_CHART)' \
 		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
-		--set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0]=test-node'
+		--set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0].nodeName=test-node' --set-string 'node.enrollment.nodes[0].nodeID=test-identity'
 
 helm-contract-check: ## Verify Helm values preserve runtime argument contracts
 	bash $(ROOTDIR)/scripts/helm-identity-contract-check.sh
 	@for component in postgres; do \
 		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
 			--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
-			--set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0]=test-node' \
+			--set-string 'node.enrollment.existingSecret=enrollment-token' --set-string 'node.enrollment.nodes[0].nodeName=test-node' --set-string 'node.enrollment.nodes[0].nodeID=test-identity' \
 			--set "$${component}.enabled=true" \
 			--show-only "templates/$${component}.yaml")"; \
 		printf '%s\n' "$$rendered" | grep -q '^    type: RollingUpdate$$' && \

@@ -31,8 +31,9 @@ node_secret_args=()
 node_helm_args=()
 node_index=0
 for kubernetes_node in $(kubectl get nodes -o name | sed 's#node/##'); do
-  axern_node_id="node-${kubernetes_node}"
-  node_helm_args+=(--set-string "node.enrollment.nodes[${node_index}]=${kubernetes_node}")
+  axern_node_id="node-$(openssl rand -hex 16)"
+  node_helm_args+=(--set-string "node.enrollment.nodes[${node_index}].nodeName=${kubernetes_node}"
+                    --set-string "node.enrollment.nodes[${node_index}].nodeID=${axern_node_id}")
   node_index=$((node_index + 1))
   openssl rand -hex 32 > "${enrollment_token_dir}/${axern_node_id}"
   chmod 600 "${enrollment_token_dir}/${axern_node_id}"
@@ -122,6 +123,14 @@ axern context import-kubernetes local \
 
 Do not enable SSH with the chart's default empty `authorizedKeys`; the gateway will have no client key that can authenticate. Keep the SSH identity file permissions restricted and review host-key handling before using this in a shared cluster.
 
+## Node identity operations
+
+Persist the explicit `nodeName` / `nodeID` bindings in your deployment values; do not regenerate them on ordinary upgrades. Bootstrap tokens are read-only files, not node configuration or environment contents. After certificate publication, the token Secret may be removed; restart and automatic renewal no longer read it. Certificates renew with 7–8 hours remaining using bounded jittered retries.
+
+Use `axern admin node revoke <node-id> --operator-reason <reason>` to withdraw authority immediately, even while busy. This does not assert resource cleanup: the Allocation lifecycle still owns termination and release, and existing in-flight authority is bounded by its normal TTL. A compromised host also requires external isolation. `node retire` remains blocked until cleanup and access obligations converge.
+
+Host replacement, lost state, or expired identity requires a new Node ID and fresh node state, even when Kubernetes reuses the hostname. Fence and clean up the old host first; never erase live state or reuse a token to bypass recovery.
+
 ## Before a durable deployment
 
 The bundled PostgreSQL and single-node defaults are intended for evaluation. Review these chart areas before running shared or production workloads:
@@ -130,7 +139,7 @@ The bundled PostgreSQL and single-node defaults are intended for evaluation. Rev
 - **Cluster prerequisites:** confirm the required Kubernetes/Helm versions, `runsc` runtime availability, node privileges for the runtime and image services, an eBPF-capable Linux kernel for the default NAT dataplane (`node.network.natBackend=iptables` is the explicit rollback), and image-registry reachability from every scheduled node.
 - **Gateway exposure:** replace the local port-forward with an explicitly managed Service or Ingress, configure TLS server names and network policy, and keep SSH disabled unless an interactive workflow needs it.
 
-- **Secrets:** supply `secrets.existingSecret` with the master key and gateway token, `postgres.existingSecret` for database credentials, and `node.enrollment.existingSecret` with an independent one-time enrollment token for every admitted Node ID. Before scheduling the DaemonSet onto a new Kubernetes Node, add its `node-<kubernetes-node-name>` key and admit that identity through the admin API.
+- **Secrets:** supply `secrets.existingSecret` with the master key and gateway token, `postgres.existingSecret` for database credentials, and `node.enrollment.existingSecret` with an independent one-time enrollment token for every admitted Node ID. Before scheduling the DaemonSet onto a new Kubernetes Node, add its `nodeID` key and admit that identity through the admin API.
 - **Durable storage:** set `postgres.persistence.enabled=true` with a topology-aware `ReadWriteOnce` StorageClass; do not run a durable environment on the `emptyDir` fallback.
 - **Scheduling:** give `scheduling.platform`, `scheduling.observability`, and `scheduling.runtime` dedicated node-pool labels and matching `NoSchedule` taints.
 - **Observability:** the bundled Prometheus, Tempo, Loki, and Grafana stack is durable but single-replica; size retention and storage under `observability`.

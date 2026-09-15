@@ -173,7 +173,8 @@ setup_e2e_environment() {
     -e "AXNODED_CONTROL_PLANE_TARGET=host.docker.internal:${CONTROLD_GRPC_ADDRESS##*:}" \
     -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=host.docker.internal:${CONTROLD_ENROLLMENT_PORT}" \
     -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
-    -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN=${CONTROL_PLANE_ENROLLMENT_TOKEN}" \
+    -e "AXNODED_ENROLLMENT_TOKEN_FILE=/bootstrap/enrollment-token" \
+    --volume "${cert_dir}/enrollment-token:/bootstrap/enrollment-token:ro" \
     -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_GRPC_ADDRESS}" \
     -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
     -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \
@@ -243,17 +244,23 @@ setup_e2e_environment() {
 # scenarios verify that the recovered exact-Node transport remains usable.
 verify_node_identity_recovery() {
   local identity_path=/var/lib/axnoded/root/identity/node.pem
-  local before after deadline nodes_body
-  before="$(docker exec "${NODE_CONTAINER_NAME}" sha256sum "${identity_path}")"
+  local before after deadline nodes_body before_instance
+  before="$(docker cp "${NODE_CONTAINER_NAME}:${identity_path}" - | tar -xOf - | openssl dgst -sha256)"
+  nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz")"
+  before_instance="$(python3 -c 'import json,sys; print(next(n["summary"]["node_instance_id"] for n in json.load(sys.stdin)["nodes"] if n["node_id"] == sys.argv[1]))' "${CONTROL_PLANE_NODE_ID}" <<<"${nodes_body}")"
+  # Keep the read-only bind mount but withdraw its bootstrap contents after
+  # certificate publication. Restart must not need or replay this input.
+  : > "${cert_dir}/enrollment-token"
   docker restart "${NODE_CONTAINER_NAME}" >/dev/null
   deadline=$((SECONDS + 120))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
     if docker exec "${NODE_CONTAINER_NAME}" curl -fsS http://127.0.0.1:23001/readyz >/dev/null 2>&1; then
-      after="$(docker exec "${NODE_CONTAINER_NAME}" sha256sum "${identity_path}")"
+      after="$(docker cp "${NODE_CONTAINER_NAME}:${identity_path}" - | tar -xOf - | openssl dgst -sha256)"
       [ "${before}" = "${after}" ] || { echo "node restart replaced durable identity" >&2; return 1; }
       docker exec "${NODE_CONTAINER_NAME}" test ! -e "${identity_path}.pending"
       nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" || true)"
       if node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}" &&
+          python3 -c 'import json,sys; n=next(n for n in json.load(sys.stdin)["nodes"] if n["node_id"] == sys.argv[1]); current=n.get("summary", {}).get("node_instance_id"); sys.exit(0 if current and current != sys.argv[2] else 1)' "${CONTROL_PLANE_NODE_ID}" "${before_instance}" <<<"${nodes_body}" &&
           cli_runtime_capabilities_ready "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
         return
       fi
@@ -261,5 +268,6 @@ verify_node_identity_recovery() {
     sleep 1
   done
   echo "node did not recover its authenticated runtime" >&2
+  dump_logs
   return 1
 }

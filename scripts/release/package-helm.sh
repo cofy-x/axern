@@ -8,6 +8,6 @@ mkdir -p "${dist}"
 # production default and every deployment must provide its qualified reserve.
 helm lint "${AXERN_ROOT}/deploy/helm/axern" \
   --set-string node.memorySystemReserveBytes=1 \
-  --set-string node.enrollment.existingSecret=enrollment-token --set-string 'node.enrollment.nodes[0]=test-node'
+  --set-string node.enrollment.existingSecret=enrollment-token --set-string 'node.enrollment.nodes[0].nodeName=test-node' --set-string 'node.enrollment.nodes[0].nodeID=test-identity'
 helm package "${AXERN_ROOT}/deploy/helm/axern" --destination "${dist}"
 echo "helm_release_dist=${dist}"

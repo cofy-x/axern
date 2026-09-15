@@ -232,7 +232,7 @@ node:
   # No runtime pod receives another Node identity\'s enrollment token.
   enrollment:
     existingSecret: ""
-    nodes: []
+    nodes: [] # Explicit records: {nodeName: worker-a, nodeID: independently-assigned-id}
   runtime:
     idleRetentionTTL: 5m
     idleRetentionMax: 8

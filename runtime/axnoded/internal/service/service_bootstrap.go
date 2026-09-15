@@ -67,6 +67,7 @@ type sandboxService struct {
 	executionLeaseCancel      context.CancelFunc
 	executionLeaseWG          sync.WaitGroup
 	nodeIdentityCancel        context.CancelFunc
+	nodeBootstrapTokenFile    string
 	nodeIdentityWG            sync.WaitGroup
 	controlPlaneReports       *servicecontrolplane.Coordinator
 	allocationLifecycleOutbox *nodecontrol.AllocationLifecycleOutbox
@@ -91,9 +92,12 @@ type nodeStateStore interface {
 }
 
 // NewSandboxService creates a new sandbox service from an already parsed config.
-func NewSandboxService(ctx context.Context, cfg config.Config) (NodeService, error) {
+func NewSandboxService(ctx context.Context, cfg config.Config, bootstrapTokenFile string) (NodeService, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("sandbox service context is required")
+	}
+	if err := cfg.ValidateNodeIdentity(); err != nil {
+		return nil, err
 	}
 	if err := validateMemoryBoundaryConfiguration(cfg); err != nil {
 		return nil, err
@@ -112,6 +116,7 @@ func NewSandboxService(ctx context.Context, cfg config.Config) (NodeService, err
 		return nil, err
 	}
 
+	s.nodeBootstrapTokenFile = bootstrapTokenFile
 	healthChan, err := s.initContainerRuntime(ctx)
 	if err != nil {
 		s.closeAfterInitializationFailure()
@@ -444,8 +449,8 @@ func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeIn
 
 // recoverTerminalRuntimeCheckpoints closes the crash window where runsc has
 // durably recorded an exit but axnoded stopped before writing its lifecycle
-// checkpoint. Terminal runtime state must never be deleted until the exact
-// wait result has crossed this local barrier.
+// checkpoint. Terminal runtime state must never be deleted until the wait result
+// (including confirmed termination with unavailable exit status) is durable.
 func (h *sandboxService) recoverTerminalRuntimeCheckpoints(ctx context.Context, inventory runtimeInventory) error {
 	ids := make([]string, 0)
 	for id, state := range inventory {
@@ -466,13 +471,19 @@ func (h *sandboxService) recoverTerminalRuntimeCheckpoints(ctx context.Context, 
 			continue
 		}
 		exit, err := h.runscHandler.Wait(ctx, contract.HandlerOptions{ContainerID: id})
-		if err != nil {
-			return fmt.Errorf("recover exact runtime exit for %s: %w", id, err)
+		if err != nil && !contract.IsExitStatusUnavailable(err) {
+			return fmt.Errorf("recover runtime exit for %s: %w", id, err)
 		}
-		exitCode := int32(exit.Status)
-		if _, err := h.containerManager.CheckpointRuntimeExit(container.Event{
-			Type: container.EventTypeExit, ContainerID: id, ExitCode: &exitCode, ExitedAt: exit.Timestamp,
-		}); err != nil {
+		event := container.Event{Type: container.EventTypeExit, ContainerID: id, ExitedAt: exit.Timestamp}
+		if err != nil {
+			// Like the live monitor, preserve confirmed termination without
+			// fabricating an exit code after a host/runtime crash.
+			event.Reason = err.Error()
+		} else {
+			exitCode := int32(exit.Status)
+			event.ExitCode = &exitCode
+		}
+		if _, err := h.containerManager.CheckpointRuntimeExit(event); err != nil {
 			return fmt.Errorf("checkpoint recovered runtime exit for %s: %w", id, err)
 		}
 	}

@@ -204,21 +204,28 @@ func TestValidateRecoveredAllocationRebuildsCapabilityConditions(t *testing.T) {
 	}
 }
 
-func TestReplaceExecutionLeasesIsCompleteAndUsesNodeReceiptClock(t *testing.T) {
+func TestRenewExecutionLeasesPreservesOtherAllocationsAndCannotReviveExpiredAuthority(t *testing.T) {
 	store := storetest.NewMockStore()
 	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	receivedAt := time.Date(2026, 9, 15, 12, 0, 0, 0, time.UTC)
-	require.NoError(t, fixture.controller.StoreAllocationIntent("alloc-authorized", "node-a", digest, time.Now().Add(time.Minute), nil, nil))
-	require.NoError(t, fixture.controller.StoreAllocationIntent("alloc-revoked", "node-a", digest, time.Now().Add(time.Minute), nil, nil))
-
-	require.NoError(t, fixture.controller.ReplaceExecutionLeases(map[string]time.Duration{
-		"alloc-authorized": 30 * time.Second,
-	}, receivedAt))
-
-	assert.Equal(t, []string{"alloc-revoked"}, fixture.controller.ExpiredExecutionLeaseAllocationIDs(receivedAt))
-	assert.Equal(t, []string{"alloc-authorized", "alloc-revoked"}, fixture.controller.ExpiredExecutionLeaseAllocationIDs(receivedAt.Add(30*time.Second)))
+	now := time.Now().UTC()
+	deadline := now.Add(10 * time.Second)
+	for _, id := range []string{"alloc-authorized", "alloc-omitted"} {
+		require.NoError(t, fixture.controller.StoreAllocationIntent(id, "node-a", digest, deadline, nil, nil))
+	}
+	receivedAt := now.Add(time.Second)
+	require.NoError(t, fixture.controller.RenewExecutionLeases(map[string]time.Duration{"alloc-authorized": 30 * time.Second}, receivedAt))
+	assert.Empty(t, fixture.controller.ExpiredExecutionLeaseAllocationIDs(receivedAt))
+	assert.Equal(t, []string{"alloc-omitted"}, fixture.controller.ExpiredExecutionLeaseAllocationIDs(deadline))
 	var persisted apipb.AllocationState
+	require.NoError(t, store.GetRecord(config.AllocationStateBucket, "alloc-omitted", &persisted))
+	assert.Equal(t, deadline.UnixNano(), persisted.GetExecutionLeaseExpiresAtUnixNano())
+	_, err := classifyRecoveryRecord(&persisted, deadline)
+	require.NoError(t, err, "expired authority is still a valid recovery record")
+	require.NoError(t, fixture.controller.RenewExecutionLeases(map[string]time.Duration{"alloc-omitted": 30 * time.Second}, deadline))
+	assert.Equal(t, []string{"alloc-omitted"}, fixture.controller.ExpiredExecutionLeaseAllocationIDs(deadline))
+	// An older or duplicate grant cannot shorten the committed deadline.
+	require.NoError(t, fixture.controller.RenewExecutionLeases(map[string]time.Duration{"alloc-authorized": 20 * time.Second}, now))
 	require.NoError(t, store.GetRecord(config.AllocationStateBucket, "alloc-authorized", &persisted))
 	assert.Equal(t, receivedAt.Add(30*time.Second).UnixNano(), persisted.GetExecutionLeaseExpiresAtUnixNano())
 }

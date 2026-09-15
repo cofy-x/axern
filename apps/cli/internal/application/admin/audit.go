@@ -13,6 +13,7 @@ const (
 	AuditOperationForceAllocationLifecycleRetry = "force-allocation-lifecycle-retry"
 	AuditOperationFailAllocationLifecycleRetry  = "fail-allocation-lifecycle-retry"
 	AuditOperationClearAllocationLifecycleRetry = "clear-allocation-lifecycle-retry"
+	AuditOperationRevokeNode                    = "revoke-node"
 	AuditOperationRetireNode                    = "retire-node"
 	AuditOperationAdmitNode                     = "admit-node"
 	AuditOperationCreatePrincipal               = "create-principal"
@@ -68,6 +69,8 @@ func ParseAuditOperation(value string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY
 	case AuditOperationClearAllocationLifecycleRetry:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
+	case AuditOperationRevokeNode:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE
 	case AuditOperationRetireNode:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE
 	case AuditOperationAdmitNode:

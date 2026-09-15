@@ -128,3 +128,35 @@ func TestAccessGrantCursorRollbackAndNodeIsolation(t *testing.T) {
 		t.Fatalf("rollback advanced cursor: %d %v", revision, err)
 	}
 }
+
+func TestRevokedNodeCannotGrantAccessOrStartOrRenewExecution(t *testing.T) {
+	db := newEnvironmentTestDB(t)
+	ctx := context.Background()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	if _, err := db.Pool().Exec(ctx, "INSERT INTO runs(run_id,namespace,environment_id,status,config,environment_spec,resolved_environment_spec,labels,created_at,updated_at) VALUES ('run-revoked','default','env','RUN_STATUS_RUNNING','{}','{}','{}','{}',$1,$1)", now); err != nil {
+		t.Fatal(err)
+	}
+	insertRunQueryAllocationFixtures(t, db, now, map[string]string{"alloc-revoked": "run-revoked"})
+	if _, err := db.Pool().Exec(ctx, "UPDATE allocations SET lifecycle_state = 'ALLOCATION_LIFECYCLE_STATE_ACTIVE' WHERE allocation_id = 'alloc-revoked'"); err != nil {
+		t.Fatal(err)
+	}
+	s := NewStore(db)
+	defer s.Close()
+	if _, err := s.IssueAllocationAccessGrant(ctx, "alloc-revoked", gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, time.Minute, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool().Exec(ctx, "UPDATE nodes SET lifecycle_status = 'revoked' WHERE node_id = 'node-query-test'"); err != nil {
+		t.Fatal(err)
+	}
+	for _, purpose := range []gatewayv1.AllocationAccessPurpose{gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT} {
+		if _, err := s.IssueAllocationAccessGrant(ctx, "alloc-revoked", purpose, time.Minute, now); status.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("revoked access: %v", err)
+		}
+	}
+	if _, err := s.LoadStartAllocation(ctx, "alloc-revoked"); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("revoked start: %v", err)
+	}
+	if ids, err := s.ListNodeExecutionAllocationIDs(ctx, "node-query-test"); err != nil || len(ids) != 0 {
+		t.Fatalf("revoked leases: %v %v", ids, err)
+	}
+}

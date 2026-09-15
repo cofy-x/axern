@@ -123,9 +123,9 @@ func TestExpiredExecutionLeaseStopsAllocation(t *testing.T) {
 	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, now.Add(time.Minute), nil, nil))
 	s.containerManager.StoreMetadata(allocationID, &runtimeapi.ContainerMetadata{})
 	markTestContainerRunning(t, s, allocationID)
-	require.NoError(t, s.allocations.ReplaceExecutionLeases(nil, now))
+	require.NoError(t, s.allocations.RenewExecutionLeases(nil, now))
 
-	s.stopExpiredExecutionLeases(t.Context(), now)
+	s.stopExpiredExecutionLeases(t.Context(), now.Add(time.Minute))
 
 	require.EqualValues(t, 1, runtimeHandler.deleteCalls.Load())
 	require.False(t, s.allocations.HasAllocation(allocationID))

@@ -20,7 +20,7 @@ func Command(runtime command.Runtime) *cobra.Command {
 }
 
 func nodeCommand(runtime command.Runtime) *cobra.Command {
-	root := &cobra.Command{Use: "node", Short: "Admit, inspect, and retire runtime nodes"}
+	root := &cobra.Command{Use: "node", Short: "Admit, inspect, revoke, and retire runtime nodes"}
 	var enrollmentTokenFile, admitReason string
 	admit := &cobra.Command{Use: "admit <node-id>", Short: "Admit a node identity before it may publish observations", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		if strings.TrimSpace(enrollmentTokenFile) == "" {
@@ -70,7 +70,7 @@ func nodeCommand(runtime command.Runtime) *cobra.Command {
 		output.RenderAdminNodeTable(cmd.OutOrStdout(), resp.GetNodes())
 		return nil
 	}}
-	list.Flags().StringVar(&lifecycle, "status", "", "active or retired")
+	list.Flags().StringVar(&lifecycle, "status", "", "active, revoked or retired")
 	var reason string
 	retire := &cobra.Command{Use: "retire <node-id>", Short: "Permanently retire an idle node identity", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		if err := appadmin.ValidateOperatorReason(reason); err != nil {
@@ -92,7 +92,28 @@ func nodeCommand(runtime command.Runtime) *cobra.Command {
 		return nil
 	}}
 	retire.Flags().StringVar(&reason, "operator-reason", "", "audit reason")
-	root.AddCommand(admit, list, retire, nodeCapabilityCommand(runtime))
+	var revokeReason string
+	revoke := &cobra.Command{Use: "revoke <node-id>", Short: "Immediately withdraw node authority without declaring resources cleaned", Args: command.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+		if err := appadmin.ValidateOperatorReason(revokeReason); err != nil {
+			return command.Usage(err)
+		}
+		s, err := runtime.Open(cmd.Context())
+		if err != nil {
+			return err
+		}
+		defer s.Close()
+		resp, err := appadmin.NewNode(s.Clients.AdminNode).Revoke(s.Context, args[0], revokeReason)
+		if err != nil {
+			return err
+		}
+		if runtime.Options.Output == "json" {
+			return output.PrintAdminNodeJSON(cmd.OutOrStdout(), resp.GetNode())
+		}
+		output.RenderAdminNode(cmd.OutOrStdout(), resp.GetNode())
+		return nil
+	}}
+	revoke.Flags().StringVar(&revokeReason, "operator-reason", "", "audit reason")
+	root.AddCommand(admit, list, revoke, retire, nodeCapabilityCommand(runtime))
 	return root
 }
 

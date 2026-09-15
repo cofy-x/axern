@@ -58,6 +58,8 @@ func auditOperationFromProto(operation adminv1.AdminAuditOperation) string {
 		return adminkernel.AuditOperationFailAllocationLifecycleRetry
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY:
 		return adminkernel.AuditOperationClearAllocationLifecycleRetry
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE:
+		return adminkernel.AuditOperationRevokeNode
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE:
 		return adminkernel.AuditOperationRetireNode
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADMIT_NODE:
@@ -89,6 +91,8 @@ func auditOperationToProto(operation string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_FAIL_ALLOCATION_LIFECYCLE_RETRY
 	case adminkernel.AuditOperationClearAllocationLifecycleRetry:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
+	case adminkernel.AuditOperationRevokeNode:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE
 	case adminkernel.AuditOperationRetireNode:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE
 	case adminkernel.AuditOperationAdmitNode:

@@ -94,3 +94,40 @@ func insertAdminNodeTestRun(t *testing.T, app *App, runID string, now time.Time)
 		t.Fatalf("insert run: %v", err)
 	}
 }
+
+func TestPostgresAdminRevokesBusyNodeWithoutReleasingAllocation(t *testing.T) {
+	app, _ := newPostgresTestServiceWithConfig(t, Config{HeartbeatFreshnessWindow: time.Hour, SummaryFreshnessWindow: time.Hour})
+	defer app.Close()
+	ctx := context.Background()
+	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+	app.now = func() time.Time { return now }
+	registerReadyNode(t, app, "node-a", now)
+	insertAdminNodeTestRun(t, app, "run-a", now)
+	if _, err := app.db.Pool().Exec(ctx, "INSERT INTO allocations (allocation_id, run_id, node_id, lifecycle_state, cpu_request_milli, created_at, updated_at) VALUES ('alloc-a', 'run-a', 'node-a', 'ALLOCATION_LIFECYCLE_STATE_ACTIVE', 1, $1, $1)", now); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 2; i++ {
+		resp, err := app.AdminV1Handler().RevokeAdminNode(ctx, &adminv1.RevokeAdminNodeRequest{NodeID: "node-a", OperatorReason: "compromised host"})
+		if err != nil || resp.GetNode().GetLifecycleStatus() != adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_REVOKED {
+			t.Fatalf("revoke: %v %v", resp, err)
+		}
+	}
+	var state string
+	if err := app.db.Pool().QueryRow(ctx, "SELECT lifecycle_state FROM allocations WHERE allocation_id = 'alloc-a'").Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	if state != "ALLOCATION_LIFECYCLE_STATE_ACTIVE" {
+		t.Fatal("revocation forged runtime cleanup")
+	}
+	if _, err := app.NodeV1Handler().ReportNode(ctx, &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now)}); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("revoked report: %v", err)
+	}
+	audit, err := app.AdminV1Handler().ListAdminAuditEvents(ctx, &adminv1.ListAdminAuditEventsRequest{Filter: &adminv1.AdminAuditEventFilter{Operation: adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE, TargetType: adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE, TargetID: "node-a"}})
+	if err != nil || len(audit.GetEvents()) != 1 {
+		t.Fatalf("revocation audit: %v %v", audit, err)
+	}
+	app.now = func() time.Time { return now.Add(2 * time.Hour) }
+	if _, err := app.AdminV1Handler().RetireAdminNode(ctx, &adminv1.RetireAdminNodeRequest{NodeID: "node-a", OperatorReason: "cleanup incomplete"}); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("retirement ignored allocation: %v", err)
+	}
+}

@@ -14,7 +14,7 @@ helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --namespace axern-system \
   --create-namespace \
   --set-string node.enrollment.existingSecret=axern-enrollment-tokens \
-  --set-json 'node.enrollment.nodes=["worker-a","worker-b"]' \
+  --set-json 'node.enrollment.nodes=[{"nodeName":"worker-a","nodeID":"node-a"},{"nodeName":"worker-b","nodeID":"node-b"}]' \
   --set-string node.memorySystemReserveBytes=<qualified-bytes>
 ```
 
@@ -48,7 +48,7 @@ When `secrets.existingSecret` is configured, it must contain `AXERN_SECRETS_MAST
 
 Gatewayd uses its dedicated URI identity from `gatewayd.pem`. Workloads mount only their role bundle and public trust; only controld mounts the separate signing Secret. All services share `pki.trustDomain`. Initial administrator metadata is configured under `auth.bootstrap`; later administrator credential changes use AccessAdmin, not service renewal.
 
-Every Node must be admitted before it reports observations. Set `node.enrollment.nodes` to the explicit Kubernetes Node names. The chart renders one pinned DaemonSet per name and projects only that Node's token key; no runtime pod receives the full token Secret. Deployment-label hashes only disambiguate Kubernetes object names and never authorize Node identity. `node.enrollment.existingSecret` contains one random token per Node ID, with matching data keys. Admit IDs using `axern admin node admit --enrollment-token-file`. Within one hour of admission the node registers one locally generated key; exact CSR retries recover the committed reply and a different CSR is rejected. Certificates renew automatically without changing Node ID. Retirement is irreversible; expired or lost Node identity requires operator recovery, never silent token reuse.
+Every Node must be admitted before it reports observations. Set `node.enrollment.nodes` to explicit `{nodeName, nodeID}` bindings. Node identity is independent of the Kubernetes hostname; preserve the bindings in deployment values. The chart renders one pinned DaemonSet per name and projects only that Node's token key; no runtime pod receives the full token Secret. Deployment-label hashes only disambiguate Kubernetes object names and never authorize Node identity. `node.enrollment.existingSecret` contains one random token per Node ID, with matching data keys. Admit IDs using `axern admin node admit --enrollment-token-file`. Within one hour of admission the node registers one locally generated key; exact CSR retries recover the committed reply and a different CSR is rejected. Certificates renew automatically without changing Node ID. Retirement is irreversible; expired or lost Node identity requires operator recovery, never silent token reuse.
 
 ## Node Resources
 
@@ -60,7 +60,7 @@ Set `node.resourceSource=host` for non-Kubernetes-style deployments where axnode
 
 Use `scheduling.platform`, `scheduling.observability`, and `scheduling.runtime` to configure the node selectors, taints, and topology spread policy for each workload class. Platform services include the Axern control plane and chart-managed backing services. Observability contains the OpenTelemetry Collector, Prometheus, Tempo, Loki, and Grafana. Each stateful backend has an independent PVC and lifecycle; the node-all-in-one DaemonSet uses the runtime profile.
 
-Production deployments should give each class a dedicated node-pool label and matching `NoSchedule` taint. Keep topology spreading enabled for replicated platform and observability workloads. The runtime DaemonSet does not need a topology-spread constraint because its desired placement is one pod on every runtime node.
+Production deployments should give each class a dedicated node-pool label and matching `NoSchedule` taint. Keep topology spreading enabled for replicated platform and observability workloads. Each pinned runtime DaemonSet places one pod on its explicitly enrolled host; adding runtime capacity requires admitting and adding a new binding.
 
 ## Stateful Dependencies
 
@@ -85,3 +85,11 @@ The eBPF backend requires TC ingress/egress and localhost cgroup links to be rea
 `node.network.ebpf.snatMapSize` controls the egress SNAT forward/reverse maps and should be sized for short-connection flow churn. The translated source port allocator uses a fixed dataplane range of `10000-65535` with `256` hash/stride fallback probes after same-port conflicts. axnoded runs a background SNAT GC loop when bpfnet is active; tune `snatGcInterval`, `snatTcpIdleTimeout`, `snatTcpClosingTimeout`, and `snatDatagramIdleTimeout` when validating high-churn TCP short connections or UDP workloads. The default datagram idle timeout is tuned for short-message churn; increase it for long-idle UDP or QUIC-like traffic. Use `bpfnetctl status --json` to inspect map occupancy; `bpfnetctl check --json` is only a readiness check.
 
 Before promoting a new bpfnet change, use the reusable regression runbook in [`network/bpfnet/docs/production-regression-runbook.md`](../../../network/bpfnet/docs/production-regression-runbook.md).
+
+## Identity Rotation, Replacement, And Removal
+
+Bootstrap Secrets are optional mounts and can be removed after all identities have been published. A new node without its token remains unready; an enrolled node restarts and renews without it. Token contents are never copied into node configuration or environment variables.
+
+Renewing a certificate preserves Node ID and local Allocation state. A hostname change does not require a new identity if the same private state is deliberately retained. Disk loss, expired identity, or host replacement requires a new admitted Node ID, even when Kubernetes reuses the hostname. Do not mount the old Axern state directory into the new identity, or erase live state to force enrollment. Fence the old host, complete its Allocation cleanup, retire its identity, then provision fresh state and update the binding. The chart deliberately does not infer replacement from hostnames or automate cloud fencing.
+
+Use `axern admin node revoke <node-id> --operator-reason <reason>` for emergency withdrawal of authority; this does not claim that resources were cleaned. Retire only after cleanup obligations are resolved. These are separate transitions in one Node lifecycle, not separate certificate lifecycle entities.

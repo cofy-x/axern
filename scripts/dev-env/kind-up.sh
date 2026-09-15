@@ -23,7 +23,8 @@ export KUBECONFIG="$(k8s_kubeconfig_file)"
 ensure_host_image "${POSTGRES_IMAGE}"
 load_image_to_cluster "${POSTGRES_IMAGE}"
 
-bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
+AXERN_LOCAL_RUNTIME_NODE="${AXERN_LOCAL_RUNTIME_NODE:-${K8S_CLUSTER_NAME}-worker}" \
+  bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 IMAGE="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
 IMAGE="${CODING_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"

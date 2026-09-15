@@ -41,3 +41,7 @@ func (f *fakeNodeLifecycleStore) RetireNode(context.Context, adminkernel.RetireN
 	f.retireCalls++
 	return f.record, nil
 }
+
+func (f *fakeNodeLifecycleStore) RevokeNode(context.Context, adminkernel.RevokeNodeRequest) (*nodekernel.Record, error) {
+	return f.record, nil
+}

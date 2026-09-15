@@ -80,6 +80,18 @@ func (s *Server) AdmitAdminNode(ctx context.Context, req *adminv1.AdmitAdminNode
 	return &adminv1.AdmitAdminNodeResponse{Node: s.adminNodeToProto(record, now)}, nil
 }
 
+func (s *Server) RevokeAdminNode(ctx context.Context, req *adminv1.RevokeAdminNodeRequest) (*adminv1.RevokeAdminNodeResponse, error) {
+	if s.deps.Nodes == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
+	}
+	now := s.now()
+	record, err := s.deps.Nodes.RevokeNode(ctx, req.GetNodeID(), req.GetOperatorReason(), now)
+	if err != nil {
+		return nil, err
+	}
+	return &adminv1.RevokeAdminNodeResponse{Node: s.adminNodeToProto(record, now)}, nil
+}
+
 func (s *Server) RetireAdminNode(ctx context.Context, req *adminv1.RetireAdminNodeRequest) (*adminv1.RetireAdminNodeResponse, error) {
 	if s.deps.Nodes == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
@@ -125,6 +137,8 @@ func adminNodeLifecycleFromProto(status adminv1.AdminNodeLifecycleStatus) (nodek
 		return "", nil
 	case adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE:
 		return nodekernel.LifecycleActive, nil
+	case adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_REVOKED:
+		return nodekernel.LifecycleRevoked, nil
 	case adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_RETIRED:
 		return nodekernel.LifecycleRetired, nil
 	default:
@@ -136,6 +150,8 @@ func adminNodeLifecycleToProto(status nodekernel.LifecycleStatus) adminv1.AdminN
 	switch status {
 	case nodekernel.LifecycleActive:
 		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE
+	case nodekernel.LifecycleRevoked:
+		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_REVOKED
 	case nodekernel.LifecycleRetired:
 		return adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_RETIRED
 	default:

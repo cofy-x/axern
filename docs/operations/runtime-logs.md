@@ -38,7 +38,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 
 ## Config Fields To Check
 
-The generated config is root-only and contains the one-time enrollment token; never paste it into logs or issue reports. Exclude `control_plane_enrollment_token` from diagnostic output. Inspect `/var/lib/axnoded/node-config.toml` when socket paths, node identity, runsc configuration, or image-manager settings look wrong.
+The generated config is root-only and does not contain bootstrap tokens. Keep the separate enrollment-token file and node identity bundles out of logs and issue reports. Inspect `/var/lib/axnoded/node-config.toml` when socket paths, node identity, runsc configuration, or image-manager settings look wrong.
 
 | Field                                  | Why it matters                                              |
 | -------------------------------------- | ----------------------------------------------------------- |

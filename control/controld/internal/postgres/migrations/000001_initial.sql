@@ -29,14 +29,14 @@ CREATE TABLE nodes (
 	enrollment_token_hash TEXT NOT NULL,
 	admitted_at TIMESTAMPTZ NOT NULL,
 	last_heartbeat_at TIMESTAMPTZ,
-	lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('active', 'retired')),
+	lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('active', 'revoked', 'retired')),
 	retired_at TIMESTAMPTZ,
 	retired_reason TEXT NOT NULL DEFAULT '',
 	CHECK (length(enrollment_token_hash) = 64),
 	CHECK (last_heartbeat_at IS NULL OR last_heartbeat_at >= admitted_at),
 	CHECK ((last_heartbeat_at IS NULL AND node_target = '') OR (last_heartbeat_at IS NOT NULL AND length(btrim(node_target)) > 0)),
 	CHECK (
-		(lifecycle_status = 'active' AND retired_at IS NULL AND retired_reason = '') OR
+		(lifecycle_status IN ('active', 'revoked') AND retired_at IS NULL AND retired_reason = '') OR
 		(lifecycle_status = 'retired' AND retired_at IS NOT NULL AND length(btrim(retired_reason)) > 0)
 	)
 );

@@ -25,5 +25,6 @@ run_step node_identity_recovery verify_node_identity_recovery
 run_step ssh_gateway verify_ssh_gateway
 run_step run verify_run
 run_step admin_lifecycle verify_admin_lifecycle
+run_step node_revocation verify_node_revocation
 
 echo "axern_cli_e2e_ok=true"

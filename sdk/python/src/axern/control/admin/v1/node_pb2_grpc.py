@@ -44,6 +44,11 @@ class NodeAdminStub:
                 request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesResponse.FromString,
                 _registered_method=True)
+        self.RevokeAdminNode = channel.unary_unary(
+                '/axern.control.admin.v1.NodeAdmin/RevokeAdminNode',
+                request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeRequest.SerializeToString,
+                response_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeResponse.FromString,
+                _registered_method=True)
         self.RetireAdminNode = channel.unary_unary(
                 '/axern.control.admin.v1.NodeAdmin/RetireAdminNode',
                 request_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RetireAdminNodeRequest.SerializeToString,
@@ -71,6 +76,12 @@ class NodeAdminServicer:
         raise NotImplementedError('Method not implemented!')
 
     def ListAdminNodes(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RevokeAdminNode(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -106,6 +117,11 @@ def add_NodeAdminServicer_to_server(servicer, server):
                     servicer.ListAdminNodes,
                     request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesRequest.FromString,
                     response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesResponse.SerializeToString,
+            ),
+            'RevokeAdminNode': grpc.unary_unary_rpc_method_handler(
+                    servicer.RevokeAdminNode,
+                    request_deserializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeRequest.FromString,
+                    response_serializer=axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeResponse.SerializeToString,
             ),
             'RetireAdminNode': grpc.unary_unary_rpc_method_handler(
                     servicer.RetireAdminNode,
@@ -177,6 +193,33 @@ class NodeAdmin:
             '/axern.control.admin.v1.NodeAdmin/ListAdminNodes',
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesRequest.SerializeToString,
             axern_dot_control_dot_admin_dot_v1_dot_node__pb2.ListAdminNodesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RevokeAdminNode(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.control.admin.v1.NodeAdmin/RevokeAdminNode',
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeRequest.SerializeToString,
+            axern_dot_control_dot_admin_dot_v1_dot_node__pb2.RevokeAdminNodeResponse.FromString,
             options,
             channel_credentials,
             insecure,

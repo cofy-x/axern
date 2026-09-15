@@ -55,7 +55,7 @@ AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET="${AXNODED_CONTROL_PLANE_ENROLLMENT_TARG
 AXERN_WORKLOAD_CLUSTER="${AXERN_WORKLOAD_CLUSTER:-axern.local}"
 AXNODED_CONTROL_PLANE_NODE_ID="${AXNODED_CONTROL_PLANE_NODE_ID:-}"
 AXNODED_CONTROL_PLANE_NODE_TARGET="${AXNODED_CONTROL_PLANE_NODE_TARGET:-}"
-AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN="${AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN:-}"
+AXNODED_ENROLLMENT_TOKEN_FILE="${AXNODED_ENROLLMENT_TOKEN_FILE:-}"
 AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL="${AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL:-5s}"
 AXNODED_CONTROL_PLANE_NODE_RESOURCE_SOURCE="${AXNODED_CONTROL_PLANE_NODE_RESOURCE_SOURCE:-host}"
 AXNODED_CONTROL_PLANE_KUBERNETES_NODE_NAME="${AXNODED_CONTROL_PLANE_KUBERNETES_NODE_NAME:-}"
@@ -190,7 +190,6 @@ control_plane_enrollment_target = "${AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET}"
 workload_cluster = "${AXERN_WORKLOAD_CLUSTER}"
 control_plane_node_id = "${AXNODED_CONTROL_PLANE_NODE_ID}"
 control_plane_node_target = "${AXNODED_CONTROL_PLANE_NODE_TARGET}"
-control_plane_enrollment_token = "${AXNODED_CONTROL_PLANE_ENROLLMENT_TOKEN}"
 control_plane_heartbeat_interval = "${AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL}"
 control_plane_node_resource_source = "${AXNODED_CONTROL_PLANE_NODE_RESOURCE_SOURCE}"
 control_plane_kubernetes_node_name = "${AXNODED_CONTROL_PLANE_KUBERNETES_NODE_NAME}"
@@ -367,40 +366,28 @@ run_node_tunneld_supervisor() {
   done
 }
 
-for _ in $(seq 1 40); do
-  if [ -S "${IMAGEMGR_SOCKET}" ]; then
-    break
-  fi
-  sleep 1
-done
-if [ ! -S "${IMAGEMGR_SOCKET}" ]; then
-  echo "imagemgr socket not ready: ${IMAGEMGR_SOCKET}" >&2
-  exit 1
-fi
-for _ in $(seq 1 40); do
-  if [ -S "${EGRESSD_SOCKET}" ]; then
-    break
-  fi
-  sleep 1
-done
-if [ ! -S "${EGRESSD_SOCKET}" ]; then
-  echo "egressd socket not ready: ${EGRESSD_SOCKET}" >&2
-  exit 1
-fi
-for _ in $(seq 1 40); do
-  if [ -S "${IMAGEFSD_CHUNK_SERVER_SOCK}" ]; then
-    break
-  fi
-  sleep 1
-done
-if [ ! -S "${IMAGEFSD_CHUNK_SERVER_SOCK}" ]; then
-  echo "imagefsd chunk server socket not ready: ${IMAGEFSD_CHUNK_SERVER_SOCK}" >&2
-  exit 1
-fi
+# Socket paths survive crashes and do not prove that their owner is serving.
+# Probe the existing read-only APIs with bounded calls and fail on child exit.
+wait_node_dependency() {
+  local label="$1" pid="$2" deadline=$((SECONDS + 40))
+  shift 2
+  until timeout 2s "$@" >/dev/null 2>&1; do
+    if ! kill -0 "${pid}" 2>/dev/null || [ "${SECONDS}" -ge "${deadline}" ]; then
+      echo "${label} did not become ready" >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+wait_node_dependency imagemgr "${IMAGEMGR_PID}" curl -fsS --unix-socket "${IMAGEMGR_SOCKET}" http://unix/inventory
+wait_node_dependency egressd "${EGRESSD_PID}" /usr/local/bin/egressdctl -socket "${EGRESSD_SOCKET}" health
+wait_node_dependency imagefsd "${IMAGEFSD_PID}" /usr/local/bin/imagefsd stats-locality --chunk-db-dir "${IMAGEFSD_CHUNK_DB_DIR}" --chunk-server-sock "${IMAGEFSD_CHUNK_SERVER_SOCK}"
 
 axnoded_args=(
   -root "${AXNODED_ROOT}"
   -config "${AXNODED_CONFIG}"
+  -enrollment-token-file "${AXNODED_ENROLLMENT_TOKEN_FILE}"
   -socket "${AXNODED_SOCKET}"
   -network-socket "${AXNODED_NETWORK_SOCKET}"
   -http-address "${AXNODED_HTTP_ADDRESS}"

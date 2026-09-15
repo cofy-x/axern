@@ -25,7 +25,7 @@ func TestRegistryRetirementIsMonotonic(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	registry := NewRegistry()
 	registry.Report("node-a", "node-a:25000", nil, now)
-	registry.MarkRetired("node-a", now.Add(time.Minute), "host removed")
+	registry.SyncLifecycle("node-a", LifecycleRetired, now.Add(time.Minute), "host removed")
 
 	registry.Report("node-a", "node-a:25001", nil, now.Add(2*time.Minute))
 	registry.SyncLifecycle("node-a", LifecycleActive, time.Time{}, "")
@@ -88,5 +88,22 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 				Ready: true,
 			},
 		},
+	}
+}
+
+func TestRegistryRevocationBeforeFirstReportIsMonotonic(t *testing.T) {
+	registry := NewRegistry()
+	registry.SyncLifecycle("node-a", LifecycleRevoked, time.Time{}, "")
+	registry.Report("node-a", "node-a:25000", nil, time.Now())
+	registry.SyncLifecycle("node-a", LifecycleActive, time.Time{}, "")
+	record, _ := registry.Get("node-a")
+	if record.Active() || record.Lifecycle != LifecycleRevoked {
+		t.Fatal("late report revived revoked identity")
+	}
+	registry.SyncLifecycle("node-a", LifecycleRetired, time.Now(), "cleaned")
+	registry.SyncLifecycle("node-a", LifecycleRevoked, time.Time{}, "")
+	record, _ = registry.Get("node-a")
+	if record.Lifecycle != LifecycleRetired {
+		t.Fatal("revocation revived retired identity")
 	}
 }

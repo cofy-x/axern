@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/executionlease"
+	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -39,7 +40,6 @@ type PluginConfig struct {
 	WorkloadCluster                string                      `toml:"workload_cluster" json:"workloadCluster"`
 	ControlPlaneNodeID             string                      `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
 	ControlPlaneNodeTarget         string                      `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
-	ControlPlaneEnrollmentToken    string                      `toml:"control_plane_enrollment_token" json:"-"`
 	ControlPlaneHeartbeatInterval  string                      `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
 	ControlPlaneNodeState          string                      `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
 	NodeExtensionCapabilities      []ExtensionCapabilityConfig `toml:"node_extension_capabilities" json:"nodeExtensionCapabilities"`
@@ -183,20 +183,22 @@ func (c PluginConfig) ControlPlaneTargetValue() string {
 	return strings.TrimSpace(c.ControlPlaneTarget)
 }
 
-func (c PluginConfig) ControlPlaneNodeIDValue(defaultValue string) string {
-	value := strings.TrimSpace(c.ControlPlaneNodeID)
-	if value == "" {
-		return defaultValue
+// ValidateNodeIdentity rejects implicit identity for a control-plane-connected node.
+func (c PluginConfig) ValidateNodeIdentity() error {
+	if c.ControlPlaneTargetValue() == "" {
+		return nil
 	}
-	return value
+	if _, err := (workloadtls.Identity{Cluster: c.WorkloadCluster, Role: "axnoded", NodeID: c.ControlPlaneNodeID}).URI(); err != nil {
+		return fmt.Errorf("explicit node identity required: %w", err)
+	}
+	if c.ControlPlaneEnrollmentTarget == "" || c.ControlPlaneTLSCACertValue() == "" {
+		return fmt.Errorf("node enrollment endpoint and trust bundle are required")
+	}
+	return nil
 }
 
 func (c PluginConfig) ControlPlaneNodeTargetValue() string {
 	return strings.TrimSpace(c.ControlPlaneNodeTarget)
-}
-
-func (c PluginConfig) ControlPlaneEnrollmentTokenValue() string {
-	return strings.TrimSpace(c.ControlPlaneEnrollmentToken)
 }
 
 func (c PluginConfig) ControlPlaneTLSCACertValue() string {
@@ -296,14 +298,6 @@ func (c PluginConfig) ControlPlaneNodeResourceSourceValue() (string, error) {
 			c.ControlPlaneNodeResourceSource,
 		)
 	}
-}
-
-func (c PluginConfig) ControlPlaneKubernetesNodeNameValue(defaultValue string) string {
-	value := strings.TrimSpace(c.ControlPlaneKubernetesNodeName)
-	if value == "" {
-		return defaultValue
-	}
-	return value
 }
 
 func (c ResourceConfig) ResourcePoolReconcileIntervalDuration() (time.Duration, error) {

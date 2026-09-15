@@ -25,7 +25,7 @@ Rootfs locality covers local directories and registry images (OCI/Nydus), not ra
 
 Sandbox egress policy is normalized during API validation and contributes a derived DNS-policy or strict-egress capability requirement. A node without a matching current observation is ineligible; the policy is never forwarded as an optional field that a runtime may ignore. See [Sandbox Network Policy](../../docs/architecture/sandbox-network-policy.md).
 
-Node rows are durable identities with `active` and `retired` states. Placement and node authentication accept only active identities. `axern admin node retire` locks the node, requires a stale heartbeat, and rejects retirement while control-plane lifecycle work still references it. Successful retirement and its operator reason are committed with one audit event. `axern admin reliability check` evaluates only active nodes and reports stale heartbeat, stale summary, and non-ready axnoded counts.
+Node rows are durable identities with `active`, `revoked`, and `retired` states. Placement and node authentication accept only active identities. `axern admin node retire` locks the node, requires a stale heartbeat, and rejects retirement while control-plane lifecycle work still references it. Successful retirement and its operator reason are committed with one audit event. `axern admin reliability check` evaluates only active nodes and reports stale heartbeat, stale summary, and non-ready axnoded counts.
 
 ## Build
 
@@ -205,7 +205,7 @@ The first Allocation cleanup transition freezes a 15-minute output expiry in Pos
 
 | Fact | Owner |
 | --- | --- |
-| Node admission, retirement and initial token hash | PostgreSQL Node row; audited admin transaction |
+| Node admission, revocation, retirement and initial token hash | PostgreSQL Node row; audited admin transaction |
 | One CSR registration and retry response | Enrollment receipt, committed under the Node lock |
 | Node private key and accepted certificate | Node root `identity/node.pem`; mode 0600 atomic bundle |
 | Pending registration key and CSR | Node `identity/node.pem.pending`, removed after durable publication |
@@ -214,12 +214,14 @@ The first Allocation cleanup transition freezes a 15-minute output expiry in Pos
 
 The dedicated TLS enrollment listener exposes only EnrollNode and RenewNodeCertificate. Initial enrollment authenticates the server URI before transmitting the token. The transaction locks the admitted Node, checks database time against admission plus one hour, validates the token hash, and signs only the first CSR. Exact retries return the committed certificate; another CSR is rejected. Signing failures roll back. Retention removes expired receipts, but the immutable admission deadline prevents replay after removal.
 
-Renewal requires the exact verified Node URI and an active Node row locked against retirement. Existing TLS connections are checked again at RPC time, including certificate-chain expiry. Normal NodeControl requests contain no enrollment token and must match the authenticated Node ID. Watches periodically recheck admission and terminate on expiry. Retirement revokes every certificate for that Node; it requires an idle, disconnected Node with no remaining execution or access obligations. For a compromised live host, isolate it, cancel its Allocations and wait for finite leases and cleanup before retiring it; retirement does not bypass lifecycle safety.
+Renewal requires the exact verified Node URI and an active Node row locked against revocation and retirement. Existing TLS connections are checked again at RPC time, including certificate-chain expiry. Normal NodeControl requests contain no enrollment token and must match the authenticated Node ID. Watches periodically recheck admission and terminate on expiry. `axern admin node revoke` withdraws all Node authority in an audited transaction even when the host is busy. It does not assert cleanup. New placement, execution-authority snapshots, start dispatch, access grants and Tunnel admission reject revoked identities; Tunnel peers revalidate their binding. Existing in-flight requests and issued authority remain bounded by their normal TTLs. The existing node-availability worker drives Allocation termination and retryable cleanup; no revocation queue or certificate shadow state is introduced. `retire` still requires an idle, disconnected Node with no remaining execution or access obligations. For a compromised host, external isolation/fencing is necessary: revocation cannot prove the kernel stopped.
 
-Nodes register their own keys, retry registration using the persisted CSR after response loss, and renew 24-hour certificates when eight hours remain. Renewal never changes Node or Allocation identity. A corrupt, expired or mismatched existing bundle does not fall back to enrollment. The maintenance loop does not gate runtime recovery or the execution-lease watchdog.
+Nodes register their own keys, retry registration using the persisted CSR after response loss, and renew 24-hour certificates with seven to eight hours remaining, using bounded jittered retry. Renewal never changes Node or Allocation identity. A corrupt, expired or mismatched existing bundle does not fall back to enrollment. The maintenance loop does not gate runtime recovery or the execution-lease watchdog.
 
 ### Deployment Rotation
 
 Use `axern admin pki bootstrap --directory <private-directory> --cluster <domain>` to initialize deployment authority. Serialize operations on that directory and back it up. The tool never generates Node keys. Service certificates last 90 days; `--renew-services` rotates their leaves without changing the CA or administrator fingerprint. Republish the role Secret and restart service connections. Compose single-file bind mounts require container recreation after atomic host-file replacement; Kubernetes Secret volumes must not use subPath for reloadable credentials.
 
 CA replacement is explicit: provision a new private directory, publish old-plus-new trust to every peer first, then publish the new signer and service bundles. Keep old trust for at least a full Node certificate lifetime after the last old issuance and confirm Node renewal before removing it. Reload failures fail closed. Do not rerun bootstrap over an overlapping trust bundle or silently replace a missing CA. Administrator credentials belong to AccessAdmin and must be rotated explicitly before their expiry; service renewal never changes their fingerprint.
+
+Node bootstrap tokens are read-only file inputs, not node TOML or container environment contents. Existing published identities never read the token again; deployments may remove their bootstrap Secret after registration. Explicit Node IDs cannot be inferred from hostnames, and a new host or lost identity requires a new Node ID.

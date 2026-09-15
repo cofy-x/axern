@@ -330,8 +330,8 @@ func (m *Manager) persistMonitorExit(event Event) (Event, error) {
 	return event, nil
 }
 
-// CheckpointRuntimeExit persists exact terminal evidence recovered from the
-// runsc wait checkpoint before startup is allowed to delete terminal runtime
+// CheckpointRuntimeExit persists terminal evidence (including an explicitly
+// unavailable exit code) from runsc Wait before startup may delete runtime
 // state. Delivery remains owned by the lifecycle outbox seeding step.
 func (m *Manager) CheckpointRuntimeExit(event Event) (Event, error) {
 	return m.persistMonitorExit(event)

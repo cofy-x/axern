@@ -34,9 +34,8 @@ If either path is wrong or not writable, startup, restart recovery, and containe
 | Key | Meaning | Notes |
 | --- | --- | --- |
 | `control_plane_target` | `controld` node-control endpoint. | Empty disables the reporter. |
-| `control_plane_node_id` | Stable node identity reported to `controld`. | Empty falls back to hostname. |
+| `control_plane_node_id` | Stable node identity reported to `controld`. | Required for a connected node; validated against its URI SAN identity. |
 | `control_plane_node_target` | Internal address that `gatewayd` and `controld` can use to reach this node. | Needed when gateway forwarding crosses host boundaries. |
-| `control_plane_enrollment_token` | One-time token for initial CSR registration only. | Valid for one hour after admission; never used in normal RPCs. |
 | `control_plane_enrollment_target` | Dedicated controld enrollment listener. | Required for node registration and renewal. |
 | `workload_cluster` | Exact URI trust domain. | Must match controld and deployment PKI. |
 | `control_plane_heartbeat_interval` | Node report interval. | Empty or non-positive falls back to `5s`. |
@@ -173,3 +172,5 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | delete leaves resources behind    | resource/runtime paths                                   | typed resource ledgers, storeDir, cleanup logs, GC queue metric.                |
 
 For local compose/kind command examples, use [Local Troubleshooting](../../../deploy/local/troubleshooting.md).
+
+Bootstrap input is not node configuration. Pass `-enrollment-token-file <read-only-file>` (container entrypoint: `AXNODED_ENROLLMENT_TOKEN_FILE`). It is opened only before the node certificate is published; renewal and restart do not depend on it. A malformed, expired, or mismatched existing identity fails closed and never falls back to enrollment. Registration retries run independently from Allocation recovery and lease enforcement. Renewal is scheduled with 7–8 hours of certificate validity remaining, with bounded jittered exponential retry (up to one minute).
