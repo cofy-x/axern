@@ -12,7 +12,7 @@ Axnoded also owns node capability observation. Providers publish complete typed 
 
 Network-policy capability keys are owned by the network-health and derived providers. Until egressd is configured and its self-tests pass, the DNS-policy and strict-egress facts are explicitly unavailable, so controld cannot place a policy workload on that node.
 
-Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs remain IPv4-only; selecting `ebpf` with an IPv6 pool activates the explicit bridge/ip6tables compatibility path and publishes bridge, not bpfnet, capability evidence.
+Sandbox interface pools may be IPv4 or IPv6. Bpfnet is IPv4-only: selecting `ebpf` with an IPv6 pool is rejected during configuration validation. IPv6 requires an explicitly configured `iptables` backend; there is no automatic fallback.
 
 ## Platform Role
 

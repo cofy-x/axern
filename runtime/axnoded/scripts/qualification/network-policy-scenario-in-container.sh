@@ -69,13 +69,6 @@ case "${ip_family}" in
   *) echo "unsupported IP family: ${ip_family}" >&2; exit 1 ;;
 esac
 
-# Native bpfnet is IPv4-only. An IPv6 pool configured with the ebpf option
-# intentionally uses the bridge compatibility dataplane and publishes that
-# effective capability to placement and lifecycle gates.
-if [ "${network_backend}" = ebpf ] && [ "${ip_family}" = ipv6 ]; then
-  network_capability=PLATFORM_CAPABILITY_NETWORK_BRIDGE
-fi
-
 node_pid=""
 fixture_pid=""
 cleanup_axern_network_state() {

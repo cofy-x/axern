@@ -4,6 +4,7 @@ import json
 import pathlib
 import re
 import subprocess
+import tempfile
 
 root = pathlib.Path(__file__).resolve().parents[2]
 source = (root / "runtime/axnoded/scripts/qualification/network-policy-scenario-in-container.sh").read_text()
@@ -39,4 +40,32 @@ for backend in backends:
         check([key for key in required if key != missing], backend, False)
     check(base + [key for key in backends if key != backend], backend, False)
 check([], "NETWORK_BRIDGE", False)
+
+matrix = (root / "runtime/axnoded/scripts/qualification/network-policy-linux-smoke.sh").read_text()
+rejection = re.search(r"^verify_rejected_cell\(\) \{\n.*?^\}", matrix, re.M | re.S)
+assert rejection, "missing unsupported backend rejection assertion"
+diagnostic = "normalize network config: ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range"
+with tempfile.TemporaryDirectory(prefix="axern-matrix-rejection-") as directory:
+    log = pathlib.Path(directory) / "rejection.log"
+    report = pathlib.Path(directory) / "result.json"
+    for result, message, reported, expected in (
+        (1, diagnostic, False, True),
+        (0, diagnostic, False, False),
+        (1, "unrelated node startup failure", False, False),
+        (1, diagnostic, True, False),
+    ):
+        log.write_text(message)
+        if reported:
+            report.write_text("{}")
+        checked = subprocess.run(["bash", "-c", rejection.group(0) + '\nverify_rejected_cell "$@"', "matrix-test", str(result), str(log), str(report)], capture_output=True, text=True)
+        assert (checked.returncode == 0) == expected, checked.stderr
+        if reported:
+            report.unlink()
+# Check the real producer/consumer CLI contract, including removed arguments.
+qualification = (root / "runtime/egressd/scripts/qualification-matrix.sh").read_text()
+driver_call = re.search(r'"\$\{DRIVER\}" \\\n(.*?)\n        if ', qualification, re.S)
+assert driver_call, "missing performance driver invocation"
+accepted = set(re.findall(r"^    (--[a-z-]+)\)", source, re.M))
+passed = set(re.findall(r"(--[a-z-]+)", driver_call.group(1)))
+assert passed <= accepted, ("unsupported driver arguments", passed - accepted)
 print("network_policy_readiness_contract_ok=true")

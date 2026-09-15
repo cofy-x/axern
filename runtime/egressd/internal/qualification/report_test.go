@@ -17,8 +17,8 @@ const (
 
 func TestReportValidatesCompleteMatrixAndCanonicalEnvironment(t *testing.T) {
 	report := testReport(t)
-	if len(report.Scenarios) != 16 {
-		t.Fatalf("runsc matrix has %d cells, want 16", len(report.Scenarios))
+	if len(report.Scenarios) != 12 {
+		t.Fatalf("runsc matrix has %d cells, want 12", len(report.Scenarios))
 	}
 	if err := report.Validate(true); err != nil {
 		t.Fatal(err)
@@ -51,6 +51,8 @@ func TestRecoveryProvenanceRejectsOldMethodAndSchema(t *testing.T) {
 	for _, mutate := range []func(*Report){
 		func(r *Report) { r.SchemaVersion = 2 },
 		func(r *Report) { r.SchemaVersion = 3 },
+		func(r *Report) { r.SchemaVersion = 4 },
+		func(r *Report) { r.Scenarios[0].NetworkBackend = "ebpf"; r.Scenarios[0].IPFamily = "ipv6" },
 		func(r *Report) { r.Scenarios[0].Runtime = "runc" },
 		func(r *Report) { r.Parameters.RecoveryMethod = "old-25ms" },
 		func(r *Report) { r.Parameters.RecoverySamples = 0 },
@@ -191,6 +193,9 @@ func testReport(t *testing.T) Report {
 	for _, runtimeName := range Runtimes {
 		for _, backend := range NetworkBackends {
 			for _, family := range IPFamilies {
+				if backend == "ebpf" && family == "ipv6" {
+					continue
+				}
 				for _, mode := range PolicyModes {
 					report.Scenarios = append(report.Scenarios, testScenario(runtimeName, backend, family, mode))
 				}

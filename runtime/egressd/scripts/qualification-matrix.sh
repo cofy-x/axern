@@ -52,12 +52,15 @@ modes=(unrestricted dns_deny strict_domain strict_cidr)
 for runtime_name in "${runtimes[@]}"; do
   for backend in "${backends[@]}"; do
     for family in "${families[@]}"; do
+      # Unsupported configurations are rejection-tested by the Linux correctness matrix.
+      if [ "${backend}" = ebpf ] && [ "${family}" = ipv6 ]; then
+        continue
+      fi
       for mode in "${modes[@]}"; do
         scenario="${runtime_name}-${backend}-${family}-${mode}"
         output="${SCENARIO_DIR}/${scenario}.json"
         echo "network_policy_qualification_scenario=${scenario}" >&2
         "${DRIVER}" \
-          --runtime "${runtime_name}" \
           --network-backend "${backend}" \
           --ip-family "${family}" \
           --policy-mode "${mode}" \

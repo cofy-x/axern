@@ -2,11 +2,11 @@
 
 The network-policy qualification is a Linux-only, out-of-band performance and reliability workflow. It is intentionally separate from correctness tests: correctness remains fail-closed and does not acquire machine-dependent timing assertions.
 
-CI runs `make axnoded-verify-network-policy-linux-matrix` on native Linux with minimal samples across the same 16 combinations and requires zero failures. That gate proves correctness only. The stable-host workflow below owns performance sampling, comparable provenance, and regression budgets.
+CI runs `make axnoded-verify-network-policy-linux-matrix` on native Linux with minimal samples across 16 requested combinations: 12 supported traffic cells require zero failures, and all 4 eBPF/IPv6 cells must fail configuration validation with the explicit IPv4-only diagnostic and no performance report. That gate proves correctness only. The stable-host workflow below owns performance sampling, comparable provenance, and regression budgets.
 
 ## Matrix and measurements
 
-One accepted report contains all 16 combinations of:
+One accepted report contains all 12 supported combinations of:
 
 - runtime: `runsc`;
 - node network backend: `bridge`, `ebpf`;
@@ -15,13 +15,13 @@ One accepted report contains all 16 combinations of:
 
 Each scenario records policy prepare latency, total sandbox start latency, first connection latency, restart convergence, maximum RSS, concurrency, sustained operation and failure counts, and rule-scale preparation/reconciliation cost. DNS latency and HTTP/TLS throughput are present where the scenario exercises those paths. Results contain only fixed axes and numeric aggregates. The schema does not accept destination names, addresses, Host/SNI, CIDR values, policy digests, or raw daemon state.
 
-The network-backend axis is the requested axnoded configuration. For an IPv6 pool, `ebpf` exercises axnoded's documented ip6tables compatibility path because bpfnet's native programs are IPv4-only; node capability evidence remains the effective bridge capability, so the report never treats that cell as native IPv6 eBPF performance.
+The network-backend axis is the requested axnoded configuration. Bridge supports IPv4 and IPv6; eBPF supports only IPv4. The performance matrix excludes unsupported eBPF/IPv6 configurations, and report validation rejects them. The separate correctness matrix verifies their rejection; there is no compatibility or fallback path.
 
 Policy start overhead is evaluated by comparing each policy cell with the matching unrestricted cell. The report stores directly measured total start latency instead of a pre-subtracted value that would hide baseline variance.
 
 ## Comparable environments
 
-Schema v4 requires the runsc-only 16-cell matrix. Older reports must be regenerated, not relabeled or reduced to a subset. It separates `parameters.samples` (workload and policy-operation sampling) from `parameters.recoverySamples` (daemon recovery observations) and records `parameters.recoveryMethod`. Restart distributions must match the recovery count; other distributions must match the workload count. Comparisons require both counts and the method to match exactly. Budget schema is v4 without changing any numerical threshold.
+Schema v5 requires the runsc-only 12-cell supported performance matrix. Older reports must be regenerated, not relabeled or reduced to a subset. It separates `parameters.samples` (workload and policy-operation sampling) from `parameters.recoverySamples` (daemon recovery observations) and records `parameters.recoveryMethod`. Restart distributions must match the recovery count; other distributions must match the workload count. Comparisons require both counts and the method to match exactly. Budget schema is v5 without changing any numerical threshold.
 
 The full performance runner defaults to 20 workload samples and 200 recovery observations per cell. Minimal correctness smoke retains one recovery sample; it does not provide performance qualification. The deployment workspace enforces the performance minimum and validates ordered recovery-observation sidecars. The comparison command also rejects recovery counts below 200, even for two otherwise identical reports; diagnostic success is not a performance pass. This increases cheap restart sampling without multiplying real sandbox samples.
 
@@ -38,7 +38,6 @@ For every cell, the repository driver creates an isolated network namespace with
 The inner matrix invokes the scenario driver with this stable contract:
 
 ```text
---runtime <runsc>
 --network-backend <bridge|ebpf>
 --ip-family <ipv4|ipv6>
 --policy-mode <unrestricted|dns_deny|strict_domain|strict_cidr>

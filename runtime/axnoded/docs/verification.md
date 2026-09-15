@@ -85,7 +85,7 @@ Changing binary names, install paths, or node image packaging is a cross-runtime
 | runsc network/eBPF               | runsc runtime plus eBPF networking path                                                                       | `make verify-docker-runsc-ebpf`           |
 | debug runtime paths              | Narrow runtime diagnostics                                                                                    | `make verify-docker-runsc-debug`          |
 | bpfnet diagnostics               | Pinned program readiness and managed runtime diagnostics                                                      | `make verify-bpfnetctl-e2e`               |
-| network-policy Linux correctness | Hermetic 16-cell runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
+| network-policy Linux correctness | Hermetic 16-cell runsc × bridge/ebpf × IPv4/IPv6 × policy-mode truth: 12 supported traffic cells and 4 explicit eBPF/IPv6 configuration rejections, with minimal, timing-independent samples | `make verify-network-policy-linux-matrix` |
 
 Runtime recovery tests must preserve the lifecycle evidence boundary: a missing `status.pb` is unknown rather than implicitly running, live runsc inventory may repair only PID/start identity, and an exited runsc container must yield a `Wait` result or its explicit exit-status-unavailable error before terminal outbox seeding or deletion. Cover exact-exit recovery, confirmed termination without a fabricated exit code, and fail-closed recovery on other Wait errors. Allocation resource accounting must read the immutable `AllocationState.resource_spec`; the runtime checkpoint must not carry a second resource or enforcement copy.
 
