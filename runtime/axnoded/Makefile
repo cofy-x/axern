@@ -189,7 +189,7 @@ verify-docker: verify-docker-runsc verify-docker-conformance ## run privileged D
 verify-network-policy-linux-smoke: ## run representative native-Linux network-policy data-plane truth
 	@bash ./scripts/qualification/network-policy-linux-smoke.sh
 
-verify-network-policy-linux-matrix: ## run the full native-Linux 32-cell network-policy correctness matrix
+verify-network-policy-linux-matrix: ## run the full native-Linux runsc network-policy correctness matrix
 	@NETWORK_POLICY_LINUX_MATRIX_SCOPE=full bash ./scripts/qualification/network-policy-linux-smoke.sh
 
 verify-docker-conformance: ## run production cgroup and serialized runsc certification truth

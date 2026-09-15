@@ -238,7 +238,7 @@ inventory_ready() {
     # longer retry in the background. Memory admission still requires proof.
     (["PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT",
       "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT",
-      "PLATFORM_CAPABILITY_NETWORK_BRIDGE", $network_capability] | unique) as $required |
+      $network_capability] | unique) as $required |
     ($required - [.node.capability_snapshot.observations[]?
       | select(
           .state == "CAPABILITY_STATE_AVAILABLE")
