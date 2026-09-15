@@ -22,16 +22,16 @@ class PrincipalIdentity(_message.Message):
     def __init__(self, principal_id: _Optional[str] = ..., name: _Optional[str] = ..., display_name: _Optional[str] = ..., kind: _Optional[str] = ...) -> None: ...
 
 class CredentialIdentity(_message.Message):
-    __slots__ = ("credential_id", "label", "fingerprint", "certificate_not_after")
+    __slots__ = ("credential_id", "label", "fingerprint", "expires_at")
     CREDENTIAL_ID_FIELD_NUMBER: _ClassVar[int]
     LABEL_FIELD_NUMBER: _ClassVar[int]
     FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
-    CERTIFICATE_NOT_AFTER_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
     credential_id: str
     label: str
     fingerprint: str
-    certificate_not_after: _timestamp_pb2.Timestamp
-    def __init__(self, credential_id: _Optional[str] = ..., label: _Optional[str] = ..., fingerprint: _Optional[str] = ..., certificate_not_after: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    expires_at: _timestamp_pb2.Timestamp
+    def __init__(self, credential_id: _Optional[str] = ..., label: _Optional[str] = ..., fingerprint: _Optional[str] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
 
 class EffectiveRole(_message.Message):
     __slots__ = ("role", "scope_type", "namespace")

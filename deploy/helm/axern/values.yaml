@@ -286,7 +286,6 @@ gatewayd:
     tag: v0.6.2
     digest: ""
     pullPolicy: ""
-  devToken: ""
   controlEdge:
     publicAddress: localhost:25100
   ssh:
@@ -294,7 +293,6 @@ gatewayd:
     existingSecret: ""
     secretName: gatewayd-ssh
     hostKey: ""
-    authorizedKeys: ""
   service:
     type: NodePort
     controlNodePort: 30250

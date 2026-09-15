@@ -27,7 +27,7 @@ func (*Server) WhoAmI(ctx context.Context, _ *identityv1.WhoAmIRequest) (*identi
 	}
 	return &identityv1.WhoAmIResponse{
 		Principal:  &identityv1.PrincipalIdentity{PrincipalID: actor.Principal.ID, Name: actor.Principal.Name, DisplayName: actor.Principal.DisplayName, Kind: string(actor.Principal.Kind)},
-		Credential: &identityv1.CredentialIdentity{CredentialID: actor.Credential.ID, Label: actor.Credential.Label, Fingerprint: accesskernel.FormatFingerprint(actor.Credential.Fingerprint), CertificateNotAfter: timestamppb.New(actor.Credential.CertificateNotAfter)},
+		Credential: &identityv1.CredentialIdentity{CredentialID: actor.Credential.ID, Label: actor.Credential.Label, Fingerprint: accesskernel.FormatFingerprint(actor.Credential.Fingerprint), ExpiresAt: timestamppb.New(actor.Credential.ExpiresAt)},
 		Roles:      roles,
 	}, nil
 }

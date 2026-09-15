@@ -12,9 +12,11 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Resolver interface {
+	ValidateAllocationAccess(context.Context, *gatewayv1.ResolveAllocationTerminalRequest, time.Time) error
 	ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationTerminalResponse, error)
 }
 
@@ -42,7 +44,7 @@ func (s *Server) ResolveTunnelRelayTarget(ctx context.Context, req *gatewayv1.Re
 }
 
 type AccessAuthorizer interface {
-	AuthorizeFingerprintResource(context.Context, string, accesskernel.Action, string, string) error
+	AuthorizeCredentialResource(context.Context, string, accesskernel.CredentialKind, accesskernel.Action, string, string) error
 }
 
 type Server struct {
@@ -55,27 +57,8 @@ func New(deps Dependencies) *Server {
 }
 
 func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
-	// The interceptor admits this private RPC only from gatewayd. NodeSandbox
-	// calls carry the external Principal fingerprint and require namespace
-	// authorization. Gateway-owned HTTP and SSH terminals intentionally carry no
-	// fingerprint because gatewayd has already authenticated their bearer token
-	// or authorized key.
-	if req.GetClientCertificateFingerprint() != "" {
-		if s.deps.Access == nil {
-			return nil, status.Error(codes.Unavailable, "authorization is not configured")
-		}
-		if err := s.deps.Access.AuthorizeFingerprintResource(ctx, req.GetClientCertificateFingerprint(), accesskernel.ActionSandboxExecute, "allocation", req.GetAllocationID()); err != nil {
-			switch {
-			case errors.Is(err, accesskernel.ErrUnauthenticated):
-				return nil, status.Error(codes.Unauthenticated, "client credential is not active")
-			case errors.Is(err, accesskernel.ErrPermissionDenied):
-				return nil, status.Error(codes.PermissionDenied, "permission denied")
-			case errors.Is(err, accesskernel.ErrNotFound):
-				return nil, status.Error(codes.NotFound, "allocation not found")
-			default:
-				return nil, err
-			}
-		}
+	if err := s.authorizeCredential(ctx, req); err != nil {
+		return nil, err
 	}
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
 		Name:        ctrlobs.SpanGatewayResolveAllocationTerminal,
@@ -90,6 +73,9 @@ func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.R
 	if ttl <= 0 {
 		ttl = s.deps.DefaultTTL
 	}
+	if req.GetTtlSeconds() > int64((2*time.Hour)/time.Second) || ttl > 2*time.Hour {
+		return nil, status.Error(codes.InvalidArgument, "allocation access grant cannot exceed two hours")
+	}
 	resp, err := s.deps.Resolver.ResolveAllocationTerminal(ctx, req, ttl, s.now())
 	if err != nil {
 		op.SetErrorStatus("resolve allocation terminal")
@@ -97,6 +83,39 @@ func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.R
 	}
 	op.SetAttributes(attribute.String(sdkobs.AttrNodeID, resp.GetNodeID()))
 	return resp, nil
+}
+
+func (s *Server) AuthorizeAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+	if err := s.authorizeCredential(ctx, req); err != nil {
+		return nil, err
+	}
+	if err := s.deps.Resolver.ValidateAllocationAccess(ctx, req, s.now()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
+func (s *Server) authorizeCredential(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) error {
+	if s.deps.Access == nil {
+		return status.Error(codes.Unavailable, "authorization is not configured")
+	}
+	action := accesskernel.ActionSandboxExecute
+	if req.GetPurpose() == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT {
+		action = accesskernel.ActionResourceRead
+	}
+	if req.GetCredentialFingerprint() == "" {
+		return status.Error(codes.Unauthenticated, "client credential is required")
+	}
+	err := s.deps.Access.AuthorizeCredentialResource(ctx, req.GetCredentialFingerprint(), accesskernel.CredentialKind(req.GetCredentialKind()), action, "allocation", req.GetAllocationID())
+	switch {
+	case errors.Is(err, accesskernel.ErrUnauthenticated):
+		return status.Error(codes.Unauthenticated, "client credential is not active")
+	case errors.Is(err, accesskernel.ErrPermissionDenied), errors.Is(err, accesskernel.ErrNotFound):
+		return status.Error(codes.NotFound, "allocation not found")
+	case err != nil:
+		return err
+	}
+	return nil
 }
 
 func (s *Server) now() time.Time {

@@ -3,6 +3,7 @@ package adminv1
 import (
 	"context"
 	"errors"
+	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
@@ -37,7 +38,14 @@ func (s *Server) DisablePrincipal(ctx context.Context, req *adminv1.DisablePrinc
 	return &adminv1.DisablePrincipalResponse{Principal: principalProto(p)}, nil
 }
 func (s *Server) AddPrincipalCredential(ctx context.Context, req *adminv1.AddPrincipalCredentialRequest) (*adminv1.AddPrincipalCredentialResponse, error) {
-	c, err := s.deps.Access.AddCredential(ctx, req.GetPrincipalID(), req.GetLabel(), req.GetCertificateDer())
+	var expiresAt time.Time
+	if req.GetExpiresAt() != nil {
+		if err := req.GetExpiresAt().CheckValid(); err != nil {
+			return nil, status.Error(codes.InvalidArgument, "credential expiry is invalid")
+		}
+		expiresAt = req.GetExpiresAt().AsTime()
+	}
+	c, err := s.deps.Access.AddCredential(ctx, req.GetPrincipalID(), req.GetLabel(), req.GetCertificateDer(), req.GetSshPublicKey(), expiresAt)
 	if err != nil {
 		return nil, accessError(err)
 	}
@@ -124,7 +132,8 @@ func principalProto(p accesskernel.Principal) *adminv1.Principal {
 	return &adminv1.Principal{PrincipalID: p.ID, Name: p.Name, DisplayName: p.DisplayName, Kind: map[accesskernel.PrincipalKind]adminv1.PrincipalKind{accesskernel.PrincipalKindHuman: adminv1.PrincipalKind_PRINCIPAL_KIND_HUMAN, accesskernel.PrincipalKindService: adminv1.PrincipalKind_PRINCIPAL_KIND_SERVICE}[p.Kind], Status: map[accesskernel.PrincipalStatus]adminv1.PrincipalStatus{accesskernel.PrincipalStatusActive: adminv1.PrincipalStatus_PRINCIPAL_STATUS_ACTIVE, accesskernel.PrincipalStatusDisabled: adminv1.PrincipalStatus_PRINCIPAL_STATUS_DISABLED}[p.Status], CreatedAt: timestamppb.New(p.CreatedAt), UpdatedAt: timestamppb.New(p.UpdatedAt)}
 }
 func credentialProto(c accesskernel.Credential) *adminv1.PrincipalCredential {
-	out := &adminv1.PrincipalCredential{CredentialID: c.ID, PrincipalID: c.PrincipalID, Fingerprint: accesskernel.FormatFingerprint(c.Fingerprint), CertificateNotAfter: timestamppb.New(c.CertificateNotAfter), Label: c.Label, CreatedAt: timestamppb.New(c.CreatedAt)}
+	out := &adminv1.PrincipalCredential{CredentialID: c.ID, PrincipalID: c.PrincipalID, Fingerprint: accesskernel.FormatFingerprint(c.Fingerprint), ExpiresAt: timestamppb.New(c.ExpiresAt), Label: c.Label, CreatedAt: timestamppb.New(c.CreatedAt)}
+	out.Kind = map[accesskernel.CredentialKind]adminv1.CredentialKind{accesskernel.CredentialX509: adminv1.CredentialKind_CREDENTIAL_KIND_X509, accesskernel.CredentialSSH: adminv1.CredentialKind_CREDENTIAL_KIND_SSH}[c.Kind]
 	if c.RevokedAt != nil {
 		out.RevokedAt = timestamppb.New(*c.RevokedAt)
 	}

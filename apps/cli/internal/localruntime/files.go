@@ -162,11 +162,7 @@ func ensureSSH(dir string) error {
 			return err
 		}
 	}
-	clientPub, err := os.ReadFile(filepath.Join(dir, "gateway_client_ed25519.pub"))
-	if err != nil {
-		return err
-	}
-	return writeAtomic(filepath.Join(dir, "authorized_keys"), clientPub, 0o600)
+	return nil
 }
 
 func validSSHPrivateKey(path string) bool {

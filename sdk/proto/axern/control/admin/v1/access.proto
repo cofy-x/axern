@@ -32,6 +32,12 @@ enum AccessRole {
   ACCESS_ROLE_NAMESPACE_VIEWER = 4;
 }
 
+enum CredentialKind {
+  CREDENTIAL_KIND_UNSPECIFIED = 0;
+  CREDENTIAL_KIND_X509 = 1;
+  CREDENTIAL_KIND_SSH = 2;
+}
+
 message Principal {
   string principal_id = 1;
   string name = 2;
@@ -46,10 +52,11 @@ message PrincipalCredential {
   string credential_id = 1;
   string principal_id = 2;
   string fingerprint = 3;
-  google.protobuf.Timestamp certificate_not_after = 4;
+  google.protobuf.Timestamp expires_at = 4;
   string label = 5;
   google.protobuf.Timestamp created_at = 6;
   google.protobuf.Timestamp revoked_at = 7;
+  CredentialKind kind = 8;
 }
 
 message RoleBinding {
@@ -81,6 +88,8 @@ message AddPrincipalCredentialRequest {
   string principal_id = 1;
   bytes certificate_der = 2;
   string label = 3;
+  string ssh_public_key = 4;
+  google.protobuf.Timestamp expires_at = 5;
 }
 message AddPrincipalCredentialResponse { PrincipalCredential credential = 1; }
 

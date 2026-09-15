@@ -22,15 +22,15 @@ func (s *Store) ResolveActor(ctx context.Context, fingerprint [32]byte, now time
 	var actor accesskernel.Actor
 	row := s.db.Pool().QueryRow(ctx, `
 		SELECT p.principal_id, p.name, p.display_name, p.kind, p.status, p.created_at, p.updated_at,
-		       c.credential_id, c.certificate_not_after, c.label, c.created_at
+		       c.credential_id, c.expires_at, c.label, c.created_at, c.kind
 		FROM principal_credentials c
 		JOIN principals p ON p.principal_id = c.principal_id
-		WHERE c.fingerprint = $1 AND c.revoked_at IS NULL AND c.certificate_not_after > $2
+		WHERE c.fingerprint = $1 AND c.revoked_at IS NULL AND c.expires_at > $2
 	`, fingerprint[:], now.UTC())
 	if err := row.Scan(
 		&actor.Principal.ID, &actor.Principal.Name, &actor.Principal.DisplayName, &actor.Principal.Kind,
 		&actor.Principal.Status, &actor.Principal.CreatedAt, &actor.Principal.UpdatedAt,
-		&actor.Credential.ID, &actor.Credential.CertificateNotAfter, &actor.Credential.Label, &actor.Credential.CreatedAt,
+		&actor.Credential.ID, &actor.Credential.ExpiresAt, &actor.Credential.Label, &actor.Credential.CreatedAt, &actor.Credential.Kind,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return accesskernel.Actor{}, accesskernel.ErrUnauthenticated
@@ -81,7 +81,7 @@ func (s *Store) HasActivePlatformAdmin(ctx context.Context, now time.Time) (bool
 			JOIN role_bindings b ON b.principal_id = p.principal_id
 			JOIN principal_credentials c ON c.principal_id = p.principal_id
 			WHERE p.status = 'active' AND b.role = 'platform_admin' AND b.revoked_at IS NULL
-			  AND c.revoked_at IS NULL AND c.certificate_not_after > $1
+			  AND c.kind = 'x509_sha256' AND c.revoked_at IS NULL AND c.expires_at > $1
 		)
 	`, now.UTC()).Scan(&exists)
 	return exists, err
@@ -151,13 +151,13 @@ func (s *Store) getPrincipal(ctx context.Context, id string) (accesskernel.Princ
 	return p, err
 }
 
-func (s *Store) AddCredential(ctx context.Context, actorID, principalID, label string, fingerprint [32]byte, notAfter, now time.Time) (accesskernel.Credential, error) {
-	credential := accesskernel.Credential{ID: "cred-" + uuid.NewString(), PrincipalID: principalID, Fingerprint: fingerprint, CertificateNotAfter: notAfter.UTC(), Label: strings.TrimSpace(label), CreatedAt: now.UTC()}
+func (s *Store) AddCredential(ctx context.Context, actorID, principalID, label string, material accesskernel.CredentialMaterial, now time.Time) (accesskernel.Credential, error) {
+	credential := accesskernel.Credential{ID: "cred-" + uuid.NewString(), PrincipalID: principalID, Kind: material.Kind, Fingerprint: material.Fingerprint, ExpiresAt: material.ExpiresAt.UTC(), Label: strings.TrimSpace(label), CreatedAt: now.UTC()}
 	if credential.Label == "" {
 		return accesskernel.Credential{}, fmt.Errorf("%w: credential label is required", accesskernel.ErrInvalidArgument)
 	}
-	if !credential.CertificateNotAfter.After(now) {
-		return accesskernel.Credential{}, fmt.Errorf("%w: certificate is expired", accesskernel.ErrInvalidArgument)
+	if !credential.ExpiresAt.After(now) {
+		return accesskernel.Credential{}, fmt.Errorf("%w: credential is expired", accesskernel.ErrInvalidArgument)
 	}
 	err := s.withAudit(ctx, actorID, "credential.add", "credential", credential.ID, now, func(tx pgx.Tx) error {
 		var active bool
@@ -170,7 +170,7 @@ func (s *Store) AddCredential(ctx context.Context, actorID, principalID, label s
 		if !active {
 			return fmt.Errorf("%w: principal is disabled", accesskernel.ErrFailedPrecondition)
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO principal_credentials (credential_id,principal_id,kind,fingerprint,certificate_not_after,label,created_at) VALUES ($1,$2,'x509_sha256',$3,$4,$5,$6)`, credential.ID, principalID, fingerprint[:], credential.CertificateNotAfter, credential.Label, credential.CreatedAt)
+		_, err := tx.Exec(ctx, `INSERT INTO principal_credentials (credential_id,principal_id,kind,fingerprint,expires_at,label,created_at) VALUES ($1,$2,$7,$3,$4,$5,$6)`, credential.ID, principalID, material.Fingerprint[:], credential.ExpiresAt, credential.Label, credential.CreatedAt, material.Kind)
 		return err
 	})
 	if uniqueViolation(err) {
@@ -180,7 +180,7 @@ func (s *Store) AddCredential(ctx context.Context, actorID, principalID, label s
 }
 
 func (s *Store) ListCredentials(ctx context.Context, principalID string) ([]accesskernel.Credential, error) {
-	rows, err := s.db.Pool().Query(ctx, `SELECT credential_id,principal_id,fingerprint,certificate_not_after,label,created_at,revoked_at FROM principal_credentials WHERE principal_id=$1 ORDER BY created_at DESC`, principalID)
+	rows, err := s.db.Pool().Query(ctx, `SELECT credential_id,principal_id,fingerprint,expires_at,label,created_at,revoked_at,kind FROM principal_credentials WHERE principal_id=$1 ORDER BY created_at DESC`, principalID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +189,7 @@ func (s *Store) ListCredentials(ctx context.Context, principalID string) ([]acce
 	for rows.Next() {
 		var c accesskernel.Credential
 		var fp []byte
-		if err := rows.Scan(&c.ID, &c.PrincipalID, &fp, &c.CertificateNotAfter, &c.Label, &c.CreatedAt, &c.RevokedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.PrincipalID, &fp, &c.ExpiresAt, &c.Label, &c.CreatedAt, &c.RevokedAt, &c.Kind); err != nil {
 			return nil, err
 		}
 		copy(c.Fingerprint[:], fp)
@@ -214,7 +214,7 @@ func (s *Store) RevokeCredential(ctx context.Context, actorID, credentialID stri
 	}
 	var c accesskernel.Credential
 	var fp []byte
-	err = s.db.Pool().QueryRow(ctx, `SELECT credential_id,principal_id,fingerprint,certificate_not_after,label,created_at,revoked_at FROM principal_credentials WHERE credential_id=$1`, credentialID).Scan(&c.ID, &c.PrincipalID, &fp, &c.CertificateNotAfter, &c.Label, &c.CreatedAt, &c.RevokedAt)
+	err = s.db.Pool().QueryRow(ctx, `SELECT credential_id,principal_id,fingerprint,expires_at,label,created_at,revoked_at,kind FROM principal_credentials WHERE credential_id=$1`, credentialID).Scan(&c.ID, &c.PrincipalID, &fp, &c.ExpiresAt, &c.Label, &c.CreatedAt, &c.RevokedAt, &c.Kind)
 	copy(c.Fingerprint[:], fp)
 	return c, err
 }
@@ -346,7 +346,7 @@ func ensureActivePlatformAdminTx(ctx context.Context, tx pgx.Tx, now time.Time) 
 			JOIN role_bindings b ON b.principal_id=p.principal_id
 			JOIN principal_credentials c ON c.principal_id=p.principal_id
 			WHERE p.status='active' AND b.role='platform_admin' AND b.revoked_at IS NULL
-			  AND c.revoked_at IS NULL AND c.certificate_not_after > $1
+			  AND c.kind = 'x509_sha256' AND c.revoked_at IS NULL AND c.expires_at > $1
 		)
 	`, now.UTC()).Scan(&exists); err != nil {
 		return err

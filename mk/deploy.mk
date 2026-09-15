@@ -64,7 +64,6 @@ AXERN_GATEWAYD_SSH_PORT ?= 25122
 AXERN_GRAFANA_PORT ?= 13002
 AXERN_GATEWAYD_SSH_SECRET ?= gatewayd-ssh
 AXERN_GATEWAYD_SSH_HOST_KEY ?= $(AXERN_CLI_SSH_DIR)/gateway_host_ed25519
-AXERN_GATEWAYD_SSH_AUTHORIZED_KEYS ?= $(AXERN_CLI_SSH_DIR)/authorized_keys
 
 define require_kube_context
 	@if [ -n "$(strip $(AXERN_KUBECONFIG))" ] && [ ! -f "$(strip $(AXERN_KUBECONFIG))" ]; then \
@@ -265,7 +264,7 @@ helm-health: ## Check service health and the current node-report contract
 		printf "gatewayd health: "; cat /tmp/axern-gatewayd-health.out; printf "\n"; \
 	'
 
-helm-gateway-ssh-secret: ## Ensure the gatewayd SSH host key and authorized client key secret exists
+helm-gateway-ssh-secret: ## Ensure the gatewayd SSH host key secret exists; register client keys as Principal Credentials
 	$(call require_kube_context)
 	mkdir -p '$(AXERN_CLI_SSH_DIR)'
 	@if [ ! -s '$(AXERN_GATEWAYD_SSH_HOST_KEY)' ]; then \
@@ -274,12 +273,10 @@ helm-gateway-ssh-secret: ## Ensure the gatewayd SSH host key and authorized clie
 	@if [ ! -s '$(AXERN_CLI_SSH_IDENTITY_FILE)' ]; then \
 		ssh-keygen -q -t ed25519 -N "" -f '$(AXERN_CLI_SSH_IDENTITY_FILE)' -C '$(AXERN_HELM_RELEASE)-gatewayd-client' >/dev/null; \
 	fi
-	cat '$(AXERN_CLI_SSH_IDENTITY_FILE).pub' > '$(AXERN_GATEWAYD_SSH_AUTHORIZED_KEYS)'
 	chmod 700 '$(AXERN_CLI_SSH_DIR)'
-	chmod 600 '$(AXERN_GATEWAYD_SSH_HOST_KEY)' '$(AXERN_CLI_SSH_IDENTITY_FILE)' '$(AXERN_GATEWAYD_SSH_AUTHORIZED_KEYS)'
+	chmod 600 '$(AXERN_GATEWAYD_SSH_HOST_KEY)' '$(AXERN_CLI_SSH_IDENTITY_FILE)'
 	$(KUBECTL) $(call kubectl_args) -n '$(AXERN_HELM_NAMESPACE)' create secret generic '$(AXERN_GATEWAYD_SSH_SECRET)' \
 		--from-file=gateway_host_ed25519='$(AXERN_GATEWAYD_SSH_HOST_KEY)' \
-		--from-file=authorized_keys='$(AXERN_GATEWAYD_SSH_AUTHORIZED_KEYS)' \
 		--dry-run=client -o yaml | \
 		$(KUBECTL) $(call kubectl_args) apply -f -
 

@@ -35,6 +35,7 @@ kubectl -n "${K8S_NAMESPACE}" create secret generic controld-pki \
   --from-file=controld.pem="${K8S_STATE_DIR}/certs/controld.pem" \
   --from-file=gatewayd.pem="${K8S_STATE_DIR}/certs/gatewayd.pem" \
   --from-file=tunneld.pem="${K8S_STATE_DIR}/certs/tunneld.pem" \
+  --from-file=gateway_client_ed25519.pub="${K8S_STATE_DIR}/ssh/gateway_client_ed25519.pub" \
   --from-file=client.crt="${K8S_STATE_DIR}/certs/client.crt" \
   --from-file=client.key="${K8S_STATE_DIR}/certs/client.key" \
   --dry-run=client -o yaml | kubectl apply -f -
@@ -53,7 +54,6 @@ kubectl -n "${K8S_NAMESPACE}" create secret generic enrollment-token \
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic gatewayd-ssh \
   --from-file=gateway_host_ed25519="${K8S_STATE_DIR}/ssh/gateway_host_ed25519" \
-  --from-file=authorized_keys="${K8S_STATE_DIR}/ssh/authorized_keys" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 proxy_env_args=()

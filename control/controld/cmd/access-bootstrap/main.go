@@ -36,6 +36,7 @@ func run(ctx context.Context, args []string) error {
 	name := flags.String("principal-name", "platform-admin", "initial platform administrator name")
 	displayName := flags.String("display-name", "Platform Administrator", "initial platform administrator display name")
 	certificatePath := flags.String("certificate", "", "initial platform administrator certificate PEM path")
+	sshPublicKeyPath := flags.String("ssh-public-key", "", "optional initial administrator SSH public key; expires with the bootstrap certificate")
 	label := flags.String("credential-label", "bootstrap-admin", "initial credential label")
 	nodeID := flags.String("node-id", "", "optional initial admitted node ID")
 	enrollmentTokenPath := flags.String("enrollment-token-file", "", "file containing the initial Node enrollment token")
@@ -53,6 +54,18 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return err
 	}
+	credentials := []accesskernel.CredentialMaterial{{Kind: accesskernel.CredentialX509, Fingerprint: fingerprint, ExpiresAt: notAfter}}
+	if strings.TrimSpace(*sshPublicKeyPath) != "" {
+		publicKey, err := os.ReadFile(filepath.Clean(*sshPublicKeyPath))
+		if err != nil {
+			return fmt.Errorf("read bootstrap SSH public key: %w", err)
+		}
+		material, err := accesskernel.ParseCredentialMaterial(nil, string(publicKey), notAfter)
+		if err != nil {
+			return err
+		}
+		credentials = append(credentials, material)
+	}
 	db, err := postgres.Open(ctx, *dsn)
 	if err != nil {
 		return err
@@ -62,7 +75,7 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	now := time.Now().UTC()
-	if err := pgaccess.NewStore(db).BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now); err != nil {
+	if err := pgaccess.NewStore(db).BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), credentials, now); err != nil {
 		return err
 	}
 	if strings.TrimSpace(*nodeID) == "" && strings.TrimSpace(*enrollmentTokenPath) == "" {

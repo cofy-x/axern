@@ -236,16 +236,14 @@ inventory_ready() {
     # to finish. Both success and failure are latched for the runtime/config
     # identity; UNAVAILABLE is safe here only because destructive failures no
     # longer retry in the background. Memory admission still requires proof.
-    ([.node.capability_snapshot.observations[]?
+    (["PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT",
+      "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT",
+      "PLATFORM_CAPABILITY_NETWORK_BRIDGE", $network_capability] | unique) as $required |
+    ($required - [.node.capability_snapshot.observations[]?
       | select(
-          (.key.platform == "PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT" or
-           .key.platform == "PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT" or
-           .key.platform == "PLATFORM_CAPABILITY_NETWORK_BRIDGE" or
-           .key.platform == $network_capability) and
           .state == "CAPABILITY_STATE_AVAILABLE")
       | .key.platform]
-     | unique
-     | length == 4) and
+     | length == 0) and
     ([.node.capability_snapshot.observations[]?
       | select(
           (.key.platform == "PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST" or

@@ -20,7 +20,6 @@ POSTGRES_DSN="${POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@$
 AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
-AXERN_DEV_TOKEN="${AXERN_DEV_TOKEN:-axern-local-dev}"
 AXERN_SECRETS_MASTER_KEY="${AXERN_SECRETS_MASTER_KEY:-local-only-master-key-32-bytes!!}"
 
 usage() {
@@ -447,8 +446,7 @@ start_gatewayd() {
     -tunnel-relay-tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -control-target 127.0.0.1:24000 \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
-    -workload-bundle '${DEV_DIR}/certs/gatewayd.pem' \
-    -dev-token '${AXERN_DEV_TOKEN}'"
+    -workload-bundle '${DEV_DIR}/certs/gatewayd.pem'"
   wait_tcp 127.0.0.1 25000 gatewayd
   wait_tcp 127.0.0.1 25080 gatewayd
 }

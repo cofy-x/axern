@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"context"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/metadata"
 )
@@ -14,6 +15,7 @@ type processStream interface {
 
 type Session struct {
 	stream processStream
+	cancel context.CancelFunc
 }
 
 type Output struct {
@@ -57,5 +59,8 @@ func (s *Session) CloseStdin() error {
 }
 
 func (s *Session) Close() error {
+	if s.cancel != nil {
+		s.cancel()
+	}
 	return s.stream.CloseSend()
 }

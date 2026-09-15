@@ -62,9 +62,8 @@ setup_e2e_environment() {
   }
   ssh-keygen -q -t ed25519 -N "" -f "${ssh_dir}/gateway_host_ed25519" -C "axern-cli-e2e-gatewayd" >/dev/null
   ssh-keygen -q -t ed25519 -N "" -f "${ssh_dir}/gateway_client_ed25519" -C "axern-cli-e2e-client" >/dev/null
-  cp "${ssh_dir}/gateway_client_ed25519.pub" "${ssh_dir}/authorized_keys"
   chmod 700 "${ssh_dir}"
-  chmod 600 "${ssh_dir}/gateway_host_ed25519" "${ssh_dir}/gateway_client_ed25519" "${ssh_dir}/authorized_keys"
+  chmod 600 "${ssh_dir}/gateway_host_ed25519" "${ssh_dir}/gateway_client_ed25519"
 
   export AXERN_TLS_CA_CERT="${cert_dir}/ca.crt"
   export AXERN_TLS_CERT="${cert_dir}/client.crt"
@@ -77,6 +76,7 @@ setup_e2e_environment() {
     up
   "${AXERN_ROOT}/bin/controld-access-bootstrap" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
+    -ssh-public-key "${ssh_dir}/gateway_client_ed25519.pub" \
     -principal-name cli-e2e-admin \
     -display-name "CLI E2E Administrator" \
     -credential-label cli-e2e-client \
@@ -124,7 +124,6 @@ setup_e2e_environment() {
     -ssh-enabled \
     -ssh-address "${GATEWAY_SSH_ADDRESS}" \
     -ssh-host-key "${ssh_dir}/gateway_host_ed25519" \
-    -ssh-authorized-keys "${ssh_dir}/authorized_keys" \
     -terminal-idle-timeout 30s \
     -terminal-max-duration 5m \
     -log-level info >"${gatewayd_log}" 2>&1 &

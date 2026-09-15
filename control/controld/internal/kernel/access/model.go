@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/ssh"
 )
 
 var (
@@ -78,13 +80,50 @@ type Principal struct {
 }
 
 type Credential struct {
-	ID                  string
-	PrincipalID         string
-	Fingerprint         [sha256.Size]byte
-	CertificateNotAfter time.Time
-	Label               string
-	CreatedAt           time.Time
-	RevokedAt           *time.Time
+	Kind        CredentialKind
+	ID          string
+	PrincipalID string
+	Fingerprint [sha256.Size]byte
+	ExpiresAt   time.Time
+	Label       string
+	CreatedAt   time.Time
+	RevokedAt   *time.Time
+}
+
+type CredentialKind string
+
+const (
+	CredentialX509 CredentialKind = "x509_sha256"
+	CredentialSSH  CredentialKind = "ssh_sha256"
+)
+
+type CredentialMaterial struct {
+	Kind        CredentialKind
+	Fingerprint [sha256.Size]byte
+	ExpiresAt   time.Time
+}
+
+// ParseCredentialMaterial accepts exactly one authentication protocol. SSH
+// keys require an explicit expiry; X.509 expiry comes from the certificate.
+func ParseCredentialMaterial(der []byte, authorizedKey string, expiresAt time.Time) (CredentialMaterial, error) {
+	if (len(der) == 0) == (strings.TrimSpace(authorizedKey) == "") {
+		return CredentialMaterial{}, fmt.Errorf("%w: exactly one certificate or SSH public key is required", ErrInvalidArgument)
+	}
+	if len(der) > 0 {
+		if !expiresAt.IsZero() {
+			return CredentialMaterial{}, fmt.Errorf("%w: certificate expiry cannot be overridden", ErrInvalidArgument)
+		}
+		fingerprint, expiry, err := ParseCertificateDER(der)
+		return CredentialMaterial{Kind: CredentialX509, Fingerprint: fingerprint, ExpiresAt: expiry}, err
+	}
+	key, _, options, rest, err := ssh.ParseAuthorizedKey([]byte(authorizedKey))
+	if err != nil || len(options) != 0 || len(strings.TrimSpace(string(rest))) != 0 || expiresAt.IsZero() {
+		return CredentialMaterial{}, fmt.Errorf("%w: one plain SSH public key and explicit expiry are required", ErrInvalidArgument)
+	}
+	if _, certificate := key.(*ssh.Certificate); certificate {
+		return CredentialMaterial{}, fmt.Errorf("%w: SSH certificates are not accepted as public keys", ErrInvalidArgument)
+	}
+	return CredentialMaterial{Kind: CredentialSSH, Fingerprint: sha256.Sum256(key.Marshal()), ExpiresAt: expiresAt.UTC()}, nil
 }
 
 type Binding struct {

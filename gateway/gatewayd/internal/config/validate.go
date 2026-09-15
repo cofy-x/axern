@@ -33,8 +33,8 @@ func validate(cfg Config) (Config, error) {
 		cfg.SSHAddress = DefaultSSHAddress
 	}
 	if cfg.SSHEnabled {
-		if strings.TrimSpace(cfg.SSHHostKey) == "" || strings.TrimSpace(cfg.SSHAuthorizedKeys) == "" {
-			return Config{}, fmt.Errorf("ssh-host-key and ssh-authorized-keys are required when ssh-enabled is true")
+		if strings.TrimSpace(cfg.SSHHostKey) == "" {
+			return Config{}, fmt.Errorf("ssh-host-key is required when ssh-enabled is true")
 		}
 	}
 	if cfg.ReadHeaderTimeout <= 0 {
@@ -48,6 +48,9 @@ func validate(cfg Config) (Config, error) {
 	}
 	if cfg.TerminalMaxDuration <= 0 {
 		cfg.TerminalMaxDuration = 2 * time.Hour
+	}
+	if cfg.TerminalMaxDuration > 2*time.Hour {
+		return Config{}, fmt.Errorf("terminal-max-duration must not exceed the two-hour allocation access grant limit")
 	}
 	if cfg.TerminalMaxMessageBytes <= 0 {
 		cfg.TerminalMaxMessageBytes = 1 << 20

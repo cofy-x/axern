@@ -17,7 +17,7 @@ message CredentialIdentity {
   string credential_id = 1;
   string label = 2;
   string fingerprint = 3;
-  google.protobuf.Timestamp certificate_not_after = 4;
+  google.protobuf.Timestamp expires_at = 4;
 }
 
 message EffectiveRole {

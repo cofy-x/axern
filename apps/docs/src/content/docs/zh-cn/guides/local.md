@@ -41,7 +41,7 @@ description: Local Axern 的环境要求、生命周期、数据、版本替换�
 
 ## 本地端口
 
-所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway，`25080` 为 Gateway HTTP 健康检查和 allocation terminal，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
+所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway 和 mTLS WebSocket Terminal，`25080` 为 Gateway HTTP 健康检查，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
 
 首版不自动分配替代端口；请停止冲突进程后重新运行 `axern local doctor`。
 

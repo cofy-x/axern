@@ -25,7 +25,7 @@ func (s *Store) ValidatePeer(ctx context.Context, sessionID string, kind tunnelv
 	if terminal(session.GetStatus()) {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "tunnel session is not active")
 	}
-	if session.GetExpiresAt().AsTime().Before(now.UTC()) {
+	if !now.UTC().Before(session.GetExpiresAt().AsTime()) {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "tunnel session is expired")
 	}
 	got := hashToken(strings.TrimSpace(token))

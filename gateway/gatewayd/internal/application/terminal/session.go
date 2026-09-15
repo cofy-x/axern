@@ -14,9 +14,11 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Resolver interface {
+	AuthorizeAllocationAccess(context.Context, *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error)
 	ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error)
 }
 
@@ -77,6 +79,10 @@ func (m *Manager) OpenWithOptions(ctx context.Context, allocationID string, opts
 }
 
 func (m *Manager) Resolve(ctx context.Context, allocationID string) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
+	identity, ok := ctx.Value(credentialContextKey{}).(credentialIdentity)
+	if !ok || identity.fingerprint == "" {
+		return nil, status.Error(codes.Unauthenticated, "client credential is required")
+	}
 	allocationID = strings.TrimSpace(allocationID)
 	ctx, op := m.obs.StartOperation(ctx, sdkobs.OperationConfig{
 		Name:        observability.SpanTerminalResolve,
@@ -88,8 +94,11 @@ func (m *Manager) Resolve(ctx context.Context, allocationID string) (*gatewayv1.
 	var err error
 	defer func() { op.End(err) }()
 	resolved, err := m.control.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
-		AllocationID: allocationID,
-		TtlSeconds:   300,
+		AllocationID:          allocationID,
+		TtlSeconds:            int64(m.options.MaxDuration / time.Second),
+		CredentialFingerprint: identity.fingerprint,
+		CredentialKind:        identity.kind,
+		Purpose:               gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 	})
 	if err != nil {
 		op.SetErrorStatus("terminal resolve failed")
@@ -99,16 +108,49 @@ func (m *Manager) Resolve(ctx context.Context, allocationID string) (*gatewayv1.
 	return resolved, nil
 }
 
+func (m *Manager) Authorize(ctx context.Context, allocationID string) error {
+	identity, ok := ctx.Value(credentialContextKey{}).(credentialIdentity)
+	if !ok || identity.fingerprint == "" {
+		return status.Error(codes.Unauthenticated, "client credential is required")
+	}
+	_, err := m.control.AuthorizeAllocationAccess(ctx, &gatewayv1.ResolveAllocationTerminalRequest{AllocationID: allocationID, CredentialFingerprint: identity.fingerprint, CredentialKind: identity.kind, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE})
+	return err
+}
+
 func (m *Manager) OpenResolved(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse) (*Session, error) {
 	return m.OpenResolvedWithOptions(ctx, resolved, OpenOptions{})
 }
 
 func (m *Manager) OpenResolvedWithOptions(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (*Session, error) {
+	grant := resolved.GetAccessGrant()
+	if grant.GetExpiresAt() == nil || !time.Now().Before(grant.GetExpiresAt().AsTime()) {
+		return nil, status.Error(codes.Unauthenticated, "allocation access grant has expired")
+	}
+	ctx, cancel := context.WithDeadline(ctx, grant.GetExpiresAt().AsTime())
 	stream, err := m.openProcess(ctx, resolved, opts)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
-	return &Session{stream: stream}, nil
+	go func() {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				check, done := context.WithTimeout(ctx, 5*time.Second)
+				err := m.Authorize(check, resolved.GetAllocationID())
+				done()
+				if err != nil {
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	return &Session{stream: stream, cancel: cancel}, nil
 }
 
 func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (stream processStream, err error) {

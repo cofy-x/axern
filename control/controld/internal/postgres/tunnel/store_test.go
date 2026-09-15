@@ -161,6 +161,18 @@ func TestRenewExtendsActiveSession(t *testing.T) {
 	if !renewed.GetExpiresAt().AsTime().Equal(want) {
 		t.Fatalf("expires_at = %s, want %s", renewed.GetExpiresAt().AsTime(), want)
 	}
+	for range 2 {
+		stale, err := store.Renew(context.Background(), result.Session.GetSessionID(), result.ClientToken, time.Minute, now.Add(time.Second))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !stale.GetExpiresAt().AsTime().Equal(want) {
+			t.Fatal("delayed renewal shortened authority")
+		}
+	}
+	if _, err := store.ValidatePeer(context.Background(), result.Session.GetSessionID(), tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, result.ClientToken, want); err == nil {
+		t.Fatal("peer accepted at exact expiration boundary")
+	}
 }
 
 func TestRenewRejectsExpiredSession(t *testing.T) {

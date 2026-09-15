@@ -13,9 +13,9 @@ CREATE TABLE principals (
 CREATE TABLE principal_credentials (
 	credential_id TEXT PRIMARY KEY,
 	principal_id TEXT NOT NULL REFERENCES principals(principal_id),
-	kind TEXT NOT NULL CHECK (kind = 'x509_sha256'),
+	kind TEXT NOT NULL CHECK (kind IN ('x509_sha256', 'ssh_sha256')),
 	fingerprint BYTEA NOT NULL UNIQUE,
-	certificate_not_after TIMESTAMPTZ NOT NULL,
+	expires_at TIMESTAMPTZ NOT NULL,
 	label TEXT NOT NULL,
 	created_at TIMESTAMPTZ NOT NULL,
 	revoked_at TIMESTAMPTZ,

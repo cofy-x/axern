@@ -27,8 +27,11 @@ make helm-lint
 make helm-template AXERN_HELM_VALUES=/path/to/values.yaml
 make helm-install \
   AXERN_KUBECONFIG=/path/to/kubeconfig \
-  AXERN_HELM_VALUES=/path/to/values.yaml
+  AXERN_HELM_VALUES=/path/to/values.yaml \
+  AXERN_HELM_WAIT_ARGS=
 ```
+
+On first installation, leave `AXERN_HELM_WAIT_ARGS` empty: runtime readiness depends on Node admission through the newly started control plane. Follow the install guide to wait for controld and gatewayd, admit each Node, and then wait for its DaemonSet. Subsequent upgrades can use the default Helm wait behavior.
 
 `make helm-health` verifies both service health and the current node-report contract: every reported node must be fresh and include aggregate `runtime_slots`. Releases that change a required node-summary contract must use one image set for controld and node-all-in-one and rebuild them together. The chart does not support a mixed-version fallback to cgroup/interface capacity inference.
 
@@ -44,7 +47,7 @@ make helm-registry-secret \
 
 Set the chart's `global.imagePullSecrets` value to the corresponding `AXERN_REGISTRY_PULL_SECRET` name when private images require it.
 
-When `secrets.existingSecret` is configured, it must contain `AXERN_SECRETS_MASTER_KEY` and `GATEWAYD_DEV_TOKEN`. When `postgres.existingSecret` is configured, it must contain the keys selected by `postgres.passwordKey` and `postgres.dsnKey`.
+When `secrets.existingSecret` is configured, it must contain `AXERN_SECRETS_MASTER_KEY`. When `postgres.existingSecret` is configured, it must contain the keys selected by `postgres.passwordKey` and `postgres.dsnKey`.
 
 Gatewayd uses its dedicated URI identity from `gatewayd.pem`. Workloads mount only their role bundle and public trust; only controld mounts the separate signing Secret. All services share `pki.trustDomain`. Initial administrator metadata is configured under `auth.bootstrap`; later administrator credential changes use AccessAdmin, not service renewal.
 

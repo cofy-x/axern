@@ -1,18 +1,22 @@
 # Principal And Namespace Authorization
 
-Axern authenticates public API callers as durable Principals and authorizes every public RPC against a platform or namespace scope. PostgreSQL is the only authority for Principals, X.509 credentials, role bindings, and access audit events; gatewayd does not cache authorization state.
+Axern authenticates public API callers as durable Principals and authorizes every public RPC against a platform or namespace scope. PostgreSQL is the only authority for Principals, X.509 and SSH credentials, role bindings, and access audit events; gatewayd does not cache authorization state.
 
 ## Trust Boundary
 
 Public CLI and SDK traffic terminates at gatewayd. Gatewayd verifies the client certificate, removes caller-supplied internal identity metadata, and forwards only the SHA-256 fingerprint of the verified leaf certificate to controld over gatewayd's dedicated mTLS connection. Controld accepts that fingerprint only when the immediate verified peer is `gatewayd`. Direct calls to public controld services are rejected.
 
-Certificate subject names are not Principal identities. A credential record maps the exact certificate fingerprint to one active Principal and records the certificate expiry. Revocation or Principal disablement takes effect on the next RPC. Long-lived public streams re-read the Principal and bindings every 15 seconds and close when the authority is no longer valid.
+Certificate subject names are not Principal identities. A credential record maps the exact certificate fingerprint to one active Principal and records the certificate expiry. Revocation or Principal disablement takes effect on the next RPC. Long-lived public control streams re-read the Principal and bindings every 15 seconds and close when the authority is no longer valid. Data-plane grant deadlines are independent of ExecutionLease.
 
-The HTTP websocket terminal and SSH-compatible terminal are gateway-owned data plane protocols rather than public control RPCs. They retain their existing gateway bearer-token or authorized-key boundary. Their internal allocation resolution RPC is accepted only from the verified gatewayd workload identity; the public gRPC `NodeSandbox` path always carries and authorizes the caller's Principal fingerprint.
+WebSocket Terminal uses client mTLS on the public control TLS listener; the plaintext HTTP listener serves health only. SSH uses the SHA-256 fingerprint of the exact public-key wire encoding, registered as a Principal Credential with an explicit expiry. Neither protocol accepts gateway-wide bearer tokens or authorized-key files. Both use the private `GatewayControl` service to authorize the caller’s Credential against the Allocation namespace. Transport identity authorizes gatewayd to call that service but never replaces the caller’s business authorization.
 
 Gateway-owned allocation target resolution, tunnel relay target resolution, and terminal resolution use the private `GatewayControl` service. Gatewayd does not call public resource services without a Principal. Tunnel peers remain authenticated by their short-lived session token at the relay, independently of control-plane Principal authentication. Peer token validation and relay event reporting live on the private `TunnelRelayControl` service, which accepts only the verified `tunneld` workload certificate.
 
 `NodeControl` likewise accepts only the verified `axern-node` workload certificate. In the reverse direction, axnoded's routable listener requires client mTLS and authorizes by service: `controld` alone receives `NodeLifecycle`, while `gatewayd` alone receives `NodeSandbox`. The two identities cannot exercise each other's node authority. Internal workload services are therefore explicit authenticated boundaries, not unauthenticated exceptions to public authorization.
+
+## Access Connection Lifetime
+
+SSH and WebSocket sessions revalidate Principal, Credential, namespace authorization, active Node, and Allocation operability every 15 seconds with a 5-second check deadline. Rejection or a failed check cancels the access stream; it does not revoke ExecutionLease or terminate the Allocation. Grant expiry independently bounds the connection. The online propagation bound is 20 seconds excluding process scheduling pauses. Public gRPC data-plane calls have a finite grant deadline, normally five minutes, but do not share this periodic terminal check. Output-only grants require resource-read authority and are capped by the retained output deadline. Tunnel relay revalidation has the same 15-second interval and 5-second deadline and fails closed on control-plane errors; its session-token authority remains separate from Principal Credentials.
 
 ## Node-local operator authorization
 
@@ -37,7 +41,7 @@ Namespace roles never imply access to another namespace. Resource-ID lookups res
 
 ## Bootstrap And Rotation
 
-Database migration does not create an implicit administrator. The separate `controld-access-bootstrap` entrypoint creates the first platform Principal, its credential before controld starts. Bootstrap is serialized and exactly idempotent: once access state exists, different identity material is rejected.
+Database migration does not create an implicit administrator. The separate `controld-access-bootstrap` entrypoint creates the first platform Principal and its X.509 credential before controld starts. Optional `-ssh-public-key` registers an SSH credential in that same transaction, expiring with the bootstrap certificate. Bootstrap is serialized and exactly idempotent: once access state exists, different identity material or revoked credentials are rejected; bootstrap never reactivates them.
 
 After bootstrap, use the public API through gatewayd:
 
@@ -45,6 +49,7 @@ After bootstrap, use the public API through gatewayd:
 axern identity whoami
 axern admin principal create developer --display-name "Developer" --kind human
 axern admin credential add <principal-id> --certificate developer.crt --label laptop
+axern admin credential add <principal-id> --ssh-public-key developer.pub --expires-at 2027-01-01T00:00:00Z --label ssh
 axern admin role-binding grant \
   --principal-id <principal-id> \
   --scope namespace \
@@ -52,7 +57,7 @@ axern admin role-binding grant \
   --role namespace_editor
 ```
 
-Rotate a certificate by adding the new credential, switching the client context to it, confirming `axern identity whoami`, and then revoking the old credential. A credential cannot revoke itself, a Principal cannot disable itself, and every mutation is transactionally rejected if it would remove the last active platform administrator.
+Rotate a certificate by adding the new credential, switching the client context to it, confirming `axern identity whoami`, and then revoking the old credential. A credential cannot revoke itself, a Principal cannot disable itself, and every mutation is transactionally rejected if it would remove the last active X.509 platform administrator. SSH-only access cannot administer the public gRPC API and cannot satisfy that recovery invariant.
 
 All access mutations write `admin_audit_events` with the authenticated actor Principal ID. The authorization decision metric uses bounded action and result labels and never records Principal, credential, namespace, resource, or token values.
 

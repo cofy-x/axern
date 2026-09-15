@@ -8,6 +8,7 @@
 
 - PostgreSQL is the sole authority for Environment, Run, Allocation binding and resource charge, placement, AllocationAccessGrant, TunnelSession, and control-plane lifecycle state. ExecutionLease has no control-plane table; it is derived from current Allocation authority on every authenticated Node heartbeat.
 - Keep public contracts in `sdk/proto`. The HTTP listener is limited to diagnostics; realtime terminal, execution, and Allocation-local output traffic belongs to the data plane.
+- Principal Credentials have explicit protocol kinds, expiry, and revocation. SSH and X.509 share namespace RoleBindings, but only an active X.509 credential can satisfy the last platform administrator invariant. Bootstrap must atomically register initial credentials and must never reactivate revoked material on retry.
 - Keep RPC validation and mapping in `internal/api`, use-case orchestration in `internal/application`, domain contracts and pure rules in `internal/kernel`, SQL and transaction mechanics in `internal/postgres`, and construction/lifecycle in `internal/app`.
 - `internal/application` and `internal/kernel` must not depend on Postgres implementations. API and composition packages depend on narrow capabilities rather than concrete stores.
 - Keep placement separate from node execution. Gateway resolution returns an explicit Allocation target and AllocationAccessGrant bound to that exact Allocation ID.

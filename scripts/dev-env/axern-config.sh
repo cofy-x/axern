@@ -38,9 +38,8 @@ ensure_compose_ssh_keys() {
   if [ ! -s "${client_key}" ]; then
     ssh-keygen -q -t ed25519 -N "" -f "${client_key}" -C "axern-local-client" >/dev/null
   fi
-  cat "${client_key}.pub" > "${ssh_dir}/authorized_keys"
   chmod 700 "${ssh_dir}"
-  chmod 600 "${host_key}" "${client_key}" "${ssh_dir}/authorized_keys"
+  chmod 600 "${host_key}" "${client_key}"
 }
 
 ensure_k8s_ssh_keys() {
@@ -56,9 +55,8 @@ ensure_k8s_ssh_keys() {
   if [ ! -s "${client_key}" ]; then
     ssh-keygen -q -t ed25519 -N "" -f "${client_key}" -C "axern-${K8S_ENV_NAME}-client" >/dev/null
   fi
-  cat "${client_key}.pub" > "${ssh_dir}/authorized_keys"
   chmod 700 "${ssh_dir}"
-  chmod 600 "${host_key}" "${client_key}" "${ssh_dir}/authorized_keys"
+  chmod 600 "${host_key}" "${client_key}"
 }
 
 generate_k8s_certs() {

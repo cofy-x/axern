@@ -91,6 +91,11 @@ func (d *daemon) watch(ctx context.Context, revision int64) (int64, error) {
 		if resp == nil {
 			continue
 		}
+		// Never apply an old create before checking stream order: it could
+		// resurrect a listener whose terminal observation was already applied.
+		if resp.GetCurrentRevision() <= revision {
+			return revision, fmt.Errorf("control plane returned non-advancing tunnel revision %d after %d", resp.GetCurrentRevision(), revision)
+		}
 		for _, item := range resp.GetSessions() {
 			if item.GetSession() != nil {
 				if terminal(item.GetSession().GetStatus()) {
@@ -99,9 +104,6 @@ func (d *daemon) watch(ctx context.Context, revision int64) (int64, error) {
 				}
 				d.ensure(ctx, item)
 			}
-		}
-		if resp.GetCurrentRevision() <= revision {
-			return revision, fmt.Errorf("control plane returned non-advancing tunnel revision %d after %d", resp.GetCurrentRevision(), revision)
 		}
 		revision = resp.GetCurrentRevision()
 	}

@@ -43,13 +43,13 @@ Set `AXERN_HOME` to place all Axern-managed local data under a different root. T
 
 All host listeners bind only to `127.0.0.1`.
 
-| Port              | Purpose                                     |
-| ----------------- | ------------------------------------------- |
-| `25000`           | Public gRPC gateway                         |
-| `25080`           | Gateway HTTP health and allocation terminal |
-| `25022`           | Gateway SSH                                 |
-| `24101`           | Control-plane HTTP                          |
-| `25432`           | PostgreSQL                                  |
+| Port    | Purpose                                        |
+| ------- | ---------------------------------------------- |
+| `25000` | gRPC and mTLS WebSocket terminal               |
+| `25080` | Gateway HTTP health                            |
+| `25022` | Gateway SSH                                    |
+| `24101` | Control-plane HTTP                             |
+| `25432` | PostgreSQL                                     |
 
 The observability profile additionally uses `4317`, `4318`, and `13000`. The first version intentionally does not allocate alternate ports; stop the conflicting process and rerun `axern local doctor`.
 

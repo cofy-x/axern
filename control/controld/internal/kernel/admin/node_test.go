@@ -1,6 +1,7 @@
 package adminkernel
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -11,7 +12,7 @@ import (
 func TestValidateAdmitNodeRequest(t *testing.T) {
 	valid := AdmitNodeRequest{
 		NodeID:          "node-a",
-		EnrollmentToken: "0123456789abcdef0123456789abcdef",
+		EnrollmentToken: strings.Repeat("0123456789abcdef", 2),
 		OperatorReason:  "add worker", Now: time.Now().UTC(),
 	}
 	if err := ValidateAdmitNodeRequest(valid); err != nil {

@@ -42,7 +42,7 @@ func (f fakeAccess) ResolveResourceNamespace(context.Context, string, string) (s
 }
 
 func TestUnaryRejectsSpoofedOrUnauthorizedIdentity(t *testing.T) {
-	actor := accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}
+	actor := accesskernel.Actor{Credential: accesskernel.Credential{Kind: accesskernel.CredentialX509}, Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}
 	i := &Interceptor{access: fakeAccess{actor: actor, namespace: "team-a"}, gatewayPeer: func(context.Context) bool { return true }}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(ClientCertificateFingerprintMetadata, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 	called := false
@@ -70,7 +70,7 @@ func TestUnaryRejectsSpoofedOrUnauthorizedIdentity(t *testing.T) {
 }
 
 func TestUnaryHidesCrossNamespaceResource(t *testing.T) {
-	actor := accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}
+	actor := accesskernel.Actor{Credential: accesskernel.Credential{Kind: accesskernel.CredentialX509}, Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}
 	i := &Interceptor{access: fakeAccess{actor: actor, namespace: "team-b"}, gatewayPeer: func(context.Context) bool { return true }}
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(ClientCertificateFingerprintMetadata, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"))
 	_, err := i.Unary(ctx, &runv1.GetRunRequest{RunID: "run-b"}, &grpc.UnaryServerInfo{FullMethod: "/axern.control.run.v1.RunControl/GetRun"}, func(context.Context, any) (any, error) { return nil, nil })
@@ -105,7 +105,7 @@ func (*changingAccess) ResolveResourceNamespace(context.Context, string, string)
 	return "team-a", nil
 }
 func TestStreamRecheckCancelsAfterRoleRevocation(t *testing.T) {
-	access := &changingAccess{actor: accesskernel.Actor{Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}}
+	access := &changingAccess{actor: accesskernel.Actor{Credential: accesskernel.Credential{Kind: accesskernel.CredentialX509}, Principal: accesskernel.Principal{Status: accesskernel.PrincipalStatusActive}, Bindings: []accesskernel.Binding{{Role: accesskernel.RoleNamespaceViewer, Namespace: "team-a"}}}}
 	i := &Interceptor{access: access, recheckInterval: time.Millisecond}
 	ctx, cancel := context.WithCancel(context.Background())
 	stream := &actorServerStream{ctx: ctx, cancel: cancel, interceptor: i, actor: access.actor, policy: methodPolicy{action: accesskernel.ActionResourceRead}}

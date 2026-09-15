@@ -13,6 +13,7 @@
 - Use the dedicated gateway mTLS identity for control-plane calls; never reuse an external client identity internally.
 - Use that same dedicated `gatewayd` workload certificate for the node data plane. Axnoded authorizes it only for `NodeSandbox`; gatewayd must never acquire `NodeLifecycle` or node-operator authority.
 - Every data-plane path must honor exact Allocation identity and allocation-scoped authorization from the [Stable Domain Model](../../docs/product/domain-model.md).
+- SSH public keys and Terminal client certificates are Principal Credentials, authorized by controld for the target Allocation namespace. Keep Terminal on the client-mTLS control listener and HTTP health separate. Never restore gateway-wide bearer tokens or authorized-key files. Access loss closes the stream without changing Allocation execution authority.
 
 - Verify the resolved exact Node URI on outbound connections and include Node ID in connection-cache keys. Never use CN or a shared Node DNS alias for authorization.
 

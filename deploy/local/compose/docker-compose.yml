@@ -48,12 +48,15 @@ services:
       - local-client
       - -certificate
       - /certs/client.crt
+      - -ssh-public-key
+      - /ssh/gateway_client_ed25519.pub
       - -node-id
       - ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
       - -enrollment-token-file
       - /run/secrets/enrollment-token
     volumes:
       - "${COMPOSE_STATE_DIR}/certs/client.crt:/certs/client.crt:ro"
+      - "${COMPOSE_STATE_DIR}/ssh/gateway_client_ed25519.pub:/ssh/gateway_client_ed25519.pub:ro"
       - "${COMPOSE_STATE_DIR}/enrollment-token:/run/secrets/enrollment-token:ro"
 
   dns-fixture:
@@ -232,11 +235,9 @@ services:
       GATEWAYD_SSH_ENABLED: "true"
       GATEWAYD_SSH_ADDRESS: 0.0.0.0:25022
       GATEWAYD_SSH_HOST_KEY: /ssh/gateway_host_ed25519
-      GATEWAYD_SSH_AUTHORIZED_KEYS: /ssh/authorized_keys
       GATEWAYD_TLS_CA_CERT: /certs/ca.crt
       AXERN_WORKLOAD_CLUSTER: axern.local
       GATEWAYD_WORKLOAD_BUNDLE: /certs/gatewayd.pem
-      AXERN_GATEWAY_DEV_TOKEN: axern-local-dev
       AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_INSECURE: "true"
@@ -263,12 +264,8 @@ services:
       - 0.0.0.0:25022
       - -ssh-host-key
       - /ssh/gateway_host_ed25519
-      - -ssh-authorized-keys
-      - /ssh/authorized_keys
       - -tls-ca-cert
       - /certs/ca.crt
-      - -dev-token
-      - axern-local-dev
     ports:
       - "127.0.0.1:${GATEWAY_CONTROL_PORT}:25000"
       - "127.0.0.1:${GATEWAY_HTTP_PORT}:25080"

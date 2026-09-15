@@ -1,6 +1,7 @@
 import datetime
 
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
+from google.protobuf import empty_pb2 as _empty_pb2
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
 from google.protobuf import message as _message
@@ -19,16 +20,18 @@ ALLOCATION_ACCESS_PURPOSE_INTERACTIVE: AllocationAccessPurpose
 ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT: AllocationAccessPurpose
 
 class ResolveAllocationTerminalRequest(_message.Message):
-    __slots__ = ("allocation_id", "ttl_seconds", "client_certificate_fingerprint", "purpose")
+    __slots__ = ("allocation_id", "ttl_seconds", "credential_fingerprint", "purpose", "credential_kind")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
     TTL_SECONDS_FIELD_NUMBER: _ClassVar[int]
-    CLIENT_CERTIFICATE_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
+    CREDENTIAL_FINGERPRINT_FIELD_NUMBER: _ClassVar[int]
     PURPOSE_FIELD_NUMBER: _ClassVar[int]
+    CREDENTIAL_KIND_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
     ttl_seconds: int
-    client_certificate_fingerprint: str
+    credential_fingerprint: str
     purpose: AllocationAccessPurpose
-    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., client_certificate_fingerprint: _Optional[str] = ..., purpose: _Optional[_Union[AllocationAccessPurpose, str]] = ...) -> None: ...
+    credential_kind: str
+    def __init__(self, allocation_id: _Optional[str] = ..., ttl_seconds: _Optional[int] = ..., credential_fingerprint: _Optional[str] = ..., purpose: _Optional[_Union[AllocationAccessPurpose, str]] = ..., credential_kind: _Optional[str] = ...) -> None: ...
 
 class ResolveAllocationTerminalResponse(_message.Message):
     __slots__ = ("allocation_id", "run_id", "node_id", "node_target", "access_grant")

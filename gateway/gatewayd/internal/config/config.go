@@ -26,11 +26,9 @@ type Config struct {
 	TunnelRelayTLSServerName  string
 	ControlTarget             string
 	TLSCACert                 string
-	DevToken                  string
 	SSHEnabled                bool
 	SSHAddress                string
 	SSHHostKey                string
-	SSHAuthorizedKeys         string
 	ControlDialTimeout        time.Duration
 	ReadHeaderTimeout         time.Duration
 	ReadTimeout               time.Duration

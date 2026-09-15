@@ -7,7 +7,7 @@ description: Open an SSH-compatible terminal into a running allocation.
 
 :::caution[SSH is an explicit trust boundary]
 
-SSH is disabled by the default Helm installation. Enable it only when an interactive workflow needs it, configure an authorized public key, and keep the private identity file restricted. SSH uses its own gateway-wide `authorized_keys` boundary; it does not inherit Principal or namespace RBAC. Anyone holding an authorized identity can request a shell for any allocation ID that the gateway can resolve.
+SSH is disabled by the default Helm installation. Enable it when an interactive workflow needs it and configure a persistent gateway host key. Register each client public key as a Principal Credential with an explicit expiry using `axern admin credential add --ssh-public-key <file> --expires-at <RFC3339> <principal-id>`. Existing namespace roles must permit execution on the target Allocation. Keep the private identity file restricted. Credential revocation and namespace role changes are rechecked during active sessions; inability to confirm authorization closes access without cancelling the Allocation.
 
 :::
 

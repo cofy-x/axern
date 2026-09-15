@@ -8,6 +8,7 @@ import (
 	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type Client struct {
@@ -51,6 +52,10 @@ func (c *Client) Conn() *grpc.ClientConn {
 
 func (c *Client) ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
 	return c.Gateway.ResolveAllocationTerminal(ctx, in)
+}
+
+func (c *Client) AuthorizeAllocationAccess(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+	return c.Gateway.AuthorizeAllocationAccess(ctx, in)
 }
 
 func (c *Client) ResolveTunnelRelayTarget(ctx context.Context, sessionID string) (string, error) {

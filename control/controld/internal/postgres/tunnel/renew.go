@@ -56,7 +56,7 @@ func (s *Store) Renew(ctx context.Context, sessionID, clientToken string, ttl ti
 
 	row = tx.QueryRow(ctx, `
 		UPDATE tunnel_sessions
-		SET expires_at = $2, updated_at = $3
+		SET expires_at = GREATEST(expires_at, $2), updated_at = GREATEST(updated_at, $3)
 		WHERE session_id = $1
 		RETURNING `+sessionSelectColumns(), sessionID, expiresAt, now)
 	session, _, err := scanSession(row)

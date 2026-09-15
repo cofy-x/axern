@@ -7,7 +7,7 @@ description: 打开进入运行中 Allocation 的 SSH 兼容终端。
 
 :::caution[SSH 是显式的信任边界]
 
-默认 Helm 安装禁用 SSH。仅在交互式工作流需要时启用，配置受信公钥，并限制私有身份文件权限。SSH 使用自己独立的 Gateway 级 `authorized_keys` 边界，不继承 Principal 或命名空间 RBAC。任何持有受信身份的人都可以对 Gateway 能解析的任意 Allocation ID 请求 shell。
+默认 Helm 安装禁用 SSH。需要交互式工作流时启用，并配置持久的 Gateway 主机密钥。使用 `axern admin credential add --ssh-public-key <file> --expires-at <RFC3339> <principal-id>` 将客户端公钥注册为具有明确有效期的 Principal Credential。现有命名空间角色必须允许对目标 Allocation 执行操作。限制私钥文件权限；活动会话会重新检查凭据撤销和命名空间权限变化，无法确认授权时关闭访问连接，但不取消 Allocation。
 
 :::
 

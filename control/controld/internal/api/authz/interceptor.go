@@ -251,6 +251,9 @@ func (i *Interceptor) authenticate(ctx context.Context) (context.Context, access
 		}
 		return ctx, accesskernel.Actor{}, err
 	}
+	if actor.Credential.Kind != accesskernel.CredentialX509 {
+		return ctx, accesskernel.Actor{}, status.Error(codes.Unauthenticated, "X.509 client credential is required")
+	}
 	return accesskernel.WithActor(ctx, actor), actor, nil
 }
 

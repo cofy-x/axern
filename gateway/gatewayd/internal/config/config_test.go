@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+func TestParseRejectsTerminalDurationBeyondGrantLimit(t *testing.T) {
+	if _, err := Parse([]string{"-terminal-max-duration=3h"}); err == nil {
+		t.Fatal("terminal duration beyond grant limit accepted")
+	}
+}
+
 func TestParseGatewayHardeningDefaults(t *testing.T) {
 	t.Setenv("GATEWAYD_CONTROL_TARGET", "127.0.0.1:24000")
 	t.Setenv("GATEWAYD_TLS_CA_CERT", "ca.crt")
@@ -128,12 +134,11 @@ func TestParseSSHEnabledAcceptsKeyPaths(t *testing.T) {
 		"-ssh-enabled=true",
 		"-ssh-address=127.0.0.1:2222",
 		"-ssh-host-key=host.key",
-		"-ssh-authorized-keys=authorized_keys",
 	})
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	if !cfg.SSHEnabled || cfg.SSHAddress != "127.0.0.1:2222" || cfg.SSHHostKey != "host.key" || cfg.SSHAuthorizedKeys != "authorized_keys" {
+	if !cfg.SSHEnabled || cfg.SSHAddress != "127.0.0.1:2222" || cfg.SSHHostKey != "host.key" {
 		t.Fatalf("ssh config = %#v", cfg)
 	}
 }

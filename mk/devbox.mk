@@ -17,7 +17,6 @@ EGRESSD_DEV_DIR := $(NODE_DEV_DIR)/egressd
 IMAGEFSD_DEV_DIR := $(NODE_DEV_DIR)/imagefsd
 AXNODED_DEV_DAP_PORT ?= 43001
 IMAGEMGR_DEV_DAP_PORT ?= 43002
-AXERN_DEV_TOKEN ?= axern-local-dev
 AXERN_SECRETS_MASTER_KEY ?= local-only-master-key-32-bytes!!
 POSTGRES_DSN ?= postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable
 AXERN_DEV_CONTROL_TARGET ?= 127.0.0.1:24000
@@ -140,8 +139,7 @@ gatewayd-dev-run: node-dev-prepare ## Run gatewayd in the repo-local Linux dev w
 		-control-target 127.0.0.1:24000 \
 		-tls-ca-cert '$(NODE_DEV_DIR)/certs/ca.crt' \
 		-workload-cluster axern.local \
-		-workload-bundle '$(NODE_DEV_DIR)/certs/gatewayd.pem' \
-		-dev-token '$(AXERN_DEV_TOKEN)'
+		-workload-bundle '$(NODE_DEV_DIR)/certs/gatewayd.pem'
 
 axern-dev: node-dev-prepare ## Run the product CLI against the standalone control plane, with ARGS='<args>'
 	$(call ensure_linux_workspace)

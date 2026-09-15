@@ -101,30 +101,9 @@ flowchart LR
 
 ## Kubernetes 安装
 
-Axern 以 OCI artifact 形式发布云中立的 chart，以带校验和的归档形式发布 CLI。将 chart 安装到当前 Kubernetes 上下文：
+按照 [Kubernetes 安装指南](./apps/docs/src/content/docs/zh-cn/getting-started/kubernetes.md) 初始化签发材料、提供经过验证的节点内存预留值、绑定明确的 Node 身份、安装控制面，并在节点准入后等待运行时就绪。SSH 是可选能力，使用 Principal Credential。不要用裸 Helm install 跳过身份和准入步骤。
 
-```bash
-helm install axern oci://ghcr.io/cofy-x/charts/axern \
-  --version "$(cat VERSION)" \
-  --namespace axern-system \
-  --create-namespace \
-  --wait \
-  --timeout 15m
-```
-
-安装对应操作系统的 CLI 归档后，保持 gateway 端口转发开启，并导入 chart 生成的 mTLS 身份：
-
-```bash
-kubectl --namespace axern-system port-forward svc/gatewayd \
-  25100:25000 25101:25080 25122:25022
-
-axern context import-kubernetes local \
-  --namespace axern-system \
-  --current
-axern environment create --template-id python311
-```
-
-内置的 PostgreSQL 和单节点默认值面向评估用途。持久化或共享部署必须提供 Helm chart 所描述的持久存储、外置密钥、入口（Ingress）和调度配置。
+本分支包含尚未发布的协同破坏性变更；选择匹配的 Chart、镜像、CLI 和 SDK 构建前，请先阅读[未发布升级边界](./docs/releases/unreleased.md)。
 
 ## 部署
 

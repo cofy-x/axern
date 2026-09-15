@@ -27,6 +27,7 @@ spec:
                 -display-name 'Local Administrator' \
                 -credential-label local-client \
                 -certificate /certs/client.crt \
+                -ssh-public-key /certs/gateway_client_ed25519.pub \
                 -node-id "node-k8s-local" \
                 -enrollment-token-file /run/secrets/enrollment-token
           volumeMounts:

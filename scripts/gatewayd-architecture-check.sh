@@ -11,6 +11,19 @@ fi
 
 fail=0
 
+# Empty directories are not Git objects and may survive a local deletion. Only
+# source-bearing package trees may satisfy the architecture contract.
+source_children() {
+	rg --files "$1" -g '*.go' | awk -v root="$1/" '
+		index($0, root) == 1 {
+			path = substr($0, length(root) + 1)
+			if (index(path, "/")) {
+				split(path, components, "/")
+				print root components[1]
+			}
+		}' | sort -u
+}
+
 check_absent() {
 	local description=$1
 	local command=$2
@@ -46,36 +59,32 @@ gateway/gatewayd/internal/observability'
 
 check_exact \
 	"gatewayd internal top-level packages must stay intentional" \
-	"find gateway/gatewayd/internal -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children gateway/gatewayd/internal" \
 	"$expected_internal_packages"
 
-expected_application_packages='gateway/gatewayd/internal/application/artifact
-gateway/gatewayd/internal/application/terminal'
+expected_application_packages='gateway/gatewayd/internal/application/terminal'
 
 check_exact \
 	"application packages must be explicit gateway use-case domains" \
-	"find gateway/gatewayd/internal/application -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children gateway/gatewayd/internal/application" \
 	"$expected_application_packages"
 
-expected_adapter_packages='gateway/gatewayd/internal/adapters/artifact
-gateway/gatewayd/internal/adapters/controlplane
+expected_adapter_packages='gateway/gatewayd/internal/adapters/controlplane
 gateway/gatewayd/internal/adapters/nodebridge'
 
 check_exact \
 	"adapter packages must be explicit external integration points" \
-	"find gateway/gatewayd/internal/adapters -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children gateway/gatewayd/internal/adapters" \
 	"$expected_adapter_packages"
 
-expected_kernel_packages='gateway/gatewayd/internal/kernel/artifact
-gateway/gatewayd/internal/kernel/nodebridge'
+expected_kernel_packages='gateway/gatewayd/internal/kernel/nodebridge'
 
 check_exact \
 	"kernel packages must stay focused on gateway capability contracts" \
-	"find gateway/gatewayd/internal/kernel -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children gateway/gatewayd/internal/kernel" \
 	"$expected_kernel_packages"
 
-expected_api_packages='gateway/gatewayd/internal/api/artifact
-gateway/gatewayd/internal/api/control
+expected_api_packages='gateway/gatewayd/internal/api/control
 gateway/gatewayd/internal/api/http
 gateway/gatewayd/internal/api/node
 gateway/gatewayd/internal/api/ssh
@@ -83,14 +92,14 @@ gateway/gatewayd/internal/api/tunnel'
 
 check_exact \
 	"api packages must be explicit protocol adapters" \
-	"find gateway/gatewayd/internal/api -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children gateway/gatewayd/internal/api" \
 	"$expected_api_packages"
 
 expected_http_adapter_packages=''
 
 check_exact \
 	"HTTP adapter subpackages must stay intentional" \
-	"find gateway/gatewayd/internal/api/http -mindepth 1 -maxdepth 1 -type d | sort" \
+	"source_children gateway/gatewayd/internal/api/http" \
 	"$expected_http_adapter_packages"
 
 check_absent \

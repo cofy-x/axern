@@ -14,7 +14,7 @@ type Store interface {
 	CreatePrincipal(context.Context, string, string, string, accesskernel.PrincipalKind, time.Time) (accesskernel.Principal, error)
 	ListPrincipals(context.Context) ([]accesskernel.Principal, error)
 	DisablePrincipal(context.Context, string, string, time.Time) (accesskernel.Principal, error)
-	AddCredential(context.Context, string, string, string, [32]byte, time.Time, time.Time) (accesskernel.Credential, error)
+	AddCredential(context.Context, string, string, string, accesskernel.CredentialMaterial, time.Time) (accesskernel.Credential, error)
 	ListCredentials(context.Context, string) ([]accesskernel.Credential, error)
 	RevokeCredential(context.Context, string, string, time.Time) (accesskernel.Credential, error)
 	GrantBinding(context.Context, string, string, accesskernel.ScopeType, string, accesskernel.Role, time.Time) (accesskernel.Binding, error)
@@ -48,7 +48,7 @@ func (s *Service) ResolveResourceNamespace(ctx context.Context, resourceType, re
 	return s.store.ResolveResourceNamespace(ctx, resourceType, resourceID)
 }
 
-func (s *Service) AuthorizeFingerprintResource(ctx context.Context, fingerprintValue string, action accesskernel.Action, resourceType, resourceID string) error {
+func (s *Service) AuthorizeCredentialResource(ctx context.Context, fingerprintValue string, kind accesskernel.CredentialKind, action accesskernel.Action, resourceType, resourceID string) error {
 	fingerprint, err := accesskernel.ParseFingerprint(fingerprintValue)
 	if err != nil {
 		return accesskernel.ErrUnauthenticated
@@ -56,6 +56,9 @@ func (s *Service) AuthorizeFingerprintResource(ctx context.Context, fingerprintV
 	actor, err := s.ResolveActor(ctx, fingerprint)
 	if err != nil {
 		return err
+	}
+	if actor.Credential.Kind != kind || (kind != accesskernel.CredentialX509 && kind != accesskernel.CredentialSSH) {
+		return accesskernel.ErrUnauthenticated
 	}
 	namespace, err := s.ResolveResourceNamespace(ctx, resourceType, resourceID)
 	if err != nil {
@@ -109,16 +112,16 @@ func (s *Service) DisablePrincipal(ctx context.Context, id string) (accesskernel
 	}
 	return s.store.DisablePrincipal(ctx, a.Principal.ID, id, s.now())
 }
-func (s *Service) AddCredential(ctx context.Context, principalID, label string, der []byte) (accesskernel.Credential, error) {
+func (s *Service) AddCredential(ctx context.Context, principalID, label string, der []byte, sshKey string, expiresAt time.Time) (accesskernel.Credential, error) {
 	a, err := require(ctx, accesskernel.ActionPlatformAccess, "")
 	if err != nil {
 		return accesskernel.Credential{}, err
 	}
-	fingerprint, notAfter, err := accesskernel.ParseCertificateDER(der)
+	material, err := accesskernel.ParseCredentialMaterial(der, sshKey, expiresAt)
 	if err != nil {
 		return accesskernel.Credential{}, err
 	}
-	return s.store.AddCredential(ctx, a.Principal.ID, principalID, label, fingerprint, notAfter, s.now())
+	return s.store.AddCredential(ctx, a.Principal.ID, principalID, label, material, s.now())
 }
 func (s *Service) ListCredentials(ctx context.Context, principalID string) ([]accesskernel.Credential, error) {
 	if _, err := require(ctx, accesskernel.ActionPlatformAccess, ""); err != nil {

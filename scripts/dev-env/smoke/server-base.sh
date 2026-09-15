@@ -2,7 +2,6 @@ run_local_server_base_smoke() {
   local env_name="$1"
   local endpoint="$2"
   local prefix="$3"
-  local gateway_target="$4"
   local namespace="${prefix}-${env_name}-server-base-smoke-$(date +%s)"
   local env_json run_json run_get run_id environment_id allocation_id
   local go_bin
@@ -34,11 +33,12 @@ run_local_server_base_smoke() {
   [ -n "${allocation_id}" ]
 
   local terminal_url terminal_script terminal_payload
-  terminal_url="ws://${gateway_target}/terminal/allocation/${allocation_id}"
+  terminal_url="wss://${endpoint}/terminal/allocation/${allocation_id}"
   terminal_payload="$(base64 <"${AXERN_ROOT}/scripts/dev-env/smoke/server-base-terminal.sh" | tr -d '\n')"
   terminal_script="$(printf 'set -eu\nmkdir -p /tmp/axern-smoke\nprintf %%s %s | base64 -d >/tmp/axern-smoke/server-base-terminal.sh\nbash /tmp/axern-smoke/server-base-terminal.sh\nexit\n' "${terminal_payload}")"
   (cd "${AXERN_ROOT}/gateway/gatewayd" && "${go_bin}" run ./cmd/gateway-terminal-smoke \
-    -url "${terminal_url}" -token axern-local-dev -stdin "${terminal_script}" \
+    -url "${terminal_url}" -tls-ca-cert "${STATE_ROOT}/${env_name}/certs/ca.crt" \
+    -tls-cert "${STATE_ROOT}/${env_name}/certs/client.crt" -tls-key "${STATE_ROOT}/${env_name}/certs/client.key" -stdin "${terminal_script}" \
     -expect server-base-default-entrypoint-ok -expect-crlf $'server-base-default-entrypoint-ok\r\n')
 
   local ssh_output_file

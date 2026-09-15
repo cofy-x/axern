@@ -99,30 +99,9 @@ Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/
 
 ## Kubernetes Install
 
-Axern publishes its cloud-neutral chart as an OCI artifact and the CLI as checksummed release archives. Install the chart into the current Kubernetes context:
+Follow the [Kubernetes installation guide](./apps/docs/src/content/docs/getting-started/kubernetes.md) to provision signing material, supply qualified node memory reserves, bind explicit Node identities, install the control plane, and admit nodes before waiting for runtime readiness. SSH is optional and uses Principal Credentials. Do not skip the identity and admission steps by running a bare Helm install.
 
-```bash
-helm install axern oci://ghcr.io/cofy-x/charts/axern \
-  --version "$(cat VERSION)" \
-  --namespace axern-system \
-  --create-namespace \
-  --wait \
-  --timeout 15m
-```
-
-After installing the CLI archive for your operating system, keep the gateway port-forward open and import the deployment-owned administrator mTLS identity:
-
-```bash
-kubectl --namespace axern-system port-forward svc/gatewayd \
-  25100:25000 25101:25080 25122:25022
-
-axern context import-kubernetes local \
-  --namespace axern-system \
-  --current
-axern environment create --template-id python311
-```
-
-The bundled PostgreSQL and single-node defaults are intended for evaluation. Durable or shared deployments must provide persistent storage, externalized secrets, ingress, and scheduling values described by the Helm chart.
+This branch contains coordinated breaking changes beyond the published release; review the [unreleased upgrade boundary](./docs/releases/unreleased.md) before selecting matching chart, image, CLI, and SDK builds.
 
 ## Deployment
 

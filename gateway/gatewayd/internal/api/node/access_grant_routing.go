@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
@@ -60,10 +61,11 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 	var err error
 	for attempt := 1; attempt <= s.options.AccessGrantRetryAttempts; attempt++ {
 		resolved, resolveErr := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
-			AllocationID:                 allocationID,
-			TtlSeconds:                   300,
-			ClientCertificateFingerprint: fingerprint,
-			Purpose:                      purpose,
+			AllocationID:          allocationID,
+			TtlSeconds:            300,
+			CredentialFingerprint: fingerprint,
+			CredentialKind:        "x509_sha256",
+			Purpose:               purpose,
 		})
 		if resolveErr != nil {
 			return resolveErr
@@ -75,11 +77,16 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 		if token == "" {
 			return grpcstatus.Error(codes.Internal, "resolved allocation access grant token is empty")
 		}
+		if resolved.GetAccessGrant().GetExpiresAt() == nil || !time.Now().Before(resolved.GetAccessGrant().GetExpiresAt().AsTime()) {
+			return grpcstatus.Error(codes.Unauthenticated, "allocation access grant has expired")
+		}
+		accessCtx, cancel := context.WithDeadline(ctx, resolved.GetAccessGrant().GetExpiresAt().AsTime())
+		defer cancel()
 		client, dialErr := s.dialer.NodeSandbox(ctx, resolved.GetNodeTarget(), resolved.GetNodeID())
 		if dialErr != nil {
 			return dialErr
 		}
-		err = call(nodekernel.WithAllocationAccessGrant(ctx, token), client)
+		err = call(nodekernel.WithAllocationAccessGrant(accessCtx, token), client)
 		if attempt == s.options.AccessGrantRetryAttempts || !shouldRetry(err) {
 			return unwrapAccessGrantOpenRejection(err)
 		}

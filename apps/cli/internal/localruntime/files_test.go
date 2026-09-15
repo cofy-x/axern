@@ -53,7 +53,7 @@ func TestGeneratedIdentityFilesAreValidAndPrivate(t *testing.T) {
 	if len(cert.IPAddresses) == 0 || cert.IPAddresses[0].String() != "127.0.0.1" {
 		t.Fatalf("gateway certificate does not cover loopback: %v", cert.IPAddresses)
 	}
-	for _, path := range []string{filepath.Join(certs, "client.key"), filepath.Join(ssh, "gateway_client_ed25519"), filepath.Join(ssh, "authorized_keys")} {
+	for _, path := range []string{filepath.Join(certs, "client.key"), filepath.Join(ssh, "gateway_client_ed25519")} {
 		info, err := os.Stat(path)
 		if err != nil {
 			t.Fatal(err)

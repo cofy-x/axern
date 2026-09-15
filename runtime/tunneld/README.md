@@ -73,7 +73,7 @@ The relay exposes OpenTelemetry metrics when `AXERN_OTEL_ENABLED=true`. Current 
 
 Use `tunneld -max-sessions <n>` to cap active relay session slots. The default is `10000`; `0` disables the cap. A peer for a new session is rejected with `ResourceExhausted` once the cap is reached. Replacing a peer for an existing session is still allowed and closes the opposite peer so both sides reconnect into a clean generation.
 
-Use `tunneld -peer-revalidate-interval <duration>` to control connected-peer revalidation. The default is `15s`; `0` disables periodic revalidation.
+Use `tunneld -peer-revalidate-interval <duration>` to control connected-peer revalidation, in `(0, 15s]`. Revalidation cannot be disabled. Each validation has a five-second timeout; any failure closes access peers without terminating the Allocation or revoking the durable session. A partition is therefore bounded by at most 20 seconds after the last successful check, excluding process scheduling pauses. Clients may reconnect only after control-plane authorization succeeds again.
 
 Session state is owned by `controld`:
 

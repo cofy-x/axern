@@ -84,7 +84,7 @@ Deletion, rotation, and missing-reference behavior must be explicit. Axern does 
 
 ### Principal, Credential, And RoleBinding
 
-Gatewayd authenticates an external credential; controld resolves it to a durable Principal and applies RoleBindings. A certificate fingerprint or token is authentication material, not permanent business identity.
+Gatewayd authenticates an external credential; controld resolves it to a durable Principal and applies RoleBindings. X.509 certificate and SSH public-key fingerprints identify typed, expiring, revocable Credentials, not permanent business identity. WebSocket Terminal uses client mTLS; SSH uses the same Principal and namespace role model, without a separate gateway-wide access list.
 
 Platform workload identities for gatewayd, axnoded, and tunneld remain distinct from user Principals. Internal services must not reuse an external client credential when calling controld.
 

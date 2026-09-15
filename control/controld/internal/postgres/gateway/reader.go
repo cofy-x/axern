@@ -30,7 +30,7 @@ func (r *Reader) LoadAllocation(ctx context.Context, allocationID string) (*appg
 		SELECT a.allocation_id, a.run_id, a.node_id, n.node_target, a.lifecycle_state, a.output_expires_at
 		FROM allocations a
 		JOIN nodes n ON n.node_id = a.node_id
-		WHERE a.allocation_id = $1
+		WHERE a.allocation_id = $1 AND n.lifecycle_status = 'active'
 	`, allocationID).Scan(&a.AllocationID, &a.RunID, &a.NodeID, &a.NodeTarget, &lifecycleStateText, &a.OutputExpiresAt)
 	if err == pgx.ErrNoRows {
 		return nil, grpcstatus.Error(codes.NotFound, "allocation not found")

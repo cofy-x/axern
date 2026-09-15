@@ -52,6 +52,7 @@ For a module-internal design, prefer that module's `docs/` directory. Promote ma
 
 ## Development And Operations
 
+- [Unreleased Upgrade Boundary](releases/unreleased.md): coordinated execution-platform, state, identity, and SDK breaking changes.
 - [v0.6.2 Release Notes](releases/v0.6.2.md): published sandbox network policies with resolver-independent OCI startup.
 - [v0.6.1 Release Notes](releases/v0.6.1.md): immutable unpublished candidate with capability-complete local readiness.
 - [v0.6.0 Release Notes](releases/v0.6.0.md): fail-closed sandbox egress, DNS-only deny policies, and cross-language SDK support.

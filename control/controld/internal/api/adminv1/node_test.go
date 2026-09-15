@@ -2,6 +2,7 @@ package adminv1
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,12 +36,12 @@ func TestAdmitAdminNodeForwardsIdentityAndCredential(t *testing.T) {
 	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: time.Minute, NodeSummaryWindow: time.Minute})
 
 	resp, err := srv.AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
-		NodeID: " node-a ", EnrollmentToken: "0123456789abcdef0123456789abcdef", OperatorReason: " add worker ",
+		NodeID: " node-a ", EnrollmentToken: strings.Repeat("0123456789abcdef", 2), OperatorReason: " add worker ",
 	})
 	if err != nil {
 		t.Fatalf("AdmitAdminNode() error = %v", err)
 	}
-	if nodes.nodeID != "node-a" || nodes.credential != "0123456789abcdef0123456789abcdef" || nodes.reason != "add worker" {
+	if nodes.nodeID != "node-a" || nodes.credential != strings.Repeat("0123456789abcdef", 2) || nodes.reason != "add worker" {
 		t.Fatalf("forwarded identity = node=%q credential=%q reason=%q", nodes.nodeID, nodes.credential, nodes.reason)
 	}
 	if resp.GetNode().GetNodeID() != "node-a" || !resp.GetNode().GetAdmittedAt().AsTime().Equal(now) {

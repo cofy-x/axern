@@ -14,7 +14,6 @@ import (
 	sshapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/ssh"
 	tunnelapi "github.com/cofy-x/axern/gateway/gatewayd/internal/api/tunnel"
 	term "github.com/cofy-x/axern/gateway/gatewayd/internal/application/terminal"
-	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/config"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/observability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
@@ -43,13 +42,12 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 		_ = nodes.Close()
 		_ = controlClient.Close()
 	}
-	token := auth.DevToken{Token: cfg.DevToken}
 	metrics := observability.NewMetrics(obs)
 	terminalManager := term.NewManager(controlClient, nodes, terminalOptions(cfg), metrics, obs)
-	terminal := httpapi.NewTerminal(token, terminalManager, httpTerminalOptions(cfg), metrics)
+	terminal := httpapi.NewTerminal(terminalManager, httpTerminalOptions(cfg), metrics)
 	var sshServer *sshapi.Server
 	if cfg.SSHEnabled {
-		sshServer, err = sshapi.New(cfg.SSHAddress, cfg.SSHHostKey, cfg.SSHAuthorizedKeys, terminalManager, metrics, obs)
+		sshServer, err = sshapi.New(cfg.SSHAddress, cfg.SSHHostKey, terminalManager, metrics, obs)
 		if err != nil {
 			closeDependencies()
 			return nil, err
@@ -86,7 +84,8 @@ func New(ctx context.Context, cfg config.Config, obs *sdkobs.Handle) (*App, erro
 	}
 	controlServer.RegisterTunnelRelay(tunnelServer)
 	controlServer.RegisterNodeSandbox(nodeapi.New(controlClient, nodes, nodeOptions(cfg), metrics))
-	handler := httpapi.New(terminal)
+	controlServer.RegisterHTTP(obs.HTTPHandler(httpapi.New(terminal), "gatewayd.terminal"))
+	handler := httpapi.New(nil)
 	wrappedHandler := obs.HTTPHandler(handler, "gatewayd.http")
 	return &App{
 		control: controlClient,

@@ -44,7 +44,7 @@ type Access interface {
 	CreatePrincipal(ctx context.Context, name, displayName string, kind accesskernel.PrincipalKind) (accesskernel.Principal, error)
 	ListPrincipals(ctx context.Context) ([]accesskernel.Principal, error)
 	DisablePrincipal(ctx context.Context, id string) (accesskernel.Principal, error)
-	AddCredential(ctx context.Context, principalID, label string, der []byte) (accesskernel.Credential, error)
+	AddCredential(ctx context.Context, principalID, label string, der []byte, sshKey string, expiresAt time.Time) (accesskernel.Credential, error)
 	ListCredentials(ctx context.Context, principalID string) ([]accesskernel.Credential, error)
 	RevokeCredential(ctx context.Context, id string) (accesskernel.Credential, error)
 	GrantBinding(ctx context.Context, principalID string, scope accesskernel.ScopeType, namespace string, role accesskernel.Role) (accesskernel.Binding, error)

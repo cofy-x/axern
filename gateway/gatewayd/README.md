@@ -22,11 +22,10 @@ go run ./gateway/gatewayd \
   -control-target 127.0.0.1:24000 \
   -tls-ca-cert .dev/certs/ca.crt \
   -workload-cluster axern.local \
-  -workload-bundle .dev/certs/gatewayd.pem \
-  -dev-token axern-local-dev
+  -workload-bundle .dev/certs/gatewayd.pem
 ```
 
-Enable the optional SSH-compatible terminal listener by also providing a persistent host key and an `authorized_keys` file:
+Enable the optional SSH-compatible terminal listener with a persistent host key. Register client public keys as Principal Credentials using `axern admin credential add --ssh-public-key <file> --expires-at <RFC3339> <principal-id>`; existing Principal namespace roles authorize Allocation access:
 
 ```bash
 go run ./gateway/gatewayd \
@@ -38,18 +37,16 @@ go run ./gateway/gatewayd \
   -ssh-enabled \
   -ssh-address 127.0.0.1:25022 \
   -ssh-host-key .dev/ssh/gateway_host_ed25519 \
-  -ssh-authorized-keys .dev/ssh/authorized_keys \
   -control-target 127.0.0.1:24000 \
   -tls-ca-cert .dev/certs/ca.crt \
   -workload-cluster axern.local \
-  -workload-bundle .dev/certs/gatewayd.pem \
-  -dev-token axern-local-dev
+  -workload-bundle .dev/certs/gatewayd.pem
 ```
 
 ## Routes
 
-- `GET /healthz`
-- `/terminal/allocation/{allocation_id}` opens a WebSocket terminal and requires the dev token
+- `GET /healthz` is served on the plaintext health listener.
+- `wss://<control-edge>/terminal/allocation/{allocation_id}` requires a verified client X.509 Principal Credential on the shared TLS control listener. Tokens in URLs or headers do not authenticate a terminal.
 
 Gateway data-plane routes are Allocation-bound and resolve their target through the control plane.
 
@@ -95,10 +92,10 @@ Key flags/env:
 - `-workload-cluster`, `-workload-bundle`, `-tls-ca-cert`
 - `-read-header-timeout`, `-read-timeout`, `-write-timeout`, `-idle-timeout`
 - `-terminal-idle-timeout`, `-terminal-max-duration`, `-terminal-max-message-bytes`
-- `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`, `-ssh-authorized-keys`
+- `-ssh-enabled`, `-ssh-address`, `-ssh-host-key`
 - `-access-grant-retry-attempts`, `-access-grant-retry-base-delay`
 
-Terminal sessions enforce read limits, idle timeout, max duration, and write deadlines. Browser terminal always requires the dev token. SSH terminal requires public key authentication through the configured `authorized_keys` file.
+Terminal sessions enforce read limits, idle timeout, max duration, and write deadlines. SSH public keys and WebSocket client certificates share Principal Credential revocation and namespace authorization. SSH certificates and multi-key credential inputs are not supported. Existing SSH and WebSocket process sessions revalidate authority every 15 seconds with a 5-second RPC deadline; rejection or inability to confirm authority closes access, not the Allocation. Grant expiry independently bounds the stream. The online revalidation bound is 20 seconds, excluding process scheduling pauses. Public gRPC operations are bounded by their issued grant deadline (normally five minutes); they do not yet share the terminal periodic revalidation path.
 
 Allocation access-grant recovery is request scoped and bounded. A node acknowledges an accepted grant before gatewayd consumes terminal/process input or archive chunks, and before gatewayd forwards streamed node output. An authentication rejection before that boundary invalidates the old authority and resolves a fresh grant from controld; gatewayd never retries the same rejected token or retries after the node has accepted it. Allocation target and grant refresh remain request-scoped and may retry only before the node accepts authority or consumes client input.
 

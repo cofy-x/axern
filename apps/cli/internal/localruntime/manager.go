@@ -779,7 +779,7 @@ func (m *Manager) writeEnv(profile string) error {
 		}
 		secretValues["master"] = value
 	}
-	for _, key := range []string{"postgres", "dev_token", "enrollment_token"} {
+	for _, key := range []string{"postgres", "enrollment_token"} {
 		if secretValues[key] == "" {
 			value, err := randomHex(24)
 			if err != nil {
@@ -807,7 +807,7 @@ func (m *Manager) writeEnv(profile string) error {
 		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
 		"CONTROLD_IMAGE": images["CONTROLD_IMAGE"], "TUNNELD_IMAGE": images["TUNNELD_IMAGE"], "GATEWAYD_IMAGE": images["GATEWAYD_IMAGE"], "NODE_ALL_IN_ONE_IMAGE": images["NODE_ALL_IN_ONE_IMAGE"],
 		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"],
-		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"], "LOCAL_DEV_TOKEN": secretValues["dev_token"],
+		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"],
 		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
 		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
 		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),

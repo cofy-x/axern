@@ -13,10 +13,6 @@ import (
 )
 
 func (s *Server) revalidateLoop(ctx context.Context, p *peer) error {
-	if s.peerRevalidateInterval <= 0 {
-		<-p.done
-		return nil
-	}
 	ticker := time.NewTicker(s.peerRevalidateInterval)
 	defer ticker.Stop()
 	for {
@@ -27,12 +23,11 @@ func (s *Server) revalidateLoop(ctx context.Context, p *peer) error {
 			return nil
 		case <-ticker.C:
 			if err := s.revalidatePeer(ctx, p); err != nil {
-				if terminalValidationError(err) {
-					fmt.Fprintf(os.Stderr, "tunneld: peer revalidation closed session=%s kind=%s err=%v\n", p.sessionID, p.kind.String(), err)
-					s.closePeerSessionWithError(p.sessionID, p, err)
-					return err
-				}
-				fmt.Fprintf(os.Stderr, "tunneld: peer revalidation transient failure session=%s kind=%s err=%v\n", p.sessionID, p.kind.String(), err)
+				// Availability failures cannot extend access authority. Closing
+				// peers does not revoke the session or terminate its Allocation.
+				fmt.Fprintf(os.Stderr, "tunneld: peer revalidation closed session=%s kind=%s err=%v\n", p.sessionID, p.kind.String(), err)
+				s.closePeerSessionWithError(p.sessionID, p, err)
+				return err
 			}
 		}
 	}
@@ -42,21 +37,14 @@ func (s *Server) revalidatePeer(ctx context.Context, p *peer) error {
 	if s.control == nil {
 		return grpcstatus.Error(codes.FailedPrecondition, "control validator is not configured")
 	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	_, err := s.control.ValidateTunnelPeer(ctx, &tunnelrelaycontrolv1.ValidateTunnelPeerRequest{
 		SessionID: p.sessionID,
 		PeerKind:  p.kind,
 		Token:     p.token,
 	})
 	return err
-}
-
-func terminalValidationError(err error) bool {
-	switch grpcstatus.Code(err) {
-	case codes.PermissionDenied, codes.NotFound, codes.FailedPrecondition, codes.Unauthenticated:
-		return true
-	default:
-		return false
-	}
 }
 
 func recvInitialFrame(stream tunnelv1.TunnelRelay_ConnectPeerServer, timeout time.Duration) (*tunnelv1.TunnelFrame, error) {

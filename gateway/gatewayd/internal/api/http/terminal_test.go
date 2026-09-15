@@ -1,9 +1,26 @@
 package httpapi
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
+
+func TestTerminalRejectsUnverifiedAndExpiredCredentials(t *testing.T) {
+	for _, state := range []*tls.ConnectionState{nil, {}, {PeerCertificates: []*x509.Certificate{{NotAfter: time.Now().Add(time.Hour)}}}, {VerifiedChains: [][]*x509.Certificate{{{NotAfter: time.Now().Add(-time.Second)}}}}} {
+		request := httptest.NewRequest("GET", "/terminal/allocation/alloc?token=unused", nil)
+		request.Header.Set("Authorization", "Bearer unused")
+		request.TLS = state
+		response := httptest.NewRecorder()
+		NewTerminal(nil, TerminalOptions{}, nil).ServeHTTP(response, request)
+		if response.Code != http.StatusUnauthorized {
+			t.Fatalf("unverified credential accepted: %d", response.Code)
+		}
+	}
+}
 
 func TestParseTerminalClientMessage(t *testing.T) {
 	t.Parallel()
