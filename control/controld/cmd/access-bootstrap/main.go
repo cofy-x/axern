@@ -8,12 +8,15 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
+	adminkernel "github.com/cofy-x/axern/control/controld/internal/kernel/admin"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
+	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
 )
 
 const bootstrapTimeout = 60 * time.Second
@@ -34,6 +37,8 @@ func run(ctx context.Context, args []string) error {
 	displayName := flags.String("display-name", "Platform Administrator", "initial platform administrator display name")
 	certificatePath := flags.String("certificate", "", "initial platform administrator certificate PEM path")
 	label := flags.String("credential-label", "bootstrap-admin", "initial credential label")
+	nodeID := flags.String("node-id", "", "optional initial admitted node ID")
+	nodeCredentialPath := flags.String("node-credential-file", "", "file containing the initial node credential")
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
@@ -56,9 +61,24 @@ func run(ctx context.Context, args []string) error {
 	if err := db.CheckMigrations(ctx); err != nil {
 		return err
 	}
-	store := pgaccess.NewStore(db)
 	now := time.Now().UTC()
-	return store.BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now)
+	if err := pgaccess.NewStore(db).BootstrapPlatformAdmin(ctx, strings.TrimSpace(*name), strings.TrimSpace(*displayName), strings.TrimSpace(*label), fingerprint, notAfter, now); err != nil {
+		return err
+	}
+	if strings.TrimSpace(*nodeID) == "" && strings.TrimSpace(*nodeCredentialPath) == "" {
+		return nil
+	}
+	if strings.TrimSpace(*nodeID) == "" || strings.TrimSpace(*nodeCredentialPath) == "" {
+		return errors.New("node-id and node-credential-file must be provided together")
+	}
+	credential, err := os.ReadFile(filepath.Clean(*nodeCredentialPath))
+	if err != nil {
+		return fmt.Errorf("read node credential: %w", err)
+	}
+	return pgadmin.NewStore(db).BootstrapNode(ctx, adminkernel.AdmitNodeRequest{
+		NodeID:         strings.TrimSpace(*nodeID),
+		NodeCredential: string(credential), OperatorReason: "initial node identity bootstrap", Now: now,
+	})
 }
 
 func readCertificateDER(path string) ([]byte, error) {

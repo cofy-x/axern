@@ -9,12 +9,12 @@ from axern_sdk.node import (
     ComputerUseRegion,
     ComputerUseScreenshot,
     ComputerUseStatus,
-    NodeSandboxClient,
+    AllocationClient,
 )
 
 
 class _HasNodeClient(Protocol):
-    def _node_client(self) -> NodeSandboxClient: ...
+    def _node_client(self) -> AllocationClient: ...
 
 
 class SandboxComputerUseMixin:

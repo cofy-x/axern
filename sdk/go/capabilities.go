@@ -44,7 +44,7 @@ func (s *Sandbox) CapabilityStatus(ctx context.Context) (CapabilityStatus, error
 	return node.CapabilityStatus(ctx)
 }
 
-func (n *NodeSandboxClient) CapabilityStatus(ctx context.Context) (CapabilityStatus, error) {
+func (n *AllocationClient) CapabilityStatus(ctx context.Context) (CapabilityStatus, error) {
 	if err := n.validate(); err != nil {
 		return CapabilityStatus{}, err
 	}

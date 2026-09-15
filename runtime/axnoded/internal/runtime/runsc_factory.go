@@ -69,7 +69,6 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 
 	common, err := ocihost.New(ocihost.Config{
 		Root:          cfg.RootDir,
-		RuntimeName:   config.RuntimeNameRunsc,
 		RuntimeBinary: runtimeCfg.Binary,
 		Loader:        loader,
 	})
@@ -78,7 +77,6 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 	}
 
 	handler := &RunscServiceHandler{
-		name:                              config.RuntimeNameRunsc,
 		common:                            common,
 		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
 		allowSUID:                         runtimeCfg.Options.AllowSUIDEnabled(true),

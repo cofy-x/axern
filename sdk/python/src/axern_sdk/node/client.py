@@ -11,17 +11,16 @@ from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern_sdk._internal.errors import sandbox_rpc_error
 from axern_sdk.client import AxernClient
 from axern_sdk.errors import SandboxConnectionError
-from axern_sdk.node.browser_client import NodeSandboxBrowserMixin
-from axern_sdk.node.capability_client import NodeSandboxCapabilityMixin
+from axern_sdk.node.capability_client import AllocationCapabilityMixin
 from axern_sdk.node.commands import exec_argv
-from axern_sdk.node.computer_use_client import NodeSandboxComputerUseMixin
-from axern_sdk.node.file_client import NodeSandboxFileMixin
+from axern_sdk.node.computer_use_client import AllocationComputerUseMixin
+from axern_sdk.node.file_client import AllocationFileMixin
 from axern_sdk.node.models import ExecCommand, ExecResult, ExecStreamEvent
 from axern_sdk.node.process import SandboxProcess, process_request_iterator
 from axern_sdk.node.protocol import exec_spec, text_exec_result
 
 
-class NodeSandboxClient(NodeSandboxCapabilityMixin, NodeSandboxBrowserMixin, NodeSandboxComputerUseMixin, NodeSandboxFileMixin):
+class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, AllocationFileMixin):
     """Executes commands against one allocation through the node sandbox API."""
 
     def __init__(

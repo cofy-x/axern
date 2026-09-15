@@ -2,7 +2,6 @@
 
 from axern_sdk.node import (
     AsyncSandboxProcess,
-    BrowserStatus,
     CapabilityProviderDependencyStatus,
     CapabilityProviderStatus,
     CapabilityProviderSummary,
@@ -13,7 +12,7 @@ from axern_sdk.node import (
     ComputerUseStatus,
     ExecResult,
     ExecStreamEvent,
-    NodeSandboxClient,
+    AllocationClient,
     ProcessResult,
     SandboxFileInfo,
     SandboxFileKind,
@@ -27,7 +26,6 @@ from axern_sdk.sandbox.types import SandboxMetadata, SandboxState
 __all__ = [
     "AsyncSandbox",
     "AsyncSandboxProcess",
-    "BrowserStatus",
     "CIDRRule",
     "CapabilityProviderDependencyStatus",
     "CapabilityProviderStatus",
@@ -39,7 +37,7 @@ __all__ = [
     "ComputerUseStatus",
     "ExecResult",
     "ExecStreamEvent",
-    "NodeSandboxClient",
+    "AllocationClient",
     "NetworkPolicy",
     "PortRange",
     "ProcessResult",

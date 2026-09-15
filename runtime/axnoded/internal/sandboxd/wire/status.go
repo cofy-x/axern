@@ -83,5 +83,4 @@ type DiagnosticsResponse struct {
 	Ports           *PortSnapshot              `json:"ports,omitempty"`
 	Mounts          *MountSnapshot             `json:"mounts,omitempty"`
 	ComputerUse     *ComputerUseStatusResponse `json:"computerUse,omitempty"`
-	Browser         *BrowserStatusResponse     `json:"browser,omitempty"`
 }

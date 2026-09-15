@@ -14,14 +14,9 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 )
 
-type RuntimePolicy struct {
-	RuntimeName    string
-	ImmutableMount rootfsview.ImmutableMountDescriptor
-}
-
 // PrepareBundle creates a sandbox-private rootfs projection after the final OCI
 // mounts are known. It never creates mount targets in the input rootfs.
-func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options contract.HandlerOptions, bundlePath string, policy RuntimePolicy) (bool, error) {
+func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options contract.HandlerOptions, bundlePath string, immutableMount rootfsview.ImmutableMountDescriptor) (bool, error) {
 	specPath := filepath.Join(bundlePath, config.ContainerSpecFile)
 	ociSpec, err := runtimeoci.LoadSpec(specPath)
 	if err != nil {
@@ -34,7 +29,7 @@ func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options co
 	if !filepath.IsAbs(rootfsPath) {
 		rootfsPath = filepath.Join(bundlePath, rootfsPath)
 	}
-	if err := rootfsview.ValidateImmutableMountDescriptor(policy.ImmutableMount, rootfsPath); err != nil {
+	if err := rootfsview.ValidateImmutableMountDescriptor(immutableMount, rootfsPath); err != nil {
 		return false, fmt.Errorf("validate immutable rootfs mount contract: %w", err)
 	}
 
@@ -60,8 +55,8 @@ func PrepareBundle(ctx context.Context, provider rootfsview.Provider, options co
 
 	prepareStart := time.Now()
 	view, err := provider.Prepare(ctx, options.ContainerID, rootfsview.Request{
-		RootDir: rootfsPath, Readonly: ociSpec.Root.Readonly, RuntimeName: policy.RuntimeName,
-		ImmutableMount: policy.ImmutableMount, Targets: targets,
+		RootDir: rootfsPath, Readonly: ociSpec.Root.Readonly,
+		ImmutableMount: immutableMount, Targets: targets,
 	})
 	options.RecordStartupStep(contract.StartupPhaseRootfsPrepare, contract.StartupStepRootfsViewPrepare, time.Since(prepareStart))
 	if err != nil {

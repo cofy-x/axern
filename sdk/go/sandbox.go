@@ -182,11 +182,11 @@ func (s *Sandbox) Exec(ctx context.Context, command any, options ExecOptions) (E
 	return node.Exec(ctx, command, options)
 }
 
-func (s *Sandbox) nodeClient() (*NodeSandboxClient, error) {
+func (s *Sandbox) nodeClient() (*AllocationClient, error) {
 	if !s.started {
 		return nil, ErrSandboxNotStarted
 	}
-	return s.client.NodeSandbox(s.state.AllocationID)
+	return s.client.Allocation(s.state.AllocationID)
 }
 
 func (s *Sandbox) registerTunnel(tunnel *SandboxTunnel) {

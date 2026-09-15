@@ -6,7 +6,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from axern_sdk import AsyncSandbox, BrowserStatus, ComputerUseScreenshot, ComputerUseStatus, Sandbox, SandboxFileInfo, SandboxFileKind
+from axern_sdk import AsyncSandbox, ComputerUseScreenshot, ComputerUseStatus, Sandbox, SandboxFileInfo, SandboxFileKind
 from fakes import _AsyncFakeClient, _FakeClient
 
 
@@ -34,15 +34,6 @@ class SandboxTest(unittest.TestCase):
             def computer_use_screenshot(self, **kwargs):
                 return ComputerUseScreenshot(data=b"png", content_type="image/png")
 
-            def browser_status(self, **kwargs):
-                return BrowserStatus(available=True, command="chromium")
-
-            def browser_open(self, url="", **kwargs):
-                return BrowserStatus(available=True, command="chromium", running=True, pid=88, url=url)
-
-            def browser_close(self, **kwargs):
-                return BrowserStatus(available=True, command="chromium")
-
         with Sandbox(
             client=client,
             image="docker.io/library/python:3.12-slim",
@@ -53,9 +44,6 @@ class SandboxTest(unittest.TestCase):
             self.assertEqual(sandbox.read_text("/tmp/out.txt"), "hello")
             self.assertEqual(sandbox.computer_use_status().display, ":99")
             self.assertEqual(sandbox.computer_use_screenshot().data, b"png")
-            self.assertEqual(sandbox.browser_status().command, "chromium")
-            self.assertEqual(sandbox.browser_open("data:text/html,open").url, "data:text/html,open")
-            self.assertFalse(sandbox.browser_close().running)
             sandbox.write_file("/tmp/out.txt", "hello")
             sandbox.write_bytes("/tmp/raw.bin", b"\xff", create_parents=False)
             sandbox.write_text("/tmp/latin1.txt", "é", encoding="latin-1")
@@ -357,15 +345,6 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
             async def computer_use_screenshot(self, **kwargs):
                 return ComputerUseScreenshot(data=b"png", content_type="image/png")
 
-            async def browser_status(self, **kwargs):
-                return BrowserStatus(available=True, command="chromium")
-
-            async def browser_open(self, url="", **kwargs):
-                return BrowserStatus(available=True, command="chromium", running=True, pid=88, url=url)
-
-            async def browser_close(self, **kwargs):
-                return BrowserStatus(available=True, command="chromium")
-
         async with AsyncSandbox(
             client=client,
             image="docker.io/library/python:3.12-slim",
@@ -376,9 +355,6 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await sandbox.read_text("/tmp/out.txt"), "hello")
             self.assertEqual((await sandbox.computer_use_status()).display, ":99")
             self.assertEqual((await sandbox.computer_use_screenshot()).data, b"png")
-            self.assertEqual((await sandbox.browser_status()).command, "chromium")
-            self.assertEqual((await sandbox.browser_open("data:text/html,open")).url, "data:text/html,open")
-            self.assertFalse((await sandbox.browser_close()).running)
             await sandbox.write_file("/tmp/out.txt", "hello")
             await sandbox.write_bytes("/tmp/raw.bin", b"\xff", create_parents=False)
             await sandbox.write_text("/tmp/latin1.txt", "é", encoding="latin-1")

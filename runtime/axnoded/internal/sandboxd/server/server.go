@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/browser"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/computeruse"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/diagnostic"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/fileapi"
@@ -23,7 +22,6 @@ type Server struct {
 	processes   *process.Registry
 	files       *fileapi.Service
 	computerUse *computeruse.Service
-	browser     *browser.Service
 	providers   provider.Registry
 	mux         *http.ServeMux
 }
@@ -31,11 +29,9 @@ type Server struct {
 func New(state *workload.State, processes *process.Registry, waiter *proc.Waiter) *Server {
 	files := fileapi.NewService()
 	computerUse := computeruse.NewService(computeruse.DetectFromEnv(), waiter)
-	browserService := browser.NewService(browser.DetectFromEnv(), waiter)
 	providers := provider.New(
 		provider.Static(provider.ProviderNameCore, wire.CoreCapabilities()...),
 		computerUse.Provider(),
-		browserService.Provider(),
 	)
 	if files != nil {
 		providers.Add(provider.Static(provider.ProviderNameFile, wire.FileCapabilities()...))
@@ -43,7 +39,7 @@ func New(state *workload.State, processes *process.Registry, waiter *proc.Waiter
 	if processes != nil {
 		providers.Add(provider.Static(provider.ProviderNameProcess, wire.ProcessCapabilities()...))
 	}
-	server := &Server{state: state, processes: processes, files: files, computerUse: computerUse, browser: browserService, providers: providers, mux: http.NewServeMux()}
+	server := &Server{state: state, processes: processes, files: files, computerUse: computerUse, providers: providers, mux: http.NewServeMux()}
 	server.mux.HandleFunc(wire.PathHealth, server.handleHealth)
 	server.mux.HandleFunc(wire.PathReady, server.handleReady)
 	server.mux.HandleFunc(wire.PathCapabilities, server.handleCapabilities)
@@ -56,7 +52,6 @@ func New(state *workload.State, processes *process.Registry, waiter *proc.Waiter
 	server.mux.HandleFunc(wire.PathProcesses, server.handleProcesses)
 	server.mux.HandleFunc(wire.PathProcessesPrefix, server.handleProcess)
 	server.mux.HandleFunc(wire.PathComputerUsePrefix, server.handleComputerUse)
-	server.mux.HandleFunc(wire.PathBrowserPrefix, server.handleBrowser)
 	return server
 }
 
@@ -67,9 +62,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (s *Server) Shutdown(ctx context.Context, processGrace time.Duration) error {
 	if s == nil {
 		return nil
-	}
-	if s.browser != nil {
-		_, _ = s.browser.Close(ctx)
 	}
 	if s.processes != nil {
 		return s.processes.Shutdown(ctx, processGrace)
@@ -98,7 +90,7 @@ func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	}
-	snapshot := s.providerSnapshot("summary", nil, nil)
+	snapshot := s.providerSnapshot("summary", nil)
 	writeJSON(w, http.StatusOK, wire.CapabilitiesResponse{
 		ProtocolVersion: wire.ProtocolVersion,
 		Capabilities:    snapshot.Capabilities,
@@ -122,16 +114,11 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 	}
 	detail := diagnosticsDetail(r)
 	var computerUseStatus *computeruse.StatusResponse
-	var browserStatus *browser.StatusResponse
 	if detail == "full" && s.computerUse != nil {
 		status := s.computerUse.Status(r.Context())
 		computerUseStatus = &status
 	}
-	if detail == "full" && s.browser != nil {
-		status := s.browser.Status()
-		browserStatus = &status
-	}
-	providerSnapshot := s.providerSnapshot(detail, computerUseStatus, browserStatus)
+	providerSnapshot := s.providerSnapshot(detail, computerUseStatus)
 	var processes *wire.ProcessListResponse
 	var processSummary wire.ProcessSummary
 	if s.processes != nil {
@@ -146,7 +133,6 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 	var mounts *wire.MountSnapshot
 	var fileLimits *wire.FileLimitSnapshot
 	var computerUse *wire.ComputerUseStatusResponse
-	var browserWireStatus *wire.BrowserStatusResponse
 	if detail == "full" {
 		portsSnapshot := wirePortSnapshot(diagnostic.Ports())
 		ports = &portsSnapshot
@@ -158,10 +144,6 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 	if computerUseStatus != nil {
 		wireStatus := wireComputerUseStatus(*computerUseStatus)
 		computerUse = &wireStatus
-	}
-	if browserStatus != nil {
-		wireStatus := wireBrowserStatus(*browserStatus)
-		browserWireStatus = &wireStatus
 	}
 	writeJSON(w, http.StatusOK, wire.DiagnosticsResponse{
 		ProtocolVersion: wire.ProtocolVersion,
@@ -178,20 +160,16 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 		Ports:           ports,
 		Mounts:          mounts,
 		ComputerUse:     computerUse,
-		Browser:         browserWireStatus,
 	})
 }
 
-func (s *Server) providerSnapshot(detail string, computerUseStatus *computeruse.StatusResponse, browserStatus *browser.StatusResponse) provider.Snapshot {
+func (s *Server) providerSnapshot(detail string, computerUseStatus *computeruse.StatusResponse) provider.Snapshot {
 	if detail != "full" {
 		return s.providers.Snapshot()
 	}
 	registry := provider.New(s.providers.Providers()...)
 	if computerUseStatus != nil {
 		registry.Add(providerFromComputerUseStatus(*computerUseStatus))
-	}
-	if browserStatus != nil {
-		registry.Add(providerFromBrowserStatus(*browserStatus))
 	}
 	return registry.Snapshot()
 }

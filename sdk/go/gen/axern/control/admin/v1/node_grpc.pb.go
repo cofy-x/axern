@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	NodeAdmin_AdmitAdminNode_FullMethodName                     = "/axern.control.admin.v1.NodeAdmin/AdmitAdminNode"
 	NodeAdmin_ListAdminNodes_FullMethodName                     = "/axern.control.admin.v1.NodeAdmin/ListAdminNodes"
 	NodeAdmin_RetireAdminNode_FullMethodName                    = "/axern.control.admin.v1.NodeAdmin/RetireAdminNode"
 	NodeAdmin_GetNodeCapabilitySnapshot_FullMethodName          = "/axern.control.admin.v1.NodeAdmin/GetNodeCapabilitySnapshot"
@@ -29,6 +30,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeAdminClient interface {
+	AdmitAdminNode(ctx context.Context, in *AdmitAdminNodeRequest, opts ...grpc.CallOption) (*AdmitAdminNodeResponse, error)
 	ListAdminNodes(ctx context.Context, in *ListAdminNodesRequest, opts ...grpc.CallOption) (*ListAdminNodesResponse, error)
 	RetireAdminNode(ctx context.Context, in *RetireAdminNodeRequest, opts ...grpc.CallOption) (*RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(ctx context.Context, in *GetNodeCapabilitySnapshotRequest, opts ...grpc.CallOption) (*GetNodeCapabilitySnapshotResponse, error)
@@ -41,6 +43,15 @@ type nodeAdminClient struct {
 
 func NewNodeAdminClient(cc grpc.ClientConnInterface) NodeAdminClient {
 	return &nodeAdminClient{cc}
+}
+
+func (c *nodeAdminClient) AdmitAdminNode(ctx context.Context, in *AdmitAdminNodeRequest, opts ...grpc.CallOption) (*AdmitAdminNodeResponse, error) {
+	out := new(AdmitAdminNodeResponse)
+	err := c.cc.Invoke(ctx, NodeAdmin_AdmitAdminNode_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *nodeAdminClient) ListAdminNodes(ctx context.Context, in *ListAdminNodesRequest, opts ...grpc.CallOption) (*ListAdminNodesResponse, error) {
@@ -83,6 +94,7 @@ func (c *nodeAdminClient) GetAllocationCapabilityDiagnostics(ctx context.Context
 // All implementations must embed UnimplementedNodeAdminServer
 // for forward compatibility
 type NodeAdminServer interface {
+	AdmitAdminNode(context.Context, *AdmitAdminNodeRequest) (*AdmitAdminNodeResponse, error)
 	ListAdminNodes(context.Context, *ListAdminNodesRequest) (*ListAdminNodesResponse, error)
 	RetireAdminNode(context.Context, *RetireAdminNodeRequest) (*RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(context.Context, *GetNodeCapabilitySnapshotRequest) (*GetNodeCapabilitySnapshotResponse, error)
@@ -94,6 +106,9 @@ type NodeAdminServer interface {
 type UnimplementedNodeAdminServer struct {
 }
 
+func (UnimplementedNodeAdminServer) AdmitAdminNode(context.Context, *AdmitAdminNodeRequest) (*AdmitAdminNodeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AdmitAdminNode not implemented")
+}
 func (UnimplementedNodeAdminServer) ListAdminNodes(context.Context, *ListAdminNodesRequest) (*ListAdminNodesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListAdminNodes not implemented")
 }
@@ -117,6 +132,24 @@ type UnsafeNodeAdminServer interface {
 
 func RegisterNodeAdminServer(s grpc.ServiceRegistrar, srv NodeAdminServer) {
 	s.RegisterService(&NodeAdmin_ServiceDesc, srv)
+}
+
+func _NodeAdmin_AdmitAdminNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdmitAdminNodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeAdminServer).AdmitAdminNode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeAdmin_AdmitAdminNode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeAdminServer).AdmitAdminNode(ctx, req.(*AdmitAdminNodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeAdmin_ListAdminNodes_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -198,6 +231,10 @@ var NodeAdmin_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "axern.control.admin.v1.NodeAdmin",
 	HandlerType: (*NodeAdminServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AdmitAdminNode",
+			Handler:    _NodeAdmin_AdmitAdminNode_Handler,
+		},
 		{
 			MethodName: "ListAdminNodes",
 			Handler:    _NodeAdmin_ListAdminNodes_Handler,

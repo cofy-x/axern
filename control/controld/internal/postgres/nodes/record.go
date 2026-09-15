@@ -13,18 +13,22 @@ import (
 
 func loadNodeRecord(ctx context.Context, tx pgx.Tx, nodeID string) (*nodekernel.Record, error) {
 	var (
-		record      nodekernel.Record
-		summaryJSON []byte
-		retiredAt   *time.Time
+		record          nodekernel.Record
+		summaryJSON     []byte
+		lastHeartbeatAt *time.Time
+		retiredAt       *time.Time
 	)
 	if err := tx.QueryRow(ctx, `
-		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.last_heartbeat_at,
+		SELECT n.node_id, n.node_target, n.lifecycle_status, n.admitted_at, n.last_heartbeat_at,
 		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
 		WHERE n.node_id = $1
-	`, nodeID).Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.LastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
+	`, nodeID).Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.AdmittedAt, &lastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
 		return nil, fmt.Errorf("load node record: %w", err)
+	}
+	if lastHeartbeatAt != nil {
+		record.LastHeartbeatAt = *lastHeartbeatAt
 	}
 	if retiredAt != nil {
 		record.RetiredAt = *retiredAt
@@ -48,7 +52,7 @@ func cloneRecord(in *nodekernel.Record) *nodekernel.Record {
 		NodeTarget:      in.NodeTarget,
 		Summary:         nodekernel.CloneNodeSummary(in.Summary),
 		Lifecycle:       in.Lifecycle,
-		RegisteredAt:    in.RegisteredAt,
+		AdmittedAt:      in.AdmittedAt,
 		LastHeartbeatAt: in.LastHeartbeatAt,
 		RetiredAt:       in.RetiredAt,
 		RetiredReason:   in.RetiredReason,

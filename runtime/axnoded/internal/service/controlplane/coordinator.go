@@ -236,7 +236,7 @@ func NewNodeReporter(
 		target,
 		nodeID,
 		cfg.PluginConfig.ControlPlaneNodeTargetValue(),
-		cfg.PluginConfig.ControlPlaneNodeAuthTokenValue(),
+		cfg.PluginConfig.ControlPlaneNodeCredentialValue(),
 		cfg.PluginConfig.ControlPlaneTLSCACertValue(),
 		cfg.PluginConfig.ControlPlaneTLSCertValue(),
 		cfg.PluginConfig.ControlPlaneTLSKeyValue(),

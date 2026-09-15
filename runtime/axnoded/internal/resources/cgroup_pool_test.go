@@ -88,7 +88,7 @@ func TestCgroupManagerAllocateLazilyCreatesWhenPoolIsEmpty(t *testing.T) {
 	}
 
 	resource, err := manager.Allocate(AllocateOption{
-		ContainerID: "lazy-create", RuntimeName: "runsc",
+		ContainerID:        "lazy-create",
 		MemoryRequestBytes: 512, MemoryLimitBytes: 1024,
 	})
 	assert.NoError(t, err)

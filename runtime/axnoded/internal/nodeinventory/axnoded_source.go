@@ -29,7 +29,7 @@ type statfsFunc func(string) (StorageInventoryEntry, error)
 type capabilitySnapshotFunc func(context.Context, time.Time) (*capabilityv1.CapabilitySnapshot, error)
 type memoryCommitmentFunc func() (resources.MemoryCommitment, error)
 type memoryCapacityObserverFunc func(resources.MemoryCapacitySnapshot) error
-type memoryPIDRolesVerifierFunc func(allocationID, runtimeName, workloadPath string, runtimePID int) error
+type memoryPIDRolesVerifierFunc func(allocationID, workloadPath string, runtimePID int) error
 type retiringMemoryLeasesFunc func() []resources.RetiringMemoryLease
 type unackedStatusIDsFunc func() []string
 type allocationIDsFunc func() []string

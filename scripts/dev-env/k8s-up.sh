@@ -14,6 +14,7 @@ ensure_k8s_images_loaded
 generate_k8s_certs
 ensure_k8s_ssh_keys
 ensure_secrets_master_key "${K8S_ENV_NAME}"
+ensure_node_credential "${K8S_ENV_NAME}"
 write_cli_env "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}"
 
 kubectl apply -f "${DEPLOY_ROOT}/k8s/namespace.yaml"
@@ -34,6 +35,10 @@ kubectl -n "${K8S_NAMESPACE}" create secret generic controld-pki \
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic controld-secrets \
   --from-literal=AXERN_SECRETS_MASTER_KEY="$(cat "$(secrets_master_key_file "${K8S_ENV_NAME}")")" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n "${K8S_NAMESPACE}" create secret generic node-credential \
+  --from-file=node-credential="$(node_credential_file "${K8S_ENV_NAME}")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl -n "${K8S_NAMESPACE}" create secret generic gatewayd-ssh \

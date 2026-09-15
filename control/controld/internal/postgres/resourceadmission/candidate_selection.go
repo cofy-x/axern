@@ -22,7 +22,7 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 		return nil, nil
 	}
 	rows, err := tx.Query(ctx, `
-		SELECT n.node_id, n.node_target, n.lifecycle_status, n.registered_at, n.last_heartbeat_at,
+		SELECT n.node_id, n.node_target, n.lifecycle_status, n.admitted_at, n.last_heartbeat_at,
 		       n.retired_at, n.retired_reason, s.summary
 		FROM nodes n
 		LEFT JOIN node_summaries s ON s.node_id = n.node_id
@@ -39,9 +39,13 @@ func lockCandidateNodes(ctx context.Context, tx pgx.Tx, candidates []*placementk
 	for rows.Next() {
 		var record nodekernel.Record
 		var summaryJSON []byte
+		var lastHeartbeatAt *time.Time
 		var retiredAt *time.Time
-		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.RegisteredAt, &record.LastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
+		if err := rows.Scan(&record.NodeID, &record.NodeTarget, &record.Lifecycle, &record.AdmittedAt, &lastHeartbeatAt, &retiredAt, &record.RetiredReason, &summaryJSON); err != nil {
 			return nil, fmt.Errorf("scan locked placement candidate: %w", err)
+		}
+		if lastHeartbeatAt != nil {
+			record.LastHeartbeatAt = *lastHeartbeatAt
 		}
 		if retiredAt != nil {
 			record.RetiredAt = *retiredAt

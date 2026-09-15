@@ -20,7 +20,7 @@ go build ./runtime/tunneld/cmd/tunnel-agent
 
 ## Local Use
 
-`controld` must advertise a tunnel relay registry with `-tunnel-relays`. Entries use `id,client_target,node_target,weight,drain` and are separated by semicolons. The `client_target` is the public gateway control edge address. The `node_target` is the internal `tunneld` address. `controld` binds each tunnel session to one non-draining relay, so gatewayd can route the foreground client peer to the same `tunneld` process used by the node peer. `node-tunneld` must be started with the same node id and node auth token used by axnoded's control-plane reporter.
+`controld` must advertise a tunnel relay registry with `-tunnel-relays`. Entries use `id,client_target,node_target,weight,drain` and are separated by semicolons. The `client_target` is the public gateway control edge address. The `node_target` is the internal `tunneld` address. `controld` binds each tunnel session to one non-draining relay, so gatewayd can route the foreground client peer to the same `tunneld` process used by the node peer. `node-tunneld` must be started with the same node id and node credential used by axnoded's control-plane reporter.
 
 The user-facing foreground connector is:
 

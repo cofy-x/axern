@@ -9,11 +9,25 @@ This page describes the evaluation path using a local port-forward. It needs `ku
 
 ## Install the chart
 
+Create the namespace and one random credential per Kubernetes Node. The Secret key is the Axern Node ID (`node-` plus the Kubernetes Node name); keep the temporary files until the matching identities are admitted below.
+
 ```bash
+kubectl create namespace axern-system
+
+node_credential_dir="$(mktemp -d)"
+node_secret_args=()
+for kubernetes_node in $(kubectl get nodes -o name | sed 's#node/##'); do
+  axern_node_id="node-${kubernetes_node}"
+  openssl rand -hex 32 > "${node_credential_dir}/${axern_node_id}"
+  chmod 600 "${node_credential_dir}/${axern_node_id}"
+  node_secret_args+=(--from-file="${axern_node_id}=${node_credential_dir}/${axern_node_id}")
+done
+kubectl --namespace axern-system create secret generic axern-node-credentials "${node_secret_args[@]}"
+
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --version <version> \
   --namespace axern-system \
-  --create-namespace \
+  --set-string node.credential.existingSecret=axern-node-credentials \
   --wait \
   --timeout 15m
 ```
@@ -38,11 +52,17 @@ axern context import-kubernetes local \
   --ssh-endpoint "" \
   --current
 
+for credential_path in "${node_credential_dir}"/node-*; do
+  axern admin node admit "$(basename "${credential_path}")" \
+    --credential-file "${credential_path}" \
+    --operator-reason "initial Kubernetes node admission"
+done
+
 axern doctor --namespace default
 axern environment list
 ```
 
-The imported context carries the control endpoint and TLS material. SSH fields remain empty unless you explicitly enable SSH and provide a client identity. Every later control-plane workflow uses the same context model as the local Compose install.
+The imported context carries the control endpoint and TLS material. Node reports are fail-closed until admission succeeds. SSH fields remain empty unless you explicitly enable SSH and provide a client identity. Every later control-plane workflow uses the same context model as the local Compose install.
 
 ## Enable SSH for interactive agent workflows
 
@@ -91,7 +111,7 @@ The bundled PostgreSQL and single-node defaults are intended for evaluation. Rev
 - **Cluster prerequisites:** confirm the required Kubernetes/Helm versions, `runsc` runtime availability, node privileges for the runtime and image services, an eBPF-capable Linux kernel for the default NAT dataplane (`node.network.natBackend=iptables` is the explicit rollback), and image-registry reachability from every scheduled node.
 - **Gateway exposure:** replace the local port-forward with an explicitly managed Service or Ingress, configure TLS server names and network policy, and keep SSH disabled unless an interactive workflow needs it.
 
-- **Secrets:** supply `secrets.existingSecret` with the master key and gateway token, and `postgres.existingSecret` for database credentials.
+- **Secrets:** supply `secrets.existingSecret` with the master key and gateway token, `postgres.existingSecret` for database credentials, and `node.credential.existingSecret` with an independent random credential for every admitted Node ID. Before scheduling the DaemonSet onto a new Kubernetes Node, add its `node-<kubernetes-node-name>` key and admit that identity through the admin API.
 - **Durable storage:** set `postgres.persistence.enabled=true` with a topology-aware `ReadWriteOnce` StorageClass; do not run a durable environment on the `emptyDir` fallback.
 - **Scheduling:** give `scheduling.platform`, `scheduling.observability`, and `scheduling.runtime` dedicated node-pool labels and matching `NoSchedule` taints.
 - **Observability:** the bundled Prometheus, Tempo, Loki, and Grafana stack is durable but single-replica; size retention and storage under `observability`.

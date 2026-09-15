@@ -9,11 +9,25 @@ Axern 的云中立 Chart 以 OCI Artifact 形式发布在 GHCR。Chart 支持独
 
 ## 安装 Chart
 
+先创建命名空间，并为每个 Kubernetes Node 生成独立随机凭据。Secret key 是 Axern Node ID（`node-` 加 Kubernetes Node 名称）；在下文完成对应身份准入前保留这些临时文件。
+
 ```bash
+kubectl create namespace axern-system
+
+node_credential_dir="$(mktemp -d)"
+node_secret_args=()
+for kubernetes_node in $(kubectl get nodes -o name | sed 's#node/##'); do
+  axern_node_id="node-${kubernetes_node}"
+  openssl rand -hex 32 > "${node_credential_dir}/${axern_node_id}"
+  chmod 600 "${node_credential_dir}/${axern_node_id}"
+  node_secret_args+=(--from-file="${axern_node_id}=${node_credential_dir}/${axern_node_id}")
+done
+kubectl --namespace axern-system create secret generic axern-node-credentials "${node_secret_args[@]}"
+
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --version <version> \
   --namespace axern-system \
-  --create-namespace \
+  --set-string node.credential.existingSecret=axern-node-credentials \
   --wait \
   --timeout 15m
 ```
@@ -38,11 +52,17 @@ axern context import-kubernetes local \
   --ssh-endpoint "" \
   --current
 
+for credential_path in "${node_credential_dir}"/node-*; do
+  axern admin node admit "$(basename "${credential_path}")" \
+    --credential-file "${credential_path}" \
+    --operator-reason "initial Kubernetes node admission"
+done
+
 axern doctor --namespace default
 axern environment list
 ```
 
-导入的 Context 携带控制面 endpoint 和 TLS 材料。除非显式启用 SSH 并提供客户端身份，SSH 字段保持为空。之后所有控制面工作流与本地 Compose 安装使用同一套 Context 模型。
+导入的 Context 携带控制面 endpoint 和 TLS 材料。节点报告在准入成功前保持 fail-closed。除非显式启用 SSH 并提供客户端身份，SSH 字段保持为空。之后所有控制面工作流与本地 Compose 安装使用同一套 Context 模型。
 
 ## 为交互式 Agent 工作流启用 SSH
 
@@ -90,7 +110,7 @@ axern context import-kubernetes local \
 - **Release 产物：** 统一锁定 Chart、镜像和 CLI 版本，安装 CLI 前校验其 checksum。
 - **集群前提：** 确认所需的 Kubernetes/Helm 版本、`runsc` 运行时可用性、运行时与镜像服务所需的节点权限、默认 NAT 数据面所需的 eBPF 内核能力（`node.network.natBackend=iptables` 是显式回退项），以及每个调度节点到镜像仓库的可达性。
 - **Gateway 暴露：** 用显式管理的 Service 或 Ingress 替换本地 port-forward，配置 TLS 服务器名称和网络策略；除非交互式工作流需要，保持 SSH 关闭。
-- **Secret：** 用 `secrets.existingSecret` 提供 master key 和 gateway token；用 `postgres.existingSecret` 提供数据库凭据。
+- **Secret：** 用 `secrets.existingSecret` 提供 master key 和 gateway token；用 `postgres.existingSecret` 提供数据库凭据；用 `node.credential.existingSecret` 为每个已准入 Node ID 提供独立随机凭据。在把 DaemonSet 调度到新的 Kubernetes Node 前，先加入对应的 `node-<kubernetes-node-name>` key，并通过管理 API 准入该身份。
 - **持久存储：** 设置 `postgres.persistence.enabled=true` 并搭配拓扑感知的 `ReadWriteOnce` StorageClass；不要在 `emptyDir` 回退上运行持久环境。
 - **调度：** 为 `scheduling.platform`、`scheduling.observability` 和 `scheduling.runtime` 配置专用节点池标签和对应的 `NoSchedule` Taint。
 - **可观测：** 内置的 Prometheus、Tempo、Loki、Grafana 栈是持久的但单副本；在 `observability` 下规划保留周期和存储容量。

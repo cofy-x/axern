@@ -510,12 +510,13 @@ func TestAppRejectsInvalidResourcePolicy(t *testing.T) {
 
 func reportReadyNodeSummary(t *testing.T, app *App, nodeID string, _ time.Time, summary *nodev1.NodeSummary) {
 	t.Helper()
+	ensureTestNodeAdmitted(t, app, nodeID)
 	node := app.NodeV1Handler()
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:        nodeID,
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-		Summary:       summary,
+		NodeID:         nodeID,
+		NodeTarget:     "127.0.0.1:25000",
+		NodeCredential: testNodeCredential,
+		Summary:        summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}

@@ -13,7 +13,7 @@ import (
 
 type NodeStore interface {
 	Report(ctx context.Context, params nodekernel.ReportParams) (*nodekernel.Record, error)
-	Authenticate(ctx context.Context, nodeID, nodeAuthToken string) error
+	Authenticate(ctx context.Context, nodeID, nodeCredential string) error
 }
 
 type NodeRegistry interface {

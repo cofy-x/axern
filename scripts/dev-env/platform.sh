@@ -97,6 +97,7 @@ OTEL_COLLECTOR_IMAGE=${OTEL_COLLECTOR_IMAGE}
 OTEL_LGTM_IMAGE=${OTEL_LGTM_IMAGE}
 AXERN_SECRETS_MASTER_KEY=${secrets_master_key}
 AXNODED_CONTROL_PLANE_NODE_ID=${axnoded_node_id}
+NODE_CREDENTIAL=$(cat "$(node_credential_file compose)")
 CONTAINER_HTTP_PROXY=${container_http_proxy}
 CONTAINER_HTTPS_PROXY=${container_https_proxy}
 CONTAINER_NO_PROXY=${container_no_proxy}

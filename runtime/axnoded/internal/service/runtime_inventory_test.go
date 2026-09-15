@@ -49,7 +49,6 @@ func runtimeInventoryTestService(t *testing.T, handler contract.SandboxRuntime) 
 
 func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
-	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, inventoryTestHandler{SandboxRuntime: runsc, err: errors.New("runsc unavailable")})
 
 	inventory, err := service.collectRuntimeInventory(context.Background())
@@ -59,7 +58,6 @@ func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
 
 func TestCollectRuntimeInventoryReturnsAllocationView(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
-	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, inventoryTestHandler{SandboxRuntime: runsc, states: []*contract.UnionContainerState{{ID: "live", Status: contract.ContainerStatusRunning}}})
 
 	inventory, err := service.collectRuntimeInventory(context.Background())
@@ -69,7 +67,6 @@ func TestCollectRuntimeInventoryReturnsAllocationView(t *testing.T) {
 
 func TestRuntimeInventoryRetainsUnknownAndExcludesTerminalAfterRuntimeDelete(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
-	runsc.RuntimeName = "runsc"
 	deleted := make([]string, 0)
 	service := runtimeInventoryTestService(t, inventoryTestHandler{
 		SandboxRuntime: runsc,
@@ -123,7 +120,6 @@ func TestRecoverTerminalRuntimeCheckpointFailsClosedWithoutExactExit(t *testing.
 
 func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
-	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, inventoryTestHandler{
 		SandboxRuntime: runsc,
 		states:         []*contract.UnionContainerState{{ID: "bad", Status: "paused"}},
@@ -209,7 +205,6 @@ func TestCleanupInterruptedAllocationStartDeletesOrphanedRecoveryRecord(t *testi
 
 func TestPartitionRuntimeInventoryRequiresExplicitConsistentRecoveryAuthority(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
-	runsc.RuntimeName = "runsc"
 	service := runtimeInventoryTestService(t, runsc)
 	require.NoError(t, service.containerManager.StoreMetadata("durable", &runtimeapi.ContainerMetadata{}))
 	require.NoError(t, service.containerManager.StoreMetadata("session", &runtimeapi.ContainerMetadata{}))

@@ -26,12 +26,26 @@ spec:
                 -principal-name local-admin \
                 -display-name 'Local Administrator' \
                 -credential-label local-client \
-                -certificate /certs/client.crt
+                -certificate /certs/client.crt \
+                -node-id "node-${NODE_NAME}" \
+                -node-credential-file /run/secrets/node-credential
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
           volumeMounts:
             - name: certs
               mountPath: /certs
+              readOnly: true
+            - name: node-credential
+              mountPath: /run/secrets/node-credential
+              subPath: node-credential
               readOnly: true
       volumes:
         - name: certs
           secret:
             secretName: controld-pki
+        - name: node-credential
+          secret:
+            secretName: node-credential

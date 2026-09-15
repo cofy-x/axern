@@ -10,6 +10,7 @@ import (
 )
 
 type NodeClient interface {
+	AdmitAdminNode(context.Context, *adminv1.AdmitAdminNodeRequest, ...grpc.CallOption) (*adminv1.AdmitAdminNodeResponse, error)
 	ListAdminNodes(context.Context, *adminv1.ListAdminNodesRequest, ...grpc.CallOption) (*adminv1.ListAdminNodesResponse, error)
 	RetireAdminNode(context.Context, *adminv1.RetireAdminNodeRequest, ...grpc.CallOption) (*adminv1.RetireAdminNodeResponse, error)
 	GetNodeCapabilitySnapshot(context.Context, *adminv1.GetNodeCapabilitySnapshotRequest, ...grpc.CallOption) (*adminv1.GetNodeCapabilitySnapshotResponse, error)
@@ -19,6 +20,13 @@ type NodeClient interface {
 type NodeControl struct{ client NodeClient }
 
 func NewNode(client NodeClient) NodeControl { return NodeControl{client: client} }
+
+func (c NodeControl) Admit(ctx context.Context, nodeID, nodeCredential, operatorReason string) (*adminv1.AdmitAdminNodeResponse, error) {
+	return c.client.AdmitAdminNode(ctx, &adminv1.AdmitAdminNodeRequest{
+		NodeID:         strings.TrimSpace(nodeID),
+		NodeCredential: strings.TrimSpace(nodeCredential), OperatorReason: strings.TrimSpace(operatorReason),
+	})
+}
 
 func (c NodeControl) List(ctx context.Context, lifecycle string) (*adminv1.ListAdminNodesResponse, error) {
 	return c.client.ListAdminNodes(ctx, &adminv1.ListAdminNodesRequest{LifecycleStatus: ParseNodeLifecycle(lifecycle)})

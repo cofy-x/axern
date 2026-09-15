@@ -310,55 +310,6 @@ func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
 	}
 }
 
-func TestProxyHTTPRefreshesLeaseBeforeReadingBody(t *testing.T) {
-	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
-	defer h.Close()
-	h.resolver.tokens = []string{"stale-token", "fresh-token"}
-	h.backend.failProxyHTTPLeaseOnce = true
-
-	stream, err := h.client.ProxyHTTP(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Send(&nodesandboxv1.ProxyHTTPRequest{Payload: &nodesandboxv1.ProxyHTTPRequest_Open{Open: &nodesandboxv1.ProxyHTTPOpen{
-		AllocationID: "alloc-public", Port: 8080, Method: "POST", Path: "/upload", HasBody: true,
-	}}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Send(&nodesandboxv1.ProxyHTTPRequest{Payload: &nodesandboxv1.ProxyHTTPRequest_Body{Body: []byte("request-body")}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.Send(&nodesandboxv1.ProxyHTTPRequest{Payload: &nodesandboxv1.ProxyHTTPRequest_CloseBody{CloseBody: true}}); err != nil {
-		t.Fatal(err)
-	}
-	if err := stream.CloseSend(); err != nil {
-		t.Fatal(err)
-	}
-	var responseBody []byte
-	for {
-		resp, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			t.Fatalf("ProxyHTTP Recv returned error: %v", err)
-		}
-		responseBody = append(responseBody, resp.GetBody()...)
-	}
-	if got := string(responseBody); got != "response-body" {
-		t.Fatalf("response body = %q, want response-body", got)
-	}
-	if got := string(h.backend.proxyHTTPData); got != "request-body" {
-		t.Fatalf("upstream body = %q, want request-body", got)
-	}
-	if got := len(h.backend.proxyHTTPOpens); got != 2 {
-		t.Fatalf("backend opens = %d, want 2", got)
-	}
-	if got := len(h.resolver.requests); got != 2 {
-		t.Fatalf("resolve calls = %d, want 2", got)
-	}
-}
-
 func TestDownloadArchiveRefreshesLeaseBeforeSendingBytes(t *testing.T) {
 	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
 	defer h.Close()
@@ -561,7 +512,6 @@ type fakeBackend struct {
 	failProcessReadyOnce           bool
 	failExecStreamLeaseOnce        bool
 	failUploadArchiveLeaseOnce     bool
-	failProxyHTTPLeaseOnce         bool
 	failDownloadArchiveLeaseOnce   bool
 	failDownloadArchiveAfterChunk  bool
 	omitDownloadArchiveLeaseHeader bool
@@ -570,9 +520,6 @@ type fakeBackend struct {
 	uploadArchiveOpens             []*nodesandboxv1.UploadArchiveOpen
 	uploadArchiveLeaseTokens       []string
 	uploadArchiveData              []byte
-	proxyHTTPOpens                 []*nodesandboxv1.ProxyHTTPOpen
-	proxyHTTPLeaseTokens           []string
-	proxyHTTPData                  []byte
 	downloadArchiveRequests        []*nodesandboxv1.DownloadArchiveRequest
 	downloadArchiveLeaseTokens     []string
 }
@@ -692,39 +639,6 @@ func (b *fakeBackend) UploadArchive(stream nodesandboxv1.NodeSandbox_UploadArchi
 		b.uploadArchiveData = append(b.uploadArchiveData, req.GetChunk()...)
 	}
 	return stream.SendAndClose(&nodesandboxv1.UploadArchiveResponse{})
-}
-
-func (b *fakeBackend) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer) error {
-	first, err := stream.Recv()
-	if err != nil {
-		return err
-	}
-	b.proxyHTTPOpens = append(b.proxyHTTPOpens, first.GetOpen())
-	b.proxyHTTPLeaseTokens = append(b.proxyHTTPLeaseTokens, backendLeaseToken(stream.Context()))
-	if b.failProxyHTTPLeaseOnce {
-		b.failProxyHTTPLeaseOnce = false
-		return status.Error(codes.Unauthenticated, "allocation access grant is invalid, expired, revoked, or not current")
-	}
-	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
-		return err
-	}
-	for {
-		req, err := stream.Recv()
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		if err != nil {
-			return err
-		}
-		if req.GetCloseBody() {
-			break
-		}
-		b.proxyHTTPData = append(b.proxyHTTPData, req.GetBody()...)
-	}
-	if err := stream.Send(&nodesandboxv1.ProxyHTTPResponse{Payload: &nodesandboxv1.ProxyHTTPResponse_Head{Head: &nodesandboxv1.ProxyHTTPResponseHead{StatusCode: 200}}}); err != nil {
-		return err
-	}
-	return stream.Send(&nodesandboxv1.ProxyHTTPResponse{Payload: &nodesandboxv1.ProxyHTTPResponse_Body{Body: []byte("response-body")}})
 }
 
 func (b *fakeBackend) DownloadArchive(req *nodesandboxv1.DownloadArchiveRequest, stream nodesandboxv1.NodeSandbox_DownloadArchiveServer) error {

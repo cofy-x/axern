@@ -72,10 +72,6 @@ func (h *Controller) deleteContainerRuntime(ctx context.Context, request *apipb.
 		return response, resource, err
 	}
 	recordAllocationDeleteStage("network_cleanup", runtimeName, stageStarted, nil)
-	stageStarted = time.Now()
-	h.sandboxNetworking().CloseHTTPProxyTransports(request.ID)
-	recordAllocationDeleteStage("transport_cleanup", runtimeName, stageStarted, nil)
-
 	return response, resource, nil
 }
 

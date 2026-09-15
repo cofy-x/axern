@@ -1,5 +1,6 @@
 {{- $memorySystemReserveValue := required "node.memorySystemReserveBytes must be set from a memory qualification receipt" .Values.node.memorySystemReserveBytes -}}
 {{- $memorySystemReserve := toString $memorySystemReserveValue -}}
+{{- $nodeCredentialSecret := required "node.credential.existingSecret must name a Secret containing one credential per admitted node ID" .Values.node.credential.existingSecret -}}
 {{- if not (regexMatch "^[1-9][0-9]*$" $memorySystemReserve) -}}
 {{- fail "node.memorySystemReserveBytes must be a positive decimal integer" -}}
 {{- end }}
@@ -133,7 +134,12 @@ spec:
               {{- end }}
               export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
-              export AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN="node-${NODE_NAME}-local-token"
+              credential_path="/node-credentials/${AXNODED_CONTROL_PLANE_NODE_ID}"
+              if [ ! -s "${credential_path}" ]; then
+                echo "missing admitted node credential at ${credential_path}" >&2
+                exit 1
+              fi
+              export AXNODED_CONTROL_PLANE_NODE_CREDENTIAL="$(cat "${credential_path}")"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
             - containerPort: 24010
@@ -147,6 +153,9 @@ spec:
           volumeMounts:
             - name: certs
               mountPath: /certs
+              readOnly: true
+            - name: node-credentials
+              mountPath: /node-credentials
               readOnly: true
             - name: shared-run
               mountPath: /shared/run
@@ -170,6 +179,9 @@ spec:
         - name: certs
           secret:
             secretName: {{ include "axern.pkiSecretName" . }}
+        - name: node-credentials
+          secret:
+            secretName: {{ $nodeCredentialSecret }}
         - name: shared-run
           emptyDir: {}
         - name: axnoded-state

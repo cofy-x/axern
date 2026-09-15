@@ -11,7 +11,7 @@ The public discovery surface is `NodeSandbox.CapabilityStatus` and SDK helpers s
 | Area                  | Owner                     | Contract                                                                                                                      |
 | --------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | OCI lifecycle         | `runsc` via `axnoded`     | Runtime create, wait, kill, delete, isolation, namespaces, cgroups, and mounts.                                               |
-| Sandbox-local control | `axern-sandboxd`          | PID 1 supervision, process execution, terminal sessions, files, probes, diagnostics, and optional desktop/browser operations. |
+| Sandbox-local control | `axern-sandboxd`          | PID 1 supervision, process execution, terminal sessions, files, probes, diagnostics, and optional Computer Use operations.     |
 | Product access        | `axnoded` / control plane | Authorization, exact Allocation identity, leases, routing, and gRPC error mapping.                                             |
 | Public SDKs           | SDK packages              | Language-native sandbox APIs only; no raw daemon transport or endpoint exposure.                                              |
 
@@ -34,23 +34,22 @@ These are part of normal sandboxd-backed OCI behavior. Missing readiness or a mi
 
 Optional capabilities are image/profile features. They are discoverable through daemon diagnostics and are dispatched only when available. Generic sandbox startup must not fail only because an optional capability is absent.
 
-| Capability     | Availability Rule                                                                   | Product Surface                                                            |
-| -------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `computer_use` | Desktop session and required display/input/screenshot tools are present.            | Desktop status, screenshot, display, mouse, and keyboard APIs.             |
-| `browser`      | Desktop/browser-capable image has a supported browser command or profile open hook. | Browser status, open, close, navigate, resize, click, type, and wait APIs. |
-| VNC / noVNC    | Future desktop transport profile explicitly enables it and Axern brokers access.    | Future authorized desktop transport APIs.                                  |
+| Capability     | Availability Rule                                                        | Product Surface                                                |
+| -------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `computer_use` | Desktop session and required display/input/screenshot tools are present. | Desktop status, screenshot, display, mouse, and keyboard APIs. |
+| VNC / noVNC    | Future desktop transport profile explicitly enables it.                 | Future authorized desktop transport APIs.                      |
 
 ## Runtime Image Matrix
 
 The runtime image does not decide whether sandboxd is injected. Sandboxd is the default PID 1 control plane for OCI workloads. Images only affect optional provider availability.
 
-| Image / Profile | Baseline Sandboxd | `computer_use` | `browser` | Notes |
-| --- | --- | --- | --- | --- |
-| generic OCI image | yes | unavailable unless the image supplies a display session and helper tools | unavailable unless a supported browser command or open hook is present | Ordinary user images still get lifecycle, file, process, PTY, probes, and diagnostics. |
-| `python311` | yes | unavailable | unavailable | Language runtime profile for code execution and file/process APIs. |
-| `server-base` | yes | unavailable | unavailable | Verified server runtime profile with SSH terminal semantics, nginx, supervisord, and sudo expectations. |
-| `desktop-base` | yes | available | available when browser packages and launch hook are installed | Verified desktop profile for computer-use and browser APIs. |
-| custom desktop image | yes | available when dependencies pass provider probe | available when dependencies pass provider probe | Must satisfy the same provider dependency contract as `desktop-base`. |
+| Image / Profile     | Baseline Sandboxd | `computer_use`                                              | Notes                                                                                                       |
+| ------------------- | ----------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| generic OCI image   | yes               | unavailable unless the image supplies a display session     | Ordinary user images still get lifecycle, file, process, PTY, probes, and diagnostics.                     |
+| `python311`         | yes               | unavailable                                                 | Language runtime profile for code execution and file/process APIs.                                         |
+| `server-base`       | yes               | unavailable                                                 | Verified server runtime profile with SSH terminal semantics, nginx, supervisord, and sudo expectations.    |
+| `desktop-base`      | yes               | available                                                   | Verified desktop profile; browser automation, if needed, is caller-owned workload software.                |
+| custom desktop image | yes              | available when dependencies pass the provider probe         | Must satisfy the same Computer Use dependency contract as `desktop-base`.                                  |
 
 ## Provider Rules
 
@@ -79,7 +78,7 @@ Dependency entries report a stable dependency name, availability, and a concise 
 Sandboxd daemon errors use a structured JSON envelope:
 
 ```json
-{ "error": { "code": "invalid_argument", "message": "invalid browser request" } }
+{ "error": { "code": "invalid_argument", "message": "invalid computer-use request" } }
 ```
 
 `axnoded` maps daemon error codes to stable product gRPC/SDK errors through the typed runtime sandboxd client.
@@ -101,11 +100,11 @@ Sandboxd daemon errors use a structured JSON envelope:
 | Baseline capability missing                         | `FAILED_PRECONDITION` for the requested sandbox operation.                                  |
 | Optional provider unavailable                       | `FAILED_PRECONDITION` scoped to that provider operation; sandbox lifecycle remains healthy. |
 | Invalid request                                     | `INVALID_ARGUMENT` with the product operation name.                                         |
-| Missing file, process, browser session, or resource | `NOT_FOUND` when the product concept is absent.                                             |
+| Missing file, process, or resource                  | `NOT_FOUND` when the product concept is absent.                                             |
 | Existing file/archive conflict                      | `ALREADY_EXISTS` when overwrite is not allowed.                                             |
 | Daemon timeout or command failure                   | `FAILED_PRECONDITION` with provider diagnostics attached when available.                    |
 
-SDKs should keep these shapes language-native while preserving the same operation names and error classes across sync and async clients. When provider diagnostics are attached, SDKs should expose structured capability/provider details in addition to the raw message so callers can detect missing browser or computer-use dependencies without parsing strings.
+SDKs should keep these shapes language-native while preserving the same operation names and error classes across sync and async clients. When provider diagnostics are attached, SDKs should expose structured capability/provider details in addition to the raw message so callers can detect missing Computer Use dependencies without parsing strings.
 
 ## Extension Checklist
 

@@ -205,7 +205,7 @@ print(metadata.node_id, metadata.run_id, metadata.tunnel_session_id)
 
 ## Capabilities
 
-Use `capability_status()` to discover baseline and optional sandboxd-backed providers before calling desktop or browser APIs:
+Use `capability_status()` to discover baseline and optional sandboxd-backed providers before calling Computer Use APIs:
 
 ```python
 status = sandbox.capability_status()
@@ -259,7 +259,7 @@ Common error classes:
 - `SandboxRpcError`: gRPC status mapped from node/runtime APIs.
 - `SandboxTimeoutError`: SDK-side timeout.
 
-Sandboxd-backed capability failures keep their normal SDK exception class and also expose `exc.capability` when the node returns provider diagnostics. That object contains `capability`, `provider`, `provider_state`, `reason`, and `missing_dependencies`, so callers can branch on missing browser or computer-use dependencies without parsing the full error string.
+Sandboxd-backed capability failures keep their normal SDK exception class and also expose `exc.capability` when the node returns provider diagnostics. That object contains `capability`, `provider`, `provider_state`, `reason`, and `missing_dependencies`, so callers can branch on missing Computer Use dependencies without parsing the full error string.
 
 ## Async
 

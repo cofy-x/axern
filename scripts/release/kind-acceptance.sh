@@ -47,12 +47,19 @@ fi
 
 kind create cluster --name "${cluster}" --wait 120s
 kubectl create namespace "${namespace}"
+release_node_id="node-$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}')"
+release_node_credential_file="${state_dir}/node-credential"
+openssl rand -hex 32 > "${release_node_credential_file}"
+chmod 600 "${release_node_credential_file}"
+kubectl --namespace "${namespace}" create secret generic node-credential \
+  --from-file="${release_node_id}=${release_node_credential_file}"
 
 helm_args=(
   install axern "${chart}"
   --namespace "${namespace}"
   --wait --timeout 15m
   --set-string "node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}"
+  --set-string "node.credential.existingSecret=node-credential"
 )
 if [[ "${chart}" == oci://* ]]; then
   helm_args+=(--version "${tag#v}")
@@ -123,6 +130,9 @@ config="${state_dir}/config.json"
 cli="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
 "${cli}" --config "${config}" context import-kubernetes release \
   --namespace "${namespace}" --cert-dir "${state_dir}/certs" --current
+"${cli}" --config "${config}" admin node admit "${release_node_id}" \
+  --credential-file "${release_node_credential_file}" \
+  --operator-reason "release acceptance node admission"
 "${cli}" --config "${config}" namespace create default --output json
 "${cli}" --config "${config}" doctor --namespace default --output json
 

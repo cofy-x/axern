@@ -139,18 +139,6 @@ class ComputerUseDisplay:
 
 
 @dataclass(frozen=True, slots=True)
-class BrowserStatus:
-    """Browser capability status for a sandbox desktop session."""
-
-    available: bool
-    command: str = ""
-    running: bool = False
-    pid: int = 0
-    url: str = ""
-    reason: str = ""
-
-
-@dataclass(frozen=True, slots=True)
 class CapabilityProviderDependencyStatus:
     """One dependency check reported by a sandbox capability provider."""
 

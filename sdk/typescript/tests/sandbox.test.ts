@@ -28,7 +28,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
     async *watchRun() {
       yield { id: "run-1", allocation_id: "alloc-1", node_id: "node-1", status: 4 };
     },
-    nodeSandbox(allocationId: string) {
+    allocation(allocationId: string) {
       return {
         async exec(command: string) {
           calls.push(`exec:${allocationId}:${command}`);

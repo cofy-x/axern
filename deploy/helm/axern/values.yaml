@@ -238,6 +238,11 @@ node:
     pullPolicy: ""
   privileged: true
   heartbeatInterval: 1s
+  # Required. This Secret must contain one random credential per admitted
+  # node, keyed by the resulting Axern node ID (for example
+  # `node-worker-a`). Admit those identities before starting the DaemonSet.
+  credential:
+    existingSecret: ""
   runtime:
     idleRetentionTTL: 5m
     idleRetentionMax: 8

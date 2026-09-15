@@ -8,6 +8,7 @@ import (
 
 	app "github.com/cofy-x/axern/control/controld/internal/app"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
+	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -188,8 +189,9 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	now := time.Now().UTC()
 	public := app.PublicV1Handler()
 	node := app.NodeV1Handler()
+	admitTestNode(t, app, "node-a")
 
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)}); err != nil {
+	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", NodeCredential: testNodeCredential, Summary: controldtest.ReadySummary(now)}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 	envResp, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
@@ -210,8 +212,8 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 		t.Fatal("CreateRun() did not return the Environment snapshots frozen at admission")
 	}
 	if _, err := node.BatchReportAllocationLifecycle(context.Background(), &nodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:        "node-a",
-		NodeAuthToken: "test-node-token",
+		NodeID:         "node-a",
+		NodeCredential: testNodeCredential,
 		Observations: []*nodev1.AllocationLifecycleObservation{{
 			AllocationID: runResp.GetRun().GetAllocationID(),
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
@@ -227,6 +229,17 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	}
 	if got.GetRun().GetStatus() != runv1.RunStatus_RUN_STATUS_SUCCEEDED {
 		t.Fatalf("run status = %s, want SUCCEEDED", got.GetRun().GetStatus())
+	}
+}
+
+const testNodeCredential = "test-node-credential-at-least-32-bytes"
+
+func admitTestNode(t *testing.T, service *app.App, nodeID string) {
+	t.Helper()
+	if _, err := service.AdminV1Handler().AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
+		NodeID: nodeID, NodeCredential: testNodeCredential, OperatorReason: "test fixture",
+	}); err != nil {
+		t.Fatalf("AdmitAdminNode() error = %v", err)
 	}
 }
 

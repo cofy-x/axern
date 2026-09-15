@@ -445,6 +445,11 @@ secrets_master_key_file() {
   printf '%s/%s\n' "${STATE_ROOT}/${env_name}" "${SECRETS_MASTER_KEY_FILE_NAME}"
 }
 
+node_credential_file() {
+	local env_name="$1"
+	printf '%s/%s\n' "${STATE_ROOT}/${env_name}" "node-credential"
+}
+
 cli_env_file() {
   local env_name="$1"
   printf '%s/%s\n' "${STATE_ROOT}/${env_name}" "${CLI_ENV_FILE_NAME}"

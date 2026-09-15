@@ -48,8 +48,13 @@ services:
       - local-client
       - -certificate
       - /certs/client.crt
+      - -node-id
+      - ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
+      - -node-credential-file
+      - /run/secrets/node-credential
     volumes:
       - "${COMPOSE_STATE_DIR}/certs:/certs:ro"
+      - "${COMPOSE_STATE_DIR}/node-credential:/run/secrets/node-credential:ro"
 
   dns-fixture:
     image: ${NODE_ALL_IN_ONE_IMAGE}
@@ -182,7 +187,7 @@ services:
       AXNODED_CONTROL_PLANE_TARGET: controld:24000
       AXNODED_CONTROL_PLANE_NODE_ID: ${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
       AXNODED_CONTROL_PLANE_NODE_TARGET: node:24010
-      AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN: node-compose-local-dev-token
+      AXNODED_CONTROL_PLANE_NODE_CREDENTIAL: ${NODE_CREDENTIAL}
       AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL: 1s
       AXNODED_CONTROL_PLANE_TLS_CA_CERT: /certs/ca.crt
       AXNODED_CONTROL_PLANE_TLS_CERT: /certs/node.crt

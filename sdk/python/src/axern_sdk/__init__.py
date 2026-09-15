@@ -25,10 +25,9 @@ from axern_sdk.errors import (
 from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.node import (
-    AsyncNodeSandboxClient,
+    AsyncAllocationClient,
     AsyncProcessResult,
     AsyncSandboxProcess,
-    BrowserStatus,
     CapabilityProviderDependencyStatus,
     CapabilityProviderStatus,
     CapabilityProviderSummary,
@@ -41,7 +40,7 @@ from axern_sdk.node import (
     ExecCommand,
     ExecResult,
     ExecStreamEvent,
-    NodeSandboxClient,
+    AllocationClient,
     ProcessResult,
     SandboxProcess,
 )
@@ -72,11 +71,10 @@ __all__ = [
     "AxernClient",
     "AxernContext",
     "CIDRRule",
-    "AsyncNodeSandboxClient",
+    "AsyncAllocationClient",
     "AsyncProcessResult",
     "AsyncSandbox",
     "AsyncSandboxProcess",
-    "BrowserStatus",
     "CapabilityProviderDependencyStatus",
     "CapabilityProviderStatus",
     "CapabilityProviderSummary",
@@ -90,7 +88,7 @@ __all__ = [
     "ExecResult",
     "ExecStreamEvent",
     "ImageMount",
-    "NodeSandboxClient",
+    "AllocationClient",
     "NetworkPolicy",
     "PortRange",
     "ProcessResult",

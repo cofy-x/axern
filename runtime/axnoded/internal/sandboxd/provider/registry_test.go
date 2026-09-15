@@ -9,11 +9,11 @@ func TestRegistryCapabilitiesIncludeDispatchAvailableProviders(t *testing.T) {
 	registry := New(
 		Static("core", CapabilityStatus, CapabilityHealth, CapabilityStatus),
 		Unavailable(CapabilityComputerUse, "not configured", CapabilityComputerUse),
-		Degraded(CapabilityBrowser, "window manager unavailable", CapabilityBrowser),
+		Degraded("gpu", "device unavailable", "gpu"),
 		Static("process", CapabilityProcess, CapabilityPTY),
 	)
 
-	if got, want := registry.Capabilities(), []string{CapabilityBrowser, CapabilityHealth, CapabilityProcess, CapabilityPTY, CapabilityStatus}; !reflect.DeepEqual(got, want) {
+	if got, want := registry.Capabilities(), []string{"gpu", CapabilityHealth, CapabilityProcess, CapabilityPTY, CapabilityStatus}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("capabilities = %#v, want %#v", got, want)
 	}
 
@@ -21,17 +21,17 @@ func TestRegistryCapabilitiesIncludeDispatchAvailableProviders(t *testing.T) {
 	if got, want := len(providers), 4; got != want {
 		t.Fatalf("provider count = %d, want %d", got, want)
 	}
-	if providers[0].Name != CapabilityBrowser || providers[0].State != ProviderStateDegraded || !providers[0].Available {
+	if providers[2].Name != "gpu" || providers[2].State != ProviderStateDegraded || !providers[2].Available {
 		t.Fatalf("providers = %#v", providers)
 	}
-	if providers[1].Name != CapabilityComputerUse || providers[1].Available {
+	if providers[0].Name != CapabilityComputerUse || providers[0].Available {
 		t.Fatalf("providers = %#v", providers)
 	}
-	if providers[1].State != ProviderStateUnavailable || providers[2].State != ProviderStateAvailable {
+	if providers[0].State != ProviderStateUnavailable || providers[1].State != ProviderStateAvailable {
 		t.Fatalf("provider states = %#v", providers)
 	}
 	snapshot := registry.Snapshot()
-	if !reflect.DeepEqual(snapshot.Capabilities, []string{CapabilityBrowser, CapabilityHealth, CapabilityProcess, CapabilityPTY, CapabilityStatus}) {
+	if !reflect.DeepEqual(snapshot.Capabilities, []string{"gpu", CapabilityHealth, CapabilityProcess, CapabilityPTY, CapabilityStatus}) {
 		t.Fatalf("snapshot capabilities = %#v", snapshot.Capabilities)
 	}
 	if snapshot.Summary.Total != 4 || snapshot.Summary.Available != 2 || snapshot.Summary.Degraded != 1 || snapshot.Summary.Unavailable != 1 {
@@ -40,9 +40,9 @@ func TestRegistryCapabilitiesIncludeDispatchAvailableProviders(t *testing.T) {
 }
 
 func TestAvailableProviderWithUnavailableDependencyIsDegraded(t *testing.T) {
-	registry := New(Static(CapabilityBrowser, CapabilityBrowser).WithDependencies(
-		Dependency{Name: "browser_command", Available: true},
-		Dependency{Name: "window_manager", Available: false, Reason: "not ready"},
+	registry := New(Static("desktop", CapabilityComputerUse).WithDependencies(
+		Dependency{Name: "input_backend", Available: true},
+		Dependency{Name: "display_server", Available: false, Reason: "not ready"},
 	))
 
 	providers := registry.Providers()
@@ -52,10 +52,10 @@ func TestAvailableProviderWithUnavailableDependencyIsDegraded(t *testing.T) {
 	if providers[0].State != ProviderStateDegraded || !providers[0].Available {
 		t.Fatalf("provider = %#v, want degraded but dispatch-available", providers[0])
 	}
-	if providers[0].Reason != "window_manager unavailable: not ready" {
+	if providers[0].Reason != "display_server unavailable: not ready" {
 		t.Fatalf("reason = %q", providers[0].Reason)
 	}
-	if got, want := registry.Capabilities(), []string{CapabilityBrowser}; !reflect.DeepEqual(got, want) {
+	if got, want := registry.Capabilities(), []string{CapabilityComputerUse}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("capabilities = %#v, want %#v", got, want)
 	}
 }
@@ -74,16 +74,16 @@ func TestRegistryAddReplacesProviderByName(t *testing.T) {
 }
 
 func TestProviderOptionalContractFields(t *testing.T) {
-	item := Static(CapabilityBrowser, CapabilityBrowser).
-		WithBackend("desktop").
-		WithCommand("chromium").
-		WithDependencies(Dependency{Name: "browser_command", Available: true})
-	item.LastError = "window closed"
+	item := Static("desktop", CapabilityComputerUse).
+		WithBackend("input").
+		WithCommand("xdotool").
+		WithDependencies(Dependency{Name: "input_backend", Available: true})
+	item.LastError = "input unavailable"
 
-	if item.Backend != "desktop" || item.Command != "chromium" || item.LastError != "window closed" {
+	if item.Backend != "input" || item.Command != "xdotool" || item.LastError != "input unavailable" {
 		t.Fatalf("provider metadata = %#v", item)
 	}
-	if got, want := item.Dependencies, []Dependency{{Name: "browser_command", Available: true}}; !reflect.DeepEqual(got, want) {
+	if got, want := item.Dependencies, []Dependency{{Name: "input_backend", Available: true}}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("dependencies = %#v, want %#v", got, want)
 	}
 }

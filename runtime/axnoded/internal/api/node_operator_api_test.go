@@ -57,7 +57,6 @@ func (f *fakeNodeOperatorService) Delete(ctx context.Context, req *runtimev1.Del
 }
 func (f *fakeNodeOperatorService) ExecStream(service.ExecStreamServer) error { return nil }
 func (f *fakeNodeOperatorService) Process(service.ProcessStreamServer) error { return nil }
-func (f *fakeNodeOperatorService) ProxyHTTP(service.HTTPProxyServer) error   { return nil }
 func (f *fakeNodeOperatorService) Ready() bool                               { return true }
 func (f *fakeNodeOperatorService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
 	return f.inventory, f.inventoryReady
@@ -208,38 +207,6 @@ func (f *fakeNodeOperatorService) ComputerUseMouse(context.Context, *runtimev1.C
 
 func (f *fakeNodeOperatorService) ComputerUseKeyboard(context.Context, *runtimev1.ComputerUseKeyboardRequest) (*runtimev1.ComputerUseKeyboardResponse, error) {
 	return &runtimev1.ComputerUseKeyboardResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserStatus(context.Context, *runtimev1.BrowserStatusRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserOpen(context.Context, *runtimev1.BrowserOpenRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserClose(context.Context, *runtimev1.BrowserCloseRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserNavigate(context.Context, *runtimev1.BrowserNavigateRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserResize(context.Context, *runtimev1.BrowserResizeRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserClick(context.Context, *runtimev1.BrowserClickRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserType(context.Context, *runtimev1.BrowserTypeRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) BrowserWait(context.Context, *runtimev1.BrowserWaitRequest) (*runtimev1.BrowserStatusResponse, error) {
-	return &runtimev1.BrowserStatusResponse{}, nil
 }
 
 func (f *fakeNodeOperatorService) UploadArchive(context.Context, *runtimev1.UploadArchiveRequest, io.Reader) (*runtimev1.UploadArchiveResponse, error) {

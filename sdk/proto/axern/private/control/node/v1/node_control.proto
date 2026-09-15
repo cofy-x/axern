@@ -200,7 +200,7 @@ message ReportNodeRequest {
   string node_id = 1;
   NodeSummary summary = 2;
   string node_target = 3;
-  string node_auth_token = 4;
+  string node_credential = 4;
 }
 
 message ReportNodeResponse {
@@ -234,7 +234,7 @@ message AllocationLifecycleObservation {
 
 message BatchReportAllocationLifecycleRequest {
   string node_id = 1;
-  string node_auth_token = 2;
+  string node_credential = 2;
   repeated AllocationLifecycleObservation observations = 3;
 }
 
@@ -250,7 +250,7 @@ message AllocationCapabilityConditionReport {
 
 message BatchReportAllocationCapabilityConditionsRequest {
   string node_id = 1;
-  string node_auth_token = 2;
+  string node_credential = 2;
   repeated AllocationCapabilityConditionReport reports = 3;
 }
 
@@ -310,7 +310,7 @@ message AllocationMemoryObservation {
 message WatchAllocationAccessGrantsRequest {
   string node_id = 1;
   int64 after_revision = 2;
-  string node_auth_token = 3;
+  string node_credential = 3;
 }
 
 // NodeAllocationAccessGrant is the node-facing data-plane authorization projection. It never
@@ -331,7 +331,7 @@ message WatchAllocationAccessGrantsResponse {
 message WatchTunnelSessionsRequest {
   string node_id = 1;
   int64 after_revision = 2;
-  string node_auth_token = 3;
+  string node_credential = 3;
 }
 
 message NodeTunnelSession {
@@ -351,7 +351,7 @@ message ReportTunnelSessionStatusRequest {
   string reason = 3;
   string bound_addr = 4;
   string node_id = 5;
-  string node_auth_token = 6;
+  string node_credential = 6;
 }
 
 message ReportTunnelSessionStatusResponse {}

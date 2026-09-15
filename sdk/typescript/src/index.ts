@@ -27,8 +27,8 @@ export {
   SandboxTimeoutError,
   SandboxValidationError,
 } from "./errors/index.js";
-export { NodeSandboxClient } from "./node/client.js";
-export type { NodeSandboxClientOptions } from "./node/client.js";
+export { AllocationClient } from "./node/client.js";
+export type { AllocationClientOptions } from "./node/client.js";
 export { SandboxProcess } from "./node/process.js";
 export type { ResourceQuantity } from "./resources.js";
 export { Sandbox } from "./sandbox/index.js";

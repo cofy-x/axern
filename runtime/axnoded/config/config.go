@@ -37,7 +37,7 @@ type PluginConfig struct {
 	ControlPlaneTarget             string                      `toml:"control_plane_target" json:"controlPlaneTarget"`
 	ControlPlaneNodeID             string                      `toml:"control_plane_node_id" json:"controlPlaneNodeId"`
 	ControlPlaneNodeTarget         string                      `toml:"control_plane_node_target" json:"controlPlaneNodeTarget"`
-	ControlPlaneNodeAuthToken      string                      `toml:"control_plane_node_auth_token" json:"controlPlaneNodeAuthToken"`
+	ControlPlaneNodeCredential     string                      `toml:"control_plane_node_credential" json:"controlPlaneNodeCredential"`
 	ControlPlaneHeartbeatInterval  string                      `toml:"control_plane_heartbeat_interval" json:"controlPlaneHeartbeatInterval"`
 	ControlPlaneNodeState          string                      `toml:"control_plane_node_state" json:"controlPlaneNodeState"`
 	NodeExtensionCapabilities      []ExtensionCapabilityConfig `toml:"node_extension_capabilities" json:"nodeExtensionCapabilities"`
@@ -195,8 +195,8 @@ func (c PluginConfig) ControlPlaneNodeTargetValue() string {
 	return strings.TrimSpace(c.ControlPlaneNodeTarget)
 }
 
-func (c PluginConfig) ControlPlaneNodeAuthTokenValue() string {
-	return strings.TrimSpace(c.ControlPlaneNodeAuthToken)
+func (c PluginConfig) ControlPlaneNodeCredentialValue() string {
+	return strings.TrimSpace(c.ControlPlaneNodeCredential)
 }
 
 func (c PluginConfig) ControlPlaneTLSCACertValue() string {

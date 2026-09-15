@@ -18,14 +18,14 @@ import (
 )
 
 type daemon struct {
-	nodeID        string
-	nodeAuthToken string
-	node          nodev1.NodeControlClient
-	operator      nodeoperatorv1.NodeOperatorClient
-	runsc         runscConfig
-	relay         relayConfig
-	mu            sync.Mutex
-	running       map[string]context.CancelFunc
+	nodeID         string
+	nodeCredential string
+	node           nodev1.NodeControlClient
+	operator       nodeoperatorv1.NodeOperatorClient
+	runsc          runscConfig
+	relay          relayConfig
+	mu             sync.Mutex
+	running        map[string]context.CancelFunc
 }
 
 type runscConfig struct {
@@ -77,7 +77,7 @@ func (d *daemon) run(ctx context.Context) error {
 }
 
 func (d *daemon) watch(ctx context.Context, revision int64) (int64, error) {
-	stream, err := d.node.WatchTunnelSessions(ctx, &nodev1.WatchTunnelSessionsRequest{NodeID: d.nodeID, NodeAuthToken: d.nodeAuthToken, AfterRevision: revision})
+	stream, err := d.node.WatchTunnelSessions(ctx, &nodev1.WatchTunnelSessionsRequest{NodeID: d.nodeID, NodeCredential: d.nodeCredential, AfterRevision: revision})
 	if err != nil {
 		return revision, err
 	}
@@ -146,11 +146,11 @@ func (d *daemon) runSession(ctx context.Context, session *tunnelcontrolv1.Tunnel
 		}
 		status := statusForSessionError(err)
 		_, reportErr := d.node.ReportTunnelSessionStatus(ctx, &nodev1.ReportTunnelSessionStatusRequest{
-			NodeID:        d.nodeID,
-			NodeAuthToken: d.nodeAuthToken,
-			SessionID:     session.GetSessionID(),
-			Status:        status,
-			Reason:        err.Error(),
+			NodeID:         d.nodeID,
+			NodeCredential: d.nodeCredential,
+			SessionID:      session.GetSessionID(),
+			Status:         status,
+			Reason:         err.Error(),
 		})
 		if terminalControlError(reportErr) {
 			return

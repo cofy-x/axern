@@ -68,6 +68,18 @@ func (s *Server) ListAdminNodes(ctx context.Context, req *adminv1.ListAdminNodes
 	return &adminv1.ListAdminNodesResponse{Nodes: out}, nil
 }
 
+func (s *Server) AdmitAdminNode(ctx context.Context, req *adminv1.AdmitAdminNodeRequest) (*adminv1.AdmitAdminNodeResponse, error) {
+	if s.deps.Nodes == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
+	}
+	now := s.now()
+	record, err := s.deps.Nodes.AdmitNode(ctx, strings.TrimSpace(req.GetNodeID()), strings.TrimSpace(req.GetNodeCredential()), strings.TrimSpace(req.GetOperatorReason()), now)
+	if err != nil {
+		return nil, err
+	}
+	return &adminv1.AdmitAdminNodeResponse{Node: s.adminNodeToProto(record, now)}, nil
+}
+
 func (s *Server) RetireAdminNode(ctx context.Context, req *adminv1.RetireAdminNodeRequest) (*adminv1.RetireAdminNodeResponse, error) {
 	if s.deps.Nodes == nil {
 		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
@@ -95,9 +107,11 @@ func (s *Server) adminNodeToProto(record *nodekernel.Record, now time.Time) *adm
 		AxnodedReady:        heartbeatFresh && summaryFresh && axnoded.GetReady() && axnoded.GetState() == nodev1.ComponentState_COMPONENT_STATE_READY,
 		HeartbeatAgeSeconds: nodekernel.HeartbeatAgeSecs(record.LastHeartbeatAt, now),
 		SummaryAgeSeconds:   nodekernel.SummaryAgeSecs(record.Summary, now),
-		RegisteredAt:        timestamppb.New(record.RegisteredAt),
-		LastHeartbeatAt:     timestamppb.New(record.LastHeartbeatAt),
+		AdmittedAt:          timestamppb.New(record.AdmittedAt),
 		RetiredReason:       record.RetiredReason,
+	}
+	if !record.LastHeartbeatAt.IsZero() {
+		out.LastHeartbeatAt = timestamppb.New(record.LastHeartbeatAt)
 	}
 	if !record.RetiredAt.IsZero() {
 		out.RetiredAt = timestamppb.New(record.RetiredAt)

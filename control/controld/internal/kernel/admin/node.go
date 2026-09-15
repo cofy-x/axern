@@ -13,6 +13,41 @@ type NodeListFilter struct {
 	Lifecycle nodekernel.LifecycleStatus
 }
 
+type AdmitNodeRequest struct {
+	NodeID         string
+	NodeCredential string
+	OperatorReason string
+	Now            time.Time
+}
+
+func NormalizeAdmitNodeRequest(in AdmitNodeRequest) AdmitNodeRequest {
+	return AdmitNodeRequest{
+		NodeID:         strings.TrimSpace(in.NodeID),
+		NodeCredential: strings.TrimSpace(in.NodeCredential),
+		OperatorReason: strings.TrimSpace(in.OperatorReason),
+		Now:            in.Now.UTC(),
+	}
+}
+
+func ValidateAdmitNodeRequest(req AdmitNodeRequest) error {
+	if req.NodeID == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "node_id is required")
+	}
+	if req.NodeCredential == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "node_credential is required")
+	}
+	if len(req.NodeCredential) < 32 {
+		return grpcstatus.Error(codes.InvalidArgument, "node_credential must contain at least 32 characters")
+	}
+	if req.OperatorReason == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "operator_reason is required")
+	}
+	if req.Now.IsZero() {
+		return grpcstatus.Error(codes.InvalidArgument, "admission time is required")
+	}
+	return nil
+}
+
 type RetireNodeRequest struct {
 	NodeID          string
 	OperatorReason  string

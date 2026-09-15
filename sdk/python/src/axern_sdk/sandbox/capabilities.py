@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from axern_sdk.node import CapabilityStatus, NodeSandboxClient
+from axern_sdk.node import CapabilityStatus, AllocationClient
 
 
 class _HasNodeClient(Protocol):
-    def _node_client(self) -> NodeSandboxClient: ...
+    def _node_client(self) -> AllocationClient: ...
 
 
 class SandboxCapabilityMixin:

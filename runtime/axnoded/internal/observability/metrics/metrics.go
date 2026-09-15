@@ -38,7 +38,6 @@ const (
 	MetricStartupStepDuration                       = "axern.axnoded_startup_step_duration_seconds"
 	MetricLifecycleStageDuration                    = "axern.axnoded_lifecycle_stage_duration_seconds"
 	MetricAllocationDeleteStageDuration             = "axern.axnoded_allocation_delete_stage_duration_seconds"
-	MetricHTTPProxyStageDuration                    = "axern.axnoded_http_proxy_stage_duration_seconds"
 	MetricAllocationAccessGrantVisibilityDuration   = "axern.axnoded_allocation_access_grant_visibility_duration_seconds"
 	MetricRetainedEnvironmentCurrent                = "axern.axnoded_retained_environment_current"
 	MetricRetainedRootfsCurrent                     = "axern.axnoded_retained_rootfs_current"
@@ -97,7 +96,6 @@ const (
 	descStartupStepDuration                       = "Axnoded sandbox start step duration."
 	descLifecycleStageDuration                    = "Axnoded node lifecycle RPC handling stage duration."
 	descAllocationDeleteStageDuration             = "Axnoded allocation delete stage duration."
-	descHTTPProxyStageDuration                    = "Axnoded HTTP proxy stage duration."
 	descAllocationAccessGrantVisibilityDuration   = "Axnoded allocation access grant cache visibility duration."
 	descRetainedEnvironmentCurrent                = "Axnoded retained idle runtime count."
 	descRetainedRootfsCurrent                     = "Axnoded retained rootfs count."
@@ -336,17 +334,6 @@ func RecordAllocationDeleteStage(stage, runtime, result string, seconds float64)
 		attribute.String(sdkobs.AttrStage, stage),
 		attribute.String(sdkobs.AttrRuntime, runtime),
 		attribute.String(sdkobs.AttrResult, result),
-	)
-}
-
-func RecordHTTPProxyStageDuration(stage, result, errorClass string, seconds float64) {
-	recordDurationSeconds(
-		MetricHTTPProxyStageDuration,
-		descHTTPProxyStageDuration,
-		seconds,
-		attribute.String(sdkobs.AttrStage, stage),
-		attribute.String(sdkobs.AttrResult, result),
-		attribute.String(sdkobs.AttrErrorClass, errorClass),
 	)
 }
 

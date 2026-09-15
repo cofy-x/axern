@@ -38,7 +38,7 @@ const sidebar = [
         label: 'SDK Guides',
         translations: { 'zh-CN': 'SDK 指南' },
         items: [
-          { label: 'Computer Use and Browser', translations: { 'zh-CN': 'Computer Use 与浏览器' }, link: '/guides/computer-use/' },
+          { label: 'Computer Use', translations: { 'zh-CN': 'Computer Use' }, link: '/guides/computer-use/' },
         ],
       },
       {

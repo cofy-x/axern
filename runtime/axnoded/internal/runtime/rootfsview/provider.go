@@ -187,7 +187,6 @@ func (facts RootfsBackingFacts) HasFilesystem(fsType string) bool {
 type Request struct {
 	RootDir        string
 	Readonly       bool
-	RuntimeName    string
 	ImmutableMount ImmutableMountDescriptor
 	Targets        []MountTarget
 	Symlinks       []Symlink
@@ -265,11 +264,11 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		if errors.Is(err, syscall.ENOSPC) {
 			result = "enospc"
 		}
-		metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", result)
+		metrics.RecordEphemeralStorageOperation("runsc", "projection_mount", result)
 		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
 		return View{}, err
 	}
-	metrics.RecordEphemeralStorageOperation(request.RuntimeName, "projection_mount", "success")
+	metrics.RecordEphemeralStorageOperation("runsc", "projection_mount", "success")
 	if err := writeProjectionManifest(filepath.Dir(view.MergedDir), request); err != nil {
 		_ = cleanupOverlayView(filepath.Dir(view.MergedDir))
 		return View{}, err
@@ -282,7 +281,6 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 		"storage":         p.filestoreDir,
 		"missing_targets": len(missing),
 		"root_readonly":   request.Readonly,
-		"runtime":         request.RuntimeName,
 		"backing_fs":      request.ImmutableMount.Filesystem,
 	}).Debug("prepared sandbox-private rootfs view")
 	return View{RootDir: view.MergedDir, Prepared: true}, nil

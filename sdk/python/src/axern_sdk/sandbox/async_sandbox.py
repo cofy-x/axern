@@ -11,13 +11,12 @@ from axern_sdk._internal.resources import ResourceQuantity
 from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.errors import SandboxNotStartedError, SandboxTimeoutError
 from axern_sdk.node import (
-    AsyncNodeSandboxClient,
+    AsyncAllocationClient,
     AsyncSandboxProcess,
     ExecCommand,
     ExecResult,
     ExecStreamEvent,
 )
-from axern_sdk.sandbox.async_browser import AsyncSandboxBrowserMixin
 from axern_sdk.sandbox.async_capabilities import AsyncSandboxCapabilityMixin
 from axern_sdk.sandbox.async_computer_use import AsyncSandboxComputerUseMixin
 from axern_sdk.sandbox.async_files import AsyncSandboxFileMixin
@@ -28,7 +27,7 @@ from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, Sandb
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
 
-class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncSandboxComputerUseMixin, AsyncSandboxFileMixin):
+class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, AsyncSandboxFileMixin):
     """Async run allocation-backed Axern sandbox with optional reverse TCP tunnel."""
 
     def __init__(
@@ -59,7 +58,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
         connector_ready_timeout_seconds: float = 15.0,
         labels: dict[str, str] | None = None,
         _connector_factory: Callable[..., TunnelConnector] = TunnelConnector,
-        _node_client_factory: Callable[..., AsyncNodeSandboxClient] = AsyncNodeSandboxClient,
+        _node_client_factory: Callable[..., AsyncAllocationClient] = AsyncAllocationClient,
         _renew_interval_seconds: float | None = None,
     ) -> None:
         _validate_source(image=image, template_id=template_id, environment_id=environment_id)
@@ -386,7 +385,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxBrowserMixin, AsyncS
             await asyncio.sleep(0.25)
         raise SandboxTimeoutError(f"tunnel client peer did not connect within {self._connector_ready_timeout_seconds}s")
 
-    def _node_client(self) -> AsyncNodeSandboxClient:
+    def _node_client(self) -> AsyncAllocationClient:
         if self._state is None:
             raise SandboxNotStartedError("sandbox is not active")
         return self._node_client_factory(

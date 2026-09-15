@@ -184,7 +184,6 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, con
 		MemoryRequestBytes:  memoryRequest,
 		MemoryLimitBytes:    resourceSpec.GetLimits().GetMemoryBytes(),
 		CapacityChargeBytes: cgroupCapacityCharge(ctx, memoryRequest),
-		RuntimeName:         config.RuntimeNameRunsc,
 		CgroupOwnerKind:     ownerKind,
 	}, resourceNames...)
 	if err != nil {

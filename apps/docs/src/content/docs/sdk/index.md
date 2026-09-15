@@ -27,7 +27,6 @@ The sandbox boundary is shared; language depth differs by design.
 | Files and archive transfer         | ✓                     | ✓                 | ✓              |
 | Reverse tunnels                    | ✓                     | ✓                 | ✓              |
 | Computer Use                       | ✓                     | ✓                 | ✓              |
-| Managed browser                    | ✓                     | —                 | —              |
 | Environments and Runs              | ✓                     | ✓                 | ✓              |
 | Concurrency model                  | sync + `AsyncSandbox` | `context.Context` | Promise-native |
 

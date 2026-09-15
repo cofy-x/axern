@@ -39,19 +39,19 @@ import { exec } from "./exec.js";
 import * as files from "./files.js";
 import type { SandboxProcess } from "./process.js";
 
-export interface NodeSandboxClientOptions {
+export interface AllocationClientOptions {
   allocationId: string;
   target: string;
   credentials: grpc.ChannelCredentials;
   channelOptions?: grpc.ChannelOptions;
 }
 
-export class NodeSandboxClient {
+export class AllocationClient {
   readonly allocationId: string;
 
   private readonly ctx: NodeClientContext;
 
-  constructor(options: NodeSandboxClientOptions) {
+  constructor(options: AllocationClientOptions) {
     this.allocationId = options.allocationId;
     this.ctx = new NodeClientContext(options);
   }

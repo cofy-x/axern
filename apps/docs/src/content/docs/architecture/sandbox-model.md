@@ -28,7 +28,7 @@ Once started, a Sandbox supports:
 - `exec()` for one-shot commands with exit-code and output capture, and `process()` for interactive stdin, termination, and explicit waits
 - file operations (`read_text`/`write_text`, `list_dir`, `stat`, `mkdir`, `remove`, `copy`, `move`, `chmod`) plus archive-backed `upload_dir`/`download_dir` that reject unsafe paths and links
 - reverse [tunnels](/guides/tunnels/) with SDK-owned renewal and cleanup
-- [computer use and browser automation](/guides/computer-use/) on capable images
+- [computer use](/guides/computer-use/) on capable images; browser automation runs as caller-owned workload software
 
 ## Lifecycle and cleanup
 

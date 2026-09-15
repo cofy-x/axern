@@ -26,15 +26,15 @@ CREATE TABLE principal_credentials (
 CREATE TABLE nodes (
 	node_id TEXT PRIMARY KEY,
 	node_target TEXT NOT NULL,
-	node_auth_token_hash TEXT NOT NULL,
-	registered_at TIMESTAMPTZ NOT NULL,
-	last_heartbeat_at TIMESTAMPTZ NOT NULL,
+	node_credential_hash TEXT NOT NULL,
+	admitted_at TIMESTAMPTZ NOT NULL,
+	last_heartbeat_at TIMESTAMPTZ,
 	lifecycle_status TEXT NOT NULL CHECK (lifecycle_status IN ('active', 'retired')),
 	retired_at TIMESTAMPTZ,
 	retired_reason TEXT NOT NULL DEFAULT '',
-	CHECK (length(btrim(node_target)) > 0),
-	CHECK (length(node_auth_token_hash) = 64),
-	CHECK (last_heartbeat_at >= registered_at),
+	CHECK (length(node_credential_hash) = 64),
+	CHECK (last_heartbeat_at IS NULL OR last_heartbeat_at >= admitted_at),
+	CHECK ((last_heartbeat_at IS NULL AND node_target = '') OR (last_heartbeat_at IS NOT NULL AND length(btrim(node_target)) > 0)),
 	CHECK (
 		(lifecycle_status = 'active' AND retired_at IS NULL AND retired_reason = '') OR
 		(lifecycle_status = 'retired' AND retired_at IS NOT NULL AND length(btrim(retired_reason)) > 0)

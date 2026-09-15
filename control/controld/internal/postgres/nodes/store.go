@@ -17,10 +17,10 @@ func NewPGStore(db *postgres.DB) *PGStore {
 
 func (s *PGStore) Report(ctx context.Context, params nodekernel.ReportParams) (*nodekernel.Record, error) {
 	return s.upsert(ctx, nodeUpsertParams{
-		NodeID:        params.NodeID,
-		NodeTarget:    params.NodeTarget,
-		Summary:       params.Summary,
-		NodeAuthToken: params.NodeAuthToken,
-		Now:           params.Now,
+		NodeID:         params.NodeID,
+		NodeTarget:     params.NodeTarget,
+		Summary:        params.Summary,
+		NodeCredential: params.NodeCredential,
+		Now:            params.Now,
 	})
 }

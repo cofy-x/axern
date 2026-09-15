@@ -93,8 +93,9 @@ func TestCreateEnvironmentWithRegistryCredentialUsesDockerConfigSecret(t *testin
 	public := service.PublicV1Handler()
 	node := service.NodeV1Handler()
 	now := time.Now().UTC()
+	admitTestNode(t, service, "node-registry-ref")
 
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-registry-ref", NodeTarget: "127.0.0.1:25002", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)}); err != nil {
+	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-registry-ref", NodeTarget: "127.0.0.1:25002", NodeCredential: testNodeCredential, Summary: controldtest.ReadySummary(now)}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 
@@ -146,8 +147,8 @@ func TestCreateEnvironmentWithRegistryCredentialUsesDockerConfigSecret(t *testin
 		t.Fatalf("DeleteSecret(active Run snapshot reference) code = %v, want %v: %v", grpcstatus.Code(err), codes.FailedPrecondition, err)
 	}
 	if _, err := node.BatchReportAllocationLifecycle(context.Background(), &nodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:        "node-registry-ref",
-		NodeAuthToken: "test-node-token",
+		NodeID:         "node-registry-ref",
+		NodeCredential: testNodeCredential,
 		Observations: []*nodev1.AllocationLifecycleObservation{{
 			AllocationID: runResp.GetRun().GetAllocationID(),
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,
@@ -168,8 +169,9 @@ func TestRequiredRunSecretReferenceEndsWithRunLifecycle(t *testing.T) {
 	public := service.PublicV1Handler()
 	node := service.NodeV1Handler()
 	now := time.Now().UTC()
+	admitTestNode(t, service, "node-secret-ref")
 
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-secret-ref", NodeTarget: "127.0.0.1:25001", NodeAuthToken: "test-node-token", Summary: controldtest.ReadySummary(now)}); err != nil {
+	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-secret-ref", NodeTarget: "127.0.0.1:25001", NodeCredential: testNodeCredential, Summary: controldtest.ReadySummary(now)}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 	secretResp, err := public.CreateSecret(context.Background(), &secretv1.CreateSecretRequest{
@@ -224,8 +226,8 @@ func TestRequiredRunSecretReferenceEndsWithRunLifecycle(t *testing.T) {
 		t.Fatalf("DeleteSecret(optional active Run reference) error = %v", err)
 	}
 	if _, err := node.BatchReportAllocationLifecycle(context.Background(), &nodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:        "node-secret-ref",
-		NodeAuthToken: "test-node-token",
+		NodeID:         "node-secret-ref",
+		NodeCredential: testNodeCredential,
 		Observations: []*nodev1.AllocationLifecycleObservation{{
 			AllocationID: runResp.GetRun().GetAllocationID(),
 			State:        commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED,

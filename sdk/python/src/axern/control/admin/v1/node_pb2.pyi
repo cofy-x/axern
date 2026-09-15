@@ -21,7 +21,7 @@ ADMIN_NODE_LIFECYCLE_STATUS_ACTIVE: AdminNodeLifecycleStatus
 ADMIN_NODE_LIFECYCLE_STATUS_RETIRED: AdminNodeLifecycleStatus
 
 class AdminNode(_message.Message):
-    __slots__ = ("node_id", "lifecycle_status", "heartbeat_fresh", "summary_fresh", "axnoded_ready", "heartbeat_age_seconds", "summary_age_seconds", "registered_at", "last_heartbeat_at", "retired_at", "retired_reason")
+    __slots__ = ("node_id", "lifecycle_status", "heartbeat_fresh", "summary_fresh", "axnoded_ready", "heartbeat_age_seconds", "summary_age_seconds", "admitted_at", "last_heartbeat_at", "retired_at", "retired_reason")
     NODE_ID_FIELD_NUMBER: _ClassVar[int]
     LIFECYCLE_STATUS_FIELD_NUMBER: _ClassVar[int]
     HEARTBEAT_FRESH_FIELD_NUMBER: _ClassVar[int]
@@ -29,7 +29,7 @@ class AdminNode(_message.Message):
     AXNODED_READY_FIELD_NUMBER: _ClassVar[int]
     HEARTBEAT_AGE_SECONDS_FIELD_NUMBER: _ClassVar[int]
     SUMMARY_AGE_SECONDS_FIELD_NUMBER: _ClassVar[int]
-    REGISTERED_AT_FIELD_NUMBER: _ClassVar[int]
+    ADMITTED_AT_FIELD_NUMBER: _ClassVar[int]
     LAST_HEARTBEAT_AT_FIELD_NUMBER: _ClassVar[int]
     RETIRED_AT_FIELD_NUMBER: _ClassVar[int]
     RETIRED_REASON_FIELD_NUMBER: _ClassVar[int]
@@ -40,11 +40,11 @@ class AdminNode(_message.Message):
     axnoded_ready: bool
     heartbeat_age_seconds: int
     summary_age_seconds: int
-    registered_at: _timestamp_pb2.Timestamp
+    admitted_at: _timestamp_pb2.Timestamp
     last_heartbeat_at: _timestamp_pb2.Timestamp
     retired_at: _timestamp_pb2.Timestamp
     retired_reason: str
-    def __init__(self, node_id: _Optional[str] = ..., lifecycle_status: _Optional[_Union[AdminNodeLifecycleStatus, str]] = ..., heartbeat_fresh: _Optional[bool] = ..., summary_fresh: _Optional[bool] = ..., axnoded_ready: _Optional[bool] = ..., heartbeat_age_seconds: _Optional[int] = ..., summary_age_seconds: _Optional[int] = ..., registered_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_heartbeat_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., retired_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., retired_reason: _Optional[str] = ...) -> None: ...
+    def __init__(self, node_id: _Optional[str] = ..., lifecycle_status: _Optional[_Union[AdminNodeLifecycleStatus, str]] = ..., heartbeat_fresh: _Optional[bool] = ..., summary_fresh: _Optional[bool] = ..., axnoded_ready: _Optional[bool] = ..., heartbeat_age_seconds: _Optional[int] = ..., summary_age_seconds: _Optional[int] = ..., admitted_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_heartbeat_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., retired_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., retired_reason: _Optional[str] = ...) -> None: ...
 
 class ListAdminNodesRequest(_message.Message):
     __slots__ = ("lifecycle_status",)
@@ -57,6 +57,22 @@ class ListAdminNodesResponse(_message.Message):
     NODES_FIELD_NUMBER: _ClassVar[int]
     nodes: _containers.RepeatedCompositeFieldContainer[AdminNode]
     def __init__(self, nodes: _Optional[_Iterable[_Union[AdminNode, _Mapping]]] = ...) -> None: ...
+
+class AdmitAdminNodeRequest(_message.Message):
+    __slots__ = ("node_id", "node_credential", "operator_reason")
+    NODE_ID_FIELD_NUMBER: _ClassVar[int]
+    NODE_CREDENTIAL_FIELD_NUMBER: _ClassVar[int]
+    OPERATOR_REASON_FIELD_NUMBER: _ClassVar[int]
+    node_id: str
+    node_credential: str
+    operator_reason: str
+    def __init__(self, node_id: _Optional[str] = ..., node_credential: _Optional[str] = ..., operator_reason: _Optional[str] = ...) -> None: ...
+
+class AdmitAdminNodeResponse(_message.Message):
+    __slots__ = ("node",)
+    NODE_FIELD_NUMBER: _ClassVar[int]
+    node: AdminNode
+    def __init__(self, node: _Optional[_Union[AdminNode, _Mapping]] = ...) -> None: ...
 
 class RetireAdminNodeRequest(_message.Message):
     __slots__ = ("node_id", "operator_reason")

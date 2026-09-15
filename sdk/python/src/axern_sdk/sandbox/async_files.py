@@ -8,12 +8,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Protocol
 
-from axern_sdk.node import AsyncNodeSandboxClient, SandboxFileInfo
+from axern_sdk.node import AsyncAllocationClient, SandboxFileInfo
 from axern_sdk.sandbox.archive import archive_chunks, create_directory_archive, safe_extract_directory_archive
 
 
 class _HasAsyncNodeClient(Protocol):
-    def _node_client(self) -> AsyncNodeSandboxClient: ...
+    def _node_client(self) -> AsyncAllocationClient: ...
     async def read_bytes(self, path: str, *, timeout_seconds: int = 30) -> bytes: ...
     async def read_text(
         self,

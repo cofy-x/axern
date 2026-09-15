@@ -7,7 +7,7 @@
 import { AxernClient } from "../client/index.js";
 import type { ExtensionCapability } from "../client/index.js";
 import { SandboxStateError } from "../errors/index.js";
-import type { NodeSandboxClient } from "../node/client.js";
+import type { AllocationClient } from "../node/client.js";
 import type { SandboxProcess } from "../node/process.js";
 import type { ResourceQuantity } from "../resources.js";
 import type { NetworkPolicy } from "../network-policy.js";
@@ -306,11 +306,11 @@ export class Sandbox {
     );
   }
 
-  private nodeClient(): NodeSandboxClient {
+  private nodeClient(): AllocationClient {
     if (this.currentState === undefined) {
       throw new SandboxStateError("sandbox is not started");
     }
-    return this.client.nodeSandbox(this.currentState.allocationId);
+    return this.client.allocation(this.currentState.allocationId);
   }
 
 }

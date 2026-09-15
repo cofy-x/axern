@@ -500,10 +500,10 @@ func TestPostgresRunStartingAllocationInActiveInventoryDoesNotFail(t *testing.T)
 	summary.Components.Axnoded.RunningAllocationIds = nil
 	summary.Components.Axnoded.ActiveAllocationIds = []string{runResp.GetRun().GetAllocationID()}
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:        "node-a",
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-		Summary:       summary,
+		NodeID:         "node-a",
+		NodeTarget:     "127.0.0.1:25000",
+		NodeCredential: testNodeCredential,
+		Summary:        summary,
 	}); err != nil {
 		t.Fatalf("ReportNode(starting inventory) error = %v", err)
 	}

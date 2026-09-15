@@ -49,7 +49,7 @@ type Reporter struct {
 	target               string
 	nodeID               string
 	nodeTarget           string
-	nodeAuthToken        string
+	nodeCredential       string
 	interval             time.Duration
 	snapshot             SnapshotFunc
 	summaryBuilder       SummaryBuilder
@@ -76,7 +76,7 @@ func NewReporter(
 	target string,
 	nodeID string,
 	nodeTarget string,
-	nodeAuthToken string,
+	nodeCredential string,
 	tlsCACert string,
 	tlsCert string,
 	tlsKey string,
@@ -99,7 +99,7 @@ func NewReporter(
 		target:          target,
 		nodeID:          nodeID,
 		nodeTarget:      strings.TrimSpace(nodeTarget),
-		nodeAuthToken:   strings.TrimSpace(nodeAuthToken),
+		nodeCredential:  strings.TrimSpace(nodeCredential),
 		interval:        interval,
 		snapshot:        snapshot,
 		summaryBuilder:  summaryBuilder,
@@ -243,10 +243,10 @@ func (r *Reporter) report() {
 	summary.NodeInstanceID = r.nodeInstanceID
 	summary.Sequence = r.sequence
 	req := &nodev1.ReportNodeRequest{
-		NodeID:        r.nodeID,
-		Summary:       summary,
-		NodeTarget:    r.nodeTarget,
-		NodeAuthToken: r.nodeAuthToken,
+		NodeID:         r.nodeID,
+		Summary:        summary,
+		NodeTarget:     r.nodeTarget,
+		NodeCredential: r.nodeCredential,
 	}
 	started := time.Now()
 	var response *nodev1.ReportNodeResponse
@@ -414,7 +414,7 @@ func (r *Reporter) ensureConditionBatcher() *allocationConditionBatcher {
 
 func (r *Reporter) sendAllocationConditionBatch(ctx context.Context, reports []*nodev1.AllocationCapabilityConditionReport) error {
 	request := &nodev1.BatchReportAllocationCapabilityConditionsRequest{
-		NodeID: r.nodeID, NodeAuthToken: r.nodeAuthToken, Reports: reports,
+		NodeID: r.nodeID, NodeCredential: r.nodeCredential, Reports: reports,
 	}
 	err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
 		_, err := client.BatchReportAllocationCapabilityConditions(ctx, request)
@@ -434,9 +434,9 @@ func (r *Reporter) sendAllocationLifecycleBatch(ctx context.Context, observation
 		return nil
 	}
 	req := &nodev1.BatchReportAllocationLifecycleRequest{
-		NodeID:        r.nodeID,
-		NodeAuthToken: r.nodeAuthToken,
-		Observations:  observations,
+		NodeID:         r.nodeID,
+		NodeCredential: r.nodeCredential,
+		Observations:   observations,
 	}
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
 		Name: sandboxobs.SpanControlPlaneReportAllocation,

@@ -18,26 +18,34 @@ import (
 )
 
 type MemoryNodeStore struct {
-	mu         sync.Mutex
-	records    map[string]*nodekernel.Record
-	tokenHashs map[string]string
+	mu               sync.Mutex
+	records          map[string]*nodekernel.Record
+	credentialHashes map[string]string
 }
 
 func NewMemoryNodeStore() *MemoryNodeStore {
-	return &MemoryNodeStore{records: map[string]*nodekernel.Record{}, tokenHashs: map[string]string{}}
+	return &MemoryNodeStore{records: map[string]*nodekernel.Record{}, credentialHashes: map[string]string{}}
+}
+
+func (s *MemoryNodeStore) Admit(nodeID, nodeCredential string, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.credentialHashes[nodeID] = hashNodeCredential(nodeCredential)
+	s.records[nodeID] = &nodekernel.Record{
+		NodeID: nodeID, Lifecycle: nodekernel.LifecycleActive, AdmittedAt: now,
+	}
 }
 
 func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportParams) (*nodekernel.Record, error) {
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.checkOrSetTokenLocked(params.NodeID, params.NodeAuthToken); err != nil {
+	if err := s.checkCredentialLocked(params.NodeID, params.NodeCredential); err != nil {
 		return nil, err
 	}
 	record := s.records[params.NodeID]
 	if record == nil {
-		record = &nodekernel.Record{NodeID: params.NodeID, Lifecycle: nodekernel.LifecycleActive, RegisteredAt: params.Now}
-		s.records[params.NodeID] = record
+		return nil, grpcstatus.Error(codes.PermissionDenied, "node identity has not been admitted")
 	}
 	record.NodeTarget = params.NodeTarget
 	record.LastHeartbeatAt = params.Now
@@ -45,29 +53,28 @@ func (s *MemoryNodeStore) Report(ctx context.Context, params nodekernel.ReportPa
 	return cloneNodeRecord(record), nil
 }
 
-func (s *MemoryNodeStore) Authenticate(ctx context.Context, nodeID, nodeAuthToken string) error {
+func (s *MemoryNodeStore) Authenticate(ctx context.Context, nodeID, nodeCredential string) error {
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.tokenHashs[nodeID] == "" || nodeAuthToken == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node auth token is required")
+	if s.credentialHashes[nodeID] == "" || nodeCredential == "" {
+		return grpcstatus.Error(codes.PermissionDenied, "node credential is required")
 	}
-	if s.tokenHashs[nodeID] != hashNodeAuthToken(nodeAuthToken) {
-		return grpcstatus.Error(codes.PermissionDenied, "invalid node auth token")
+	if s.credentialHashes[nodeID] != hashNodeCredential(nodeCredential) {
+		return grpcstatus.Error(codes.PermissionDenied, "invalid node credential")
 	}
 	return nil
 }
 
-func (s *MemoryNodeStore) checkOrSetTokenLocked(nodeID, nodeAuthToken string) error {
-	if nodeAuthToken == "" {
-		return grpcstatus.Error(codes.PermissionDenied, "node auth token is required")
+func (s *MemoryNodeStore) checkCredentialLocked(nodeID, nodeCredential string) error {
+	if nodeCredential == "" {
+		return grpcstatus.Error(codes.PermissionDenied, "node credential is required")
 	}
-	if s.tokenHashs[nodeID] == "" {
-		s.tokenHashs[nodeID] = hashNodeAuthToken(nodeAuthToken)
-		return nil
+	if s.credentialHashes[nodeID] == "" {
+		return grpcstatus.Error(codes.PermissionDenied, "node identity has not been admitted")
 	}
-	if s.tokenHashs[nodeID] != hashNodeAuthToken(nodeAuthToken) {
-		return grpcstatus.Error(codes.PermissionDenied, "invalid node auth token")
+	if s.credentialHashes[nodeID] != hashNodeCredential(nodeCredential) {
+		return grpcstatus.Error(codes.PermissionDenied, "invalid node credential")
 	}
 	return nil
 }
@@ -83,7 +90,7 @@ func (s *MemoryNodeStore) Load(ctx context.Context) ([]*nodekernel.Record, error
 	return out, nil
 }
 
-func hashNodeAuthToken(token string) string {
+func hashNodeCredential(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
 }
@@ -165,7 +172,7 @@ func cloneNodeRecord(in *nodekernel.Record) *nodekernel.Record {
 		NodeTarget:      in.NodeTarget,
 		Summary:         cloneNodeSummary(in.Summary),
 		Lifecycle:       in.Lifecycle,
-		RegisteredAt:    in.RegisteredAt,
+		AdmittedAt:      in.AdmittedAt,
 		LastHeartbeatAt: in.LastHeartbeatAt,
 		RetiredAt:       in.RetiredAt,
 		RetiredReason:   in.RetiredReason,

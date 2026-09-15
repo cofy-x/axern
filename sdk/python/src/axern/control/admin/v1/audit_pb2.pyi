@@ -24,6 +24,7 @@ class AdminAuditOperation(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING: _ClassVar[AdminAuditOperation]
     ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING: _ClassVar[AdminAuditOperation]
     ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS: _ClassVar[AdminAuditOperation]
+    ADMIN_AUDIT_OPERATION_ADMIT_NODE: _ClassVar[AdminAuditOperation]
 
 class AdminAuditTargetType(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -45,6 +46,7 @@ ADMIN_AUDIT_OPERATION_REVOKE_CREDENTIAL: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_GRANT_ROLE_BINDING: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_REVOKE_ROLE_BINDING: AdminAuditOperation
 ADMIN_AUDIT_OPERATION_BOOTSTRAP_ACCESS: AdminAuditOperation
+ADMIN_AUDIT_OPERATION_ADMIT_NODE: AdminAuditOperation
 ADMIN_AUDIT_TARGET_TYPE_UNSPECIFIED: AdminAuditTargetType
 ADMIN_AUDIT_TARGET_TYPE_ALLOCATION: AdminAuditTargetType
 ADMIN_AUDIT_TARGET_TYPE_NODE: AdminAuditTargetType

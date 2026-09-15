@@ -21,7 +21,7 @@ message AdminNode {
   bool axnoded_ready = 5;
   int64 heartbeat_age_seconds = 6;
   int64 summary_age_seconds = 7;
-  google.protobuf.Timestamp registered_at = 8;
+  google.protobuf.Timestamp admitted_at = 8;
   google.protobuf.Timestamp last_heartbeat_at = 9;
   google.protobuf.Timestamp retired_at = 10;
   string retired_reason = 11;
@@ -33,6 +33,16 @@ message ListAdminNodesRequest {
 
 message ListAdminNodesResponse {
   repeated AdminNode nodes = 1;
+}
+
+message AdmitAdminNodeRequest {
+  string node_id = 1;
+  string node_credential = 2;
+  string operator_reason = 3;
+}
+
+message AdmitAdminNodeResponse {
+  AdminNode node = 1;
 }
 
 message RetireAdminNodeRequest {
@@ -64,6 +74,7 @@ message GetAllocationCapabilityDiagnosticsResponse {
 }
 
 service NodeAdmin {
+  rpc AdmitAdminNode(AdmitAdminNodeRequest) returns (AdmitAdminNodeResponse) {}
   rpc ListAdminNodes(ListAdminNodesRequest) returns (ListAdminNodesResponse) {}
   rpc RetireAdminNode(RetireAdminNodeRequest) returns (RetireAdminNodeResponse) {}
   rpc GetNodeCapabilitySnapshot(GetNodeCapabilitySnapshotRequest) returns (GetNodeCapabilitySnapshotResponse) {}

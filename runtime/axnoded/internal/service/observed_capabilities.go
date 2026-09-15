@@ -102,8 +102,8 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		networkCapabilityProvider(cfg, h.egressClient),
 		cgroupCapabilityProvider(cfg, cgroupRoot, bootID, bootErr),
 		filestoreCapabilityProvider(cfg, bootID, bootErr),
-		runtimeConformanceCapabilityProvider(cfg, h.runscHandler, config.RuntimeNameRunsc, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
-		runtimeConformanceCapabilityProvider(cfg, h.runscHandler, config.RuntimeNameRunsc, runtimeConformanceKindEphemeral, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
+		runtimeConformanceCapabilityProvider(cfg, h.runscHandler, runtimeConformanceKindMemory, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
+		runtimeConformanceCapabilityProvider(cfg, h.runscHandler, runtimeConformanceKindEphemeral, bootID, h.runRuntimeConformanceSelfTest, runtimeDigestCache),
 		derivedCapabilityProvider{expected: []*capabilityv1.CapabilityKey{
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT),
 			capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT),

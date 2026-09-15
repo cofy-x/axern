@@ -37,11 +37,11 @@ func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1
 		return err
 	}
 	_, _ = d.node.ReportTunnelSessionStatus(ctx, &nodev1.ReportTunnelSessionStatusRequest{
-		NodeID:        d.nodeID,
-		NodeAuthToken: d.nodeAuthToken,
-		SessionID:     session.GetSessionID(),
-		Status:        tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
-		BoundAddr:     addr,
+		NodeID:         d.nodeID,
+		NodeCredential: d.nodeCredential,
+		SessionID:      session.GetSessionID(),
+		Status:         tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+		BoundAddr:      addr,
 	})
 	select {
 	case <-ctx.Done():

@@ -345,7 +345,7 @@ func record(nodeID string, runtimes []string, summary *nodev1.NodeSummary, updat
 		NodeID:          nodeID,
 		Lifecycle:       nodekernel.LifecycleActive,
 		Summary:         summary,
-		RegisteredAt:    updatedAt,
+		AdmittedAt:      updatedAt,
 		LastHeartbeatAt: updatedAt,
 	}
 }

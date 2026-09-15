@@ -529,7 +529,7 @@ func insertTunnelTestAllocation(t *testing.T, db *postgres.DB, allocationID stri
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
 		INSERT INTO nodes (
-			node_id, node_target, registered_at, last_heartbeat_at, node_auth_token_hash, lifecycle_status
+			node_id, node_target, admitted_at, last_heartbeat_at, node_credential_hash, lifecycle_status
 		) VALUES ('node-test', '127.0.0.1:25000', $1, $1, repeat('0', 64), 'active')
 	`, now.UTC()); err != nil {
 		t.Fatalf("insert node: %v", err)

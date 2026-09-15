@@ -36,7 +36,7 @@ If either path is wrong or not writable, startup, restart recovery, and containe
 | `control_plane_target` | `controld` node-control endpoint. | Empty disables the reporter. |
 | `control_plane_node_id` | Stable node identity reported to `controld`. | Empty falls back to hostname. |
 | `control_plane_node_target` | Internal address that `gatewayd` and `controld` can use to reach this node. | Needed when gateway forwarding crosses host boundaries. |
-| `control_plane_node_auth_token` | Node auth token for control-plane reports and lifecycle coordination. | Required by secured control-plane deployments. |
+| `control_plane_node_credential` | Node credential for control-plane reports and lifecycle coordination. | Required by secured control-plane deployments. |
 | `control_plane_heartbeat_interval` | Node report interval. | Empty or non-positive falls back to `5s`. |
 | `control_plane_node_resource_source` | Source for reported node capacity, allocatable resources, and placement labels. | Use `kubernetes` in Kubernetes deployments so axnoded reports Node API `status.capacity`, `status.allocatable`, and `metadata.labels`; use `host` for local or bare-metal nodes. |
 | `control_plane_kubernetes_node_name` | Kubernetes Node object name used when `control_plane_node_resource_source = "kubernetes"`. | In Helm deployments this is populated from `spec.nodeName`; otherwise empty falls back to `control_plane_node_id`. |

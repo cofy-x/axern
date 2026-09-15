@@ -1,4 +1,4 @@
-"""Compose E2E for NodeSandbox computer-use status and screenshot APIs."""
+"""Compose E2E for Allocation computer-use status and screenshot APIs."""
 
 from __future__ import annotations
 
@@ -7,7 +7,6 @@ import json
 import os
 import sys
 import time
-import urllib.parse
 
 os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
 os.environ.setdefault("GLOG_minloglevel", "2")
@@ -175,50 +174,6 @@ def main() -> int:
                 timeout_seconds=60,
             )
 
-            phase = "desktop-browser-status"
-            browser_status = sandbox.browser_status(timeout_seconds=30)
-            if not browser_status.available:
-                raise SystemExit(f"desktop browser status unavailable: {browser_status}")
-            if "chrom" not in browser_status.command:
-                raise SystemExit(
-                    f"desktop browser command = {browser_status.command!r}, want chromium"
-                )
-
-            phase = "desktop-browser-open"
-            browser_page = urllib.parse.quote(
-                "<!doctype html>"
-                "<html><body>"
-                "<input id='q' autofocus style='font-size:32px;margin:40px' />"
-                "<button style='font-size:32px'>Go</button>"
-                "</body></html>",
-                safe="",
-            )
-            browser_url = f"data:text/html,{browser_page}"
-            browser_status = sandbox.browser_open(browser_url, timeout_seconds=30)
-            if not browser_status.running:
-                raise SystemExit(
-                    f"desktop browser did not report running after open: {browser_status}"
-                )
-            if browser_status.url != browser_url:
-                raise SystemExit(f"desktop browser url not tracked: {browser_status}")
-            wait_for_png_screenshot(sandbox)
-
-            phase = "desktop-browser-operations"
-            browser_status = sandbox.browser_resize(1024, 768, timeout_seconds=30)
-            if not browser_status.running:
-                raise SystemExit(f"desktop browser resize stopped session: {browser_status}")
-            sandbox.browser_click(120, 120, timeout_seconds=30)
-            sandbox.browser_type("axern-browser-e2e", delay_ms=1, timeout_seconds=30)
-            sandbox.browser_wait(timeout_ms=100, timeout_seconds=30)
-            wait_for_png_screenshot(sandbox)
-
-            phase = "desktop-browser-close"
-            browser_status = sandbox.browser_close(timeout_seconds=30)
-            if browser_status.running:
-                raise SystemExit(
-                    f"desktop browser still reported running after close: {browser_status}"
-                )
-
         phase = "headless-start"
         with Sandbox(
             client=client,
@@ -237,13 +192,6 @@ def main() -> int:
                 raise SystemExit(
                     "headless runtime unexpectedly exposed computer_use status"
                 )
-            try:
-                sandbox.browser_status(timeout_seconds=30)
-            except SandboxPreconditionError as exc:
-                assert_capability_precondition(exc, "browser")
-            else:
-                raise SystemExit("headless runtime unexpectedly exposed browser status")
-
         print(
             "node_computer_use_e2e_ok=true "
             f"desktop_service_id={desktop_service_id} headless_service_id={headless_service_id}"

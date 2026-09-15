@@ -1,9 +1,9 @@
 ---
-title: Computer Use and Browser
-description: Drive sandbox displays, mouse, and keyboard from the SDKs, and automate a managed browser from Python.
+title: Computer Use
+description: Drive sandbox displays, mouse, and keyboard through Allocation-scoped SDK operations.
 ---
 
-Computer Use lets an agent observe and drive a sandbox's graphical session: query capability and session status, capture screenshots, and inject mouse and keyboard input through the node data plane. The Python SDK additionally ships a first-class managed Browser API for web automation.
+Computer Use lets an agent observe and drive a sandbox's graphical session: query capability and session status, capture screenshots, and inject mouse and keyboard input through the node data plane.
 
 All operations are sandbox methods — they act on the allocation the Sandbox owns and require the workload image to provide a display session.
 
@@ -56,19 +56,12 @@ await sandbox.computerUseKeyboard({ text: "hello", delayMs: 20 });
 
 Screenshots accept a `region`, `format`, `quality`, and `scale`; `computer_use_display()` / `computerUseDisplay()` describes the current display geometry. Mouse actions cover move, click, drag (`to_x`/`to_y`), and scroll (`direction`/`amount`), and the button defaults to the primary button; keyboard input accepts text, a single `key` (such as `Escape`), or a `keys` chord.
 
-## Managed browser (Python)
+## Browser automation belongs to the workload
 
-The Python SDK drives a managed browser inside the sandbox without manual display scripting:
+Axern does not own a separate browser lifecycle. A caller that needs browser automation installs and starts Playwright, Chromium, or another browser through process execution, then drives it with workload code or Computer Use. This keeps the browser version, profile, credentials, and cleanup inside the immutable Environment and its Allocation rather than creating another durable platform object.
 
 ```python
-sandbox.browser_open("https://example.com")
-sandbox.browser_navigate("https://example.com/docs")
-sandbox.browser_click(320, 200)
-sandbox.browser_type("axern", delay_ms=30)
-print(sandbox.browser_status())
-sandbox.browser_close()
+result = sandbox.exec("python", "-c", "from playwright.sync_api import sync_playwright; print('caller-owned browser')")
 ```
-
-`browser_resize(width, height)` changes the viewport and `browser_wait(timeout_ms=...)` waits for navigation to settle. Async variants of every browser and computer-use method exist on `AsyncSandbox`.
 
 A runnable example lives in the repository at [`sdk/python/examples/computer_use.py`](https://github.com/cofy-x/axern/blob/main/sdk/python/examples/computer_use.py).

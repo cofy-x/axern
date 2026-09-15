@@ -7,12 +7,12 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Protocol
 
-from axern_sdk.node import NodeSandboxClient, SandboxFileInfo
+from axern_sdk.node import AllocationClient, SandboxFileInfo
 from axern_sdk.sandbox.archive import archive_chunks, create_directory_archive, safe_extract_directory_archive
 
 
 class _HasNodeClient(Protocol):
-    def _node_client(self) -> NodeSandboxClient: ...
+    def _node_client(self) -> AllocationClient: ...
     def read_bytes(self, path: str, *, timeout_seconds: int = 30) -> bytes: ...
     def read_text(
         self,

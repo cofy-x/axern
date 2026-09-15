@@ -62,7 +62,7 @@ func TestCommonRunUsesConfiguredExecutor(t *testing.T) {
 			"runsc --root": "mock output",
 		},
 	}
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runsc", RuntimeBinary: "runsc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(executor)
 
@@ -75,7 +75,7 @@ func TestCommonRunUsesConfiguredExecutor(t *testing.T) {
 }
 
 func TestCommonSetExecutorNilRestoresDefault(t *testing.T) {
-	common, err := New(Config{Root: t.TempDir(), RuntimeName: "runsc", RuntimeBinary: "runsc"})
+	common, err := New(Config{Root: t.TempDir(), RuntimeBinary: "runsc"})
 	require.NoError(t, err)
 	common.SetExecutor(&mockExecutor{})
 

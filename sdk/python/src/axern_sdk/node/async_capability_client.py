@@ -10,8 +10,8 @@ from axern_sdk.node.capability_protocol import capability_status
 from axern_sdk.node.models import CapabilityStatus
 
 
-class AsyncNodeSandboxCapabilityMixin:
-    """Capability RPCs for ``AsyncNodeSandboxClient``."""
+class AsyncAllocationCapabilityMixin:
+    """Capability RPCs for ``AsyncAllocationClient``."""
 
     if TYPE_CHECKING:
         _allocation_id: str

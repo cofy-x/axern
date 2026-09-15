@@ -16,7 +16,6 @@ var _ contract.SandboxRuntime = &RunscServiceHandler{}
 var _ contract.AllocationCapabilityVerifier = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {
-	name                              string
 	common                            *ocihost.Common
 	ignoreCgroups                     bool
 	allowSUID                         bool
@@ -42,10 +41,6 @@ var (
 	runscWaitRetryTimeout     = 200 * time.Millisecond
 	runscForceStopTimeout     = 5 * time.Second
 )
-
-func (r *RunscServiceHandler) Name() string {
-	return r.name
-}
 
 func (r *RunscServiceHandler) FileService() contract.FileService {
 	return r.services.file

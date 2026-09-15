@@ -16,7 +16,7 @@ func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
 	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
 	nodes := &fakeNodeAdmin{records: []*nodekernel.Record{{
 		NodeID: "node-a", Lifecycle: nodekernel.LifecycleActive,
-		RegisteredAt: now.Add(-time.Hour), LastHeartbeatAt: now.Add(-5 * time.Second),
+		AdmittedAt: now.Add(-time.Hour), LastHeartbeatAt: now.Add(-5 * time.Second),
 	}}}
 	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: 15 * time.Second, NodeSummaryWindow: 15 * time.Second})
 
@@ -26,6 +26,25 @@ func TestListAdminNodesMapsLifecycleAndHealth(t *testing.T) {
 	}
 	if nodes.filter.Lifecycle != nodekernel.LifecycleActive || len(resp.GetNodes()) != 1 || !resp.GetNodes()[0].GetHeartbeatFresh() {
 		t.Fatalf("filter = %+v, response = %+v", nodes.filter, resp)
+	}
+}
+
+func TestAdmitAdminNodeForwardsIdentityAndCredential(t *testing.T) {
+	now := time.Date(2026, 7, 26, 11, 0, 0, 0, time.UTC)
+	nodes := &fakeNodeAdmin{}
+	srv := New(Dependencies{Now: func() time.Time { return now }, Nodes: nodes, NodeHeartbeatWindow: time.Minute, NodeSummaryWindow: time.Minute})
+
+	resp, err := srv.AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
+		NodeID: " node-a ", NodeCredential: "0123456789abcdef0123456789abcdef", OperatorReason: " add worker ",
+	})
+	if err != nil {
+		t.Fatalf("AdmitAdminNode() error = %v", err)
+	}
+	if nodes.nodeID != "node-a" || nodes.credential != "0123456789abcdef0123456789abcdef" || nodes.reason != "add worker" {
+		t.Fatalf("forwarded identity = node=%q credential=%q reason=%q", nodes.nodeID, nodes.credential, nodes.reason)
+	}
+	if resp.GetNode().GetNodeID() != "node-a" || !resp.GetNode().GetAdmittedAt().AsTime().Equal(now) {
+		t.Fatalf("response = %+v", resp)
 	}
 }
 
@@ -62,11 +81,19 @@ func TestGetAllocationCapabilityDiagnostics(t *testing.T) {
 }
 
 type fakeNodeAdmin struct {
-	filter  adminkernel.NodeListFilter
-	records []*nodekernel.Record
-	record  *nodekernel.Record
-	nodeID  string
-	reason  string
+	filter     adminkernel.NodeListFilter
+	records    []*nodekernel.Record
+	record     *nodekernel.Record
+	nodeID     string
+	credential string
+	reason     string
+}
+
+func (f *fakeNodeAdmin) AdmitNode(_ context.Context, nodeID, credential string, reason string, now time.Time) (*nodekernel.Record, error) {
+	f.nodeID = nodeID
+	f.credential = credential
+	f.reason = reason
+	return &nodekernel.Record{NodeID: nodeID, Lifecycle: nodekernel.LifecycleActive, AdmittedAt: now}, nil
 }
 
 func (f *fakeNodeAdmin) ListNodes(_ context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error) {

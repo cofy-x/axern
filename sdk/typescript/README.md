@@ -150,4 +150,4 @@ The SDK loads protobuf definitions through `@grpc/proto-loader`. Dynamic proto a
 
 ## Scope
 
-This SDK is Node.js-first. The higher-level Browser API, generated TypeScript proto stubs, and full control-plane administration APIs remain outside its public contract.
+This SDK is Node.js-first. Browser automation runs as caller-owned workload software through process and Computer Use operations; generated TypeScript proto stubs and full control-plane administration APIs remain outside its public contract.

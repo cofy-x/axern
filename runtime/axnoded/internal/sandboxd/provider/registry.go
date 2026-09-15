@@ -27,7 +27,6 @@ const (
 	CapabilityPorts       = wire.CapabilityPorts
 	CapabilityMounts      = wire.CapabilityMounts
 	CapabilityComputerUse = wire.CapabilityComputerUse
-	CapabilityBrowser     = wire.CapabilityBrowser
 )
 
 type Provider struct {

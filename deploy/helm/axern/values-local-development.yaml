@@ -17,6 +17,8 @@ tunneld:
     tag: dev
 
 node:
+  credential:
+    existingSecret: node-credential
   image:
     repository: axern/local-node-all-in-one
     tag: dev

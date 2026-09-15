@@ -41,7 +41,7 @@ func TestWatchAllocationAccessGrantsWakesAfterCommittedNotification(t *testing.T
 		t.Fatalf("insert lease namespace: %v", err)
 	}
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		INSERT INTO nodes (node_id, node_target, node_credential_hash, admitted_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-a', 'node-a:24010', repeat('0', 64), $1, $1, 'active')
 	`, now); err != nil {
 		t.Fatalf("insert lease node: %v", err)
@@ -181,7 +181,7 @@ func TestListRunsFiltersAndPaginatesInDatabase(t *testing.T) {
 func insertRunQueryAllocationFixtures(t *testing.T, db *postgres.DB, now time.Time, allocations map[string]string) {
 	t.Helper()
 	if _, err := db.Pool().Exec(context.Background(), `
-		INSERT INTO nodes (node_id, node_target, node_auth_token_hash, registered_at, last_heartbeat_at, lifecycle_status)
+		INSERT INTO nodes (node_id, node_target, node_credential_hash, admitted_at, last_heartbeat_at, lifecycle_status)
 		VALUES ('node-query-test', 'node-query-test:24010', repeat('0', 64), $1, $1, 'active')
 		ON CONFLICT (node_id) DO NOTHING
 	`, now); err != nil {

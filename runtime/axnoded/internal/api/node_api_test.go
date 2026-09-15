@@ -42,14 +42,6 @@ type fakeNodeSandboxService struct {
 	computerUseDisplayReqs  []*runtimev1.ComputerUseDisplayRequest
 	computerUseMouseReqs    []*runtimev1.ComputerUseMouseRequest
 	computerUseKeyboardReqs []*runtimev1.ComputerUseKeyboardRequest
-	browserStatusReqs       []*runtimev1.BrowserStatusRequest
-	browserOpenReqs         []*runtimev1.BrowserOpenRequest
-	browserCloseReqs        []*runtimev1.BrowserCloseRequest
-	browserNavigateReqs     []*runtimev1.BrowserNavigateRequest
-	browserResizeReqs       []*runtimev1.BrowserResizeRequest
-	browserClickReqs        []*runtimev1.BrowserClickRequest
-	browserTypeReqs         []*runtimev1.BrowserTypeRequest
-	browserWaitReqs         []*runtimev1.BrowserWaitRequest
 	capabilityStatusIDs     []string
 	waitRequests            []*runtimev1.WaitRequest
 	reportedAllocationID    string
@@ -85,8 +77,7 @@ func (f *fakeNodeSandboxService) Process(stream service.ProcessStreamServer) err
 	}
 	return nil
 }
-func (f *fakeNodeSandboxService) ProxyHTTP(service.HTTPProxyServer) error { return nil }
-func (f *fakeNodeSandboxService) Ready() bool                             { return true }
+func (f *fakeNodeSandboxService) Ready() bool { return true }
 func (f *fakeNodeSandboxService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
 	return nodeinventory.NewSnapshot(), false
 }
@@ -126,16 +117,16 @@ func (f *fakeNodeSandboxService) SandboxCapabilityStatus(ctx context.Context, co
 	f.capabilityStatusIDs = append(f.capabilityStatusIDs, containerID)
 	return service.SandboxCapabilityStatus{
 		Ready:        true,
-		Capabilities: []string{"health", "status", "process", "pty", "browser"},
+		Capabilities: []string{"health", "status", "process", "pty", "computer_use"},
 		Providers: []service.SandboxCapabilityProvider{{
-			Name:         "browser",
+			Name:         "computer_use",
 			State:        "degraded",
 			Available:    true,
-			Capabilities: []string{"browser"},
-			Backend:      "chromium",
+			Capabilities: []string{"computer_use"},
+			Backend:      "x11",
 			Reason:       "window manager degraded",
 			Dependencies: []service.SandboxCapabilityRequirement{{
-				Name:      "chromium",
+				Name:      "xdotool",
 				Available: true,
 			}},
 		}},
@@ -174,54 +165,6 @@ func (f *fakeNodeSandboxService) ComputerUseKeyboard(ctx context.Context, req *r
 	_ = ctx
 	f.computerUseKeyboardReqs = append(f.computerUseKeyboardReqs, req)
 	return &runtimev1.ComputerUseKeyboardResponse{}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserStatus(ctx context.Context, req *runtimev1.BrowserStatusRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserStatusReqs = append(f.browserStatusReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: false}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserOpen(ctx context.Context, req *runtimev1.BrowserOpenRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserOpenReqs = append(f.browserOpenReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: true, Pid: 99, Url: req.GetUrl()}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserClose(ctx context.Context, req *runtimev1.BrowserCloseRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserCloseReqs = append(f.browserCloseReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: false}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserNavigate(ctx context.Context, req *runtimev1.BrowserNavigateRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserNavigateReqs = append(f.browserNavigateReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: true, Pid: 99, Url: req.GetUrl()}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserResize(ctx context.Context, req *runtimev1.BrowserResizeRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserResizeReqs = append(f.browserResizeReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: true, Pid: 99}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserClick(ctx context.Context, req *runtimev1.BrowserClickRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserClickReqs = append(f.browserClickReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: true, Pid: 99}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserType(ctx context.Context, req *runtimev1.BrowserTypeRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserTypeReqs = append(f.browserTypeReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: true, Pid: 99}, nil
-}
-
-func (f *fakeNodeSandboxService) BrowserWait(ctx context.Context, req *runtimev1.BrowserWaitRequest) (*runtimev1.BrowserStatusResponse, error) {
-	_ = ctx
-	f.browserWaitReqs = append(f.browserWaitReqs, req)
-	return &runtimev1.BrowserStatusResponse{Available: true, Command: "chromium", Running: true, Pid: 99}, nil
 }
 
 func (f *fakeNodeSandboxService) StatFile(ctx context.Context, req *runtimev1.StatFileRequest) (*runtimev1.StatFileResponse, error) {
@@ -880,7 +823,7 @@ func TestNodeSandboxCapabilityStatusBridgesSafeSummary(t *testing.T) {
 	if got := fakeService.capabilityStatusIDs; len(got) != 1 || got[0] != "alloc-123" {
 		t.Fatalf("capability status ids = %v", got)
 	}
-	if got := resp.GetCapabilities(); len(got) != 5 || got[4] != "browser" {
+	if got := resp.GetCapabilities(); len(got) != 5 || got[4] != "computer_use" {
 		t.Fatalf("capabilities = %v", got)
 	}
 	if got := resp.GetProviderSummary(); got.GetTotal() != 1 || got.GetDegraded() != 1 {
@@ -891,10 +834,10 @@ func TestNodeSandboxCapabilityStatusBridgesSafeSummary(t *testing.T) {
 		t.Fatalf("providers = %#v", providers)
 	}
 	provider := providers[0]
-	if provider.GetName() != "browser" || provider.GetState() != "degraded" || !provider.GetAvailable() || provider.GetBackend() != "chromium" {
+	if provider.GetName() != "computer_use" || provider.GetState() != "degraded" || !provider.GetAvailable() || provider.GetBackend() != "x11" {
 		t.Fatalf("provider = %#v", provider)
 	}
-	if len(provider.GetDependencies()) != 1 || provider.GetDependencies()[0].GetName() != "chromium" {
+	if len(provider.GetDependencies()) != 1 || provider.GetDependencies()[0].GetName() != "xdotool" {
 		t.Fatalf("provider dependencies = %#v", provider.GetDependencies())
 	}
 }
@@ -961,99 +904,6 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	}
 	if len(fakeService.computerUseDisplayReqs) != 1 || len(fakeService.computerUseMouseReqs) != 1 || len(fakeService.computerUseKeyboardReqs) != 1 {
 		t.Fatalf("computer-use requests display=%d mouse=%d keyboard=%d", len(fakeService.computerUseDisplayReqs), len(fakeService.computerUseMouseReqs), len(fakeService.computerUseKeyboardReqs))
-	}
-}
-
-func TestNodeSandboxBrowserBridgesRequests(t *testing.T) {
-	t.Parallel()
-
-	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a")
-
-	statusResp, err := server.BrowserStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserStatusRequest{
-		AllocationID: "alloc-123",
-	})
-	if err != nil {
-		t.Fatalf("BrowserStatus() error = %v", err)
-	}
-	if !statusResp.GetAvailable() || statusResp.GetCommand() != "chromium" || statusResp.GetRunning() {
-		t.Fatalf("status response = %#v", statusResp)
-	}
-
-	openResp, err := server.BrowserOpen(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserOpenRequest{
-		AllocationID: "alloc-123",
-		Url:          "data:text/html,open",
-	})
-	if err != nil {
-		t.Fatalf("BrowserOpen() error = %v", err)
-	}
-	if !openResp.GetRunning() || openResp.GetPid() != 99 || openResp.GetUrl() != "data:text/html,open" {
-		t.Fatalf("open response = %#v", openResp)
-	}
-
-	if _, err := server.BrowserNavigate(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserNavigateRequest{
-		AllocationID: "alloc-123",
-		Url:          "data:text/html,navigate",
-	}); err != nil {
-		t.Fatalf("BrowserNavigate() error = %v", err)
-	}
-	if _, err := server.BrowserResize(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserResizeRequest{
-		AllocationID: "alloc-123",
-		Width:        1024,
-		Height:       768,
-	}); err != nil {
-		t.Fatalf("BrowserResize() error = %v", err)
-	}
-	if _, err := server.BrowserClick(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserClickRequest{
-		AllocationID: "alloc-123",
-		X:            7,
-		Y:            9,
-		Button:       "left",
-	}); err != nil {
-		t.Fatalf("BrowserClick() error = %v", err)
-	}
-	if _, err := server.BrowserType(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserTypeRequest{
-		AllocationID: "alloc-123",
-		Text:         "hello",
-		DelayMs:      5,
-	}); err != nil {
-		t.Fatalf("BrowserType() error = %v", err)
-	}
-	if _, err := server.BrowserWait(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserWaitRequest{
-		AllocationID: "alloc-123",
-		TimeoutMs:    250,
-	}); err != nil {
-		t.Fatalf("BrowserWait() error = %v", err)
-	}
-	if _, err := server.BrowserClose(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.BrowserCloseRequest{
-		AllocationID: "alloc-123",
-	}); err != nil {
-		t.Fatalf("BrowserClose() error = %v", err)
-	}
-
-	if len(fakeService.browserStatusReqs) != 1 || fakeService.browserStatusReqs[0].GetID() != "alloc-123" {
-		t.Fatalf("browser status requests = %#v", fakeService.browserStatusReqs)
-	}
-	if len(fakeService.browserCloseReqs) != 1 || fakeService.browserCloseReqs[0].GetID() != "alloc-123" {
-		t.Fatalf("browser close requests = %#v", fakeService.browserCloseReqs)
-	}
-	if len(fakeService.browserOpenReqs) != 1 || fakeService.browserOpenReqs[0].GetUrl() != "data:text/html,open" {
-		t.Fatalf("browser open requests = %#v", fakeService.browserOpenReqs)
-	}
-	if len(fakeService.browserNavigateReqs) != 1 || fakeService.browserNavigateReqs[0].GetUrl() != "data:text/html,navigate" {
-		t.Fatalf("browser navigate requests = %#v", fakeService.browserNavigateReqs)
-	}
-	if len(fakeService.browserResizeReqs) != 1 || fakeService.browserResizeReqs[0].GetWidth() != 1024 || fakeService.browserResizeReqs[0].GetHeight() != 768 {
-		t.Fatalf("browser resize requests = %#v", fakeService.browserResizeReqs)
-	}
-	if len(fakeService.browserClickReqs) != 1 || fakeService.browserClickReqs[0].GetButton() != "left" {
-		t.Fatalf("browser click requests = %#v", fakeService.browserClickReqs)
-	}
-	if len(fakeService.browserTypeReqs) != 1 || fakeService.browserTypeReqs[0].GetText() != "hello" || fakeService.browserTypeReqs[0].GetDelayMs() != 5 {
-		t.Fatalf("browser type requests = %#v", fakeService.browserTypeReqs)
-	}
-	if len(fakeService.browserWaitReqs) != 1 || fakeService.browserWaitReqs[0].GetTimeoutMs() != 250 {
-		t.Fatalf("browser wait requests = %#v", fakeService.browserWaitReqs)
 	}
 }
 

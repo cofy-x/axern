@@ -43,7 +43,6 @@ type AllocateOption struct {
 	// conformance includes trusted monitor/control overhead outside the workload
 	// hard limit and therefore reserves a larger aggregate envelope.
 	CapacityChargeBytes int64
-	RuntimeName         string
 	CgroupOwnerKind     apipb.CgroupLeaseOwnerKind
 }
 

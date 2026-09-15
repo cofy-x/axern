@@ -23,7 +23,7 @@ func main() {
 func run() error {
 	var (
 		nodeID          string
-		nodeAuthToken   string
+		nodeCredential  string
 		controlTarget   string
 		operatorSocket  string
 		insecureControl bool
@@ -37,7 +37,7 @@ func run() error {
 		relayCACert     string
 	)
 	flag.StringVar(&nodeID, "node-id", os.Getenv("AXERN_NODE_ID"), "node id")
-	flag.StringVar(&nodeAuthToken, "node-auth-token", os.Getenv("AXERN_NODE_AUTH_TOKEN"), "node auth token used with node-control tunnel APIs")
+	flag.StringVar(&nodeCredential, "node-credential", os.Getenv("AXERN_NODE_CREDENTIAL"), "node credential used with node-control tunnel APIs")
 	flag.StringVar(&controlTarget, "control-target", "127.0.0.1:24000", "controld gRPC target")
 	flag.StringVar(&operatorSocket, "operator-socket", "/run/axnoded/axnoded.sock", "local axnoded operator Unix socket")
 	flag.BoolVar(&insecureControl, "insecure-control", false, "connect to controld without TLS")
@@ -53,8 +53,8 @@ func run() error {
 	if nodeID == "" {
 		return fmt.Errorf("node-id is required")
 	}
-	if nodeAuthToken == "" {
-		return fmt.Errorf("node-auth-token is required")
+	if nodeCredential == "" {
+		return fmt.Errorf("node-credential is required")
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -69,11 +69,11 @@ func run() error {
 	}
 	defer operatorConn.Close()
 	d := &daemon{
-		nodeID:        nodeID,
-		nodeAuthToken: nodeAuthToken,
-		node:          nodev1.NewNodeControlClient(controlConn),
-		operator:      nodeoperatorv1.NewNodeOperatorClient(operatorConn),
-		running:       make(map[string]context.CancelFunc),
+		nodeID:         nodeID,
+		nodeCredential: nodeCredential,
+		node:           nodev1.NewNodeControlClient(controlConn),
+		operator:       nodeoperatorv1.NewNodeOperatorClient(operatorConn),
+		running:        make(map[string]context.CancelFunc),
 		runsc: runscConfig{
 			binary:        runscBinary,
 			root:          runscRoot,

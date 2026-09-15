@@ -10,7 +10,9 @@ Released charts are published to GHCR as OCI artifacts:
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --version 0.6.2 \
   --namespace axern-system \
-  --create-namespace
+  --create-namespace \
+  --set-string node.credential.existingSecret=axern-node-credentials \
+  --set-string node.memorySystemReserveBytes=<qualified-bytes>
 ```
 
 The default Axern images are immutable version tags from the same release. Source development uses `values-local-development.yaml` after `make local-images-build`; it does not change the public chart defaults.
@@ -42,6 +44,8 @@ Set the chart's `global.imagePullSecrets` value to the corresponding `AXERN_REGI
 When `secrets.existingSecret` is configured, it must contain `AXERN_SECRETS_MASTER_KEY` and `GATEWAYD_DEV_TOKEN`. When `postgres.existingSecret` is configured, it must contain the keys selected by `postgres.passwordKey` and `postgres.dsnKey`.
 
 Gatewayd uses its dedicated `gatewayd.crt` identity for controld calls. When `pki.existingSecret` is used, its `gatewayd.crt` must have both `serverAuth` and `clientAuth` extended key usages and the verified subject identity `gatewayd`; the chart-generated certificate already has that shape. Configure the initial administrator metadata under `auth.bootstrap`. Changing those values after initialization does not rotate identity material: use AccessAdmin credential and role-binding operations through gatewayd instead.
+
+Every runtime node must be admitted before it may publish observations. Set `node.credential.existingSecret` to a Secret containing one random credential per Axern Node ID, with each data key equal to that ID such as `node-worker-a`. Admit the same IDs and credentials through `axern admin node admit` before starting the runtime DaemonSet. The node's reachable target is learned only from its authenticated report. The chart neither derives predictable credentials nor lets a heartbeat create identity. Credential rotation requires a new Node ID; retirement is irreversible.
 
 ## Node Resources
 

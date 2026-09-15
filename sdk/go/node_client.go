@@ -36,25 +36,25 @@ func (r ExecResult) StderrString() string {
 	return string(r.Stderr)
 }
 
-// NodeSandboxClient provides lower-level operations for an existing allocation.
-type NodeSandboxClient struct {
+// AllocationClient provides lower-level operations for an existing allocation.
+type AllocationClient struct {
 	client       *Client
 	allocationID string
 }
 
-// NodeSandbox returns a low-level sandbox client for allocationID.
-func (c *Client) NodeSandbox(allocationID string) (*NodeSandboxClient, error) {
+// Allocation returns a low-level sandbox client for allocationID.
+func (c *Client) Allocation(allocationID string) (*AllocationClient, error) {
 	if c == nil {
 		return nil, requiredError("client")
 	}
 	if allocationID == "" {
 		return nil, requiredError("allocation_id")
 	}
-	return &NodeSandboxClient{client: c, allocationID: allocationID}, nil
+	return &AllocationClient{client: c, allocationID: allocationID}, nil
 }
 
 // Exec runs a command in the allocation and collects stdout/stderr.
-func (n *NodeSandboxClient) Exec(ctx context.Context, command any, options ExecOptions) (ExecResult, error) {
+func (n *AllocationClient) Exec(ctx context.Context, command any, options ExecOptions) (ExecResult, error) {
 	if err := n.validate(); err != nil {
 		return ExecResult{}, err
 	}
@@ -88,14 +88,14 @@ func (n *NodeSandboxClient) Exec(ctx context.Context, command any, options ExecO
 	return sdkResult, nil
 }
 
-func (n *NodeSandboxClient) rpcClient() *nodeclient.Client {
+func (n *AllocationClient) rpcClient() *nodeclient.Client {
 	return nodeclient.New(
 		n.allocationID,
 		n.client.nodes,
 	)
 }
 
-func (n *NodeSandboxClient) validate() error {
+func (n *AllocationClient) validate() error {
 	if n == nil || n.client == nil {
 		return requiredError("client")
 	}

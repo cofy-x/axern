@@ -36,7 +36,6 @@ flowchart LR
   API --> OPTIONAL["optional providers"]
 
   OPTIONAL --> CU["computer-use"]
-  OPTIONAL --> BROWSER["browser"]
 
   AXNODED -. "authorization, labels, leases, error mapping" .-> CLIENT
   API -. "never exposed directly" .-> SDK
@@ -104,7 +103,7 @@ Short-lived successful workloads may exit before readiness observes the daemon. 
 
 Long-running stream/session cleanup must close stdin, request graceful termination, wait for daemon process status, and escalate to kill before releasing local streams.
 
-Daemon shutdown performs the same cleanup for daemon-owned child processes: sandboxd closes open stdin pipes, sends graceful termination to active process groups, escalates to kill after the configured grace period, closes browser sessions, shuts down the HTTP server, and removes the private Unix socket.
+Daemon shutdown performs the same cleanup for daemon-owned child processes: sandboxd closes open stdin pipes, sends graceful termination to active process groups, escalates to kill after the configured grace period, shuts down the HTTP server, and removes the private Unix socket.
 
 ## API Contract
 
@@ -119,9 +118,8 @@ Endpoint constants live in `internal/sandboxd/wire/protocol.go` and are shared b
 | process/PTY        | process create/list/status, signal, stdin, stdin close, stream, wait, terminal allocation, and resize          |
 | probes/diagnostics | probe execution plus ports and mounts inspection                                                               |
 | computer_use       | status, screenshot, display geometry, mouse actions, and keyboard actions                                      |
-| browser            | status, open, close, navigate, resize, click, type, and wait                                                   |
 
-`/diagnostics` is the authoritative readiness snapshot for `axnoded`: it reports control readiness, protocol version, status, provider summary, and process summary. `/diagnostics?detail=full` adds process snapshots, ports, mounts, and optional desktop/browser status. `/readyz`, `/status`, and `/capabilities` remain narrower debug surfaces.
+`/diagnostics` is the authoritative readiness snapshot for `axnoded`: it reports control readiness, protocol version, status, provider summary, and process summary. `/diagnostics?detail=full` adds process snapshots, ports, mounts, and optional Computer Use status. `/readyz`, `/status`, and `/capabilities` remain narrower debug surfaces.
 
 Operator access to this snapshot goes through `NodeOperator.GetSandboxDiagnostics` and `axctl sandbox diagnostics`. That RPC returns a product-level summary plus optional raw diagnostics JSON; it must remain a brokered local operator API, not a public SDK or daemon socket exposure.
 
@@ -144,4 +142,4 @@ Sandboxd can run processes, read/write files, control PTYs, and optionally drive
 - Reject loose or oversized JSON before provider dispatch.
 - Keep SDKs and CLIs on Axern product APIs, never raw daemon endpoints.
 - Route product traffic through `axnoded` for exact Allocation identity, leases, node-local authorization, and error mapping.
-- Broker browser, future VNC, and future noVNC through Axern authorization policy rather than raw daemon endpoints.
+- Broker any future VNC or noVNC transport through Axern authorization policy rather than raw daemon endpoints.

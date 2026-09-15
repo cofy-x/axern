@@ -2,6 +2,8 @@ package nodev1
 
 import (
 	"context"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,6 +37,11 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 		span.SetStatus(otelcodes.Error, "node_id is required")
 		return nil, grpcstatus.Error(codes.InvalidArgument, "node_id is required")
 	}
+	nodeTarget := strings.TrimSpace(req.GetNodeTarget())
+	if err := validateNodeTarget(nodeTarget); err != nil {
+		span.SetStatus(otelcodes.Error, "invalid node_target")
+		return nil, err
+	}
 	if req.GetSummary() == nil {
 		span.SetStatus(otelcodes.Error, "summary is required")
 		return nil, grpcstatus.Error(codes.InvalidArgument, "summary is required")
@@ -51,11 +58,11 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 		return nil, grpcstatus.Error(codes.Unavailable, "node reporter is unavailable")
 	}
 	allocationIDs, err := s.deps.Reporter.Report(ctx, nodekernel.ReportParams{
-		NodeID:        nodeID,
-		NodeTarget:    req.GetNodeTarget(),
-		Summary:       req.GetSummary(),
-		NodeAuthToken: req.GetNodeAuthToken(),
-		Now:           s.deps.Now(),
+		NodeID:         nodeID,
+		NodeTarget:     nodeTarget,
+		Summary:        req.GetSummary(),
+		NodeCredential: req.GetNodeCredential(),
+		Now:            s.deps.Now(),
 	})
 	if err != nil {
 		span.RecordError(err)
@@ -74,6 +81,18 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 		})
 	}
 	return response, nil
+}
+
+func validateNodeTarget(target string) error {
+	host, portText, err := net.SplitHostPort(target)
+	if err != nil || strings.TrimSpace(host) == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "node_target must be a host:port endpoint")
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil || port < 1 || port > 65535 {
+		return grpcstatus.Error(codes.InvalidArgument, "node_target port must be between 1 and 65535")
+	}
+	return nil
 }
 
 func validateNodeMemoryBudget(summary *controlnodev1.NodeSummary, now time.Time) error {
@@ -113,7 +132,7 @@ func (s *Server) BatchReportAllocationLifecycle(ctx context.Context, req *contro
 	}
 	recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageValidateRequest, stageStarted, nil)
 	stageStarted = time.Now()
-	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeAuthToken()); err != nil {
+	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeCredential()); err != nil {
 		op.SetErrorStatus("authenticate node")
 		opErr = err
 		recordAllocationLifecycleStateReportStage(ctx, allocationLifecycleReportStageAuthenticateNode, stageStarted, err)
@@ -181,7 +200,7 @@ func (s *Server) BatchReportAllocationCapabilityConditions(ctx context.Context, 
 	if err := validateAllocationCapabilityConditionBatch(req.GetReports(), s.deps.Now()); err != nil {
 		return nil, err
 	}
-	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeAuthToken()); err != nil {
+	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeCredential()); err != nil {
 		return nil, err
 	}
 	if err := s.deps.Allocations.BatchReportAllocationCapabilityConditions(ctx, nodeID, req.GetReports(), s.deps.Now()); err != nil {
@@ -258,7 +277,7 @@ func (s *Server) WatchAllocationAccessGrants(req *controlnodev1.WatchAllocationA
 	if nodeID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "node_id is required")
 	}
-	if err := s.deps.NodeStore.Authenticate(stream.Context(), nodeID, req.GetNodeAuthToken()); err != nil {
+	if err := s.deps.NodeStore.Authenticate(stream.Context(), nodeID, req.GetNodeCredential()); err != nil {
 		return err
 	}
 	revision := req.GetAfterRevision()
@@ -298,7 +317,7 @@ func (s *Server) WatchTunnelSessions(req *controlnodev1.WatchTunnelSessionsReque
 	if s.deps.Tunnels == nil {
 		return grpcstatus.Error(codes.FailedPrecondition, "tunnel control is not configured")
 	}
-	if err := s.deps.NodeStore.Authenticate(stream.Context(), nodeID, req.GetNodeAuthToken()); err != nil {
+	if err := s.deps.NodeStore.Authenticate(stream.Context(), nodeID, req.GetNodeCredential()); err != nil {
 		return err
 	}
 	revision := req.GetAfterRevision()
@@ -328,7 +347,7 @@ func (s *Server) ReportTunnelSessionStatus(ctx context.Context, req *controlnode
 	if s.deps.Tunnels == nil {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel control is not configured")
 	}
-	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeAuthToken()); err != nil {
+	if err := s.deps.NodeStore.Authenticate(ctx, nodeID, req.GetNodeCredential()); err != nil {
 		return nil, err
 	}
 	if _, err := s.deps.Tunnels.ReportStatus(ctx, nodeID, req.GetSessionID(), req.GetStatus(), req.GetReason(), req.GetBoundAddr(), s.deps.Now()); err != nil {

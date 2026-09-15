@@ -15,21 +15,12 @@ import (
 
 func NewFakeSandboxRuntime() *FakeSandboxRuntime {
 	return &FakeSandboxRuntime{
-		RuntimeName:  config.RuntimeNameRunsc,
 		Requirements: contract.HostRequirements{},
 	}
 }
 
 type FakeSandboxRuntime struct {
-	RuntimeName  string
 	Requirements contract.HostRequirements
-}
-
-func (f *FakeSandboxRuntime) Name() string {
-	if f.RuntimeName == "" {
-		return config.RuntimeNameRunsc
-	}
-	return f.RuntimeName
 }
 
 func (f *FakeSandboxRuntime) HostRequirements() contract.HostRequirements {

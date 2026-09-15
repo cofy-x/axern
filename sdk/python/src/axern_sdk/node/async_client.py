@@ -11,17 +11,16 @@ from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern_sdk._internal.errors import sandbox_rpc_error
 from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.errors import SandboxConnectionError
-from axern_sdk.node.async_browser_client import AsyncNodeSandboxBrowserMixin
-from axern_sdk.node.async_capability_client import AsyncNodeSandboxCapabilityMixin
+from axern_sdk.node.async_capability_client import AsyncAllocationCapabilityMixin
 from axern_sdk.node.commands import exec_argv
-from axern_sdk.node.async_file_client import AsyncNodeSandboxFileMixin
+from axern_sdk.node.async_file_client import AsyncAllocationFileMixin
 from axern_sdk.node.async_process import AsyncSandboxProcess
-from axern_sdk.node.async_computer_use_client import AsyncNodeSandboxComputerUseMixin
+from axern_sdk.node.async_computer_use_client import AsyncAllocationComputerUseMixin
 from axern_sdk.node.models import ExecCommand, ExecResult, ExecStreamEvent
 from axern_sdk.node.protocol import exec_spec, text_exec_result
 
 
-class AsyncNodeSandboxClient(AsyncNodeSandboxCapabilityMixin, AsyncNodeSandboxBrowserMixin, AsyncNodeSandboxComputerUseMixin, AsyncNodeSandboxFileMixin):
+class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationComputerUseMixin, AsyncAllocationFileMixin):
     """Async command execution client for one sandbox allocation."""
 
     def __init__(

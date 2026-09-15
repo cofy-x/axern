@@ -44,7 +44,6 @@ func BaselineCapabilities() []string {
 
 func OptionalCapabilities() []string {
 	return []string{
-		CapabilityBrowser,
 		CapabilityComputerUse,
 	}
 }

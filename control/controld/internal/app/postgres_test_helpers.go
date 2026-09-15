@@ -9,8 +9,11 @@ import (
 	consistencykernel "github.com/cofy-x/axern/control/controld/internal/kernel/consistency"
 	pgconsistency "github.com/cofy-x/axern/control/controld/internal/postgres/consistency"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
+	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func newPostgresTestService(t *testing.T) (*App, *controldtest.FakeNodeLifecycleClient) {
@@ -49,16 +52,29 @@ func registerReadyNode(t *testing.T, app *App, nodeID string, now time.Time) {
 
 func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Time, sequence int64) {
 	t.Helper()
+	ensureTestNodeAdmitted(t, app, nodeID)
 	node := app.NodeV1Handler()
 	summary := controldtest.ReadySummary(now)
 	summary.Sequence = sequence
 	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
-		NodeID:        nodeID,
-		NodeTarget:    "127.0.0.1:25000",
-		NodeAuthToken: "test-node-token",
-		Summary:       summary,
+		NodeID:         nodeID,
+		NodeTarget:     "127.0.0.1:25000",
+		NodeCredential: testNodeCredential,
+		Summary:        summary,
 	}); err != nil {
 		t.Fatalf("ReportNode() error = %v", err)
+	}
+}
+
+const testNodeCredential = "test-node-credential-at-least-32-bytes"
+
+func ensureTestNodeAdmitted(t *testing.T, app *App, nodeID string) {
+	t.Helper()
+	_, err := app.AdminV1Handler().AdmitAdminNode(context.Background(), &adminv1.AdmitAdminNodeRequest{
+		NodeID: nodeID, NodeCredential: testNodeCredential, OperatorReason: "test fixture",
+	})
+	if err != nil && grpcstatus.Code(err) != codes.AlreadyExists {
+		t.Fatalf("AdmitAdminNode() error = %v", err)
 	}
 }
 

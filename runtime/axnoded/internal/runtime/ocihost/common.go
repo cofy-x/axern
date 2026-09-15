@@ -13,6 +13,7 @@ import (
 )
 
 const runtimeExitStateStoreDirName = "runtime-exit-states"
+const runtimeName = "runsc"
 
 type Common struct {
 	binary        string
@@ -25,17 +26,16 @@ type Common struct {
 
 type Config struct {
 	Root          string
-	RuntimeName   string
 	RuntimeBinary string
 	Loader        runtimeoci.Loader
 }
 
 func New(cfg Config) (*Common, error) {
-	runtimeRoot, containerRoot, err := ocicli.EnsureRuntimeDirs(cfg.Root, cfg.RuntimeName)
+	runtimeRoot, containerRoot, err := ocicli.EnsureRuntimeDirs(cfg.Root, runtimeName)
 	if err != nil {
 		return nil, err
 	}
-	exitStateRoot := filepath.Join(cfg.Root, runtimeExitStateStoreDirName, cfg.RuntimeName)
+	exitStateRoot := filepath.Join(cfg.Root, runtimeExitStateStoreDirName, runtimeName)
 	if err := os.MkdirAll(exitStateRoot, 0755); err != nil {
 		return nil, err
 	}

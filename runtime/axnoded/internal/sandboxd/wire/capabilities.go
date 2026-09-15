@@ -13,5 +13,4 @@ const (
 	CapabilityPorts       = "ports"
 	CapabilityMounts      = "mounts"
 	CapabilityComputerUse = "computer_use"
-	CapabilityBrowser     = "browser"
 )

@@ -15,22 +15,22 @@ func TestSnapshotFromDiagnosticsExplainsUnavailableProvider(t *testing.T) {
 		Capabilities: []string{"file", "process"},
 		Providers: []wire.CapabilityProvider{
 			{
-				Name:         "browser",
+				Name:         "computer_use",
 				State:        "unavailable",
 				Available:    false,
-				Reason:       "browser_command unavailable",
-				Capabilities: []string{"browser"},
-				Dependencies: []wire.ProviderDependency{{Name: "browser_command", Available: false, Reason: "not found"}},
+				Reason:       "display_server unavailable",
+				Capabilities: []string{"computer_use"},
+				Dependencies: []wire.ProviderDependency{{Name: "display_server", Available: false, Reason: "not found"}},
 			},
 		},
 	})
 
-	err := snapshot.RequireCapability("browser")
+	err := snapshot.RequireCapability("computer_use")
 	if !errord.IsFailedPrecondition(err) {
-		t.Fatalf("RequireCapability(browser) error = %v, want failed precondition", err)
+		t.Fatalf("RequireCapability(computer_use) error = %v, want failed precondition", err)
 	}
-	if !strings.Contains(err.Error(), "browser_command unavailable") || !strings.Contains(err.Error(), "not found") {
-		t.Fatalf("RequireCapability(browser) error = %v, want provider reason and dependency detail", err)
+	if !strings.Contains(err.Error(), "display_server unavailable") || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("RequireCapability(computer_use) error = %v, want provider reason and dependency detail", err)
 	}
 }
 

@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { loadAxernContext, loadAxernEnv, normalizeProxyMode } from "../config/index.js";
 import { mapRpcError } from "../errors/index.js";
 import { serviceConstructor, unary } from "../generated/proto.js";
-import { NodeSandboxClient } from "../node/client.js";
+import { AllocationClient } from "../node/client.js";
 import { buildResourceSpec } from "../resources.js";
 import type { ResourceQuantity } from "../resources.js";
 import type { NetworkPolicy } from "../network-policy.js";
@@ -289,8 +289,8 @@ export class AxernClient {
     }
   }
 
-  nodeSandbox(allocationId: string): NodeSandboxClient {
-    return new NodeSandboxClient({
+  allocation(allocationId: string): AllocationClient {
+    return new AllocationClient({
       allocationId: required("allocationId", allocationId),
       target: this.endpoint,
       credentials: this.credentials,

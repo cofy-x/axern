@@ -47,13 +47,12 @@ const (
 	runtimeConformanceKindEphemeral runtimeConformanceKind = "ephemeral-storage"
 )
 
-type runtimeConformanceProbe func(context.Context, string, runtimeConformanceKind) error
+type runtimeConformanceProbe func(context.Context, runtimeConformanceKind) error
 
 type runtimeConformanceProvider struct {
 	mu               sync.Mutex
 	cfg              config.Config
 	handler          contract.SandboxRuntime
-	runtime          string
 	kind             runtimeConformanceKind
 	provider         capabilityv1.CapabilityProvider
 	expected         *capabilityv1.CapabilityKey
@@ -102,7 +101,7 @@ func (c *runtimeFileDigestCache) Digest(path string) (string, error) {
 	return digest, nil
 }
 
-func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.SandboxRuntime, runtimeName string, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
+func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.SandboxRuntime, kind runtimeConformanceKind, bootID string, probe runtimeConformanceProbe, caches ...*runtimeFileDigestCache) *runtimeConformanceProvider {
 	// The call sites use the closed runtime/kind matrix below. Keep each
 	// provider single-keyed: provider ownership and recovery are tracked per
 	// observation, so combining enforcement boundaries would couple their
@@ -117,7 +116,7 @@ func runtimeConformanceCapabilityProvider(cfg config.Config, handler contract.Sa
 		cache = caches[0]
 	}
 	return &runtimeConformanceProvider{
-		cfg: cfg, handler: handler, runtime: runtimeName, kind: kind, provider: provider, bootID: bootID, probe: probe,
+		cfg: cfg, handler: handler, kind: kind, provider: provider, bootID: bootID, probe: probe,
 		expected: capabilitycontract.PlatformKey(fact), digestCache: cache,
 	}
 }
@@ -173,7 +172,7 @@ func (p *runtimeConformanceProvider) Observe(ctx context.Context, now time.Time)
 		p.nextProbe = time.Time{}
 	} else if err == nil && (identityChanged || probeDue) {
 		probeCtx, cancel := context.WithTimeout(ctx, runtimeConformanceTimeout)
-		err = p.probe(probeCtx, p.runtime, p.kind)
+		err = p.probe(probeCtx, p.kind)
 		cancel()
 		p.identity = identity
 		p.lastProbe = runtimeSampleCompletedAt(now, sampleStarted)
@@ -238,12 +237,9 @@ func setObservationTime(observations []*capabilityv1.CapabilityObservation, obse
 }
 
 func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, configDigest string, err error) {
-	if p.runtime != config.RuntimeNameRunsc {
-		return "", "", "", fmt.Errorf("prepared environment %q is not configured", p.runtime)
-	}
 	runtimeCfg := p.cfg.PluginConfig.RuntimeConfig.Runsc
 	if p.handler == nil {
-		return "", "", "", fmt.Errorf("prepared environment %q handler is not loaded", p.runtime)
+		return "", "", "", errors.New("runsc handler is not loaded")
 	}
 	runtimeBinary, err := exec.LookPath(strings.TrimSpace(runtimeCfg.Binary))
 	if err != nil {
@@ -280,7 +276,7 @@ func digestFile(path string) (string, error) {
 	return "sha256:" + hex.EncodeToString(digest[:]), nil
 }
 
-func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runtimeName string, kind runtimeConformanceKind) (retErr error) {
+func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, kind runtimeConformanceKind) (retErr error) {
 	rootfs, err := materializeRuntimeConformanceRootfs(
 		h.config.PluginConfig.RuntimeConfig.FilestoreDir,
 		runtimeConformanceFixture,
@@ -288,13 +284,13 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	if err != nil {
 		return err
 	}
-	environmentID := "capability-selftest-" + runtimeName + "-" + string(kind)
+	environmentID := "capability-selftest-runsc-" + string(kind)
 	// Providers are serialized per runtime/kind. A deterministic allocation ID
 	// makes interrupted probes reconcilable and prevents retries from creating
 	// an unbounded series of orphan bundles.
 	allocationID := environmentID + "-allocation"
 	preflightCtx, preflightCancel := context.WithTimeout(ctx, runtimeConformanceCleanup)
-	if err := h.cleanupRuntimeConformanceAllocation(preflightCtx, runtimeName, allocationID); err != nil {
+	if err := h.cleanupRuntimeConformanceAllocation(preflightCtx, allocationID); err != nil {
 		preflightCancel()
 		return fmt.Errorf("cleanup previous runtime conformance sandbox: %w", err)
 	}
@@ -318,7 +314,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 		// cleanup window inside the provider's 60-second conformance budget.
 		deleteCtx, cancel := context.WithTimeout(context.Background(), runtimeConformanceCleanup)
 		defer cancel()
-		if err := h.cleanupRuntimeConformanceAllocation(deleteCtx, runtimeName, allocationID); err != nil {
+		if err := h.cleanupRuntimeConformanceAllocation(deleteCtx, allocationID); err != nil {
 			if retErr == nil {
 				retErr = fmt.Errorf("cleanup self-test allocation: %w", err)
 			} else {
@@ -347,7 +343,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, runt
 	} else if kind == runtimeConformanceKindMemory {
 		return h.verifyRuntimeConformanceMemoryOOM(operationCtx, allocationID)
 	}
-	platform, err := runtimeConformancePlatform(runtimeName, kind)
+	platform, err := runtimeConformancePlatform(kind)
 	if err != nil {
 		return err
 	}
@@ -375,7 +371,7 @@ func runtimeConformanceOperationContext(parent context.Context) (context.Context
 	return ctx, cancel, nil
 }
 
-func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, runtimeName, allocationID string) error {
+func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, allocationID string) error {
 	_, err := h.allocationController().Delete(ctx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 0})
 	if err == nil {
 		return h.verifyRuntimeConformanceCleanup(ctx, allocationID)
@@ -391,7 +387,7 @@ func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context
 	// and finally allocation state.
 	handler := h.runscHandler
 	if handler == nil {
-		return fmt.Errorf("runtime handler %s is unavailable", runtimeName)
+		return errors.New("runsc handler is unavailable")
 	}
 	resource, resourceErr := h.containerManager.CollectResourceByID(allocationID)
 	if resourceErr != nil && !errors.Is(resourceErr, os.ErrNotExist) {
@@ -498,14 +494,14 @@ func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, 
 	return request, nil
 }
 
-func runtimeConformancePlatform(runtimeName string, kind runtimeConformanceKind) (capabilityv1.PlatformCapability, error) {
-	switch {
-	case runtimeName == config.RuntimeNameRunsc && kind == runtimeConformanceKindMemory:
+func runtimeConformancePlatform(kind runtimeConformanceKind) (capabilityv1.PlatformCapability, error) {
+	switch kind {
+	case runtimeConformanceKindMemory:
 		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT, nil
-	case runtimeName == config.RuntimeNameRunsc && kind == runtimeConformanceKindEphemeral:
+	case runtimeConformanceKindEphemeral:
 		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, nil
 	default:
-		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_UNSPECIFIED, fmt.Errorf("unsupported runtime conformance runtime=%q kind=%q", runtimeName, kind)
+		return capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_UNSPECIFIED, fmt.Errorf("unsupported runsc conformance kind %q", kind)
 	}
 }
 

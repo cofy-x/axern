@@ -15,7 +15,6 @@ import (
 
 const (
 	CapabilityComputerUse = wire.CapabilityComputerUse
-	CapabilityBrowser     = wire.CapabilityBrowser
 	CapabilityProbe       = wire.CapabilityProbe
 )
 

@@ -115,7 +115,6 @@ func (h *Controller) cleanupPersistedFailedStart(ctx context.Context, containerI
 }
 
 func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource, persistedRecovery bool) error {
-	h.sandboxNetworking().CloseHTTPProxyTransports(containerID)
 	var resource container.OccupiedResource
 	resourceKnown := false
 	if _, err := h.containers().Get(containerID); err == nil {

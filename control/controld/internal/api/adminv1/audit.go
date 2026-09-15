@@ -60,6 +60,8 @@ func auditOperationFromProto(operation adminv1.AdminAuditOperation) string {
 		return adminkernel.AuditOperationClearAllocationLifecycleRetry
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE:
 		return adminkernel.AuditOperationRetireNode
+	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADMIT_NODE:
+		return adminkernel.AuditOperationAdmitNode
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL:
 		return adminkernel.AuditOperationCreatePrincipal
 	case adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_DISABLE_PRINCIPAL:
@@ -89,6 +91,8 @@ func auditOperationToProto(operation string) adminv1.AdminAuditOperation {
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CLEAR_ALLOCATION_LIFECYCLE_RETRY
 	case adminkernel.AuditOperationRetireNode:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_RETIRE_NODE
+	case adminkernel.AuditOperationAdmitNode:
+		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_ADMIT_NODE
 	case adminkernel.AuditOperationCreatePrincipal:
 		return adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_CREATE_PRINCIPAL
 	case adminkernel.AuditOperationDisablePrincipal:

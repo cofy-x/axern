@@ -24,7 +24,7 @@ func TestNodesHandlerReturnsJSONDebugShape(t *testing.T) {
 				FreshnessState:   "fresh",
 				HeartbeatAgeSecs: 1,
 				SummaryAgeSecs:   2,
-				RegisteredAt:     time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC),
+				AdmittedAt:       time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC),
 			}}
 		},
 		ResourcePolicy: func() ResourcePolicySnapshot {

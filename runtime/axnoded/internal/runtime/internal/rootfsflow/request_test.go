@@ -47,13 +47,12 @@ func TestPrepareBundleAppliesProjectionAndPreservesReadonly(t *testing.T) {
 	}))
 	provider := &providerStub{view: rootfsview.View{RootDir: projectedPath, Prepared: true}}
 
-	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{RuntimeName: "runsc", ImmutableMount: testImmutableMount(rootfsPath)})
+	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, testImmutableMount(rootfsPath))
 
 	require.NoError(t, err)
 	assert.True(t, prepared)
 	assert.Equal(t, rootfsPath, provider.request.RootDir)
 	assert.True(t, provider.request.Readonly)
-	assert.Equal(t, "runsc", provider.request.RuntimeName)
 	require.Len(t, provider.request.Targets, 1)
 	assert.Equal(t, rootfsview.TargetRegularFile, provider.request.Targets[0].Kind)
 	written, err := runtimeoci.LoadSpec(filepath.Join(bundlePath, config.ContainerSpecFile))
@@ -70,7 +69,7 @@ func TestPrepareBundleLeavesSpecWhenProjectionIsNotNeeded(t *testing.T) {
 	}))
 	provider := &providerStub{}
 
-	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{ImmutableMount: testImmutableMount(rootfsPath)})
+	prepared, err := PrepareBundle(context.Background(), provider, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, testImmutableMount(rootfsPath))
 
 	require.NoError(t, err)
 	assert.False(t, prepared)
@@ -90,7 +89,7 @@ func TestPrepareBundleRejectsSpecialBindSource(t *testing.T) {
 		Mounts: []spec.Mount{{Type: "bind", Source: pipe, Destination: "/pipe"}},
 	}))
 
-	_, err := PrepareBundle(context.Background(), &providerStub{}, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, RuntimePolicy{ImmutableMount: testImmutableMount(rootfsPath)})
+	_, err := PrepareBundle(context.Background(), &providerStub{}, contract.HandlerOptions{ContainerID: "alloc-1"}, bundlePath, testImmutableMount(rootfsPath))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "neither a regular file nor a directory")

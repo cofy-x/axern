@@ -243,86 +243,6 @@ func (s *Server) ComputerUseKeyboard(ctx context.Context, req *nodesandboxv1.Com
 	return response, err
 }
 
-func (s *Server) BrowserStatus(ctx context.Context, req *nodesandboxv1.BrowserStatusRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserStatus(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserOpen(ctx context.Context, req *nodesandboxv1.BrowserOpenRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserOpen(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserClose(ctx context.Context, req *nodesandboxv1.BrowserCloseRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserClose(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserNavigate(ctx context.Context, req *nodesandboxv1.BrowserNavigateRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserNavigate(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserResize(ctx context.Context, req *nodesandboxv1.BrowserResizeRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserResize(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserClick(ctx context.Context, req *nodesandboxv1.BrowserClickRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserClick(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserType(ctx context.Context, req *nodesandboxv1.BrowserTypeRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserType(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
-func (s *Server) BrowserWait(ctx context.Context, req *nodesandboxv1.BrowserWaitRequest) (*nodesandboxv1.BrowserStatusResponse, error) {
-	var response *nodesandboxv1.BrowserStatusResponse
-	err := s.unary(ctx, req, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
-		var err error
-		response, err = client.BrowserWait(backendCtx, req)
-		return err
-	})
-	return response, err
-}
-
 func (s *Server) ExecStream(stream nodesandboxv1.NodeSandbox_ExecStreamServer) error {
 	first, err := stream.Recv()
 	if err != nil {
@@ -388,35 +308,6 @@ func (s *Server) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {
 			return err
 		}
 		return bridgeProcess(stream, up)
-	})
-}
-
-func (s *Server) ProxyHTTP(stream nodesandboxv1.NodeSandbox_ProxyHTTPServer) error {
-	first, err := stream.Recv()
-	if err != nil {
-		return streamOpenError(err, "proxy http")
-	}
-	open := first.GetOpen()
-	if open == nil {
-		return grpcstatus.Error(codes.InvalidArgument, "proxy http stream must start with open")
-	}
-	return bidi(s, stream.Context(), open, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (proxyHTTPClient, error) {
-		return client.ProxyHTTP(backendCtx)
-	}, func(up proxyHTTPClient) error {
-		if err := up.Send(first); err != nil {
-			return markAccessGrantOpenRejection(err)
-		}
-		header, err := acceptedAllocationAccessGrantHeader(up, "proxy http", func() error {
-			_, err := up.Recv()
-			return err
-		})
-		if err != nil {
-			return err
-		}
-		if err := stream.SendHeader(header); err != nil {
-			return err
-		}
-		return bridgeProxyHTTP(stream, up)
 	})
 }
 

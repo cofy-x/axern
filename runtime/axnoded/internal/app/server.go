@@ -57,7 +57,7 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	var accessGrantValidator api.DirectAccessGrantValidator
 	accessGrantWatcher := controlplane.NewAccessGrantWatcher(
 		controlplane.WithAccessGrantWatcherTarget(controlPlaneConfig.ControlPlaneTarget),
-		controlplane.WithAccessGrantWatcherNode(nodeID, controlPlaneConfig.ControlPlaneNodeAuthTokenValue()),
+		controlplane.WithAccessGrantWatcherNode(nodeID, controlPlaneConfig.ControlPlaneNodeCredentialValue()),
 		controlplane.WithAccessGrantWatcherTLS(
 			controlPlaneConfig.ControlPlaneTLSCACert,
 			controlPlaneConfig.ControlPlaneTLSCert,

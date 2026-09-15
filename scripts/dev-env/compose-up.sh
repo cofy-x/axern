@@ -15,6 +15,7 @@ ensure_local_images
 generate_compose_certs
 ensure_compose_ssh_keys
 ensure_secrets_master_key compose
+ensure_node_credential compose
 write_compose_env
 write_cli_env compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
 if [ "${AXERN_COMPOSE_RESET_STATE:-0}" = "1" ] || [ "${AXERN_COMPOSE_RESET_STATE:-0}" = "true" ]; then

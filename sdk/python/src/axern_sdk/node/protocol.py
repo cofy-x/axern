@@ -6,7 +6,7 @@ from collections.abc import Iterator
 
 from axern.common.file.v1 import file_pb2
 from axern.node.sandbox.v1 import node_pb2
-from axern_sdk.node.models import BrowserStatus, ExecResult, SandboxFileInfo, SandboxFileKind
+from axern_sdk.node.models import ExecResult, SandboxFileInfo, SandboxFileKind
 
 
 def exec_spec(
@@ -68,17 +68,6 @@ def file_kind(kind: int) -> SandboxFileKind:
     if kind == file_pb2.SANDBOX_FILE_KIND_OTHER:
         return SandboxFileKind.OTHER
     return SandboxFileKind.UNSPECIFIED
-
-
-def browser_status(response: node_pb2.BrowserStatusResponse) -> BrowserStatus:
-    return BrowserStatus(
-        available=bool(response.available),
-        command=response.command,
-        running=bool(response.running),
-        pid=response.pid,
-        url=response.url,
-        reason=response.reason,
-    )
 
 
 def text_exec_result(result: ExecResult, *, encoding: str, errors: str) -> ExecResult:

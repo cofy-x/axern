@@ -117,16 +117,16 @@ func (c *AccessGrantCache) WaitValidate(ctx context.Context, allocationID string
 }
 
 type AccessGrantWatcher struct {
-	target        string
-	nodeID        string
-	nodeAuthToken string
-	cache         *AccessGrantCache
-	control       NodeControlClientProvider
-	tlsCACert     string
-	tlsCert       string
-	tlsKey        string
-	ctx           context.Context
-	cancel        context.CancelFunc
+	target         string
+	nodeID         string
+	nodeCredential string
+	cache          *AccessGrantCache
+	control        NodeControlClientProvider
+	tlsCACert      string
+	tlsCert        string
+	tlsKey         string
+	ctx            context.Context
+	cancel         context.CancelFunc
 
 	stopCh    chan struct{}
 	stopOnce  sync.Once
@@ -142,10 +142,10 @@ func WithAccessGrantWatcherTarget(target string) AccessGrantWatcherOption {
 	}
 }
 
-func WithAccessGrantWatcherNode(nodeID, nodeAuthToken string) AccessGrantWatcherOption {
+func WithAccessGrantWatcherNode(nodeID, nodeCredential string) AccessGrantWatcherOption {
 	return func(w *AccessGrantWatcher) {
 		w.nodeID = strings.TrimSpace(nodeID)
-		w.nodeAuthToken = strings.TrimSpace(nodeAuthToken)
+		w.nodeCredential = strings.TrimSpace(nodeCredential)
 	}
 }
 
@@ -175,7 +175,7 @@ func NewAccessGrantWatcher(options ...AccessGrantWatcherOption) *AccessGrantWatc
 			option(w)
 		}
 	}
-	if w.target == "" || w.nodeID == "" || w.nodeAuthToken == "" || w.cache == nil {
+	if w.target == "" || w.nodeID == "" || w.nodeCredential == "" || w.cache == nil {
 		cancel()
 		return nil
 	}
@@ -242,9 +242,9 @@ func (w *AccessGrantWatcher) watchOnce(afterRevision int64) (int64, error) {
 		return afterRevision, err
 	}
 	stream, err := client.WatchAllocationAccessGrants(w.ctx, &nodev1.WatchAllocationAccessGrantsRequest{
-		NodeID:        w.nodeID,
-		AfterRevision: afterRevision,
-		NodeAuthToken: w.nodeAuthToken,
+		NodeID:         w.nodeID,
+		AfterRevision:  afterRevision,
+		NodeCredential: w.nodeCredential,
 	})
 	if err != nil {
 		return afterRevision, err

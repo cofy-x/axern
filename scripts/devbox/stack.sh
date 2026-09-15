@@ -20,7 +20,14 @@ POSTGRES_DSN="${POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@$
 AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
-AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN="${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN:-axern-local-node-token}"
+if [ -z "${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL:-}" ]; then
+  mkdir -p "${DEV_DIR}"
+  if [ ! -s "${DEV_DIR}/node-credential" ]; then
+    openssl rand -hex 32 > "${DEV_DIR}/node-credential"
+    chmod 600 "${DEV_DIR}/node-credential"
+  fi
+  AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL="$(cat "${DEV_DIR}/node-credential")"
+fi
 AXERN_DEV_TOKEN="${AXERN_DEV_TOKEN:-axern-local-dev}"
 AXERN_SECRETS_MASTER_KEY="${AXERN_SECRETS_MASTER_KEY:-local-only-master-key-32-bytes!!}"
 
@@ -313,7 +320,7 @@ prepare_workspace_config() {
   AXERN_DEV_CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET}" \
   AXERN_DEV_CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
   AXERN_DEV_CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET}" \
-  AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN="${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN}" \
+  AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL="${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL}" \
   bash "${ROOT_DIR}/scripts/devbox/node-dev-prepare.sh"
 }
 
@@ -344,7 +351,9 @@ run_access_bootstrap() {
     -principal-name local-admin \
     -display-name "Local Administrator" \
     -credential-label local-client \
-    -certificate "${DEV_DIR}/certs/client.crt"
+    -certificate "${DEV_DIR}/certs/client.crt" \
+    -node-id "${AXERN_DEV_CONTROL_PLANE_NODE_ID}" \
+    -node-credential-file "${DEV_DIR}/node-credential"
 }
 
 start_controld() {
@@ -420,7 +429,7 @@ start_axnoded() {
 start_node_tunneld() {
   start_service node-tunneld "exec go -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
     -node-id '${AXERN_DEV_CONTROL_PLANE_NODE_ID}' \
-    -node-auth-token '${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN}' \
+    -node-credential '${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL}' \
     -control-target 127.0.0.1:24000 \
     -operator-socket '${RUN_DIR}/axnoded.sock' \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \

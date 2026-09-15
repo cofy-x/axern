@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"io"
-	"net/http"
 	"time"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -16,7 +15,6 @@ type SandboxService interface {
 	// Sandbox-local data-plane operations.
 	SandboxFileService
 	SandboxComputerUseService
-	SandboxBrowserService
 	SandboxCapabilityService
 
 	// Sandbox lifecycle and process execution.
@@ -25,7 +23,6 @@ type SandboxService interface {
 	Exec(context.Context, *runtime.ExecRequest) (*runtime.ExecResponse, error)
 	ExecStream(ExecStreamServer) error
 	Process(ProcessStreamServer) error
-	ProxyHTTP(HTTPProxyServer) error
 	Wait(context.Context, *runtime.WaitRequest) (*runtime.WaitResponse, error)
 
 	// Sandbox inspection and control.
@@ -74,17 +71,6 @@ type SandboxComputerUseService interface {
 	ComputerUseDisplay(context.Context, *runtime.ComputerUseDisplayRequest) (*runtime.ComputerUseDisplayResponse, error)
 	ComputerUseMouse(context.Context, *runtime.ComputerUseMouseRequest) (*runtime.ComputerUseMouseResponse, error)
 	ComputerUseKeyboard(context.Context, *runtime.ComputerUseKeyboardRequest) (*runtime.ComputerUseKeyboardResponse, error)
-}
-
-type SandboxBrowserService interface {
-	BrowserStatus(context.Context, *runtime.BrowserStatusRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserOpen(context.Context, *runtime.BrowserOpenRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserClose(context.Context, *runtime.BrowserCloseRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserNavigate(context.Context, *runtime.BrowserNavigateRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserResize(context.Context, *runtime.BrowserResizeRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserClick(context.Context, *runtime.BrowserClickRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserType(context.Context, *runtime.BrowserTypeRequest) (*runtime.BrowserStatusResponse, error)
-	BrowserWait(context.Context, *runtime.BrowserWaitRequest) (*runtime.BrowserStatusResponse, error)
 }
 
 type SandboxCapabilityService interface {
@@ -160,21 +146,5 @@ type ExecStreamServer interface {
 type ProcessStreamServer interface {
 	Recv() (*runtime.ProcessRequest, error)
 	Send(*runtime.ProcessResponse) error
-	Context() context.Context
-}
-
-type HTTPProxyServer interface {
-	TargetID() string
-	Port() int32
-	Method() string
-	Path() string
-	Query() string
-	Header() http.Header
-	HasBody() bool
-	ContentLength() int64
-	RecvBody() ([]byte, error)
-	SendHead(statusCode int, header http.Header) error
-	SendBody([]byte) error
-	SendTrailers(http.Header) error
 	Context() context.Context
 }

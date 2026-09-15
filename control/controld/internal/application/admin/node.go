@@ -11,12 +11,27 @@ import (
 )
 
 type NodeLifecycleStore interface {
+	AdmitNode(ctx context.Context, req adminkernel.AdmitNodeRequest) (*nodekernel.Record, error)
 	ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error)
 	RetireNode(ctx context.Context, req adminkernel.RetireNodeRequest) (*nodekernel.Record, error)
 }
 
 type NodeRegistryUpdater interface {
 	MarkRetired(nodeID string, retiredAt time.Time, reason string)
+}
+
+func (c NodeControl) AdmitNode(ctx context.Context, nodeID, nodeCredential, operatorReason string, now time.Time) (*nodekernel.Record, error) {
+	req := adminkernel.NormalizeAdmitNodeRequest(adminkernel.AdmitNodeRequest{
+		NodeID: nodeID, NodeCredential: nodeCredential,
+		OperatorReason: operatorReason, Now: now,
+	})
+	if err := adminkernel.ValidateAdmitNodeRequest(req); err != nil {
+		return nil, err
+	}
+	if c.store == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "node admin is unavailable")
+	}
+	return c.store.AdmitNode(ctx, req)
 }
 
 type NodeControl struct {

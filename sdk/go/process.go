@@ -86,7 +86,7 @@ func (s *Sandbox) Process(ctx context.Context, command any, options ProcessOptio
 }
 
 // Process starts an attached process in the allocation.
-func (n *NodeSandboxClient) Process(ctx context.Context, command any, options ProcessOptions) (*SandboxProcess, error) {
+func (n *AllocationClient) Process(ctx context.Context, command any, options ProcessOptions) (*SandboxProcess, error) {
 	if err := n.validate(); err != nil {
 		return nil, err
 	}

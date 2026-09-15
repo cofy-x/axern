@@ -69,6 +69,8 @@ setup_e2e_environment() {
   export AXERN_TLS_CA_CERT="${cert_dir}/ca.crt"
   export AXERN_TLS_CERT="${cert_dir}/client.crt"
   export AXERN_TLS_KEY="${cert_dir}/client.key"
+	printf '%s\n' "${CONTROL_PLANE_NODE_CREDENTIAL}" > "${cert_dir}/node-credential"
+	chmod 600 "${cert_dir}/node-credential"
 
   "${AXERN_ROOT}/bin/controld-migrate" \
     -postgres-dsn "${CONTROLD_POSTGRES_DSN}" \
@@ -78,7 +80,9 @@ setup_e2e_environment() {
     -principal-name cli-e2e-admin \
     -display-name "CLI E2E Administrator" \
     -credential-label cli-e2e-client \
-    -certificate "${cert_dir}/client.crt"
+    -certificate "${cert_dir}/client.crt" \
+    -node-id "${CONTROL_PLANE_NODE_ID}" \
+    -node-credential-file "${cert_dir}/node-credential"
 
   AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
     "${AXERN_ROOT}/bin/controld" \
@@ -167,7 +171,7 @@ setup_e2e_environment() {
     -e "AXNODED_CGROUP_CACHE_SIZE=16" \
     -e "AXNODED_CONTROL_PLANE_TARGET=host.docker.internal:${CONTROLD_GRPC_ADDRESS##*:}" \
     -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
-    -e "AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN=${CONTROL_PLANE_NODE_AUTH_TOKEN}" \
+    -e "AXNODED_CONTROL_PLANE_NODE_CREDENTIAL=${CONTROL_PLANE_NODE_CREDENTIAL}" \
     -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_GRPC_ADDRESS}" \
     -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
     -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \

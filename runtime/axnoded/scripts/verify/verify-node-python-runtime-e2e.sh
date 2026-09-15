@@ -14,7 +14,7 @@ CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_ADDRESS:-127.0.0.1:24101}"
 GATEWAY_CONTROL_PORT="${GATEWAY_CONTROL_PORT:-25000}"
 GATEWAY_HTTP_PORT="${GATEWAY_HTTP_PORT:-25080}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-python-runtime-e2e}"
-CONTROL_PLANE_NODE_AUTH_TOKEN="${CONTROL_PLANE_NODE_AUTH_TOKEN:-node-python-runtime-e2e-token}"
+CONTROL_PLANE_NODE_CREDENTIAL="${CONTROL_PLANE_NODE_CREDENTIAL:-node-python-runtime-e2e-credential-00000000}"
 PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axnoded-python-runtime-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axnoded-python-runtime-e2e-net}"
@@ -112,6 +112,8 @@ fi
 
 IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF}" bash "${ROOT_DIR}/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
 bash "${REPO_ROOT}/scripts/dev-mtls-certs.sh" "${cert_dir}" >/dev/null
+printf '%s\n' "${CONTROL_PLANE_NODE_CREDENTIAL}" > "${cert_dir}/node-credential"
+chmod 600 "${cert_dir}/node-credential"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" python --version >"${python311_stdout}"
 grep -q '^Python 3\.11\.' "${python311_stdout}"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" /bin/sh -lc 'python -m pip --version >/dev/null'
@@ -134,7 +136,9 @@ docker run --rm \
     -principal-name local-admin \
     -display-name "Local Administrator" \
     -credential-label local-client \
-    -certificate /shared/certs/client.crt
+    -certificate /shared/certs/client.crt \
+    -node-id "${CONTROL_PLANE_NODE_ID}" \
+    -node-credential-file /shared/certs/node-credential
 
 docker run -d \
   --name "${CONTROLD_CONTAINER_NAME}" \
@@ -217,7 +221,7 @@ docker run -d \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
   -e "AXNODED_CONTROL_PLANE_TARGET=controld:${CONTROLD_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_NODE_ID=${CONTROL_PLANE_NODE_ID}" \
-  -e "AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN=${CONTROL_PLANE_NODE_AUTH_TOKEN}" \
+  -e "AXNODED_CONTROL_PLANE_NODE_CREDENTIAL=${CONTROL_PLANE_NODE_CREDENTIAL}" \
   -e "AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_CONTAINER_NAME}:${NODE_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_HEARTBEAT_INTERVAL=1s" \
   -e "AXNODED_CONTROL_PLANE_TLS_CA_CERT=/shared/certs/ca.crt" \

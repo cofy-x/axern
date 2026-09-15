@@ -129,12 +129,14 @@ endef
 
 helm-lint: helm-contract-check ## Lint the Axern Helm chart
 	$(HELM) lint '$(AXERN_HELM_CHART)' \
-		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)'
+		--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
+		--set-string 'node.credential.existingSecret=node-credential'
 
 helm-contract-check: ## Verify Helm values preserve runtime argument contracts
 	@for component in postgres; do \
 		rendered="$$($(HELM) template axern-contract-check '$(AXERN_HELM_CHART)' \
 			--set-string 'node.memorySystemReserveBytes=$(AXERN_HELM_CONTRACT_MEMORY_SYSTEM_RESERVE_BYTES)' \
+			--set-string 'node.credential.existingSecret=node-credential' \
 			--set "$${component}.enabled=true" \
 			--show-only "templates/$${component}.yaml")"; \
 		printf '%s\n' "$$rendered" | grep -q '^    type: RollingUpdate$$' && \

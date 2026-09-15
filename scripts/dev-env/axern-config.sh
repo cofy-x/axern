@@ -9,6 +9,16 @@ ensure_secrets_master_key() {
   fi
 }
 
+ensure_node_credential() {
+  local env_name="$1"
+  local credential_file
+  credential_file="$(node_credential_file "${env_name}")"
+  if [ ! -s "${credential_file}" ]; then
+    openssl rand -hex 32 > "${credential_file}"
+    chmod 600 "${credential_file}"
+  fi
+}
+
 generate_compose_certs() {
   AXERN_TLS_SERVER_DNS_NAMES="localhost,host.docker.internal,controld,tunneld,gatewayd,mock-provider,registry" \
     AXERN_TLS_SERVER_IPS="127.0.0.1" \

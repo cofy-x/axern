@@ -2,7 +2,6 @@ package nodekernel
 
 import (
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,7 +20,7 @@ type Record struct {
 	NodeTarget      string
 	Summary         *nodev1.NodeSummary
 	Lifecycle       LifecycleStatus
-	RegisteredAt    time.Time
+	AdmittedAt      time.Time
 	LastHeartbeatAt time.Time
 	RetiredAt       time.Time
 	RetiredReason   string
@@ -58,20 +57,12 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) Register(nodeID string, nodeTarget string, now time.Time) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	record := r.upsertLocked(nodeID, now)
-	record.NodeTarget = strings.TrimSpace(nodeTarget)
-}
-
 func (r *Registry) Report(nodeID string, nodeTarget string, summary *nodev1.NodeSummary, now time.Time) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	record := r.upsertLocked(nodeID, now)
-	record.NodeTarget = strings.TrimSpace(nodeTarget)
+	record.NodeTarget = nodeTarget
 	record.Summary = CloneNodeSummary(summary)
 	record.LastHeartbeatAt = now
 }
@@ -182,7 +173,7 @@ func (r *Registry) DebugNodes(now time.Time, heartbeatWindow, summaryWindow time
 			FreshnessState:   freshnessState,
 			HeartbeatAgeSecs: HeartbeatAgeSecs(record.LastHeartbeatAt, now),
 			SummaryAgeSecs:   SummaryAgeSecs(record.Summary, now),
-			RegisteredAt:     record.RegisteredAt,
+			AdmittedAt:       record.AdmittedAt,
 			LastHeartbeatAt:  record.LastHeartbeatAt,
 			CollectedAt:      SummaryCollectedAt(record.Summary),
 			RetiredAt:        record.RetiredAt,
@@ -202,14 +193,14 @@ func (r *Registry) upsertLocked(nodeID string, now time.Time) *Record {
 		record = &Record{
 			NodeID:          nodeID,
 			Lifecycle:       LifecycleActive,
-			RegisteredAt:    now,
+			AdmittedAt:      now,
 			LastHeartbeatAt: now,
 		}
 		r.nodes[nodeID] = record
 		return record
 	}
-	if record.RegisteredAt.IsZero() {
-		record.RegisteredAt = now
+	if record.AdmittedAt.IsZero() {
+		record.AdmittedAt = now
 	}
 	return record
 }
@@ -223,7 +214,7 @@ func cloneRecord(in *Record) *Record {
 		NodeTarget:      in.NodeTarget,
 		Summary:         CloneNodeSummary(in.Summary),
 		Lifecycle:       in.Lifecycle,
-		RegisteredAt:    in.RegisteredAt,
+		AdmittedAt:      in.AdmittedAt,
 		LastHeartbeatAt: in.LastHeartbeatAt,
 		RetiredAt:       in.RetiredAt,
 		RetiredReason:   in.RetiredReason,

@@ -41,8 +41,8 @@ make agent-doc-check
 | provider full gate | Direct provider contract plus daemon, desktop provider, and OCI injection wrappers | `make verify-sandboxd-provider-e2e` |
 | PID 1 daemon | Health/status API, user exit semantics, signal forwarding, fast-exit reaping | `make verify-sandboxd-e2e` |
 | OCI injection | Sandboxd as PID 1 under `runsc`, host bundle socket readiness, file/process/PTY/probe/ports/mounts | `make verify-sandboxd-oci-e2e` |
-| optional desktop | Computer-use and browser provider hooks | `make verify-sandboxd-computer-use-e2e`, `make verify-sandboxd-desktop-e2e` |
-| product broker | Public `NodeSandbox` file/process/desktop/browser behavior and local operator diagnostics through `axnoded` | `make verify-node-cli-e2e`, `make local-compose-refresh-verify`, `make local-compose-computer-use-e2e`, `go test ./internal/api ./axctl/commands/sandbox` |
+| optional desktop | Computer Use provider hooks | `make verify-sandboxd-computer-use-e2e`, `make verify-sandboxd-desktop-e2e` |
+| product broker | Public Allocation-scoped file/process/Computer Use behavior and local operator diagnostics through `axnoded` | `make verify-node-cli-e2e`, `make local-compose-refresh-verify`, `make local-compose-computer-use-e2e`, `go test ./internal/api ./axctl/commands/sandbox` |
 | packaging | Release binaries and node image sandboxd libexec path | `make verify-sandboxd-packaging` |
 | release readiness | Lightweight sandboxd pre-release gate across architecture, core tests, provider smoke, packaging, proto drift, and SDK capability checks | `make verify-sandboxd-release-readiness` |
 
@@ -52,10 +52,10 @@ make agent-doc-check
 | --- | --- | --- | --- | --- |
 | direct daemon | host/container tmpfs | strict JSON, diagnostics, file/archive, process, PTY, probes, ports, mounts, structured errors | provider discovery hooks | `make verify-sandboxd-provider-e2e` |
 | `runsc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
-| `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | browser/computer-use when image supports them | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
+| `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | Computer Use when the image supports it | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
 | `runsc` | OCI/Nydus rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
 | `runsc` | `server-base` | SSH terminal semantics, sudo/nosuid expectations, probes, HTTP workload smoke | none | `make local-compose-server-base-smoke` |
-| `runsc` | `desktop-base` | normal sandbox lifecycle plus desktop session readiness | computer-use and browser | `make local-compose-computer-use-e2e` |
+| `runsc` | `desktop-base` | normal sandbox lifecycle plus desktop session readiness | Computer Use | `make local-compose-computer-use-e2e` |
 
 `make verify-sandboxd-provider-smoke` is the fast direct daemon/provider contract gate. `make verify-sandboxd-provider-e2e` is the broad focused sandboxd gate: it runs the direct provider contract, daemon E2E, optional desktop provider E2E, and OCI injection E2E. `make verify-sandboxd-packaging` is the fast release gate for sandboxd binary presence and image path consistency. `make verify-sandboxd-release-readiness` is the default pre-release gate for sandboxd changes: run it before heavier Docker or compose validation when the change touches daemon APIs, provider discovery, packaging, or SDK capability models.
 

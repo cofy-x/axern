@@ -3,8 +3,6 @@ package networking
 import (
 	"context"
 	"net"
-	"net/http"
-	"sync"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -32,9 +30,6 @@ type Coordinator struct {
 	connectTimeout      time.Duration
 	connectRetryDelay   time.Duration
 	logger              logrus.FieldLogger
-
-	proxyMu sync.Mutex
-	proxies map[string]*http.Transport
 }
 
 const (
@@ -77,6 +72,5 @@ func NewCoordinator(options Options) *Coordinator {
 		connectTimeout:      connectTimeout,
 		connectRetryDelay:   connectRetryDelay,
 		logger:              logger,
-		proxies:             make(map[string]*http.Transport),
 	}
 }

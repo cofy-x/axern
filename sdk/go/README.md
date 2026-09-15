@@ -179,7 +179,7 @@ make sdk-go-examples-smoke
 - Prefer `defer sandbox.Close(ctx)` for SDK-owned sandboxes. Closing a sandbox also closes SDK-owned tunnels and attached processes.
 - Use `process.Output()` when you want collected stdout, stderr, and exit status. Use `process.Events()` or `process.Recv()` when output should be handled incrementally.
 - Use `client.NodeSandbox(allocationID)` when you already have an allocation ID and want the lower-level file/process/exec API without creating a new SDK-owned sandbox.
-- Use `sandbox.CapabilityStatus(ctx)` to discover baseline and optional provider availability before calling desktop or browser APIs.
+- Use `sandbox.CapabilityStatus(ctx)` to discover baseline and optional provider availability before calling Computer Use APIs.
 - Use `ExecOptions{Check: true}` for command-style failures that should return `ExecError`.
 - Branch on helpers such as `IsNotFound`, `IsTimeout`, `IsUnavailable`, and `IsValidation` instead of parsing error text.
 - Sandboxd-backed capability failures remain `RPCError` values. When provider diagnostics are present, `RPCError.Capability` contains structured capability, provider, provider state, reason, and missing dependency details.

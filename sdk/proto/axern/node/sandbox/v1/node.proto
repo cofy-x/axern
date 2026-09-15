@@ -169,50 +169,6 @@ message CapabilityStatusResponse {
   CapabilityProviderSummary provider_summary = 4;
 }
 
-// HTTP proxying
-
-message ProxyHTTPHeader {
-  string key = 1;
-  string value = 2;
-}
-
-message ProxyHTTPOpen {
-  string allocation_id = 1;
-  int32 port = 2;
-  string method = 3;
-  string path = 4;
-  string query = 5;
-  repeated ProxyHTTPHeader headers = 6;
-  bool has_body = 7;
-  int64 content_length = 8;
-}
-
-message ProxyHTTPResponseHead {
-  int32 status_code = 1;
-  repeated ProxyHTTPHeader headers = 2;
-}
-
-message ProxyHTTPTrailers {
-  repeated ProxyHTTPHeader headers = 1;
-}
-
-message ProxyHTTPRequest {
-  oneof payload {
-    ProxyHTTPOpen open = 1;
-    bytes body = 2;
-    bool close_body = 3;
-  }
-}
-
-message ProxyHTTPResponse {
-  oneof payload {
-    ProxyHTTPResponseHead head = 1;
-    bytes body = 2;
-    ProxyHTTPTrailers trailers = 3;
-    string error = 4;
-  }
-}
-
 // Files
 
 message StatFileRequest {
@@ -419,59 +375,6 @@ message ComputerUseKeyboardRequest {
 
 message ComputerUseKeyboardResponse {}
 
-// Browser
-
-message BrowserStatusRequest {
-  string allocation_id = 1;
-}
-
-message BrowserStatusResponse {
-  bool available = 1;
-  string command = 2;
-  bool running = 3;
-  int32 pid = 4;
-  string url = 5;
-  string reason = 6;
-}
-
-message BrowserOpenRequest {
-  string allocation_id = 1;
-  string url = 2;
-}
-
-message BrowserCloseRequest {
-  string allocation_id = 1;
-}
-
-message BrowserNavigateRequest {
-  string allocation_id = 1;
-  string url = 2;
-}
-
-message BrowserResizeRequest {
-  string allocation_id = 1;
-  int32 width = 2;
-  int32 height = 3;
-}
-
-message BrowserClickRequest {
-  string allocation_id = 1;
-  int32 x = 2;
-  int32 y = 3;
-  string button = 4;
-}
-
-message BrowserTypeRequest {
-  string allocation_id = 1;
-  string text = 2;
-  int32 delay_ms = 3;
-}
-
-message BrowserWaitRequest {
-  string allocation_id = 1;
-  int32 timeout_ms = 2;
-}
-
 service NodeSandbox {
   rpc Exec(ExecRequest) returns (ExecResponse) {}
   rpc ExecStream(stream ExecStreamRequest) returns (stream ExecStreamResponse) {}
@@ -479,7 +382,6 @@ service NodeSandbox {
   rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
   rpc CapabilityStatus(CapabilityStatusRequest) returns (CapabilityStatusResponse) {}
-  rpc ProxyHTTP(stream ProxyHTTPRequest) returns (stream ProxyHTTPResponse) {}
   rpc StatFile(StatFileRequest) returns (StatFileResponse) {}
   rpc ListDir(ListDirRequest) returns (ListDirResponse) {}
   rpc ReadFile(ReadFileRequest) returns (ReadFileResponse) {}
@@ -498,12 +400,4 @@ service NodeSandbox {
   rpc ComputerUseDisplay(ComputerUseDisplayRequest) returns (ComputerUseDisplayResponse) {}
   rpc ComputerUseMouse(ComputerUseMouseRequest) returns (ComputerUseMouseResponse) {}
   rpc ComputerUseKeyboard(ComputerUseKeyboardRequest) returns (ComputerUseKeyboardResponse) {}
-  rpc BrowserStatus(BrowserStatusRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserOpen(BrowserOpenRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserClose(BrowserCloseRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserNavigate(BrowserNavigateRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserResize(BrowserResizeRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserClick(BrowserClickRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserType(BrowserTypeRequest) returns (BrowserStatusResponse) {}
-  rpc BrowserWait(BrowserWaitRequest) returns (BrowserStatusResponse) {}
 }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/bundleflow"
@@ -24,15 +25,15 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 	}
 	options = preparedOptions
 	options.EphemeralStorageLimitBytes = effectiveRequest.GetEphemeralStorageLimitBytes()
-	if err := r.writableCapacity.Charge(options.ContainerID, r.Name(), effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
+	if err := r.writableCapacity.Charge(options.ContainerID, config.RuntimeNameRunsc, effectiveRequest.GetEphemeralStorageRequestBytes(), effectiveRequest.GetEphemeralStorageLimitBytes()); err != nil {
 		return nil, err
 	}
-	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), r.Name(), effectiveRequest, options)
+	bundlePath, metaData, err := bundleflow.PrepareLaunchBundle(r.common.Loader(), r.common.ContainerRoot(), config.RuntimeNameRunsc, effectiveRequest, options)
 	if err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
-	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsflow.RuntimePolicy{RuntimeName: r.Name(), ImmutableMount: rootfsview.ImmutableMountFromProto(effectiveRequest.GetRootfs().GetImmutableMount())}); err != nil {
+	if _, err := rootfsflow.PrepareBundle(ctx, r.rootfsViews, options, bundlePath, rootfsview.ImmutableMountFromProto(effectiveRequest.GetRootfs().GetImmutableMount())); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
@@ -49,7 +50,7 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 	}
 	overlayArgs = runscSandboxdArgs(overlayArgs)
 	options.RecordStartupStep(contract.StartupPhaseRuntimeBundle, contract.StartupStepRuntimeOverlayArgs, time.Since(overlayArgsStart))
-	if err := writeRuntimeEnforcementManifest(bundlePath, r.Name(), r.filestoreDir, effectiveRequest, options, overlayValue); err != nil {
+	if err := writeRuntimeEnforcementManifest(bundlePath, config.RuntimeNameRunsc, r.filestoreDir, effectiveRequest, options, overlayValue); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, err.Error())
 		return nil, err
 	}
@@ -74,7 +75,7 @@ func (r *RunscServiceHandler) StartPreparedContainer(ctx context.Context, prepar
 		r.startExitStatePersister,
 		r.waitForPreparedContainerStart,
 		func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
-			return runtimesandboxd.WaitReadyOrExit(ctx, r.Name(), options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
+			return runtimesandboxd.WaitReadyOrExit(ctx, config.RuntimeNameRunsc, options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
 		},
 		func(ctx context.Context) error { return r.verifyMemoryEnforcement(ctx, options) },
 	)

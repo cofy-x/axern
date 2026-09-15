@@ -19,11 +19,11 @@ import (
 )
 
 type nodeUpsertParams struct {
-	NodeID        string
-	NodeTarget    string
-	Summary       *nodev1.NodeSummary
-	NodeAuthToken string
-	Now           time.Time
+	NodeID         string
+	NodeTarget     string
+	Summary        *nodev1.NodeSummary
+	NodeCredential string
+	Now            time.Time
 }
 
 const maxNodeObservationInstanceIDBytes = 128
@@ -35,11 +35,10 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 			return nil, err
 		}
 	}
-	nodeAuthToken := strings.TrimSpace(params.NodeAuthToken)
-	if nodeAuthToken == "" {
-		return nil, grpcstatus.Error(codes.PermissionDenied, "node auth token is required")
+	nodeCredential := strings.TrimSpace(params.NodeCredential)
+	if nodeCredential == "" {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "node credential is required")
 	}
-	tokenHash := hashNodeAuthToken(nodeAuthToken)
 	tx, err := s.db.Pool().Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("begin node tx: %w", err)
@@ -47,30 +46,27 @@ func (s *PGStore) upsert(ctx context.Context, params nodeUpsertParams) (*nodeker
 	defer tx.Rollback(ctx)
 
 	var existingHash, lifecycle string
-	err = tx.QueryRow(ctx, `SELECT node_auth_token_hash, lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&existingHash, &lifecycle)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, fmt.Errorf("load node auth token: %w", err)
+	err = tx.QueryRow(ctx, `SELECT node_credential_hash, lifecycle_status FROM nodes WHERE node_id = $1 FOR UPDATE`, nodeID).Scan(&existingHash, &lifecycle)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "node identity has not been admitted")
 	}
-	if err == nil {
-		if lifecycle == string(nodekernel.LifecycleRetired) {
-			return nil, grpcstatus.Error(codes.FailedPrecondition, "node is retired")
-		}
-		if existingHash == "" || tokenHash != existingHash {
-			return nil, grpcstatus.Error(codes.PermissionDenied, "invalid node auth token")
-		}
+	if err != nil {
+		return nil, fmt.Errorf("load node credential: %w", err)
+	}
+	if lifecycle == string(nodekernel.LifecycleRetired) {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "node is retired")
+	}
+	if existingHash == "" || !nodeCredentialHashMatches(existingHash, nodeCredential) {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "invalid node credential")
 	}
 
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO nodes (
-			node_id, node_target, registered_at, last_heartbeat_at,
-			node_auth_token_hash, lifecycle_status
-		) VALUES ($1, $2, $3, $3, $4, 'active')
-		ON CONFLICT (node_id) DO UPDATE SET
-			node_target = EXCLUDED.node_target,
-			last_heartbeat_at = GREATEST(nodes.last_heartbeat_at, EXCLUDED.last_heartbeat_at),
-			node_auth_token_hash = EXCLUDED.node_auth_token_hash
-	`, nodeID, params.NodeTarget, params.Now.UTC(), tokenHash); err != nil {
-		return nil, fmt.Errorf("upsert node: %w", err)
+		UPDATE nodes
+		SET node_target = $2,
+			last_heartbeat_at = GREATEST(COALESCE(last_heartbeat_at, $3), $3)
+		WHERE node_id = $1
+	`, nodeID, params.NodeTarget, params.Now.UTC()); err != nil {
+		return nil, fmt.Errorf("update admitted node observation: %w", err)
 	}
 
 	var reportedTransitions []nodekernel.CapabilityChange

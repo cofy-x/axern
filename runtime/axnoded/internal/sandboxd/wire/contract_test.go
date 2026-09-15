@@ -25,7 +25,7 @@ func TestCapabilityContract(t *testing.T) {
 	if got := BaselineCapabilities(); !reflect.DeepEqual(got, wantBaseline) {
 		t.Fatalf("BaselineCapabilities() = %#v, want %#v", got, wantBaseline)
 	}
-	wantOptional := []string{CapabilityBrowser, CapabilityComputerUse}
+	wantOptional := []string{CapabilityComputerUse}
 	if got := OptionalCapabilities(); !reflect.DeepEqual(got, wantOptional) {
 		t.Fatalf("OptionalCapabilities() = %#v, want %#v", got, wantOptional)
 	}

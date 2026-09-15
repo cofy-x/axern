@@ -29,6 +29,7 @@ type Reliability interface {
 }
 
 type Nodes interface {
+	AdmitNode(ctx context.Context, nodeID, nodeCredential, operatorReason string, now time.Time) (*nodekernel.Record, error)
 	ListNodes(ctx context.Context, filter adminkernel.NodeListFilter) ([]*nodekernel.Record, error)
 	RetireNode(ctx context.Context, nodeID, operatorReason string, now time.Time) (*nodekernel.Record, error)
 }

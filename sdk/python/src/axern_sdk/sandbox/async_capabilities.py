@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from axern_sdk.node import AsyncNodeSandboxClient, CapabilityStatus
+from axern_sdk.node import AsyncAllocationClient, CapabilityStatus
 
 
 class _HasAsyncNodeClient(Protocol):
-    def _node_client(self) -> AsyncNodeSandboxClient: ...
+    def _node_client(self) -> AsyncAllocationClient: ...
 
 
 class AsyncSandboxCapabilityMixin:

@@ -13,10 +13,9 @@ from axern_sdk.node import (
     ExecCommand,
     ExecResult,
     ExecStreamEvent,
-    NodeSandboxClient,
+    AllocationClient,
     SandboxProcess,
 )
-from axern_sdk.sandbox.browser import SandboxBrowserMixin
 from axern_sdk.sandbox.capabilities import SandboxCapabilityMixin
 from axern_sdk.sandbox.computer_use import SandboxComputerUseMixin
 from axern_sdk.sandbox.files import SandboxFileMixin
@@ -27,7 +26,7 @@ from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, Sandb
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
 
-class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMixin, SandboxFileMixin):
+class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin):
     """Run allocation-backed Axern sandbox with optional reverse TCP tunnel."""
 
     def __init__(
@@ -58,7 +57,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
         connector_ready_timeout_seconds: float = 15.0,
         labels: dict[str, str] | None = None,
         _connector_factory: Callable[..., TunnelConnector] = TunnelConnector,
-        _node_client_factory: Callable[..., NodeSandboxClient] = NodeSandboxClient,
+        _node_client_factory: Callable[..., AllocationClient] = AllocationClient,
         _renew_interval_seconds: float | None = None,
     ) -> None:
         _validate_source(image=image, template_id=template_id, environment_id=environment_id)
@@ -384,9 +383,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxBrowserMixin, SandboxComputerUseMix
             rpc_timeout=rpc_timeout,
         )
 
-
-
-    def _node_client(self) -> NodeSandboxClient:
+    def _node_client(self) -> AllocationClient:
         if self._state is None:
             raise SandboxNotStartedError("sandbox is not active")
         return self._node_client_factory(

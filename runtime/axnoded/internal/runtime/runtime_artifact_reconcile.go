@@ -3,11 +3,13 @@ package runtime
 import (
 	"context"
 	"errors"
+
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 )
 
 func (r *RunscServiceHandler) ReconcileRuntimeArtifacts(ctx context.Context, runtimeInventory map[string]struct{}) error {
-	return reconcileRuntimeArtifacts(ctx, r.name, runtimeInventory, r.rootfsViews, r.writableCapacity)
+	return reconcileRuntimeArtifacts(ctx, config.RuntimeNameRunsc, runtimeInventory, r.rootfsViews, r.writableCapacity)
 }
 
 func reconcileRuntimeArtifacts(

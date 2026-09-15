@@ -59,6 +59,11 @@ spec:
               value: /certs/node.crt
             - name: AXNODED_CONTROL_PLANE_TLS_KEY
               value: /certs/node.key
+            - name: AXNODED_CONTROL_PLANE_NODE_CREDENTIAL
+              valueFrom:
+                secretKeyRef:
+                  name: node-credential
+                  key: node-credential
             # Match the verification runtime's local-only 1 GiB reserve:
             # a 512 MiB conformance charge must coexist with node daemons.
             # Production deployments must use a measured qualification receipt.
@@ -70,7 +75,6 @@ spec:
             - |
               export AXNODED_CONTROL_PLANE_NODE_ID="node-${NODE_NAME}"
               export AXNODED_CONTROL_PLANE_NODE_TARGET="${POD_IP}:24010"
-              export AXNODED_CONTROL_PLANE_NODE_AUTH_TOKEN="node-${NODE_NAME}-local-token"
               exec /usr/local/bin/node-all-in-one-entrypoint
           ports:
             - containerPort: 24010

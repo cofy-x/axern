@@ -1,10 +1,9 @@
 """Sandbox execution client primitives."""
 
-from axern_sdk.node.async_client import AsyncNodeSandboxClient
+from axern_sdk.node.async_client import AsyncAllocationClient
 from axern_sdk.node.async_process import AsyncProcessResult, AsyncSandboxProcess
-from axern_sdk.node.client import NodeSandboxClient
+from axern_sdk.node.client import AllocationClient
 from axern_sdk.node.models import (
-    BrowserStatus,
     CapabilityProviderDependencyStatus,
     CapabilityProviderStatus,
     CapabilityProviderSummary,
@@ -24,9 +23,8 @@ from axern_sdk.node.process import ProcessResult, SandboxProcess
 
 __all__ = [
     "AsyncProcessResult",
-    "AsyncNodeSandboxClient",
+    "AsyncAllocationClient",
     "AsyncSandboxProcess",
-    "BrowserStatus",
     "CapabilityProviderDependencyStatus",
     "CapabilityProviderStatus",
     "CapabilityProviderSummary",
@@ -39,7 +37,7 @@ __all__ = [
     "ExecCommand",
     "ExecResult",
     "ExecStreamEvent",
-    "NodeSandboxClient",
+    "AllocationClient",
     "ProcessResult",
     "SandboxFileInfo",
     "SandboxFileKind",

@@ -141,7 +141,7 @@ sequenceDiagram
     participant Runtime as internal/runtime/sandboxd client
     participant Daemon as axern-sandboxd
 
-    Client->>API: exec / process / file / desktop / browser request
+    Client->>API: exec / process / file / Computer Use request
     API->>Service: validated service request
     Service->>Target: inspect Allocation runtime
     Target-->>Service: live container + capability checks

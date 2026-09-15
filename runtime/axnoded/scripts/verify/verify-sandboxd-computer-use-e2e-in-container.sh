@@ -31,13 +31,11 @@ import (
 )
 
 func main() {
-	if len(os.Args) != 7 {
-		fmt.Fprintln(os.Stderr, "usage: check <socket> <mouse-file> <keyboard-file> <browser-open-file> <browser-close-file> <xdotool-log>")
+	if len(os.Args) != 4 {
+		fmt.Fprintln(os.Stderr, "usage: check <socket> <mouse-file> <keyboard-file>")
 		os.Exit(2)
 	}
 	socketPath, mousePath, keyboardPath := os.Args[1], os.Args[2], os.Args[3]
-	browserOpenPath, browserClosePath := os.Args[4], os.Args[5]
-	xdotoolLogPath := os.Args[6]
 	client := &http.Client{
 		Timeout: 5 * time.Second,
 		Transport: &http.Transport{
@@ -49,34 +47,8 @@ func main() {
 	}
 	mustJSON(client, http.MethodGet, "/capabilities", nil, func(body []byte) {
 		mustContain(body, `"computer_use"`)
-		mustContain(body, `"browser"`)
 		mustContain(body, `"available":true`)
 	})
-	mustJSON(client, http.MethodGet, "/browser/status", nil, func(body []byte) {
-		mustContain(body, `"available":true`)
-		mustContain(body, `"running":false`)
-	})
-	mustJSON(client, http.MethodPost, "/browser/open", []byte(`{"url":"https://example.com"}`), func(body []byte) {
-		mustContain(body, `"available":true`)
-		mustContain(body, `"running":true`)
-	})
-	mustFile(browserOpenPath, "https://example.com")
-	mustJSON(client, http.MethodPost, "/browser/navigate", []byte(`{"url":"https://example.org"}`), func(body []byte) {
-		mustContain(body, `"running":true`)
-		mustContain(body, `"url":"https://example.org"`)
-	})
-	mustJSON(client, http.MethodPost, "/browser/resize", []byte(`{"width":1024,"height":768}`), nil)
-	mustJSON(client, http.MethodPost, "/browser/click", []byte(`{"x":11,"y":22}`), nil)
-	mustJSON(client, http.MethodPost, "/browser/type", []byte(`{"text":"hello","delayMs":1}`), nil)
-	mustJSON(client, http.MethodPost, "/browser/wait", []byte(`{"timeoutMs":1}`), nil)
-	mustFileContains(xdotoolLogPath, "getactivewindow windowsize 1024 768")
-	mustFileContains(xdotoolLogPath, "mousemove 11 22 click 1")
-	mustFileContains(xdotoolLogPath, "type --delay 1 -- hello")
-	mustJSON(client, http.MethodPost, "/browser/close", nil, func(body []byte) {
-		mustContain(body, `"available":true`)
-		mustContain(body, `"running":false`)
-	})
-	mustFile(browserClosePath, "closed")
 	mustJSON(client, http.MethodGet, "/computer-use/status", nil, func(body []byte) {
 		mustContain(body, `"available":true`)
 		mustContain(body, `"display":":99"`)
@@ -144,14 +116,6 @@ func mustFile(path string, want string) {
 	}
 }
 
-func mustFileContains(path string, want string) {
-	data, err := os.ReadFile(path)
-	must(err)
-	if !bytes.Contains(data, []byte(want)) {
-		fail("%s missing %q in %q", path, want, string(data))
-	}
-}
-
 func must(err error) {
 	if err != nil {
 		fail("%v", err)
@@ -167,8 +131,6 @@ GO
 socket_path="${tmpdir}/sandboxd.sock"
 mouse_path="${tmpdir}/mouse"
 keyboard_path="${tmpdir}/keyboard"
-browser_open_path="${tmpdir}/browser-open"
-browser_close_path="${tmpdir}/browser-close"
 xdotool_log_path="${tmpdir}/xdotool.log"
 mkdir -p "${tmpdir}/bin"
 cat >"${tmpdir}/bin/xdotool" <<'SH'
@@ -186,8 +148,6 @@ AXERN_SANDBOXD_SCREENSHOT_CMD="printf %s ${png_base64} | base64 -d" \
 AXERN_SANDBOXD_DISPLAY_CMD="printf '1280 720'" \
 AXERN_SANDBOXD_MOUSE_CMD="printf '%s:%s:%s:%s' \"\$AXERN_COMPUTER_USE_MOUSE_X\" \"\$AXERN_COMPUTER_USE_MOUSE_Y\" \"\$AXERN_COMPUTER_USE_MOUSE_BUTTON\" \"\$AXERN_COMPUTER_USE_MOUSE_ACTION\" >${mouse_path}" \
 AXERN_SANDBOXD_KEYBOARD_CMD="printf '%s:%s' \"\$AXERN_COMPUTER_USE_KEYBOARD_TEXT\" \"\$AXERN_COMPUTER_USE_KEYBOARD_KEY\" >${keyboard_path}" \
-AXERN_SANDBOXD_BROWSER_OPEN_CMD="printf '%s' \"\$AXERN_BROWSER_URL\" >${browser_open_path}" \
-AXERN_SANDBOXD_BROWSER_CLOSE_CMD="printf closed >${browser_close_path}" \
 "${tmpdir}/axern-sandboxd" --socket "${socket_path}" >"${tmpdir}/sandboxd.out" 2>"${tmpdir}/sandboxd.err" &
 daemon_pid=$!
 
@@ -200,7 +160,7 @@ while [ "${SECONDS}" -lt "${deadline}" ]; do
 done
 test -S "${socket_path}"
 
-go run "${tmpdir}/check.go" "${socket_path}" "${mouse_path}" "${keyboard_path}" "${browser_open_path}" "${browser_close_path}" "${xdotool_log_path}"
+go run "${tmpdir}/check.go" "${socket_path}" "${mouse_path}" "${keyboard_path}"
 
 kill -TERM "${daemon_pid}"
 wait "${daemon_pid}" >/dev/null 2>&1 || true

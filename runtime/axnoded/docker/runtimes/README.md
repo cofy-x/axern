@@ -8,7 +8,7 @@ Axnoded runtime images define workload profiles for OCI sandboxes. Every image c
 
 `coding-base` inherits `server-base` and provides a coding-oriented ephemeral sandbox rootfs. It adds fixed Go, Node.js/pnpm, Python/venv, uv, compilation and diagnostic tools. Projects own their `pyproject.toml` and `.venv`; the image does not pre-create a project environment.
 
-`desktop-base` also inherits `server-base`, independently. It adds only the Python and X11/browser dependencies needed by Playwright and computer-use. It does not inherit the coding toolchain.
+`desktop-base` also inherits `server-base`, independently. It adds only the Python, Playwright, and X11 dependencies needed by caller-owned browser workloads and Computer Use. It does not inherit the coding toolchain.
 
 ## Desktop Base Contract
 
@@ -35,16 +35,4 @@ Required commands unless replaced by sandboxd command hooks:
 
 The provider status endpoint reports dependency checks for display env, screenshot backend, display backend, input backend, and display server readiness. Generic images without the contract continue to run normally; they simply do not advertise the optional `computer_use` capability.
 
-## Browser Provider Contract
-
-The sandboxd `browser` provider is optional and belongs to desktop/browser profiles. Generic sandboxes should keep running without it.
-
-The provider is discovered when one of these is present:
-
-- `AXERN_SANDBOXD_BROWSER_CMD` set to the browser executable name
-- `AXERN_SANDBOXD_BROWSER_OPEN_CMD` for profile-managed browser launch hooks
-- an installed supported browser command on `PATH`
-
-Supported executable discovery checks `chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable`, and `firefox`. `desktop-base` installs a pinned Python Playwright release and uses Playwright-managed Chromium instead of Ubuntu's snap-backed browser packages so the browser can run inside OCI sandboxes and can also be driven by Python Playwright code in user workloads. Hook-based profiles can also define `AXERN_SANDBOXD_BROWSER_CLOSE_CMD`; sandboxd passes the requested URL to open hooks through `AXERN_BROWSER_URL`.
-
-The provider exposes internal sandboxd status, open, and close operations. It does not make browser access public by itself; product-level exposure must still go through Axern gateway/tunnel APIs.
+`desktop-base` installs a pinned Python Playwright release and Playwright-managed Chromium instead of Ubuntu's snap-backed browser packages. These are workload dependencies, not an Axern-managed browser provider: callers start, drive, and stop browser processes through their own code, process APIs, or Computer Use.

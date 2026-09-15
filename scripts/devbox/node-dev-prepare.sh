@@ -19,13 +19,25 @@ IMAGEFSD_DIR="${DEV_DIR}/imagefsd"
 CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
-CONTROL_PLANE_NODE_AUTH_TOKEN="${AXERN_DEV_CONTROL_PLANE_NODE_AUTH_TOKEN:-axern-local-node-token}"
+CONTROL_PLANE_NODE_CREDENTIAL="${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL:-}"
 CONTROL_PLANE_TLS_CA_CERT="${AXERN_DEV_CONTROL_PLANE_TLS_CA_CERT:-${DEV_DIR}/certs/ca.crt}"
 CONTROL_PLANE_TLS_CERT="${AXERN_DEV_CONTROL_PLANE_TLS_CERT:-${DEV_DIR}/certs/node.crt}"
 CONTROL_PLANE_TLS_KEY="${AXERN_DEV_CONTROL_PLANE_TLS_KEY:-${DEV_DIR}/certs/node.key}"
 
 if [ -e "${DEV_DIR}" ] && command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
   sudo chown -R "$(id -u):$(id -g)" "${DEV_DIR}" 2>/dev/null || true
+fi
+
+if [ -z "${CONTROL_PLANE_NODE_CREDENTIAL}" ]; then
+  if [ ! -s "${DEV_DIR}/node-credential" ]; then
+    mkdir -p "${DEV_DIR}"
+    openssl rand -hex 32 > "${DEV_DIR}/node-credential"
+    chmod 600 "${DEV_DIR}/node-credential"
+  fi
+  CONTROL_PLANE_NODE_CREDENTIAL="$(cat "${DEV_DIR}/node-credential")"
+else
+  printf '%s\n' "${CONTROL_PLANE_NODE_CREDENTIAL}" > "${DEV_DIR}/node-credential"
+  chmod 600 "${DEV_DIR}/node-credential"
 fi
 
 mkdir -p \
@@ -50,7 +62,7 @@ storeDir = "${AXNODED_DIR}/store"
 control_plane_target = "${CONTROL_PLANE_TARGET}"
 control_plane_node_id = "${CONTROL_PLANE_NODE_ID}"
 control_plane_node_target = "${CONTROL_PLANE_NODE_TARGET}"
-control_plane_node_auth_token = "${CONTROL_PLANE_NODE_AUTH_TOKEN}"
+control_plane_node_credential = "${CONTROL_PLANE_NODE_CREDENTIAL}"
 control_plane_heartbeat_interval = "5s"
 control_plane_tls_ca_cert = "${CONTROL_PLANE_TLS_CA_CERT}"
 control_plane_tls_cert = "${CONTROL_PLANE_TLS_CERT}"
