@@ -33,7 +33,7 @@ func TestExecUnaryPassesUser(t *testing.T) {
 
 	if err := execUnary(fakeClient, execOptions{
 		timeoutSeconds: 9,
-		sandboxID:      "axctl-test",
+		allocationID:   "axctl-test",
 		command:        []string{"id", "-u"},
 		user:           "axern",
 	}); err != nil {
@@ -44,8 +44,8 @@ func TestExecUnaryPassesUser(t *testing.T) {
 		t.Fatal("execUnary() did not send an exec request")
 	}
 	spec := fakeClient.lastExec.GetSpec()
-	if got, want := fakeClient.lastExec.GetSandboxID(), "axctl-test"; got != want {
-		t.Fatalf("sandbox id = %q, want %q", got, want)
+	if got, want := fakeClient.lastExec.GetAllocationID(), "axctl-test"; got != want {
+		t.Fatalf("allocation id = %q, want %q", got, want)
 	}
 	if got, want := spec.GetUser(), "axern"; got != want {
 		t.Fatalf("spec user = %q, want %q", got, want)

@@ -12,7 +12,7 @@ import (
 
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -21,7 +21,7 @@ type daemon struct {
 	nodeID         string
 	nodeCredential string
 	node           nodev1.NodeControlClient
-	operator       nodeoperatorv1.NodeOperatorClient
+	network        nodenetworkv1.AllocationNetworkClient
 	runsc          runscConfig
 	relay          relayConfig
 	mu             sync.Mutex

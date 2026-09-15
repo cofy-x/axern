@@ -14,10 +14,11 @@ Layout:
 - `axern/private/control/node/v1`: repo-internal control-plane/node coordination API for ordered atomic node reporting with complete execution-lease snapshots, Allocation lifecycle, allocation-access-grant replication, and TunnelSession replication. A fresh process identity plus monotonic sequence fences the complete `NodeSummary`; nested capability evidence has no parallel ordering identity. Node reports must include axnoded's aggregate `runtime_slots` contract; controld does not infer it from implementation-specific pools.
 - `axern/private/control/environment/v1`: deployment-private Environment template inputs used only while resolving a public immutable Environment
 - `axern/control/common/v1`: shared control-plane value types including execution config, resource quantities, Allocation lifecycle, immutable strict or DNS-only sandbox egress policy, and workload diagnostic codes used by public workload views
-- `axern/node/sandbox/v1`: gateway-exposed sandbox execution and Allocation HTTP proxy API; requests carry Allocation identity but no internal node target or access-grant credential, which gatewayd resolves and transports privately
+- `axern/node/sandbox/v1`: gateway-exposed process, terminal, file/archive, readiness, and Computer Use operations; requests carry Allocation identity but no internal node target or access-grant credential, which gatewayd resolves and transports privately
 - `axern/tunnel/v1`: tunnel relay data-plane peer stream API
 - `axern/private/node/lifecycle/v1`: repo-internal control-plane-to-node allocation lifecycle API
-- `axern/private/node/operator/v1`: repo-internal local node operator API
+- `axern/private/node/operator/v1`: repo-internal root-only node operator API for Allocation inspection, debug execution, wait, and audited break-glass recovery
+- `axern/private/node/network/v1`: repo-internal machine-only Allocation network resolver used by `node-tunneld`
 
 Commands:
 

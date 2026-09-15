@@ -10,15 +10,15 @@ import (
 )
 
 type fakeKillRPCClient struct {
-	lastSandboxID string
-	lastSignal    string
-	killErr       error
+	lastAllocationID string
+	lastReason       string
+	killErr          error
 }
 
-func (f *fakeKillRPCClient) KillSandbox(sandboxID, signal string) (*nodeoperatorv1.KillSandboxResponse, error) {
-	f.lastSandboxID = sandboxID
-	f.lastSignal = signal
-	return &nodeoperatorv1.KillSandboxResponse{}, f.killErr
+func (f *fakeKillRPCClient) ForceTerminateAllocation(allocationID, reason string) (*nodeoperatorv1.ForceTerminateAllocationResponse, error) {
+	f.lastAllocationID = allocationID
+	f.lastReason = reason
+	return &nodeoperatorv1.ForceTerminateAllocationResponse{}, f.killErr
 }
 
 func (f *fakeKillRPCClient) Close() error { return nil }
@@ -33,28 +33,27 @@ func newKillTestApp() *cli.App {
 	return app
 }
 
-func TestKillCommandUsesDefaultSignal(t *testing.T) {
+func TestForceTerminateRequiresReason(t *testing.T) {
 	fakeClient := &fakeKillRPCClient{}
 	oldFactory := newKillRPCClient
 	newKillRPCClient = func(ctx *cli.Context) (killRPCClient, error) { return fakeClient, nil }
 	defer func() { newKillRPCClient = oldFactory }()
 
-	err := newKillTestApp().Run([]string{"axctl", "kill", "axctl-test"})
+	err := newKillTestApp().Run([]string{"axctl", "force-terminate", "axctl-test"})
 
-	assert.NoError(t, err)
-	assert.Equal(t, "axctl-test", fakeClient.lastSandboxID)
-	assert.Equal(t, "TERM", fakeClient.lastSignal)
+	assert.EqualError(t, err, "--reason is required")
+	assert.Empty(t, fakeClient.lastAllocationID)
 }
 
-func TestKillCommandPassesExplicitSignal(t *testing.T) {
+func TestForceTerminatePassesAuditedReason(t *testing.T) {
 	fakeClient := &fakeKillRPCClient{}
 	oldFactory := newKillRPCClient
 	newKillRPCClient = func(ctx *cli.Context) (killRPCClient, error) { return fakeClient, nil }
 	defer func() { newKillRPCClient = oldFactory }()
 
-	err := newKillTestApp().Run([]string{"axctl", "kill", "--signal", "SIGKILL", "axctl-test"})
+	err := newKillTestApp().Run([]string{"axctl", "force-terminate", "--reason", "incident-42", "axctl-test"})
 
 	assert.NoError(t, err)
-	assert.Equal(t, "axctl-test", fakeClient.lastSandboxID)
-	assert.Equal(t, "SIGKILL", fakeClient.lastSignal)
+	assert.Equal(t, "axctl-test", fakeClient.lastAllocationID)
+	assert.Equal(t, "incident-42", fakeClient.lastReason)
 }

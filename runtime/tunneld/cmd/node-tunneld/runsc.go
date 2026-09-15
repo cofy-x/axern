@@ -14,10 +14,10 @@ import (
 
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 )
 
-func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string, _ *nodeoperatorv1.ResolveSandboxNetworkResponse) error {
+func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string, _ *nodenetworkv1.ResolveAllocationNetworkResponse) error {
 	edgeTarget := strings.TrimSpace(nodeEdgeTarget)
 	if edgeTarget == "" {
 		return fmt.Errorf("node tunnel relay target is required")

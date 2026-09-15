@@ -10,7 +10,7 @@ import (
 
 	"github.com/cofy-x/axern/runtime/tunneld/internal/control"
 	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 )
 
 func main() {
@@ -25,7 +25,7 @@ func run() error {
 		nodeID          string
 		nodeCredential  string
 		controlTarget   string
-		operatorSocket  string
+		networkSocket   string
 		insecureControl bool
 		caCert          string
 		cert            string
@@ -39,7 +39,7 @@ func run() error {
 	flag.StringVar(&nodeID, "node-id", os.Getenv("AXERN_NODE_ID"), "node id")
 	flag.StringVar(&nodeCredential, "node-credential", os.Getenv("AXERN_NODE_CREDENTIAL"), "node credential used with node-control tunnel APIs")
 	flag.StringVar(&controlTarget, "control-target", "127.0.0.1:24000", "controld gRPC target")
-	flag.StringVar(&operatorSocket, "operator-socket", "/run/axnoded/axnoded.sock", "local axnoded operator Unix socket")
+	flag.StringVar(&networkSocket, "network-socket", "/run/axnoded/network.sock", "local axnoded Allocation network Unix socket")
 	flag.BoolVar(&insecureControl, "insecure-control", false, "connect to controld without TLS")
 	flag.StringVar(&caCert, "tls-ca-cert", ".dev/certs/ca.crt", "controld CA certificate")
 	flag.StringVar(&cert, "tls-cert", ".dev/certs/client.crt", "client certificate for controld")
@@ -63,16 +63,16 @@ func run() error {
 		return err
 	}
 	defer controlConn.Close()
-	operatorConn, err := dialUnix(ctx, operatorSocket)
+	networkConn, err := dialUnix(ctx, networkSocket)
 	if err != nil {
 		return err
 	}
-	defer operatorConn.Close()
+	defer networkConn.Close()
 	d := &daemon{
 		nodeID:         nodeID,
 		nodeCredential: nodeCredential,
 		node:           nodev1.NewNodeControlClient(controlConn),
-		operator:       nodeoperatorv1.NewNodeOperatorClient(operatorConn),
+		network:        nodenetworkv1.NewAllocationNetworkClient(networkConn),
 		running:        make(map[string]context.CancelFunc),
 		runsc: runscConfig{
 			binary:        runscBinary,

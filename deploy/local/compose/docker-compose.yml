@@ -179,6 +179,7 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       AXNODED_SOCKET: /shared/run/axnoded.sock
+      AXNODED_NETWORK_SOCKET: /shared/run/axnoded-network.sock
       IMAGEMGR_SOCKET: /run/imagemgr/imagemgr.sock
       EGRESSD_SOCKET: /run/egressd/egressd.sock
       AXERN_SANDBOXD_BINARY: /usr/local/libexec/axnoded/axern-sandboxd

@@ -18,13 +18,14 @@ import (
 )
 
 type options struct {
-	rootDir     string
-	configPath  string
-	socketPath  string
-	grpcAddress string
-	httpAddress string
-	logLevel    string
-	logFile     string
+	rootDir           string
+	configPath        string
+	socketPath        string
+	networkSocketPath string
+	grpcAddress       string
+	httpAddress       string
+	logLevel          string
+	logFile           string
 }
 
 func Run() error {
@@ -78,6 +79,7 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.rootDir, "root", config.DefaultRootDir, "axnoded working root directory")
 	flagSet.StringVar(&opts.configPath, "config", "", "path to axnoded TOML config")
 	flagSet.StringVar(&opts.socketPath, "socket", config.DefaultSocketAddress, "axnoded gRPC unix socket")
+	flagSet.StringVar(&opts.networkSocketPath, "network-socket", config.DefaultNetworkSocketAddress, "axnoded machine-only Allocation network Unix socket")
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", "", "axnoded node gRPC TCP listen address")
 	flagSet.StringVar(&opts.httpAddress, "http-address", config.DefaultHttpAddress, "axnoded HTTP listen address")
 	flagSet.StringVar(&opts.logLevel, "log-level", "info", "log level: debug|info|warn|error")

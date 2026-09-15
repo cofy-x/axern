@@ -249,8 +249,6 @@ if ! [ -S "${shared_run_dir}/axnoded.sock" ]; then
   dump_logs
   exit 1
 fi
-docker exec "${NODE_CONTAINER_NAME}" chmod 666 "${AXNODED_SOCKET}" >/dev/null 2>&1 || true
-
 if ! docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "curl -fsS http://127.0.0.1:23001/readyz >/dev/null"; then
   echo "node container did not become ready in time" >&2
   dump_logs

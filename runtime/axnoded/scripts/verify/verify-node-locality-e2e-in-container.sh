@@ -48,10 +48,10 @@ dump_locality_context() {
 
 cleanup() {
   if [ -n "${oci_container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${oci_container_id}" >/dev/null 2>&1 || true
+    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${oci_container_id}" >/dev/null 2>&1 || true
   fi
   if [ -n "${nydus_container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${nydus_container_id}" >/dev/null 2>&1 || true
+    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${nydus_container_id}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -166,7 +166,7 @@ oci_container_id="$(start_container "oci-start" "${oci_environment_id}" "${OCI_I
   echo "OCI locality start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${oci_container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${oci_container_id}"
 oci_container_id=""
 
 log_phase "oci-retention-assert"
@@ -195,7 +195,7 @@ wait_for_jq \
   'any(.heat.locality[]?; .key == $locality_key and .mount_type == "nydus" and .mounted == true and .nydus_daemon_alive == true and .chunkdb_total_chunks >= 0 and .peer_healthy_count >= 0 and .peer_hinted_count >= 0)' \
   --arg locality_key "${nydus_locality_key}"
 
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${nydus_container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${nydus_container_id}"
 nydus_container_id=""
 
 echo "verify_node_locality_e2e_ok=true"

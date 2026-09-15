@@ -14,7 +14,7 @@ import (
 )
 
 type memoryRPCClient interface {
-	GetSandboxMemory(sandboxID string) (*nodeoperatorv1.GetSandboxMemoryResponse, error)
+	GetAllocationMemory(allocationID string) (*nodeoperatorv1.GetAllocationMemoryResponse, error)
 	Close() error
 }
 
@@ -24,13 +24,13 @@ var newMemoryRPCClient = func(ctx *cli.Context) (memoryRPCClient, error) {
 
 var MemoryCmd = cli.Command{
 	Name:  "memory",
-	Usage: "Inspect the host cgroup memory domain for a sandbox",
+	Usage: "Inspect the host cgroup memory domain for an Allocation",
 	Flags: []cli.Flag{
 		cli.BoolFlag{Name: "json", Usage: "print the structured memory observation as JSON"},
 	},
 	Action: func(context *cli.Context) error {
 		if context.NArg() != 1 {
-			return fmt.Errorf("exactly one sandbox id must be specified")
+			return fmt.Errorf("exactly one allocation id must be specified")
 		}
 		opsClient, err := newMemoryRPCClient(context)
 		if err != nil {
@@ -38,13 +38,13 @@ var MemoryCmd = cli.Command{
 		}
 		defer opsClient.Close()
 
-		resp, err := opsClient.GetSandboxMemory(context.Args().First())
+		resp, err := opsClient.GetAllocationMemory(context.Args().First())
 		if err != nil {
 			return err
 		}
 		observation := resp.GetObservation()
 		if observation == nil {
-			return fmt.Errorf("sandbox memory observation is unavailable")
+			return fmt.Errorf("allocation memory observation is unavailable")
 		}
 		if context.Bool("json") {
 			encoded, err := (protojson.MarshalOptions{Indent: "  ", UseProtoNames: true}).Marshal(observation)

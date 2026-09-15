@@ -10,10 +10,10 @@ import (
 )
 
 func TestRenderNetworkPolicyJSONUsesStableBoundedFields(t *testing.T) {
-	response := &nodeoperatorv1.ExplainSandboxNetworkPolicyResponse{
-		SandboxID: "sandbox-1", Mode: nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT,
-		Status:             nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK,
-		CapabilityState:    nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE,
+	response := &nodeoperatorv1.ExplainAllocationNetworkPolicyResponse{
+		AllocationID: "sandbox-1", Mode: nodeoperatorv1.AllocationNetworkPolicyMode_ALLOCATION_NETWORK_POLICY_MODE_STRICT,
+		Status:             nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_OK,
+		CapabilityState:    nodeoperatorv1.AllocationNetworkPolicyCapabilityState_ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE,
 		EnforcementHealthy: true, ExactBinding: true, EnforcementRevision: 11,
 		DomainRuleCount: 3, CidrRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5,
 	}
@@ -41,15 +41,15 @@ func TestRenderNetworkPolicyJSONUsesStableBoundedFields(t *testing.T) {
 }
 
 func TestNetworkPolicyDoctorTreatsAbsentAsHealthyAndFailuresAsDegraded(t *testing.T) {
-	for _, status := range []nodeoperatorv1.SandboxNetworkPolicyStatus{
-		nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK,
-		nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ABSENT,
+	for _, status := range []nodeoperatorv1.AllocationNetworkPolicyStatus{
+		nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_OK,
+		nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_ABSENT,
 	} {
 		if !networkPolicyDoctorHealthy(status) {
 			t.Fatalf("status %v should be healthy", status)
 		}
 	}
-	if networkPolicyDoctorHealthy(nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH) {
+	if networkPolicyDoctorHealthy(nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_BINDING_MISMATCH) {
 		t.Fatal("binding mismatch passed doctor")
 	}
 }

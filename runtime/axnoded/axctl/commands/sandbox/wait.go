@@ -10,12 +10,12 @@ import (
 
 var WaitCmd = cli.Command{
 	Name:  "wait",
-	Usage: "Wait for a sandbox to exit and print its local exit status",
+	Usage: "Wait for an Allocation to exit and print its local exit status",
 	Action: func(context *cli.Context) error {
 		if context.NArg() != 1 {
-			return fmt.Errorf("exactly one sandbox id must be specified")
+			return fmt.Errorf("exactly one allocation id must be specified")
 		}
-		sandboxID := context.Args().First()
+		allocationID := context.Args().First()
 
 		opsClient, err := client.New(context)
 		if err != nil {
@@ -23,12 +23,12 @@ var WaitCmd = cli.Command{
 		}
 		defer opsClient.Close()
 
-		resp, err := opsClient.WaitSandbox(sandboxID, waitCommandTimeout(context))
+		resp, err := opsClient.Wait(allocationID, waitCommandTimeout(context))
 		if err != nil {
 			return fmt.Errorf("wait failed: %v", err)
 		}
 
-		fmt.Printf("Sandbox: %s\n", sandboxID)
+		fmt.Printf("Allocation: %s\n", allocationID)
 		fmt.Printf("State: %s\n", localStateString(resp.GetState()))
 		fmt.Printf("Exit Code: %s\n", localExitCodeString(resp.GetState(), resp.ExitCode))
 		if resp.GetMessage() != "" {

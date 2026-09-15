@@ -6,6 +6,7 @@ import (
 
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
+	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"google.golang.org/grpc/codes"
@@ -24,76 +25,91 @@ func NewNodeOperatorServer(svc service.NodeOperatorService) nodeoperatorv1.NodeO
 	return &nodeOperatorServer{svc: svc}
 }
 
-func (s *nodeOperatorServer) ListSandboxes(ctx context.Context, req *nodeoperatorv1.ListSandboxesRequest) (*nodeoperatorv1.ListSandboxesResponse, error) {
+func (s *nodeOperatorServer) ListAllocations(ctx context.Context, req *nodeoperatorv1.ListAllocationsRequest) (*nodeoperatorv1.ListAllocationsResponse, error) {
 	_ = req
 	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{})
 	if err != nil {
 		return nil, err
 	}
-	out := &nodeoperatorv1.ListSandboxesResponse{Sandboxes: make([]*nodeoperatorv1.LocalSandbox, 0, len(resp.GetContainers()))}
+	out := &nodeoperatorv1.ListAllocationsResponse{Allocations: make([]*nodeoperatorv1.LocalAllocation, 0, len(resp.GetContainers()))}
 	for _, container := range resp.GetContainers() {
-		out.Sandboxes = append(out.Sandboxes, localSandboxFromContainer(container))
+		if container == nil || s.svc.ValidateOperatorInspection(container.GetID()) != nil {
+			continue
+		}
+		out.Allocations = append(out.Allocations, localAllocationFromContainer(container))
 	}
 	return out, nil
 }
 
-func (s *nodeOperatorServer) GetSandbox(ctx context.Context, req *nodeoperatorv1.GetSandboxRequest) (*nodeoperatorv1.GetSandboxResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) GetAllocation(ctx context.Context, req *nodeoperatorv1.GetAllocationRequest) (*nodeoperatorv1.GetAllocationResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: req.GetSandboxID()})
+	if err := s.svc.ValidateOperatorInspection(req.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	resp, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: req.GetAllocationID()})
 	if err != nil {
 		return nil, err
 	}
 	if len(resp.GetContainers()) == 0 {
-		return nil, grpcstatus.Errorf(codes.NotFound, "sandbox %q not found", req.GetSandboxID())
+		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
 	}
-	return &nodeoperatorv1.GetSandboxResponse{Sandbox: localSandboxFromContainer(resp.GetContainers()[0])}, nil
+	return &nodeoperatorv1.GetAllocationResponse{Allocation: localAllocationFromContainer(resp.GetContainers()[0])}, nil
 }
 
-func (s *nodeOperatorServer) GetSandboxDiagnostics(ctx context.Context, req *nodeoperatorv1.GetSandboxDiagnosticsRequest) (*nodeoperatorv1.GetSandboxDiagnosticsResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) GetAllocationDiagnostics(ctx context.Context, req *nodeoperatorv1.GetAllocationDiagnosticsRequest) (*nodeoperatorv1.GetAllocationDiagnosticsResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	targetID := req.GetSandboxID()
+	if err := s.svc.ValidateOperatorInspection(req.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	targetID := req.GetAllocationID()
 	diagnostics, err := s.svc.SandboxdDiagnostics(ctx, targetID, req.GetFull())
 	if err != nil {
 		return nil, err
 	}
-	response := localSandboxDiagnostics(req.GetSandboxID(), diagnostics)
+	response := localAllocationDiagnostics(req.GetAllocationID(), diagnostics)
 	response.Memory = s.latestAllocationMemoryObservation(targetID)
 	return response, nil
 }
 
-func (s *nodeOperatorServer) GetSandboxMemory(_ context.Context, req *nodeoperatorv1.GetSandboxMemoryRequest) (*nodeoperatorv1.GetSandboxMemoryResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) GetAllocationMemory(_ context.Context, req *nodeoperatorv1.GetAllocationMemoryRequest) (*nodeoperatorv1.GetAllocationMemoryResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	observation := s.latestAllocationMemoryObservation(req.GetSandboxID())
+	if err := s.svc.ValidateOperatorInspection(req.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	observation := s.latestAllocationMemoryObservation(req.GetAllocationID())
 	if observation == nil {
-		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "bounded memory observation for sandbox %q is unavailable", req.GetSandboxID())
+		return nil, grpcstatus.Errorf(codes.FailedPrecondition, "bounded memory observation for allocation %q is unavailable", req.GetAllocationID())
 	}
-	return &nodeoperatorv1.GetSandboxMemoryResponse{Observation: observation}, nil
+	return &nodeoperatorv1.GetAllocationMemoryResponse{Observation: observation}, nil
 }
 
-func (s *nodeOperatorServer) ExplainSandboxNetworkPolicy(ctx context.Context, req *nodeoperatorv1.ExplainSandboxNetworkPolicyRequest) (*nodeoperatorv1.ExplainSandboxNetworkPolicyResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) ExplainAllocationNetworkPolicy(ctx context.Context, req *nodeoperatorv1.ExplainAllocationNetworkPolicyRequest) (*nodeoperatorv1.ExplainAllocationNetworkPolicyResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	targetID := req.GetSandboxID()
+	if err := s.svc.ValidateOperatorInspection(req.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	targetID := req.GetAllocationID()
 	listed, err := s.svc.List(ctx, &runtimev1.ListContainersRequest{ID: targetID})
 	if err != nil {
 		return nil, err
 	}
 	if len(listed.GetContainers()) == 0 {
-		return nil, grpcstatus.Errorf(codes.NotFound, "sandbox %q not found", req.GetSandboxID())
+		return nil, grpcstatus.Errorf(codes.NotFound, "allocation %q not found", req.GetAllocationID())
 	}
-	return localNetworkPolicyDiagnostics(req.GetSandboxID(), s.svc.NetworkPolicyDiagnostics(ctx, targetID)), nil
+	return localNetworkPolicyDiagnostics(req.GetAllocationID(), s.svc.NetworkPolicyDiagnostics(ctx, targetID)), nil
 }
 
-func localNetworkPolicyDiagnostics(sandboxID string, diagnostics service.NetworkPolicyDiagnostics) *nodeoperatorv1.ExplainSandboxNetworkPolicyResponse {
-	return &nodeoperatorv1.ExplainSandboxNetworkPolicyResponse{
-		SandboxID:           sandboxID,
+func localNetworkPolicyDiagnostics(allocationID string, diagnostics service.NetworkPolicyDiagnostics) *nodeoperatorv1.ExplainAllocationNetworkPolicyResponse {
+	return &nodeoperatorv1.ExplainAllocationNetworkPolicyResponse{
+		AllocationID:        allocationID,
 		Mode:                localNetworkPolicyMode(diagnostics.Mode),
 		Status:              localNetworkPolicyStatus(diagnostics.Status),
 		CapabilityState:     localNetworkPolicyCapabilityState(diagnostics.CapabilityState),
@@ -107,48 +123,48 @@ func localNetworkPolicyDiagnostics(sandboxID string, diagnostics service.Network
 	}
 }
 
-func localNetworkPolicyMode(mode service.NetworkPolicyMode) nodeoperatorv1.SandboxNetworkPolicyMode {
+func localNetworkPolicyMode(mode service.NetworkPolicyMode) nodeoperatorv1.AllocationNetworkPolicyMode {
 	switch mode {
 	case service.NetworkPolicyModeUnrestricted:
-		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_UNRESTRICTED
+		return nodeoperatorv1.AllocationNetworkPolicyMode_ALLOCATION_NETWORK_POLICY_MODE_UNRESTRICTED
 	case service.NetworkPolicyModeDNSDeny:
-		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_DNS_DENY
+		return nodeoperatorv1.AllocationNetworkPolicyMode_ALLOCATION_NETWORK_POLICY_MODE_DNS_DENY
 	case service.NetworkPolicyModeStrict:
-		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT
+		return nodeoperatorv1.AllocationNetworkPolicyMode_ALLOCATION_NETWORK_POLICY_MODE_STRICT
 	default:
-		return nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_UNSPECIFIED
+		return nodeoperatorv1.AllocationNetworkPolicyMode_ALLOCATION_NETWORK_POLICY_MODE_UNSPECIFIED
 	}
 }
 
-func localNetworkPolicyStatus(status service.NetworkPolicyStatus) nodeoperatorv1.SandboxNetworkPolicyStatus {
+func localNetworkPolicyStatus(status service.NetworkPolicyStatus) nodeoperatorv1.AllocationNetworkPolicyStatus {
 	switch status {
 	case service.NetworkPolicyStatusOK:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK
+		return nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_OK
 	case service.NetworkPolicyStatusAbsent:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ABSENT
+		return nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_ABSENT
 	case service.NetworkPolicyStatusCapabilityUnavailable:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE
+		return nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE
 	case service.NetworkPolicyStatusEnforcementUnhealthy:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY
+		return nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY
 	case service.NetworkPolicyStatusBindingMismatch:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH
+		return nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_BINDING_MISMATCH
 	default:
-		return nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_UNSPECIFIED
+		return nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_UNSPECIFIED
 	}
 }
 
-func localNetworkPolicyCapabilityState(state service.NetworkPolicyCapabilityState) nodeoperatorv1.SandboxNetworkPolicyCapabilityState {
+func localNetworkPolicyCapabilityState(state service.NetworkPolicyCapabilityState) nodeoperatorv1.AllocationNetworkPolicyCapabilityState {
 	switch state {
 	case service.NetworkPolicyCapabilityAvailable:
-		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE
+		return nodeoperatorv1.AllocationNetworkPolicyCapabilityState_ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE
 	case service.NetworkPolicyCapabilityUnavailable:
-		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNAVAILABLE
+		return nodeoperatorv1.AllocationNetworkPolicyCapabilityState_ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_UNAVAILABLE
 	case service.NetworkPolicyCapabilityUnknown:
-		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNKNOWN
+		return nodeoperatorv1.AllocationNetworkPolicyCapabilityState_ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_UNKNOWN
 	case service.NetworkPolicyCapabilityNotRequired:
-		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_NOT_REQUIRED
+		return nodeoperatorv1.AllocationNetworkPolicyCapabilityState_ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_NOT_REQUIRED
 	default:
-		return nodeoperatorv1.SandboxNetworkPolicyCapabilityState_SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNSPECIFIED
+		return nodeoperatorv1.AllocationNetworkPolicyCapabilityState_ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_UNSPECIFIED
 	}
 }
 
@@ -165,36 +181,45 @@ func (s *nodeOperatorServer) latestAllocationMemoryObservation(containerID strin
 	return nil
 }
 
-func (s *nodeOperatorServer) DeleteSandbox(ctx context.Context, req *nodeoperatorv1.DeleteSandboxRequest) (*nodeoperatorv1.DeleteSandboxResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) ForceCleanupAllocation(ctx context.Context, req *nodeoperatorv1.ForceCleanupAllocationRequest) (*nodeoperatorv1.ForceCleanupAllocationResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	if _, err := s.svc.Delete(ctx, &runtimev1.DeleteRequest{ID: req.GetSandboxID(), Timeout: req.GetTimeoutSeconds()}); err != nil {
-		return nil, err
+	if req.GetReason() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "reason is required")
 	}
-	return &nodeoperatorv1.DeleteSandboxResponse{}, nil
+	if err := s.svc.ForceCleanupAllocation(ctx, req.GetAllocationID(), req.GetReason(), req.GetTimeoutSeconds()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	return &nodeoperatorv1.ForceCleanupAllocationResponse{}, nil
 }
 
-func (s *nodeOperatorServer) KillSandbox(ctx context.Context, req *nodeoperatorv1.KillSandboxRequest) (*nodeoperatorv1.KillSandboxResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) ForceTerminateAllocation(ctx context.Context, req *nodeoperatorv1.ForceTerminateAllocationRequest) (*nodeoperatorv1.ForceTerminateAllocationResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
-	if _, err := s.svc.Kill(ctx, &runtimev1.KillRequest{ID: req.GetSandboxID(), Signal: req.GetSignal()}); err != nil {
-		return nil, err
+	if req.GetReason() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "reason is required")
 	}
-	return &nodeoperatorv1.KillSandboxResponse{}, nil
+	if err := s.svc.ForceTerminateAllocation(ctx, req.GetAllocationID(), req.GetReason()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	return &nodeoperatorv1.ForceTerminateAllocationResponse{}, nil
 }
 
 func (s *nodeOperatorServer) Exec(ctx context.Context, req *nodeoperatorv1.ExecRequest) (*nodeoperatorv1.ExecResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
 	if req.GetSpec() == nil || len(req.GetSpec().GetArgv()) == 0 {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "spec.argv is required")
 	}
 
+	if err := s.svc.ValidateOperatorExecution(req.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
 	resp, err := s.svc.Exec(ctx, &runtimev1.ExecRequest{
-		ID:      req.GetSandboxID(),
+		ID:      req.GetAllocationID(),
 		Command: append([]string(nil), req.GetSpec().GetArgv()...),
 		Timeout: req.GetSpec().GetTimeoutSeconds(),
 		Env:     cloneStringMap(req.GetSpec().GetEnv()),
@@ -222,60 +247,49 @@ func (s *nodeOperatorServer) ExecStream(stream nodeoperatorv1.NodeOperator_ExecS
 	if open == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "initial open payload is required")
 	}
-	if open.GetSandboxID() == "" {
-		return grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+	if open.GetAllocationID() == "" {
+		return grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
 	if open.GetSpec() == nil || len(open.GetSpec().GetArgv()) == 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "spec.argv is required")
+	}
+	if err := s.svc.ValidateOperatorExecution(open.GetAllocationID()); err != nil {
+		return errord.ToGRPC(err)
 	}
 
 	adapter := &nodeOperatorExecStreamAdapter{
 		stream:    stream,
 		first:     first,
 		firstSent: false,
-		targetID:  open.GetSandboxID(),
+		targetID:  open.GetAllocationID(),
 	}
 	return s.svc.ExecStream(adapter)
 }
 
-func (s *nodeOperatorServer) WaitSandbox(ctx context.Context, req *nodeoperatorv1.WaitSandboxRequest) (*nodeoperatorv1.WaitSandboxResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
+func (s *nodeOperatorServer) Wait(ctx context.Context, req *nodeoperatorv1.WaitRequest) (*nodeoperatorv1.WaitResponse, error) {
+	if req.GetAllocationID() == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
+	}
+	if err := s.svc.ValidateOperatorInspection(req.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
 	}
 
-	resp, err := s.svc.Wait(ctx, &runtimev1.WaitRequest{ID: req.GetSandboxID()})
+	resp, err := s.svc.Wait(ctx, &runtimev1.WaitRequest{ID: req.GetAllocationID()})
 	if err == nil {
-		return &nodeoperatorv1.WaitSandboxResponse{
-			State:    nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
+		return &nodeoperatorv1.WaitResponse{
+			State:    nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED,
 			ExitCode: resp.ExitCode,
 			Message:  resp.GetMessage(),
 		}, nil
 	}
 
 	if grpcstatus.Code(err) == codes.Unavailable && resp != nil {
-		return &nodeoperatorv1.WaitSandboxResponse{
-			State:   nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED,
+		return &nodeoperatorv1.WaitResponse{
+			State:   nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED,
 			Message: resp.GetMessage(),
 		}, nil
 	}
 	return nil, err
-}
-
-func (s *nodeOperatorServer) ResolveSandboxNetwork(ctx context.Context, req *nodeoperatorv1.ResolveSandboxNetworkRequest) (*nodeoperatorv1.ResolveSandboxNetworkResponse, error) {
-	if req.GetSandboxID() == "" {
-		return nil, grpcstatus.Error(codes.InvalidArgument, "sandbox_id is required")
-	}
-	targetID := req.GetSandboxID()
-	network, err := s.svc.NetworkForSandbox(targetID)
-	if err != nil {
-		return nil, err
-	}
-	return &nodeoperatorv1.ResolveSandboxNetworkResponse{
-		SandboxID: req.GetSandboxID(),
-		Ip:        network.IP,
-		NetnsPath: network.NetNSPath,
-		State:     nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING,
-	}, nil
 }
 
 type nodeOperatorExecStreamAdapter struct {
@@ -367,28 +381,28 @@ func convertNodeOperatorExecStreamResponse(in *runtimev1.ExecStreamResponse) *no
 	}
 }
 
-func localSandboxFromContainer(container *runtimev1.ContainerStatus) *nodeoperatorv1.LocalSandbox {
+func localAllocationFromContainer(container *runtimev1.ContainerStatus) *nodeoperatorv1.LocalAllocation {
 	if container == nil {
 		return nil
 	}
-	return &nodeoperatorv1.LocalSandbox{
-		SandboxID:  container.GetID(),
-		State:      localSandboxStateFromContainer(container.GetState()),
-		ExitCode:   container.ExitCode,
-		Message:    container.GetMessage(),
-		Pid:        container.GetPid(),
-		StartedAt:  timestampFromUnixSeconds(container.GetStartedAt()),
-		FinishedAt: timestampFromUnixSeconds(container.GetFinishedAt()),
+	return &nodeoperatorv1.LocalAllocation{
+		AllocationID: container.GetID(),
+		State:        localAllocationStateFromContainer(container.GetState()),
+		ExitCode:     container.ExitCode,
+		Message:      container.GetMessage(),
+		Pid:          container.GetPid(),
+		StartedAt:    timestampFromUnixSeconds(container.GetStartedAt()),
+		FinishedAt:   timestampFromUnixSeconds(container.GetFinishedAt()),
 	}
 }
 
-func localSandboxDiagnostics(sandboxID string, diagnostics service.SandboxdDiagnostics) *nodeoperatorv1.GetSandboxDiagnosticsResponse {
+func localAllocationDiagnostics(allocationID string, diagnostics service.SandboxdDiagnostics) *nodeoperatorv1.GetAllocationDiagnosticsResponse {
 	var generatedAt *timestamppb.Timestamp
 	if !diagnostics.GeneratedAt.IsZero() {
 		generatedAt = timestamppb.New(diagnostics.GeneratedAt)
 	}
-	return &nodeoperatorv1.GetSandboxDiagnosticsResponse{
-		SandboxID:       sandboxID,
+	return &nodeoperatorv1.GetAllocationDiagnosticsResponse{
+		AllocationID:    allocationID,
 		Ready:           diagnostics.Ready,
 		Detail:          diagnostics.Detail,
 		GeneratedAt:     generatedAt,
@@ -397,14 +411,14 @@ func localSandboxDiagnostics(sandboxID string, diagnostics service.SandboxdDiagn
 		SocketPath:      diagnostics.Status.SocketPath,
 		UserState:       diagnostics.Status.UserState,
 		Capabilities:    append([]string(nil), diagnostics.Capabilities...),
-		Providers:       localSandboxDiagnosticProviders(diagnostics.Providers),
-		ProviderSummary: localSandboxDiagnosticProviderSummary(diagnostics.ProviderSummary),
-		ProcessSummary:  localSandboxDiagnosticProcessSummary(diagnostics.ProcessSummary),
+		Providers:       localAllocationDiagnosticProviders(diagnostics.Providers),
+		ProviderSummary: localAllocationDiagnosticProviderSummary(diagnostics.ProviderSummary),
+		ProcessSummary:  localAllocationDiagnosticProcessSummary(diagnostics.ProcessSummary),
 		RawJson:         diagnostics.RawJSON,
 	}
 }
 
-func localSandboxDiagnosticProviders(items []service.SandboxdProvider) []*nodeoperatorv1.SandboxdProvider {
+func localAllocationDiagnosticProviders(items []service.SandboxdProvider) []*nodeoperatorv1.SandboxdProvider {
 	out := make([]*nodeoperatorv1.SandboxdProvider, 0, len(items))
 	for _, item := range items {
 		out = append(out, &nodeoperatorv1.SandboxdProvider{
@@ -416,13 +430,13 @@ func localSandboxDiagnosticProviders(items []service.SandboxdProvider) []*nodeop
 			Command:      item.Command,
 			Reason:       item.Reason,
 			LastError:    item.LastError,
-			Dependencies: localSandboxDiagnosticProviderDependencies(item.Dependencies),
+			Dependencies: localAllocationDiagnosticProviderDependencies(item.Dependencies),
 		})
 	}
 	return out
 }
 
-func localSandboxDiagnosticProviderDependencies(items []service.SandboxdProviderDependency) []*nodeoperatorv1.SandboxdProviderDependency {
+func localAllocationDiagnosticProviderDependencies(items []service.SandboxdProviderDependency) []*nodeoperatorv1.SandboxdProviderDependency {
 	out := make([]*nodeoperatorv1.SandboxdProviderDependency, 0, len(items))
 	for _, item := range items {
 		out = append(out, &nodeoperatorv1.SandboxdProviderDependency{Name: item.Name, Available: item.Available, Reason: item.Reason})
@@ -430,7 +444,7 @@ func localSandboxDiagnosticProviderDependencies(items []service.SandboxdProvider
 	return out
 }
 
-func localSandboxDiagnosticProviderSummary(summary service.SandboxdProviderSummary) *nodeoperatorv1.SandboxdProviderSummary {
+func localAllocationDiagnosticProviderSummary(summary service.SandboxdProviderSummary) *nodeoperatorv1.SandboxdProviderSummary {
 	return &nodeoperatorv1.SandboxdProviderSummary{
 		Total:       int32(summary.Total),
 		Available:   int32(summary.Available),
@@ -439,7 +453,7 @@ func localSandboxDiagnosticProviderSummary(summary service.SandboxdProviderSumma
 	}
 }
 
-func localSandboxDiagnosticProcessSummary(summary service.SandboxdProcessSummary) *nodeoperatorv1.SandboxdProcessSummary {
+func localAllocationDiagnosticProcessSummary(summary service.SandboxdProcessSummary) *nodeoperatorv1.SandboxdProcessSummary {
 	return &nodeoperatorv1.SandboxdProcessSummary{
 		Total:    int32(summary.Total),
 		Starting: int32(summary.Starting),
@@ -449,14 +463,14 @@ func localSandboxDiagnosticProcessSummary(summary service.SandboxdProcessSummary
 	}
 }
 
-func localSandboxStateFromContainer(state runtimev1.ContainerState) nodeoperatorv1.LocalSandboxState {
+func localAllocationStateFromContainer(state runtimev1.ContainerState) nodeoperatorv1.LocalAllocationState {
 	switch state {
 	case runtimev1.ContainerState_CONTAINER_RUNNING:
-		return nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_RUNNING
+		return nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_RUNNING
 	case runtimev1.ContainerState_CONTAINER_EXITED:
-		return nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED
+		return nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED
 	default:
-		return nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_UNKNOWN
+		return nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_UNKNOWN
 	}
 }
 

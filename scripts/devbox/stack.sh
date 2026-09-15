@@ -303,6 +303,7 @@ stop_runtime_services() {
   stop_matching_processes "127.0.0.1:24100"
   stop_matching_processes "127.0.0.1:25080"
   stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
+  stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-network.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
@@ -310,6 +311,7 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd"
   rm -f \
     "${RUN_DIR}/axnoded.sock" \
+    "${RUN_DIR}/axnoded-network.sock" \
     "${RUN_DIR}/egressd.sock" \
     "${RUN_DIR}/imagemgr.sock" \
     "${RUN_DIR}/imagefsd-chunk.sock"
@@ -418,20 +420,22 @@ start_axnoded() {
     -root '${DEV_DIR}/axnoded' \
     -config '${DEV_DIR}/axnoded/config.toml' \
     -socket '${RUN_DIR}/axnoded.sock' \
+    -network-socket '${RUN_DIR}/axnoded-network.sock' \
     -grpc-address 127.0.0.1:23000 \
     -http-address 127.0.0.1:23001 \
     -log-level debug \
     -log-file '${LOG_DIR}/axnoded-inner.log'"
   wait_tcp 127.0.0.1 23000 axnoded
   wait_unix_socket "${RUN_DIR}/axnoded.sock" axnoded
+  wait_unix_socket "${RUN_DIR}/axnoded-network.sock" axnoded-network
 }
 
 start_node_tunneld() {
-  start_service node-tunneld "exec go -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
+  start_service node-tunneld "exec '${ROOT_DIR}/scripts/devbox/sudo-go.sh' -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
     -node-id '${AXERN_DEV_CONTROL_PLANE_NODE_ID}' \
     -node-credential '${AXERN_DEV_CONTROL_PLANE_NODE_CREDENTIAL}' \
     -control-target 127.0.0.1:24000 \
-    -operator-socket '${RUN_DIR}/axnoded.sock' \
+    -network-socket '${RUN_DIR}/axnoded-network.sock' \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -tls-cert '${DEV_DIR}/certs/node.crt' \
     -tls-key '${DEV_DIR}/certs/node.key' \
@@ -511,6 +515,7 @@ stop_service_deep() {
     axnoded)
       stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
       stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
+      stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-network.sock"
       ;;
     node-tunneld)
       stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/node-tunneld"

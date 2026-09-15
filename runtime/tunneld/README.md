@@ -5,7 +5,7 @@
 Components:
 
 - `tunneld`: internal relay process that accepts gateway-forwarded client peers and node peers, validates them through `controld`, pairs peers by tunnel session, and forwards raw TCP stream frames.
-- `node-tunneld`: node-local process shipped in `node-all-in-one`. It watches tunnel sessions from `controld`, resolves allocation network namespaces through the local `NodeOperator` Unix socket, binds `127.0.0.1:<remote_port>` inside the allocation netns, and forwards accepted TCP connections through `tunneld`.
+- `node-tunneld`: node-local process shipped in `node-all-in-one`. It watches tunnel sessions from `controld`, resolves Allocation network namespaces through the narrow machine-only `AllocationNetwork` Unix socket, binds `127.0.0.1:<remote_port>` inside the Allocation netns, and forwards accepted TCP connections through `tunneld`. It has no ambient NodeOperator exec or break-glass authority.
 
 The tunnel layer is intentionally runtime-neutral. It does not know about Claude, OpenAI, Anthropic, HTTP headers, or WebSocket application semantics. Scenario-specific adapters can run outside this layer and use the tunnel as a plain TCP path.
 

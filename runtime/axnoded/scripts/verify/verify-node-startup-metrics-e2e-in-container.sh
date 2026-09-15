@@ -46,14 +46,14 @@ for runtime_name in runsc; do
     echo "cold start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
-  axctl --address "${AXNODED_SOCKET}" sandbox delete "${cold_id}"
+  axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${cold_id}"
 
   warm_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.warm.stdout" "/tmp/${runtime_name}.warm.stderr")"
   [ -n "${warm_id}" ] || {
     echo "warm start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
-  axctl --address "${AXNODED_SOCKET}" sandbox delete "${warm_id}"
+  axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${warm_id}"
 done
 
 for runtime_name in runsc; do

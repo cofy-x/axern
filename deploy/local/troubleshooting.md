@@ -32,14 +32,14 @@ Node-local checks:
 ```bash
 # compose
 docker exec axern-local-node-1 axctl node check
-docker exec axern-local-node-1 axctl sandbox list
+docker exec axern-local-node-1 axctl allocation list
 docker exec axern-local-node-1 axctl image list
 docker exec axern-local-node-1 axctl image mounts
 
 # kind
 NODE_POD="$(kubectl -n axern-local get pods -l app=node-all-in-one -o jsonpath='{.items[0].metadata.name}')"
 kubectl -n axern-local exec "${NODE_POD}" -- axctl node check
-kubectl -n axern-local exec "${NODE_POD}" -- axctl sandbox list
+kubectl -n axern-local exec "${NODE_POD}" -- axctl allocation list
 kubectl -n axern-local exec "${NODE_POD}" -- axctl image list
 kubectl -n axern-local exec "${NODE_POD}" -- axctl image mounts
 ```
@@ -167,7 +167,7 @@ Compose:
 
 ```bash
 docker logs --tail=160 axern-local-controld-1
-docker exec axern-local-node-1 axctl sandbox list
+docker exec axern-local-node-1 axctl allocation list
 docker exec axern-local-node-1 tail -n 240 /var/log/axnoded/axnoded.log
 ```
 
@@ -176,7 +176,7 @@ Kind:
 ```bash
 kubectl -n axern-local logs deploy/controld --tail=160
 NODE_POD="$(kubectl -n axern-local get pods -l app=node-all-in-one -o jsonpath='{.items[0].metadata.name}')"
-kubectl -n axern-local exec "${NODE_POD}" -- axctl sandbox list
+kubectl -n axern-local exec "${NODE_POD}" -- axctl allocation list
 kubectl -n axern-local exec "${NODE_POD}" -- tail -n 240 /var/log/axnoded/axnoded.log
 ```
 

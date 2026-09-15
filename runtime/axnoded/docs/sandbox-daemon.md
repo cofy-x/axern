@@ -121,7 +121,7 @@ Endpoint constants live in `internal/sandboxd/wire/protocol.go` and are shared b
 
 `/diagnostics` is the authoritative readiness snapshot for `axnoded`: it reports control readiness, protocol version, status, provider summary, and process summary. `/diagnostics?detail=full` adds process snapshots, ports, mounts, and optional Computer Use status. `/readyz`, `/status`, and `/capabilities` remain narrower debug surfaces.
 
-Operator access to this snapshot goes through `NodeOperator.GetSandboxDiagnostics` and `axctl sandbox diagnostics`. That RPC returns a product-level summary plus optional raw diagnostics JSON; it must remain a brokered local operator API, not a public SDK or daemon socket exposure.
+Operator access to this snapshot goes through `NodeOperator.GetAllocationDiagnostics` and `axctl allocation diagnostics`. That RPC returns a product-level summary plus optional raw diagnostics JSON; it must remain a brokered root-only operator API, not a public SDK or sandbox-daemon socket exposure.
 
 Public capability discovery goes through `NodeSandbox.CapabilityStatus`. Capability ownership, provider states, and product error shapes live in [Sandboxd Capabilities](sandboxd-capabilities.md). This document owns only the daemon API boundary and sandbox-local lifecycle.
 

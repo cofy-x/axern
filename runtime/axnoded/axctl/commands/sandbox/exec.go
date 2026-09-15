@@ -31,14 +31,14 @@ var newExecRPCClient = func(ctx *cli.Context) (execRPCClient, error) {
 
 type execOptions struct {
 	timeoutSeconds int64
-	sandboxID      string
+	allocationID   string
 	command        []string
 	user           string
 }
 
 var ExecCmd = cli.Command{
 	Name:  "exec",
-	Usage: "Execute a command in a sandbox on the current node",
+	Usage: "Execute an Allocation-scoped debug process on the current node",
 	Flags: []cli.Flag{
 		cli.BoolFlag{
 			Name:  "interactive, i",
@@ -55,7 +55,7 @@ var ExecCmd = cli.Command{
 	},
 	Action: func(context *cli.Context) error {
 		if context.NArg() < 2 {
-			return fmt.Errorf("usage: axctl sandbox exec <sandbox_id> -- command [args...]")
+			return fmt.Errorf("usage: axctl allocation exec <allocation_id> -- command [args...]")
 		}
 		if context.Bool("interactive") != context.Bool("tty") {
 			return fmt.Errorf("interactive exec requires both -i and -t")
@@ -68,17 +68,17 @@ var ExecCmd = cli.Command{
 		defer opsClient.Close()
 
 		timeoutSeconds := execTimeoutSeconds(context)
-		sandboxID := context.Args().First()
+		allocationID := context.Args().First()
 		command := context.Args().Tail()
 		if len(command) > 0 && command[0] == "--" {
 			command = command[1:]
 		}
 		if len(command) == 0 {
-			return fmt.Errorf("usage: axctl sandbox exec <sandbox_id> -- command [args...]")
+			return fmt.Errorf("usage: axctl allocation exec <allocation_id> -- command [args...]")
 		}
 		opts := execOptions{
 			timeoutSeconds: timeoutSeconds,
-			sandboxID:      sandboxID,
+			allocationID:   allocationID,
 			command:        command,
 			user:           strings.TrimSpace(context.String("user")),
 		}
@@ -92,8 +92,8 @@ var ExecCmd = cli.Command{
 
 func execUnary(client execRPCClient, opts execOptions) error {
 	resp, err := client.Exec(&nodeoperatorv1.ExecRequest{
-		SandboxID: opts.sandboxID,
-		Spec:      opts.spec(false),
+		AllocationID: opts.allocationID,
+		Spec:         opts.spec(false),
 	})
 	if err != nil {
 		return err
@@ -160,9 +160,9 @@ func execInteractive(client execRPCClient, streamTimeout time.Duration, opts exe
 
 	if err := send(&nodeoperatorv1.ExecStreamRequest{
 		Payload: &nodeoperatorv1.ExecStreamRequest_Open{Open: &nodeoperatorv1.ExecStreamOpen{
-			SandboxID:   opts.sandboxID,
-			Spec:        opts.spec(true),
-			InitialSize: terminalResizeFromFD(int(os.Stdin.Fd())),
+			AllocationID: opts.allocationID,
+			Spec:         opts.spec(true),
+			InitialSize:  terminalResizeFromFD(int(os.Stdin.Fd())),
 		}},
 	}); err != nil {
 		return err

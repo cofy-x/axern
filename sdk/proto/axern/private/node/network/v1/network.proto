@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package axern.private.node.network.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1;nodenetworkv1";
+
+message ResolveAllocationNetworkRequest {
+  string allocation_id = 1;
+}
+
+message ResolveAllocationNetworkResponse {
+  string allocation_id = 1;
+  string ip = 2;
+  string netns_path = 3;
+}
+
+// AllocationNetwork exposes only the machine-to-machine network resolution
+// needed by node-tunneld. It intentionally shares no socket with NodeOperator.
+service AllocationNetwork {
+  rpc ResolveAllocationNetwork(ResolveAllocationNetworkRequest) returns (ResolveAllocationNetworkResponse) {}
+}

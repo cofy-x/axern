@@ -13,7 +13,7 @@ mounted_image=""
 
 cleanup() {
   if [ -n "${container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}" >/dev/null 2>&1 || true
+    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}" >/dev/null 2>&1 || true
   fi
   if [ -n "${mounted_image}" ]; then
     payload="$(jq -cn --arg image_url "${mounted_image}" '{image_url:$image_url,lease_id:"node-inventory-e2e",owner:"verification"}')"
@@ -139,7 +139,7 @@ wait_for_jq \
   30 \
   '.components.axnoded.running_containers >= 1 and .resources.cpu.axnoded_committed_milli > 0 and .resources.memory.axnoded_committed_bytes > 0 and .resources.cpu.axnoded_unbounded_count == 0 and .resources.memory.axnoded_unbounded_count == 0 and .resources.memory.axnoded_used_bytes >= 0 and (.sources.axnoded.status == "ready" or .sources.axnoded.status == "warming" or .sources.axnoded.status == "degraded")'
 
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
 container_id=""
 
 fetch_axnoded_inventory "${axnoded_inventory}"
@@ -174,7 +174,7 @@ wait_for_jq \
   30 \
   '.components.axnoded.running_containers >= 1 and .resources.cpu.axnoded_committed_milli >= 250 and .resources.memory.axnoded_committed_bytes >= 134217728 and .resources.memory.axnoded_unbounded_count == 0'
 
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
 container_id=""
 
 payload="$(jq -cn --arg image_url "${IMAGE_URL}" '{image_url:$image_url,lease_id:"node-inventory-e2e",owner:"verification"}')"

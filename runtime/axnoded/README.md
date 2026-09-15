@@ -20,7 +20,8 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet's native packet programs rem
 
 - `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded process, terminal, file/archive, readiness, and Computer Use operations for one explicit Allocation. Public messages never carry access credentials; axnoded accepts an AllocationAccessGrant only from private incoming gRPC metadata and rejects missing or ambiguous values. Streaming operations acknowledge a validated grant before consuming request data or producing sandbox output.
 - `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status.
-- `axern.private.node.operator.v1.NodeOperator`: local Unix-socket operator workflows for `axctl`.
+- `axern.private.node.operator.v1.NodeOperator`: root-only local operator inspection, Allocation-scoped exec/wait, and audited break-glass workflows for `axctl`.
+- `axern.private.node.network.v1.AllocationNetwork`: narrow machine-only Allocation network resolution for `node-tunneld`, registered on a separate Unix socket.
 - `axern.private.control.node.v1.NodeControl`: ordered atomic node reports with complete execution-lease snapshots, coalesced Allocation lifecycle batches, and allocation-access-grant replication with `controld`.
 
 The reporter uses a durable, explicitly admitted Node identity and a fresh process identity for observation ordering. An administrator must admit the Node ID and random credential before the first complete report; the mutable node target is observation data, and reports cannot create identities or rotate credentials. If an operator retires the Node identity, `controld` rejects reports, status batches, and watches; the host must be removed and any replacement must use a new Node ID. Retirement is not a temporary disconnect or a reporter recovery mechanism.
@@ -58,6 +59,7 @@ Example daemon invocation:
 ./output/axnoded \
   -config ./docs/sample_conf.toml \
   -socket /run/axnoded/axnoded.sock \
+  -network-socket /run/axnoded/network.sock \
   -http-address 127.0.0.1:23001
 ```
 
@@ -99,10 +101,13 @@ Runtime image contracts live in [Runtime Images](docker/runtimes/README.md). Doc
 
 ```bash
 axctl node check
-axctl sandbox list
+axctl allocation list
 axctl image mounts
-axctl sandbox network-policy explain <sandbox-id>
-axctl sandbox network-policy doctor --json <sandbox-id>
+axctl allocation network-policy explain <allocation-id>
+axctl allocation network-policy doctor --json <allocation-id>
+axctl allocation exec <allocation-id> -- /bin/sh
+axctl allocation force-terminate --reason 'incident 42' <allocation-id>
+axctl allocation force-cleanup --reason 'incident 42' <allocation-id>
 
 # Qualification-only: evict one page-aligned regular-file range from an exact,
 # currently mounted image identity. This never uses the global drop_caches knob.
@@ -129,13 +134,17 @@ Axnoded OTEL metrics include the stable `axern.node_id` datapoint attribute so m
 
 Default local endpoints:
 
-- axnoded Unix socket: `/run/axnoded/axnoded.sock`
+- root-only operator Unix socket: `/run/axnoded/axnoded.sock`
+- machine-only Allocation network Unix socket: `/run/axnoded/network.sock`
 - repo-local dev socket: `.dev/run/axnoded.sock`
+- repo-local machine socket: `.dev/run/axnoded-network.sock`
 - HTTP operator surface: `127.0.0.1:23001`
 
 When `-grpc-address` is configured, `axnoded` can expose a routable TCP listener for `NodeSandbox` and `NodeLifecycle`.
 
-`NodeOperator` remains Unix-socket-only. It also exposes `ResolveSandboxNetwork` for node-local platform daemons such as `node-tunneld`.
+`NodeOperator` remains root-only and Unix-socket-only. Its `Exec`, `ExecStream`, and `Wait` methods operate on the exact Allocation identity and cannot advance Allocation lifecycle. Destructive incident recovery is limited to reason-bearing `ForceTerminateAllocation` and `ForceCleanupAllocation`; normal cancellation and cleanup remain control-plane operations.
+
+`AllocationNetwork` is registered on the separate machine socket and exposes only `ResolveAllocationNetwork` to node-local platform daemons such as `node-tunneld`. It cannot exec, inspect, terminate, or clean an Allocation.
 
 Image-backed rootfs flows depend on the node-local `imagemgr` socket:
 

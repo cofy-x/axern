@@ -149,7 +149,7 @@ check_empty \
 
 check_empty \
 	"internal/app must not implement API handlers or sandbox lifecycle behavior" \
-	"rg -n 'func .*\\(.*\\) (CreateAllocation|DeleteAllocation|Exec|ExecStream|WaitSandbox|ListSandboxes|ResolveSandboxNetwork|Start|Delete|Kill|PortForward)\\(' runtime/axnoded/internal/app ${production_go} || true"
+	"rg -n 'func .*\\(.*\\) (CreateAllocation|DeleteAllocation|Exec|ExecStream|Wait|ListAllocations|ResolveAllocationNetwork|ForceTerminateAllocation|ForceCleanupAllocation|Start|Delete|Kill|PortForward)\\(' runtime/axnoded/internal/app ${production_go} || true"
 
 check_empty \
 	"API adapters must not import app or concrete low-level runtime packages" \

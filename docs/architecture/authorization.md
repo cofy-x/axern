@@ -14,6 +14,14 @@ Gateway-owned allocation target resolution, tunnel relay target resolution, and 
 
 `NodeControl` likewise accepts only the verified `axern-node` workload certificate. Internal workload services are therefore explicit authenticated boundaries, not unauthenticated exceptions to public authorization.
 
+## Node-local operator authorization
+
+The node-local operator API is a privileged administrative boundary, not an unauthenticated shortcut around gateway or control-plane authorization. Its Unix socket must never be world-writable. Deployment must restrict it to root or an explicit operator principal through ownership and mode, or enforce an equivalent authenticated peer identity before dispatch. Possession of an Allocation ID alone grants no authority.
+
+Operator `Exec`, `ExecStream`, and `Wait` target an already admitted Allocation and reuse its normal process/runtime implementation. They do not advance Allocation desired state. Destructive node-local recovery is an explicitly named break-glass authority with terminal reporting, diagnostic, and idempotent cleanup obligations; routine cancellation and deletion remain control-plane operations.
+
+Node-local daemons use purpose-specific machine interfaces. In particular, a tunnel component that only resolves an Allocation network namespace must not share a socket or principal whose ambient authority also permits exec, termination, cleanup, or broad diagnostics. Socket separation, service registration, ownership, and deployment identities must preserve that least-privilege boundary.
+
 ## Roles
 
 | Role               | Scope     | Authority                                                                                            |

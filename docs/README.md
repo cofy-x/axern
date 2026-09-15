@@ -22,6 +22,7 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 
 - [Documentation Site Visual Direction](decisions/docs-site-visual-direction.md): durable visual, content, interaction, and ownership constraints for the public documentation site.
 - [Firecracker Evaluation Boundary](decisions/firecracker-evaluation-boundary.md): keep runsc as the sole production backend until a separately qualified experiment proves a concrete need.
+- [Node Operator Authority Boundary](decisions/node-operator-authority-boundary.md): retain Allocation-scoped node diagnostics without creating a second lifecycle authority or sharing operator privilege with machine integrations.
 - [Verification Feedback Tiers](decisions/verification-feedback-tiers.md): separate fast development feedback, Linux correctness, full regression, and frozen-candidate qualification.
 
 ## Product Direction And User Models

@@ -10,7 +10,7 @@ For local compose and kind commands, see [Local Troubleshooting](../../deploy/lo
 | --- | --- | --- |
 | `controld` | process stdout/stderr | node observation ingest, heartbeat freshness, placement rejections, allocation dispatch, Run/Allocation state, gateway and tunnel target resolution |
 | `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
-| `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, allocation netns lookup, axnoded operator socket access, relay connection failures |
+| `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, Allocation netns lookup, machine-only network socket access, relay connection failures |
 | `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
 | `egressd` | process stdout/stderr | policy prepare/delete fencing, persistent recovery, orphan reconciliation, enforcement health |
 | `imagefsd mount daemon` | `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` | Nydus image read path, backend fetches, cache/chunk behavior, FUSE mount daemon internals |
@@ -26,7 +26,8 @@ These paths are inside the node runtime environment, such as the compose `node` 
 | Path                                | Meaning                                                      |
 | ----------------------------------- | ------------------------------------------------------------ |
 | `/tmp/axnoded-node-config.toml`     | generated axnoded config used by node-all-in-one deployments |
-| `/shared/run/axnoded.sock`          | axnoded operator socket used by `axctl` and `node-tunneld`   |
+| `/shared/run/axnoded.sock`          | root-only axnoded operator socket used by `axctl`            |
+| `/shared/run/axnoded-network.sock`  | machine-only Allocation network socket for `node-tunneld`    |
 | `/run/imagemgr/imagemgr.sock`       | axnoded-to-imagemgr image rootfs API socket                  |
 | `/run/egressd/egressd.sock`         | axnoded-to-egressd policy lifecycle API socket               |
 | `/var/lib/axnoded`                  | axnoded runtime state, store, rootfs, filestore              |
@@ -65,7 +66,7 @@ Inspect `/tmp/axnoded-node-config.toml` when socket paths, node identity, runsc 
 | Component      | Owns                                                                                                                 |
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `controld`     | node observation, placement, allocation dispatch, gateway/tunnel resolution                                          |
-| `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, operator socket |
+| `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, root-only operator and separate machine network sockets |
 | `egressd`      | node-local egress policy persistence, recovery, reconciliation, and host enforcement                                 |
 | `imagemgr`     | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle                                 |
 | `imagefsd`     | read-only image data, cache, chunk DB, mount daemon internals                                                        |

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"io"
 	"strings"
 	"testing"
 	"time"
@@ -10,9 +9,6 @@ import (
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
-	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
-	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
@@ -21,48 +17,46 @@ import (
 )
 
 type fakeNodeOperatorService struct {
-	execRequests         []*runtimev1.ExecRequest
-	statFileRequests     []*runtimev1.StatFileRequest
-	listDirRequests      []*runtimev1.ListDirRequest
-	waitRequests         []*runtimev1.WaitRequest
-	listRequests         []*runtimev1.ListContainersRequest
-	deleteRequests       []*runtimev1.DeleteRequest
-	killRequests         []*runtimev1.KillRequest
-	reportedAllocationID string
-	reportedExitCode     int32
-	reportedKnown        bool
-	diagnosticsID        string
-	diagnosticsFull      bool
-	inventory            nodeinventory.NodeInventorySnapshot
-	inventoryReady       bool
-	networkPolicy        service.NetworkPolicyDiagnostics
+	execRequests        []*runtimev1.ExecRequest
+	waitRequests        []*runtimev1.WaitRequest
+	listRequests        []*runtimev1.ListContainersRequest
+	diagnosticsID       string
+	diagnosticsFull     bool
+	inventory           nodeinventory.NodeInventorySnapshot
+	inventoryReady      bool
+	networkPolicy       service.NetworkPolicyDiagnostics
+	validateOperatorErr error
+	validateInspectErr  error
+	forceAction         string
+	forceAllocationID   string
+	forceReason         string
 }
 
 func (f *fakeNodeOperatorService) NetworkPolicyDiagnostics(context.Context, string) service.NetworkPolicyDiagnostics {
 	return f.networkPolicy
 }
 
-func (f *fakeNodeOperatorService) Run(context.Context) error      { return nil }
-func (f *fakeNodeOperatorService) Shutdown(context.Context) error { return nil }
-func (f *fakeNodeOperatorService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error) {
-	return nil, nil, nil
-}
-func (f *fakeNodeOperatorService) Start(context.Context, *runtimev1.StartRequest) (*runtimev1.StartResponse, error) {
-	return nil, nil
-}
-func (f *fakeNodeOperatorService) Delete(ctx context.Context, req *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error) {
-	_ = ctx
-	f.deleteRequests = append(f.deleteRequests, req)
-	return &runtimev1.DeleteResponse{}, nil
-}
 func (f *fakeNodeOperatorService) ExecStream(service.ExecStreamServer) error { return nil }
-func (f *fakeNodeOperatorService) Process(service.ProcessStreamServer) error { return nil }
-func (f *fakeNodeOperatorService) Ready() bool                               { return true }
 func (f *fakeNodeOperatorService) NodeInventory() (nodeinventory.NodeInventorySnapshot, bool) {
 	return f.inventory, f.inventoryReady
 }
-func (f *fakeNodeOperatorService) NetworkForSandbox(containerID string) (*service.SandboxNetwork, error) {
-	return &service.SandboxNetwork{IP: "172.17.0.2", NetNSPath: "/var/run/netns/axctl-test"}, nil
+func (f *fakeNodeOperatorService) ValidateOperatorExecution(string) error {
+	return f.validateOperatorErr
+}
+func (f *fakeNodeOperatorService) ValidateOperatorInspection(string) error {
+	return f.validateInspectErr
+}
+func (f *fakeNodeOperatorService) ForceTerminateAllocation(_ context.Context, allocationID, reason string) error {
+	f.forceAction = "terminate"
+	f.forceAllocationID = allocationID
+	f.forceReason = reason
+	return nil
+}
+func (f *fakeNodeOperatorService) ForceCleanupAllocation(_ context.Context, allocationID, reason string, _ int64) error {
+	f.forceAction = "cleanup"
+	f.forceAllocationID = allocationID
+	f.forceReason = reason
+	return nil
 }
 func (f *fakeNodeOperatorService) SandboxdDiagnostics(ctx context.Context, containerID string, full bool) (service.SandboxdDiagnostics, error) {
 	_ = ctx
@@ -94,127 +88,10 @@ func (f *fakeNodeOperatorService) SandboxdDiagnostics(ctx context.Context, conta
 	}, nil
 }
 
-func (f *fakeNodeOperatorService) SandboxCapabilityStatus(ctx context.Context, containerID string) (service.SandboxCapabilityStatus, error) {
-	diagnostics, err := f.SandboxdDiagnostics(ctx, containerID, false)
-	if err != nil {
-		return service.SandboxCapabilityStatus{}, err
-	}
-	return service.SandboxCapabilityStatus{
-		Ready:           diagnostics.Ready,
-		Capabilities:    append([]string(nil), diagnostics.Capabilities...),
-		ProviderSummary: service.SandboxCapabilityProviderSummary{Total: diagnostics.ProviderSummary.Total, Available: diagnostics.ProviderSummary.Available},
-	}, nil
-}
-func (f *fakeNodeOperatorService) Stats(context.Context, *runtimev1.StatsRequest) (*runtimev1.StatsResponse, error) {
-	return nil, nil
-}
-func (f *fakeNodeOperatorService) Kill(ctx context.Context, req *runtimev1.KillRequest) (*runtimev1.KillResponse, error) {
-	_ = ctx
-	f.killRequests = append(f.killRequests, req)
-	return &runtimev1.KillResponse{}, nil
-}
-func (f *fakeNodeOperatorService) Version(context.Context, *runtimev1.VersionRequest) (*runtimev1.VersionResponse, error) {
-	return nil, nil
-}
-func (f *fakeNodeOperatorService) ReportAllocationLifecycle(allocationID string, status commonv1.AllocationLifecycleState, exitCode *int32, ready bool, readinessMessage string, message string, observedAt time.Time) {
-	_ = status
-	_ = ready
-	_ = readinessMessage
-	_ = message
-	_ = observedAt
-	f.reportedAllocationID = allocationID
-	if exitCode != nil {
-		f.reportedExitCode = *exitCode
-		f.reportedKnown = true
-	}
-}
-
 func (f *fakeNodeOperatorService) Exec(ctx context.Context, req *runtimev1.ExecRequest) (*runtimev1.ExecResponse, error) {
 	_ = ctx
 	f.execRequests = append(f.execRequests, req)
 	return &runtimev1.ExecResponse{ExitCode: 0, Stdout: []byte("ok\n")}, nil
-}
-
-func (f *fakeNodeOperatorService) StatFile(ctx context.Context, req *runtimev1.StatFileRequest) (*runtimev1.StatFileResponse, error) {
-	_ = ctx
-	f.statFileRequests = append(f.statFileRequests, req)
-	return &runtimev1.StatFileResponse{Info: &filev1.SandboxFileInfo{
-		Path:    req.GetPath(),
-		Kind:    filev1.SandboxFileKind_SANDBOX_FILE_KIND_FILE,
-		Size:    5,
-		Mode:    0644,
-		MtimeNs: 7,
-	}}, nil
-}
-
-func (f *fakeNodeOperatorService) ListDir(ctx context.Context, req *runtimev1.ListDirRequest) (*runtimev1.ListDirResponse, error) {
-	_ = ctx
-	f.listDirRequests = append(f.listDirRequests, req)
-	return &runtimev1.ListDirResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) ReadFile(context.Context, *runtimev1.ReadFileRequest) (*runtimev1.ReadFileResponse, error) {
-	return &runtimev1.ReadFileResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) WriteFile(context.Context, *runtimev1.WriteFileRequest) (*runtimev1.WriteFileResponse, error) {
-	return &runtimev1.WriteFileResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Mkdir(context.Context, *runtimev1.MkdirRequest) (*runtimev1.MkdirResponse, error) {
-	return &runtimev1.MkdirResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Remove(context.Context, *runtimev1.RemoveRequest) (*runtimev1.RemoveResponse, error) {
-	return &runtimev1.RemoveResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Exists(context.Context, *runtimev1.ExistsRequest) (*runtimev1.ExistsResponse, error) {
-	return &runtimev1.ExistsResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Copy(context.Context, *runtimev1.CopyRequest) (*runtimev1.CopyResponse, error) {
-	return &runtimev1.CopyResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Move(context.Context, *runtimev1.MoveRequest) (*runtimev1.MoveResponse, error) {
-	return &runtimev1.MoveResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Chmod(context.Context, *runtimev1.ChmodRequest) (*runtimev1.ChmodResponse, error) {
-	return &runtimev1.ChmodResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) Touch(context.Context, *runtimev1.TouchRequest) (*runtimev1.TouchResponse, error) {
-	return &runtimev1.TouchResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) ComputerUseStatus(context.Context, *runtimev1.ComputerUseStatusRequest) (*runtimev1.ComputerUseStatusResponse, error) {
-	return &runtimev1.ComputerUseStatusResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) ComputerUseScreenshot(context.Context, *runtimev1.ComputerUseScreenshotRequest) (*runtimev1.ComputerUseScreenshotResponse, error) {
-	return &runtimev1.ComputerUseScreenshotResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) ComputerUseDisplay(context.Context, *runtimev1.ComputerUseDisplayRequest) (*runtimev1.ComputerUseDisplayResponse, error) {
-	return &runtimev1.ComputerUseDisplayResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) ComputerUseMouse(context.Context, *runtimev1.ComputerUseMouseRequest) (*runtimev1.ComputerUseMouseResponse, error) {
-	return &runtimev1.ComputerUseMouseResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) ComputerUseKeyboard(context.Context, *runtimev1.ComputerUseKeyboardRequest) (*runtimev1.ComputerUseKeyboardResponse, error) {
-	return &runtimev1.ComputerUseKeyboardResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) UploadArchive(context.Context, *runtimev1.UploadArchiveRequest, io.Reader) (*runtimev1.UploadArchiveResponse, error) {
-	return &runtimev1.UploadArchiveResponse{}, nil
-}
-
-func (f *fakeNodeOperatorService) DownloadArchive(context.Context, *runtimev1.DownloadArchiveRequest, io.Writer) (*runtimev1.DownloadArchiveResponse, error) {
-	return &runtimev1.DownloadArchiveResponse{}, nil
 }
 
 func (f *fakeNodeOperatorService) Wait(ctx context.Context, req *runtimev1.WaitRequest) (*runtimev1.WaitResponse, error) {
@@ -241,19 +118,34 @@ func (f *fakeNodeOperatorService) List(ctx context.Context, req *runtimev1.ListC
 	}, nil
 }
 
-func TestNodeOperatorListSandboxesBridgesList(t *testing.T) {
+func TestNodeOperatorListAllocationsBridgesList(t *testing.T) {
 	t.Parallel()
 
 	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
-	resp, err := server.ListSandboxes(context.Background(), &nodeoperatorv1.ListSandboxesRequest{})
+	resp, err := server.ListAllocations(context.Background(), &nodeoperatorv1.ListAllocationsRequest{})
 	if err != nil {
-		t.Fatalf("ListSandboxes() error = %v", err)
+		t.Fatalf("ListAllocations() error = %v", err)
 	}
-	if len(resp.GetSandboxes()) != 1 {
-		t.Fatalf("sandbox count = %d, want 1", len(resp.GetSandboxes()))
+	if len(resp.GetAllocations()) != 1 {
+		t.Fatalf("allocation count = %d, want 1", len(resp.GetAllocations()))
 	}
-	if resp.GetSandboxes()[0].GetPid() != 321 {
-		t.Fatalf("pid = %d, want 321", resp.GetSandboxes()[0].GetPid())
+	if resp.GetAllocations()[0].GetPid() != 321 {
+		t.Fatalf("pid = %d, want 321", resp.GetAllocations()[0].GetPid())
+	}
+}
+
+func TestNodeOperatorListAllocationsExcludesUnownedRuntime(t *testing.T) {
+	t.Parallel()
+
+	server := NewNodeOperatorServer(&fakeNodeOperatorService{
+		validateInspectErr: grpcstatus.Error(codes.FailedPrecondition, "no AllocationState"),
+	})
+	resp, err := server.ListAllocations(context.Background(), &nodeoperatorv1.ListAllocationsRequest{})
+	if err != nil {
+		t.Fatalf("ListAllocations() error = %v", err)
+	}
+	if len(resp.GetAllocations()) != 0 {
+		t.Fatalf("allocation count = %d, want orphan runtime excluded", len(resp.GetAllocations()))
 	}
 }
 
@@ -264,7 +156,7 @@ func TestNodeOperatorExecBridgesRequest(t *testing.T) {
 	server := NewNodeOperatorServer(fakeService)
 
 	resp, err := server.Exec(context.Background(), &nodeoperatorv1.ExecRequest{
-		SandboxID: "sandbox-123",
+		AllocationID: "sandbox-123",
 		Spec: &nodesandboxv1.ExecSpec{
 			Argv:           []string{"python", "-c", "print('ok')"},
 			Env:            map[string]string{"A": "B"},
@@ -291,25 +183,34 @@ func TestNodeOperatorExecBridgesRequest(t *testing.T) {
 	}
 }
 
-func TestNodeOperatorKillBridgesRequest(t *testing.T) {
+func TestNodeOperatorForceTerminateCarriesReason(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeOperatorService{}
 	server := NewNodeOperatorServer(fakeService)
 
-	_, err := server.KillSandbox(context.Background(), &nodeoperatorv1.KillSandboxRequest{
-		SandboxID: "sandbox-123",
-		Signal:    "SIGKILL",
+	_, err := server.ForceTerminateAllocation(context.Background(), &nodeoperatorv1.ForceTerminateAllocationRequest{
+		AllocationID: "sandbox-123",
+		Reason:       "incident recovery",
 	})
 	if err != nil {
-		t.Fatalf("KillSandbox() error = %v", err)
+		t.Fatalf("ForceTerminateAllocation() error = %v", err)
 	}
-	if len(fakeService.killRequests) != 1 {
-		t.Fatalf("kill request count = %d, want 1", len(fakeService.killRequests))
+	if fakeService.forceAction != "terminate" || fakeService.forceAllocationID != "sandbox-123" || fakeService.forceReason != "incident recovery" {
+		t.Fatalf("force terminate request = action:%q allocation:%q reason:%q", fakeService.forceAction, fakeService.forceAllocationID, fakeService.forceReason)
 	}
-	got := fakeService.killRequests[0]
-	if got.GetID() != "sandbox-123" || got.GetSignal() != "SIGKILL" {
-		t.Fatalf("kill request = %#v", got)
+}
+
+func TestNodeOperatorExecFailsClosedBeforeRuntimeCall(t *testing.T) {
+	t.Parallel()
+	fakeService := &fakeNodeOperatorService{validateOperatorErr: grpcstatus.Error(codes.FailedPrecondition, "runtime identity mismatch")}
+	server := NewNodeOperatorServer(fakeService)
+	_, err := server.Exec(context.Background(), &nodeoperatorv1.ExecRequest{
+		AllocationID: "allocation-123",
+		Spec:         &nodesandboxv1.ExecSpec{Argv: []string{"true"}},
+	})
+	if grpcstatus.Code(err) != codes.FailedPrecondition || len(fakeService.execRequests) != 0 {
+		t.Fatalf("Exec() error=%v requests=%d", err, len(fakeService.execRequests))
 	}
 }
 
@@ -319,11 +220,11 @@ func TestNodeOperatorWaitReturnsExit(t *testing.T) {
 	fakeService := &fakeNodeOperatorService{}
 	server := NewNodeOperatorServer(fakeService)
 
-	resp, err := server.WaitSandbox(context.Background(), &nodeoperatorv1.WaitSandboxRequest{SandboxID: "sandbox-123"})
+	resp, err := server.Wait(context.Background(), &nodeoperatorv1.WaitRequest{AllocationID: "sandbox-123"})
 	if err != nil {
-		t.Fatalf("WaitSandbox() error = %v", err)
+		t.Fatalf("Wait() error = %v", err)
 	}
-	if resp.GetState() != nodeoperatorv1.LocalSandboxState_LOCAL_SANDBOX_STATE_EXITED {
+	if resp.GetState() != nodeoperatorv1.LocalAllocationState_LOCAL_ALLOCATION_STATE_EXITED {
 		t.Fatalf("state = %v, want EXITED", resp.GetState())
 	}
 	if resp.ExitCode == nil || resp.GetExitCode() != 23 {
@@ -336,9 +237,9 @@ func TestNodeOperatorSandboxDiagnosticsBridgesSandboxdSnapshot(t *testing.T) {
 
 	fakeService := &fakeNodeOperatorService{}
 	server := NewNodeOperatorServer(fakeService)
-	resp, err := server.GetSandboxDiagnostics(context.Background(), &nodeoperatorv1.GetSandboxDiagnosticsRequest{SandboxID: "sandbox-123", Full: true})
+	resp, err := server.GetAllocationDiagnostics(context.Background(), &nodeoperatorv1.GetAllocationDiagnosticsRequest{AllocationID: "sandbox-123", Full: true})
 	if err != nil {
-		t.Fatalf("GetSandboxDiagnostics() error = %v", err)
+		t.Fatalf("GetAllocationDiagnostics() error = %v", err)
 	}
 	if fakeService.diagnosticsID != "sandbox-123" || !fakeService.diagnosticsFull {
 		t.Fatalf("diagnostics bridge id=%q full=%v", fakeService.diagnosticsID, fakeService.diagnosticsFull)
@@ -366,12 +267,12 @@ func TestNodeOperatorNetworkPolicyDiagnosticsAreBoundedAndPrivacySafe(t *testing
 		DomainRuleCount:     3, CIDRRuleCount: 2, PortRangeCount: 4, TotalRuleCount: 5,
 	}}
 	server := NewNodeOperatorServer(fakeService)
-	response, err := server.ExplainSandboxNetworkPolicy(context.Background(), &nodeoperatorv1.ExplainSandboxNetworkPolicyRequest{SandboxID: "sandbox-123"})
+	response, err := server.ExplainAllocationNetworkPolicy(context.Background(), &nodeoperatorv1.ExplainAllocationNetworkPolicyRequest{AllocationID: "sandbox-123"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if response.GetMode() != nodeoperatorv1.SandboxNetworkPolicyMode_SANDBOX_NETWORK_POLICY_MODE_STRICT ||
-		response.GetStatus() != nodeoperatorv1.SandboxNetworkPolicyStatus_SANDBOX_NETWORK_POLICY_STATUS_OK ||
+	if response.GetMode() != nodeoperatorv1.AllocationNetworkPolicyMode_ALLOCATION_NETWORK_POLICY_MODE_STRICT ||
+		response.GetStatus() != nodeoperatorv1.AllocationNetworkPolicyStatus_ALLOCATION_NETWORK_POLICY_STATUS_OK ||
 		!response.GetExactBinding() || response.GetTotalRuleCount() != 5 {
 		t.Fatalf("network policy diagnostics = %#v", response)
 	}
@@ -395,12 +296,12 @@ func TestNodeOperatorSandboxMemoryReturnsLatestResolvedObservation(t *testing.T)
 	fakeService := &fakeNodeOperatorService{inventory: inventory, inventoryReady: true}
 	server := NewNodeOperatorServer(fakeService)
 
-	resp, err := server.GetSandboxMemory(context.Background(), &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: "allocation-123"})
+	resp, err := server.GetAllocationMemory(context.Background(), &nodeoperatorv1.GetAllocationMemoryRequest{AllocationID: "allocation-123"})
 	if err != nil {
-		t.Fatalf("GetSandboxMemory() error = %v", err)
+		t.Fatalf("GetAllocationMemory() error = %v", err)
 	}
 	if got := resp.GetObservation(); got.GetAllocationID() != "allocation-123" || got.GetLimitBytes() != 512<<20 {
-		t.Fatalf("GetSandboxMemory() = %#v", got)
+		t.Fatalf("GetAllocationMemory() = %#v", got)
 	}
 }
 
@@ -408,9 +309,9 @@ func TestNodeOperatorSandboxMemoryFailsClosedWithoutFreshObservation(t *testing.
 	t.Parallel()
 
 	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
-	_, err := server.GetSandboxMemory(context.Background(), &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: "sandbox-123"})
+	_, err := server.GetAllocationMemory(context.Background(), &nodeoperatorv1.GetAllocationMemoryRequest{AllocationID: "sandbox-123"})
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("GetSandboxMemory() code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
+		t.Fatalf("GetAllocationMemory() code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
 	}
 }
 
@@ -418,18 +319,34 @@ func TestNodeOperatorSandboxDiagnosticsRequiresID(t *testing.T) {
 	t.Parallel()
 
 	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
-	_, err := server.GetSandboxDiagnostics(context.Background(), &nodeoperatorv1.GetSandboxDiagnosticsRequest{})
+	_, err := server.GetAllocationDiagnostics(context.Background(), &nodeoperatorv1.GetAllocationDiagnosticsRequest{})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("GetSandboxDiagnostics() code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
+		t.Fatalf("GetAllocationDiagnostics() code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
 	}
 }
 
-func TestNodeOperatorGetSandboxRequiresID(t *testing.T) {
+func TestNodeOperatorGetAllocationRequiresID(t *testing.T) {
 	t.Parallel()
 
 	server := NewNodeOperatorServer(&fakeNodeOperatorService{})
-	_, err := server.GetSandbox(context.Background(), &nodeoperatorv1.GetSandboxRequest{})
+	_, err := server.GetAllocation(context.Background(), &nodeoperatorv1.GetAllocationRequest{})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("GetSandbox() code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
+		t.Fatalf("GetAllocation() code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
+	}
+}
+
+func TestNodeOperatorGetAllocationFailsClosedBeforeRuntimeLookup(t *testing.T) {
+	t.Parallel()
+
+	fakeService := &fakeNodeOperatorService{
+		validateInspectErr: grpcstatus.Error(codes.FailedPrecondition, "runtime identity mismatch"),
+	}
+	server := NewNodeOperatorServer(fakeService)
+	_, err := server.GetAllocation(context.Background(), &nodeoperatorv1.GetAllocationRequest{AllocationID: "allocation-1"})
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("GetAllocation() code = %v, want %v", grpcstatus.Code(err), codes.FailedPrecondition)
+	}
+	if len(fakeService.listRequests) != 0 {
+		t.Fatalf("GetAllocation() reached runtime after failed identity validation: %d requests", len(fakeService.listRequests))
 	}
 }

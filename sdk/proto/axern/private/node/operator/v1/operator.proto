@@ -8,40 +8,40 @@ import "axern/private/control/node/v1/node_control.proto";
 import "axern/node/sandbox/v1/node.proto";
 import "google/protobuf/timestamp.proto";
 
-enum LocalSandboxState {
-  LOCAL_SANDBOX_STATE_UNSPECIFIED = 0;
-  LOCAL_SANDBOX_STATE_RUNNING = 1;
-  LOCAL_SANDBOX_STATE_EXITED = 2;
-  LOCAL_SANDBOX_STATE_UNKNOWN = 3;
+enum LocalAllocationState {
+  LOCAL_ALLOCATION_STATE_UNSPECIFIED = 0;
+  LOCAL_ALLOCATION_STATE_RUNNING = 1;
+  LOCAL_ALLOCATION_STATE_EXITED = 2;
+  LOCAL_ALLOCATION_STATE_UNKNOWN = 3;
 }
 
-enum SandboxNetworkPolicyMode {
-  SANDBOX_NETWORK_POLICY_MODE_UNSPECIFIED = 0;
-  SANDBOX_NETWORK_POLICY_MODE_UNRESTRICTED = 1;
-  SANDBOX_NETWORK_POLICY_MODE_DNS_DENY = 2;
-  SANDBOX_NETWORK_POLICY_MODE_STRICT = 3;
+enum AllocationNetworkPolicyMode {
+  ALLOCATION_NETWORK_POLICY_MODE_UNSPECIFIED = 0;
+  ALLOCATION_NETWORK_POLICY_MODE_UNRESTRICTED = 1;
+  ALLOCATION_NETWORK_POLICY_MODE_DNS_DENY = 2;
+  ALLOCATION_NETWORK_POLICY_MODE_STRICT = 3;
 }
 
-enum SandboxNetworkPolicyStatus {
-  SANDBOX_NETWORK_POLICY_STATUS_UNSPECIFIED = 0;
-  SANDBOX_NETWORK_POLICY_STATUS_OK = 1;
-  SANDBOX_NETWORK_POLICY_STATUS_ABSENT = 2;
-  SANDBOX_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE = 3;
-  SANDBOX_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY = 4;
-  SANDBOX_NETWORK_POLICY_STATUS_BINDING_MISMATCH = 5;
+enum AllocationNetworkPolicyStatus {
+  ALLOCATION_NETWORK_POLICY_STATUS_UNSPECIFIED = 0;
+  ALLOCATION_NETWORK_POLICY_STATUS_OK = 1;
+  ALLOCATION_NETWORK_POLICY_STATUS_ABSENT = 2;
+  ALLOCATION_NETWORK_POLICY_STATUS_CAPABILITY_UNAVAILABLE = 3;
+  ALLOCATION_NETWORK_POLICY_STATUS_ENFORCEMENT_UNHEALTHY = 4;
+  ALLOCATION_NETWORK_POLICY_STATUS_BINDING_MISMATCH = 5;
 }
 
-enum SandboxNetworkPolicyCapabilityState {
-  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNSPECIFIED = 0;
-  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE = 1;
-  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNAVAILABLE = 2;
-  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_UNKNOWN = 3;
-  SANDBOX_NETWORK_POLICY_CAPABILITY_STATE_NOT_REQUIRED = 4;
+enum AllocationNetworkPolicyCapabilityState {
+  ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_UNSPECIFIED = 0;
+  ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_AVAILABLE = 1;
+  ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_UNAVAILABLE = 2;
+  ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_UNKNOWN = 3;
+  ALLOCATION_NETWORK_POLICY_CAPABILITY_STATE_NOT_REQUIRED = 4;
 }
 
-message LocalSandbox {
-  string sandbox_id = 1;
-  LocalSandboxState state = 2;
+message LocalAllocation {
+  string allocation_id = 1;
+  LocalAllocationState state = 2;
   optional int32 exit_code = 3;
   string message = 4;
   int32 pid = 5;
@@ -49,18 +49,18 @@ message LocalSandbox {
   google.protobuf.Timestamp finished_at = 7;
 }
 
-message ListSandboxesRequest {}
+message ListAllocationsRequest {}
 
-message ListSandboxesResponse {
-  repeated LocalSandbox sandboxes = 1;
+message ListAllocationsResponse {
+  repeated LocalAllocation allocations = 1;
 }
 
-message GetSandboxRequest {
-  string sandbox_id = 1;
+message GetAllocationRequest {
+  string allocation_id = 1;
 }
 
-message GetSandboxResponse {
-  LocalSandbox sandbox = 1;
+message GetAllocationResponse {
+  LocalAllocation allocation = 1;
 }
 
 message SandboxdProviderDependency {
@@ -96,13 +96,13 @@ message SandboxdProcessSummary {
   int32 failed = 5;
 }
 
-message GetSandboxDiagnosticsRequest {
-  string sandbox_id = 1;
+message GetAllocationDiagnosticsRequest {
+  string allocation_id = 1;
   bool full = 2;
 }
 
-message GetSandboxDiagnosticsResponse {
-  string sandbox_id = 1;
+message GetAllocationDiagnosticsResponse {
+  string allocation_id = 1;
   bool ready = 2;
   string detail = 3;
   google.protobuf.Timestamp generated_at = 4;
@@ -118,23 +118,23 @@ message GetSandboxDiagnosticsResponse {
   axern.private.control.node.v1.AllocationMemoryObservation memory = 14;
 }
 
-message GetSandboxMemoryRequest {
-  string sandbox_id = 1;
+message GetAllocationMemoryRequest {
+  string allocation_id = 1;
 }
 
-message GetSandboxMemoryResponse {
+message GetAllocationMemoryResponse {
   axern.private.control.node.v1.AllocationMemoryObservation observation = 1;
 }
 
-message ExplainSandboxNetworkPolicyRequest {
-  string sandbox_id = 1;
+message ExplainAllocationNetworkPolicyRequest {
+  string allocation_id = 1;
 }
 
-message ExplainSandboxNetworkPolicyResponse {
-  string sandbox_id = 1;
-  SandboxNetworkPolicyMode mode = 2;
-  SandboxNetworkPolicyStatus status = 3;
-  SandboxNetworkPolicyCapabilityState capability_state = 4;
+message ExplainAllocationNetworkPolicyResponse {
+  string allocation_id = 1;
+  AllocationNetworkPolicyMode mode = 2;
+  AllocationNetworkPolicyStatus status = 3;
+  AllocationNetworkPolicyCapabilityState capability_state = 4;
   bool enforcement_healthy = 5;
   bool exact_binding = 6;
   int64 enforcement_revision = 7;
@@ -144,22 +144,23 @@ message ExplainSandboxNetworkPolicyResponse {
   uint32 total_rule_count = 11;
 }
 
-message DeleteSandboxRequest {
-  string sandbox_id = 1;
-  int64 timeout_seconds = 2;
+message ForceTerminateAllocationRequest {
+  string allocation_id = 1;
+  string reason = 2;
 }
 
-message DeleteSandboxResponse {}
+message ForceTerminateAllocationResponse {}
 
-message KillSandboxRequest {
-  string sandbox_id = 1;
-  string signal = 2;
+message ForceCleanupAllocationRequest {
+  string allocation_id = 1;
+  string reason = 2;
+  int64 timeout_seconds = 3;
 }
 
-message KillSandboxResponse {}
+message ForceCleanupAllocationResponse {}
 
 message ExecRequest {
-  string sandbox_id = 1;
+  string allocation_id = 1;
   axern.node.sandbox.v1.ExecSpec spec = 2;
 }
 
@@ -172,7 +173,7 @@ message ExecResponse {
 }
 
 message ExecStreamOpen {
-  string sandbox_id = 1;
+  string allocation_id = 1;
   axern.node.sandbox.v1.ExecSpec spec = 2;
   TerminalResize initial_size = 3;
 }
@@ -204,37 +205,25 @@ message ExecStreamResponse {
   }
 }
 
-message WaitSandboxRequest {
-  string sandbox_id = 1;
+message WaitRequest {
+  string allocation_id = 1;
 }
 
-message WaitSandboxResponse {
-  LocalSandboxState state = 1;
+message WaitResponse {
+  LocalAllocationState state = 1;
   optional int32 exit_code = 2;
   string message = 3;
 }
 
-message ResolveSandboxNetworkRequest {
-  string sandbox_id = 1;
-}
-
-message ResolveSandboxNetworkResponse {
-  string sandbox_id = 1;
-  string ip = 2;
-  string netns_path = 3;
-  LocalSandboxState state = 4;
-}
-
 service NodeOperator {
-  rpc ListSandboxes(ListSandboxesRequest) returns (ListSandboxesResponse) {}
-  rpc GetSandbox(GetSandboxRequest) returns (GetSandboxResponse) {}
-  rpc GetSandboxDiagnostics(GetSandboxDiagnosticsRequest) returns (GetSandboxDiagnosticsResponse) {}
-  rpc GetSandboxMemory(GetSandboxMemoryRequest) returns (GetSandboxMemoryResponse) {}
-  rpc ExplainSandboxNetworkPolicy(ExplainSandboxNetworkPolicyRequest) returns (ExplainSandboxNetworkPolicyResponse) {}
-  rpc DeleteSandbox(DeleteSandboxRequest) returns (DeleteSandboxResponse) {}
-  rpc KillSandbox(KillSandboxRequest) returns (KillSandboxResponse) {}
+  rpc ListAllocations(ListAllocationsRequest) returns (ListAllocationsResponse) {}
+  rpc GetAllocation(GetAllocationRequest) returns (GetAllocationResponse) {}
+  rpc GetAllocationDiagnostics(GetAllocationDiagnosticsRequest) returns (GetAllocationDiagnosticsResponse) {}
+  rpc GetAllocationMemory(GetAllocationMemoryRequest) returns (GetAllocationMemoryResponse) {}
+  rpc ExplainAllocationNetworkPolicy(ExplainAllocationNetworkPolicyRequest) returns (ExplainAllocationNetworkPolicyResponse) {}
+  rpc ForceTerminateAllocation(ForceTerminateAllocationRequest) returns (ForceTerminateAllocationResponse) {}
+  rpc ForceCleanupAllocation(ForceCleanupAllocationRequest) returns (ForceCleanupAllocationResponse) {}
   rpc Exec(ExecRequest) returns (ExecResponse) {}
   rpc ExecStream(stream ExecStreamRequest) returns (stream ExecStreamResponse) {}
-  rpc WaitSandbox(WaitSandboxRequest) returns (WaitSandboxResponse) {}
-  rpc ResolveSandboxNetwork(ResolveSandboxNetworkRequest) returns (ResolveSandboxNetworkResponse) {}
+  rpc Wait(WaitRequest) returns (WaitResponse) {}
 }

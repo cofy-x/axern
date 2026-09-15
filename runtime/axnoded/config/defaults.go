@@ -5,9 +5,10 @@ import "time"
 const (
 	StopTimeout = 10 * time.Second
 
-	DefaultSocketAddress = "/run/axnoded/axnoded.sock"
-	DefaultRootDir       = "/var/lib/axnoded"
-	DefaultTimeout       = time.Second * 10
+	DefaultSocketAddress        = "/run/axnoded/axnoded.sock"
+	DefaultNetworkSocketAddress = "/run/axnoded/network.sock"
+	DefaultRootDir              = "/var/lib/axnoded"
+	DefaultTimeout              = time.Second * 10
 
 	DefaultContainerRootDir = "/var/lib/axnoded/root"
 	DefaultStoreDir         = "/var/lib/axnoded/store"

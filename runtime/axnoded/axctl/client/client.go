@@ -62,41 +62,42 @@ func (c *Client) Healthz() string {
 	return healthgrpc.HealthCheckResponse_ServingStatus_name[int32(resp.Status)]
 }
 
-func (c *Client) ListSandboxes() (*nodeoperatorv1.ListSandboxesResponse, error) {
+func (c *Client) ListAllocations() (*nodeoperatorv1.ListAllocationsResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	return c.operatorClient.ListSandboxes(ctx, &nodeoperatorv1.ListSandboxesRequest{})
+	return c.operatorClient.ListAllocations(ctx, &nodeoperatorv1.ListAllocationsRequest{})
 }
 
-func (c *Client) GetSandbox(sandboxID string) (*nodeoperatorv1.GetSandboxResponse, error) {
+func (c *Client) GetAllocation(allocationID string) (*nodeoperatorv1.GetAllocationResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	return c.operatorClient.GetSandbox(ctx, &nodeoperatorv1.GetSandboxRequest{SandboxID: sandboxID})
+	return c.operatorClient.GetAllocation(ctx, &nodeoperatorv1.GetAllocationRequest{AllocationID: allocationID})
 }
 
-func (c *Client) GetSandboxDiagnostics(sandboxID string, full bool) (*nodeoperatorv1.GetSandboxDiagnosticsResponse, error) {
+func (c *Client) GetAllocationDiagnostics(allocationID string, full bool) (*nodeoperatorv1.GetAllocationDiagnosticsResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	return c.operatorClient.GetSandboxDiagnostics(ctx, &nodeoperatorv1.GetSandboxDiagnosticsRequest{SandboxID: sandboxID, Full: full})
+	return c.operatorClient.GetAllocationDiagnostics(ctx, &nodeoperatorv1.GetAllocationDiagnosticsRequest{AllocationID: allocationID, Full: full})
 }
 
-func (c *Client) GetSandboxMemory(sandboxID string) (*nodeoperatorv1.GetSandboxMemoryResponse, error) {
+func (c *Client) GetAllocationMemory(allocationID string) (*nodeoperatorv1.GetAllocationMemoryResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	return c.operatorClient.GetSandboxMemory(ctx, &nodeoperatorv1.GetSandboxMemoryRequest{SandboxID: sandboxID})
+	return c.operatorClient.GetAllocationMemory(ctx, &nodeoperatorv1.GetAllocationMemoryRequest{AllocationID: allocationID})
 }
 
-func (c *Client) ExplainSandboxNetworkPolicy(sandboxID string) (*nodeoperatorv1.ExplainSandboxNetworkPolicyResponse, error) {
+func (c *Client) ExplainAllocationNetworkPolicy(allocationID string) (*nodeoperatorv1.ExplainAllocationNetworkPolicyResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	return c.operatorClient.ExplainSandboxNetworkPolicy(ctx, &nodeoperatorv1.ExplainSandboxNetworkPolicyRequest{SandboxID: sandboxID})
+	return c.operatorClient.ExplainAllocationNetworkPolicy(ctx, &nodeoperatorv1.ExplainAllocationNetworkPolicyRequest{AllocationID: allocationID})
 }
 
-func (c *Client) DeleteSandbox(sandboxID string, timeoutSeconds int64) (*nodeoperatorv1.DeleteSandboxResponse, error) {
+func (c *Client) ForceCleanupAllocation(allocationID, reason string, timeoutSeconds int64) (*nodeoperatorv1.ForceCleanupAllocationResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.deleteRPCTimeout(timeoutSeconds))
 	defer cancel()
-	return c.operatorClient.DeleteSandbox(ctx, &nodeoperatorv1.DeleteSandboxRequest{
-		SandboxID:      sandboxID,
+	return c.operatorClient.ForceCleanupAllocation(ctx, &nodeoperatorv1.ForceCleanupAllocationRequest{
+		AllocationID:   allocationID,
+		Reason:         reason,
 		TimeoutSeconds: timeoutSeconds,
 	})
 }
@@ -117,12 +118,12 @@ func (c *Client) deleteRPCTimeout(timeoutSeconds int64) time.Duration {
 	}
 }
 
-func (c *Client) KillSandbox(sandboxID, signal string) (*nodeoperatorv1.KillSandboxResponse, error) {
+func (c *Client) ForceTerminateAllocation(allocationID, reason string) (*nodeoperatorv1.ForceTerminateAllocationResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	return c.operatorClient.KillSandbox(ctx, &nodeoperatorv1.KillSandboxRequest{
-		SandboxID: sandboxID,
-		Signal:    signal,
+	return c.operatorClient.ForceTerminateAllocation(ctx, &nodeoperatorv1.ForceTerminateAllocationRequest{
+		AllocationID: allocationID,
+		Reason:       reason,
 	})
 }
 
@@ -150,7 +151,7 @@ func (c *Client) ExecStream(timeout time.Duration) (nodeoperatorv1.NodeOperator_
 	return stream, cancel, nil
 }
 
-func (c *Client) WaitSandbox(sandboxID string, timeout time.Duration) (*nodeoperatorv1.WaitSandboxResponse, error) {
+func (c *Client) Wait(allocationID string, timeout time.Duration) (*nodeoperatorv1.WaitResponse, error) {
 	var (
 		ctx    context.Context
 		cancel context.CancelFunc
@@ -161,7 +162,7 @@ func (c *Client) WaitSandbox(sandboxID string, timeout time.Duration) (*nodeoper
 		ctx, cancel = context.WithCancel(context.Background())
 	}
 	defer cancel()
-	return c.operatorClient.WaitSandbox(ctx, &nodeoperatorv1.WaitSandboxRequest{SandboxID: sandboxID})
+	return c.operatorClient.Wait(ctx, &nodeoperatorv1.WaitRequest{AllocationID: allocationID})
 }
 
 func normalizeLocalSocketPath(address string) (string, error) {

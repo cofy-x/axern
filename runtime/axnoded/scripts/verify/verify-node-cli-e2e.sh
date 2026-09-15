@@ -14,6 +14,10 @@ export VERIFY_DOCKER_PLATFORM
 dump_logs() {
   echo "--- node container logs ---" >&2
   docker logs "${NODE_CONTAINER_NAME}" >&2 || true
+  for artifact in /tmp/runsc.exec.stderr /tmp/runsc.exec.typescript /tmp/runsc.exec.resize.typescript /tmp/runsc.exec.no-timeout.typescript; do
+    echo "--- ${artifact} ---" >&2
+    docker exec "${NODE_CONTAINER_NAME}" sh -c 'test ! -f "$1" || cat "$1"' sh "${artifact}" >&2 || true
+  done
   echo "--- axnoded log tail ---" >&2
   docker exec "${NODE_CONTAINER_NAME}" tail -n 120 /var/log/axnoded/axnoded.log >&2 || true
 }
@@ -58,6 +62,7 @@ fi
 
 if ! docker exec \
   -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
+  -e "AXERN_E2E_TRACE=${AXERN_E2E_TRACE:-0}" \
   "${NODE_CONTAINER_NAME}" \
   /bin/bash /workspace/scripts/verify/verify-node-cli-e2e-in-container.sh; then
   dump_logs

@@ -28,6 +28,14 @@ This document records the implemented lifecycle contract. It is intentionally ab
 
 Resource reservation is not a second object. The Allocation row is the transactional resource charge from admission until `RELEASED`. Queue claims and retry counters are delivery metadata. Capability conditions and inventory are observations and cannot advance desired state.
 
+## Node-local operator boundary
+
+Node-local inspection and debugging do not create another lifecycle owner. Allocation-scoped `Exec`, `ExecStream`, and `Wait` remain valid operator capabilities because they inspect or create subordinate processes inside an existing sandbox; they reuse the same process/runtime implementation as the gateway data plane and never create, bind, revive, terminate, release, or delete an Allocation. Every operation targets the exact globally unique Allocation ID and fails closed unless the node has the matching admitted `AllocationState` and runtime identity.
+
+Termination and cleanup are different. Normal cancellation, terminalization, access revocation, and cleanup continue through the controld-owned Allocation state machine. A node-local destructive command, when retained for incident recovery, is an explicitly named and privileged break-glass operation rather than an ordinary `Kill` or `Delete` alternative. It must emit stable diagnostics and terminal observation, preserve the terminal outbox and recovery obligations until acknowledgement, and use the same idempotent cleanup path; it cannot silently remove the authoritative node record or make control-plane state appear successful.
+
+Human operator access and node-local machine integration are separate principals. A daemon that only needs Allocation network resolution receives a narrow machine API and cannot obtain ambient exec, termination, cleanup, or unrestricted diagnostic authority from a shared socket. The rationale and revisit conditions are recorded in [Node Operator Authority Boundary](../decisions/node-operator-authority-boundary.md).
+
 ## State machine
 
 `BOUND -> STARTING -> ACTIVE -> RELEASING -> RELEASED`

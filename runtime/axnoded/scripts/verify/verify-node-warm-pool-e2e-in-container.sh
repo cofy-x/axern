@@ -12,7 +12,7 @@ declare -a container_ids=()
 cleanup() {
   for container_id in "${container_ids[@]}"; do
     if [ -n "${container_id}" ]; then
-      axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}" >/dev/null 2>&1 || true
+      axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}" >/dev/null 2>&1 || true
     fi
   done
 }

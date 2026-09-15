@@ -14,7 +14,7 @@ container_id=""
 
 cleanup() {
   if [ -n "${container_id}" ]; then
-    axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}" >/dev/null 2>&1 || true
+    axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -135,7 +135,7 @@ container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${ru
   echo "first start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
 container_id=""
 
 # Imagemgr is the authoritative lease owner, so verify it before waiting for
@@ -166,7 +166,7 @@ container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${ru
   echo "second start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
 container_id=""
 
 fetch_axnoded_inventory "${inventory_file}"
@@ -214,7 +214,7 @@ container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${ru
   echo "third start did not return a container id" >&2
   exit 1
 }
-axctl --address "${AXNODED_SOCKET}" sandbox delete "${container_id}"
+axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${container_id}"
 container_id=""
 
 metrics_output="$(fetch_metrics)"

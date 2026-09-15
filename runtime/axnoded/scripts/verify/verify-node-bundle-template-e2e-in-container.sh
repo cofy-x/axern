@@ -42,7 +42,7 @@ cleanup() {
   local id
   for id in "${cleanup_ids[@]:-}"; do
     if [ -n "${id}" ]; then
-      axctl --address "${AXNODED_SOCKET}" sandbox delete "${id}" >/dev/null 2>&1 || true
+      axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${id}" >/dev/null 2>&1 || true
     fi
   done
 }
@@ -59,7 +59,7 @@ for runtime_name in runsc; do
     echo "first start did not return a container id for ${runtime_name}" >&2
     exit 1
   }
-  axctl --address "${AXNODED_SOCKET}" sandbox delete "${cold_id}"
+  axctl --address "${AXNODED_SOCKET}" allocation force-cleanup --reason verification-cleanup "${cold_id}"
 
   warm_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.bundle-template.second.stdout" "/tmp/${runtime_name}.bundle-template.second.stderr")"
   [ -n "${warm_id}" ] || {

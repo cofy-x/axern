@@ -34,23 +34,23 @@ func normalizeArgs(args []string) []string {
 	normalized := make([]string, 0, len(args)+2)
 	normalized = append(normalized, args[0])
 
-	seenSandbox := false
-	seenSandboxExec := false
+	seenAllocation := false
+	seenAllocationExec := false
 	for _, arg := range args[1:] {
-		if !seenSandboxExec {
+		if !seenAllocationExec {
 			normalized = append(normalized, arg)
-			if arg == "sandbox" {
-				seenSandbox = true
+			if arg == "allocation" {
+				seenAllocation = true
 				continue
 			}
-			if seenSandbox && arg == "exec" {
-				seenSandboxExec = true
+			if seenAllocation && arg == "exec" {
+				seenAllocationExec = true
 			}
 			continue
 		}
 		if arg == "--" {
 			normalized = append(normalized, arg)
-			seenSandboxExec = false
+			seenAllocationExec = false
 			continue
 		}
 		if expanded, ok := expandExecShortFlags(arg); ok {

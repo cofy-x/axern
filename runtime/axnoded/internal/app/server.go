@@ -20,6 +20,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -50,6 +51,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	var localLis net.Listener
 	var localGRPCServer *grpc.Server
 	var localHealthServer *grpc_health.Server
+	var networkLis net.Listener
+	var networkGRPCServer *grpc.Server
 	hostname, _ := os.Hostname()
 	nodeID := cfg.PluginConfig.ControlPlaneNodeIDValue(hostname)
 	controlPlaneConfig := cfg.PluginConfig
@@ -72,7 +75,7 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	}
 
 	if strings.TrimSpace(opts.socketPath) != "" {
-		localLis, err = listenUnix(opts.socketPath)
+		localLis, err = listenUnix(opts.socketPath, 0o600)
 		if err != nil {
 			return fmt.Errorf("listen local grpc %s: %w", opts.socketPath, err)
 		}
@@ -88,6 +91,20 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		nodelifecyclev1.RegisterNodeLifecycleServer(localGRPCServer, api.NewLocalNodeLifecycleServer(svc, nodeID))
 		nodeoperatorv1.RegisterNodeOperatorServer(localGRPCServer, api.NewNodeOperatorServer(svc))
 		healthpb.RegisterHealthServer(localGRPCServer, localHealthServer)
+	}
+
+	if strings.TrimSpace(opts.networkSocketPath) != "" {
+		networkLis, err = listenUnix(opts.networkSocketPath, 0o600)
+		if err != nil {
+			return fmt.Errorf("listen Allocation network grpc %s: %w", opts.networkSocketPath, err)
+		}
+		defer networkLis.Close()
+		networkOptions := []grpc.ServerOption{grpc.UnaryInterceptor(trace.InjectTraceInterceptor)}
+		if handler := obs.GRPCServerStatsHandler(); handler != nil {
+			networkOptions = append(networkOptions, grpc.StatsHandler(handler))
+		}
+		networkGRPCServer = grpc.NewServer(networkOptions...)
+		nodenetworkv1.RegisterAllocationNetworkServer(networkGRPCServer, api.NewAllocationNetworkServer(svc))
 	}
 
 	if strings.TrimSpace(opts.grpcAddress) != "" {
@@ -124,6 +141,12 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			localErrCh <- localGRPCServer.Serve(localLis)
 		}()
 	}
+	networkErrCh := make(chan error, 1)
+	if networkGRPCServer != nil {
+		go func() {
+			networkErrCh <- networkGRPCServer.Serve(networkLis)
+		}()
+	}
 
 	grpcErrCh := make(chan error, 1)
 	if nodeGRPCServer != nil {
@@ -143,6 +166,10 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	case err := <-localErrCh:
 		if err != nil {
 			runErr = fmt.Errorf("local grpc server exited: %w", err)
+		}
+	case err := <-networkErrCh:
+		if err != nil {
+			runErr = fmt.Errorf("Allocation network grpc server exited: %w", err)
 		}
 	case err := <-grpcErrCh:
 		if err != nil {
@@ -178,6 +205,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		if nodeGRPCServer != nil {
 			nodeGRPCServer.GracefulStop()
 		}
+		if networkGRPCServer != nil {
+			networkGRPCServer.GracefulStop()
+		}
 		close(stopped)
 	}()
 	select {
@@ -188,6 +218,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		}
 		if nodeGRPCServer != nil {
 			nodeGRPCServer.Stop()
+		}
+		if networkGRPCServer != nil {
+			networkGRPCServer.Stop()
 		}
 	}
 
@@ -234,7 +267,7 @@ func loadSandboxConfig(configPath string) (config.Config, error) {
 	return config.Decode(configBytes)
 }
 
-func listenUnix(socketPath string) (net.Listener, error) {
+func listenUnix(socketPath string, mode os.FileMode) (net.Listener, error) {
 	cleaned := strings.TrimSpace(socketPath)
 	if cleaned == "" {
 		return nil, fmt.Errorf("socket path is required")
@@ -249,7 +282,7 @@ func listenUnix(socketPath string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(cleaned, 0666); err != nil {
+	if err := os.Chmod(cleaned, mode); err != nil {
 		_ = lis.Close()
 		return nil, fmt.Errorf("chmod socket: %w", err)
 	}

@@ -10,7 +10,7 @@ import (
 )
 
 type diagnosticsRPCClient interface {
-	GetSandboxDiagnostics(sandboxID string, full bool) (*nodeoperatorv1.GetSandboxDiagnosticsResponse, error)
+	GetAllocationDiagnostics(allocationID string, full bool) (*nodeoperatorv1.GetAllocationDiagnosticsResponse, error)
 	Close() error
 }
 
@@ -20,14 +20,14 @@ var newDiagnosticsRPCClient = func(ctx *cli.Context) (diagnosticsRPCClient, erro
 
 var DiagnosticsCmd = cli.Command{
 	Name:  "diagnostics",
-	Usage: "Print sandboxd diagnostics for a sandbox on the current node",
+	Usage: "Print sandboxd diagnostics for an Allocation on the current node",
 	Flags: []cli.Flag{
 		cli.BoolFlag{Name: "full", Usage: "request full sandboxd diagnostics"},
 		cli.BoolFlag{Name: "json", Usage: "print raw sandboxd diagnostics JSON"},
 	},
 	Action: func(context *cli.Context) error {
 		if context.NArg() != 1 {
-			return fmt.Errorf("exactly one sandbox id must be specified")
+			return fmt.Errorf("exactly one allocation id must be specified")
 		}
 		opsClient, err := newDiagnosticsRPCClient(context)
 		if err != nil {
@@ -35,7 +35,7 @@ var DiagnosticsCmd = cli.Command{
 		}
 		defer opsClient.Close()
 
-		resp, err := opsClient.GetSandboxDiagnostics(context.Args().First(), context.Bool("full") || context.Bool("json"))
+		resp, err := opsClient.GetAllocationDiagnostics(context.Args().First(), context.Bool("full") || context.Bool("json"))
 		if err != nil {
 			return err
 		}

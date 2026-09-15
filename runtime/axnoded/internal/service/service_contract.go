@@ -78,18 +78,40 @@ type SandboxCapabilityService interface {
 }
 
 type NodeOperatorService interface {
-	SandboxService
-	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
-	NetworkForSandbox(containerID string) (*SandboxNetwork, error)
+	List(context.Context, *runtime.ListContainersRequest) (*runtime.ListContainersResponse, error)
+	Exec(context.Context, *runtime.ExecRequest) (*runtime.ExecResponse, error)
+	ExecStream(ExecStreamServer) error
+	Wait(context.Context, *runtime.WaitRequest) (*runtime.WaitResponse, error)
+	NodeInventory() (nodeinventory.NodeInventorySnapshot, bool)
 	SandboxdDiagnostics(ctx context.Context, containerID string, full bool) (SandboxdDiagnostics, error)
 	NetworkPolicyDiagnostics(context.Context, string) NetworkPolicyDiagnostics
+	ValidateOperatorInspection(string) error
+	ValidateOperatorExecution(string) error
+	ForceTerminateAllocation(context.Context, string, string) error
+	ForceCleanupAllocation(context.Context, string, string, int64) error
+}
+
+type AllocationNetworkService interface {
+	ResolveAllocationNetwork(string) (*SandboxNetwork, error)
+}
+
+type NodeLifecycleService interface {
+	Start(context.Context, *runtime.StartRequest) (*runtime.StartResponse, error)
+	Delete(context.Context, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
+	StartControlPlaneAllocation(context.Context, string, *runtime.StartRequest) (*runtime.StartResponse, error)
+	DeleteControlPlaneAllocation(context.Context, string, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
+	HasControlPlaneAllocation(string, string) bool
+	List(context.Context, *runtime.ListContainersRequest) (*runtime.ListContainersResponse, error)
+	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
 }
 
 // NodeService is the daemon's assembled service surface. Protocol servers
 // receive only the narrower interface they own.
 type NodeService interface {
+	SandboxService
 	NodeOperatorService
-	ControlPlaneAllocationService
+	NodeLifecycleService
+	AllocationNetworkService
 }
 
 type NetworkPolicyMode string
