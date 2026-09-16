@@ -31,6 +31,10 @@ func Export(params Params) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
+	plan, err := readJSONFile[domain.RolloutPlan](filepath.Join(runDir, "plan.json"))
+	if err != nil {
+		return Result{}, err
+	}
 	episodes, err := loadEpisodes(runDir)
 	if err != nil {
 		return Result{}, err
@@ -38,14 +42,14 @@ func Export(params Params) (Result, error) {
 
 	var records []any
 	if params.Format == FormatPreference {
-		records, err = exportPreference(runDir, outputPath, run, episodes)
+		records, err = exportPreference(runDir, outputPath, run, plan, episodes)
 		if err != nil {
 			return Result{}, err
 		}
 	} else {
 		records = make([]any, 0, len(episodes))
 		for _, episode := range episodes {
-			bundle, err := loadEpisodeBundle(runDir, outputPath, run, episode)
+			bundle, err := loadEpisodeBundle(runDir, outputPath, run, plan, episode)
 			if err != nil {
 				return Result{}, err
 			}

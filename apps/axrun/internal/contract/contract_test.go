@@ -124,6 +124,10 @@ func TestValidateAgentRuntimeSpec(t *testing.T) {
 	if len(problems) != 0 {
 		t.Fatalf("problems = %#v", problems)
 	}
+	problems = ValidateAgentRuntimeSpec(&domain.AgentRuntimeSpec{Env: map[string]string{"OPENAI_API_KEY": "secret"}})
+	if !hasAgentRuntimeProblem(problems, "env.OPENAI_API_KEY", "agent profile") {
+		t.Fatalf("problems = %#v", problems)
+	}
 }
 
 func hasAgentRuntimeProblem(problems []AgentRuntimeProblem, field string, message string) bool {
@@ -152,7 +156,6 @@ func TestControlledValues(t *testing.T) {
 		!IsArtifactRole(domain.ArtifactRoleRaw) ||
 		!IsAgentRawEventType(domain.AgentRawEventLLMRequest) ||
 		!IsTrajectoryEventType(domain.TrajectoryEventAgentLLMRequest) ||
-		!IsTrajectoryEventType(domain.TrajectoryEventSystemResumeStarted) ||
 		!IsTrajectoryEventType(domain.TrajectoryEventSystemHealthCheckFailed) ||
 		!IsTrajectoryEventType(domain.TrajectoryEventSystemSandboxDeath) ||
 		!IsTrajectoryEventType(domain.TrajectoryEventSystemInfraFailure) ||
@@ -183,14 +186,25 @@ func TestControlledValues(t *testing.T) {
 	}
 }
 
+func TestSensitiveEnvironmentKeyClassification(t *testing.T) {
+	for _, key := range []string{"OPENAI_API_KEY", "HF_TOKEN", "AWS_SECRET_ACCESS_KEY", "authorization", "DB_PASSWORD"} {
+		if !IsSensitiveEnvKey(key) {
+			t.Fatalf("IsSensitiveEnvKey(%q) = false", key)
+		}
+	}
+	for _, key := range []string{"TOKENIZERS_PARALLELISM", "RUNTIME_ENV"} {
+		if IsSensitiveEnvKey(key) {
+			t.Fatalf("IsSensitiveEnvKey(%q) = true", key)
+		}
+	}
+}
+
 func TestIsEpisodeCompleteRequiresFinishedAt(t *testing.T) {
 	now := time.Now().UTC()
 	episode := domain.Episode{
-		Status:          domain.EpisodeStatusFailed,
-		FinishedAt:      &now,
-		CompletedAt:     &now,
-		AgentResultPath: "episodes/e/agent.json",
-		RewardPath:      "episodes/e/reward.json",
+		Status:      domain.EpisodeStatusFailed,
+		FinishedAt:  &now,
+		CompletedAt: &now,
 	}
 	reward := domain.Reward{Final: true}
 	if !IsEpisodeComplete(episode, reward) {
@@ -206,11 +220,9 @@ func TestIsEpisodeCompleteRequiresFinishedAt(t *testing.T) {
 func TestIsEpisodeExportReady(t *testing.T) {
 	now := time.Now().UTC()
 	episode := domain.Episode{
-		Status:          domain.EpisodeStatusCompleted,
-		FinishedAt:      &now,
-		CompletedAt:     &now,
-		AgentResultPath: "episodes/e/agent.json",
-		RewardPath:      "episodes/e/reward.json",
+		Status:      domain.EpisodeStatusCompleted,
+		FinishedAt:  &now,
+		CompletedAt: &now,
 	}
 	reward := domain.Reward{Final: true}
 	agent := domain.AgentResult{

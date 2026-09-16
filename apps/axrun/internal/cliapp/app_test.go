@@ -13,7 +13,7 @@ func TestNewRegistersCoreCommands(t *testing.T) {
 	for _, command := range app.Commands() {
 		commands[command.Name()] = true
 	}
-	for _, name := range []string{"task", "rollout", "export", "validate", "serve"} {
+	for _, name := range []string{"task", "rollout", "export", "validate"} {
 		if !commands[name] {
 			t.Fatalf("command %q is not registered", name)
 		}
@@ -28,10 +28,18 @@ func TestHelpIncludesCompletionAndStableRolloutCommands(t *testing.T) {
 	if err := root.Execute(); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"completion", "rollout", "validate", "export", "serve"} {
+	for _, name := range []string{"completion", "rollout", "validate", "export"} {
 		if !strings.Contains(out.String(), name) {
 			t.Fatalf("help missing %q:\n%s", name, out.String())
 		}
+	}
+}
+
+func TestRemovedServeCommandIsRejected(t *testing.T) {
+	err := Execute(New("test"), []string{"serve"})
+	var usage UsageError
+	if !errors.As(err, &usage) {
+		t.Fatalf("Execute() error = %v, want UsageError", err)
 	}
 }
 

@@ -11,6 +11,12 @@ import (
 
 type preparedRun struct {
 	RolloutRun    domain.RolloutRun
+	Input         *domain.InputSpec
+	Agent         domain.AgentSpec
+	Model         domain.ModelSpec
+	Sandbox       domain.SandboxSpec
+	Concurrency   int
+	Attempts      int
 	Tasks         []domain.TaskInstance
 	PlanSelection domain.TaskSelection
 	TaskSet       taskset.Resolved
@@ -25,16 +31,17 @@ func prepareRolloutRun(ctx context.Context, params Params, now time.Time) (prepa
 		}
 		runID = generatedRunID
 	}
-	rolloutRun := newRolloutRun(params, runID, now)
+	rolloutRun := newRolloutRun(runID, now)
+	input := inputSpec(params)
 	resolvedTaskSet, err := newTaskInstances(ctx, params)
 	if err != nil {
 		return preparedRun{}, err
 	}
 	tasks := resolvedTaskSet.Tasks
-	rolloutRun.Input.Digest = resolvedTaskSet.DescriptorDigest
-	rolloutRun.Input.SourceDigest = resolvedTaskSet.Descriptor.SourceDigest
+	input.Digest = resolvedTaskSet.DescriptorDigest
+	input.SourceDigest = resolvedTaskSet.Descriptor.SourceDigest
 	for _, payload := range resolvedTaskSet.Descriptor.Payloads {
-		rolloutRun.Input.Payloads = append(rolloutRun.Input.Payloads, domain.PayloadRef{
+		input.Payloads = append(input.Payloads, domain.PayloadRef{
 			Format:    payload.Format,
 			Reference: payload.Reference,
 			Digest:    payload.Digest,
@@ -59,7 +66,6 @@ func prepareRolloutRun(ctx context.Context, params Params, now time.Time) (prepa
 		ResolvedCount: resolvedTaskCount,
 		SelectedCount: len(tasks),
 	})
-	rolloutRun.Selection = taskSelectionPtr(planSelection)
 	for index := range tasks {
 		if err := contract.ValidatePathSegment("task id", tasks[index].ID); err != nil {
 			return preparedRun{}, err
@@ -71,14 +77,10 @@ func prepareRolloutRun(ctx context.Context, params Params, now time.Time) (prepa
 			tasks[index].Timeouts.AgentSec = params.AgentTimeoutSec
 		}
 	}
-	rolloutRun.TaskIDs = taskIDs(tasks)
-	rolloutRun.Timeouts = aggregateTimeouts(tasks)
-	if params.AgentTimeoutSec > 0 {
-		if rolloutRun.Timeouts == nil {
-			rolloutRun.Timeouts = &domain.TimeoutPolicy{}
-		}
-		rolloutRun.Timeouts.AgentSec = params.AgentTimeoutSec
-	}
-	rolloutRun.Resources = commonResources(tasks)
-	return preparedRun{RolloutRun: rolloutRun, Tasks: tasks, PlanSelection: planSelection, TaskSet: resolvedTaskSet}, nil
+	return preparedRun{
+		RolloutRun: rolloutRun, Input: input, Agent: agentSpec(params),
+		Model:   domain.ModelSpec{ID: params.Model, Provider: modelProvider(params.Model)},
+		Sandbox: sandboxSpec(params), Concurrency: params.Concurrency, Attempts: params.Attempts,
+		Tasks: tasks, PlanSelection: planSelection, TaskSet: resolvedTaskSet,
+	}, nil
 }

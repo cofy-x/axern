@@ -20,7 +20,7 @@ func (s Store) WriteAgentArtifact(artifactDir string, filename string, content s
 		return "", fmt.Errorf("artifact directory is required")
 	}
 	path := filepath.Join(artifactDir, filename)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := atomicWriteFile(path, []byte(content), 0o600); err != nil {
 		return "", fmt.Errorf("write artifact %s: %w", filename, err)
 	}
 	return runRelativePath(runDirFromArtifactDir(artifactDir), path), nil
@@ -45,13 +45,20 @@ func (s Store) AppendAgentRawEvent(artifactDir string, event domain.AgentRawEven
 	if err != nil {
 		return "", fmt.Errorf("marshal agent raw event: %w", err)
 	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 	if err != nil {
 		return "", fmt.Errorf("open agent raw log: %w", err)
 	}
-	defer file.Close()
 	if _, err := file.Write(append(payload, '\n')); err != nil {
+		_ = file.Close()
 		return "", fmt.Errorf("append agent raw event: %w", err)
+	}
+	if err := file.Sync(); err != nil {
+		_ = file.Close()
+		return "", fmt.Errorf("sync agent raw event: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return "", fmt.Errorf("close agent raw log: %w", err)
 	}
 	return runRelativePath(runDirFromArtifactDir(artifactDir), path), nil
 }

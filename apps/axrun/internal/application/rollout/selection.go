@@ -93,16 +93,6 @@ func newTaskSelection(record taskSelectionRecord) domain.TaskSelection {
 	return selection
 }
 
-func taskSelectionPtr(selection domain.TaskSelection) *domain.TaskSelection {
-	if len(selection.RequestedTaskIDs) == 0 && selection.Limit == 0 && selection.Shard == nil {
-		return nil
-	}
-	copied := selection
-	copied.RequestedTaskIDs = append([]string(nil), selection.RequestedTaskIDs...)
-	copied.Shard = cloneTaskShard(selection.Shard)
-	return &copied
-}
-
 func newTaskShard(index int, count int) *domain.TaskShard {
 	if count == 0 {
 		return nil

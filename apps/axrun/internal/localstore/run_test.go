@@ -36,7 +36,7 @@ func TestCreateRunLayoutWritesLayoutAndJSON(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatalf("decode run.json: %v", err)
 	}
-	if decoded.ID != "test-run" || decoded.OutputPath != "." {
+	if decoded.ID != "test-run" || decoded.PlanPath != "plan.json" {
 		t.Fatalf("decoded run = %#v", decoded)
 	}
 	if decoded.SchemaVersion != domain.LocalSchemaVersion {
@@ -124,23 +124,19 @@ func TestWriteRolloutPlanWritesPlanJSON(t *testing.T) {
 func TestLoadRunReturnsPlanOrderedEpisodeLayouts(t *testing.T) {
 	store := New(t.TempDir())
 	run := testRun("test-run")
-	run.TaskIDs = []string{"task-a", "task-b"}
 	run.Summary = &domain.RunSummary{TaskCount: 2, EpisodeCount: 2, PendingEpisodes: 2}
 	layout, err := store.CreateRunLayout(run)
 	if err != nil {
 		t.Fatalf("CreateRunLayout returned error: %v", err)
 	}
-	taskA := domain.TaskInstance{ID: "task-a", Instruction: "A", Sandbox: run.Sandbox, Verifier: domain.VerifierSpec{Type: domain.VerifierTypeNone}}
-	taskB := domain.TaskInstance{ID: "task-b", Instruction: "B", Sandbox: run.Sandbox, Verifier: domain.VerifierSpec{Type: domain.VerifierTypeNone}}
+	taskA := domain.TaskInstance{ID: "task-a", Instruction: "A", Sandbox: testSandbox(), Verifier: domain.VerifierSpec{Type: domain.VerifierTypeNone}}
+	taskB := domain.TaskInstance{ID: "task-b", Instruction: "B", Sandbox: testSandbox(), Verifier: domain.VerifierSpec{Type: domain.VerifierTypeNone}}
 	episodeA := domain.Episode{
 		ID:           domain.NewEpisodeID(run.ID, taskA.ID, 1),
 		RunID:        run.ID,
 		TaskID:       taskA.ID,
 		AttemptIndex: 1,
 		Status:       domain.EpisodeStatusPending,
-		Agent:        run.Agent,
-		Model:        run.Model,
-		Sandbox:      run.Sandbox,
 	}
 	episodeB := domain.Episode{
 		ID:           domain.NewEpisodeID(run.ID, taskB.ID, 1),
@@ -148,9 +144,6 @@ func TestLoadRunReturnsPlanOrderedEpisodeLayouts(t *testing.T) {
 		TaskID:       taskB.ID,
 		AttemptIndex: 1,
 		Status:       domain.EpisodeStatusPending,
-		Agent:        run.Agent,
-		Model:        run.Model,
-		Sandbox:      run.Sandbox,
 	}
 	if _, err := store.CreateEpisodeLayout(layout, taskB, episodeB); err != nil {
 		t.Fatalf("CreateEpisodeLayout B returned error: %v", err)
@@ -163,17 +156,15 @@ func TestLoadRunReturnsPlanOrderedEpisodeLayouts(t *testing.T) {
 		RunID:           run.ID,
 		CreatedAt:       run.CreatedAt,
 		Selection:       domain.TaskSelection{ResolvedTaskCount: 2, SelectedTaskCount: 2},
-		Concurrency:     run.Concurrency,
-		AttemptsPerTask: run.AttemptsPerTask,
-		TaskIDs:         run.TaskIDs,
+		Concurrency:     1,
+		AttemptsPerTask: 1,
+		TaskIDs:         []string{"task-a", "task-b"},
 		Episodes: []domain.PlannedEpisode{
 			{ID: episodeA.ID, TaskID: taskA.ID, AttemptIndex: 1, Order: 1},
 			{ID: episodeB.ID, TaskID: taskB.ID, AttemptIndex: 1, Order: 2},
 		},
 	}
-	if err := store.WriteRolloutPlan(layout.PlanJSONPath, plan); err != nil {
-		t.Fatalf("WriteRolloutPlan returned error: %v", err)
-	}
+	writeBoundPlan(t, store, &layout, plan)
 	loaded, err := LoadRun(layout.RunDir)
 	if err != nil {
 		t.Fatalf("LoadRun returned error: %v", err)
@@ -197,7 +188,6 @@ func TestLoadRunRejectsEmptyRunDir(t *testing.T) {
 func TestLoadRunRejectsPathLikePlannedIDsBeforeReadingRecords(t *testing.T) {
 	store := New(t.TempDir())
 	run := testRun("test-run")
-	run.TaskIDs = []string{"../escape"}
 	layout, err := store.CreateRunLayout(run)
 	if err != nil {
 		t.Fatalf("CreateRunLayout returned error: %v", err)
@@ -207,9 +197,9 @@ func TestLoadRunRejectsPathLikePlannedIDsBeforeReadingRecords(t *testing.T) {
 		RunID:           run.ID,
 		CreatedAt:       run.CreatedAt,
 		Selection:       domain.TaskSelection{ResolvedTaskCount: 1, SelectedTaskCount: 1},
-		Concurrency:     run.Concurrency,
-		AttemptsPerTask: run.AttemptsPerTask,
-		TaskIDs:         run.TaskIDs,
+		Concurrency:     1,
+		AttemptsPerTask: 1,
+		TaskIDs:         []string{"../escape"},
 		Episodes: []domain.PlannedEpisode{{
 			ID:           "episode-test-run-escape-1",
 			TaskID:       "../escape",
@@ -217,9 +207,7 @@ func TestLoadRunRejectsPathLikePlannedIDsBeforeReadingRecords(t *testing.T) {
 			Order:        1,
 		}},
 	}
-	if err := writeJSON(layout.PlanJSONPath, plan); err != nil {
-		t.Fatalf("write plan.json: %v", err)
-	}
+	writeBoundPlan(t, store, &layout, plan)
 
 	_, err = LoadRun(layout.RunDir)
 	if err == nil {
@@ -241,12 +229,10 @@ func TestLoadRunRejectsMissingPlanJSON(t *testing.T) {
 		RunID:           layout.RolloutRun.ID,
 		CreatedAt:       layout.RolloutRun.CreatedAt,
 		Selection:       domain.TaskSelection{ResolvedTaskCount: 0, SelectedTaskCount: 0},
-		Concurrency:     layout.RolloutRun.Concurrency,
-		AttemptsPerTask: layout.RolloutRun.AttemptsPerTask,
+		Concurrency:     1,
+		AttemptsPerTask: 1,
 	}
-	if err := store.WriteRolloutPlan(layout.PlanJSONPath, plan); err != nil {
-		t.Fatalf("WriteRolloutPlan returned error: %v", err)
-	}
+	writeBoundPlan(t, store, &layout, plan)
 	if err := os.Remove(layout.PlanJSONPath); err != nil {
 		t.Fatalf("remove plan.json: %v", err)
 	}
@@ -262,7 +248,6 @@ func TestLoadRunRejectsMissingPlanJSON(t *testing.T) {
 func TestLoadRunRejectsInvalidEpisodeJSON(t *testing.T) {
 	store := New(t.TempDir())
 	run := testRun("test-run")
-	run.TaskIDs = []string{"task-a"}
 	layout, err := store.CreateRunLayout(run)
 	if err != nil {
 		t.Fatalf("CreateRunLayout returned error: %v", err)
@@ -278,16 +263,14 @@ func TestLoadRunRejectsInvalidEpisodeJSON(t *testing.T) {
 		RunID:           run.ID,
 		CreatedAt:       run.CreatedAt,
 		Selection:       domain.TaskSelection{ResolvedTaskCount: 1, SelectedTaskCount: 1},
-		Concurrency:     run.Concurrency,
-		AttemptsPerTask: run.AttemptsPerTask,
-		TaskIDs:         run.TaskIDs,
+		Concurrency:     1,
+		AttemptsPerTask: 1,
+		TaskIDs:         []string{"task-a"},
 		Episodes: []domain.PlannedEpisode{
 			{ID: episode.ID, TaskID: task.ID, AttemptIndex: 1, Order: 1},
 		},
 	}
-	if err := store.WriteRolloutPlan(layout.PlanJSONPath, plan); err != nil {
-		t.Fatalf("WriteRolloutPlan returned error: %v", err)
-	}
+	writeBoundPlan(t, store, &layout, plan)
 	if err := os.WriteFile(episodeLayout.EpisodeJSONPath, []byte("{bad json\n"), 0o644); err != nil {
 		t.Fatalf("write invalid episode json: %v", err)
 	}
@@ -298,4 +281,43 @@ func TestLoadRunRejectsInvalidEpisodeJSON(t *testing.T) {
 	if !strings.Contains(err.Error(), "read episode") {
 		t.Fatalf("LoadRun error = %v, want read episode error", err)
 	}
+}
+
+func TestLoadRunRejectsModifiedImmutablePlan(t *testing.T) {
+	store := New(t.TempDir())
+	layout, err := store.CreateRunLayout(testRun("test-run"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan := domain.RolloutPlan{
+		SchemaVersion: domain.LocalSchemaVersion, RunID: layout.RolloutRun.ID,
+		CreatedAt: layout.RolloutRun.CreatedAt, Concurrency: 1, AttemptsPerTask: 1,
+	}
+	writeBoundPlan(t, store, &layout, plan)
+	plan.Concurrency = 2
+	if err := writeJSON(layout.PlanJSONPath, plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadRun(layout.RunDir); err == nil || !strings.Contains(err.Error(), "does not match run plan_digest") {
+		t.Fatalf("LoadRun() error = %v, want digest mismatch", err)
+	}
+}
+
+func writeBoundPlan(t *testing.T, store Store, layout *RunLayout, plan domain.RolloutPlan) {
+	t.Helper()
+	if err := store.WriteRolloutPlan(layout.PlanJSONPath, plan); err != nil {
+		t.Fatalf("WriteRolloutPlan returned error: %v", err)
+	}
+	digest, err := domain.DigestRolloutPlan(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := layout.RolloutRun
+	run.PlanPath = "plan.json"
+	run.PlanDigest = digest
+	if err := store.WriteRolloutRun(layout.RunJSONPath, run); err != nil {
+		t.Fatal(err)
+	}
+	layout.RolloutRun = run
+	layout.RolloutPlan = plan
 }

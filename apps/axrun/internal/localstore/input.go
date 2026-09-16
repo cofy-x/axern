@@ -56,7 +56,7 @@ func captureTaskSetDescriptor(run RunLayout, input *domain.InputSpec, resolved *
 		return nil, err
 	}
 	destination := filepath.Join(run.InputsDir, "taskset-descriptor.json")
-	if err := os.WriteFile(destination, append(data, '\n'), 0o644); err != nil {
+	if err := atomicWriteFile(destination, append(data, '\n'), 0o600); err != nil {
 		return nil, err
 	}
 	captured := *input

@@ -13,15 +13,15 @@ import (
 type executionResult struct {
 	index             int
 	episode           domain.Episode
+	agentResult       domain.AgentResult
 	infrastructureErr error
 }
 
 type executeEpisodesResult struct {
-	Layouts       []localstore.EpisodeLayout
-	InfraFailures int
+	Layouts []localstore.EpisodeLayout
 }
 
-func executeEpisodes(adapter backend.Backend, store localstore.Store, executions []EpisodeExecution, concurrency int, reporter domain.PhaseReporter) (executeEpisodesResult, error) {
+func executeEpisodes(adapter backend.Backend, store localstore.Store, executions []EpisodeExecution, concurrency int) (executeEpisodesResult, error) {
 	if len(executions) == 0 {
 		return executeEpisodesResult{}, nil
 	}
@@ -52,16 +52,21 @@ func executeEpisodes(adapter backend.Backend, store localstore.Store, executions
 				}
 				layout := executions[index].Layout
 				episode, err := adapter.Execute(backend.ExecuteRequest{
-					Store:         store,
-					Task:          layout.TaskInstance,
-					Episode:       layout.Episode,
-					Paths:         rolloutPaths(layout),
-					PhaseReporter: reporter,
+					Store:   store,
+					Task:    layout.TaskInstance,
+					Episode: layout.Episode,
+					Agent:   executions[index].Agent,
+					Model:   executions[index].Model,
+					Paths:   rolloutPaths(layout),
 				})
+				agentResult, readErr := localstore.ReadAgentResult(layout.AgentJSONPath)
+				if err == nil && readErr != nil {
+					err = readErr
+				}
 				if err != nil {
 					once.Do(func() { close(stop) })
 				}
-				results <- executionResult{index: index, episode: episode, infrastructureErr: err}
+				results <- executionResult{index: index, episode: episode, agentResult: agentResult, infrastructureErr: err}
 			}
 		}()
 	}
@@ -78,10 +83,8 @@ func executeEpisodes(adapter backend.Backend, store localstore.Store, executions
 	workers.Wait()
 	close(results)
 	var firstErr error
-	infraFailures := 0
 	for result := range results {
 		if result.infrastructureErr != nil {
-			infraFailures++
 			if firstErr == nil {
 				firstErr = fmt.Errorf("execute episode %s: %w", executions[result.index].Layout.Episode.ID, result.infrastructureErr)
 			}
@@ -89,8 +92,9 @@ func executeEpisodes(adapter backend.Backend, store localstore.Store, executions
 		if result.episode.ID != "" {
 			layouts[result.index].Episode = result.episode
 		}
+		layouts[result.index].AgentResult = result.agentResult
 	}
-	return executeEpisodesResult{Layouts: layouts, InfraFailures: infraFailures}, firstErr
+	return executeEpisodesResult{Layouts: layouts}, firstErr
 }
 
 func rolloutPaths(layout localstore.EpisodeLayout) rolloutengine.Paths {

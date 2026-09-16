@@ -31,6 +31,19 @@ func LoadRun(runDir string) (LoadedRun, error) {
 	if err != nil {
 		return LoadedRun{}, fmt.Errorf("read plan.json: %w", err)
 	}
+	if run.PlanPath != "plan.json" {
+		return LoadedRun{}, fmt.Errorf("run plan_path %q is invalid", run.PlanPath)
+	}
+	if plan.RunID != run.ID {
+		return LoadedRun{}, fmt.Errorf("plan run_id %q does not match run %q", plan.RunID, run.ID)
+	}
+	digest, err := domain.DigestRolloutPlan(plan)
+	if err != nil {
+		return LoadedRun{}, fmt.Errorf("digest plan.json: %w", err)
+	}
+	if run.PlanDigest != digest {
+		return LoadedRun{}, fmt.Errorf("plan.json digest %q does not match run plan_digest %q", digest, run.PlanDigest)
+	}
 	layout := RunLayout{
 		RunDir:       cleanRunDir,
 		RunJSONPath:  runPath,
@@ -39,6 +52,7 @@ func LoadRun(runDir string) (LoadedRun, error) {
 		TasksDir:     filepath.Join(cleanRunDir, "tasks"),
 		EpisodesDir:  filepath.Join(cleanRunDir, "episodes"),
 		RolloutRun:   run,
+		RolloutPlan:  plan,
 	}
 	episodes := make([]EpisodeLayout, 0, len(plan.Episodes))
 	for _, planned := range plan.Episodes {
@@ -70,17 +84,23 @@ func loadEpisodeLayout(run RunLayout, planned domain.PlannedEpisode) (EpisodeLay
 	if err != nil {
 		return EpisodeLayout{}, fmt.Errorf("read episode %q: %w", planned.ID, err)
 	}
+	agentJSONPath := filepath.Join(episodeDir, "agent.json")
+	agentResult, err := ReadAgentResult(agentJSONPath)
+	if err != nil {
+		return EpisodeLayout{}, fmt.Errorf("read agent result for episode %q: %w", planned.ID, err)
+	}
 	return EpisodeLayout{
 		TaskDir:          taskDir,
 		TaskJSONPath:     taskJSONPath,
 		EpisodeDir:       episodeDir,
 		EpisodeJSONPath:  episodeJSONPath,
 		TrajectoryPath:   filepath.Join(episodeDir, "trajectory.jsonl"),
-		AgentJSONPath:    filepath.Join(episodeDir, "agent.json"),
+		AgentJSONPath:    agentJSONPath,
 		VerifierJSONPath: filepath.Join(episodeDir, "verifier.json"),
 		RewardJSONPath:   filepath.Join(episodeDir, "reward.json"),
 		ArtifactDir:      filepath.Join(episodeDir, "artifacts"),
 		TaskInstance:     task,
 		Episode:          episode,
+		AgentResult:      agentResult,
 	}, nil
 }

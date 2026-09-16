@@ -12,105 +12,98 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/localstore"
 )
 
-// ResumeRunner returns the runner captured by an immutable rollout record.
-// Operational adapters may use it to decide whether external context is
-// required before asking Service to resume the run.
-func ResumeRunner(runDir string) (string, error) {
+type ResumeDescriptor struct {
+	Runner   string
+	Profile  string
+	Provider *domain.ProviderRequirement
+}
+
+// DescribeResume returns the immutable execution dependencies an operational
+// adapter must resolve before asking Service to resume a run.
+func DescribeResume(runDir string) (ResumeDescriptor, error) {
 	loaded, err := localstore.LoadRun(runDir)
 	if err != nil {
-		return "", err
+		return ResumeDescriptor{}, err
 	}
-	runner := string(loaded.Layout.RolloutRun.Sandbox.Backend)
+	runner := string(loaded.Plan.Sandbox.Backend)
 	if err := backend.ValidateName(runner); err != nil {
-		return "", fmt.Errorf("load runner from rollout plan: %w", err)
+		return ResumeDescriptor{}, fmt.Errorf("load runner from rollout plan: %w", err)
 	}
-	return runner, nil
+	return ResumeDescriptor{Runner: runner, Profile: loaded.Plan.Agent.Profile, Provider: loaded.Plan.Provider}, nil
 }
 
 func (s Service) resume(params Params) (Result, error) {
-	runID := ""
-	if params.ResumeRunDir != "" {
-		runID = filepath.Base(filepath.Clean(params.ResumeRunDir))
-	}
-	reportRunPhase(params, runID, domain.RolloutPhasePlanning, domain.PhaseStatusStarted, nil)
-	loaded, err := localstore.LoadRun(params.ResumeRunDir)
+	lock, err := localstore.AcquireRunLock(params.ResumeRunDir)
 	if err != nil {
-		reportRunPhase(params, runID, domain.RolloutPhasePlanning, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	runID = loaded.Layout.RolloutRun.ID
-	params.BackendName = string(loaded.Layout.RolloutRun.Sandbox.Backend)
+	defer lock.Release()
+	loaded, err := localstore.LoadRun(params.ResumeRunDir)
+	if err != nil {
+		return Result{}, err
+	}
+	if !providerRequirementsEqual(loaded.Plan.Provider, params.ProviderRequirement) {
+		err = fmt.Errorf("agent profile behavior changed since planning; create a new rollout instead of resuming with different provider configuration")
+		return Result{}, err
+	}
+	params.Concurrency = loaded.Plan.Concurrency
+	if err := finalizeInterruptedEpisodes(localstore.New(filepath.Dir(loaded.Layout.RunDir)), &loaded, s.Now); err != nil {
+		return Result{}, err
+	}
+	params.BackendName = string(loaded.Plan.Sandbox.Backend)
 	if err := backend.ValidateName(params.BackendName); err != nil {
 		err = fmt.Errorf("load runner from rollout plan: %w", err)
-		reportRunPhase(params, runID, domain.RolloutPhasePlanning, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
 	store := localstore.New(filepath.Dir(loaded.Layout.RunDir))
 	if err := refreshRunEnvelopeForResume(store, &loaded, s.Now); err != nil {
-		reportRunPhase(params, runID, domain.RolloutPhasePlanning, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	reportRunPhase(params, runID, domain.RolloutPhasePlanning, domain.PhaseStatusCompleted, nil)
-	params.Agent = loaded.Layout.RolloutRun.Agent.Name
-	if loaded.Layout.RolloutRun.Agent.Runtime != nil {
-		params.AgentImage = loaded.Layout.RolloutRun.Agent.Runtime.Image
+	params.Agent = loaded.Plan.Agent.Name
+	if loaded.Plan.Agent.Runtime != nil {
+		params.AgentImage = loaded.Plan.Agent.Runtime.Image
 	}
-	runnable := resumableExecutions(loaded.Episodes)
+	runnable := resumableExecutions(loaded.Episodes, loaded.Plan.Agent, loaded.Plan.Model)
 	if len(runnable) == 0 {
 		if _, err := validateapp.Run(validateapp.Params{RunDir: loaded.Layout.RunDir}); err != nil {
-			reportRunPhase(params, runID, domain.RolloutPhasePlanning, domain.PhaseStatusFailed, err)
 			return Result{}, err
 		}
 	}
 	if len(runnable) > 0 {
-		reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusStarted, nil)
 		adapter, err := s.newBackend(params)
 		if err != nil {
-			reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 			return Result{}, err
 		}
-		if err := s.validateRunAgentForBackend(loaded.Layout.RolloutRun, params.BackendName); err != nil {
-			reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
+		if err := s.validateRunAgentForBackend(loaded.Plan.Agent, params.BackendName); err != nil {
 			return Result{}, err
 		}
 		if providerPreflight, ok := adapter.(backend.ProviderPreflight); ok {
-			if err := providerPreflight.PreflightProvider(runContext(params), loaded.Layout.RolloutRun.Agent, loaded.Layout.RolloutRun.Model); err != nil {
-				reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
+			if err := providerPreflight.PreflightProvider(runContext(params), loaded.Plan.Agent, loaded.Plan.Model); err != nil {
 				return Result{}, err
 			}
 		}
 		if err := adapter.Preflight(); err != nil {
-			reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 			return Result{}, err
 		}
 		if taskPreflight, ok := adapter.(backend.TaskPreflight); ok {
 			if err := taskPreflight.PreflightTasks(tasksFromExecutions(runnable)); err != nil {
-				reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 				return Result{}, err
 			}
 		}
-		reportRunPhase(params, runID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusCompleted, nil)
 		run := loaded.Layout.RolloutRun
 		run.Status = domain.RunStatusRunning
 		run.UpdatedAt = timePtr(currentTime(s.Now))
-		run.Summary = summaryPtr(summarizeRun(len(run.TaskIDs), loaded.Episodes))
+		run.Summary = summaryPtr(summarizeRun(len(loaded.Plan.TaskIDs), loaded.Episodes))
 		loaded.Layout.RolloutRun = run
 		if err := store.WriteRolloutRun(loaded.Layout.RunJSONPath, run); err != nil {
 			return Result{}, err
 		}
-		if err := resetSidecarsForResume(store, runnable); err != nil {
-			return Result{}, err
-		}
-		if err := appendResumeSteps(store, runnable, s.Now); err != nil {
-			return Result{}, err
-		}
-		executionResult, err := executeEpisodes(adapter, store, runnable, params.Concurrency, params.PhaseReporter)
+		executionResult, err := executeEpisodes(adapter, store, runnable, params.Concurrency)
 		allLayouts := mergeExecutedLayouts(loaded.Episodes, executionResult.Layouts)
 		run.UpdatedAt = timePtr(currentTime(s.Now))
-		run.Summary = summaryPtr(summarizeRun(len(run.TaskIDs), allLayouts))
+		run.Summary = summaryPtr(summarizeRun(len(loaded.Plan.TaskIDs), allLayouts))
 		if err != nil {
 			run.Status = domain.RunStatusFailed
-			run.Summary.InfraFailures = executionResult.InfraFailures
 			_ = store.WriteRolloutRun(loaded.Layout.RunJSONPath, run)
 			return Result{}, err
 		}
@@ -119,28 +112,31 @@ func (s Service) resume(params Params) (Result, error) {
 		if err := store.WriteRolloutRun(loaded.Layout.RunJSONPath, run); err != nil {
 			return Result{}, err
 		}
-		reportRunPhase(params, runID, domain.RolloutPhaseValidating, domain.PhaseStatusStarted, nil)
 		if _, err := validateapp.Run(validateapp.Params{RunDir: loaded.Layout.RunDir}); err != nil {
 			run.Status = domain.RunStatusFailed
 			run.UpdatedAt = timePtr(currentTime(s.Now))
-			run.Summary.InfraFailures = 1
 			_ = store.WriteRolloutRun(loaded.Layout.RunJSONPath, run)
-			reportRunPhase(params, runID, domain.RolloutPhaseValidating, domain.PhaseStatusFailed, err)
 			return Result{}, err
 		}
-		reportRunPhase(params, runID, domain.RolloutPhaseValidating, domain.PhaseStatusCompleted, nil)
 		loaded.Layout.RolloutRun = run
 		return resumeResult(loaded.Layout, allLayouts), nil
 	}
 	run := loaded.Layout.RolloutRun
 	run.UpdatedAt = timePtr(currentTime(s.Now))
-	run.Summary = summaryPtr(summarizeRun(len(run.TaskIDs), loaded.Episodes))
+	run.Summary = summaryPtr(summarizeRun(len(loaded.Plan.TaskIDs), loaded.Episodes))
 	run.Status = runStatusForExecutions(loaded.Episodes)
 	loaded.Layout.RolloutRun = run
 	if err := store.WriteRolloutRun(loaded.Layout.RunJSONPath, run); err != nil {
 		return Result{}, err
 	}
 	return resumeResult(loaded.Layout, loaded.Episodes), nil
+}
+
+func providerRequirementsEqual(expected, actual *domain.ProviderRequirement) bool {
+	if expected == nil || actual == nil {
+		return expected == nil && actual == nil
+	}
+	return *expected == *actual
 }
 
 func resumeResult(runLayout localstore.RunLayout, layouts []localstore.EpisodeLayout) Result {
@@ -151,10 +147,7 @@ func resumeResult(runLayout localstore.RunLayout, layouts []localstore.EpisodeLa
 
 func refreshRunEnvelopeForResume(store localstore.Store, loaded *localstore.LoadedRun, nowFn func() time.Time) error {
 	run := loaded.Layout.RolloutRun
-	summary := summarizeRun(len(run.TaskIDs), loaded.Episodes)
-	if run.Summary != nil && run.Summary.InfraFailures > 0 {
-		summary.InfraFailures = run.Summary.InfraFailures
-	}
+	summary := summarizeRun(len(loaded.Plan.TaskIDs), loaded.Episodes)
 	run.Summary = summaryPtr(summary)
 	hasResumable := false
 	for _, layout := range loaded.Episodes {
@@ -166,8 +159,6 @@ func refreshRunEnvelopeForResume(store localstore.Store, loaded *localstore.Load
 	switch {
 	case hasResumable:
 		run.Status = domain.RunStatusRunning
-	case summary.InfraFailures > 0:
-		run.Status = domain.RunStatusFailed
 	default:
 		run.Status = runStatusForExecutions(loaded.Episodes)
 	}
@@ -179,56 +170,38 @@ func refreshRunEnvelopeForResume(store localstore.Store, loaded *localstore.Load
 	return nil
 }
 
-func resumableExecutions(layouts []localstore.EpisodeLayout) []EpisodeExecution {
+func resumableExecutions(layouts []localstore.EpisodeLayout, agent domain.AgentSpec, model domain.ModelSpec) []EpisodeExecution {
 	executions := []EpisodeExecution{}
 	for _, layout := range layouts {
 		if resumepolicy.Decide(layout).Action != resumepolicy.ActionExecute {
 			continue
 		}
-		layout.Episode = resetEpisodeForResume(layout.Episode)
 		executions = append(executions, EpisodeExecution{
 			Plan: EpisodePlan{
 				Task:    layout.TaskInstance,
 				Episode: layout.Episode,
 			},
 			Layout: layout,
+			Agent:  agent,
+			Model:  model,
 		})
 	}
 	return executions
 }
 
-func resetEpisodeForResume(episode domain.Episode) domain.Episode {
-	episode.Status = domain.EpisodeStatusPending
-	episode.StartedAt = nil
-	episode.FinishedAt = nil
-	episode.CompletedAt = nil
-	episode.DurationMS = 0
-	episode.FailureClass = ""
-	episode.SandboxState = nil
-	episode.Timing = nil
-	episode.Usage = nil
-	episode.Cost = nil
-	episode.ArtifactManifestPath = ""
-	episode.Artifacts = nil
-	return episode
-}
-
-func appendResumeSteps(store localstore.Store, executions []EpisodeExecution, nowFn func() time.Time) error {
-	for _, execution := range executions {
-		count, err := store.CountTrajectorySteps(execution.Layout.TrajectoryPath)
-		if err != nil {
-			return fmt.Errorf("count trajectory steps for %s: %w", execution.Layout.Episode.ID, err)
+func finalizeInterruptedEpisodes(store localstore.Store, loaded *localstore.LoadedRun, nowFn func() time.Time) error {
+	for index := range loaded.Episodes {
+		layout := &loaded.Episodes[index]
+		if resumepolicy.Decide(*layout).Action != resumepolicy.ActionFinalizeInterrupted {
+			continue
 		}
-		step := domain.TrajectoryStep{
-			EventID:   fmt.Sprintf("step-%06d", count+1),
-			Index:     count + 1,
-			Timestamp: currentTime(nowFn),
-			Type:      domain.TrajectoryEventSystemResumeStarted,
-			Actor:     "rollout",
-			Summary:   "episode resume started",
-		}
-		if err := store.AppendTrajectoryStep(execution.Layout.TrajectoryPath, step); err != nil {
-			return fmt.Errorf("append resume step for %s: %w", execution.Layout.Episode.ID, err)
+		finishedAt := currentTime(nowFn)
+		layout.Episode.Status = domain.EpisodeStatusFailed
+		layout.Episode.FailureClass = domain.FailureClassInfrastructure
+		layout.Episode.FinishedAt = &finishedAt
+		layout.Episode.CompletedAt = &finishedAt
+		if err := store.WriteEpisode(layout.EpisodeJSONPath, layout.Episode); err != nil {
+			return fmt.Errorf("finalize interrupted episode %s: %w", layout.Episode.ID, err)
 		}
 	}
 	return nil
@@ -240,16 +213,6 @@ func tasksFromExecutions(executions []EpisodeExecution) []domain.TaskInstance {
 		tasks = append(tasks, execution.Layout.TaskInstance)
 	}
 	return tasks
-}
-
-func resetSidecarsForResume(store localstore.Store, executions []EpisodeExecution) error {
-	for _, execution := range executions {
-		verifierType := execution.Layout.TaskInstance.Verifier.Type
-		if err := store.ResetEpisodeSidecarsForResume(execution.Layout, verifierType); err != nil {
-			return fmt.Errorf("reset sidecars for episode %s: %w", execution.Layout.Episode.ID, err)
-		}
-	}
-	return nil
 }
 
 func mergeExecutedLayouts(existing []localstore.EpisodeLayout, executed []localstore.EpisodeLayout) []localstore.EpisodeLayout {

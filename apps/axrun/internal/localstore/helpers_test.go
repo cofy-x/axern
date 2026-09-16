@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -26,16 +27,15 @@ func createEpisodeLayout(t *testing.T) (Store, EpisodeLayout) {
 
 func testRun(id string) domain.RolloutRun {
 	return domain.RolloutRun{
-		ID:              id,
-		SchemaVersion:   domain.LocalSchemaVersion,
-		Status:          domain.RunStatusCreated,
-		CreatedAt:       time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC),
-		Agent:           domain.AgentSpec{Name: "claude-code"},
-		Model:           domain.ModelSpec{ID: "anthropic/claude-haiku-4-5"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		AttemptsPerTask: 1,
+		ID: id, SchemaVersion: domain.LocalSchemaVersion, Status: domain.RunStatusCreated,
+		CreatedAt: time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC),
+		PlanPath:  "plan.json", PlanDigest: "sha256:" + strings.Repeat("0", 64),
 	}
 }
+
+func testAgent() domain.AgentSpec     { return domain.AgentSpec{Name: "claude-code"} }
+func testModel() domain.ModelSpec     { return domain.ModelSpec{ID: "anthropic/claude-haiku-4-5"} }
+func testSandbox() domain.SandboxSpec { return domain.SandboxSpec{Backend: "axern"} }
 
 func testTask(id string) domain.TaskInstance {
 	return domain.TaskInstance{
@@ -58,9 +58,6 @@ func testEpisodeAttempt(runID string, taskID string, attempt int) domain.Episode
 		TaskID:       taskID,
 		AttemptIndex: attempt,
 		Status:       domain.EpisodeStatusPending,
-		Agent:        domain.AgentSpec{Name: "claude-code"},
-		Model:        domain.ModelSpec{ID: "anthropic/claude-haiku-4-5"},
-		Sandbox:      domain.SandboxSpec{Backend: "axern"},
 	}
 }
 

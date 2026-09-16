@@ -24,11 +24,13 @@ func ValidateName(name string) error {
 }
 
 type ExecuteRequest struct {
-	Store         rollout.Store
-	Task          domain.TaskInstance
-	Episode       domain.Episode
-	Paths         rollout.Paths
-	PhaseReporter domain.PhaseReporter
+	Store     rollout.Store
+	Task      domain.TaskInstance
+	Episode   domain.Episode
+	Agent     domain.AgentSpec
+	Model     domain.ModelSpec
+	Artifacts []domain.ArtifactRef
+	Paths     rollout.Paths
 }
 
 // Backend is the thin CLI-selected adapter around the shared rollout execution

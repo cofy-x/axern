@@ -42,7 +42,7 @@ type Params struct {
 	Attempts            int
 	Output              string
 	AxernConfig         *axernbackend.Config
-	PhaseReporter       domain.PhaseReporter
+	ProviderRequirement *domain.ProviderRequirement
 	Context             context.Context
 }
 
@@ -68,40 +68,31 @@ func (s Service) create(params Params) (Result, error) {
 	if s.Now != nil {
 		now = s.Now().UTC()
 	}
-	reportRunPhase(params, params.RunID, domain.RolloutPhasePlanning, domain.PhaseStatusStarted, nil)
 	prepared, err := prepareRolloutRun(runContext(params), params, now)
 	if err != nil {
-		reportRunPhase(params, params.RunID, domain.RolloutPhasePlanning, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
 	rolloutRun := prepared.RolloutRun
-	reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePlanning, domain.PhaseStatusCompleted, nil)
 	tasks := prepared.Tasks
 	planSelection := prepared.PlanSelection
-	reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusStarted, nil)
 	adapter, err := s.newBackend(params)
 	if err != nil {
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
 	if params.Execute {
-		if err := s.validateRunAgentForBackend(rolloutRun, params.BackendName); err != nil {
-			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
+		if err := s.validateRunAgentForBackend(prepared.Agent, params.BackendName); err != nil {
 			return Result{}, err
 		}
 		if providerPreflight, ok := adapter.(backend.ProviderPreflight); ok {
-			if err := providerPreflight.PreflightProvider(runContext(params), rolloutRun.Agent, rolloutRun.Model); err != nil {
-				reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
+			if err := providerPreflight.PreflightProvider(runContext(params), prepared.Agent, prepared.Model); err != nil {
 				return Result{}, err
 			}
 		}
 		if err := adapter.Preflight(); err != nil {
-			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 			return Result{}, err
 		}
 		if taskPreflight, ok := adapter.(backend.TaskPreflight); ok {
 			if err := taskPreflight.PreflightTasks(tasks); err != nil {
-				reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 				return Result{}, err
 			}
 		}
@@ -109,40 +100,44 @@ func (s Service) create(params Params) (Result, error) {
 	store := localstore.New(params.Output)
 	result, err := store.CreateRunLayout(rolloutRun)
 	if err != nil {
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
+	lock, err := localstore.AcquireRunLock(result.RunDir)
+	if err != nil {
+		return Result{}, err
+	}
+	defer lock.Release()
 	rolloutRun = result.RolloutRun
-	captured, err := store.CaptureInputs(runContext(params), result, rolloutRun.Input, tasks, &prepared.TaskSet)
+	captured, err := store.CaptureInputs(runContext(params), result, prepared.Input, tasks, &prepared.TaskSet)
 	if err != nil {
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	rolloutRun.Input = captured.Input
+	prepared.Input = captured.Input
 	tasks = captured.Tasks
-	rolloutRun.TaskIDs = taskIDs(tasks)
-	result.RolloutRun = rolloutRun
-	episodePlans := newEpisodePlans(rolloutRun, tasks)
-	executions, err := createEpisodeLayouts(store, result, episodePlans)
+	episodePlans := newEpisodePlans(rolloutRun.ID, prepared.Attempts, prepared.Agent, prepared.Model, tasks)
+	executions, err := createEpisodeLayouts(store, result, episodePlans, prepared.Agent, prepared.Model)
 	if err != nil {
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	plan := newRolloutPlan(rolloutRun, planSelection, episodePlans, now)
+	plan := newRolloutPlan(rolloutRun.ID, prepared.Input, planSelection, prepared.Concurrency, prepared.Attempts, prepared.Agent, params.ProviderRequirement, prepared.Model, prepared.Sandbox, tasks, episodePlans, now)
 	if err := store.WriteRolloutPlan(result.PlanJSONPath, plan); err != nil {
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
+	rolloutRun.PlanPath = "plan.json"
+	rolloutRun.PlanDigest, err = domain.DigestRolloutPlan(plan)
+	if err != nil {
+		return Result{}, err
+	}
+	result.RolloutRun = rolloutRun
+	result.RolloutPlan = plan
 	layouts := make([]localstore.EpisodeLayout, 0, len(executions))
 	for _, execution := range executions {
 		layouts = append(layouts, execution.Layout)
 	}
 	result.RolloutRun.Summary = summaryPtr(summarizeRun(len(tasks), layouts))
 	if err := store.WriteRolloutRun(result.RunJSONPath, result.RolloutRun); err != nil {
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusFailed, err)
 		return Result{}, err
 	}
-	reportRunPhase(params, rolloutRun.ID, domain.RolloutPhasePreparingInputs, domain.PhaseStatusCompleted, nil)
 	if params.Execute {
 		result.RolloutRun.Status = domain.RunStatusRunning
 		result.RolloutRun.UpdatedAt = timePtr(now)
@@ -150,13 +145,12 @@ func (s Service) create(params Params) (Result, error) {
 		if err := store.WriteRolloutRun(result.RunJSONPath, result.RolloutRun); err != nil {
 			return Result{}, err
 		}
-		executionResult, err := executeEpisodes(adapter, store, executions, params.Concurrency, params.PhaseReporter)
+		executionResult, err := executeEpisodes(adapter, store, executions, params.Concurrency)
 		layouts = executionResult.Layouts
 		result.RolloutRun.UpdatedAt = timePtr(currentTime(s.Now))
 		result.RolloutRun.Summary = summaryPtr(summarizeRun(len(tasks), layouts))
 		if err != nil {
 			result.RolloutRun.Status = domain.RunStatusFailed
-			result.RolloutRun.Summary.InfraFailures = executionResult.InfraFailures
 			_ = store.WriteRolloutRun(result.RunJSONPath, result.RolloutRun)
 			return Result{}, err
 		}
@@ -164,16 +158,12 @@ func (s Service) create(params Params) (Result, error) {
 		if err := store.WriteRolloutRun(result.RunJSONPath, result.RolloutRun); err != nil {
 			return Result{}, err
 		}
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhaseValidating, domain.PhaseStatusStarted, nil)
 		if _, err := validateapp.Run(validateapp.Params{RunDir: result.RunDir}); err != nil {
 			result.RolloutRun.Status = domain.RunStatusFailed
 			result.RolloutRun.UpdatedAt = timePtr(currentTime(s.Now))
-			result.RolloutRun.Summary.InfraFailures = 1
 			_ = store.WriteRolloutRun(result.RunJSONPath, result.RolloutRun)
-			reportRunPhase(params, rolloutRun.ID, domain.RolloutPhaseValidating, domain.PhaseStatusFailed, err)
 			return Result{}, err
 		}
-		reportRunPhase(params, rolloutRun.ID, domain.RolloutPhaseValidating, domain.PhaseStatusCompleted, nil)
 	}
 	return buildResult(result, layouts), nil
 }

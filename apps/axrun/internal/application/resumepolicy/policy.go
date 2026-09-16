@@ -13,8 +13,9 @@ import (
 type Action string
 
 const (
-	ActionExecute Action = "execute"
-	ActionSkip    Action = "skip"
+	ActionExecute             Action = "execute"
+	ActionFinalizeInterrupted Action = "finalize_interrupted"
+	ActionSkip                Action = "skip"
 )
 
 type Reason string
@@ -54,24 +55,18 @@ func Decide(layout localstore.EpisodeLayout) Decision {
 		decision.Action = ActionExecute
 		decision.Reason = ReasonPending
 	case domain.EpisodeStatusRunning:
-		decision.Action = ActionExecute
+		decision.Action = ActionFinalizeInterrupted
 		decision.Reason = ReasonRunning
 	case domain.EpisodeStatusVerifying:
-		decision.Action = ActionExecute
+		decision.Action = ActionFinalizeInterrupted
 		decision.Reason = ReasonVerifying
 	case domain.EpisodeStatusCompleted, domain.EpisodeStatusFailed:
 		switch {
 		case episode.CompletedAt == nil:
-			decision.Action = ActionExecute
 			decision.Reason = ReasonTerminalIncomplete
 		case !episodeSidecarsExist(layout):
-			decision.Action = ActionExecute
 			decision.Reason = ReasonTerminalMissingSidecar
-		case strings.TrimSpace(episode.ArtifactManifestPath) == "":
-			decision.Action = ActionExecute
-			decision.Reason = ReasonTerminalMissingManifest
 		case !artifactManifestExists(layout):
-			decision.Action = ActionExecute
 			decision.Reason = ReasonTerminalMissingManifest
 		default:
 			decision.Action = ActionSkip
@@ -91,12 +86,7 @@ func episodeSidecarsExist(layout localstore.EpisodeLayout) bool {
 }
 
 func artifactManifestExists(layout localstore.EpisodeLayout) bool {
-	runDir := filepath.Dir(filepath.Dir(layout.EpisodeDir))
-	manifestPath, ok := RunRefPath(runDir, layout.Episode.ArtifactManifestPath)
-	if !ok {
-		return false
-	}
-	return fileExists(manifestPath)
+	return fileExists(filepath.Join(layout.ArtifactDir, "manifest.json"))
 }
 
 func fileExists(path string) bool {

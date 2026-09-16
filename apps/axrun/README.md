@@ -14,7 +14,6 @@ axrun rollout run --file rollout.yaml
 axrun rollout run --resume <run-dir>
 axrun validate <run-dir>
 axrun export sft|reward|trace|preference <run-dir>
-axrun serve
 ```
 
 `task build` is deterministic and offline. `task publish` is the only TaskSet operation that writes to a registry. Kova is the production default and emits Nydus plus OCI variants; `local` pushes an OCI variant for development.
@@ -50,6 +49,6 @@ spec:
   output_dir: .axrun/runs
 ```
 
-Remote execution requires immutable task and image references. Planning freezes the resolved task selection, caller-supplied agent image, and episode order. Before execution, Axrun captures the immutable TaskSet payload into the local run directory; resume never re-resolves mutable input. Provider profiles remain Axrun-local configuration; controld does not own provider credentials, rollout queues, or evaluation results.
+Remote execution requires immutable task and image references. Planning freezes the resolved task selection, non-secret agent/provider behavior, caller-supplied agent image, and episode order. Before execution, Axrun captures the immutable TaskSet payload into the local run directory; resume never re-resolves mutable input. A run is protected by a process-independent file lock, and resume executes only never-started episodes. Interrupted episodes are finalized as infrastructure failures without rewriting their sidecars, trajectory, or artifacts. Provider credentials remain execution-time Axrun-local configuration; they are not persisted in rollout evidence or owned by controld.
 
 See [usage](./docs/usage.md), [architecture](./docs/architecture.md), and [acceptance](./docs/acceptance.md).

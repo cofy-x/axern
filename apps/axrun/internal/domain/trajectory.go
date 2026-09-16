@@ -5,7 +5,6 @@ import "time"
 type TrajectoryEventType string
 
 const (
-	TrajectoryEventSystemResumeStarted     TrajectoryEventType = "system.resume_started"
 	TrajectoryEventSystemSandboxStarting   TrajectoryEventType = "system.sandbox_starting"
 	TrajectoryEventSystemSandboxStarted    TrajectoryEventType = "system.sandbox_started"
 	TrajectoryEventSystemWorkspaceUpload   TrajectoryEventType = "system.workspace_uploaded"

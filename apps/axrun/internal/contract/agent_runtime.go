@@ -81,6 +81,14 @@ func ValidateAgentRuntimeSpec(runtime *domain.AgentRuntimeSpec) []AgentRuntimePr
 			Message: "must be greater than or equal to zero",
 		})
 	}
+	for key := range runtime.Env {
+		if IsSensitiveEnvKey(key) {
+			problems = append(problems, AgentRuntimeProblem{
+				Field:   "env." + key,
+				Message: "credential-like environment variables must come from an agent profile at execution time",
+			})
+		}
+	}
 	if runtime.Artifacts != nil {
 		for index, outputPath := range runtime.Artifacts.OutputPaths {
 			if err := ValidateArtifactOutputPath(outputPath); err != nil {
@@ -92,6 +100,27 @@ func ValidateAgentRuntimeSpec(runtime *domain.AgentRuntimeSpec) []AgentRuntimePr
 		}
 	}
 	return problems
+}
+
+func IsSensitiveEnvKey(key string) bool {
+	parts := strings.FieldsFunc(strings.ToUpper(strings.TrimSpace(key)), func(r rune) bool {
+		return r < 'A' || r > 'Z'
+	})
+	for _, part := range parts {
+		switch part {
+		case "TOKEN", "SECRET", "PASSWORD", "AUTHORIZATION", "CREDENTIAL", "CREDENTIALS":
+			return true
+		}
+	}
+	for index := 0; index+1 < len(parts); index++ {
+		if parts[index+1] == "KEY" {
+			switch parts[index] {
+			case "API", "ACCESS", "PRIVATE", "SECRET":
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func ValidateArtifactOutputPath(value string) error {

@@ -20,6 +20,7 @@ type executionSession struct {
 	runtimeName string
 	timer       episodeTimer
 	episode     domain.Episode
+	artifacts   []domain.ArtifactRef
 }
 
 func prepareExecution(request Request) (*executionSession, error) {
@@ -61,6 +62,7 @@ func prepareExecution(request Request) (*executionSession, error) {
 		trajectory:  trajectory,
 		runtimeName: runtimeName,
 		episode:     request.Episode,
+		artifacts:   append([]domain.ArtifactRef(nil), request.Artifacts...),
 	}, nil
 }
 
@@ -177,6 +179,8 @@ func (s *executionSession) runAgentPhase(ctx context.Context, instance sandbox.I
 		paths:      s.paths,
 		task:       s.task,
 		episode:    s.episode,
+		agent:      s.request.Agent,
+		model:      s.request.Model,
 		sandbox:    instance,
 		harness:    s.request.AgentHarness,
 		trajectory: s.trajectory,
@@ -202,8 +206,7 @@ func (s *executionSession) runAgentPhase(ctx context.Context, instance sandbox.I
 
 	s.episode = result.Episode
 	s.timer.agentExecMS = result.Metrics.DurationMS
-	s.episode.Usage = result.Metrics.Usage
-	s.episode.Cost = result.Metrics.Cost
+	s.artifacts = appendArtifacts(s.artifacts, result.Artifacts)
 	return result.ShouldVerify, nil
 }
 
@@ -287,36 +290,23 @@ func (s *executionSession) verifierTimeoutSec() int {
 }
 
 func (s *executionSession) finalizeWithoutVerifier() error {
-	collectingStart := time.Now()
-	s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusStarted, collectingStart, nil)
 	if s.episode.FinishedAt == nil {
-		err := fmt.Errorf("cannot finalize terminal episode without finished_at")
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
-		return err
+		return fmt.Errorf("cannot finalize terminal episode without finished_at")
 	}
 	if strings.TrimSpace(s.paths.AgentJSONPath) == "" {
-		err := fmt.Errorf("cannot finalize terminal episode without agent result path")
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
-		return err
+		return fmt.Errorf("cannot finalize terminal episode without agent result path")
 	}
 	if strings.TrimSpace(s.paths.RewardJSONPath) == "" {
-		err := fmt.Errorf("cannot finalize terminal episode without reward path")
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
-		return err
+		return fmt.Errorf("cannot finalize terminal episode without reward path")
 	}
 	finalizeEpisodeTiming(&s.episode, &s.timer)
 	stampCompleted(&s.episode, s.request.Now)
-	var err error
-	s.episode, err = writeArtifactManifest(s.store, s.paths, s.episode, s.request.Now)
-	if err != nil {
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
+	if err := writeArtifactManifest(s.store, s.paths, s.episode.ID, s.artifacts, s.request.Now); err != nil {
 		return err
 	}
 	if err := s.store.WriteEpisode(s.paths.EpisodeJSONPath, s.episode); err != nil {
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
 		return err
 	}
-	s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusCompleted, collectingStart, nil)
 	return nil
 }
 
@@ -328,6 +318,7 @@ func (s *executionSession) runVerifierPhase(ctx context.Context, instance sandbo
 		store:      s.store,
 		paths:      s.paths,
 		task:       s.task,
+		agent:      s.request.Agent,
 		episode:    s.episode,
 		sandbox:    instance,
 		trajectory: s.trajectory,
@@ -353,17 +344,12 @@ func (s *executionSession) runVerifierPhase(ctx context.Context, instance sandbo
 		return err
 	}
 	stampCompleted(&s.episode, s.request.Now)
-	collectingStart := time.Now()
-	s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusStarted, collectingStart, nil)
-	s.episode, err = writeArtifactManifest(s.store, s.paths, s.episode, s.request.Now)
-	if err != nil {
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
+	s.artifacts = appendArtifacts(s.artifacts, result.Artifacts)
+	if err := writeArtifactManifest(s.store, s.paths, s.episode.ID, s.artifacts, s.request.Now); err != nil {
 		return err
 	}
 	if err := s.store.WriteEpisode(s.paths.EpisodeJSONPath, s.episode); err != nil {
-		s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusFailed, collectingStart, err)
 		return err
 	}
-	s.emitPhase(domain.RolloutPhaseCollecting, domain.PhaseStatusCompleted, collectingStart, nil)
 	return nil
 }

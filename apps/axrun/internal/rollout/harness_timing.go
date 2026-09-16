@@ -28,21 +28,20 @@ func (t *episodeTimer) timing(startedAt time.Time, finishedAt time.Time) *domain
 	}
 }
 
-// finalizeEpisodeTiming populates the episode's DurationMS and Timing
-// fields from the accumulated timer and the episode's own timestamps.
+// finalizeEpisodeTiming records the phase breakdown and total wall-clock time.
 func finalizeEpisodeTiming(episode *domain.Episode, timer *episodeTimer) {
 	if episode.StartedAt == nil || episode.FinishedAt == nil {
 		return
 	}
-	episode.DurationMS = episode.FinishedAt.Sub(*episode.StartedAt).Milliseconds()
 	if timer != nil {
 		episode.Timing = timer.timing(*episode.StartedAt, *episode.FinishedAt)
 	}
 }
 
-// stampCompleted sets the CompletedAt timestamp as the atomic commit
-// marker, signaling that all sidecar files have been written and the
-// episode record is fully committed.
+// stampCompleted records when the terminal Episode lifecycle record is
+// committed. Normal execution publishes its required sidecars first; recovery
+// may commit an infrastructure terminal while preserving incomplete sidecars
+// as crash evidence.
 func stampCompleted(episode *domain.Episode, clock func() time.Time) {
 	t := now(clock)
 	episode.CompletedAt = &t

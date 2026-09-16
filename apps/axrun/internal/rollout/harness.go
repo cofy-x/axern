@@ -43,13 +43,15 @@ type Request struct {
 	Store          Store
 	Task           domain.TaskInstance
 	Episode        domain.Episode
+	Agent          domain.AgentSpec
+	Model          domain.ModelSpec
+	Artifacts      []domain.ArtifactRef
 	Paths          Paths
 	SandboxRuntime sandbox.Runtime
 	AgentHarness   agent.Harness
 	Now            func() time.Time
 	RuntimeName    string
 	HealthCheck    HealthCheckConfig
-	PhaseReporter  domain.PhaseReporter
 }
 
 func Execute(request Request) (episode domain.Episode, runErr error) {
@@ -68,21 +70,16 @@ func Execute(request Request) (episode domain.Episode, runErr error) {
 	ctx, cancel := session.createEpisodeContext()
 	defer cancel()
 
-	sandboxPhaseStart := time.Now()
-	session.emitPhase(domain.RolloutPhaseSandboxCreating, domain.PhaseStatusStarted, sandboxPhaseStart, nil)
 	instance, err := session.createSandbox(ctx)
 	if err != nil {
-		session.emitPhase(domain.RolloutPhaseSandboxCreating, domain.PhaseStatusFailed, sandboxPhaseStart, err)
 		failedEpisode, failErr := session.failEarlyInfrastructure(err, "sandbox_create")
 		return failedEpisode, failErr
 	}
 	defer session.cleanupSandbox(ctx, instance, &runErr)
 
 	if err := session.recordSandboxStart(instance); err != nil {
-		session.emitPhase(domain.RolloutPhaseSandboxCreating, domain.PhaseStatusFailed, sandboxPhaseStart, err)
 		return session.episode, err
 	}
-	session.emitPhase(domain.RolloutPhaseSandboxCreating, domain.PhaseStatusCompleted, sandboxPhaseStart, nil)
 	episode = session.episode
 
 	// Phase 3: Upload workspace and capture baseline.
@@ -94,15 +91,11 @@ func Execute(request Request) (episode domain.Episode, runErr error) {
 	episode = session.episode
 
 	// Phase 4: Run agent phase and resolve terminal failures.
-	agentPhaseStart := time.Now()
-	session.emitPhase(domain.RolloutPhaseAgentRunning, domain.PhaseStatusStarted, agentPhaseStart, nil)
 	shouldVerify, err := session.runAgentPhase(ctx, instance, baseline)
 	episode = session.episode
 	if err != nil {
-		session.emitPhase(domain.RolloutPhaseAgentRunning, domain.PhaseStatusFailed, agentPhaseStart, err)
 		return episode, err
 	}
-	session.emitPhase(domain.RolloutPhaseAgentRunning, domain.PhaseStatusCompleted, agentPhaseStart, nil)
 	if !shouldVerify {
 		// Phase 5a: Finalize episode when verifier is skipped.
 		if session.episode.CompletedAt != nil {
@@ -114,12 +107,8 @@ func Execute(request Request) (episode domain.Episode, runErr error) {
 		return session.episode, nil
 	}
 	// Phase 5b: Run verifier and finalize completed episode.
-	verifierPhaseStart := time.Now()
-	session.emitPhase(domain.RolloutPhaseVerifying, domain.PhaseStatusStarted, verifierPhaseStart, nil)
 	if err := session.runVerifierPhase(ctx, instance); err != nil {
-		session.emitPhase(domain.RolloutPhaseVerifying, domain.PhaseStatusFailed, verifierPhaseStart, err)
 		return session.episode, err
 	}
-	session.emitPhase(domain.RolloutPhaseVerifying, domain.PhaseStatusCompleted, verifierPhaseStart, nil)
 	return session.episode, nil
 }

@@ -1,7 +1,6 @@
 package rollout
 
 import (
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -15,23 +14,13 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
 
-func newRolloutRun(params Params, runID string, now time.Time) domain.RolloutRun {
+func newRolloutRun(runID string, now time.Time) domain.RolloutRun {
 	return domain.RolloutRun{
-		SchemaVersion:   domain.LocalSchemaVersion,
-		ID:              runID,
-		Status:          domain.RunStatusCreated,
-		CreatedAt:       now,
-		UpdatedAt:       timePtr(now),
-		Input:           inputSpec(params),
-		Agent:           agentSpec(params),
-		Model:           domain.ModelSpec{ID: params.Model, Provider: modelProvider(params.Model)},
-		Sandbox:         sandboxSpec(params),
-		Concurrency:     params.Concurrency,
-		AttemptsPerTask: params.Attempts,
-		Metadata: domain.KeyValue{
-			"created_by": "axrun",
-		},
-		OutputPath: filepath.Join(params.Output, runID),
+		SchemaVersion: domain.LocalSchemaVersion,
+		ID:            runID,
+		Status:        domain.RunStatusCreated,
+		CreatedAt:     now,
+		UpdatedAt:     timePtr(now),
 	}
 }
 
@@ -165,16 +154,13 @@ func inferAgentRuntimeTypeForBackend(agentName string, agentImage string, agentC
 	return inferAgentRuntimeType(agentName, agentImage)
 }
 
-func newEpisode(rolloutRun domain.RolloutRun, task domain.TaskInstance, attemptIndex int) domain.Episode {
+func newEpisode(runID string, task domain.TaskInstance, attemptIndex int) domain.Episode {
 	return domain.Episode{
-		ID:           domain.NewEpisodeID(rolloutRun.ID, task.ID, attemptIndex),
-		RunID:        rolloutRun.ID,
+		ID:           domain.NewEpisodeID(runID, task.ID, attemptIndex),
+		RunID:        runID,
 		TaskID:       task.ID,
 		AttemptIndex: attemptIndex,
 		Status:       domain.EpisodeStatusPending,
-		Agent:        rolloutRun.Agent,
-		Model:        rolloutRun.Model,
-		Sandbox:      task.Sandbox,
 	}
 }
 

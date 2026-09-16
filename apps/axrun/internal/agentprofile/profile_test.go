@@ -1,6 +1,7 @@
 package agentprofile
 
 import (
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,4 +97,95 @@ func TestParseUpstreamRejectsEmbeddedCredentials(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "must not include user credentials") {
 		t.Fatalf("ParseUpstream error = %v", err)
 	}
+}
+
+func TestLoadRejectsInsecurePlaintextTokenPermissions(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	data := []byte(`{"agent_profiles":{"profiles":{"codex":{"agent":"codex","provider":"openai","wire_api":"responses","upstream":"https://api.example.test/v1","token":"secret"}}}}`)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Load(path); err == nil || !strings.Contains(err.Error(), "owner-only permissions") {
+		t.Fatalf("Load() error = %v, want permission rejection", err)
+	}
+}
+
+func TestLoadRejectsSymlinkedConfig(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.json")
+	data := []byte(`{"agent_profiles":{"profiles":{}}}`)
+	if err := os.WriteFile(target, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "config.json")
+	if err := os.Symlink(target, path); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := Load(path); err == nil || !strings.Contains(err.Error(), "symbolic link") {
+		t.Fatalf("Load() error = %v, want symlink rejection", err)
+	}
+}
+
+func TestSnapshotExcludesCredentialRotationButDetectsBehaviorChange(t *testing.T) {
+	base := Profile{
+		Name: "codex", Agent: AgentCodex, ProviderType: ProviderOpenAI,
+		WireAPI: WireAPIResponses, Upstream: mustParseUpstream(t, "https://api.example.test/v1"),
+		Token: "first-secret", Config: map[string]string{"reasoning_effort": "high"},
+	}
+	first, err := Snapshot(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotated := base
+	rotated.Token = "second-secret"
+	second, err := Snapshot(rotated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Fatalf("credential rotation changed behavior snapshot: first=%#v second=%#v", first, second)
+	}
+	changed := base
+	changed.Config = map[string]string{"reasoning_effort": "medium"}
+	third, err := Snapshot(changed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.ConfigFingerprint == third.ConfigFingerprint {
+		t.Fatal("non-sensitive behavior change did not change fingerprint")
+	}
+	if strings.Contains(first.ConfigFingerprint, base.Token) {
+		t.Fatal("snapshot fingerprint contains token")
+	}
+}
+
+func TestParseProfileRejectsCredentialLikeEnvironment(t *testing.T) {
+	_, err := ParseProfile("codex", &ProfileConfig{
+		Agent: "codex", Provider: "openai", WireAPI: "responses",
+		Upstream: "https://api.example.test/v1", Token: "secret",
+		Env: map[string]string{"OPENAI_API_KEY": "another-secret"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "dedicated token field") {
+		t.Fatalf("ParseProfile() error = %v", err)
+	}
+}
+
+func TestParseProfileRejectsCredentialLikeConfig(t *testing.T) {
+	_, err := ParseProfile("codex", &ProfileConfig{
+		Agent: "codex", Provider: "openai", WireAPI: "responses",
+		Upstream: "https://api.example.test/v1", Token: "secret",
+		Config: map[string]string{"access_token": "another-secret"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "dedicated token field") {
+		t.Fatalf("ParseProfile() error = %v", err)
+	}
+}
+
+func mustParseUpstream(t *testing.T, value string) *url.URL {
+	t.Helper()
+	parsed, err := ParseUpstream("test", value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parsed
 }

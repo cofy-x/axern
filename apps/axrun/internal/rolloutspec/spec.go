@@ -14,6 +14,7 @@ import (
 	approllout "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
 	"github.com/cofy-x/axern/apps/axrun/internal/backend"
 	axernbackend "github.com/cofy-x/axern/apps/axrun/internal/backend/axern"
+	"github.com/cofy-x/axern/apps/axrun/internal/contract"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"gopkg.in/yaml.v3"
 	"os"
@@ -180,6 +181,11 @@ func (e *Envelope) Validate() error {
 }
 
 func validateAgent(agent Agent, model, runner string) error {
+	for key := range agent.Env {
+		if contract.IsSensitiveEnvKey(key) {
+			return fmt.Errorf("spec.agent.env.%s is credential-like; use an agent profile so credentials are resolved only at execution time", key)
+		}
+	}
 	if agent.Runtime.Kind == "agent_image" && strings.TrimSpace(agent.Runtime.Image) == "" {
 		return fmt.Errorf("spec.agent.runtime.image is required for agent_image")
 	}

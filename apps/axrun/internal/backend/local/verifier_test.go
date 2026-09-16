@@ -11,7 +11,8 @@ import (
 
 func TestLocalAdapterRejectsAgentImageRuntime(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent = domain.AgentSpec{
+	request := executeRequest(store, layout)
+	request.Agent = domain.AgentSpec{
 		Name: "claude-code",
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
@@ -19,7 +20,7 @@ func TestLocalAdapterRejectsAgentImageRuntime(t *testing.T) {
 			Command: []string{"bash", "-lc", "true"},
 		},
 	}
-	_, err := (Adapter{Now: fixedNow}).Execute(executeRequest(store, layout))
+	_, err := (Adapter{Now: fixedNow}).Execute(request)
 	if err == nil {
 		t.Fatal("Execute error = nil, want agent-image rejection")
 	}
@@ -85,7 +86,8 @@ func TestRunnerExecuteShellVerifierRecordsOutput(t *testing.T) {
 
 func TestRunnerExecutesCommandAgentBeforeVerifier(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "shell", Command: "grep -Fqx axrun-generic-job-ok answer.txt", CWD: "/workspace"})
-	layout.Episode.Agent = domain.AgentSpec{Name: "command", Runtime: &domain.AgentRuntimeSpec{
+	request := executeRequest(store, layout)
+	request.Agent = domain.AgentSpec{Name: "command", Runtime: &domain.AgentRuntimeSpec{
 		Type:    domain.AgentRuntimeTypeSandboxCommand,
 		Command: []string{"/bin/sh", "-lc", "printf axrun-generic-job-ok > answer.txt && cat answer.txt"},
 	}}
@@ -95,9 +97,9 @@ func TestRunnerExecutesCommandAgentBeforeVerifier(t *testing.T) {
 	}
 	layout.TaskInstance.InitialState = &domain.InitialStateSpec{Type: "directory", Path: workspace}
 	layout.TaskInstance.Sandbox.Workdir = "/workspace"
-	layout.Episode.Sandbox.Workdir = "/workspace"
+	request.Task = layout.TaskInstance
 
-	episode, err := (Adapter{Now: fixedNow, Registry: testRegistry()}).Execute(executeRequest(store, layout))
+	episode, err := (Adapter{Now: fixedNow, Registry: testRegistry()}).Execute(request)
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}

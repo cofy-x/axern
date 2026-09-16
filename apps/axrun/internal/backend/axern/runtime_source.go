@@ -56,7 +56,6 @@ func (a Adapter) resolveRuntimeSource(request backend.ExecuteRequest) (backend.E
 		Image:  result.Image,
 		Origin: domain.SandboxRuntimeSourceOriginRuntimeImageBuild,
 	}
-	request.Episode.Sandbox.RuntimeSource = imageSource
 	buildArtifact := domain.ArtifactRef{
 		Path:        artifactRef,
 		Kind:        domain.ArtifactKindRuntimeImageBuild,
@@ -64,7 +63,7 @@ func (a Adapter) resolveRuntimeSource(request backend.ExecuteRequest) (backend.E
 		Description: "runtime image build metadata",
 		Producer:    "axrun",
 	}
-	request.Episode.Artifacts = append(request.Episode.Artifacts, buildArtifact)
+	request.Artifacts = append(request.Artifacts, buildArtifact)
 	if err := appendTrajectoryStep(request, a.Now, domain.TrajectoryStep{
 		Type:      domain.TrajectoryEventSystemImageBuildDone,
 		Actor:     "axern-adapter",
@@ -109,8 +108,40 @@ func writeRuntimeImageBuildArtifact(artifactDir string, result runtimeimage.Resu
 		return "", fmt.Errorf("encode runtime image build artifact: %w", err)
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	temp, err := os.CreateTemp(artifactDir, ".runtime-image-build-*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("create runtime image build artifact: %w", err)
+	}
+	tempPath := temp.Name()
+	defer os.Remove(tempPath)
+	if err := temp.Chmod(0o600); err != nil {
+		_ = temp.Close()
+		return "", fmt.Errorf("secure runtime image build artifact: %w", err)
+	}
+	if _, err := temp.Write(data); err != nil {
+		_ = temp.Close()
 		return "", fmt.Errorf("write runtime image build artifact: %w", err)
+	}
+	if err := temp.Sync(); err != nil {
+		_ = temp.Close()
+		return "", fmt.Errorf("sync runtime image build artifact: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		return "", fmt.Errorf("close runtime image build artifact: %w", err)
+	}
+	if err := os.Rename(tempPath, path); err != nil {
+		return "", fmt.Errorf("publish runtime image build artifact: %w", err)
+	}
+	dir, err := os.Open(artifactDir)
+	if err != nil {
+		return "", fmt.Errorf("open runtime image artifact directory: %w", err)
+	}
+	if err := dir.Sync(); err != nil {
+		_ = dir.Close()
+		return "", fmt.Errorf("sync runtime image artifact directory: %w", err)
+	}
+	if err := dir.Close(); err != nil {
+		return "", fmt.Errorf("close runtime image artifact directory: %w", err)
 	}
 	return runref.ArtifactPath(artifactDir, path), nil
 }

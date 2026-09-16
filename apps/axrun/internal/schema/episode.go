@@ -48,8 +48,8 @@ func validateEpisodeTaskRefs(problems *collector, runDir string, tasks taskIndex
 	}
 }
 
-func validateEpisodeAttemptCoverage(problems *collector, runDir string, run domain.RolloutRun, episodes []domain.Episode) {
-	if run.AttemptsPerTask <= 0 {
+func validateEpisodeAttemptCoverage(problems *collector, runDir string, plan domain.RolloutPlan, episodes []domain.Episode) {
+	if plan.AttemptsPerTask <= 0 {
 		return
 	}
 	seen := map[string]map[int]string{}
@@ -57,16 +57,16 @@ func validateEpisodeAttemptCoverage(problems *collector, runDir string, run doma
 		if episode.TaskID == "" || episode.AttemptIndex <= 0 {
 			continue
 		}
-		if run.ID != "" {
-			expectedID := domain.NewEpisodeID(run.ID, episode.TaskID, episode.AttemptIndex)
+		if plan.RunID != "" {
+			expectedID := domain.NewEpisodeID(plan.RunID, episode.TaskID, episode.AttemptIndex)
 			if episode.ID != "" && episode.ID != expectedID {
 				episodePath := filepath.Join(runDir, "episodes", episode.ID, "episode.json")
 				problems.add(displayPath(runDir, episodePath), "id", fmt.Sprintf("got %q, want %q", episode.ID, expectedID))
 			}
 		}
-		if episode.AttemptIndex > run.AttemptsPerTask {
+		if episode.AttemptIndex > plan.AttemptsPerTask {
 			episodePath := filepath.Join(runDir, "episodes", episode.ID, "episode.json")
-			problems.add(displayPath(runDir, episodePath), "attempt_index", fmt.Sprintf("got %d, want <= attempts_per_task %d", episode.AttemptIndex, run.AttemptsPerTask))
+			problems.add(displayPath(runDir, episodePath), "attempt_index", fmt.Sprintf("got %d, want <= attempts_per_task %d", episode.AttemptIndex, plan.AttemptsPerTask))
 		}
 		if seen[episode.TaskID] == nil {
 			seen[episode.TaskID] = map[int]string{}
@@ -78,8 +78,8 @@ func validateEpisodeAttemptCoverage(problems *collector, runDir string, run doma
 		}
 		seen[episode.TaskID][episode.AttemptIndex] = episode.ID
 	}
-	for _, taskID := range run.TaskIDs {
-		for attemptIndex := 1; attemptIndex <= run.AttemptsPerTask; attemptIndex++ {
+	for _, taskID := range plan.TaskIDs {
+		for attemptIndex := 1; attemptIndex <= plan.AttemptsPerTask; attemptIndex++ {
 			if _, ok := seen[taskID][attemptIndex]; ok {
 				continue
 			}
@@ -105,18 +105,6 @@ func validateEpisodeRecord(problems *collector, runDir string, path string, epis
 	}
 	validateEpisodeFailureLifecycle(problems, rel, episode)
 	validateEpisodeTerminalFields(problems, rel, episode)
-	validateAgentSpec(problems, rel, "agent", episode.Agent)
-	validateModelSpec(problems, rel, "model", episode.Agent, episode.Model)
-	validateSandboxSpec(problems, rel, "sandbox", episode.Sandbox)
-	validateApprovalIsolation(problems, rel, episode.Agent, episode.Sandbox)
-	validateSandboxRuntimeSourceRefs(problems, runDir, rel, episode.Sandbox.RuntimeSource)
-	validateRunRef(problems, runDir, rel, "trajectory_path", episode.TrajectoryPath, true)
-	validateRunRef(problems, runDir, rel, "agent_result_path", episode.AgentResultPath, true)
-	validateRunRef(problems, runDir, rel, "verifier_result_path", episode.VerifierResultPath, true)
-	validateRunRef(problems, runDir, rel, "reward_path", episode.RewardPath, true)
-	validateRunRef(problems, runDir, rel, "artifact_dir", episode.ArtifactDir, true)
-	validateRunRef(problems, runDir, rel, "artifact_manifest_path", episode.ArtifactManifestPath, false)
-	validateArtifactRefs(problems, runDir, rel, "artifacts", episode.Artifacts)
 }
 
 func validateEpisodeTerminalFields(problems *collector, rel string, episode domain.Episode) {
@@ -129,22 +117,8 @@ func validateEpisodeTerminalFields(problems *collector, rel string, episode doma
 	if episode.CompletedAt == nil {
 		problems.add(rel, "completed_at", "terminal episode requires completed_at")
 	}
-	if episode.DurationMS < 0 {
-		problems.add(rel, "duration_ms", "must be non-negative")
-	}
-	if episode.Timing != nil && episode.Timing.TotalMS != episode.DurationMS {
-		problems.add(rel, "timing.total_ms", fmt.Sprintf("got %d, want duration_ms %d", episode.Timing.TotalMS, episode.DurationMS))
-	}
-	if episode.Usage != nil {
-		if episode.Usage.InputTokens < 0 {
-			problems.add(rel, "usage.input_tokens", "must be non-negative")
-		}
-		if episode.Usage.OutputTokens < 0 {
-			problems.add(rel, "usage.output_tokens", "must be non-negative")
-		}
-		if episode.Usage.TotalTokens < 0 {
-			problems.add(rel, "usage.total_tokens", "must be non-negative")
-		}
+	if episode.Timing != nil && episode.Timing.TotalMS < 0 {
+		problems.add(rel, "timing.total_ms", "must be non-negative")
 	}
 }
 
@@ -167,26 +141,26 @@ func validateEpisodeFailureLifecycle(problems *collector, path string, episode d
 func validateEpisodeFiles(problems *collector, runDir string, episodeDir string, episode domain.Episode) {
 	var agent domain.AgentResult
 	var agentOK bool
-	agentPath := joinRunRef(runDir, episode.AgentResultPath, episodeDir, "agent.json")
+	agentPath := filepath.Join(episodeDir, "agent.json")
 	if agent, agentOK = readJSON[domain.AgentResult](problems, runDir, agentPath); agentOK {
 		validateAgentResult(problems, runDir, agentPath, episode, agent)
 	}
 	var verifier domain.VerifierResult
 	var verifierOK bool
-	verifierPath := joinRunRef(runDir, episode.VerifierResultPath, episodeDir, "verifier.json")
+	verifierPath := filepath.Join(episodeDir, "verifier.json")
 	if verifier, verifierOK = readJSON[domain.VerifierResult](problems, runDir, verifierPath); verifierOK {
 		validateVerifierResult(problems, runDir, verifierPath, episode, verifier)
 	}
 	var reward domain.Reward
 	var rewardOK bool
-	rewardPath := joinRunRef(runDir, episode.RewardPath, episodeDir, "reward.json")
+	rewardPath := filepath.Join(episodeDir, "reward.json")
 	if reward, rewardOK = readJSON[domain.Reward](problems, runDir, rewardPath); rewardOK {
 		validateReward(problems, runDir, rewardPath, episode, reward)
 	}
 	if agentOK && verifierOK && rewardOK {
 		validateEpisodeOutcomeFiles(problems, runDir, episodeDir, episode, agent, verifier, reward)
 	}
-	trajectoryPath := joinRunRef(runDir, episode.TrajectoryPath, episodeDir, "trajectory.jsonl")
+	trajectoryPath := filepath.Join(episodeDir, "trajectory.jsonl")
 	validateTrajectory(problems, runDir, trajectoryPath)
 	validateEpisodeArtifactManifest(problems, runDir, episodeDir, episode)
 }
@@ -194,13 +168,13 @@ func validateEpisodeFiles(problems *collector, runDir string, episodeDir string,
 func validateEpisodeArtifactManifest(problems *collector, runDir string, episodeDir string, episode domain.Episode) {
 	episodePath := filepath.Join(episodeDir, "episode.json")
 	episodeRel := displayPath(runDir, episodePath)
-	if strings.TrimSpace(episode.ArtifactManifestPath) == "" {
-		if isTerminalEpisodeStatus(episode.Status) {
-			problems.add(episodeRel, "artifact_manifest_path", "terminal episode requires artifact manifest")
+	manifestPath := filepath.Join(episodeDir, "artifacts", "manifest.json")
+	if _, err := os.Stat(manifestPath); err != nil {
+		if isTerminalEpisodeStatus(episode.Status) && episode.FailureClass != domain.FailureClassInfrastructure {
+			problems.add(episodeRel, "artifact_manifest", "terminal episode requires artifacts/manifest.json")
 		}
 		return
 	}
-	manifestPath := joinRunRef(runDir, episode.ArtifactManifestPath, filepath.Join(episodeDir, "artifacts"), "manifest.json")
 	manifest, ok := readJSON[domain.ArtifactManifest](problems, runDir, manifestPath)
 	if !ok {
 		return
@@ -256,7 +230,7 @@ func validateAgentResult(problems *collector, runDir string, path string, episod
 	if result.RuntimeType != "" && !contract.IsAgentRuntimeType(result.RuntimeType) {
 		problems.add(rel, "runtime_type", fmt.Sprintf("unsupported agent runtime type %q", result.RuntimeType))
 	}
-	if episodeRequiresFinalAgent(episode.Status) {
+	if episodeRequiresFinalAgent(episode) {
 		validateFinalAgentStatus(problems, rel, "status", result.Status)
 	}
 	validateRunRef(problems, runDir, rel, "stdout_ref", result.StdoutRef, false)
@@ -290,7 +264,7 @@ func validateVerifierResult(problems *collector, runDir string, path string, epi
 func validateReward(problems *collector, runDir string, path string, episode domain.Episode, reward domain.Reward) {
 	rel := displayPath(runDir, path)
 	validateRewardStatus(problems, rel, "status", reward.Status)
-	if episode.Status == domain.EpisodeStatusCompleted || episode.Status == domain.EpisodeStatusFailed {
+	if (episode.Status == domain.EpisodeStatusCompleted || episode.Status == domain.EpisodeStatusFailed) && episode.FailureClass != domain.FailureClassInfrastructure {
 		if !reward.Final {
 			problems.add(rel, "final", "terminal episode requires final reward")
 		}
@@ -350,14 +324,16 @@ func validateFailedEpisodeFiles(problems *collector, episodeRel string, episode 
 			problems.add(episodeRel, "failure_class", fmt.Sprintf("verifier_failed episode has incompatible reward status %q", reward.Status))
 		}
 	case domain.FailureClassInfrastructure:
-		if reward.Status != domain.RewardStatusInfraFailed {
-			problems.add(episodeRel, "failure_class", fmt.Sprintf("infrastructure episode requires infra_failed reward, got %q", reward.Status))
-		}
+		// A process crash may interrupt result finalization. The Episode terminal
+		// record owns that fact; sidecars remain byte-for-byte crash evidence.
 	}
 }
 
-func episodeRequiresFinalAgent(status domain.EpisodeStatus) bool {
-	switch status {
+func episodeRequiresFinalAgent(episode domain.Episode) bool {
+	if episode.FailureClass == domain.FailureClassInfrastructure {
+		return false
+	}
+	switch episode.Status {
 	case domain.EpisodeStatusVerifying, domain.EpisodeStatusCompleted, domain.EpisodeStatusFailed:
 		return true
 	default:

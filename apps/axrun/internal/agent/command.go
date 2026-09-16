@@ -71,7 +71,7 @@ func commandWorkdir(request Request) string {
 	if request.Task.Sandbox.Workdir != "" {
 		return request.Task.Sandbox.Workdir
 	}
-	return request.Episode.Sandbox.Workdir
+	return ""
 }
 
 func durationSeconds(value int) time.Duration {

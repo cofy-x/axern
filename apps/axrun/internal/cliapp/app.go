@@ -7,7 +7,6 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/command"
 	exportcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/export"
 	rolloutcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/rollout"
-	servecmd "github.com/cofy-x/axern/apps/axrun/internal/commands/serve"
 	taskcmd "github.com/cofy-x/axern/apps/axrun/internal/commands/task"
 	validatecmd "github.com/cofy-x/axern/apps/axrun/internal/commands/validate"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
@@ -40,7 +39,6 @@ func New(version string) *cobra.Command {
 		rolloutcmd.Command(options),
 		validatecmd.Command(options),
 		exportcmd.Command(options),
-		servecmd.Command(),
 	)
 	root.InitDefaultCompletionCmd()
 	return root

@@ -12,16 +12,26 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/sandbox"
 )
 
+func readArtifactManifest(t *testing.T, artifactDir string) domain.ArtifactManifest {
+	t.Helper()
+	var manifest domain.ArtifactManifest
+	if err := readJSON(filepath.Join(artifactDir, "manifest.json"), &manifest); err != nil {
+		t.Fatalf("read artifact manifest: %v", err)
+	}
+	return manifest
+}
+
 func TestExecuteDownloadsConfiguredArtifacts(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent.Runtime = &domain.AgentRuntimeSpec{
+	agentSpec := domain.AgentSpec{Runtime: &domain.AgentRuntimeSpec{
 		Artifacts: &domain.ArtifactPolicySpec{OutputPaths: []string{"/tmp/axrun-output"}},
-	}
+	}}
 	sb := &fakeSandbox{}
-	episode, err := Execute(Request{
+	_, err := Execute(Request{
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
+		Agent:          agentSpec,
 		Paths:          paths(layout),
 		SandboxRuntime: fakeRuntime{sandbox: sb},
 		Now:            fixedNow,
@@ -33,15 +43,9 @@ func TestExecuteDownloadsConfiguredArtifacts(t *testing.T) {
 	if sb.downloadRemotePath != "/tmp/axrun-output" {
 		t.Fatalf("downloadRemotePath = %q", sb.downloadRemotePath)
 	}
-	if len(episode.Artifacts) != 1 || !strings.Contains(episode.Artifacts[0].Path, "downloads/tmp_axrun-output") {
-		t.Fatalf("episode artifacts = %#v", episode.Artifacts)
-	}
-	var written domain.Episode
-	if err := readJSON(layout.EpisodeJSONPath, &written); err != nil {
-		t.Fatalf("read episode: %v", err)
-	}
-	if len(written.Artifacts) != 1 {
-		t.Fatalf("written artifacts = %#v", written.Artifacts)
+	manifest := readArtifactManifest(t, layout.ArtifactDir)
+	if len(manifest.Entries) != 1 || !strings.Contains(manifest.Entries[0].Path, "downloads/tmp_axrun-output") {
+		t.Fatalf("artifact manifest = %#v", manifest)
 	}
 	steps := readTrajectorySteps(t, layout.TrajectoryPath)
 	if steps[len(steps)-2].Type != domain.TrajectoryEventArtifactDownload {
@@ -51,20 +55,21 @@ func TestExecuteDownloadsConfiguredArtifacts(t *testing.T) {
 
 func TestExecuteResolvesRelativeArtifactFromAgentWorkdir(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent.Runtime = &domain.AgentRuntimeSpec{
+	agentSpec := domain.AgentSpec{Runtime: &domain.AgentRuntimeSpec{
 		Workdir:   "/workspace/project",
 		Artifacts: &domain.ArtifactPolicySpec{OutputPaths: []string{"results/answer.txt"}},
-	}
+	}}
 	sb := &fakeSandbox{downloadHook: func(_ string, localPath string) error {
 		if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 			return err
 		}
 		return os.WriteFile(localPath, []byte("answer\n"), 0o644)
 	}}
-	episode, err := Execute(Request{
+	_, err := Execute(Request{
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
+		Agent:          agentSpec,
 		Paths:          paths(layout),
 		SandboxRuntime: fakeRuntime{sandbox: sb},
 		Now:            fixedNow,
@@ -76,8 +81,9 @@ func TestExecuteResolvesRelativeArtifactFromAgentWorkdir(t *testing.T) {
 	if sb.downloadRemotePath != "/workspace/project/results/answer.txt" {
 		t.Fatalf("downloadRemotePath = %q", sb.downloadRemotePath)
 	}
-	if len(episode.Artifacts) != 1 || episode.Artifacts[0].Kind != domain.ArtifactKindDownloadedFile {
-		t.Fatalf("episode artifacts = %#v", episode.Artifacts)
+	manifest := readArtifactManifest(t, layout.ArtifactDir)
+	if len(manifest.Entries) != 1 || manifest.Entries[0].Kind != domain.ArtifactKindDownloadedFile {
+		t.Fatalf("artifact manifest = %#v", manifest)
 	}
 }
 
@@ -99,7 +105,7 @@ func TestExecuteAddsArtifactsForAgentResultRefs(t *testing.T) {
 		StderrRef: stderrRef,
 		RawLogRef: rawLogRef,
 	}}
-	episode, err := Execute(Request{
+	_, err := Execute(Request{
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
@@ -112,8 +118,9 @@ func TestExecuteAddsArtifactsForAgentResultRefs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if len(episode.Artifacts) != 3 {
-		t.Fatalf("episode artifacts = %#v", episode.Artifacts)
+	manifest := readArtifactManifest(t, layout.ArtifactDir)
+	if len(manifest.Entries) != 3 {
+		t.Fatalf("artifact manifest = %#v", manifest)
 	}
 	var result domain.AgentResult
 	if err := readJSON(layout.AgentJSONPath, &result); err != nil {
@@ -128,19 +135,20 @@ func TestExecuteAddsArtifactsForAgentResultRefs(t *testing.T) {
 
 func TestExecuteCapturesConfiguredAgentPatch(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent.Runtime = &domain.AgentRuntimeSpec{
+	agentSpec := domain.AgentSpec{Runtime: &domain.AgentRuntimeSpec{
 		Artifacts: &domain.ArtifactPolicySpec{PatchPath: "/tmp/solution.patch"},
-	}
+	}}
 	sb := &fakeSandbox{execHook: func(command sandbox.ExecCommand, _ sandbox.ExecOptions) (sandbox.ExecResult, error) {
 		if strings.Contains(command.Shell(), "/tmp/solution.patch") {
 			return sandbox.ExecResult{Stdout: "diff --git a/file b/file\n"}, nil
 		}
 		return sandbox.ExecResult{}, nil
 	}}
-	episode, err := Execute(Request{
+	_, err := Execute(Request{
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
+		Agent:          agentSpec,
 		Paths:          paths(layout),
 		SandboxRuntime: fakeRuntime{sandbox: sb},
 		AgentHarness:   &recordingAgent{},
@@ -157,8 +165,9 @@ func TestExecuteCapturesConfiguredAgentPatch(t *testing.T) {
 	if result.PatchRef == "" || !hasArtifact(result.Artifacts, result.PatchRef, domain.ArtifactKindPatch) {
 		t.Fatalf("agent result = %#v", result)
 	}
-	if len(episode.Artifacts) == 0 || !hasArtifact(episode.Artifacts, result.PatchRef, domain.ArtifactKindPatch) {
-		t.Fatalf("episode artifacts = %#v", episode.Artifacts)
+	manifest := readArtifactManifest(t, layout.ArtifactDir)
+	if len(manifest.Entries) == 0 || manifest.Entries[0].Kind != domain.ArtifactKindPatch {
+		t.Fatalf("artifact manifest = %#v", manifest)
 	}
 	steps := readTrajectorySteps(t, layout.TrajectoryPath)
 	if !hasStepType(steps, domain.TrajectoryEventPatchCreated) {
@@ -168,17 +177,18 @@ func TestExecuteCapturesConfiguredAgentPatch(t *testing.T) {
 
 func TestExecuteFailsAgentWhenRequiredPatchIsMissing(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "shell", Command: "exit 0"})
-	layout.Episode.Agent.Runtime = &domain.AgentRuntimeSpec{
+	agentSpec := domain.AgentSpec{Runtime: &domain.AgentRuntimeSpec{
 		Artifacts: &domain.ArtifactPolicySpec{
 			PatchPath:     "/tmp/solution.patch",
 			PatchRequired: true,
 		},
-	}
+	}}
 	sb := &fakeSandbox{}
 	episode, err := Execute(Request{
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
+		Agent:          agentSpec,
 		Paths:          paths(layout),
 		SandboxRuntime: fakeRuntime{sandbox: sb},
 		AgentHarness:   &recordingAgent{},

@@ -1,7 +1,8 @@
 package domain
 
-// SummarizeEpisodes computes a RunSummary from a set of episodes,
-// aggregating status counts, timing, usage, and cost.
+// SummarizeEpisodes computes lifecycle and timing aggregates from Episodes.
+// Agent usage and cost are aggregated separately from AgentResult, their
+// authoritative owner.
 func SummarizeEpisodes(taskCount int, episodes []Episode) RunSummary {
 	summary := RunSummary{
 		TaskCount:    taskCount,
@@ -35,28 +36,33 @@ func SummarizeEpisodes(taskCount int, episodes []Episode) RunSummary {
 		case FailureClassTimeout:
 			summary.TimeoutEpisodes++
 		}
-		if episode.DurationMS > 0 {
-			summary.TotalDurationMS += episode.DurationMS
+		if episode.Timing != nil && episode.Timing.TotalMS > 0 {
+			summary.TotalDurationMS += episode.Timing.TotalMS
 			terminalCount++
-		}
-		if episode.Usage != nil {
-			if summary.TotalUsage == nil {
-				summary.TotalUsage = &UsageMetrics{}
-			}
-			summary.TotalUsage.InputTokens += episode.Usage.InputTokens
-			summary.TotalUsage.OutputTokens += episode.Usage.OutputTokens
-			summary.TotalUsage.TotalTokens += episode.Usage.TotalTokens
-			summary.TotalUsage.ToolCalls += episode.Usage.ToolCalls
-		}
-		if episode.Cost != nil && episode.Cost.Amount > 0 {
-			if summary.TotalCost == nil {
-				summary.TotalCost = &CostMetrics{Currency: episode.Cost.Currency}
-			}
-			summary.TotalCost.Amount += episode.Cost.Amount
 		}
 	}
 	if terminalCount > 0 {
 		summary.MeanEpisodeDurationMS = summary.TotalDurationMS / int64(terminalCount)
 	}
 	return summary
+}
+
+func AddAgentResults(summary *RunSummary, results []AgentResult) {
+	for _, result := range results {
+		if result.Usage != nil {
+			if summary.TotalUsage == nil {
+				summary.TotalUsage = &UsageMetrics{}
+			}
+			summary.TotalUsage.InputTokens += result.Usage.InputTokens
+			summary.TotalUsage.OutputTokens += result.Usage.OutputTokens
+			summary.TotalUsage.TotalTokens += result.Usage.TotalTokens
+			summary.TotalUsage.ToolCalls += result.Usage.ToolCalls
+		}
+		if result.Cost != nil && result.Cost.Amount > 0 {
+			if summary.TotalCost == nil {
+				summary.TotalCost = &CostMetrics{Currency: result.Cost.Currency}
+			}
+			summary.TotalCost.Amount += result.Cost.Amount
+		}
+	}
 }

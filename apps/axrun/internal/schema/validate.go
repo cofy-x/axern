@@ -31,12 +31,17 @@ func ValidateRun(params Params) (Result, error) {
 	}
 	result.RunID = run.ID
 	validateRunRecord(&problems, runDir, runPath, run)
-	tasks := validateTasks(&problems, runDir, run)
+	planPath := filepath.Join(runDir, "plan.json")
+	plan, planOK := readJSON[domain.RolloutPlan](&problems, runDir, planPath)
+	if !planOK {
+		result.Problems = problems.problems
+		return result, ValidationError{Result: result}
+	}
+	tasks := validateTasks(&problems, runDir, plan.TaskIDs)
 	episodes := validateEpisodes(&problems, runDir, run)
-	validateRolloutPlan(&problems, runDir, run, tasks, episodes)
+	validateRolloutPlan(&problems, runDir, run, plan, tasks, episodes)
 	validateEpisodeTaskRefs(&problems, runDir, tasks, episodes)
-	validateEpisodeAttemptCoverage(&problems, runDir, run, episodes)
-	validateRunSelection(&problems, runDir, runPath, run, tasks.count())
+	validateEpisodeAttemptCoverage(&problems, runDir, plan, episodes)
 	validateRunSummary(&problems, runDir, runPath, run, tasks.count(), episodes)
 	result.Problems = problems.problems
 	if !result.Valid() {
@@ -55,13 +60,11 @@ func validateRunRecord(problems *collector, runDir string, path string, run doma
 	if run.CreatedAt.IsZero() {
 		problems.add(rel, "created_at", "is required")
 	}
-	validateInputSpec(problems, runDir, rel, "input", run.Input)
-	validateAgentSpec(problems, rel, "agent", run.Agent)
-	validateModelSpec(problems, rel, "model", run.Agent, run.Model)
-	validateSandboxSpec(problems, rel, "sandbox", run.Sandbox)
-	validateApprovalIsolation(problems, rel, run.Agent, run.Sandbox)
-	validateSandboxRuntimeSourceRefs(problems, runDir, rel, run.Sandbox.RuntimeSource)
-	problems.requiredInt(rel, "concurrency", run.Concurrency)
-	problems.requiredInt(rel, "attempts_per_task", run.AttemptsPerTask)
-	validateRunOutputPath(problems, runDir, rel, "output_path", run.OutputPath)
+	if run.PlanPath != "plan.json" {
+		problems.add(rel, "plan_path", fmt.Sprintf("got %q, want %q", run.PlanPath, "plan.json"))
+	}
+	fingerprint := strings.TrimPrefix(run.PlanDigest, "sha256:")
+	if !strings.HasPrefix(run.PlanDigest, "sha256:") || !sha256Pattern.MatchString(fingerprint) {
+		problems.add(rel, "plan_digest", "must be a sha256: digest")
+	}
 }

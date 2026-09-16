@@ -33,33 +33,12 @@ func validateAgentPolicies(runDir string) []schema.Problem {
 	registry := agentcatalog.DefaultRegistry()
 	var problems []schema.Problem
 
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	if !readJSON(&problems, runDir, runPath, &run) {
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	if !readJSON(&problems, runDir, planPath, &plan) {
 		return problems
 	}
-	problems = append(problems, validateAgentSpec(registry, runDir, runPath, "agent", run.Agent)...)
-
-	episodesDir := filepath.Join(runDir, "episodes")
-	entries, err := os.ReadDir(episodesDir)
-	if err != nil {
-		return append(problems, schema.Problem{
-			Severity: schema.SeverityError,
-			Path:     displayPath(runDir, episodesDir),
-			Message:  fmt.Sprintf("read episodes directory: %v", err),
-		})
-	}
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		episodePath := filepath.Join(episodesDir, entry.Name(), "episode.json")
-		var episode domain.Episode
-		if !readJSON(&problems, runDir, episodePath, &episode) {
-			continue
-		}
-		problems = append(problems, validateAgentSpec(registry, runDir, episodePath, "agent", episode.Agent)...)
-	}
+	problems = append(problems, validateAgentSpec(registry, runDir, planPath, "agent", plan.Agent)...)
 	return problems
 }
 

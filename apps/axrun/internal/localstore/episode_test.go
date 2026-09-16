@@ -5,7 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
@@ -68,12 +67,7 @@ func TestCreateEpisodeLayoutWritesLayoutAndJSON(t *testing.T) {
 	if err := json.Unmarshal(episodeData, &episode); err != nil {
 		t.Fatalf("decode episode.json: %v", err)
 	}
-	if episode.ID != "episode_test-run_smoke-task_1" ||
-		episode.TrajectoryPath != "episodes/episode_test-run_smoke-task_1/trajectory.jsonl" ||
-		episode.AgentResultPath != "episodes/episode_test-run_smoke-task_1/agent.json" ||
-		episode.VerifierResultPath != "episodes/episode_test-run_smoke-task_1/verifier.json" ||
-		episode.RewardPath != "episodes/episode_test-run_smoke-task_1/reward.json" ||
-		episode.ArtifactDir != "episodes/episode_test-run_smoke-task_1/artifacts" {
+	if episode.ID != "episode_test-run_smoke-task_1" {
 		t.Fatalf("episode = %#v, result = %#v", episode, result)
 	}
 
@@ -144,98 +138,6 @@ func TestCreateEpisodeLayoutRejectsConflictingTaskRecord(t *testing.T) {
 	task.Instruction = "Different instruction"
 	if _, err := store.CreateEpisodeLayout(runLayout, task, testEpisodeAttempt("test-run", "smoke-task", 2)); err == nil {
 		t.Fatal("CreateEpisodeLayout error = nil, want conflicting task record error")
-	}
-}
-
-func TestResetEpisodeSidecarsForResumeOverwritesStaleSidecars(t *testing.T) {
-	store, layout := createEpisodeLayout(t)
-
-	// Simulate a prior run: write non-pending episode + sidecar states and an artifact.
-	startedAt := time.Date(2026, 5, 18, 12, 0, 0, 0, time.UTC)
-	if err := store.WriteEpisode(layout.EpisodeJSONPath, domain.Episode{
-		ID:        layout.Episode.ID,
-		RunID:     layout.Episode.RunID,
-		TaskID:    layout.Episode.TaskID,
-		Status:    domain.EpisodeStatusRunning,
-		StartedAt: &startedAt,
-	}); err != nil {
-		t.Fatalf("WriteEpisode (stale): %v", err)
-	}
-	if err := store.WriteAgentResult(layout.AgentJSONPath, domain.AgentResult{
-		Status:  domain.AgentStatusCompleted,
-		Summary: "prior run output",
-	}); err != nil {
-		t.Fatalf("WriteAgentResult: %v", err)
-	}
-	if err := store.WriteVerifierResult(layout.VerifierJSONPath, domain.VerifierResult{
-		Status: domain.EpisodeStatusCompleted,
-		Type:   domain.VerifierTypeShell,
-	}); err != nil {
-		t.Fatalf("WriteVerifierResult: %v", err)
-	}
-	if err := store.WriteReward(layout.RewardJSONPath, domain.Reward{
-		Status: domain.RewardStatusScored,
-	}); err != nil {
-		t.Fatalf("WriteReward: %v", err)
-	}
-	artifactPath := filepath.Join(layout.ArtifactDir, "stale-artifact.txt")
-	if err := os.WriteFile(artifactPath, []byte("stale"), 0o644); err != nil {
-		t.Fatalf("write stale artifact: %v", err)
-	}
-	nestedArtifactPath := filepath.Join(layout.ArtifactDir, "llm", "request-000001.body")
-	if err := os.MkdirAll(filepath.Dir(nestedArtifactPath), 0o755); err != nil {
-		t.Fatalf("mkdir nested artifact dir: %v", err)
-	}
-	if err := os.WriteFile(nestedArtifactPath, []byte("stale nested"), 0o644); err != nil {
-		t.Fatalf("write nested stale artifact: %v", err)
-	}
-
-	// layout.Episode mirrors the in-memory reset state (pending) as set by
-	// resumableExecutions; the store function writes it back to disk.
-	if err := store.ResetEpisodeSidecarsForResume(layout, domain.VerifierTypeShell); err != nil {
-		t.Fatalf("ResetEpisodeSidecarsForResume: %v", err)
-	}
-
-	var episode domain.Episode
-	if err := readJSON(layout.EpisodeJSONPath, &episode); err != nil {
-		t.Fatalf("decode episode.json: %v", err)
-	}
-	if episode.Status != domain.EpisodeStatusPending {
-		t.Fatalf("episode.Status = %q, want pending", episode.Status)
-	}
-	if episode.StartedAt != nil {
-		t.Fatalf("episode.StartedAt = %v, want nil after reset", episode.StartedAt)
-	}
-
-	var agent domain.AgentResult
-	if err := readJSON(layout.AgentJSONPath, &agent); err != nil {
-		t.Fatalf("decode agent.json: %v", err)
-	}
-	if agent.Status != domain.AgentStatusPending {
-		t.Fatalf("agent.Status = %q, want pending", agent.Status)
-	}
-
-	var verifier domain.VerifierResult
-	if err := readJSON(layout.VerifierJSONPath, &verifier); err != nil {
-		t.Fatalf("decode verifier.json: %v", err)
-	}
-	if verifier.Status != domain.EpisodeStatusPending || verifier.Type != domain.VerifierTypeShell {
-		t.Fatalf("verifier = %#v", verifier)
-	}
-
-	var reward domain.Reward
-	if err := readJSON(layout.RewardJSONPath, &reward); err != nil {
-		t.Fatalf("decode reward.json: %v", err)
-	}
-	if reward.Status != domain.RewardStatusPending {
-		t.Fatalf("reward.Status = %q, want pending", reward.Status)
-	}
-
-	if _, err := os.Stat(artifactPath); !os.IsNotExist(err) {
-		t.Fatalf("stale artifact still exists after reset: %v", err)
-	}
-	if _, err := os.Stat(nestedArtifactPath); !os.IsNotExist(err) {
-		t.Fatalf("nested stale artifact still exists after reset: %v", err)
 	}
 }
 

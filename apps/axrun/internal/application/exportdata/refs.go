@@ -7,18 +7,19 @@ import (
 )
 
 func buildRefs(runDir string, outputPath string, episode domain.Episode, taskPath string, agent domain.AgentResult) EpisodeRefs {
+	episodeRoot := filepath.ToSlash(filepath.Join("episodes", episode.ID))
 	return EpisodeRefs{
 		RunDir:               runDirRef(outputPath, runDir),
 		TaskPath:             runRelative(runDir, taskPath),
 		EpisodePath:          runRelative(runDir, filepath.Join(runDir, "episodes", episode.ID, "episode.json")),
-		AgentResultPath:      episode.AgentResultPath,
-		VerifierResultPath:   episode.VerifierResultPath,
-		RewardPath:           episode.RewardPath,
-		TrajectoryPath:       episode.TrajectoryPath,
+		AgentResultPath:      filepath.ToSlash(filepath.Join(episodeRoot, "agent.json")),
+		VerifierResultPath:   filepath.ToSlash(filepath.Join(episodeRoot, "verifier.json")),
+		RewardPath:           filepath.ToSlash(filepath.Join(episodeRoot, "reward.json")),
+		TrajectoryPath:       filepath.ToSlash(filepath.Join(episodeRoot, "trajectory.jsonl")),
 		RawLogRef:            agent.RawLogRef,
 		PatchRef:             agent.PatchRef,
-		ArtifactDir:          episode.ArtifactDir,
-		ArtifactManifestPath: episode.ArtifactManifestPath,
+		ArtifactDir:          filepath.ToSlash(filepath.Join(episodeRoot, "artifacts")),
+		ArtifactManifestPath: filepath.ToSlash(filepath.Join(episodeRoot, "artifacts", "manifest.json")),
 		LLMTelemetryRef:      artifactRefByKind(agent.Artifacts, domain.ArtifactKindLLMTelemetry),
 	}
 }

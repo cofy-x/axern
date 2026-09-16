@@ -37,8 +37,8 @@ func buildSFTRecord(bundle episodeBundle) SFTRecord {
 		EpisodeID:           bundle.Episode.ID,
 		TaskID:              bundle.Task.ID,
 		AttemptIndex:        bundle.Episode.AttemptIndex,
-		Agent:               agentSummary(bundle.Episode.Agent),
-		Model:               bundle.Episode.Model,
+		Agent:               agentSummary(bundle.Plan.Agent),
+		Model:               bundle.Plan.Model,
 		Instruction:         bundle.Task.Instruction,
 		Assistant:           bundle.Agent.Stdout,
 		EpisodeStatus:       bundle.Episode.Status,
@@ -47,7 +47,7 @@ func buildSFTRecord(bundle episodeBundle) SFTRecord {
 		Reward:              rewardSummary(bundle.Reward),
 		Usage:               usage,
 		Cost:                cost,
-		DurationMS:          bundle.Episode.DurationMS,
+		DurationMS:          episodeDurationMS(bundle.Episode),
 		Timing:              bundle.Episode.Timing,
 		FinishedAt:          bundle.Episode.FinishedAt,
 		Refs:                bundle.Refs,
@@ -65,8 +65,8 @@ func buildRewardRecord(bundle episodeBundle) RewardRecord {
 		EpisodeID:           bundle.Episode.ID,
 		TaskID:              bundle.Task.ID,
 		AttemptIndex:        bundle.Episode.AttemptIndex,
-		Agent:               agentSummary(bundle.Episode.Agent),
-		Model:               bundle.Episode.Model,
+		Agent:               agentSummary(bundle.Plan.Agent),
+		Model:               bundle.Plan.Model,
 		Instruction:         bundle.Task.Instruction,
 		EpisodeStatus:       bundle.Episode.Status,
 		AgentStatus:         bundle.Agent.Status,
@@ -75,7 +75,7 @@ func buildRewardRecord(bundle episodeBundle) RewardRecord {
 		Reward:              rewardSummary(bundle.Reward),
 		Usage:               usage,
 		Cost:                cost,
-		DurationMS:          bundle.Episode.DurationMS,
+		DurationMS:          episodeDurationMS(bundle.Episode),
 		Timing:              bundle.Episode.Timing,
 		StartedAt:           bundle.Episode.StartedAt,
 		FinishedAt:          bundle.Episode.FinishedAt,
@@ -111,7 +111,14 @@ func exportRecordID(format Format, episodeID string, sequence int) string {
 }
 
 func episodeUsageCost(bundle episodeBundle) (*domain.UsageMetrics, *domain.CostMetrics) {
-	return bundle.Episode.Usage, bundle.Episode.Cost
+	return bundle.Agent.Usage, bundle.Agent.Cost
+}
+
+func episodeDurationMS(episode domain.Episode) int64 {
+	if episode.Timing == nil {
+		return 0
+	}
+	return episode.Timing.TotalMS
 }
 
 func exportMetadata(bundle episodeBundle) domain.KeyValue {

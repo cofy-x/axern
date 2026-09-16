@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
+	"github.com/cofy-x/axern/apps/axrun/internal/application/agentcatalog"
 	approllout "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
 	"github.com/cofy-x/axern/apps/axrun/internal/command"
+	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/rolloutspec"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	"github.com/spf13/cobra"
@@ -33,24 +36,28 @@ func Run(options *command.Options) *cobra.Command {
 		if resume == "" {
 			return original(cmd, args)
 		}
-		for _, name := range []string{"file", "runner", "attempts", "output-dir"} {
+		for _, name := range []string{"file", "runner", "concurrency", "attempts", "output-dir"} {
 			if cmd.Flags().Changed(name) {
 				return command.Usage(fmt.Errorf("--resume cannot be combined with --%s", name))
 			}
 		}
-		runner, err := approllout.ResumeRunner(resume)
+		descriptor, err := approllout.DescribeResume(resume)
+		if err != nil {
+			return command.Usage(err)
+		}
+		service, provider, err := rolloutService(descriptor.Profile)
 		if err != nil {
 			return command.Usage(err)
 		}
 		params := approllout.Params{
-			Context:      cmd.Context(),
-			ResumeRunDir: resume,
-			Execute:      true,
-			Concurrency:  command.FlagInt(cmd, "concurrency", 1),
-			Attempts:     1,
-			Output:       command.FlagString(cmd, "output-dir", ".axrun/runs"),
+			Context:             cmd.Context(),
+			ResumeRunDir:        resume,
+			Execute:             true,
+			Attempts:            1,
+			Output:              command.FlagString(cmd, "output-dir", ".axrun/runs"),
+			ProviderRequirement: provider,
 		}
-		if runner == "axern" {
+		if descriptor.Runner == "axern" {
 			contextConfig, err := options.ResolveContext()
 			if err != nil {
 				return command.Usage(err)
@@ -60,7 +67,7 @@ func Run(options *command.Options) *cobra.Command {
 			}
 			params.AxernConfig = command.AxernConfig(contextConfig)
 		}
-		result, err := (approllout.Service{}).Run(params)
+		result, err := service.Run(params)
 		if err != nil {
 			return err
 		}
@@ -107,7 +114,12 @@ func rolloutCommand(options *command.Options, config rolloutCommandConfig) *cobr
 				return command.Usage(err)
 			}
 			params.Context = cmd.Context()
-			result, err := (approllout.Service{}).Run(params)
+			service, provider, err := rolloutService(params.AgentProfile)
+			if err != nil {
+				return command.Usage(err)
+			}
+			params.ProviderRequirement = provider
+			result, err := service.Run(params)
 			if err != nil {
 				return err
 			}
@@ -120,4 +132,27 @@ func rolloutCommand(options *command.Options, config rolloutCommandConfig) *cobr
 	cmd.Flags().IntVar(&attempts, "attempts", 0, "attempt count override")
 	cmd.Flags().StringVar(&outputDir, "output-dir", "", "run output directory override")
 	return cmd
+}
+
+func rolloutService(profileName string) (approllout.Service, *domain.ProviderRequirement, error) {
+	if strings.TrimSpace(profileName) == "" {
+		return approllout.Service{}, nil, nil
+	}
+	name, profile, ok, err := agentprofile.Resolve("", profileName)
+	if err != nil {
+		return approllout.Service{}, nil, err
+	}
+	if !ok {
+		return approllout.Service{}, nil, fmt.Errorf("agent profile %q not found", name)
+	}
+	snapshot, err := agentprofile.Snapshot(profile)
+	if err != nil {
+		return approllout.Service{}, nil, err
+	}
+	provider := &domain.ProviderRequirement{
+		Agent: snapshot.Agent, Provider: snapshot.Provider, WireAPI: snapshot.WireAPI,
+		Endpoint: snapshot.Endpoint, ConfigFingerprint: snapshot.ConfigFingerprint,
+	}
+	registry := agentcatalog.RegistryWithProfiles(map[string]agentprofile.Profile{name: profile})
+	return approllout.Service{AgentRegistry: registry}, provider, nil
 }

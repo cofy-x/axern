@@ -3,6 +3,7 @@ package rolloutspec
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -44,6 +45,26 @@ spec:
 	}
 	if _, err := Load(unsupported); err == nil {
 		t.Fatal("unsupported rollout API version was accepted")
+	}
+}
+
+func TestLoadRejectsCredentialLikeAgentEnvironment(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "rollout.yaml")
+	data := `api_version: axrun/v1
+kind: Rollout
+spec:
+  task_set: {ref: bundle}
+  agent:
+    name: command
+    command: "true"
+    env: {OPENAI_API_KEY: secret}
+  execution: {runner: local}
+`
+	if err := os.WriteFile(path, []byte(data), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "credential-like") {
+		t.Fatalf("Load() error = %v", err)
 	}
 }
 

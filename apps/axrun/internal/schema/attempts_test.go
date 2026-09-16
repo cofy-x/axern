@@ -11,11 +11,15 @@ import (
 func TestValidateRunRejectsMissingEpisodeAttempt(t *testing.T) {
 	runDir := createSchemaFixture(t)
 	runPath := filepath.Join(runDir, "run.json")
+	planPath := filepath.Join(runDir, "plan.json")
 	var run domain.RolloutRun
 	readSchemaJSON(t, runPath, &run)
-	run.AttemptsPerTask = 2
 	run.Summary = &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1}
 	writeSchemaJSON(t, runPath, run)
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.AttemptsPerTask = 2
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
@@ -65,10 +69,9 @@ func TestValidateRunAcceptsMultipleAttempts(t *testing.T) {
 	runPath := filepath.Join(runDir, "run.json")
 	var run domain.RolloutRun
 	readSchemaJSON(t, runPath, &run)
-	run.AttemptsPerTask = 2
 	run.Summary = &domain.RunSummary{TaskCount: 1, EpisodeCount: 2, CompletedEpisodes: 2}
 	writeSchemaJSON(t, runPath, run)
-	writeSchemaPlan(t, runDir, run, []domain.PlannedEpisode{
+	writeSchemaPlan(t, runDir, run.ID, run.CreatedAt, 2, []domain.PlannedEpisode{
 		{ID: "episode_test-run_task_1", TaskID: "task", AttemptIndex: 1, Order: 1},
 		{ID: "episode_test-run_task_2", TaskID: "task", AttemptIndex: 2, Order: 2},
 	})
@@ -83,12 +86,6 @@ func TestValidateRunAcceptsMultipleAttempts(t *testing.T) {
 	readSchemaJSON(t, episodePath, &episode)
 	episode.ID = "episode_test-run_task_2"
 	episode.AttemptIndex = 2
-	episode.TrajectoryPath = "episodes/episode_test-run_task_2/trajectory.jsonl"
-	episode.AgentResultPath = "episodes/episode_test-run_task_2/agent.json"
-	episode.VerifierResultPath = "episodes/episode_test-run_task_2/verifier.json"
-	episode.RewardPath = "episodes/episode_test-run_task_2/reward.json"
-	episode.ArtifactDir = "episodes/episode_test-run_task_2/artifacts"
-	episode.ArtifactManifestPath = "episodes/episode_test-run_task_2/artifacts/manifest.json"
 	writeSchemaJSON(t, episodePath, episode)
 	writeSchemaJSON(t, filepath.Join(target, "artifacts", "manifest.json"), domain.ArtifactManifest{
 		SchemaVersion: domain.LocalSchemaVersion,

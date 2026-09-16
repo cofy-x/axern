@@ -21,6 +21,8 @@ func executeRequest(store localstore.Store, layout localstore.EpisodeLayout) bac
 		Store:   store,
 		Task:    layout.TaskInstance,
 		Episode: layout.Episode,
+		Agent:   domain.AgentSpec{Name: "claude-code"},
+		Model:   domain.ModelSpec{ID: "anthropic/claude-haiku-4-5"},
 		Paths: rollout.Paths{
 			EpisodeJSONPath:  layout.EpisodeJSONPath,
 			TrajectoryPath:   layout.TrajectoryPath,
@@ -36,13 +38,7 @@ func createLayout(t *testing.T, verifier domain.VerifierSpec) (localstore.Store,
 	t.Helper()
 	store := localstore.New(filepath.Join(t.TempDir(), "runs"))
 	runLayout, err := store.CreateRunLayout(domain.RolloutRun{
-		ID:              "test-run",
-		Status:          domain.RunStatusCreated,
-		CreatedAt:       fixedNow(),
-		Agent:           domain.AgentSpec{Name: "claude-code"},
-		Model:           domain.ModelSpec{ID: "anthropic/claude-haiku-4-5"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		AttemptsPerTask: 1,
+		ID: "test-run", Status: domain.RunStatusCreated, CreatedAt: fixedNow(),
 	})
 	if err != nil {
 		t.Fatalf("CreateRunLayout returned error: %v", err)
@@ -50,7 +46,7 @@ func createLayout(t *testing.T, verifier domain.VerifierSpec) (localstore.Store,
 	task := domain.TaskInstance{
 		ID:          "smoke-task",
 		Instruction: "Print hello",
-		Sandbox:     runLayout.RolloutRun.Sandbox,
+		Sandbox:     domain.SandboxSpec{Backend: "axern"},
 		Verifier:    verifier,
 		Tags:        []string{},
 	}
@@ -60,9 +56,6 @@ func createLayout(t *testing.T, verifier domain.VerifierSpec) (localstore.Store,
 		TaskID:       task.ID,
 		AttemptIndex: 1,
 		Status:       domain.EpisodeStatusPending,
-		Agent:        runLayout.RolloutRun.Agent,
-		Model:        runLayout.RolloutRun.Model,
-		Sandbox:      runLayout.RolloutRun.Sandbox,
 	}
 	layout, err := store.CreateEpisodeLayout(runLayout, task, episode)
 	if err != nil {

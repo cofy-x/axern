@@ -137,15 +137,15 @@ func (a Adapter) PreflightProvider(ctx context.Context, agentSpec domain.AgentSp
 }
 
 func (a Adapter) Execute(request backend.ExecuteRequest) (episode domain.Episode, runErr error) {
-	if err := a.PreflightAgent(request.Episode.Agent); err != nil {
+	if err := a.PreflightAgent(request.Agent); err != nil {
 		return request.Episode, err
 	}
 	if a.Registry != nil {
-		if err := a.Registry.ValidateAgent(a.AgentName, request.Episode.Agent); err != nil {
+		if err := a.Registry.ValidateAgent(a.AgentName, request.Agent); err != nil {
 			return request.Episode, err
 		}
 	}
-	agentHarness, err := a.agentHarness(request.Episode.Agent)
+	agentHarness, err := a.agentHarness(request.Agent)
 	if err != nil {
 		return request.Episode, err
 	}
@@ -161,13 +161,15 @@ func (a Adapter) Execute(request backend.ExecuteRequest) (episode domain.Episode
 		Store:          resolvedRequest.Store,
 		Task:           resolvedRequest.Task,
 		Episode:        resolvedRequest.Episode,
+		Agent:          resolvedRequest.Agent,
+		Model:          resolvedRequest.Model,
+		Artifacts:      resolvedRequest.Artifacts,
 		Paths:          resolvedRequest.Paths,
 		SandboxRuntime: runtime,
 		AgentHarness:   agentHarness,
 		Now:            a.Now,
 		RuntimeName:    "axern",
 		HealthCheck:    rollout.HealthCheckConfigFromEnv(),
-		PhaseReporter:  request.PhaseReporter,
 	})
 }
 
@@ -186,8 +188,8 @@ func (a Adapter) runtimeForRequest(request backend.ExecuteRequest) (sandbox.Runt
 	if err != nil {
 		return nil, err
 	}
-	if request.Episode.Agent.Runtime != nil && request.Episode.Agent.Runtime.Type == domain.AgentRuntimeTypeAgentImage {
-		config.ImageMounts = append(config.ImageMounts, agentImageMount(request.Episode.Agent))
+	if request.Agent.Runtime != nil && request.Agent.Runtime.Type == domain.AgentRuntimeTypeAgentImage {
+		config.ImageMounts = append(config.ImageMounts, agentImageMount(request.Agent))
 	}
 	return sandboxaxern.NewRuntime(config), nil
 }

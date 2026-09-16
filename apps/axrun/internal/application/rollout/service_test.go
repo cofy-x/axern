@@ -1,12 +1,16 @@
 package rollout
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
+	"github.com/cofy-x/axern/apps/axrun/internal/application/agentcatalog"
 	"github.com/cofy-x/axern/apps/axrun/internal/backend"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/taskset"
@@ -28,10 +32,12 @@ func TestServicePlansTaskSet(t *testing.T) {
 	}
 	var run domain.RolloutRun
 	readJSON(t, result.RunJSONPath, &run)
-	if run.Input == nil || run.Input.Type != domain.InputTypeTaskSet {
-		t.Fatalf("input = %#v", run.Input)
+	var plan domain.RolloutPlan
+	readJSON(t, result.PlanJSONPath, &plan)
+	if plan.Input == nil || plan.Input.Type != domain.InputTypeTaskSet {
+		t.Fatalf("input = %#v", plan.Input)
 	}
-	if len(result.Episodes) != 2 || len(run.TaskIDs) != 1 || run.TaskIDs[0] != "example" {
+	if len(result.Episodes) != 2 || len(plan.TaskIDs) != 1 || plan.TaskIDs[0] != "example" {
 		t.Fatalf("unexpected result: %#v", result)
 	}
 	if _, err := os.Stat(filepath.Join(result.RunDir, "inputs", "taskset-descriptor.json")); err != nil {
@@ -134,7 +140,7 @@ func TestInfrastructureFailureMarksRunFailed(t *testing.T) {
 	}
 	var run domain.RolloutRun
 	readJSON(t, filepath.Join(output, "infra-failure", "run.json"), &run)
-	if run.Status != domain.RunStatusFailed || run.Summary == nil || run.Summary.InfraFailures != 1 {
+	if run.Status != domain.RunStatusFailed || run.Summary == nil || run.Summary.InfraFailures != 0 || run.Summary.PendingEpisodes != 1 {
 		t.Fatalf("run = %#v", run)
 	}
 }
@@ -160,7 +166,9 @@ func TestTaskOutputsAreCollectedAndRequired(t *testing.T) {
 			var episode domain.Episode
 			readJSON(t, filepath.Join(result.RunDir, "episodes", episodeID, "episode.json"), &episode)
 			if name == "present" {
-				if episode.Status != domain.EpisodeStatusCompleted || len(episode.Artifacts) == 0 {
+				var manifest domain.ArtifactManifest
+				readJSON(t, filepath.Join(result.RunDir, "episodes", episodeID, "artifacts", "manifest.json"), &manifest)
+				if episode.Status != domain.EpisodeStatusCompleted || len(manifest.Entries) == 0 {
 					t.Fatalf("episode = %#v", episode)
 				}
 			} else if episode.Status != domain.EpisodeStatusFailed || episode.FailureClass != domain.FailureClassVerifierFailed {
@@ -192,6 +200,49 @@ func TestSelectionIsFrozenInPlan(t *testing.T) {
 	}
 }
 
+func TestAgentProfileTokenIsNotPersistedInPlannedRun(t *testing.T) {
+	const token = "axrun-secret-must-never-be-persisted"
+	profile := agentprofile.Profile{
+		Name: "secure", Agent: agentprofile.AgentCodex, ProviderType: agentprofile.ProviderOpenAI,
+		WireAPI: agentprofile.WireAPIResponses, Upstream: &url.URL{Scheme: "https", Host: "api.example.test", Path: "/v1"},
+		Token: token, Config: map[string]string{"reasoning_effort": "high"},
+	}
+	snapshot, err := agentprofile.Snapshot(profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := (Service{AgentRegistry: agentcatalog.RegistryWithProfiles(map[string]agentprofile.Profile{"secure": profile})}).Run(Params{
+		TaskSetRef: buildTaskSet(t), Agent: "codex", AgentProfile: "secure", Model: "openai/test",
+		AgentImage: "example.com/codex@sha256:" + strings.Repeat("a", 64), AgentApprovalPolicy: "never",
+		BackendName: "axern", Concurrency: 1, Attempts: 1, Output: t.TempDir(),
+		ProviderRequirement: &domain.ProviderRequirement{
+			Agent: snapshot.Agent, Provider: snapshot.Provider, WireAPI: snapshot.WireAPI,
+			Endpoint: snapshot.Endpoint, ConfigFingerprint: snapshot.ConfigFingerprint,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := filepath.WalkDir(result.RunDir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if bytes.Contains(data, []byte(token)) {
+			t.Fatalf("credential persisted in %s", path)
+		}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRejectsUnknownSelectedTask(t *testing.T) {
 	_, err := (Service{}).Run(Params{
 		TaskSetRef: buildTaskSetMultiple(t), Agent: "oracle", Model: "test/model",
@@ -214,12 +265,42 @@ func TestResumeUsesCapturedPlanAfterBundleRemoval(t *testing.T) {
 	if err := os.RemoveAll(filepath.Dir(bundle)); err != nil {
 		t.Fatal(err)
 	}
-	resumed, err := (Service{}).Run(Params{ResumeRunDir: result.RunDir, Execute: true, Concurrency: 1})
+	resumed, err := (Service{}).Run(Params{ResumeRunDir: result.RunDir, Execute: true})
 	if err != nil {
 		t.Fatalf("resume: %v", err)
 	}
 	if !resumed.Resumed || resumed.RunID != result.RunID {
 		t.Fatalf("resumed = %#v", resumed)
+	}
+}
+
+func TestResumeUsesConcurrencyFrozenInPlan(t *testing.T) {
+	result, err := (Service{}).Run(Params{
+		TaskSetRef: buildTaskSetMultiple(t), Agent: "oracle", Model: "test/model", BackendName: "local",
+		Concurrency: 2, Attempts: 1, Output: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enter := make(chan string, 2)
+	release := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		_, err := (Service{BackendFactory: func(BackendRequest) (backend.Backend, error) {
+			return trackingBackend{enter: enter, release: release}, nil
+		}}).Run(Params{ResumeRunDir: result.RunDir, Execute: true})
+		done <- err
+	}()
+
+	first := <-enter
+	second := <-enter
+	if first == second {
+		t.Fatalf("same task entered twice: %q", first)
+	}
+	release <- struct{}{}
+	release <- struct{}{}
+	if err := <-done; err != nil {
+		t.Fatalf("resume: %v", err)
 	}
 }
 
@@ -244,7 +325,7 @@ func TestResumeReconcilesValidatedTerminalRunStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resumed, err := (Service{}).Run(Params{ResumeRunDir: result.RunDir, Execute: true, Concurrency: 1})
+	resumed, err := (Service{}).Run(Params{ResumeRunDir: result.RunDir, Execute: true})
 	if err != nil {
 		t.Fatalf("resume: %v", err)
 	}
@@ -280,9 +361,10 @@ func TestShardSelectionIsStable(t *testing.T) {
 
 func TestResumeRejectsCreateTimeOverrides(t *testing.T) {
 	for name, params := range map[string]Params{
-		"runner":   {ResumeRunDir: "/run", Execute: true, Concurrency: 1, BackendName: "axern"},
-		"taskset":  {ResumeRunDir: "/run", Execute: true, Concurrency: 1, TaskSetRef: "replacement"},
-		"attempts": {ResumeRunDir: "/run", Execute: true, Concurrency: 1, Attempts: 2},
+		"runner":      {ResumeRunDir: "/run", Execute: true, BackendName: "axern"},
+		"taskset":     {ResumeRunDir: "/run", Execute: true, TaskSetRef: "replacement"},
+		"attempts":    {ResumeRunDir: "/run", Execute: true, Attempts: 2},
+		"concurrency": {ResumeRunDir: "/run", Execute: true, Concurrency: 2},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := NormalizeParams(params); err == nil {

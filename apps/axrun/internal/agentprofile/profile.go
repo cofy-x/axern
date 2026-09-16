@@ -1,13 +1,17 @@
 package agentprofile
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/cofy-x/axern/apps/axrun/internal/contract"
 )
 
 const (
@@ -67,6 +71,14 @@ type ProfileConfig struct {
 	Config        map[string]string `json:"config,omitempty"`
 }
 
+type BehaviorSnapshot struct {
+	Agent             string
+	Provider          string
+	WireAPI           string
+	Endpoint          string
+	ConfigFingerprint string
+}
+
 func DefaultPath() string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
@@ -77,16 +89,91 @@ func DefaultPath() string {
 
 func Load(path string) (*ConfigFile, string, error) {
 	path = ResolvePath(path)
-	data, err := os.ReadFile(path)
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, path, fmt.Errorf("inspect axrun config: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return nil, path, fmt.Errorf("axrun config %q must not be a symbolic link", path)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, path, fmt.Errorf("axrun config %q must be a regular file", path)
+	}
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, path, fmt.Errorf("read axrun config: %w", err)
+	}
+	openedInfo, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return nil, path, fmt.Errorf("inspect opened axrun config: %w", err)
+	}
+	if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+		_ = file.Close()
+		return nil, path, fmt.Errorf("axrun config %q changed while it was being opened", path)
+	}
+	data, err := io.ReadAll(file)
+	if err != nil {
+		_ = file.Close()
+		return nil, path, fmt.Errorf("read axrun config: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return nil, path, fmt.Errorf("close axrun config: %w", err)
 	}
 	cfg := &ConfigFile{}
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, path, fmt.Errorf("parse axrun config %q: %w", path, err)
 	}
+	if containsPlaintextToken(cfg) && openedInfo.Mode().Perm()&0o077 != 0 {
+		return nil, path, fmt.Errorf("axrun config %q contains a plaintext token and must use owner-only permissions (for example 0600)", path)
+	}
 	Ensure(cfg)
 	return cfg, path, nil
+}
+
+func containsPlaintextToken(cfg *ConfigFile) bool {
+	if cfg == nil {
+		return false
+	}
+	for _, profile := range cfg.AgentProfiles.Profiles {
+		if profile != nil && strings.TrimSpace(profile.Token) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func Snapshot(profile Profile) (BehaviorSnapshot, error) {
+	if profile.Upstream == nil {
+		return BehaviorSnapshot{}, fmt.Errorf("agent profile %q upstream is required", profile.Name)
+	}
+	behavior := struct {
+		Agent         AgentType         `json:"agent"`
+		Provider      ProviderType      `json:"provider"`
+		WireAPI       WireAPI           `json:"wire_api"`
+		Endpoint      string            `json:"endpoint"`
+		TemplateID    string            `json:"template_id,omitempty"`
+		Namespace     string            `json:"namespace,omitempty"`
+		RemoteUser    string            `json:"remote_user,omitempty"`
+		RestoreOnExit bool              `json:"restore_on_exit,omitempty"`
+		Env           map[string]string `json:"env,omitempty"`
+		Config        map[string]string `json:"config,omitempty"`
+	}{
+		Agent: profile.Agent, Provider: profile.ProviderType, WireAPI: profile.WireAPI,
+		Endpoint: profile.Upstream.String(), TemplateID: profile.TemplateID,
+		Namespace: profile.Namespace, RemoteUser: profile.RemoteUser,
+		RestoreOnExit: profile.RestoreOnExit, Env: profile.Env, Config: profile.Config,
+	}
+	data, err := json.Marshal(behavior)
+	if err != nil {
+		return BehaviorSnapshot{}, err
+	}
+	digest := sha256.Sum256(data)
+	return BehaviorSnapshot{
+		Agent: string(profile.Agent), Provider: string(profile.ProviderType),
+		WireAPI: string(profile.WireAPI), Endpoint: profile.Upstream.String(),
+		ConfigFingerprint: fmt.Sprintf("sha256:%x", digest),
+	}, nil
 }
 
 func Resolve(path string, profileName string) (string, Profile, bool, error) {
@@ -146,6 +233,16 @@ func ParseProfile(name string, stored *ProfileConfig) (Profile, error) {
 	token := strings.TrimSpace(stored.Token)
 	if token == "" {
 		return Profile{}, fmt.Errorf("agent profile %q does not define token", name)
+	}
+	for key := range stored.Env {
+		if contract.IsSensitiveEnvKey(key) {
+			return Profile{}, fmt.Errorf("agent profile %q env %q is credential-like; use the dedicated token field", name, key)
+		}
+	}
+	for key := range stored.Config {
+		if contract.IsSensitiveEnvKey(key) {
+			return Profile{}, fmt.Errorf("agent profile %q config %q is credential-like; use the dedicated token field", name, key)
+		}
 	}
 	return Profile{
 		Name:          strings.TrimSpace(name),
@@ -253,6 +350,9 @@ func ParseUpstream(label string, raw string) (*url.URL, error) {
 	}
 	if parsed.User != nil {
 		return nil, fmt.Errorf("%s upstream must not include user credentials", label)
+	}
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return nil, fmt.Errorf("%s upstream must not include a query or fragment", label)
 	}
 	return parsed, nil
 }

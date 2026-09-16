@@ -25,6 +25,7 @@ type EpisodeLayout struct {
 	ArtifactDir      string
 	TaskInstance     domain.TaskInstance
 	Episode          domain.Episode
+	AgentResult      domain.AgentResult
 }
 
 func (s Store) CreateEpisodeLayout(run RunLayout, task domain.TaskInstance, episode domain.Episode) (EpisodeLayout, error) {
@@ -55,16 +56,10 @@ func (s Store) CreateEpisodeLayout(run RunLayout, task domain.TaskInstance, epis
 	artifactDir := filepath.Join(episodeDir, "artifacts")
 	episodeJSONPath := filepath.Join(episodeDir, "episode.json")
 
-	episode.TrajectoryPath = runRelativePath(run.RunDir, trajectoryPath)
-	episode.AgentResultPath = runRelativePath(run.RunDir, agentJSONPath)
-	episode.VerifierResultPath = runRelativePath(run.RunDir, verifierJSONPath)
-	episode.RewardPath = runRelativePath(run.RunDir, rewardJSONPath)
-	episode.ArtifactDir = runRelativePath(run.RunDir, artifactDir)
-
 	if err := writeJSON(episodeJSONPath, episode); err != nil {
 		return EpisodeLayout{}, fmt.Errorf("write episode.json: %w", err)
 	}
-	if err := os.WriteFile(trajectoryPath, nil, 0o644); err != nil {
+	if err := atomicWriteFile(trajectoryPath, nil, 0o600); err != nil {
 		return EpisodeLayout{}, fmt.Errorf("write trajectory.jsonl: %w", err)
 	}
 	if err := writeJSON(agentJSONPath, domain.AgentResult{Status: domain.AgentStatusPending}); err != nil {
@@ -95,7 +90,12 @@ func (s Store) CreateEpisodeLayout(run RunLayout, task domain.TaskInstance, epis
 		ArtifactDir:      artifactDir,
 		TaskInstance:     task,
 		Episode:          episode,
+		AgentResult:      domain.AgentResult{Status: domain.AgentStatusPending},
 	}, nil
+}
+
+func ReadAgentResult(path string) (domain.AgentResult, error) {
+	return readJSONFile[domain.AgentResult](path)
 }
 
 func ensureTaskRecord(taskDir string, taskJSONPath string, task domain.TaskInstance) error {

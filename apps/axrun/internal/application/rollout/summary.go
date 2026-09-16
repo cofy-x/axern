@@ -6,7 +6,13 @@ import (
 )
 
 func summarizeRun(taskCount int, layouts []localstore.EpisodeLayout) domain.RunSummary {
-	return domain.SummarizeEpisodes(taskCount, episodesFromLayouts(layouts))
+	summary := domain.SummarizeEpisodes(taskCount, episodesFromLayouts(layouts))
+	results := make([]domain.AgentResult, 0, len(layouts))
+	for _, layout := range layouts {
+		results = append(results, layout.AgentResult)
+	}
+	domain.AddAgentResults(&summary, results)
+	return summary
 }
 
 func runStatusForExecutions(layouts []localstore.EpisodeLayout) domain.RunStatus {
