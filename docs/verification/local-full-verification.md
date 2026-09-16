@@ -22,6 +22,8 @@ make verify-changed
 
 Set `VERIFY_BASE=<ref>` when the comparison base is not `origin/main`. For a broad or unclassifiable source change, the planner fails safe to `make verify-fast-all`, the complete host-safe source gate. Protobuf generated output checks finish before any Go compilation.
 
+Workflow, verification orchestration, and shared Docker build-cache changes also select `make release-check`. These paths can invalidate release and image-build contracts even without modifying release artifacts; local validation must execute those same contracts before PR CI.
+
 Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its normal budget is minutes. A normal pull request may merge after its selected Tier 1 checks and GitHub checks pass; it does not also require a local full gate.
 
 Concurrency unit tests must prove overlap, ordering, and limits through explicit synchronization rather than total elapsed-time thresholds. Wall-clock deadlines may bound a stuck test, but shared-runner speed is not a correctness assertion. Release all test barriers and join workers before closing their stores or removing temporary directories.
@@ -60,9 +62,13 @@ make verify-full ARGS='--include-bpfnet-generate-check'
 make verify-full ARGS='--include-proto-breaking'
 ```
 
-The `Post-Merge Full` GitHub workflow runs the default `make verify-full` gate for every `main` commit and supports manual dispatch. It uses read-only repository permissions, language and Docker build caches, a three-hour safety timeout, and one concurrency slot per ref. When a newer `main` commit arrives, the older in-progress run is cancelled because the newer tree contains and supersedes it; a cancelled run is not passing evidence.
+The `Post-Merge Full` GitHub workflow triggers the complete default gate for every `main` commit and supports manual dispatch. It partitions the same ordered steps into `make verify-full ARGS='--suite source'` (through Linux node unit tests) and `make verify-full ARGS='--suite runtime'` (CLI and all runtime E2E). The suites run on separate runners; runtime tests remain serial because they share Docker, network, and privileged host resources. A contract test requires their ordered union to equal the default gate exactly, without duplicates. `Full Repository Regression` succeeds only when both suites succeed; failures do not cancel the other suite.
 
-Each run publishes a summary plus a 14-day artifact containing the exact commit, run identity, bootstrap log, full regression log, and failure diagnostics when applicable. GitHub's job log remains the authoritative live view. Rerunning the remote job starts from a clean runner; `--from` remains a same-workspace local diagnosis aid and is not exposed as a misleading remote resume control.
+The workflow uses read-only repository permissions, upstream package sources, language and Docker build caches, a three-hour safety timeout per suite, and one workflow concurrency slot per ref. Regional acceleration belongs in the external workspace entrypoint. When a newer `main` commit arrives, the older in-progress run is cancelled; a cancelled run is not passing evidence. Every commit triggers verification, but not every superseded commit completes it.
+
+Each suite publishes a summary plus a 14-day artifact containing the exact commit, run identity, suite, bootstrap log, regression log, stage durations and exit codes, and failure diagnostics when applicable. Set `VERIFY_TIMINGS_FILE` to an output file with an existing parent directory to collect the same tab-separated timing report locally. Completed and failed stages are recorded; an abruptly killed runner may leave only completed stages, and the job outcome still determines success. GitHub's job log remains the authoritative live view. Rerunning a remote suite starts from a clean runner; `--from` remains a same-workspace local diagnosis aid and cannot be combined with a named suite.
+
+During a serial gate, Docker builds still validate all inputs through BuildKit, including dirty local sources. A run-local export receipt suppresses repeated GitHub cache exports only after the resulting image ID has already been exported successfully to that scope. Changed images and failed exports are not treated as cache hits. The first export uses a second cached BuildKit solve without loading another image; later stages retain their normal build and load path. Receipts are removed when the gate exits and never authorize image reuse or skip tests. Standalone build commands retain their combined build/export behavior. Compare cold- and warm-cache runs before claiming a speedup; neither a cache receipt nor a fast smoke is release evidence.
 
 Do not release or promote a commit until its exact `Full Repository Regression` job succeeds. The workflow is deliberately not a required pull-request check.
 

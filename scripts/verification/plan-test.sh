@@ -21,9 +21,12 @@ assert_plan egress runtime/egressd/internal/enforcement/nft.go egressd true
 assert_plan axnoded-volume runtime/axnoded/internal/volume/store.go axnoded false
 assert_plan rollout apps/axrun/internal/application/rollout/execute.go go false
 assert_plan migration control/controld/internal/postgres/migrations/000005_example.sql go false
-assert_plan classifier scripts/verification/plan.sh verify-fast-all true
+assert_plan classifier scripts/verification/plan.sh verify-fast-all,release-contract true
 assert_plan release-workflow .github/workflows/release.yml verify-fast-all,release-contract true
-assert_plan post-merge-workflow .github/workflows/post-merge-full.yml verify-fast-all true
+assert_plan post-merge-workflow .github/workflows/post-merge-full.yml verify-fast-all,release-contract true
+assert_plan ci-workflow .github/workflows/ci.yml verify-fast-all,release-contract true
+assert_plan build-cache scripts/dev-env/docker-build-cache.sh verify-fast-all,release-contract true
+assert_plan full-gate scripts/verify-all.sh verify-fast-all,release-contract true
 
 github_output="${work_dir}/github.out"
 paths_file="${work_dir}/empty.paths"

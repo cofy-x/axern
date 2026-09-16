@@ -13,6 +13,11 @@ required=(
   "group: post-merge-full-\${{ github.ref }}"
   "cancel-in-progress: true"
   "name: Full Repository Regression"
+  "suite: [source, runtime]"
+  "fail-fast: false"
+  'needs: full-regression'
+  "run: test \"\${RESULT}\" = success"
+  'VERIFY_TIMINGS_FILE:'
   "runs-on: ubuntu-24.04"
   "timeout-minutes: 180"
   "AXERN_DOCKER_CACHE_BACKEND: gha"
@@ -35,6 +40,13 @@ if grep -Eq '^[[:space:]]+pull_request:' "${WORKFLOW}"; then
   echo "post-merge full regression must not run as a pull-request gate" >&2
   exit 1
 fi
+
+if grep -Eq '^[[:space:]]+(APT_MIRROR_SOURCE|CARGO_REGISTRY_SOURCE|GOPROXY):' "${WORKFLOW}"; then
+  echo "hosted regression must use upstream defaults, not regional mirrors" >&2
+  exit 1
+fi
+
+bash "${ROOT_DIR}/scripts/verification/verify-all-test.sh"
 
 if grep -Eq '^[[:space:]]+(checks|contents|packages|pull-requests): write' "${WORKFLOW}"; then
   echo "post-merge full regression must retain read-only repository permissions" >&2
