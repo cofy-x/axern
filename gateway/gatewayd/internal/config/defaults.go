@@ -1,6 +1,7 @@
 package config
 
 import (
+	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
 	"os"
 	"time"
 )
@@ -30,8 +31,8 @@ func defaultsFromEnv() Config {
 		TerminalIdleTimeout:       durationEnv("GATEWAYD_TERMINAL_IDLE_TIMEOUT", 10*time.Minute),
 		TerminalMaxDuration:       durationEnv("GATEWAYD_TERMINAL_MAX_DURATION", 2*time.Hour),
 		TerminalMaxMessageBytes:   int64Env("GATEWAYD_TERMINAL_MAX_MESSAGE_BYTES", 1<<20),
-		AccessGrantRetryAttempts:  intEnv("GATEWAYD_ACCESS_GRANT_RETRY_ATTEMPTS", 3),
-		AccessGrantRetryBaseDelay: durationEnv("GATEWAYD_ACCESS_GRANT_RETRY_BASE_DELAY", 500*time.Millisecond),
+		AccessGrantRetryAttempts:  intEnv("GATEWAYD_ACCESS_GRANT_RETRY_ATTEMPTS", nodekernel.DefaultAccessGrantRetryAttempts),
+		AccessGrantRetryBaseDelay: durationEnv("GATEWAYD_ACCESS_GRANT_RETRY_BASE_DELAY", nodekernel.DefaultAccessGrantRetryBaseDelay),
 		LogLevel:                  defaultString(os.Getenv("GATEWAYD_LOG_LEVEL"), "info"),
 	}
 }

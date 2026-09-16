@@ -47,10 +47,10 @@ func NewManager(control Resolver, nodes nodekernel.ProcessStreamer, options Opti
 		options.MaxDuration = 2 * time.Hour
 	}
 	if options.AccessGrantRetryAttempts <= 0 {
-		options.AccessGrantRetryAttempts = 3
+		options.AccessGrantRetryAttempts = nodekernel.DefaultAccessGrantRetryAttempts
 	}
 	if options.AccessGrantRetryDelay <= 0 {
-		options.AccessGrantRetryDelay = 500 * time.Millisecond
+		options.AccessGrantRetryDelay = nodekernel.DefaultAccessGrantRetryBaseDelay
 	}
 	return &Manager{control: control, nodes: nodes, options: options, metrics: metrics, obs: obs}
 }

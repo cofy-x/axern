@@ -24,6 +24,9 @@ func TestParseGatewayHardeningDefaults(t *testing.T) {
 	if cfg.TerminalIdleTimeout != 10*time.Minute {
 		t.Fatalf("TerminalIdleTimeout = %s, want 10m", cfg.TerminalIdleTimeout)
 	}
+	if cfg.AccessGrantRetryAttempts != 5 || cfg.AccessGrantRetryBaseDelay != 500*time.Millisecond {
+		t.Fatalf("access grant retry = %d/%s, want 5/500ms", cfg.AccessGrantRetryAttempts, cfg.AccessGrantRetryBaseDelay)
+	}
 	if cfg.TunnelRelayTarget != DefaultTunnelRelayTarget {
 		t.Fatalf("TunnelRelayTarget = %q, want %q", cfg.TunnelRelayTarget, DefaultTunnelRelayTarget)
 	}

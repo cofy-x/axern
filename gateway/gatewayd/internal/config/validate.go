@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
 	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	"strings"
 	"time"
@@ -56,10 +57,10 @@ func validate(cfg Config) (Config, error) {
 		cfg.TerminalMaxMessageBytes = 1 << 20
 	}
 	if cfg.AccessGrantRetryAttempts <= 0 {
-		cfg.AccessGrantRetryAttempts = 3
+		cfg.AccessGrantRetryAttempts = nodekernel.DefaultAccessGrantRetryAttempts
 	}
 	if cfg.AccessGrantRetryBaseDelay <= 0 {
-		cfg.AccessGrantRetryBaseDelay = 500 * time.Millisecond
+		cfg.AccessGrantRetryBaseDelay = nodekernel.DefaultAccessGrantRetryBaseDelay
 	}
 	return cfg, nil
 }

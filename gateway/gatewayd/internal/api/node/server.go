@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
+	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
 	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
@@ -42,10 +43,10 @@ type Server struct {
 
 func New(resolver Resolver, dialer Dialer, options Options, metrics AccessGrantRetryObserver) *Server {
 	if options.AccessGrantRetryAttempts <= 0 {
-		options.AccessGrantRetryAttempts = 3
+		options.AccessGrantRetryAttempts = nodekernel.DefaultAccessGrantRetryAttempts
 	}
 	if options.AccessGrantRetryDelay <= 0 {
-		options.AccessGrantRetryDelay = 500 * time.Millisecond
+		options.AccessGrantRetryDelay = nodekernel.DefaultAccessGrantRetryBaseDelay
 	}
 	if options.ClientFingerprint == nil {
 		options.ClientFingerprint = auth.CertificateFingerprint
