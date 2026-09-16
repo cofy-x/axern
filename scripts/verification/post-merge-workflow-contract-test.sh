@@ -17,7 +17,7 @@ required=(
   "timeout-minutes: 180"
   "AXERN_DOCKER_CACHE_BACKEND: gha"
   "AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND: gha"
-  "libprotobuf-dev protobuf-compiler ripgrep"
+  "libprotobuf-dev protobuf-compiler ripgrep jq"
   "make verify-full"
   "if: failure()"
   "if: always()"
@@ -42,3 +42,19 @@ if grep -Eq '^[[:space:]]+(checks|contents|packages|pull-requests): write' "${WO
 fi
 
 printf 'post_merge_workflow_contract_ok=true\n'
+
+# The required Go check must cover Linux-only node packages before merge.
+# The host-safe subset and network traffic smoke do not execute this suite.
+python3 - "${ROOT_DIR}/.github/workflows/ci.yml" <<'PY'
+import pathlib
+import re
+import sys
+
+source = pathlib.Path(sys.argv[1]).read_text()
+job = re.search(r"^  go:\n(.*?)(?=^  [a-z][a-z-]*:|\Z)", source, re.M | re.S)
+assert job, "missing required Go job"
+assert "runs-on: ubuntu-latest" in job.group(1), "Go job must execute on Linux"
+assert "libprotobuf-dev protobuf-compiler ripgrep jq" in job.group(1), "Linux tests require explicit host utilities"
+assert re.search(r"^        run: make axnoded-test$", job.group(1), re.M), "Go job omits full Linux node tests"
+print("pre_merge_linux_node_contract_ok=true")
+PY

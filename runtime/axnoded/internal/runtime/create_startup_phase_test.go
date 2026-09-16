@@ -2,12 +2,13 @@ package runtime
 
 import (
 	"context"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 )
 
@@ -58,6 +59,15 @@ func TestRunscCreateContainerRecordsStartupPhases(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartPreparedContainer() error = %v", err)
 	}
+	t.Cleanup(func() {
+		// Join the foreground runtime and its exit checkpoint before TempDir
+		// removes the state directory owned by the handler.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := handler.DeleteContainer(ctx, &apipb.DeleteContainerRequest{}, options); err != nil {
+			t.Errorf("DeleteContainer() error = %v", err)
+		}
+	})
 	if meta == nil {
 		t.Fatal("StartPreparedContainer() returned nil metadata")
 	}

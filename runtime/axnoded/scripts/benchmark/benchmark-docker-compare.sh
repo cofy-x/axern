@@ -64,7 +64,7 @@ run_backend iptables "${tmpdir}/iptables"
 run_backend ebpf "${tmpdir}/ebpf"
 
 compare_json="${tmpdir}/compare.json"
-GOTOOLCHAIN="${GOTOOLCHAIN:-go1.25.12}" GOFLAGS="${GOFLAGS:--mod=readonly}" \
+GOTOOLCHAIN="${GOTOOLCHAIN:-go1.26.8}" GOFLAGS="${GOFLAGS:--mod=readonly}" \
   go run ./cmd/natbench-compare \
     -iptables-dir "${tmpdir}/iptables" \
     -ebpf-dir "${tmpdir}/ebpf" \

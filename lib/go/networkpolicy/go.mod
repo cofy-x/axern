@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/lib/go/networkpolicy
 
-go 1.25.12
+go 1.26.8
 
 require (
 	github.com/cofy-x/axern/sdk/go v0.0.0

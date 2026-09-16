@@ -1,4 +1,4 @@
-FROM golang:1.25.12
+FROM golang:1.26.8
 
 ENV DEBIAN_FRONTEND=noninteractive \
     GOPATH=/tmp/gopath \

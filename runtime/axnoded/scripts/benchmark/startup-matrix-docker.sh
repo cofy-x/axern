@@ -47,7 +47,7 @@ for scenario in "${SCENARIOS[@]}"; do
     > "${scenario_raw_dir}/warm.json"
 
   scenario_report="${SCENARIO_REPORT_DIR}/${scenario}.json"
-  GOTOOLCHAIN="${GOTOOLCHAIN:-go1.25.12}" GOFLAGS="${GOFLAGS:--mod=readonly}" \
+  GOTOOLCHAIN="${GOTOOLCHAIN:-go1.26.8}" GOFLAGS="${GOFLAGS:--mod=readonly}" \
     go run ./cmd/natbench-startup-matrix \
       -mode scenario \
       -sample-dir "${scenario_raw_dir}" \
@@ -58,7 +58,7 @@ for scenario in "${SCENARIOS[@]}"; do
     "${scenario_report}" >&2
 done
 
-GOTOOLCHAIN="${GOTOOLCHAIN:-go1.25.12}" GOFLAGS="${GOFLAGS:--mod=readonly}" \
+GOTOOLCHAIN="${GOTOOLCHAIN:-go1.26.8}" GOFLAGS="${GOFLAGS:--mod=readonly}" \
   go run ./cmd/natbench-startup-matrix \
     -mode matrix \
     -reports-dir "${SCENARIO_REPORT_DIR}" \

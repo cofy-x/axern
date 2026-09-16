@@ -390,6 +390,7 @@ func TestStartAllocationRecordsSuccessResult(t *testing.T) {
 
 	rootfsDir := t.TempDir()
 	request := &runtimeapi.StartRequest{
+		AllocationID: "allocation-start-metrics-success",
 		Environment: &runtimeapi.ResolvedEnvironment{
 			ID: "start-metrics-allocation-success",
 			Rootfs: &runtimeapi.RootfsConfig{

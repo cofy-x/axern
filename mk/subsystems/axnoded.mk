@@ -35,6 +35,7 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-build-server-base-runtime-image \
 	axnoded-build-coding-base-runtime-image \
 	axnoded-verify-docker-runsc \
+	axnoded-verify-docker-runsc-ebpf \
 	axnoded-verify-docker-runsc-debug \
 	axnoded-verify-docker-conformance \
 	axnoded-benchmark-startup-matrix
@@ -140,6 +141,9 @@ axnoded-build-coding-base-runtime-image: ## Build the official axnoded coding-ba
 
 axnoded-verify-docker-runsc: ## Run axnoded privileged Docker verification against runsc
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc)
+
+axnoded-verify-docker-runsc-ebpf: ## Run axnoded privileged Docker verification against runsc and eBPF
+	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc-ebpf)
 
 axnoded-verify-docker-runsc-debug: ## Run axnoded privileged Docker verification against runsc with diagnostics
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc-debug)

@@ -33,7 +33,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.25.12"
+          go-version: "1.26.8"
           cache-dependency-path: |
             go.work.sum
             **/go.sum
@@ -96,7 +96,7 @@ jobs:
       - name: Install host utilities
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep
+          sudo apt-get install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep jq
 
       - name: Initialize evidence
         run: |

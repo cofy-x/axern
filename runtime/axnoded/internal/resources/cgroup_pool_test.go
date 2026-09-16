@@ -411,14 +411,18 @@ func TestValidateCgroupLeaseRejectsPartialMemoryIdentity(t *testing.T) {
 	}
 }
 
-func TestValidateCgroupLeaseRequiresAssignedRuntimeForNodeLocalAllocation(t *testing.T) {
-	err := validateCgroupLease(&apipb.CgroupLease{
+func TestValidateCgroupLeaseRequiresExplicitAllocationOwnership(t *testing.T) {
+	lease := &apipb.CgroupLease{
 		CgroupID: "/sandbox/assigned", State: apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
-		AllocationID: "node-local", AssignedAtUnixNano: 1,
+		AllocationID: "allocation-a", AssignedAtUnixNano: 1,
 		OwnerKind: apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_WORKLOAD,
-	})
-	if err == nil {
-		t.Fatal("validateCgroupLease() accepted assigned ownership without a runtime")
+	}
+	if err := validateCgroupLease(lease); err != nil {
+		t.Fatalf("explicit Allocation ownership rejected: %v", err)
+	}
+	lease.AllocationID = ""
+	if err := validateCgroupLease(lease); err == nil {
+		t.Fatal("validateCgroupLease() accepted assigned ownership without an Allocation")
 	}
 }
 
