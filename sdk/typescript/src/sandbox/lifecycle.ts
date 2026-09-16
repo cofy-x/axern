@@ -9,6 +9,13 @@ import type { SandboxMetadata, SandboxOptions, SandboxState } from "./index.js";
 
 export const defaultSandboxArgv = ["/bin/sh", "-lc", "sleep infinity"];
 
+const runStatus = {
+  running: 3,
+  succeeded: 4,
+  failed: 5,
+  cancelled: 6,
+} as const;
+
 export function validateSandboxOptions(options: SandboxOptions): void {
   const sourceCount = [options.templateId, options.image, options.environmentId].filter(
     (source) => source !== undefined && source !== "",
@@ -52,10 +59,10 @@ export async function waitRunningRun(
       const run = result.value;
       lastRun = run;
       const status = Number(run.status ?? 0);
-      if (status === 4 && String(run.allocation_id ?? "") !== "") {
+      if (status === runStatus.running && String(run.allocation_id ?? "") !== "") {
         return run;
       }
-      if (status === 5 || status === 6 || status === 7) {
+      if (status === runStatus.succeeded || status === runStatus.failed || status === runStatus.cancelled) {
         throw new Error(`run ${runId} became ${String(run.status ?? "")} before its sandbox allocation was running: ${String(run.message ?? "")}`);
       }
     }
