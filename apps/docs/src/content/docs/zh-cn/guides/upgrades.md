@@ -5,6 +5,10 @@ description: 让 CLI、本地栈、Helm Chart 和 SDK 保持在同一个连贯�
 
 Axern 的 CLI、Helm Chart、运行时镜像和三个 SDK 以同一仓库版本发布。1.0 前的 Release 应视为一个整体：混用版本不是受支持的组合。
 
+## v0.7.0 全新状态边界
+
+从 v0.6.2 升级至 v0.7.0 需要全新的控制面和节点本地状态，不能直接原地 Helm upgrade。替换状态前先导出所需输出、停止工作负载并确认清理完成。按照 [Kubernetes 安装指南](/zh-cn/getting-started/kubernetes/) 重新完成 Node 注册和 Principal Credential 配置。删除的 API、组件版本配套及回滚要求见 [v0.7.0 发布说明](https://github.com/cofy-x/axern/blob/main/docs/releases/v0.7.0.md)。不要在 sandbox 仍运行时删除恢复记录，也不要在发布完成前使用候选版本。
+
 ## 升级 CLI
 
 使用 Homebrew：
@@ -33,19 +37,18 @@ axern local up
 
 ## 升级 Kubernetes 安装
 
-把 Chart 锁定到与 CLI 相同的 Release，并复用你的 values：
+仅对明确支持保留现有状态的 Release，把 Chart 锁定到与 CLI 相同的版本，并根据新 Chart 审查运维自持的 values。不要沿用旧镜像标签或已删除的配置。以下命令不是从 v0.6.2 升级至 v0.7.0 的操作流程：
 
 ```bash
 helm upgrade axern oci://ghcr.io/cofy-x/charts/axern \
   --version <version> \
   --namespace axern-system \
   -f values.yaml \
-  --reuse-values \
   --wait \
   --timeout 15m
 ```
 
-Chart 的默认镜像是同一 Release 的不可变版本 Tag，Chart 与工作负载一起移动。
+Chart 的默认镜像是同一 Release 的不可变版本 Tag。确保 values 中覆盖的镜像也选择该版本。
 
 ## 锁定 SDK
 

@@ -155,8 +155,8 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | --- | --- |
 | Local compose/kind with imagemgr | Keep `image_manager_enabled = true`; point `image_manager_socket` at the dev socket mounted into axnoded; keep `nat_backend = "iptables"` unless testing bpfnet. |
 | Local rootfs only | Set `image_manager_enabled = false`; make sure requests use local rootfs paths; keep `image_lib_dir` harmless. |
-| eBPF dataplane verification | Set `nat_backend = "ebpf"`; confirm bpffs, privileged host access, TC filters, and localhost cgroup links. Every required path is fail-closed. |
-| Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, auth token, TLS paths, labels, and optional extension capabilities. Platform capabilities come from observed providers. |
+| eBPF dataplane verification | Set `nat_backend = "ebpf"`; confirm bpffs, privileged host access, both TC directions, and current pinned maps/programs. Every required path is fail-closed. |
+| Control-plane connected node | Set `control_plane_target`, stable `control_plane_node_id`, reachable `control_plane_node_target`, enrollment endpoint, trust domain, CA path, labels, and optional extension capabilities. Supply a separate one-time enrollment token file for first registration; ordinary operation uses the durable Node identity. Platform capabilities come from observed providers. |
 | Kubernetes production node | Set `control_plane_node_resource_source = "kubernetes"` and pass the Kubernetes Node name; the Helm chart does this by default and grants read-only `nodes/get` RBAC. |
 | Production node | Move `rootDir`, `storeDir`, and `image_lib_dir` to durable host paths for runtime recovery; set explicit DNS if node resolvers are not suitable for sandboxes; provide the qualified `memory_system_reserve_bytes` receipt value. |
 
