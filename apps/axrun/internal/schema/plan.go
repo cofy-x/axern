@@ -3,18 +3,14 @@ package schema
 import (
 	"fmt"
 	"path/filepath"
-	"reflect"
+	"strings"
 
 	"github.com/cofy-x/axern/apps/axrun/internal/agentprofile"
 	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 )
 
-func validateRolloutPlan(problems *collector, runDir string, run domain.RolloutRun, tasks taskIndex, episodes []domain.Episode) *domain.RolloutPlan {
+func validateRolloutPlan(problems *collector, runDir string, run domain.RolloutRun, plan domain.RolloutPlan, tasks taskIndex, episodes []domain.Episode) {
 	planPath := filepath.Join(runDir, "plan.json")
-	plan, ok := readJSON[domain.RolloutPlan](problems, runDir, planPath)
-	if !ok {
-		return nil
-	}
 	rel := displayPath(runDir, planPath)
 	if plan.SchemaVersion != "" && plan.SchemaVersion != domain.LocalSchemaVersion {
 		problems.add(rel, "schema_version", fmt.Sprintf("unsupported schema version %q", plan.SchemaVersion))
@@ -23,29 +19,26 @@ func validateRolloutPlan(problems *collector, runDir string, run domain.RolloutR
 	if run.ID != "" && plan.RunID != run.ID {
 		problems.add(rel, "run_id", fmt.Sprintf("got %q, want %q", plan.RunID, run.ID))
 	}
+	digest, err := domain.DigestRolloutPlan(plan)
+	if err != nil {
+		problems.add(rel, "", fmt.Sprintf("encode plan for digest: %v", err))
+	} else if run.PlanDigest != digest {
+		problems.add(rel, "plan_digest", fmt.Sprintf("run records %q, want %q", run.PlanDigest, digest))
+	}
 	if plan.CreatedAt.IsZero() {
 		problems.add(rel, "created_at", "is required")
 	}
 	validateInputSpec(problems, runDir, rel, "input", plan.Input)
-	validatePlanInputMatchesRun(problems, rel, plan.Input, run.Input)
-	validatePlanSelection(problems, rel, plan.Selection, run.Selection, len(run.TaskIDs), tasks.count())
-	comparePlanInt(problems, rel, "concurrency", plan.Concurrency, run.Concurrency)
-	comparePlanInt(problems, rel, "attempts_per_task", plan.AttemptsPerTask, run.AttemptsPerTask)
-	if !reflect.DeepEqual(plan.Agent, run.Agent) {
-		problems.add(rel, "agent", "must match run.agent")
-	}
+	validatePlanSelection(problems, rel, plan.Selection, len(plan.TaskIDs), tasks.count())
+	problems.requiredInt(rel, "concurrency", plan.Concurrency)
+	problems.requiredInt(rel, "attempts_per_task", plan.AttemptsPerTask)
+	validateAgentSpec(problems, rel, "agent", plan.Agent)
 	validateProviderRequirement(problems, rel, plan.Agent, plan.Provider)
-	if !reflect.DeepEqual(plan.Model, run.Model) {
-		problems.add(rel, "model", "must match run.model")
-	}
-	if !reflect.DeepEqual(plan.Sandbox, run.Sandbox) {
-		problems.add(rel, "sandbox", "must match run.sandbox")
-	}
-	if !reflect.DeepEqual(plan.TaskIDs, run.TaskIDs) {
-		problems.add(rel, "task_ids", fmt.Sprintf("got %#v, want %#v", plan.TaskIDs, run.TaskIDs))
-	}
-	validatePlannedEpisodes(problems, rel, run, plan, tasks, episodes)
-	return &plan
+	validateModelSpec(problems, rel, "model", plan.Agent, plan.Model)
+	validateSandboxSpec(problems, rel, "sandbox", plan.Sandbox)
+	validateApprovalIsolation(problems, rel, plan.Agent, plan.Sandbox)
+	validateSandboxRuntimeSourceRefs(problems, runDir, rel, plan.Sandbox.RuntimeSource)
+	validatePlannedEpisodes(problems, rel, plan, tasks, episodes)
 }
 
 func validateProviderRequirement(problems *collector, path string, agent domain.AgentSpec, provider *domain.ProviderRequirement) {
@@ -63,15 +56,25 @@ func validateProviderRequirement(problems *collector, path string, agent domain.
 	if provider.WireAPI != string(wireAPI) {
 		problems.add(path, "provider.wire_api", fmt.Sprintf("got %q, want %q", provider.WireAPI, wireAPI))
 	}
-}
-
-func validatePlanInputMatchesRun(problems *collector, path string, planInput *domain.InputSpec, runInput *domain.InputSpec) {
-	if !reflect.DeepEqual(planInput, runInput) {
-		problems.add(path, "input", "must match run.input")
+	if provider.Agent != agent.Name {
+		problems.add(path, "provider.agent", fmt.Sprintf("got %q, want %q", provider.Agent, agent.Name))
+	}
+	providerType, err := agentprofile.ParseProviderType(provider.Provider)
+	if err != nil {
+		problems.add(path, "provider.provider", err.Error())
+	} else if err := agentprofile.ValidateProvider(agentprofile.AgentType(agent.Name), providerType); err != nil {
+		problems.add(path, "provider.provider", err.Error())
+	}
+	if _, err := agentprofile.ParseUpstream("provider endpoint", provider.Endpoint); err != nil {
+		problems.add(path, "provider.endpoint", err.Error())
+	}
+	fingerprint := strings.TrimPrefix(provider.ConfigFingerprint, "sha256:")
+	if !strings.HasPrefix(provider.ConfigFingerprint, "sha256:") || !sha256Pattern.MatchString(fingerprint) {
+		problems.add(path, "provider.config_fingerprint", "must be a sha256: digest")
 	}
 }
 
-func validatePlanSelection(problems *collector, path string, selection domain.TaskSelection, runSelection *domain.TaskSelection, taskIDCount int, taskRecordCount int) {
+func validatePlanSelection(problems *collector, path string, selection domain.TaskSelection, taskIDCount int, taskRecordCount int) {
 	for _, taskID := range selection.RequestedTaskIDs {
 		validatePathSegment(problems, path, "selection.requested_task_ids", taskID)
 	}
@@ -91,34 +94,13 @@ func validatePlanSelection(problems *collector, path string, selection domain.Ta
 	if selection.ResolvedTaskCount < selection.SelectedTaskCount {
 		problems.add(path, "selection.resolved_task_count", "must be greater than or equal to selected_task_count")
 	}
-	if runSelection == nil {
-		if len(selection.RequestedTaskIDs) > 0 || selection.Limit != 0 || selection.Shard != nil {
-			problems.add(path, "selection", "must match absent run.selection")
-		}
-		return
-	}
-	if !reflect.DeepEqual(selection.RequestedTaskIDs, runSelection.RequestedTaskIDs) {
-		problems.add(path, "selection.requested_task_ids", "must match run.selection.requested_task_ids")
-	}
-	if selection.Limit != runSelection.Limit {
-		problems.add(path, "selection.limit", fmt.Sprintf("got %d, want %d", selection.Limit, runSelection.Limit))
-	}
-	if !reflect.DeepEqual(selection.Shard, runSelection.Shard) {
-		problems.add(path, "selection.shard", "must match run.selection.shard")
-	}
-	if selection.ResolvedTaskCount != runSelection.ResolvedTaskCount {
-		problems.add(path, "selection.resolved_task_count", fmt.Sprintf("got %d, want %d", selection.ResolvedTaskCount, runSelection.ResolvedTaskCount))
-	}
-	if selection.SelectedTaskCount != runSelection.SelectedTaskCount {
-		problems.add(path, "selection.selected_task_count", fmt.Sprintf("got %d, want %d", selection.SelectedTaskCount, runSelection.SelectedTaskCount))
-	}
 }
 
-func validatePlannedEpisodes(problems *collector, path string, run domain.RolloutRun, plan domain.RolloutPlan, tasks taskIndex, episodes []domain.Episode) {
+func validatePlannedEpisodes(problems *collector, path string, plan domain.RolloutPlan, tasks taskIndex, episodes []domain.Episode) {
 	if len(plan.Episodes) != len(episodes) {
 		problems.add(path, "episodes", fmt.Sprintf("got %d planned episode(s), want %d", len(plan.Episodes), len(episodes)))
 	}
-	expectedCount := len(run.TaskIDs) * run.AttemptsPerTask
+	expectedCount := len(plan.TaskIDs) * plan.AttemptsPerTask
 	if expectedCount > 0 && len(plan.Episodes) != expectedCount {
 		problems.add(path, "episodes", fmt.Sprintf("got %d planned episode(s), want %d from task_ids * attempts_per_task", len(plan.Episodes), expectedCount))
 	}
@@ -141,14 +123,14 @@ func validatePlannedEpisodes(problems *collector, path string, run domain.Rollou
 		if _, ok := tasks[planned.TaskID]; !ok {
 			problems.add(path, field+".task_id", fmt.Sprintf("referenced task %q is missing", planned.TaskID))
 		}
-		if !stringSliceContains(run.TaskIDs, planned.TaskID) {
-			problems.add(path, field+".task_id", "is missing from run.task_ids")
+		if !stringSliceContains(plan.TaskIDs, planned.TaskID) {
+			problems.add(path, field+".task_id", "is missing from plan.task_ids")
 		}
-		if run.AttemptsPerTask > 0 && planned.AttemptIndex > run.AttemptsPerTask {
-			problems.add(path, field+".attempt_index", fmt.Sprintf("got %d, want <= attempts_per_task %d", planned.AttemptIndex, run.AttemptsPerTask))
+		if plan.AttemptsPerTask > 0 && planned.AttemptIndex > plan.AttemptsPerTask {
+			problems.add(path, field+".attempt_index", fmt.Sprintf("got %d, want <= attempts_per_task %d", planned.AttemptIndex, plan.AttemptsPerTask))
 		}
-		expectedID := domain.NewEpisodeID(run.ID, planned.TaskID, planned.AttemptIndex)
-		if run.ID != "" && planned.ID != expectedID {
+		expectedID := domain.NewEpisodeID(plan.RunID, planned.TaskID, planned.AttemptIndex)
+		if plan.RunID != "" && planned.ID != expectedID {
 			problems.add(path, field+".id", fmt.Sprintf("got %q, want %q", planned.ID, expectedID))
 		}
 		if _, exists := seen[planned.ID]; exists {
@@ -166,12 +148,6 @@ func validatePlannedEpisodes(problems *collector, path string, run domain.Rollou
 		if episode.AttemptIndex != planned.AttemptIndex {
 			problems.add(path, field+".attempt_index", fmt.Sprintf("episode record has attempt_index %d", episode.AttemptIndex))
 		}
-	}
-}
-
-func comparePlanInt(problems *collector, path string, field string, got int, want int) {
-	if got != want {
-		problems.add(path, field, fmt.Sprintf("got %d, want %d", got, want))
 	}
 }
 

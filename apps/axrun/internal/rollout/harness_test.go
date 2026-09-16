@@ -28,6 +28,7 @@ func TestExecuteRunsAgentBeforeVerifier(t *testing.T) {
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
+		Agent:          domain.AgentSpec{Name: "claude-code"},
 		Paths:          paths(layout),
 		SandboxRuntime: fakeRuntime{sandbox: &fakeSandbox{}},
 		AgentHarness:   harness,
@@ -563,7 +564,7 @@ func TestExecuteFailedAgentEpisodeHasCompletedAt(t *testing.T) {
 
 func TestExecutePersistsAgentImageRuntimeMetadataFromHarnessResult(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent = domain.AgentSpec{
+	agentSpec := domain.AgentSpec{
 		Name: "claude-code",
 		Runtime: &domain.AgentRuntimeSpec{
 			Type:    domain.AgentRuntimeTypeAgentImage,
@@ -583,6 +584,7 @@ func TestExecutePersistsAgentImageRuntimeMetadataFromHarnessResult(t *testing.T)
 		Store:          store,
 		Task:           layout.TaskInstance,
 		Episode:        layout.Episode,
+		Agent:          agentSpec,
 		Paths:          paths(layout),
 		SandboxRuntime: fakeRuntime{sandbox: sb},
 		AgentHarness:   harness,

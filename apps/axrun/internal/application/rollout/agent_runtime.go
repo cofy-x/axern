@@ -37,20 +37,20 @@ func validateAgentSelection(registry *agent.Registry, selection agent.Selection)
 	return nil
 }
 
-func (s Service) validateRunAgentForBackend(run domain.RolloutRun, backendName string) error {
+func (s Service) validateRunAgentForBackend(spec domain.AgentSpec, backendName string) error {
 	runtimeType := domain.AgentRuntimeType("")
 	image := ""
-	profile := run.Agent.Profile
-	if run.Agent.Runtime != nil {
-		runtimeType = run.Agent.Runtime.Type
-		image = run.Agent.Runtime.Image
-		if run.Agent.Runtime.Profile != "" {
-			profile = run.Agent.Runtime.Profile
+	profile := spec.Profile
+	if spec.Runtime != nil {
+		runtimeType = spec.Runtime.Type
+		image = spec.Runtime.Image
+		if spec.Runtime.Profile != "" {
+			profile = spec.Runtime.Profile
 		}
 	}
 	registry := s.registry()
 	if err := validateAgentSelection(registry, agent.Selection{
-		Name:        run.Agent.Name,
+		Name:        spec.Name,
 		RuntimeType: runtimeType,
 		Image:       image,
 		Profile:     profile,
@@ -58,9 +58,9 @@ func (s Service) validateRunAgentForBackend(run domain.RolloutRun, backendName s
 	}); err != nil {
 		return err
 	}
-	registration, ok := registry.Lookup(run.Agent.Name)
+	registration, ok := registry.Lookup(spec.Name)
 	if ok && registration.IsManaged() {
-		return validateApprovalPolicy(string(run.Agent.ApprovalPolicy), backendName)
+		return validateApprovalPolicy(string(spec.ApprovalPolicy), backendName)
 	}
 	return nil
 }

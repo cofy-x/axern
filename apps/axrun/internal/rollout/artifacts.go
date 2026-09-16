@@ -203,22 +203,25 @@ func captureAgentArtifacts(store Store, paths Paths, result *domain.AgentResult)
 	return nil
 }
 
-func writeArtifactManifest(store Store, paths Paths, episode domain.Episode, nowFn func() time.Time) (domain.Episode, error) {
+func writeArtifactManifest(store Store, paths Paths, episodeID string, artifacts []domain.ArtifactRef, nowFn func() time.Time) error {
 	if strings.TrimSpace(paths.ArtifactDir) == "" {
-		return episode, nil
+		return nil
 	}
 	manifest := domain.ArtifactManifest{
 		SchemaVersion: domain.LocalSchemaVersion,
-		EpisodeID:     episode.ID,
+		EpisodeID:     episodeID,
 		GeneratedAt:   now(nowFn),
-		Entries:       artifactManifestEntries(paths.ArtifactDir, episode.Artifacts),
+		Entries:       artifactManifestEntries(paths.ArtifactDir, artifacts),
 	}
-	path, err := store.WriteArtifactManifest(paths.ArtifactDir, manifest)
-	if err != nil {
-		return episode, err
+	_, err := store.WriteArtifactManifest(paths.ArtifactDir, manifest)
+	return err
+}
+
+func appendArtifacts(dst []domain.ArtifactRef, src []domain.ArtifactRef) []domain.ArtifactRef {
+	for _, artifact := range src {
+		dst = appendArtifact(dst, artifact)
 	}
-	episode.ArtifactManifestPath = path
-	return episode, nil
+	return dst
 }
 
 func artifactManifestEntries(artifactDir string, artifacts []domain.ArtifactRef) []domain.ArtifactManifestEntry {

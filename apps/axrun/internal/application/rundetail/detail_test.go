@@ -1,7 +1,6 @@
 package rundetail
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/application/agentcatalog"
 	"github.com/cofy-x/axern/apps/axrun/internal/application/resumepolicy"
 	rolloutapp "github.com/cofy-x/axern/apps/axrun/internal/application/rollout"
-	"github.com/cofy-x/axern/apps/axrun/internal/domain"
 	"github.com/cofy-x/axern/apps/axrun/internal/taskset"
 )
 
@@ -38,37 +36,18 @@ func TestLoadReturnsEpisodeResumeAndManifestSummary(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsEscapingArtifactManifestSummaryPath(t *testing.T) {
+func TestLoadReportsMissingConventionalArtifactManifest(t *testing.T) {
 	created, err := (rolloutapp.Service{AgentRegistry: agentcatalog.DefaultRegistry()}).Run(rolloutapp.Params{
 		TaskSetRef: buildTaskSet(t), Agent: "oracle", Model: "m", RunID: "test-run", BackendName: "local", Concurrency: 1, Attempts: 1, Output: t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("create run: %v", err)
 	}
-	episodeID := domain.NewEpisodeID("test-run", "task-1", 1)
-	episodePath := filepath.Join(created.RunDir, "episodes", episodeID, "episode.json")
-	data, err := os.ReadFile(episodePath)
-	if err != nil {
-		t.Fatalf("read episode: %v", err)
-	}
-	var episode domain.Episode
-	if err := json.Unmarshal(data, &episode); err != nil {
-		t.Fatalf("decode episode: %v", err)
-	}
-	episode.ArtifactManifestPath = "../outside.json"
-	updated, err := json.MarshalIndent(episode, "", "  ")
-	if err != nil {
-		t.Fatalf("encode episode: %v", err)
-	}
-	if err := os.WriteFile(episodePath, append(updated, '\n'), 0o644); err != nil {
-		t.Fatalf("write episode: %v", err)
-	}
-
 	detail, err := Load(created.RunDir)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if len(detail.Episodes) != 1 || !strings.Contains(detail.Episodes[0].ArtifactManifest.Error, "run-root-relative") {
+	if len(detail.Episodes) != 1 || !strings.Contains(detail.Episodes[0].ArtifactManifest.Error, "read artifact manifest") {
 		t.Fatalf("episode detail = %#v", detail.Episodes)
 	}
 }

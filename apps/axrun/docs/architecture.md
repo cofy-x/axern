@@ -33,6 +33,14 @@ The published descriptor is an image manifest with exactly one logical `applicat
 
 Planning accepts a local bundle or an immutable OCI descriptor reference. Before execution, Axrun pulls the required OCI payload, rejects unsafe archive entries, resolves the selected task paths, and copies the workspace, verifier, and oracle inputs into the local run directory. Resume reads only that frozen local state. Axern receives generic archive uploads and returns allocation identity and runtime state; it does not persist TaskSet-specific preparation facts.
 
+The local run directory is the current authority. `plan.json` is published once and its semantic digest is bound by `run.json`; loaders verify that binding before using the plan. Mutable authoritative JSON uses same-directory temporary files, file sync, atomic rename, and directory sync. Trajectory files have one run-lock-protected appender, and an Episode artifact manifest is published once after its referenced files are complete. A kernel-backed per-run file lock covers create or resume execution and is released automatically when the owning process exits; Axrun does not infer stale ownership from timestamps.
+
+Resume never reuses an Episode identity. It finalizes an interrupted `running` or `verifying` Episode as an infrastructure failure without manufacturing an execution duration or changing existing sidecars, trajectory, or artifacts. Only a distinct pre-planned pending attempt may execute, and concurrency always comes from the frozen plan.
+
+## Provider credentials
+
+Agent Profile is owner-local execution configuration, not a durable Axrun or Axern object. A profile containing a plaintext token must be a regular owner-only file and cannot be loaded through a symbolic link. The immutable plan records only normalized provider behavior and a non-secret fingerprint; rotating a token does not alter that fingerprint, while changing the endpoint, provider, wire API, environment, or provider configuration does. Credential-like runtime environment keys are rejected from rollout inputs so tokens are resolved and injected only by the selected agent adapter during execution.
+
 ## Security phases
 
 Axrun captures verifier and oracle inputs separately from the initial workspace. It uploads the workspace before the agent phase and uploads verifier or oracle files only when their owning phase needs them. TaskSet build and capture reject escaping paths and linked inputs; Axern's lease-authenticated generic file/archive APIs enforce the Allocation boundary.

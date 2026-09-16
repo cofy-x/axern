@@ -44,24 +44,14 @@ type SandboxSpec struct {
 }
 
 type RolloutRun struct {
-	SchemaVersion   string         `json:"schema_version,omitempty"`
-	ID              string         `json:"id"`
-	Status          RunStatus      `json:"status"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       *time.Time     `json:"updated_at,omitempty"`
-	Input           *InputSpec     `json:"input,omitempty"`
-	Agent           AgentSpec      `json:"agent"`
-	Model           ModelSpec      `json:"model"`
-	Sandbox         SandboxSpec    `json:"sandbox"`
-	Concurrency     int            `json:"concurrency"`
-	AttemptsPerTask int            `json:"attempts_per_task"`
-	TaskIDs         []string       `json:"task_ids,omitempty"`
-	Selection       *TaskSelection `json:"selection,omitempty"`
-	Timeouts        *TimeoutPolicy `json:"timeouts,omitempty"`
-	Resources       *ResourceSpec  `json:"resources,omitempty"`
-	Summary         *RunSummary    `json:"summary,omitempty"`
-	Metadata        KeyValue       `json:"metadata,omitempty"`
-	OutputPath      string         `json:"output_path"`
+	SchemaVersion string      `json:"schema_version,omitempty"`
+	ID            string      `json:"id"`
+	Status        RunStatus   `json:"status"`
+	CreatedAt     time.Time   `json:"created_at"`
+	UpdatedAt     *time.Time  `json:"updated_at,omitempty"`
+	PlanPath      string      `json:"plan_path,omitempty"`
+	PlanDigest    string      `json:"plan_digest,omitempty"`
+	Summary       *RunSummary `json:"summary,omitempty"`
 }
 
 type TaskSelection struct {

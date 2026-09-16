@@ -43,7 +43,7 @@ type EpisodeResult struct {
 }
 
 func buildResult(runLayout localstore.RunLayout, layouts []localstore.EpisodeLayout) Result {
-	taskCount := len(runLayout.RolloutRun.TaskIDs)
+	taskCount := len(runLayout.RolloutPlan.TaskIDs)
 	if taskCount == 0 {
 		taskCount = len(layouts)
 	}
@@ -55,7 +55,7 @@ func buildResult(runLayout localstore.RunLayout, layouts []localstore.EpisodeLay
 		Status:          runLayout.RolloutRun.Status,
 		TaskCount:       taskCount,
 		EpisodeCount:    len(layouts),
-		AttemptsPerTask: runLayout.RolloutRun.AttemptsPerTask,
+		AttemptsPerTask: runLayout.RolloutPlan.AttemptsPerTask,
 		Summary:         summarizeRun(taskCount, layouts),
 		Episodes:        make([]EpisodeResult, 0, len(layouts)),
 	}

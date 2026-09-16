@@ -10,12 +10,11 @@ import (
 	"github.com/cofy-x/axern/apps/axrun/internal/localstore"
 )
 
-func TestDecideExecutesTerminalEpisodeMissingManifest(t *testing.T) {
+func TestDecideNeverReexecutesTerminalEpisodeMissingManifest(t *testing.T) {
 	layout := completedLayout(t)
-	layout.Episode.ArtifactManifestPath = ""
 
 	decision := Decide(layout)
-	if decision.Action != ActionExecute || decision.Reason != ReasonTerminalMissingManifest {
+	if decision.Action != ActionSkip || decision.Reason != ReasonTerminalMissingManifest {
 		t.Fatalf("decision = %#v", decision)
 	}
 }
@@ -33,24 +32,25 @@ func TestDecideSkipsCompleteTerminalEpisode(t *testing.T) {
 	}
 }
 
-func TestDecideExecutesTerminalEpisodeWithEscapingManifestRef(t *testing.T) {
-	layout := completedLayout(t)
-	layout.Episode.ArtifactManifestPath = "../outside.json"
-
-	decision := Decide(layout)
-	if decision.Action != ActionExecute || decision.Reason != ReasonTerminalMissingManifest {
-		t.Fatalf("decision = %#v", decision)
-	}
-}
-
-func TestDecideExecutesTerminalEpisodeMissingSidecar(t *testing.T) {
+func TestDecideNeverReexecutesTerminalEpisodeMissingSidecar(t *testing.T) {
 	layout := completedLayout(t)
 	if err := os.Remove(layout.AgentJSONPath); err != nil {
 		t.Fatalf("remove agent sidecar: %v", err)
 	}
 
 	decision := Decide(layout)
-	if decision.Action != ActionExecute || decision.Reason != ReasonTerminalMissingSidecar {
+	if decision.Action != ActionSkip || decision.Reason != ReasonTerminalMissingSidecar {
+		t.Fatalf("decision = %#v", decision)
+	}
+}
+
+func TestDecideFinalizesInterruptedEpisode(t *testing.T) {
+	layout := completedLayout(t)
+	layout.Episode.Status = domain.EpisodeStatusRunning
+	layout.Episode.CompletedAt = nil
+
+	decision := Decide(layout)
+	if decision.Action != ActionFinalizeInterrupted || decision.Reason != ReasonRunning {
 		t.Fatalf("decision = %#v", decision)
 	}
 }
@@ -82,12 +82,11 @@ func completedLayout(t *testing.T) localstore.EpisodeLayout {
 		TrajectoryPath:   trajectoryPath,
 		ArtifactDir:      artifactDir,
 		Episode: domain.Episode{
-			ID:                   episodeID,
-			TaskID:               "task",
-			AttemptIndex:         1,
-			Status:               domain.EpisodeStatusFailed,
-			CompletedAt:          &completedAt,
-			ArtifactManifestPath: "episodes/" + episodeID + "/artifacts/manifest.json",
+			ID:           episodeID,
+			TaskID:       "task",
+			AttemptIndex: 1,
+			Status:       domain.EpisodeStatusFailed,
+			CompletedAt:  &completedAt,
 		},
 	}
 }

@@ -119,8 +119,7 @@ func normalizeParams(params Params) (Params, error) {
 }
 
 // NormalizeParams applies rollout parameter defaults and validates the full
-// rollout request contract. It is shared by CLI and HTTP adapters so external
-// entrypoints can fail fast before execution starts.
+// rollout request contract before local execution starts.
 func NormalizeParams(params Params) (Params, error) {
 	return normalizeParams(params)
 }
@@ -129,11 +128,11 @@ func normalizeResumeParams(params Params) (Params, error) {
 	if !params.Execute {
 		return Params{}, fmt.Errorf("resume requires execute")
 	}
-	if params.Concurrency < 1 {
-		return Params{}, fmt.Errorf("concurrency must be at least 1")
-	}
 	if params.BackendName != "" {
 		return Params{}, fmt.Errorf("resume uses the runner recorded in the immutable rollout plan")
+	}
+	if params.Concurrency != 0 {
+		return Params{}, fmt.Errorf("resume uses the concurrency recorded in the immutable rollout plan")
 	}
 	if hasCreateOnlyParams(params) {
 		return Params{}, fmt.Errorf("resume cannot be combined with task, agent, model, selection, shard, or attempt creation flags")

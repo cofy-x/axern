@@ -20,6 +20,7 @@ type RunLayout struct {
 	TasksDir     string
 	EpisodesDir  string
 	RolloutRun   domain.RolloutRun
+	RolloutPlan  domain.RolloutPlan
 }
 
 func (s Store) CreateRunLayout(run domain.RolloutRun) (RunLayout, error) {
@@ -48,7 +49,6 @@ func (s Store) CreateRunLayout(run domain.RolloutRun) (RunLayout, error) {
 	if err := os.Mkdir(episodesDir, 0o755); err != nil {
 		return RunLayout{}, fmt.Errorf("create episodes directory: %w", err)
 	}
-	run.OutputPath = "."
 	runJSONPath := filepath.Join(runDir, "run.json")
 	planJSONPath := filepath.Join(runDir, "plan.json")
 	if err := writeJSON(runJSONPath, run); err != nil {

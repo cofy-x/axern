@@ -201,7 +201,7 @@ func finalizeTestEpisode(episode *domain.Episode) {
 	}
 	episode.FinishedAt = &now
 	episode.CompletedAt = &now
-	episode.DurationMS = episode.FinishedAt.Sub(*episode.StartedAt).Milliseconds()
+	episode.Timing = &domain.EpisodeTiming{TotalMS: episode.FinishedAt.Sub(*episode.StartedAt).Milliseconds()}
 }
 
 func writeFakeOutcome(request backend.ExecuteRequest, status domain.EpisodeStatus) error {
@@ -218,7 +218,7 @@ func writeFakeManifest(request backend.ExecuteRequest, episode *domain.Episode) 
 	if episode == nil || episode.Status == domain.EpisodeStatusPending {
 		return nil
 	}
-	path, err := request.Store.WriteArtifactManifest(request.Paths.ArtifactDir, domain.ArtifactManifest{
+	_, err := request.Store.WriteArtifactManifest(request.Paths.ArtifactDir, domain.ArtifactManifest{
 		SchemaVersion: domain.LocalSchemaVersion,
 		EpisodeID:     episode.ID,
 		GeneratedAt:   time.Now().UTC(),
@@ -227,7 +227,6 @@ func writeFakeManifest(request backend.ExecuteRequest, episode *domain.Episode) 
 	if err != nil {
 		return err
 	}
-	episode.ArtifactManifestPath = path
 	return nil
 }
 

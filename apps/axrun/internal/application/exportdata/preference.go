@@ -20,7 +20,7 @@ const (
 // exportPreference groups all export-ready episodes by task_id and emits one
 // PreferenceRecord for each (chosen, rejected) pair found within a task.
 // Tasks that only have passing or only failing episodes are skipped.
-func exportPreference(runDir string, outputPath string, run domain.RolloutRun, episodes []domain.Episode) ([]any, error) {
+func exportPreference(runDir string, outputPath string, run domain.RolloutRun, plan domain.RolloutPlan, episodes []domain.Episode) ([]any, error) {
 	byTask := groupEpisodesByTask(episodes)
 	var records []any
 	for _, taskID := range sortedKeys(byTask) {
@@ -30,7 +30,7 @@ func exportPreference(runDir string, outputPath string, run domain.RolloutRun, e
 		if err != nil {
 			return nil, fmt.Errorf("read task %q for preference export: %w", taskID, err)
 		}
-		pairs, err := buildPreferencePairs(runDir, outputPath, run, task, taskEpisodes)
+		pairs, err := buildPreferencePairs(runDir, outputPath, run, plan, task, taskEpisodes)
 		if err != nil {
 			return nil, err
 		}
@@ -46,10 +46,10 @@ func exportPreference(runDir string, outputPath string, run domain.RolloutRun, e
 // Episodes that failed due to infrastructure problems, timeouts, or agent errors
 // before the verifier ran are excluded from both arms so preference pairs reflect
 // genuine differences in agent output quality rather than execution noise.
-func buildPreferencePairs(runDir string, outputPath string, run domain.RolloutRun, task domain.TaskInstance, episodes []domain.Episode) ([]any, error) {
+func buildPreferencePairs(runDir string, outputPath string, run domain.RolloutRun, plan domain.RolloutPlan, task domain.TaskInstance, episodes []domain.Episode) ([]any, error) {
 	var chosen, rejected []episodeBundle
 	for _, episode := range episodes {
-		bundle, err := loadEpisodeBundle(runDir, outputPath, run, episode)
+		bundle, err := loadEpisodeBundle(runDir, outputPath, run, plan, episode)
 		if err != nil {
 			return nil, err
 		}
@@ -117,13 +117,13 @@ func episodeArm(bundle episodeBundle) EpisodeArm {
 	return EpisodeArm{
 		EpisodeID:    bundle.Episode.ID,
 		AttemptIndex: bundle.Episode.AttemptIndex,
-		Agent:        agentSummary(bundle.Episode.Agent),
-		Model:        bundle.Episode.Model,
+		Agent:        agentSummary(bundle.Plan.Agent),
+		Model:        bundle.Plan.Model,
 		Assistant:    bundle.Agent.Stdout,
 		AgentStatus:  bundle.Agent.Status,
 		ExitReason:   bundle.Agent.ExitReason,
 		Reward:       rewardSummary(bundle.Reward),
-		DurationMS:   bundle.Episode.DurationMS,
+		DurationMS:   episodeDurationMS(bundle.Episode),
 		Refs:         bundle.Refs,
 	}
 }

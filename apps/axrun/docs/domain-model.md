@@ -32,17 +32,17 @@ Official Claude Code and Codex images are self-contained tool rootfs bundles wit
 
 ### RolloutRun
 
-`RolloutRun` is the run envelope. It records TaskSet selection, agent/model configuration, runner, execution options, schema version, timestamps, and refs to captured inputs and derived outputs.
+`RolloutRun` is the mutable run envelope. It records the rollout identity, lifecycle status, timestamps, immutable plan path/digest, and a rebuildable summary. It does not copy TaskSet selection, Agent, Model, Sandbox, or task configuration from the plan.
 
 ### RolloutPlan
 
-`RolloutPlan` freezes the TaskSet descriptor digest, payload variant digests, resolved task ids, task counts, attempts, selected split/shard metadata, episode ids, and execution order. Resume reads the plan instead of resolving a mutable tag or reopening build paths.
+`RolloutPlan` freezes the TaskSet descriptor digest, captured input reference, resolved task ids, attempt budget, selected split/shard metadata, non-secret Agent/Model/provider behavior, runner, episode ids, and execution order. Resume reads the plan instead of resolving a mutable tag or reopening build paths. Credential values are resolved only when execution starts and are never plan fields.
 
 ### Episode
 
-`Episode` is one attempt for one task under one rollout. It records task id, attempt index, runner, status, exit reason, timing, usage, cost, verifier and reward refs, artifact refs, and terminal completion metadata.
+`Episode` is one immutable execution identity for one task attempt. It owns task/run references, `attempt_index`, lifecycle timestamps, failure class, timing, and its single Axern sandbox binding. It does not copy plan configuration, usage/cost, artifact indexes, or conventional sidecar paths.
 
-An episode is complete only when it has a terminal status and the required sidecars are present according to schema validation.
+An episode is complete only when it has a terminal status and completion marker and its conventional sidecars satisfy schema validation. `AgentResult` owns agent exit status, usage, cost, output refs, and agent-produced artifacts. `VerifierResult` owns verifier facts; `Reward` owns normalized scoring.
 
 ### VerifierResult
 
@@ -54,7 +54,7 @@ An episode is complete only when it has a terminal status and the required sidec
 
 ### ArtifactRef
 
-`ArtifactRef` points to captured files such as inputs, raw logs, patches, verifier breakdowns, model proxy captures, downloaded directories, and export sources. Refs are run-root-relative inside run records. Large bodies stay in files and are not embedded in JSON records. Executed episodes publish `artifact_manifest_path` as the stable index for present, missing, or failed artifact capture.
+`ArtifactRef` points to captured files such as inputs, raw logs, patches, verifier breakdowns, model proxy captures, downloaded directories, and export sources. Refs are run-root-relative inside their owning result or trajectory record. Large bodies stay in files and are not embedded in JSON records. The conventional `episodes/<episode_id>/artifacts/manifest.json` is the sole episode-wide artifact index.
 
 ### ExportRecord
 
@@ -85,7 +85,7 @@ Exports must be reproducible from the run directory and should not become the so
   exports/
 ```
 
-`run.json` and `plan.json` define rollout intent. `tasks/*/task.json` records the native task contract after input resolution. Episode sidecars record execution, agent behavior, verification, reward, trajectory, artifact refs, and the artifact manifest.
+`plan.json` defines immutable rollout intent; `run.json` is its lifecycle envelope and cached aggregate. `tasks/*/task.json` records the native task contract after input resolution. Episode sidecars record execution, agent behavior, verification, reward, append-only trajectory, and the artifact manifest.
 
 All refs written inside the run directory must be portable with the run root. Absolute host paths should appear only as explicit external provenance, never as required replay paths.
 
@@ -101,7 +101,7 @@ Episode execution receives compiled records plus selected backend configuration.
 
 Each episode uses one task sandbox for the agent phase and verifier phase, so the verifier observes the workspace after the agent has acted. Separate attempts or tasks receive separate episode sandboxes.
 
-The Axern backend sends ordered Nydus/OCI workspace variants to axnoded. It does not upload the compiled workspace archive per episode. Local execution copies from the local bundle to provide functional equivalence without the production performance guarantee.
+Axrun downloads and verifies the immutable TaskSet payload once into the local run directory. For each episode it uploads the selected workspace through Axern's public allocation-scoped archive API, then uploads verifier/oracle inputs only when their phase begins. Axern and axnoded do not interpret TaskSet objects and no node-local TaskSet COW or warm-upload-elision guarantee is currently made.
 
 ## Schema Rules
 

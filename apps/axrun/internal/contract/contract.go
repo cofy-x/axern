@@ -200,52 +200,6 @@ func IsArtifactRole(value domain.ArtifactRole) bool {
 	}
 }
 
-func IsRolloutPhase(value domain.RolloutPhase) bool {
-	switch value {
-	case domain.RolloutPhasePlanning,
-		domain.RolloutPhasePreparingInputs,
-		domain.RolloutPhaseSandboxCreating,
-		domain.RolloutPhaseAgentRunning,
-		domain.RolloutPhaseVerifying,
-		domain.RolloutPhaseCollecting,
-		domain.RolloutPhaseValidating,
-		domain.RolloutPhaseExporting:
-		return true
-	default:
-		return false
-	}
-}
-
-func IsPhaseStatus(value domain.PhaseStatus) bool {
-	switch value {
-	case domain.PhaseStatusStarted, domain.PhaseStatusCompleted, domain.PhaseStatusFailed:
-		return true
-	default:
-		return false
-	}
-}
-
-func IsRolloutErrorCode(value domain.RolloutErrorCode) bool {
-	switch value {
-	case domain.RolloutErrorInputInvalid,
-		domain.RolloutErrorInputResolutionFailed,
-		domain.RolloutErrorTaskRuntimeSourceMissing,
-		domain.RolloutErrorRuntimeImagePrepareFailed,
-		domain.RolloutErrorSandboxCreateFailed,
-		domain.RolloutErrorAgentFailed,
-		domain.RolloutErrorAgentTimeout,
-		domain.RolloutErrorVerifierFailed,
-		domain.RolloutErrorVerifierTimeout,
-		domain.RolloutErrorArtifactCaptureFailed,
-		domain.RolloutErrorValidationFailed,
-		domain.RolloutErrorExportNotReady,
-		domain.RolloutErrorInfrastructureFailure:
-		return true
-	default:
-		return false
-	}
-}
-
 func IsArtifactManifestStatus(value domain.ArtifactManifestStatus) bool {
 	switch value {
 	case domain.ArtifactManifestStatusPresent, domain.ArtifactManifestStatusMissing, domain.ArtifactManifestStatusFailed:
@@ -256,9 +210,8 @@ func IsArtifactManifestStatus(value domain.ArtifactManifestStatus) bool {
 }
 
 // IsEpisodeComplete returns true when an episode has reached a terminal
-// state with all expected output records present: terminal status,
-// completed_at timestamp (the atomic commit marker), agent result path,
-// reward path, and the reward marked as final.
+// state with its atomic completion marker and a final reward. Sidecar paths are
+// fixed by the run layout rather than duplicated in the Episode record.
 func IsEpisodeComplete(episode domain.Episode, reward domain.Reward) bool {
 	if episode.Status != domain.EpisodeStatusCompleted && episode.Status != domain.EpisodeStatusFailed {
 		return false
@@ -267,12 +220,6 @@ func IsEpisodeComplete(episode domain.Episode, reward domain.Reward) bool {
 		return false
 	}
 	if episode.CompletedAt == nil {
-		return false
-	}
-	if episode.AgentResultPath == "" {
-		return false
-	}
-	if episode.RewardPath == "" {
 		return false
 	}
 	return reward.Final
@@ -343,8 +290,7 @@ func IsAgentRawEventType(value domain.AgentRawEventType) bool {
 
 func IsTrajectoryEventType(value domain.TrajectoryEventType) bool {
 	switch value {
-	case domain.TrajectoryEventSystemResumeStarted,
-		domain.TrajectoryEventSystemSandboxStarting,
+	case domain.TrajectoryEventSystemSandboxStarting,
 		domain.TrajectoryEventSystemSandboxStarted,
 		domain.TrajectoryEventSystemWorkspaceUpload,
 		domain.TrajectoryEventSystemWorkspaceBaseline,

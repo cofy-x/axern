@@ -12,6 +12,8 @@
 - Keep execution compiled-only: rollout consumes a frozen TaskSet descriptor and native `TaskInstance` records.
 - Keep task runtime images separate from read-only agent/tool images, and keep agent implementations behind focused adapters rather than in the rollout engine.
 - Keep Axrun an atomic execution, verification, and trajectory-capture capability. Benchmark suites, seed generation, provider policy, and training orchestration belong to callers.
+- Keep `plan.json` immutable, `run.json` as a lifecycle envelope, and each Episode identity single-use. Persist authoritative JSON atomically, publish the artifact manifest once, and hold the per-run filesystem lock across create/resume execution.
+- Keep credentials in owner-only local Agent Profile configuration and resolve them only for execution. Persist only non-secret behavior fingerprints; credential-like runtime environment keys are not rollout-plan fields.
 - Axern-backed execution must follow the platform [Stable Domain Model](../../docs/product/domain-model.md); Axrun must not create a second control plane.
 
 ## Validation

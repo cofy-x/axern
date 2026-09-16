@@ -17,6 +17,8 @@ type agentFlowRequest struct {
 	paths      Paths
 	task       domain.TaskInstance
 	episode    domain.Episode
+	agent      domain.AgentSpec
+	model      domain.ModelSpec
 	sandbox    sandbox.Instance
 	harness    agent.Harness
 	trajectory *trajectoryRecorder
@@ -29,14 +31,13 @@ type agentFlowRequest struct {
 // back to the harness for episode-level aggregation.
 type agentFlowMetrics struct {
 	DurationMS int64
-	Usage      *domain.UsageMetrics
-	Cost       *domain.CostMetrics
 }
 
 type agentFlowResult struct {
 	Episode      domain.Episode
 	ShouldVerify bool
 	Metrics      agentFlowMetrics
+	Artifacts    []domain.ArtifactRef
 }
 
 func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResult, error) {
@@ -53,8 +54,8 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 	if index, err := request.trajectory.append(domain.TrajectoryStep{
 		Type:     domain.TrajectoryEventAgentPlanned,
 		Actor:    "rollout",
-		Summary:  fmt.Sprintf("agent %q planned", episode.Agent.Name),
-		Metadata: agentRuntimeSpecMetadata(episode.Agent),
+		Summary:  fmt.Sprintf("agent %q planned", request.agent.Name),
+		Metadata: agentRuntimeSpecMetadata(request.agent),
 	}); err != nil {
 		return agentFlowResult{Episode: episode}, err
 	} else {
@@ -63,8 +64,8 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 	if index, err := request.trajectory.append(domain.TrajectoryStep{
 		Type:     domain.TrajectoryEventAgentStarted,
 		Actor:    "rollout",
-		Summary:  fmt.Sprintf("agent %q started", episode.Agent.Name),
-		Metadata: agentRuntimeSpecMetadata(episode.Agent),
+		Summary:  fmt.Sprintf("agent %q started", request.agent.Name),
+		Metadata: agentRuntimeSpecMetadata(request.agent),
 	}); err != nil {
 		return agentFlowResult{Episode: episode}, err
 	} else {
@@ -72,8 +73,8 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 	}
 
 	result, err := request.harness.Run(ctx, agent.Request{
-		Agent:       episode.Agent,
-		Model:       episode.Model,
+		Agent:       request.agent,
+		Model:       request.model,
 		Task:        request.task,
 		Episode:     episode,
 		Sandbox:     request.sandbox,
@@ -106,7 +107,7 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 			store:    request.store,
 			paths:    request.paths,
 			sandbox:  request.sandbox,
-			agent:    episode.Agent,
+			agent:    request.agent,
 			baseline: request.baseline,
 		}, &result); err != nil {
 			return agentFlowResult{Episode: episode}, err
@@ -116,12 +117,10 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 		return agentFlowResult{Episode: episode}, err
 	}
 	if result.Cost == nil && result.Usage != nil {
-		result.Cost = proxy.EstimateCost(episode.Model.ID, result.Usage)
+		result.Cost = proxy.EstimateCost(request.model.ID, result.Usage)
 	}
 	metrics := agentFlowMetrics{
 		DurationMS: result.DurationMS,
-		Usage:      result.Usage,
-		Cost:       result.Cost,
 	}
 	shouldVerify, err := shouldVerifyAgentResult(result.Status)
 	if err != nil {
@@ -134,7 +133,7 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 	if summary == "" {
 		summary = fmt.Sprintf("agent finished with status %q", result.Status)
 	}
-	refs, err := appendAgentResultSteps(request.trajectory, episode.Agent.Name, result, summary)
+	refs, err := appendAgentResultSteps(request.trajectory, request.agent.Name, result, summary)
 	if err != nil {
 		return agentFlowResult{Episode: episode, Metrics: metrics}, err
 	}
@@ -142,9 +141,6 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 	result.TrajectoryStepRefs = append(result.TrajectoryStepRefs, stepRefs...)
 	if err := request.store.WriteAgentResult(request.paths.AgentJSONPath, result); err != nil {
 		return agentFlowResult{Episode: episode, Metrics: metrics}, err
-	}
-	if len(result.Artifacts) > 0 {
-		episode.Artifacts = append(episode.Artifacts, result.Artifacts...)
 	}
 	if !shouldVerify {
 		episode.Status = domain.EpisodeStatusFailed
@@ -154,9 +150,9 @@ func runAgentFlow(ctx context.Context, request agentFlowRequest) (agentFlowResul
 		if err := request.store.WriteReward(request.paths.RewardJSONPath, reward.AgentFailed(summary)); err != nil {
 			return agentFlowResult{Episode: episode, Metrics: metrics}, err
 		}
-		return agentFlowResult{Episode: episode, Metrics: metrics}, nil
+		return agentFlowResult{Episode: episode, Metrics: metrics, Artifacts: result.Artifacts}, nil
 	}
-	return agentFlowResult{Episode: episode, ShouldVerify: true, Metrics: metrics}, nil
+	return agentFlowResult{Episode: episode, ShouldVerify: true, Metrics: metrics, Artifacts: result.Artifacts}, nil
 }
 
 func shouldVerifyAgentResult(status domain.AgentStatus) (bool, error) {

@@ -1,7 +1,9 @@
 package validate
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +24,7 @@ func TestRunRejectsUnknownAgent(t *testing.T) {
 	if result.Valid() {
 		t.Fatal("result.Valid() = true")
 	}
-	if !containsProblem(result, "run.json", "agent", "unknown agent") {
+	if !containsProblem(result, "plan.json", "agent", "unknown agent") {
 		t.Fatalf("problems = %+v", result.Problems)
 	}
 }
@@ -43,7 +45,7 @@ func TestRunRejectsClaudeCodeAgentImageWithoutProfile(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run error = nil")
 	}
-	if !containsProblem(result, "run.json", "agent.profile", "is required") {
+	if !containsProblem(result, "plan.json", "agent.profile", "is required") {
 		t.Fatalf("problems = %+v", result.Problems)
 	}
 }
@@ -64,7 +66,7 @@ func TestRunRejectsClaudeCodeAgentImageWithoutArtifactPolicy(t *testing.T) {
 	if err == nil {
 		t.Fatal("Run error = nil")
 	}
-	if !containsProblem(result, "run.json", "agent", "requires artifact policy") {
+	if !containsProblem(result, "plan.json", "agent", "requires artifact policy") {
 		t.Fatalf("problems = %+v", result.Problems)
 	}
 }
@@ -85,18 +87,8 @@ func validationFixture(t *testing.T) string {
 	score := 1.0
 	passed := true
 	run := domain.RolloutRun{
-		SchemaVersion:   domain.LocalSchemaVersion,
-		ID:              "test-run",
-		Status:          domain.RunStatusCompleted,
-		CreatedAt:       now,
-		Agent:           domain.AgentSpec{Name: "claude-code"},
-		Model:           domain.ModelSpec{ID: "model"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		Concurrency:     1,
-		AttemptsPerTask: 1,
-		TaskIDs:         []string{"task"},
-		Summary:         &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1},
-		OutputPath:      runDir,
+		SchemaVersion: domain.LocalSchemaVersion, ID: "test-run", Status: domain.RunStatusCompleted,
+		CreatedAt: now, Summary: &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1},
 	}
 	writeJSON(t, filepath.Join(runDir, "run.json"), run)
 	writeJSON(t, filepath.Join(runDir, "plan.json"), domain.RolloutPlan{
@@ -107,12 +99,12 @@ func validationFixture(t *testing.T) string {
 			ResolvedTaskCount: 1,
 			SelectedTaskCount: 1,
 		},
-		Concurrency:     run.Concurrency,
-		AttemptsPerTask: run.AttemptsPerTask,
-		Agent:           run.Agent,
-		Provider:        &domain.ProviderRequirement{WireAPI: "anthropic_messages"},
-		Model:           run.Model,
-		Sandbox:         run.Sandbox,
+		Concurrency:     1,
+		AttemptsPerTask: 1,
+		Agent:           domain.AgentSpec{Name: "claude-code"},
+		Provider:        validationProviderRequirement("claude-code", "anthropic", "anthropic_messages"),
+		Model:           domain.ModelSpec{ID: "model"},
+		Sandbox:         domain.SandboxSpec{Backend: "axern"},
 		TaskIDs:         []string{"task"},
 		Episodes: []domain.PlannedEpisode{{
 			ID:           episodeID,
@@ -129,23 +121,14 @@ func validationFixture(t *testing.T) string {
 		Tags:        []string{},
 	})
 	writeJSON(t, filepath.Join(episodeDir, "episode.json"), domain.Episode{
-		ID:                   episodeID,
-		RunID:                "test-run",
-		TaskID:               "task",
-		AttemptIndex:         1,
-		Status:               domain.EpisodeStatusCompleted,
-		StartedAt:            &now,
-		FinishedAt:           &now,
-		CompletedAt:          &now,
-		Agent:                domain.AgentSpec{Name: "claude-code"},
-		Model:                domain.ModelSpec{ID: "model"},
-		Sandbox:              domain.SandboxSpec{Backend: "axern"},
-		TrajectoryPath:       "episodes/" + episodeID + "/trajectory.jsonl",
-		AgentResultPath:      "episodes/" + episodeID + "/agent.json",
-		VerifierResultPath:   "episodes/" + episodeID + "/verifier.json",
-		RewardPath:           "episodes/" + episodeID + "/reward.json",
-		ArtifactDir:          "episodes/" + episodeID + "/artifacts",
-		ArtifactManifestPath: "episodes/" + episodeID + "/artifacts/manifest.json",
+		ID:           episodeID,
+		RunID:        "test-run",
+		TaskID:       "task",
+		AttemptIndex: 1,
+		Status:       domain.EpisodeStatusCompleted,
+		StartedAt:    &now,
+		FinishedAt:   &now,
+		CompletedAt:  &now,
 	})
 	writeJSON(t, filepath.Join(episodeDir, "agent.json"), domain.AgentResult{Status: domain.AgentStatusCompleted})
 	writeJSON(t, filepath.Join(episodeDir, "verifier.json"), domain.VerifierResult{Status: domain.EpisodeStatusCompleted, Type: "none"})
@@ -164,30 +147,27 @@ func validationFixture(t *testing.T) string {
 
 func updateAgents(t *testing.T, runDir string, spec domain.AgentSpec) {
 	t.Helper()
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readJSONFile(t, runPath, &run)
-	run.Agent = spec
-	writeJSON(t, runPath, run)
 	planPath := filepath.Join(runDir, "plan.json")
 	var plan domain.RolloutPlan
 	readJSONFile(t, planPath, &plan)
 	plan.Agent = spec
 	switch spec.Name {
 	case "codex":
-		plan.Provider = &domain.ProviderRequirement{WireAPI: "responses"}
+		plan.Provider = validationProviderRequirement("codex", "openai", "responses")
 	case "claude-code":
-		plan.Provider = &domain.ProviderRequirement{WireAPI: "anthropic_messages"}
+		plan.Provider = validationProviderRequirement("claude-code", "anthropic", "anthropic_messages")
 	default:
 		plan.Provider = nil
 	}
 	writeJSON(t, planPath, plan)
 
-	episodePath := filepath.Join(runDir, "episodes", "episode_test-run_task_1", "episode.json")
-	var episode domain.Episode
-	readJSONFile(t, episodePath, &episode)
-	episode.Agent = spec
-	writeJSON(t, episodePath, episode)
+}
+
+func validationProviderRequirement(agent, provider, wireAPI string) *domain.ProviderRequirement {
+	return &domain.ProviderRequirement{
+		Agent: agent, Provider: provider, WireAPI: wireAPI,
+		Endpoint: "https://api.example.test/v1", ConfigFingerprint: "sha256:" + strings.Repeat("0", 64),
+	}
 }
 
 func validClaudeCodeArtifacts() *domain.ArtifactPolicySpec {
@@ -226,5 +206,24 @@ func writeJSON(t *testing.T, path string, value any) {
 	}
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+	if filepath.Base(path) == "plan.json" {
+		compact, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(compact)
+		runPath := filepath.Join(filepath.Dir(path), "run.json")
+		var run domain.RolloutRun
+		readJSONFile(t, runPath, &run)
+		run.PlanPath = "plan.json"
+		run.PlanDigest = fmt.Sprintf("sha256:%x", digest)
+		runData, err := json.MarshalIndent(run, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(runPath, append(runData, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

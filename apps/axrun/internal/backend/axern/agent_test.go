@@ -17,13 +17,14 @@ import (
 
 func TestRunnerExecuteAgentHarnessBeforeVerifier(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent = domain.AgentSpec{Name: "claude-code"}
+	request := executeRequest(store, layout)
+	request.Agent = domain.AgentSpec{Name: "claude-code"}
 	agentHarness := &recordingAgent{result: agentpkg.Result{
 		Status:  domain.AgentStatusCompleted,
 		Summary: "agent done",
 		Stdout:  "hello",
 	}}
-	episode, err := (Adapter{Runtime: &fakeRuntime{sandbox: &fakeSandbox{}}, Agent: agentHarness, Now: fixedNow}).Execute(executeRequest(store, layout))
+	episode, err := (Adapter{Runtime: &fakeRuntime{sandbox: &fakeSandbox{}}, Agent: agentHarness, Now: fixedNow}).Execute(request)
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
@@ -140,24 +141,29 @@ func TestRunnerResolvesDockerfileRuntimeSourceBeforeExecution(t *testing.T) {
 		DockerfilePath: dockerfile,
 		DockerfileRef:  "inputs/task/Dockerfile",
 	}}
-	episode, err := (Adapter{
+	adapter := Adapter{
 		Runtime: &fakeRuntime{sandbox: &fakeSandbox{}},
 		Images:  resolver,
 		Now:     fixedNow,
-	}).Execute(executeRequest(store, layout))
+	}
+	resolved, err := adapter.resolveRuntimeSource(executeRequest(store, layout))
+	if err != nil {
+		t.Fatalf("resolveRuntimeSource returned error: %v", err)
+	}
+	_, err = adapter.Execute(resolved)
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
-	if episode.Sandbox.RuntimeSource == nil ||
-		episode.Sandbox.RuntimeSource.Type != domain.SandboxRuntimeSourceImage ||
-		episode.Sandbox.RuntimeSource.Image != "example.com/axrun/smoke:built" ||
-		episode.Sandbox.RuntimeSource.Origin != domain.SandboxRuntimeSourceOriginRuntimeImageBuild {
-		t.Fatalf("episode sandbox runtime source = %#v", episode.Sandbox.RuntimeSource)
+	if resolved.Task.Sandbox.RuntimeSource == nil ||
+		resolved.Task.Sandbox.RuntimeSource.Type != domain.SandboxRuntimeSourceImage ||
+		resolved.Task.Sandbox.RuntimeSource.Image != "example.com/axrun/smoke:built" ||
+		resolved.Task.Sandbox.RuntimeSource.Origin != domain.SandboxRuntimeSourceOriginRuntimeImageBuild {
+		t.Fatalf("resolved task runtime source = %#v", resolved.Task.Sandbox.RuntimeSource)
 	}
-	if len(episode.Artifacts) != 1 ||
-		episode.Artifacts[0].Kind != domain.ArtifactKindRuntimeImageBuild ||
-		episode.Artifacts[0].Path != "episodes/episode_test-run_smoke-task_1/artifacts/runtime-image-build.json" {
-		t.Fatalf("episode artifacts = %#v", episode.Artifacts)
+	if len(resolved.Artifacts) != 1 ||
+		resolved.Artifacts[0].Kind != domain.ArtifactKindRuntimeImageBuild ||
+		resolved.Artifacts[0].Path != "episodes/episode_test-run_smoke-task_1/artifacts/runtime-image-build.json" {
+		t.Fatalf("resolved artifacts = %#v", resolved.Artifacts)
 	}
 	if !resolver.called {
 		t.Fatal("resolver was not called")
@@ -215,7 +221,8 @@ func TestAxernAdapterAcceptsAgentImageRuntimePreflight(t *testing.T) {
 
 func TestAxernAdapterRunsManagedAgentImageCommand(t *testing.T) {
 	store, layout := createLayout(t, domain.VerifierSpec{Type: "none"})
-	layout.Episode.Agent = domain.AgentSpec{
+	request := executeRequest(store, layout)
+	request.Agent = domain.AgentSpec{
 		Name:           "claude-code",
 		ApprovalPolicy: domain.AgentApprovalPolicyNever,
 		Runtime: &domain.AgentRuntimeSpec{
@@ -232,7 +239,7 @@ func TestAxernAdapterRunsManagedAgentImageCommand(t *testing.T) {
 		Runtime:  &fakeRuntime{instance: sb},
 		Registry: testRegistry(),
 		Now:      fixedNow,
-	}).Execute(executeRequest(store, layout))
+	}).Execute(request)
 	if err != nil {
 		t.Fatalf("Execute returned error: %v", err)
 	}
@@ -284,13 +291,11 @@ func TestAxernAdapterRuntimeForRequestMountsAgentImageIntoTaskSandbox(t *testing
 				},
 			},
 		},
-		Episode: domain.Episode{
-			Agent: domain.AgentSpec{
-				Name: "claude-code",
-				Runtime: &domain.AgentRuntimeSpec{
-					Type:  domain.AgentRuntimeTypeAgentImage,
-					Image: "example.com/claude-code-agent:latest",
-				},
+		Agent: domain.AgentSpec{
+			Name: "claude-code",
+			Runtime: &domain.AgentRuntimeSpec{
+				Type:  domain.AgentRuntimeTypeAgentImage,
+				Image: "example.com/claude-code-agent:latest",
 			},
 		},
 	}
@@ -350,14 +355,12 @@ func TestAxernAdapterRuntimeForRequestUsesAgentEnvironmentMountTarget(t *testing
 				},
 			},
 		},
-		Episode: domain.Episode{
-			Agent: domain.AgentSpec{
-				Name: "custom-agent",
-				Runtime: &domain.AgentRuntimeSpec{
-					Type:        domain.AgentRuntimeTypeAgentImage,
-					Image:       "example.com/custom-agent:latest",
-					MountTarget: "/opt/axern/agents/custom-agent",
-				},
+		Agent: domain.AgentSpec{
+			Name: "custom-agent",
+			Runtime: &domain.AgentRuntimeSpec{
+				Type:        domain.AgentRuntimeTypeAgentImage,
+				Image:       "example.com/custom-agent:latest",
+				MountTarget: "/opt/axern/agents/custom-agent",
 			},
 		},
 	}
@@ -380,13 +383,11 @@ func TestAxernAdapterRuntimeForRequestUsesAgentEnvironmentMountTarget(t *testing
 func TestAxernAdapterRuntimeForRequestRequiresTaskOrConfiguredSandboxSource(t *testing.T) {
 	adapter := Adapter{Config: Config{Endpoint: "127.0.0.1:24000"}}
 	request := backend.ExecuteRequest{
-		Episode: domain.Episode{
-			Agent: domain.AgentSpec{
-				Name: "claude-code",
-				Runtime: &domain.AgentRuntimeSpec{
-					Type:  domain.AgentRuntimeTypeAgentImage,
-					Image: "ghcr.io/cofy-x/claude-code:latest",
-				},
+		Agent: domain.AgentSpec{
+			Name: "claude-code",
+			Runtime: &domain.AgentRuntimeSpec{
+				Type:  domain.AgentRuntimeTypeAgentImage,
+				Image: "ghcr.io/cofy-x/claude-code:latest",
 			},
 		},
 	}
@@ -408,9 +409,7 @@ func TestAxernAdapterRuntimeForRequestFallsBackToTaskRuntime(t *testing.T) {
 				},
 			},
 		},
-		Episode: domain.Episode{
-			Agent: domain.AgentSpec{Name: "claude-code"},
-		},
+		Agent: domain.AgentSpec{Name: "claude-code"},
 	}
 	runtime, err := adapter.runtimeForRequest(request)
 	if err != nil {

@@ -1,6 +1,11 @@
 package domain
 
-import "time"
+import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"time"
+)
 
 type RolloutPlan struct {
 	SchemaVersion   string               `json:"schema_version,omitempty"`
@@ -19,7 +24,11 @@ type RolloutPlan struct {
 }
 
 type ProviderRequirement struct {
-	WireAPI string `json:"wire_api"`
+	Agent             string `json:"agent"`
+	Provider          string `json:"provider"`
+	WireAPI           string `json:"wire_api"`
+	Endpoint          string `json:"endpoint"`
+	ConfigFingerprint string `json:"config_fingerprint"`
 }
 
 type PlannedEpisode struct {
@@ -27,4 +36,13 @@ type PlannedEpisode struct {
 	TaskID       string `json:"task_id"`
 	AttemptIndex int    `json:"attempt_index"`
 	Order        int    `json:"order"`
+}
+
+func DigestRolloutPlan(plan RolloutPlan) (string, error) {
+	data, err := json.Marshal(plan)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(data)
+	return fmt.Sprintf("sha256:%x", digest), nil
 }

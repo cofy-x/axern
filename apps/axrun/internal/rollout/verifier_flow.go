@@ -16,6 +16,7 @@ type verifierFlowRequest struct {
 	store      Store
 	paths      Paths
 	task       domain.TaskInstance
+	agent      domain.AgentSpec
 	episode    domain.Episode
 	sandbox    sandbox.Instance
 	trajectory *trajectoryRecorder
@@ -25,6 +26,7 @@ type verifierFlowRequest struct {
 type verifierFlowResult struct {
 	Episode    domain.Episode
 	DurationMS int64
+	Artifacts  []domain.ArtifactRef
 }
 
 func runVerifierFlow(ctx context.Context, request verifierFlowRequest) (verifierFlowResult, error) {
@@ -69,22 +71,14 @@ func runVerifierFlow(ctx context.Context, request verifierFlowRequest) (verifier
 	if _, err := request.trajectory.appendSummary(domain.TrajectoryEventVerifierFinished, "rollout", fmt.Sprintf("verifier finished with status %q", result.Status)); err != nil {
 		return verifierFlowResult{Episode: episode, DurationMS: verifierDurationMS}, err
 	}
-	if len(result.Artifacts) > 0 {
-		for _, artifact := range result.Artifacts {
-			episode.Artifacts = appendArtifact(episode.Artifacts, artifact)
-		}
-	}
-	artifacts, err := downloadConfiguredArtifacts(ctx, request.sandbox, episode.Agent, request.paths.ArtifactDir, request.trajectory.append)
+	artifacts := appendArtifacts(nil, result.Artifacts)
+	downloaded, err := downloadConfiguredArtifacts(ctx, request.sandbox, request.agent, request.paths.ArtifactDir, request.trajectory.append)
 	if err != nil {
 		return verifierFlowResult{Episode: episode, DurationMS: verifierDurationMS}, err
 	}
-	if len(artifacts) > 0 {
-		for _, artifact := range artifacts {
-			episode.Artifacts = appendArtifact(episode.Artifacts, artifact)
-		}
-	}
+	artifacts = appendArtifacts(artifacts, downloaded)
 	for _, artifact := range taskOutputs.Artifacts {
-		episode.Artifacts = appendArtifact(episode.Artifacts, artifact)
+		artifacts = appendArtifact(artifacts, artifact)
 	}
-	return verifierFlowResult{Episode: episode, DurationMS: verifierDurationMS}, nil
+	return verifierFlowResult{Episode: episode, DurationMS: verifierDurationMS, Artifacts: artifacts}, nil
 }

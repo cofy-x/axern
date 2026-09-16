@@ -15,7 +15,7 @@ func (index taskIndex) count() int {
 	return len(index)
 }
 
-func validateTasks(problems *collector, runDir string, run domain.RolloutRun) taskIndex {
+func validateTasks(problems *collector, runDir string, taskIDs []string) taskIndex {
 	tasksDir := filepath.Join(runDir, "tasks")
 	entries, err := os.ReadDir(tasksDir)
 	if err != nil {
@@ -36,7 +36,7 @@ func validateTasks(problems *collector, runDir string, run domain.RolloutRun) ta
 		validateTaskRecord(problems, runDir, taskPath, task)
 	}
 	listed := map[string]struct{}{}
-	for _, taskID := range run.TaskIDs {
+	for _, taskID := range taskIDs {
 		listed[taskID] = struct{}{}
 		if _, ok := seen[taskID]; !ok {
 			problems.add(displayPath(runDir, filepath.Join(tasksDir, taskID, "task.json")), "task_ids", "listed task is missing")
@@ -44,7 +44,7 @@ func validateTasks(problems *collector, runDir string, run domain.RolloutRun) ta
 	}
 	for _, taskID := range sortedTaskIDs(seen) {
 		if _, ok := listed[taskID]; !ok {
-			problems.add(displayPath(runDir, seen[taskID]), "id", "task is missing from run.task_ids")
+			problems.add(displayPath(runDir, seen[taskID]), "id", "task is missing from plan.task_ids")
 		}
 	}
 	return seen

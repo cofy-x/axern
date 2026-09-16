@@ -165,12 +165,6 @@ func (h *Harness) cwd(request agent.Request) string {
 	if request.Task.InitialState != nil && request.Task.Sandbox.Workdir != "" {
 		return request.Task.Sandbox.Workdir
 	}
-	if request.Task.InitialState != nil && request.Episode.Sandbox.Workdir != "" {
-		return request.Episode.Sandbox.Workdir
-	}
-	if request.Episode.Sandbox.Workdir != "" {
-		return request.Episode.Sandbox.Workdir
-	}
 	if request.Task.Sandbox.Workdir != "" {
 		return request.Task.Sandbox.Workdir
 	}

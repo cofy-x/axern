@@ -90,6 +90,8 @@ func Load(runDir string) (Result, error) {
 
 func episodeDetail(runDir string, layout localstore.EpisodeLayout, decision resumepolicy.Decision) EpisodeDetail {
 	episode := layout.Episode
+	root := filepath.ToSlash(filepath.Join("episodes", episode.ID))
+	manifestPath := filepath.ToSlash(filepath.Join(root, "artifacts", "manifest.json"))
 	return EpisodeDetail{
 		ID:                   episode.ID,
 		TaskID:               episode.TaskID,
@@ -97,28 +99,25 @@ func episodeDetail(runDir string, layout localstore.EpisodeLayout, decision resu
 		Status:               episode.Status,
 		FailureClass:         episode.FailureClass,
 		Completed:            episode.CompletedAt != nil,
-		ArtifactManifestPath: episode.ArtifactManifestPath,
-		ArtifactManifest:     artifactManifestSummary(runDir, episode),
+		ArtifactManifestPath: manifestPath,
+		ArtifactManifest:     artifactManifestSummary(runDir, manifestPath),
 		Resume:               decision,
 		Refs: EpisodeRefs{
 			EpisodePath:          filepath.ToSlash(filepath.Join("episodes", episode.ID, "episode.json")),
-			AgentResultPath:      episode.AgentResultPath,
-			VerifierResultPath:   episode.VerifierResultPath,
-			RewardPath:           episode.RewardPath,
-			TrajectoryPath:       episode.TrajectoryPath,
-			ArtifactDir:          episode.ArtifactDir,
-			ArtifactManifestPath: episode.ArtifactManifestPath,
+			AgentResultPath:      filepath.ToSlash(filepath.Join(root, "agent.json")),
+			VerifierResultPath:   filepath.ToSlash(filepath.Join(root, "verifier.json")),
+			RewardPath:           filepath.ToSlash(filepath.Join(root, "reward.json")),
+			TrajectoryPath:       filepath.ToSlash(filepath.Join(root, "trajectory.jsonl")),
+			ArtifactDir:          filepath.ToSlash(filepath.Join(root, "artifacts")),
+			ArtifactManifestPath: manifestPath,
 		},
 		Episode: episode,
 	}
 }
 
-func artifactManifestSummary(runDir string, episode domain.Episode) ArtifactManifestSummary {
-	summary := ArtifactManifestSummary{Path: episode.ArtifactManifestPath}
-	if episode.ArtifactManifestPath == "" {
-		return summary
-	}
-	manifestPath, ok := resumepolicy.RunRefPath(runDir, episode.ArtifactManifestPath)
+func artifactManifestSummary(runDir string, ref string) ArtifactManifestSummary {
+	summary := ArtifactManifestSummary{Path: ref}
+	manifestPath, ok := resumepolicy.RunRefPath(runDir, ref)
 	if !ok {
 		summary.Error = "artifact manifest path must be run-root-relative"
 		return summary

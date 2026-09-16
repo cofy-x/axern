@@ -34,27 +34,29 @@ func loadEpisodes(runDir string) ([]domain.Episode, error) {
 	return episodes, nil
 }
 
-func loadEpisodeBundle(runDir string, outputPath string, run domain.RolloutRun, episode domain.Episode) (episodeBundle, error) {
+func loadEpisodeBundle(runDir string, outputPath string, run domain.RolloutRun, plan domain.RolloutPlan, episode domain.Episode) (episodeBundle, error) {
 	taskPath := filepath.Join(runDir, "tasks", episode.TaskID, "task.json")
 	task, err := readJSONFile[domain.TaskInstance](taskPath)
 	if err != nil {
 		return episodeBundle{}, err
 	}
-	agent, err := readJSONFile[domain.AgentResult](joinRunRef(runDir, episode.AgentResultPath, "episodes", episode.ID, "agent.json"))
+	episodeDir := filepath.Join(runDir, "episodes", episode.ID)
+	agent, err := readJSONFile[domain.AgentResult](filepath.Join(episodeDir, "agent.json"))
 	if err != nil {
 		return episodeBundle{}, err
 	}
-	verifier, err := readJSONFile[domain.VerifierResult](joinRunRef(runDir, episode.VerifierResultPath, "episodes", episode.ID, "verifier.json"))
+	verifier, err := readJSONFile[domain.VerifierResult](filepath.Join(episodeDir, "verifier.json"))
 	if err != nil {
 		return episodeBundle{}, err
 	}
-	reward, err := readJSONFile[domain.Reward](joinRunRef(runDir, episode.RewardPath, "episodes", episode.ID, "reward.json"))
+	reward, err := readJSONFile[domain.Reward](filepath.Join(episodeDir, "reward.json"))
 	if err != nil {
 		return episodeBundle{}, err
 	}
 	return episodeBundle{
 		RunRoot:  runDir,
 		Run:      run,
+		Plan:     plan,
 		Task:     task,
 		Episode:  episode,
 		Agent:    agent,

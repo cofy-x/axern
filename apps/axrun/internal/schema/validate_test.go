@@ -1,7 +1,9 @@
 package schema
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,40 +30,22 @@ func TestValidateRunAcceptsPendingSkeleton(t *testing.T) {
 	episodeID := "episode_test-run_task_1"
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	run := domain.RolloutRun{
-		SchemaVersion:   domain.LocalSchemaVersion,
-		ID:              "test-run",
-		Status:          domain.RunStatusCreated,
-		CreatedAt:       now,
-		Agent:           domain.AgentSpec{Name: "noop"},
-		Model:           domain.ModelSpec{ID: "model"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		Concurrency:     1,
-		AttemptsPerTask: 1,
-		TaskIDs:         []string{"task"},
-		Summary:         &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, PendingEpisodes: 1},
-		OutputPath:      runDir,
+		SchemaVersion: domain.LocalSchemaVersion, ID: "test-run", Status: domain.RunStatusCreated,
+		CreatedAt: now, Summary: &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, PendingEpisodes: 1},
 	}
 	writeSchemaJSON(t, filepath.Join(runDir, "run.json"), run)
-	writeSchemaPlan(t, runDir, run, []domain.PlannedEpisode{{
+	writeSchemaPlan(t, runDir, run.ID, run.CreatedAt, 1, []domain.PlannedEpisode{{
 		ID:           episodeID,
 		TaskID:       "task",
 		AttemptIndex: 1,
 		Order:        1,
 	}})
 	writeSchemaJSON(t, filepath.Join(runDir, "episodes", episodeID, "episode.json"), domain.Episode{
-		ID:                 episodeID,
-		RunID:              "test-run",
-		TaskID:             "task",
-		AttemptIndex:       1,
-		Status:             domain.EpisodeStatusPending,
-		Agent:              domain.AgentSpec{Name: "noop"},
-		Model:              domain.ModelSpec{ID: "model"},
-		Sandbox:            domain.SandboxSpec{Backend: "axern"},
-		TrajectoryPath:     "episodes/" + episodeID + "/trajectory.jsonl",
-		AgentResultPath:    "episodes/" + episodeID + "/agent.json",
-		VerifierResultPath: "episodes/" + episodeID + "/verifier.json",
-		RewardPath:         "episodes/" + episodeID + "/reward.json",
-		ArtifactDir:        "episodes/" + episodeID + "/artifacts",
+		ID:           episodeID,
+		RunID:        "test-run",
+		TaskID:       "task",
+		AttemptIndex: 1,
+		Status:       domain.EpisodeStatusPending,
 	})
 	writeSchemaJSON(t, filepath.Join(runDir, "episodes", episodeID, "agent.json"), domain.AgentResult{Status: domain.AgentStatusPending})
 	writeSchemaJSON(t, filepath.Join(runDir, "episodes", episodeID, "verifier.json"), domain.VerifierResult{Status: domain.EpisodeStatusPending, Type: "none"})
@@ -188,11 +172,11 @@ func TestValidateRunRejectsEscapingAgentRawRef(t *testing.T) {
 
 func TestValidateRunRejectsInvalidAgentRuntime(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Agent.Runtime = &domain.AgentRuntimeSpec{Type: domain.AgentRuntimeTypeAgentImage, TimeoutSec: -1}
-	writeSchemaJSON(t, runPath, run)
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.Agent.Runtime = &domain.AgentRuntimeSpec{Type: domain.AgentRuntimeTypeAgentImage, TimeoutSec: -1}
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
@@ -207,11 +191,11 @@ func TestValidateRunRejectsInvalidAgentRuntime(t *testing.T) {
 
 func TestValidateRunRejectsSandboxCommandWithoutCommand(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Agent.Runtime = &domain.AgentRuntimeSpec{Type: domain.AgentRuntimeTypeSandboxCommand}
-	writeSchemaJSON(t, runPath, run)
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.Agent.Runtime = &domain.AgentRuntimeSpec{Type: domain.AgentRuntimeTypeSandboxCommand}
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
@@ -224,16 +208,16 @@ func TestValidateRunRejectsSandboxCommandWithoutCommand(t *testing.T) {
 
 func TestValidateRunRejectsInvalidAgentRuntimeCommandShape(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Agent.Runtime = &domain.AgentRuntimeSpec{
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.Agent.Runtime = &domain.AgentRuntimeSpec{
 		Type:       domain.AgentRuntimeTypeSandboxCommand,
 		Command:    []string{"bash", "-lc", "true"},
 		Entrypoint: []string{"/bin/bash"},
 		Args:       []string{"-lc", "true"},
 	}
-	writeSchemaJSON(t, runPath, run)
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
@@ -247,15 +231,15 @@ func TestValidateRunRejectsInvalidAgentRuntimeCommandShape(t *testing.T) {
 
 func TestValidateRunRejectsAgentRuntimeArgsWithoutEntrypoint(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Agent.Runtime = &domain.AgentRuntimeSpec{
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.Agent.Runtime = &domain.AgentRuntimeSpec{
 		Type:    domain.AgentRuntimeTypeSandboxCommand,
 		Command: []string{"bash", "-lc", "true"},
 		Args:    []string{"ignored"},
 	}
-	writeSchemaJSON(t, runPath, run)
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
@@ -268,10 +252,10 @@ func TestValidateRunRejectsAgentRuntimeArgsWithoutEntrypoint(t *testing.T) {
 
 func TestValidateRunRejectsInvalidAgentExecutionMetadata(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Agent.Runtime = &domain.AgentRuntimeSpec{
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.Agent.Runtime = &domain.AgentRuntimeSpec{
 		Type:           domain.AgentRuntimeTypeSandboxCommand,
 		Command:        []string{"true"},
 		MaxTurns:       -1,
@@ -282,7 +266,7 @@ func TestValidateRunRejectsInvalidAgentExecutionMetadata(t *testing.T) {
 		},
 		Session: &domain.AgentSessionSpec{Mode: "bad"},
 	}
-	writeSchemaJSON(t, runPath, run)
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
@@ -300,11 +284,11 @@ func TestValidateRunRejectsInvalidAgentExecutionMetadata(t *testing.T) {
 
 func TestValidateRunRejectsMissingCapturedInputRefs(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Input = &domain.InputSpec{Type: domain.InputTypeTaskSet, Format: domain.InputFormatTaskSet, Path: "inputs/missing-taskset-descriptor.json"}
-	writeSchemaJSON(t, runPath, run)
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.Input = &domain.InputSpec{Type: domain.InputTypeTaskSet, Format: domain.InputFormatTaskSet, Path: "inputs/missing-taskset-descriptor.json"}
+	writeSchemaJSON(t, planPath, plan)
 
 	taskPath := filepath.Join(runDir, "tasks", "task", "task.json")
 	var task domain.TaskInstance
@@ -344,15 +328,10 @@ func TestValidateRunAcceptsCapturedInputRefs(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(runDir, "inputs", "taskset-descriptor.json"), []byte("{}\n"), 0o644); err != nil {
 		t.Fatalf("write descriptor: %v", err)
 	}
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.Input = &domain.InputSpec{Type: domain.InputTypeTaskSet, Format: domain.InputFormatTaskSet, Path: "inputs/taskset-descriptor.json"}
-	writeSchemaJSON(t, runPath, run)
 	planPath := filepath.Join(runDir, "plan.json")
 	var plan domain.RolloutPlan
 	readSchemaJSON(t, planPath, &plan)
-	plan.Input = run.Input
+	plan.Input = &domain.InputSpec{Type: domain.InputTypeTaskSet, Format: domain.InputFormatTaskSet, Path: "inputs/taskset-descriptor.json"}
 	writeSchemaJSON(t, planPath, plan)
 
 	taskPath := filepath.Join(runDir, "tasks", "task", "task.json")
@@ -456,19 +435,19 @@ func TestValidateRunRejectsEpisodeWithMissingTask(t *testing.T) {
 	}
 }
 
-func TestValidateRunRejectsTaskMissingFromRunTaskIDs(t *testing.T) {
+func TestValidateRunRejectsTaskMissingFromPlanTaskIDs(t *testing.T) {
 	runDir := createSchemaFixture(t)
-	runPath := filepath.Join(runDir, "run.json")
-	var run domain.RolloutRun
-	readSchemaJSON(t, runPath, &run)
-	run.TaskIDs = nil
-	writeSchemaJSON(t, runPath, run)
+	planPath := filepath.Join(runDir, "plan.json")
+	var plan domain.RolloutPlan
+	readSchemaJSON(t, planPath, &plan)
+	plan.TaskIDs = nil
+	writeSchemaJSON(t, planPath, plan)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
 	if err == nil {
 		t.Fatal("ValidateRun error = nil")
 	}
-	if result.Valid() || !containsProblem(result, "id", "task is missing from run.task_ids") {
+	if result.Valid() || !containsProblem(result, "id", "task is missing from plan.task_ids") {
 		t.Fatalf("result = %#v", result)
 	}
 }
@@ -625,11 +604,17 @@ func TestValidateRunRejectsFailedEpisodeWithoutFailureClass(t *testing.T) {
 
 func TestValidateRunRejectsInfrastructureFailureWithoutFailedRun(t *testing.T) {
 	runDir := createSchemaFixture(t)
+	episodePath := filepath.Join(runDir, "episodes", "episode_test-run_task_1", "episode.json")
+	var episode domain.Episode
+	readSchemaJSON(t, episodePath, &episode)
+	episode.Status = domain.EpisodeStatusFailed
+	episode.FailureClass = domain.FailureClassInfrastructure
+	writeSchemaJSON(t, episodePath, episode)
 	runPath := filepath.Join(runDir, "run.json")
 	var run domain.RolloutRun
 	readSchemaJSON(t, runPath, &run)
 	run.Status = domain.RunStatusCompleted
-	run.Summary = &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1, InfraFailures: 1}
+	run.Summary = &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, FailedEpisodes: 1, InfraFailures: 1}
 	writeSchemaJSON(t, runPath, run)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
@@ -696,7 +681,7 @@ func TestValidateRunRejectsTimeoutFailureWithoutAgentFailedReward(t *testing.T) 
 	}
 }
 
-func TestValidateRunRejectsInfrastructureFailureWithoutInfraReward(t *testing.T) {
+func TestValidateRunAcceptsInterruptedInfrastructureEvidence(t *testing.T) {
 	runDir := createSchemaFixture(t)
 	episodePath := filepath.Join(runDir, "episodes", "episode_test-run_task_1", "episode.json")
 	var episode domain.Episode
@@ -704,11 +689,21 @@ func TestValidateRunRejectsInfrastructureFailureWithoutInfraReward(t *testing.T)
 	episode.Status = domain.EpisodeStatusFailed
 	episode.FailureClass = domain.FailureClassInfrastructure
 	writeSchemaJSON(t, episodePath, episode)
+	if err := os.Remove(filepath.Join(runDir, "episodes", "episode_test-run_task_1", "artifacts", "manifest.json")); err != nil {
+		t.Fatal(err)
+	}
+
+	agentPath := filepath.Join(runDir, "episodes", "episode_test-run_task_1", "agent.json")
+	var agent domain.AgentResult
+	readSchemaJSON(t, agentPath, &agent)
+	agent.Status = domain.AgentStatusRunning
+	writeSchemaJSON(t, agentPath, agent)
 
 	rewardPath := filepath.Join(runDir, "episodes", "episode_test-run_task_1", "reward.json")
 	var reward domain.Reward
 	readSchemaJSON(t, rewardPath, &reward)
-	reward.Status = domain.RewardStatusAgentFailed
+	reward.Status = domain.RewardStatusPending
+	reward.Final = false
 	writeSchemaJSON(t, rewardPath, reward)
 
 	runPath := filepath.Join(runDir, "run.json")
@@ -719,10 +714,10 @@ func TestValidateRunRejectsInfrastructureFailureWithoutInfraReward(t *testing.T)
 	writeSchemaJSON(t, runPath, run)
 
 	result, err := ValidateRun(Params{RunDir: runDir})
-	if err == nil {
-		t.Fatal("ValidateRun error = nil")
+	if err != nil {
+		t.Fatalf("ValidateRun returned error: %v", err)
 	}
-	if result.Valid() || !containsProblem(result, "failure_class", "infrastructure episode requires infra_failed reward") {
+	if !result.Valid() {
 		t.Fatalf("result = %#v", result)
 	}
 }
@@ -744,21 +739,11 @@ func createSchemaFixture(t *testing.T) string {
 	score := 1.0
 	passed := true
 	run := domain.RolloutRun{
-		SchemaVersion:   domain.LocalSchemaVersion,
-		ID:              "test-run",
-		Status:          domain.RunStatusCompleted,
-		CreatedAt:       now,
-		Agent:           domain.AgentSpec{Name: "noop"},
-		Model:           domain.ModelSpec{ID: "model"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		Concurrency:     1,
-		AttemptsPerTask: 1,
-		TaskIDs:         []string{"task"},
-		Summary:         &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1},
-		OutputPath:      runDir,
+		SchemaVersion: domain.LocalSchemaVersion, ID: "test-run", Status: domain.RunStatusCompleted,
+		CreatedAt: now, Summary: &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1},
 	}
 	writeSchemaJSON(t, filepath.Join(runDir, "run.json"), run)
-	writeSchemaPlan(t, runDir, run, []domain.PlannedEpisode{{
+	writeSchemaPlan(t, runDir, run.ID, run.CreatedAt, 1, []domain.PlannedEpisode{{
 		ID:           episodeID,
 		TaskID:       "task",
 		AttemptIndex: 1,
@@ -772,23 +757,14 @@ func createSchemaFixture(t *testing.T) string {
 		Tags:        []string{},
 	})
 	writeSchemaJSON(t, filepath.Join(episodeDir, "episode.json"), domain.Episode{
-		ID:                   episodeID,
-		RunID:                "test-run",
-		TaskID:               "task",
-		AttemptIndex:         1,
-		Status:               domain.EpisodeStatusCompleted,
-		StartedAt:            &now,
-		FinishedAt:           &now,
-		CompletedAt:          &now,
-		Agent:                domain.AgentSpec{Name: "noop"},
-		Model:                domain.ModelSpec{ID: "model"},
-		Sandbox:              domain.SandboxSpec{Backend: "axern"},
-		TrajectoryPath:       "episodes/" + episodeID + "/trajectory.jsonl",
-		AgentResultPath:      "episodes/" + episodeID + "/agent.json",
-		VerifierResultPath:   "episodes/" + episodeID + "/verifier.json",
-		RewardPath:           "episodes/" + episodeID + "/reward.json",
-		ArtifactDir:          "episodes/" + episodeID + "/artifacts",
-		ArtifactManifestPath: "episodes/" + episodeID + "/artifacts/manifest.json",
+		ID:           episodeID,
+		RunID:        "test-run",
+		TaskID:       "task",
+		AttemptIndex: 1,
+		Status:       domain.EpisodeStatusCompleted,
+		StartedAt:    &now,
+		FinishedAt:   &now,
+		CompletedAt:  &now,
 	})
 	writeSchemaJSON(t, filepath.Join(episodeDir, "agent.json"), domain.AgentResult{
 		Status:    domain.AgentStatusCompleted,
@@ -854,38 +830,59 @@ func writeSchemaJSON(t *testing.T, path string, value any) {
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+	if filepath.Base(path) == "plan.json" {
+		compact, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(compact)
+		runPath := filepath.Join(filepath.Dir(path), "run.json")
+		var run domain.RolloutRun
+		readSchemaJSON(t, runPath, &run)
+		run.PlanPath = "plan.json"
+		run.PlanDigest = fmt.Sprintf("sha256:%x", digest)
+		runData, err := json.MarshalIndent(run, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(runPath, append(runData, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
-func writeSchemaPlan(t *testing.T, runDir string, run domain.RolloutRun, episodes []domain.PlannedEpisode) {
+func writeSchemaPlan(t *testing.T, runDir, runID string, createdAt time.Time, attempts int, episodes []domain.PlannedEpisode) {
 	t.Helper()
 	writeSchemaJSON(t, filepath.Join(runDir, "plan.json"), domain.RolloutPlan{
 		SchemaVersion: domain.LocalSchemaVersion,
-		RunID:         run.ID,
-		CreatedAt:     run.CreatedAt,
-		Input:         run.Input,
+		RunID:         runID,
+		CreatedAt:     createdAt,
 		Selection: domain.TaskSelection{
-			ResolvedTaskCount: len(run.TaskIDs),
-			SelectedTaskCount: len(run.TaskIDs),
+			ResolvedTaskCount: 1,
+			SelectedTaskCount: 1,
 		},
-		Concurrency:     run.Concurrency,
-		AttemptsPerTask: run.AttemptsPerTask,
-		Agent:           run.Agent,
-		Provider:        schemaProviderRequirement(run.Agent),
-		Model:           run.Model,
-		Sandbox:         run.Sandbox,
-		TaskIDs:         append([]string(nil), run.TaskIDs...),
-		Episodes:        episodes,
+		Concurrency: 1, AttemptsPerTask: attempts,
+		Agent: domain.AgentSpec{Name: "noop"}, Model: domain.ModelSpec{ID: "model"},
+		Sandbox: domain.SandboxSpec{Backend: "axern"}, TaskIDs: []string{"task"},
+		Episodes: episodes,
 	})
 }
 
 func schemaProviderRequirement(agent domain.AgentSpec) *domain.ProviderRequirement {
 	switch agent.Name {
 	case "codex":
-		return &domain.ProviderRequirement{WireAPI: "responses"}
+		return testProviderRequirement("codex", "openai", "responses")
 	case "claude-code":
-		return &domain.ProviderRequirement{WireAPI: "anthropic_messages"}
+		return testProviderRequirement("claude-code", "anthropic", "anthropic_messages")
 	default:
 		return nil
+	}
+}
+
+func testProviderRequirement(agent, provider, wireAPI string) *domain.ProviderRequirement {
+	return &domain.ProviderRequirement{
+		Agent: agent, Provider: provider, WireAPI: wireAPI,
+		Endpoint: "https://api.example.test/v1", ConfigFingerprint: "sha256:" + strings.Repeat("0", 64),
 	}
 }
 

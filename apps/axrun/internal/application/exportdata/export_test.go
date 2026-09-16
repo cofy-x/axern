@@ -2,7 +2,9 @@ package exportdata
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -301,23 +303,14 @@ func createPreferenceFixture(t *testing.T) string {
 	taskID := "multi-task"
 	taskDir := filepath.Join(runDir, "tasks", taskID)
 	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
-
+	planAgent := domain.AgentSpec{Name: "claude-code", Profile: "profile-a", ApprovalPolicy: domain.AgentApprovalPolicyNever}
+	planModel := domain.ModelSpec{ID: "model-x"}
+	planSandbox := domain.SandboxSpec{Backend: "axern"}
 	run := domain.RolloutRun{
 		SchemaVersion: domain.LocalSchemaVersion,
 		ID:            "pref-run",
 		Status:        domain.RunStatusCompleted,
 		CreatedAt:     now,
-		Agent: domain.AgentSpec{
-			Name:           "claude-code",
-			Profile:        "profile-a",
-			ApprovalPolicy: domain.AgentApprovalPolicyNever,
-		},
-		Model:           domain.ModelSpec{ID: "model-x"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		Concurrency:     1,
-		AttemptsPerTask: 2,
-		TaskIDs:         []string{taskID},
-		OutputPath:      runDir,
 		Summary: &domain.RunSummary{
 			TaskCount: 1, EpisodeCount: 2,
 			CompletedEpisodes:      1,
@@ -328,7 +321,7 @@ func createPreferenceFixture(t *testing.T) string {
 	task := domain.TaskInstance{
 		ID:          taskID,
 		Instruction: "Do something",
-		Sandbox:     run.Sandbox,
+		Sandbox:     planSandbox,
 		Verifier:    domain.VerifierSpec{Type: "shell", Command: "test ok"},
 		Tags:        []string{},
 	}
@@ -345,25 +338,11 @@ func createPreferenceFixture(t *testing.T) string {
 	passedEpisode := domain.Episode{
 		ID: ep1ID, RunID: run.ID, TaskID: taskID, AttemptIndex: 1,
 		Status: domain.EpisodeStatusCompleted, StartedAt: &now, FinishedAt: &now, CompletedAt: &now,
-		Agent: run.Agent, Model: run.Model, Sandbox: run.Sandbox,
-		AgentResultPath:      "episodes/" + ep1ID + "/agent.json",
-		VerifierResultPath:   "episodes/" + ep1ID + "/verifier.json",
-		RewardPath:           "episodes/" + ep1ID + "/reward.json",
-		TrajectoryPath:       "episodes/" + ep1ID + "/trajectory.jsonl",
-		ArtifactDir:          "episodes/" + ep1ID + "/artifacts",
-		ArtifactManifestPath: "episodes/" + ep1ID + "/artifacts/manifest.json",
 	}
 	failedEpisode := domain.Episode{
 		ID: ep2ID, RunID: run.ID, TaskID: taskID, AttemptIndex: 2,
 		Status: domain.EpisodeStatusFailed, StartedAt: &now, FinishedAt: &now, CompletedAt: &now,
 		FailureClass: domain.FailureClassVerifierFailed,
-		Agent:        run.Agent, Model: run.Model, Sandbox: run.Sandbox,
-		AgentResultPath:      "episodes/" + ep2ID + "/agent.json",
-		VerifierResultPath:   "episodes/" + ep2ID + "/verifier.json",
-		RewardPath:           "episodes/" + ep2ID + "/reward.json",
-		TrajectoryPath:       "episodes/" + ep2ID + "/trajectory.jsonl",
-		ArtifactDir:          "episodes/" + ep2ID + "/artifacts",
-		ArtifactManifestPath: "episodes/" + ep2ID + "/artifacts/manifest.json",
 	}
 
 	writeFixtureJSON(t, filepath.Join(runDir, "run.json"), run)
@@ -377,10 +356,10 @@ func createPreferenceFixture(t *testing.T) string {
 		},
 		Concurrency:     1,
 		AttemptsPerTask: 2,
-		Agent:           run.Agent,
-		Provider:        &domain.ProviderRequirement{WireAPI: "anthropic_messages"},
-		Model:           run.Model,
-		Sandbox:         run.Sandbox,
+		Agent:           planAgent,
+		Provider:        exportProviderRequirement(),
+		Model:           planModel,
+		Sandbox:         planSandbox,
 		TaskIDs:         []string{taskID},
 		Episodes: []domain.PlannedEpisode{
 			{ID: ep1ID, TaskID: taskID, AttemptIndex: 1, Order: 1},
@@ -518,81 +497,69 @@ func createExportFixture(t *testing.T) string {
 		t.Fatalf("mkdir artifact dir: %v", err)
 	}
 	now := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
-	run := domain.RolloutRun{
-		SchemaVersion: domain.LocalSchemaVersion,
-		ID:            "test-run",
-		Status:        domain.RunStatusCompleted,
-		CreatedAt:     now,
-		Agent: domain.AgentSpec{
-			Name:           "claude-code",
+	planAgent := domain.AgentSpec{
+		Name:           "claude-code",
+		Profile:        "profile-a",
+		ApprovalPolicy: domain.AgentApprovalPolicyNever,
+		Runtime: &domain.AgentRuntimeSpec{
+			Type:           domain.AgentRuntimeTypeAgentImage,
+			Image:          "example.com/claude-code-agent:dev",
+			MountTarget:    "/opt/axern/agents/claude-code",
+			BinDir:         "/opt/axern/agents/claude-code/bin",
 			Profile:        "profile-a",
-			ApprovalPolicy: domain.AgentApprovalPolicyNever,
-			Runtime: &domain.AgentRuntimeSpec{
-				Type:           domain.AgentRuntimeTypeAgentImage,
-				Image:          "example.com/claude-code-agent:dev",
-				MountTarget:    "/opt/axern/agents/claude-code",
-				BinDir:         "/opt/axern/agents/claude-code/bin",
-				Profile:        "profile-a",
-				Env:            map[string]string{"PROVIDER_API_KEY": "sk-test-secret"},
-				Workdir:        "/workspace",
-				TimeoutSec:     1800,
-				AllowedTools:   []string{"Bash", "Edit"},
-				IdleTimeoutSec: 30,
-				Prompt: &domain.PromptSpec{
-					Source: domain.PromptSourceInline,
-					Inline: "inline secret prompt",
-					Rounds: []domain.PromptRoundSpec{{
-						Index:     1,
-						Source:    domain.PromptSourceInline,
-						Inline:    "round secret prompt",
-						SessionID: "session-secret",
-					}},
-				},
-				Session: &domain.AgentSessionSpec{Mode: domain.AgentSessionModeResume, SessionID: "session-secret"},
-				Artifacts: &domain.ArtifactPolicySpec{
-					PatchPath:     "/tmp/solution.patch",
-					CaptureStdout: true,
-					CaptureStderr: true,
-					CaptureRawLog: true,
-				},
+			Env:            map[string]string{"RUNTIME_ENV": "test"},
+			Workdir:        "/workspace",
+			TimeoutSec:     1800,
+			AllowedTools:   []string{"Bash", "Edit"},
+			IdleTimeoutSec: 30,
+			Prompt: &domain.PromptSpec{
+				Source: domain.PromptSourceInline,
+				Inline: "inline secret prompt",
+				Rounds: []domain.PromptRoundSpec{{
+					Index:     1,
+					Source:    domain.PromptSourceInline,
+					Inline:    "round secret prompt",
+					SessionID: "session-secret",
+				}},
+			},
+			Session: &domain.AgentSessionSpec{Mode: domain.AgentSessionModeResume, SessionID: "session-secret"},
+			Artifacts: &domain.ArtifactPolicySpec{
+				PatchPath:     "/tmp/solution.patch",
+				CaptureStdout: true,
+				CaptureStderr: true,
+				CaptureRawLog: true,
 			},
 		},
-		Model:           domain.ModelSpec{ID: "deepseek-v4-flash"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		Concurrency:     1,
-		AttemptsPerTask: 1,
-		TaskIDs:         []string{"smoke-task"},
-		Summary:         &domain.RunSummary{TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1},
-		OutputPath:      runDir,
+	}
+	planModel := domain.ModelSpec{ID: "deepseek-v4-flash"}
+	planSandbox := domain.SandboxSpec{Backend: "axern"}
+	run := domain.RolloutRun{
+		SchemaVersion: domain.LocalSchemaVersion, ID: "test-run", Status: domain.RunStatusCompleted,
+		CreatedAt: now, Summary: &domain.RunSummary{
+			TaskCount: 1, EpisodeCount: 1, CompletedEpisodes: 1,
+			TotalDurationMS: 10, MeanEpisodeDurationMS: 10,
+			TotalUsage: &domain.UsageMetrics{InputTokens: 3, OutputTokens: 1, TotalTokens: 4},
+			TotalCost:  &domain.CostMetrics{Amount: 0.01, Currency: "USD"},
+		},
 	}
 	task := domain.TaskInstance{
 		ID:          "smoke-task",
 		Instruction: "Reply with ok",
 		Source:      &domain.SourceRef{Type: "inline"},
-		Sandbox:     run.Sandbox,
+		Sandbox:     planSandbox,
 		Verifier:    domain.VerifierSpec{Type: "shell", Command: "test ok"},
 		Tags:        []string{"smoke"},
 	}
 	episode := domain.Episode{
-		ID:                   episodeID,
-		RunID:                run.ID,
-		TaskID:               task.ID,
-		AttemptIndex:         1,
-		Status:               domain.EpisodeStatusCompleted,
-		StartedAt:            &now,
-		FinishedAt:           &now,
-		CompletedAt:          &now,
-		Agent:                run.Agent,
-		Model:                run.Model,
-		Sandbox:              run.Sandbox,
-		TrajectoryPath:       "episodes/" + episodeID + "/trajectory.jsonl",
-		AgentResultPath:      "episodes/" + episodeID + "/agent.json",
-		VerifierResultPath:   "episodes/" + episodeID + "/verifier.json",
-		RewardPath:           "episodes/" + episodeID + "/reward.json",
-		ArtifactDir:          "episodes/" + episodeID + "/artifacts",
-		ArtifactManifestPath: "episodes/" + episodeID + "/artifacts/manifest.json",
-		Usage:                &domain.UsageMetrics{InputTokens: 3, OutputTokens: 1, TotalTokens: 4},
-		Cost:                 &domain.CostMetrics{Amount: 0.01, Currency: "USD"},
+		ID:           episodeID,
+		RunID:        run.ID,
+		TaskID:       task.ID,
+		AttemptIndex: 1,
+		Status:       domain.EpisodeStatusCompleted,
+		StartedAt:    &now,
+		FinishedAt:   &now,
+		CompletedAt:  &now,
+		Timing:       &domain.EpisodeTiming{TotalMS: 10},
 	}
 	exitCode := 0
 	score := 1.0
@@ -602,6 +569,8 @@ func createExportFixture(t *testing.T) string {
 		Summary:   "done",
 		Stdout:    "ok\n",
 		RawLogRef: "episodes/" + episodeID + "/artifacts/agent.raw.jsonl",
+		Usage:     &domain.UsageMetrics{InputTokens: 3, OutputTokens: 1, TotalTokens: 4},
+		Cost:      &domain.CostMetrics{Amount: 0.01, Currency: "USD"},
 		Artifacts: []domain.ArtifactRef{
 			{Path: "episodes/" + episodeID + "/artifacts/agent.raw.jsonl", Kind: "agent_raw_log"},
 			{Path: "episodes/" + episodeID + "/artifacts/llm", Kind: "llm_telemetry"},
@@ -619,12 +588,12 @@ func createExportFixture(t *testing.T) string {
 			ResolvedTaskCount: 1,
 			SelectedTaskCount: 1,
 		},
-		Concurrency:     run.Concurrency,
-		AttemptsPerTask: run.AttemptsPerTask,
-		Agent:           run.Agent,
-		Provider:        &domain.ProviderRequirement{WireAPI: "anthropic_messages"},
-		Model:           run.Model,
-		Sandbox:         run.Sandbox,
+		Concurrency:     1,
+		AttemptsPerTask: 1,
+		Agent:           planAgent,
+		Provider:        exportProviderRequirement(),
+		Model:           planModel,
+		Sandbox:         planSandbox,
 		TaskIDs:         []string{task.ID},
 		Episodes: []domain.PlannedEpisode{{
 			ID:           episode.ID,
@@ -647,7 +616,7 @@ func createExportFixture(t *testing.T) string {
 		Summary:   "captured request",
 		OutputRef: agent.RawLogRef,
 		RawRef:    agent.RawLogRef,
-		Cost:      episode.Cost,
+		Cost:      agent.Cost,
 		Metadata: domain.KeyValue{
 			"runtime_type":         string(domain.AgentRuntimeTypeAgentImage),
 			"runtime_image":        "example.com/claude-code-agent:dev",
@@ -706,6 +675,25 @@ func writeFixtureJSON(t *testing.T, path string, value any) {
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
 	}
+	if filepath.Base(path) == "plan.json" {
+		compact, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		digest := sha256.Sum256(compact)
+		runPath := filepath.Join(filepath.Dir(path), "run.json")
+		var run domain.RolloutRun
+		readTestJSON(t, runPath, &run)
+		run.PlanPath = "plan.json"
+		run.PlanDigest = fmt.Sprintf("sha256:%x", digest)
+		runData, err := json.MarshalIndent(run, "", "  ")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(runPath, append(runData, '\n'), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func readTestJSON(t *testing.T, path string, value any) {
@@ -729,23 +717,14 @@ func createInfraFailurePreferenceFixture(t *testing.T) string {
 	taskID := "infra-task"
 	taskDir := filepath.Join(runDir, "tasks", taskID)
 	now := time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC)
-
+	planAgent := domain.AgentSpec{Name: "claude-code", Profile: "profile-a", ApprovalPolicy: domain.AgentApprovalPolicyNever}
+	planModel := domain.ModelSpec{ID: "model-x"}
+	planSandbox := domain.SandboxSpec{Backend: "axern"}
 	run := domain.RolloutRun{
 		SchemaVersion: domain.LocalSchemaVersion,
 		ID:            "infra-pref-run",
 		Status:        domain.RunStatusFailed,
 		CreatedAt:     now,
-		Agent: domain.AgentSpec{
-			Name:           "claude-code",
-			Profile:        "profile-a",
-			ApprovalPolicy: domain.AgentApprovalPolicyNever,
-		},
-		Model:           domain.ModelSpec{ID: "model-x"},
-		Sandbox:         domain.SandboxSpec{Backend: "axern"},
-		Concurrency:     1,
-		AttemptsPerTask: 3,
-		TaskIDs:         []string{taskID},
-		OutputPath:      runDir,
 		Summary: &domain.RunSummary{
 			TaskCount: 1, EpisodeCount: 3,
 			CompletedEpisodes:      1,
@@ -757,7 +736,7 @@ func createInfraFailurePreferenceFixture(t *testing.T) string {
 	task := domain.TaskInstance{
 		ID:          taskID,
 		Instruction: "Infra task",
-		Sandbox:     run.Sandbox,
+		Sandbox:     planSandbox,
 		Verifier:    domain.VerifierSpec{Type: "shell", Command: "true"},
 		Tags:        []string{},
 	}
@@ -824,13 +803,6 @@ func createInfraFailurePreferenceFixture(t *testing.T) string {
 			ID: f.id, RunID: run.ID, TaskID: taskID, AttemptIndex: f.attemptIndex,
 			Status: f.status, StartedAt: &now, FinishedAt: &now, CompletedAt: &now,
 			FailureClass: f.failureClass,
-			Agent:        run.Agent, Model: run.Model, Sandbox: run.Sandbox,
-			AgentResultPath:      "episodes/" + f.id + "/agent.json",
-			VerifierResultPath:   "episodes/" + f.id + "/verifier.json",
-			RewardPath:           "episodes/" + f.id + "/reward.json",
-			TrajectoryPath:       "episodes/" + f.id + "/trajectory.jsonl",
-			ArtifactDir:          "episodes/" + f.id + "/artifacts",
-			ArtifactManifestPath: "episodes/" + f.id + "/artifacts/manifest.json",
 		}
 		epDir := filepath.Join(runDir, "episodes", f.id)
 		writeFixtureJSON(t, filepath.Join(epDir, "episode.json"), ep)
@@ -870,15 +842,22 @@ func createInfraFailurePreferenceFixture(t *testing.T) string {
 		},
 		Concurrency:     1,
 		AttemptsPerTask: 3,
-		Agent:           run.Agent,
-		Provider:        &domain.ProviderRequirement{WireAPI: "anthropic_messages"},
-		Model:           run.Model,
-		Sandbox:         run.Sandbox,
+		Agent:           planAgent,
+		Provider:        exportProviderRequirement(),
+		Model:           planModel,
+		Sandbox:         planSandbox,
 		TaskIDs:         []string{taskID},
 		Episodes:        episodes,
 	})
 	writeFixtureJSON(t, filepath.Join(taskDir, "task.json"), task)
 	return runDir
+}
+
+func exportProviderRequirement() *domain.ProviderRequirement {
+	return &domain.ProviderRequirement{
+		Agent: "claude-code", Provider: "anthropic", WireAPI: "anthropic_messages",
+		Endpoint: "https://api.example.test/v1", ConfigFingerprint: "sha256:" + strings.Repeat("0", 64),
+	}
 }
 
 func readExportJSONLines[T any](t *testing.T, path string) []T {

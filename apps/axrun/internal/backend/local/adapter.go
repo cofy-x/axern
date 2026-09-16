@@ -47,15 +47,15 @@ func (a Adapter) PreflightProvider(ctx context.Context, agentSpec domain.AgentSp
 }
 
 func (a Adapter) Execute(request backend.ExecuteRequest) (domain.Episode, error) {
-	if err := a.PreflightAgent(request.Episode.Agent); err != nil {
+	if err := a.PreflightAgent(request.Agent); err != nil {
 		return request.Episode, err
 	}
 	if a.Registry != nil {
-		if err := a.Registry.ValidateAgent(a.AgentName, request.Episode.Agent); err != nil {
+		if err := a.Registry.ValidateAgent(a.AgentName, request.Agent); err != nil {
 			return request.Episode, err
 		}
 	}
-	agentHarness, err := a.agentHarness(request.Episode.Agent)
+	agentHarness, err := a.agentHarness(request.Agent)
 	if err != nil {
 		return request.Episode, err
 	}
@@ -63,12 +63,14 @@ func (a Adapter) Execute(request backend.ExecuteRequest) (domain.Episode, error)
 		Store:          request.Store,
 		Task:           request.Task,
 		Episode:        request.Episode,
+		Agent:          request.Agent,
+		Model:          request.Model,
+		Artifacts:      request.Artifacts,
 		Paths:          request.Paths,
 		SandboxRuntime: sandboxlocal.Runtime{},
 		AgentHarness:   agentHarness,
 		Now:            a.Now,
 		RuntimeName:    "local",
-		PhaseReporter:  request.PhaseReporter,
 	})
 }
 

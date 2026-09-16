@@ -55,8 +55,7 @@ func (s *executionSession) failTimeout(options failureOptions) (err error) {
 	episode.FinishedAt = &finishedAt
 	finalizeEpisodeTiming(&episode, &s.timer)
 	stampCompleted(&episode, s.request.Now)
-	episode, err = writeArtifactManifest(s.store, s.paths, episode, s.request.Now)
-	if err != nil {
+	if err := writeArtifactManifest(s.store, s.paths, episode.ID, s.artifacts, s.request.Now); err != nil {
 		return err
 	}
 	if err := s.store.WriteEpisode(s.paths.EpisodeJSONPath, episode); err != nil {
@@ -126,8 +125,7 @@ func (s *executionSession) failInfrastructure(cause error, options failureOption
 	episode.FinishedAt = &finishedAt
 	finalizeEpisodeTiming(&episode, &s.timer)
 	stampCompleted(&episode, s.request.Now)
-	episode, err = writeArtifactManifest(s.store, s.paths, episode, s.request.Now)
-	if err != nil {
+	if err := writeArtifactManifest(s.store, s.paths, episode.ID, s.artifacts, s.request.Now); err != nil {
 		return err
 	}
 	if err := s.store.WriteEpisode(s.paths.EpisodeJSONPath, episode); err != nil {
