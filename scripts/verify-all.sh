@@ -10,6 +10,7 @@ include_proto_breaking=false
 include_bpfnet_generate_check=false
 include_axrun=false
 bootstrap_first=false
+suite=all
 
 usage() {
   cat <<'EOF'
@@ -25,6 +26,8 @@ Options:
   --include-axrun
                          Include Axrun tests, vet, and local acceptance gates.
   --list                 List the ordered validation steps and exit.
+  --suite <name>         Select all (default), source, or runtime. The two
+                         named suites partition the default full gate.
   --from <step>          Start from the named step.
   --to <step>            Stop after the named step.
   --include-proto-breaking
@@ -67,6 +70,14 @@ while (($# > 0)); do
       list_only=true
       shift
       ;;
+    --suite)
+      if (($# < 2)); then
+        echo "missing value for --suite" >&2
+        exit 1
+      fi
+      suite="$2"
+      shift 2
+      ;;
     --from)
       if (($# < 2)); then
         echo "missing value for --from" >&2
@@ -94,6 +105,15 @@ while (($# > 0)); do
       ;;
   esac
 done
+
+case "${suite}" in
+  all|source|runtime) ;;
+  *) echo "unknown verification suite: ${suite}" >&2; exit 1 ;;
+esac
+if [ "${suite}" != all ] && { [ -n "${from_step}${to_step}" ] || [ "${include_axrun}" = true ] || [ "${include_proto_breaking}" = true ] || [ "${include_bpfnet_generate_check}" = true ]; }; then
+  echo "named suites cannot be combined with ranges or optional gates; use --suite all" >&2
+  exit 1
+fi
 
 cd "${ROOT_DIR}"
 
@@ -336,6 +356,20 @@ if [ "${bootstrap_first}" = true ]; then
   steps=(bootstrap "${steps[@]}")
 fi
 
+if [ "${suite}" != all ]; then
+  suite_steps=()
+  step_suite=source
+  for step in "${steps[@]}"; do
+    if [ "${step}" = axern-cli-e2e ]; then
+      step_suite=runtime
+    fi
+    if [ "${step_suite}" = "${suite}" ] || [ "${step}" = bootstrap ]; then
+      suite_steps+=("${step}")
+    fi
+  done
+  steps=("${suite_steps[@]}")
+fi
+
 step_exists() {
   local wanted="$1"
   local step
@@ -420,12 +454,41 @@ fi
 
 log "starting serial repository validation (${total_steps} steps)"
 
+if [ -n "${VERIFY_TIMINGS_FILE:-}" ]; then
+  printf 'step\tseconds\texit_code\n' >"${VERIFY_TIMINGS_FILE}"
+fi
+step_started=0
+# This directory is disposable export bookkeeping, not an image cache. Builds
+# continue to validate all inputs, including dirty local sources, with BuildKit.
+AXERN_DOCKER_CACHE_SESSION_DIR="$(mktemp -d "${TMPDIR:-/tmp}/axern-cache-export.XXXXXX")"
+export AXERN_DOCKER_CACHE_SESSION_DIR
+record_step() {
+  local status="$1"
+  local elapsed=$((SECONDS - step_started))
+  log "stage_completed=${current_step} seconds=${elapsed} exit_code=${status}"
+  if [ -n "${VERIFY_TIMINGS_FILE:-}" ]; then
+    printf '%s\t%s\t%s\n' "${current_step}" "${elapsed}" "${status}" >>"${VERIFY_TIMINGS_FILE}"
+  fi
+}
+finish_validation() {
+  local status=$?
+  if [ -n "${current_step}" ]; then
+    record_step "${status}"
+  fi
+  rm -rf -- "${AXERN_DOCKER_CACHE_SESSION_DIR}"
+  return "${status}"
+}
+trap finish_validation EXIT
+
 index=0
 for step in "${selected_steps[@]}"; do
   index=$((index + 1))
   current_step="${step}"
+  step_started=${SECONDS}
   log "[${index}/${total_steps}] ${step}: $(describe_step "${step}")"
   run_step "${step}"
+  record_step 0
+  current_step=""
 done
 
 current_step=""

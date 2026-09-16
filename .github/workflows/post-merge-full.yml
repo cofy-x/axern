@@ -15,11 +15,14 @@ concurrency:
 
 jobs:
   full-regression:
-    name: Full Repository Regression
+    name: Regression (${{ matrix.suite }})
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [source, runtime]
     env:
-      APT_MIRROR_SOURCE: "ustc"
       GOTOOLCHAIN: local
       AXERN_DOCKER_CACHE_BACKEND: gha
       AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND: gha
@@ -50,9 +53,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: full-cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          key: full-cargo-${{ matrix.suite }}-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: |
-            full-cargo-${{ runner.os }}-
+            full-cargo-${{ matrix.suite }}-${{ runner.os }}-
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
@@ -107,6 +110,7 @@ jobs:
             printf 'ref=%s\n' "${GITHUB_REF}"
             printf 'run_id=%s\n' "${GITHUB_RUN_ID}"
             printf 'run_attempt=%s\n' "${GITHUB_RUN_ATTEMPT}"
+            printf 'suite=%s\n' '${{ matrix.suite }}'
             printf 'runner_os=%s\n' "${RUNNER_OS}"
             printf 'runner_arch=%s\n' "${RUNNER_ARCH}"
           } >"${evidence_dir}/metadata.txt"
@@ -119,9 +123,12 @@ jobs:
 
       - name: Run full repository regression
         id: regression
+        env:
+          VERIFY_SUITE: ${{ matrix.suite }}
+          VERIFY_TIMINGS_FILE: ${{ runner.temp }}/post-merge-full/timings.tsv
         run: |
           set -o pipefail
-          make verify-full 2>&1 | tee "${RUNNER_TEMP}/post-merge-full/verify-full.log"
+          make verify-full ARGS="--suite ${VERIFY_SUITE}" 2>&1 | tee "${RUNNER_TEMP}/post-merge-full/verify-full.log"
 
       - name: Capture failure diagnostics
         if: failure()
@@ -138,6 +145,7 @@ jobs:
         env:
           BOOTSTRAP_OUTCOME: ${{ steps.bootstrap.outcome }}
           REGRESSION_OUTCOME: ${{ steps.regression.outcome }}
+          VERIFY_SUITE: ${{ matrix.suite }}
         run: |
           {
             echo "## Post-merge full regression"
@@ -145,14 +153,32 @@ jobs:
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Bootstrap: \`${BOOTSTRAP_OUTCOME}\`"
             echo "- Regression: \`${REGRESSION_OUTCOME}\`"
-            echo "- Command: \`make verify-full\`"
+            echo "- Suite: \`${VERIFY_SUITE}\`"
+            echo "- Command: \`make verify-full ARGS=\"--suite ${VERIFY_SUITE}\"\`"
+            echo
+            echo '| Stage | Seconds | Exit code |'
+            echo '| --- | ---: | ---: |'
+            if [ -f "${RUNNER_TEMP}/post-merge-full/timings.tsv" ]; then
+              awk -F '\t' 'NR > 1 {printf "| %s | %s | %s |\n", $1, $2, $3}' "${RUNNER_TEMP}/post-merge-full/timings.tsv"
+            fi
           } >>"${GITHUB_STEP_SUMMARY}"
 
       - name: Upload regression evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: post-merge-full-${{ github.sha }}-${{ github.run_attempt }}
+          name: post-merge-full-${{ matrix.suite }}-${{ github.sha }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/post-merge-full
           if-no-files-found: error
           retention-days: 14
+
+  complete:
+    name: Full Repository Regression
+    if: always()
+    needs: full-regression
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every regression suite
+        env:
+          RESULT: ${{ needs.full-regression.result }}
+        run: test "${RESULT}" = success

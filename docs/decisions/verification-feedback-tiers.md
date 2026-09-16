@@ -10,7 +10,7 @@ The planner is versioned in the repository and is the shared source of truth for
 
 Full repository validation is a broad-change or post-merge gate. Environment qualification remains bound to one frozen commit, immutable artifact digest, environment identity, complete samples, budgets, comparison, and receipt. A reduced smoke must use a distinct name and cannot satisfy promotion policy.
 
-Every `main` commit starts the remote `Post-Merge Full` workflow. It runs the repository-owned `make verify-full` entrypoint on a fresh Linux runner and retains commit-bound logs and failure diagnostics. A newer `main` commit supersedes an in-progress ancestor so the queue converges on the deployable state instead of accumulating stale regressions. Manual dispatch reruns the same workflow without creating a second verification definition.
+Every `main` commit starts the remote `Post-Merge Full` workflow. It runs the repository-owned `make verify-full` entrypoint as an exact source/runtime partition on independent fresh Linux runners, retaining commit-bound logs, stage timings, and failure diagnostics. Runtime scenarios remain serial within their runner; the final check requires both suites to succeed. The default local command still executes the entire ordered gate. A newer `main` commit supersedes an in-progress ancestor so the queue converges on the deployable state instead of accumulating stale regressions. Manual dispatch reruns the same workflow without creating a second verification definition.
 
 ## Rationale
 

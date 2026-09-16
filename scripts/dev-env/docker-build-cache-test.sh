@@ -5,7 +5,8 @@ AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${AXERN_ROOT}/scripts/dev-env/docker-build-cache.sh"
 
 calls_file="$(mktemp "${TMPDIR:-/tmp}/axern-docker-build-cache.XXXXXX")"
-trap 'rm -f -- "${calls_file}"' EXIT
+session_dir="$(mktemp -d "${TMPDIR:-/tmp}/axern-cache-test.XXXXXX")"
+trap 'rm -f -- "${calls_file}"; rm -rf -- "${session_dir}"' EXIT
 
 docker() {
   if [ "${1:-} ${2:-}" = "buildx version" ]; then
@@ -14,7 +15,17 @@ docker() {
   if [ "${1:-} ${2:-}" = "image inspect" ] && [ "${MOCK_IMAGE_INSPECT_STATUS:-0}" != "0" ]; then
     return "${MOCK_IMAGE_INSPECT_STATUS}"
   fi
+  if [ "${1:-} ${2:-}" = "image inspect" ] && [ "${3:-}" = --format ]; then
+    printf 'sha256:%064d\n' "${MOCK_IMAGE_NUMBER:-1}"
+    return 0
+  fi
   printf '%s\n' "$*" >> "${calls_file}"
+  if [[ "$*" == *--cache-to* ]]; then
+    return "${MOCK_EXPORT_STATUS:-0}"
+  fi
+  if [ "${1:-} ${2:-} ${3:-}" = 'buildx build --load' ]; then
+    return "${MOCK_BUILD_STATUS:-0}"
+  fi
 }
 
 assert_contains() {
@@ -61,6 +72,37 @@ if grep -Fq "test-runtime-token" "${calls_file}"; then
   echo "GHA runtime token leaked into Docker arguments" >&2
   exit 1
 fi
+
+session_build() {
+  AXERN_DOCKER_CACHE_BACKEND=gha \
+    AXERN_DOCKER_CACHE_SESSION_DIR="${session_dir}" \
+    ACTIONS_RUNTIME_TOKEN=test-runtime-token \
+    ACTIONS_RESULTS_URL=https://results.example.test/ \
+    axern_docker_build -t example.test/axern/session:v1 .
+}
+: >"${calls_file}"
+session_build
+session_build
+[ "$(grep -c -- 'buildx build --load' "${calls_file}")" = 2 ]
+[ "$(grep -c -- '--cache-to' "${calls_file}")" = 1 ]
+MOCK_IMAGE_NUMBER=2 session_build
+[ "$(grep -c -- '--cache-to' "${calls_file}")" = 2 ]
+if MOCK_IMAGE_NUMBER=3 MOCK_EXPORT_STATUS=7 session_build; then
+  echo "failed cache export unexpectedly succeeded" >&2
+  exit 1
+fi
+MOCK_IMAGE_NUMBER=3 session_build
+[ "$(grep -c -- '--cache-to' "${calls_file}")" = 4 ]
+assert_contains 'buildx build --output=type=cacheonly --cache-to'
+if MOCK_BUILD_STATUS=9 session_build; then
+  echo "failed build unexpectedly reused an export receipt" >&2
+  exit 1
+fi
+if MOCK_IMAGE_INSPECT_STATUS=1 session_build; then
+  echo "missing built image unexpectedly reused an export receipt" >&2
+  exit 1
+fi
+[ "$(grep -c -- '--cache-to' "${calls_file}")" = 4 ]
 
 if output="$(AXERN_DOCKER_CACHE_BACKEND=registry \
   axern_docker_build -t example.test/axern/node-runtime-base:v1 . 2>&1)"; then

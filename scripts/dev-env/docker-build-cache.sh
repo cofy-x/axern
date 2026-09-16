@@ -63,6 +63,33 @@ axern_docker_build() {
       local cache_scope=""
       cache_scope="$(axern_docker_cache_scope "${image_ref}")"
       printf 'docker_build_cache_backend=gha scope=%s\n' "${cache_scope}"
+      # During a full gate, validate every build with BuildKit but export each
+      # resulting image's cache only once. Receipts live only for this run and
+      # never authorize skipping a build or selecting an execution image.
+      if [ -n "${AXERN_DOCKER_CACHE_SESSION_DIR:-}" ]; then
+        local receipt="${AXERN_DOCKER_CACHE_SESSION_DIR}/${cache_scope}"
+        local image_id previous_id=""
+        docker buildx build --load \
+          --cache-from "type=gha,scope=${cache_scope},timeout=20m" \
+          "${args[@]}" || return $?
+        image_id="$(docker image inspect --format '{{.Id}}' "${image_ref}")" || return $?
+        if [[ ! "${image_id}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+          echo "cannot identify built image for cache export: ${image_ref}" >&2
+          return 1
+        fi
+        if [ -f "${receipt}" ]; then
+          read -r previous_id <"${receipt}" || return 1
+        fi
+        if [ "${previous_id}" = "${image_id}" ]; then
+          printf 'docker_build_cache_export=reused scope=%s\n' "${cache_scope}"
+          return 0
+        fi
+        docker buildx build --output=type=cacheonly \
+          --cache-to "type=gha,scope=${cache_scope},mode=max,timeout=20m" \
+          "${args[@]}" || return $?
+        printf '%s\n' "${image_id}" >"${receipt}"
+        return 0
+      fi
       docker buildx build \
         --load \
         --cache-from "type=gha,scope=${cache_scope},timeout=20m" \
