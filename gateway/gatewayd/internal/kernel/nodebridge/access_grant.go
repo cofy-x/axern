@@ -13,6 +13,11 @@ import (
 // allocation-scoped gateway access grant.
 const AllocationAccessGrantAcceptedHeader = "x-axern-allocation-access-accepted"
 
+const (
+	DefaultAccessGrantRetryAttempts  = 5
+	DefaultAccessGrantRetryBaseDelay = 500 * time.Millisecond
+)
+
 // AllocationAccessGrantTokenMetadata carries the gateway-issued allocation authority
 // on the private gateway-to-node hop. It is deliberately absent from public
 // NodeSandbox request messages.
