@@ -21,42 +21,37 @@ func (f *fakeTerminalResolver) AuthorizeAllocationAccess(context.Context, *gatew
 	return &emptypb.Empty{}, f.authorizeErr
 }
 
-func TestOpenResolvedRefreshesRejectedLeaseBeforeReturningSession(t *testing.T) {
+func TestOpenResolvedRetriesSameGrantBeforeReturningSession(t *testing.T) {
 	t.Parallel()
 	stale := &fakeProcessStream{headerErr: status.Error(codes.Unauthenticated, "stale lease")}
 	fresh := &fakeProcessStream{responses: []*nodesandboxv1.ProcessResponse{{
 		Payload: &nodesandboxv1.ProcessResponse_Ready{Ready: &nodesandboxv1.ProcessReady{}},
 	}}}
 	nodes := &fakeProcessStreamer{streams: []*fakeProcessStream{stale, fresh}}
-	resolver := &fakeTerminalResolver{responses: []*gatewayv1.ResolveAllocationTerminalResponse{{
-		AllocationID: "alloc-1",
-		NodeID:       "node-new",
-		NodeTarget:   "node-new:24010",
-		AccessGrant:  &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(time.Minute)), PlaintextToken: "fresh-token"},
-	}}}
+	resolver := &fakeTerminalResolver{}
 	manager := NewManager(resolver, nodes, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond}, nil, nil)
 
 	session, err := manager.OpenResolved(WithCredential(context.Background(), "test-fingerprint", "x509_sha256"), &gatewayv1.ResolveAllocationTerminalResponse{
 		AllocationID: "alloc-1",
 		NodeID:       "node-old",
 		NodeTarget:   "node-old:24010",
-		AccessGrant:  &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(time.Minute)), PlaintextToken: "stale-token"},
+		AccessGrant:  &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(time.Minute)), PlaintextToken: "pending-token"},
 	})
 	if err != nil {
 		t.Fatalf("OpenResolved() error = %v", err)
 	}
 	defer session.Close()
-	if got := nodes.targets; len(got) != 2 || got[0] != "node-old:24010" || got[1] != "node-new:24010" {
-		t.Fatalf("node targets = %#v, want old then new", got)
+	if got := nodes.targets; len(got) != 2 || got[0] != "node-old:24010" || got[1] != "node-old:24010" {
+		t.Fatalf("node targets = %#v, want the immutable binding twice", got)
 	}
-	if len(resolver.requests) != 1 || resolver.requests[0].GetAllocationID() != "alloc-1" {
-		t.Fatalf("resolve requests = %#v, want one alloc-1 refresh", resolver.requests)
+	if len(resolver.requests) != 0 {
+		t.Fatalf("resolve requests = %#v, want no replacement grant", resolver.requests)
 	}
-	if got := nodes.tokens[0]; got != "stale-token" {
-		t.Fatalf("stale access grant token = %q", got)
+	if got := nodes.tokens[0]; got != "pending-token" {
+		t.Fatalf("initial access grant token = %q", got)
 	}
-	if got := nodes.tokens[1]; got != "fresh-token" {
-		t.Fatalf("fresh access grant token = %q", got)
+	if got := nodes.tokens[1]; got != "pending-token" {
+		t.Fatalf("retried access grant token = %q", got)
 	}
 	if stale.closeCalls != 1 {
 		t.Fatalf("stale stream close calls = %d, want 1", stale.closeCalls)

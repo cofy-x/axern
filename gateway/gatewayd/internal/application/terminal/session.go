@@ -172,14 +172,16 @@ func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAl
 		}
 		op.End(err)
 	}()
-	current := resolved
+	// The control plane already bound this grant to one immutable Allocation and
+	// Node. Retry visibility of that exact authority instead of minting a moving
+	// sequence of replacement grants.
 	for attempt := 1; attempt <= m.options.AccessGrantRetryAttempts; attempt++ {
-		backendCtx := nodekernel.WithAllocationAccessGrant(ctx, current.GetAccessGrant().GetPlaintextToken())
-		stream, err = m.nodes.Process(backendCtx, current.GetNodeTarget(), current.GetNodeID())
+		backendCtx := nodekernel.WithAllocationAccessGrant(ctx, resolved.GetAccessGrant().GetPlaintextToken())
+		stream, err = m.nodes.Process(backendCtx, resolved.GetNodeTarget(), resolved.GetNodeID())
 		if err != nil {
 			return nil, err
 		}
-		err = stream.Send(processOpenRequest(current, opts))
+		err = stream.Send(processOpenRequest(resolved, opts))
 		if err == nil {
 			var header metadata.MD
 			header, err = stream.Header()
@@ -210,11 +212,6 @@ func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAl
 		if err := nodekernel.WaitAccessGrantRetry(ctx, attempt, m.options.AccessGrantRetryDelay); err != nil {
 			return nil, err
 		}
-		current, err = m.Resolve(ctx, allocationID)
-		if err != nil {
-			return nil, err
-		}
-		op.SetAttributes(attribute.String(sdkobs.AttrNodeID, current.GetNodeID()))
 	}
 	return nil, err
 }

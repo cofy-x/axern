@@ -58,34 +58,37 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 	if authErr != nil {
 		return authErr
 	}
-	var err error
+	resolved, err := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
+		AllocationID:          allocationID,
+		TtlSeconds:            300,
+		CredentialFingerprint: fingerprint,
+		CredentialKind:        "x509_sha256",
+		Purpose:               purpose,
+	})
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(resolved.GetAllocationID()) != allocationID {
+		return grpcstatus.Error(codes.Internal, "resolved allocation identity does not match request")
+	}
+	token := strings.TrimSpace(resolved.GetAccessGrant().GetPlaintextToken())
+	if token == "" {
+		return grpcstatus.Error(codes.Internal, "resolved allocation access grant token is empty")
+	}
+	if resolved.GetAccessGrant().GetExpiresAt() == nil || !time.Now().Before(resolved.GetAccessGrant().GetExpiresAt().AsTime()) {
+		return grpcstatus.Error(codes.Unauthenticated, "allocation access grant has expired")
+	}
+	accessCtx, cancel := context.WithDeadline(ctx, resolved.GetAccessGrant().GetExpiresAt().AsTime())
+	defer cancel()
+	client, err := s.dialer.NodeSandbox(ctx, resolved.GetNodeTarget(), resolved.GetNodeID())
+	if err != nil {
+		return err
+	}
+	// A rejection can mean the Node has not observed this committed grant yet.
+	// Reissuing inside the retry loop would advance the delivery revision and
+	// replace the token the Node is waiting for, so retries keep one immutable
+	// Allocation binding and one grant.
 	for attempt := 1; attempt <= s.options.AccessGrantRetryAttempts; attempt++ {
-		resolved, resolveErr := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
-			AllocationID:          allocationID,
-			TtlSeconds:            300,
-			CredentialFingerprint: fingerprint,
-			CredentialKind:        "x509_sha256",
-			Purpose:               purpose,
-		})
-		if resolveErr != nil {
-			return resolveErr
-		}
-		if strings.TrimSpace(resolved.GetAllocationID()) != allocationID {
-			return grpcstatus.Error(codes.Internal, "resolved allocation identity does not match request")
-		}
-		token := strings.TrimSpace(resolved.GetAccessGrant().GetPlaintextToken())
-		if token == "" {
-			return grpcstatus.Error(codes.Internal, "resolved allocation access grant token is empty")
-		}
-		if resolved.GetAccessGrant().GetExpiresAt() == nil || !time.Now().Before(resolved.GetAccessGrant().GetExpiresAt().AsTime()) {
-			return grpcstatus.Error(codes.Unauthenticated, "allocation access grant has expired")
-		}
-		accessCtx, cancel := context.WithDeadline(ctx, resolved.GetAccessGrant().GetExpiresAt().AsTime())
-		defer cancel()
-		client, dialErr := s.dialer.NodeSandbox(ctx, resolved.GetNodeTarget(), resolved.GetNodeID())
-		if dialErr != nil {
-			return dialErr
-		}
 		err = call(nodekernel.WithAllocationAccessGrant(accessCtx, token), client)
 		if attempt == s.options.AccessGrantRetryAttempts || !shouldRetry(err) {
 			return unwrapAccessGrantOpenRejection(err)

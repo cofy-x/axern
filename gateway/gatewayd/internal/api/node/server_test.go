@@ -153,11 +153,11 @@ func TestProcessRetriesTransientLeaseBeforeReadingClientInput(t *testing.T) {
 	if resp.GetReady() == nil {
 		t.Fatalf("initial response = %#v, want ready", resp)
 	}
-	if got := len(h.resolver.requests); got != 2 {
-		t.Fatalf("resolve calls = %d, want 2", got)
+	if got := len(h.resolver.requests); got != 1 {
+		t.Fatalf("resolve calls = %d, want 1", got)
 	}
-	if got := len(h.dialer.targets); got != 2 {
-		t.Fatalf("dial calls = %d, want 2", got)
+	if got := len(h.dialer.targets); got != 1 {
+		t.Fatalf("dial calls = %d, want 1", got)
 	}
 }
 
@@ -217,13 +217,13 @@ func TestUploadArchiveRequiresOpenFirstMessage(t *testing.T) {
 	}
 }
 
-func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
+func TestUploadArchiveRetriesSameGrantBeforeReadingChunks(t *testing.T) {
 	h := newHarnessWithOptions(t, Options{
 		AccessGrantRetryAttempts: 2,
 		AccessGrantRetryDelay:    time.Nanosecond,
 	})
 	defer h.Close()
-	h.resolver.tokens = []string{"stale-token", "fresh-token"}
+	h.resolver.tokens = []string{"pending-token"}
 	h.backend.failUploadArchiveLeaseOnce = true
 
 	stream, err := h.client.UploadArchive(context.Background())
@@ -246,17 +246,17 @@ func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
 	if _, err = stream.CloseAndRecv(); err != nil {
 		t.Fatalf("UploadArchive CloseAndRecv returned error: %v", err)
 	}
-	if got := len(h.resolver.requests); got != 2 {
-		t.Fatalf("resolve calls = %d, want 2", got)
+	if got := len(h.resolver.requests); got != 1 {
+		t.Fatalf("resolve calls = %d, want 1", got)
 	}
 	if got := len(h.backend.uploadArchiveOpens); got != 2 {
 		t.Fatalf("backend opens = %d, want 2", got)
 	}
-	if got := h.backend.uploadArchiveLeaseTokens[0]; got != "stale-token" {
-		t.Fatalf("first token = %q, want stale-token", got)
+	if got := h.backend.uploadArchiveLeaseTokens[0]; got != "pending-token" {
+		t.Fatalf("first token = %q, want pending-token", got)
 	}
-	if got := h.backend.uploadArchiveLeaseTokens[1]; got != "fresh-token" {
-		t.Fatalf("second token = %q, want fresh-token", got)
+	if got := h.backend.uploadArchiveLeaseTokens[1]; got != "pending-token" {
+		t.Fatalf("second token = %q, want pending-token", got)
 	}
 	if got := string(h.backend.uploadArchiveData); got != "archive-data" {
 		t.Fatalf("uploaded data = %q, want archive-data", got)
@@ -266,10 +266,10 @@ func TestUploadArchiveRefreshesLeaseBeforeReadingChunks(t *testing.T) {
 	}
 }
 
-func TestDownloadArchiveRefreshesLeaseBeforeSendingBytes(t *testing.T) {
+func TestDownloadArchiveRetriesSameGrantBeforeSendingBytes(t *testing.T) {
 	h := newHarnessWithOptions(t, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond})
 	defer h.Close()
-	h.resolver.tokens = []string{"stale-token", "fresh-token"}
+	h.resolver.tokens = []string{"pending-token"}
 	h.backend.failDownloadArchiveLeaseOnce = true
 
 	stream, err := h.client.DownloadArchive(context.Background(), &nodesandboxv1.DownloadArchiveRequest{
@@ -295,11 +295,11 @@ func TestDownloadArchiveRefreshesLeaseBeforeSendingBytes(t *testing.T) {
 	if got := len(h.backend.downloadArchiveRequests); got != 2 {
 		t.Fatalf("backend requests = %d, want 2", got)
 	}
-	if got := h.backend.downloadArchiveLeaseTokens[0]; got != "stale-token" {
-		t.Fatalf("first token = %q, want stale-token", got)
+	if got := h.backend.downloadArchiveLeaseTokens[0]; got != "pending-token" {
+		t.Fatalf("first token = %q, want pending-token", got)
 	}
-	if got := h.backend.downloadArchiveLeaseTokens[1]; got != "fresh-token" {
-		t.Fatalf("second token = %q, want fresh-token", got)
+	if got := h.backend.downloadArchiveLeaseTokens[1]; got != "pending-token" {
+		t.Fatalf("second token = %q, want pending-token", got)
 	}
 }
 
