@@ -33,7 +33,7 @@ func TestRetainedEnvironmentReuseCancelsEviction(t *testing.T) {
 	}
 
 	evictions := lm.collectExpiredRetained(time.Now().UTC().Add(time.Second), RetentionReasonTTLExpired)
-	lm.executeEvictions(t.Context(), evictions)
+	lm.executeEvictions(evictions)
 
 	if got := lm.GetPreparedEnvironment("rt-reuse"); got == nil {
 		t.Fatal("expected reused runtime to remain present")

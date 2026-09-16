@@ -105,6 +105,8 @@ Long-running stream/session cleanup must close stdin, request graceful terminati
 
 Session cleanup uses an independently bounded runtime wait, not the access-side Wait result: a disconnected or revoked caller can finish its wait while the process still runs. Failure to confirm termination is returned to the session owner; closing access does not terminate the Allocation or its explicit background processes.
 
+Process and ExecStream adapt their public stream requests directly to the same runtime `OpenExecSession` contract. There is no separately composed Process service or lifecycle; the API-facing controller retains timeout, signal, and stream behavior.
+
 Daemon shutdown performs the same cleanup for daemon-owned child processes: sandboxd closes open stdin pipes, sends graceful termination to active process groups, escalates to kill after the configured grace period, shuts down the HTTP server, and removes the private Unix socket.
 
 On Linux, one waiter owns child creation/registration, group signaling, `wait4`, and OS handle release under the same short critical section. Registration cannot race reaping, and an already-reaped command cannot signal a reused PID. Unregistered adopted children are reaped without caching a result by PID. Process groups are not containment: a descendant can leave its original group; runsc Allocation teardown remains the final sandbox-wide cleanup boundary. Non-Linux tooling signals the direct OS process handle and does not claim the Linux PID 1 group guarantee.

@@ -11,36 +11,34 @@ func (rf *RootFS) IncActiveRef() error {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	if rf.deleted {
-		return fmt.Errorf("this rootfs has already been deleted")
+	if rf.released {
+		return fmt.Errorf("rootfs references have already been released")
 	}
 	rf.activeRefs++
 	return nil
 }
 
-func (rf *RootFS) MoveActiveToRetained() {
+func (rf *RootFS) MoveActiveToRetained() error {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	if rf.deleted {
-		logrus.Warningf("attempt to retain deleted rootfs %v", rf.cfg)
-		return
+	if rf.released {
+		return fmt.Errorf("cannot retain released rootfs %v", rf.cfg)
+	}
+	if rf.activeRefs == 0 {
+		return fmt.Errorf("rootfs %v has no active reference to retain", rf.cfg)
 	}
 	rf.activeRefs--
-	if rf.activeRefs < 0 {
-		logrus.Warningf("active rootfs refcount %v < 0, leak happens.", rf.activeRefs)
-		rf.activeRefs = 0
-		return
-	}
 	rf.retainedRefs++
+	return nil
 }
 
 func (rf *RootFS) MoveRetainedToActive() error {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	if rf.deleted {
-		return fmt.Errorf("this rootfs has already been deleted")
+	if rf.released {
+		return fmt.Errorf("rootfs references have already been released")
 	}
 	if rf.retainedRefs <= 0 {
 		return fmt.Errorf("rootfs %v has no retained references", rf.cfg)
@@ -50,11 +48,13 @@ func (rf *RootFS) MoveRetainedToActive() error {
 	return nil
 }
 
-func (rf *RootFS) ReleaseActiveRef() bool {
+// ReleaseActiveRef reports whether the final reference was relinquished. A true
+// result does not imply physical unmount succeeded; the error reports cleanup.
+func (rf *RootFS) ReleaseActiveRef() (bool, error) {
 	return rf.releaseRef(true)
 }
 
-func (rf *RootFS) ReleaseRetainedRef() bool {
+func (rf *RootFS) ReleaseRetainedRef() (bool, error) {
 	return rf.releaseRef(false)
 }
 
@@ -75,47 +75,46 @@ func (rf *RootFS) RootfsTypeLabel() string {
 	}
 }
 
-func (rf *RootFS) releaseRef(active bool) bool {
+func (rf *RootFS) referencesReleased() bool {
 	rf.mu.Lock()
-	if rf.deleted {
+	defer rf.mu.Unlock()
+	return rf.released
+}
+
+func (rf *RootFS) releaseRef(active bool) (bool, error) {
+	rf.mu.Lock()
+	if rf.released {
 		rf.mu.Unlock()
-		return false
+		return false, nil
 	}
 
 	if active {
+		if rf.activeRefs == 0 {
+			rf.mu.Unlock()
+			return false, fmt.Errorf("rootfs %v has no active reference to release", rf.cfg)
+		}
 		rf.activeRefs--
-		if rf.activeRefs < 0 {
-			logrus.Warningf("active rootfs refcount %v < 0, leak happens.", rf.activeRefs)
-			rf.activeRefs = 0
-			rf.mu.Unlock()
-			return false
-		}
 	} else {
-		rf.retainedRefs--
-		if rf.retainedRefs < 0 {
-			logrus.Warningf("retained rootfs refcount %v < 0, leak happens.", rf.retainedRefs)
-			rf.retainedRefs = 0
+		if rf.retainedRefs == 0 {
 			rf.mu.Unlock()
-			return false
+			return false, fmt.Errorf("rootfs %v has no retained reference to release", rf.cfg)
 		}
+		rf.retainedRefs--
 	}
 
 	shouldRelease := rf.activeRefs == 0 && rf.retainedRefs == 0
 	if shouldRelease {
 		logrus.Infof("No one refers rootfs %v, try to release it", rf.cfg)
-		rf.deleted = true
+		rf.released = true
 	}
 	rf.mu.Unlock()
 
 	if !shouldRelease {
-		return false
+		return false, nil
 	}
 
-	if err := rf.UmountImage(); err != nil {
-		logrus.WithError(err).WithField("rootfs_path", rf.path).Warn("direct rootfs release failed; desired lease reconciliation will retry cleanup")
+	if rf.releaseMount != nil {
+		return true, rf.releaseMount()
 	}
-	if rf.cleanupFunc != nil {
-		rf.cleanupFunc()
-	}
-	return true
+	return true, rf.UmountImage()
 }

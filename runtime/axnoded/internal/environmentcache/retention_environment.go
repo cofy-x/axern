@@ -1,7 +1,6 @@
 package environmentcache
 
 import (
-	"context"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
@@ -80,7 +79,9 @@ func (lm *EnvironmentCache) release(environment *PreparedEnvironment) {
 	lm.updateRetentionGaugesLocked()
 	lm.environmentMu.Unlock()
 
-	lm.executeEvictions(context.Background(), evictions)
+	if err := lm.executeEvictions(evictions); err != nil {
+		logrus.WithError(err).Warn("release prepared environment")
+	}
 }
 
 func (lm *EnvironmentCache) retainLocked(environment *PreparedEnvironment, now time.Time) {
@@ -88,7 +89,10 @@ func (lm *EnvironmentCache) retainLocked(environment *PreparedEnvironment, now t
 		return
 	}
 
-	environment.RootFS.MoveActiveToRetained()
+	if err := environment.RootFS.MoveActiveToRetained(); err != nil {
+		logrus.WithError(err).Error("retain prepared environment rootfs")
+		return
+	}
 	environment.retained = true
 	environment.idleSince = now
 	environment.expireAt = now.Add(lm.retentionTTL)

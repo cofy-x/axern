@@ -21,7 +21,6 @@ type runtimeSpyHandler struct {
 	lastOptions        contract.HandlerOptions
 	lastExecOptions    contract.HandlerOptions
 	lastSessionOptions contract.HandlerOptions
-	lastProcessOptions contract.HandlerOptions
 	lastRequest        *apipb.CreateContainerRequest
 	lastExecRequest    *apipb.ExecContainerRequest
 	lastSessionOpen    *apipb.ExecSessionOpen
@@ -121,10 +120,6 @@ func (h *runtimeSpyHandler) OpenExecSession(_ context.Context, req *apipb.ExecSe
 		return h.execSession, h.execSessionErr
 	}
 	return &execSessionStub{}, nil
-}
-
-func (h *runtimeSpyHandler) ProcessService() contract.ProcessService {
-	return runtimeSpyProcessService{handler: h}
 }
 
 func (h *runtimeSpyHandler) FileService() contract.FileService {

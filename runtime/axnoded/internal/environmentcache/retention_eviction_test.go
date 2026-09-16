@@ -36,7 +36,7 @@ func TestTemporaryIdleEnvironmentRetainedUntilTTLExpiry(t *testing.T) {
 	}
 
 	evictions := lm.collectExpiredRetained(time.Now().UTC().Add(250*time.Millisecond), RetentionReasonTTLExpired)
-	lm.executeEvictions(t.Context(), evictions)
+	lm.executeEvictions(evictions)
 
 	if got := lm.GetPreparedEnvironment("rt-retained"); got != nil {
 		t.Fatal("expected runtime to be evicted after TTL expiry")
@@ -64,7 +64,7 @@ func TestTemporaryRuntimeEvictionClearsBundleTemplate(t *testing.T) {
 	environment.IncRef()
 	environment.DecRef()
 	evictions := lm.collectExpiredRetained(time.Now().UTC().Add(200*time.Millisecond), RetentionReasonTTLExpired)
-	lm.executeEvictions(t.Context(), evictions)
+	lm.executeEvictions(evictions)
 
 	if environment.template != nil {
 		t.Fatal("expected bundle template to be cleared on eviction")
@@ -95,12 +95,12 @@ func TestSharedRootfsRetainedUntilLastEviction(t *testing.T) {
 		t.Fatalf("collectAllRetained() = %d evictions, want 2", len(evictions))
 	}
 
-	lm.executeEvictions(t.Context(), evictions[:1])
+	lm.executeEvictions(evictions[:1])
 	if mock.UmountCount() != 0 {
 		t.Fatalf("shared rootfs should stay mounted after first eviction, got umounts=%d", mock.UmountCount())
 	}
 
-	lm.executeEvictions(t.Context(), evictions[1:])
+	lm.executeEvictions(evictions[1:])
 	if mock.UmountCount() != 1 {
 		t.Fatalf("shared rootfs should unmount after last eviction, got umounts=%d", mock.UmountCount())
 	}
@@ -159,7 +159,7 @@ func TestDrainRetainedEvictsAllRetainedEnvironments(t *testing.T) {
 	lr1.DecRef()
 	lr2.DecRef()
 
-	lm.DrainRetained(t.Context(), RetentionReasonShutdown)
+	lm.DrainRetained(RetentionReasonShutdown)
 
 	if got := lm.GetPreparedEnvironment("rt-drain-1"); got != nil {
 		t.Fatal("expected first retained environment to be drained")
@@ -190,7 +190,7 @@ func TestEvictIdleEnvironmentOnlyEvictsSelectedRuntime(t *testing.T) {
 	second.IncRef()
 	second.DecRef()
 
-	if err := lm.EvictIdleEnvironment(t.Context(), first.ID, RetentionReasonSelfTest); err != nil {
+	if err := lm.EvictIdleEnvironment(first.ID, RetentionReasonSelfTest); err != nil {
 		t.Fatalf("EvictIdleEnvironment() error = %v", err)
 	}
 	if lm.GetPreparedEnvironment(first.ID) != nil {
@@ -265,7 +265,7 @@ func TestRetentionMetricsReflectReuseAndEviction(t *testing.T) {
 	}
 
 	environment.DecRef()
-	lm.DrainRetained(t.Context(), RetentionReasonCapacity)
+	lm.DrainRetained(RetentionReasonCapacity)
 
 	if got := metrics.CounterValueForTest(metrics.MetricRetentionEvictionTotal, runtimeEvictionAttrs); got != beforeRuntimeEviction+1 {
 		t.Fatalf("runtime eviction counter = %v, want %v", got, beforeRuntimeEviction+1)

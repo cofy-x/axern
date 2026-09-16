@@ -24,7 +24,6 @@ type Target struct {
 type Runtime interface {
 	ExecContainer(context.Context, *apipb.ExecContainerRequest, contract.HandlerOptions) (*apipb.ExecContainerResponse, error)
 	OpenExecSession(context.Context, *apipb.ExecSessionOpen, contract.HandlerOptions) (contract.Session, error)
-	ProcessService() contract.ProcessService
 }
 
 type StreamResult int
@@ -92,12 +91,11 @@ func (e *Executor) OpenProcess(ctx context.Context, target Target, open *runtime
 	if target.Handler == nil {
 		return nil, errord.ErrInvalidContainer
 	}
-	return target.Handler.ProcessService().OpenProcess(ctx, &apipb.ProcessOpen{
+	return target.Handler.OpenExecSession(ctx, &apipb.ExecSessionOpen{
 		ID:          open.GetID(),
 		Command:     open.GetCommand(),
 		Tty:         open.GetTty(),
-		Timeout:     open.GetTimeout(),
-		Env:         open.GetEnv(),
+		Envs:        startplan.KeyValuesFromStringMap(open.GetEnv()),
 		Cwd:         open.GetCwd(),
 		User:        open.GetUser(),
 		InitialSize: open.GetInitialSize(),

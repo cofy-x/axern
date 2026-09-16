@@ -176,21 +176,33 @@ func (w *HttpWorker) reconcileReleasingMounts(ctx context.Context) {
 		if err := ctx.Err(); err != nil {
 			return
 		}
-		lease, record, err := w.existingLease(candidate.ID)
-		if err != nil || lease == nil || record == nil {
-			continue
-		}
-		unlock := w.lockMount(lease.MountKey)
-		count, countErr := w.mountStore.LeaseCount(lease.MountKey)
-		if countErr == nil && count == 1 {
-			if err := w.mountStore.BeginRelease(lease.ID); err == nil {
-				if err := w.unmountResource(ctx, record); err != nil {
-					_ = w.mountStore.RecordReleaseFailure(lease.ID, err)
-				} else {
-					_ = w.mountStore.ReleaseLease(lease.ID, true)
-				}
-			}
-		}
-		unlock()
+		w.retryReleasingMount(ctx, candidate)
 	}
+}
+
+func (w *HttpWorker) retryReleasingMount(ctx context.Context, candidate mountstore.Lease) {
+	unlock := w.lockMount(candidate.MountKey)
+	defer unlock()
+	// A queued observation is not release authority. Acquire or desired-set
+	// reconciliation may have retained this lease since the scan.
+	lease, record, err := w.existingLease(candidate.ID)
+	if err != nil || lease == nil || record == nil || !lease.Releasing || lease.MountKey != candidate.MountKey {
+		return
+	}
+	count, err := w.mountStore.LeaseCount(lease.MountKey)
+	if err != nil {
+		return
+	}
+	if count > 1 {
+		_ = w.mountStore.ReleaseLease(lease.ID, false)
+		return
+	}
+	if err := w.mountStore.BeginRelease(lease.ID); err != nil {
+		return
+	}
+	if err := w.unmountResource(ctx, record); err != nil {
+		_ = w.mountStore.RecordReleaseFailure(lease.ID, err)
+		return
+	}
+	_ = w.mountStore.ReleaseLease(lease.ID, true)
 }

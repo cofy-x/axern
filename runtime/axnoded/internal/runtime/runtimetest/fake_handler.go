@@ -81,19 +81,6 @@ func (f *FakeSandboxRuntime) OpenExecSession(ctx context.Context, request *apipb
 	return &fakeExecSession{}, nil
 }
 
-func (f *FakeSandboxRuntime) ProcessService() contract.ProcessService {
-	return fakeProcessService{}
-}
-
-type fakeProcessService struct{}
-
-func (fakeProcessService) OpenProcess(ctx context.Context, request *apipb.ProcessOpen, options contract.HandlerOptions) (contract.Session, error) {
-	if err := getErrorFromContext(ctx); err != nil {
-		return nil, err
-	}
-	return &fakeExecSession{}, nil
-}
-
 func (f *FakeSandboxRuntime) FileService() contract.FileService {
 	return fakeFileService{}
 }

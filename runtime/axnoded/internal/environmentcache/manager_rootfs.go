@@ -66,17 +66,19 @@ func (lm *EnvironmentCache) GetRootfsWithReport(cfg RootfsConfig) (*RootFS, Root
 		lm.mountLeaseMu.RLock()
 		defer lm.mountLeaseMu.RUnlock()
 	}
-	rootfs, mountReport, err := NewRootFSWithReport(cfg, lm.mounter, func() {
+	rootfs, mountReport, err := NewRootFSWithReport(cfg, lm.mounter, func() error {
+		if cfg.LeaseID != "" {
+			return lm.ReconcileMountLeases()
+		}
+		if err := lm.mounter.Umount(cfg); err != nil {
+			return err
+		}
 		lm.rfMu.Lock()
 		if lm.rootfsMap[cfg] == entry {
 			delete(lm.rootfsMap, cfg)
 		}
 		lm.rfMu.Unlock()
-		if cfg.LeaseID != "" {
-			if err := lm.ReconcileMountLeases(); err != nil {
-				logrus.WithError(err).WithField("lease_id", cfg.LeaseID).Warn("reconcile mount leases after rootfs release")
-			}
-		}
+		return nil
 	})
 	report.Steps = append(report.Steps, mountReport.Steps...)
 

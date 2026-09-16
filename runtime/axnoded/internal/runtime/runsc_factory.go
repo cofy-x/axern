@@ -88,7 +88,7 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 		releaseFilestore:                  func() { releaseFilestore(false) },
 		waitForSandboxReady:               runtimesandboxd.WaitReadyForContainer,
 	}
-	handler.services = newRuntimeServices(containerRoot, handler.OpenExecSession)
+	handler.services = newRuntimeServices(containerRoot)
 	constructed = true
 	return handler, nil
 }

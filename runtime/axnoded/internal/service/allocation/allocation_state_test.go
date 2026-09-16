@@ -301,8 +301,8 @@ func TestLoadAllocationStatesRestoresLiveContainerMountOwnership(t *testing.T) {
 			imageUnmounts++
 		}
 	}
-	if imageUnmounts != 1 {
-		t.Fatalf("image resource unmounts = %d, want one shared-rootfs release", imageUnmounts)
+	if imageUnmounts != 0 || len(mounter.reconciled) != 0 {
+		t.Fatalf("release must use only the empty desired lease set: direct unmounts=%d desired=%v", imageUnmounts, mounter.reconciled)
 	}
 }
 
@@ -412,8 +412,8 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 			imageUnmounts++
 		}
 	}
-	if imageUnmounts != 1 {
-		t.Fatalf("image resource unmounts = %d, want rollback", imageUnmounts)
+	if imageUnmounts != 0 || len(mounter.reconciled) != 0 || mounter.reconcileCalls == 0 {
+		t.Fatalf("rollback must deliver the empty desired lease set: direct unmounts=%d desired=%v calls=%d", imageUnmounts, mounter.reconciled, mounter.reconcileCalls)
 	}
 }
 

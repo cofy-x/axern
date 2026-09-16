@@ -163,7 +163,11 @@ func releaseImageMountRoots(roots []*environmentcache.RootFS) {
 		if rootfs == nil {
 			continue
 		}
-		if released := rootfs.ReleaseActiveRef(); released {
+		released, err := rootfs.ReleaseActiveRef()
+		if err != nil {
+			logrus.WithError(err).Warn("release image mount rootfs")
+		}
+		if released {
 			logrus.WithField("rootfs_type", rootfs.RootfsTypeLabel()).Debug("released image mount rootfs")
 		}
 	}
