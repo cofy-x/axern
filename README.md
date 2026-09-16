@@ -103,7 +103,7 @@ Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/
 
 Follow the [Kubernetes installation guide](./apps/docs/src/content/docs/getting-started/kubernetes.md) to provision signing material, supply qualified node memory reserves, bind explicit Node identities, install the control plane, and admit nodes before waiting for runtime readiness. SSH is optional and uses Principal Credentials. Do not skip the identity and admission steps by running a bare Helm install.
 
-The current source tree contains coordinated breaking changes beyond the published release; review the [unreleased upgrade boundary](./docs/releases/unreleased.md) before selecting matching chart, image, CLI, and SDK builds. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
+The v0.7.0 upgrade requires coordinated chart, image, CLI, and SDK builds and fresh state; review the [v0.7.0 upgrade boundary](./docs/releases/v0.7.0.md). Use published release artifacts only after publication completes; a source version is not proof of artifact availability. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
 
 ## Deployment
 

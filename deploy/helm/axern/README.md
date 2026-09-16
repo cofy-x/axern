@@ -10,7 +10,7 @@ Released charts are published to GHCR as OCI artifacts:
 
 ```bash
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
-  --version 0.6.2 \
+  --version 0.7.0 \
   --namespace axern-system \
   --create-namespace \
   --set-string node.enrollment.existingSecret=axern-enrollment-tokens \
@@ -83,7 +83,7 @@ For an externally reachable Grafana, set `observability.grafana.admin.existingSe
 
 The chart defaults `node.network.natBackend` to `ebpf`. bpfnet is the default production NAT dataplane for supported Axern Linux nodes after the production replacement gates in [`network/bpfnet/docs/production-replacement-baseline.md`](../../../network/bpfnet/docs/production-replacement-baseline.md) pass. Use `node.network.natBackend=iptables` only as an explicit rollback backend.
 
-The eBPF backend requires TC ingress/egress and localhost cgroup links to be ready; attach or reconciliation failure is fail-closed. Select `node.network.natBackend=iptables` explicitly when the complete iptables backend is required. The two dataplanes are never mixed on IPv4.
+The eBPF backend requires TC ingress/egress to be ready; attach or reconciliation failure is fail-closed. TC ingress restores egress replies; public inbound access uses gatewayd and Allocation-bound TunnelSessions, not localhost DNAT. Select `node.network.natBackend=iptables` explicitly when the complete iptables backend is required. The two dataplanes are never mixed on IPv4.
 
 `node.network.ebpf.snatMapSize` controls the egress SNAT forward/reverse maps and should be sized for short-connection flow churn. The translated source port allocator uses a fixed dataplane range of `10000-65535` with `256` hash/stride fallback probes after same-port conflicts. axnoded runs a background SNAT GC loop when bpfnet is active; tune `snatGcInterval`, `snatTcpIdleTimeout`, `snatTcpClosingTimeout`, and `snatDatagramIdleTimeout` when validating high-churn TCP short connections or UDP workloads. The default datagram idle timeout is tuned for short-message churn; increase it for long-idle UDP or QUIC-like traffic. Use `bpfnetctl status --json` to inspect map occupancy; `bpfnetctl check --json` is only a readiness check.
 
