@@ -15,7 +15,7 @@ axern local image load python:3.12-slim --pull
 axern local status
 ```
 
-Starting again is idempotent. Existing PostgreSQL, object, runtime, and identity data is preserved. If another context is already selected, `local up` does not replace it; use `axern local up --use` when you want to switch.
+Starting again is idempotent. Existing PostgreSQL, runtime, and identity data is preserved. If another context is already selected, `local up` does not replace it; use `axern local up --use` when you want to switch.
 
 Optional local telemetry is deliberately excluded from the cold-start path:
 

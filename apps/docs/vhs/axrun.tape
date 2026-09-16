@@ -7,9 +7,10 @@ Set Height 600
 Set Padding 24
 Set TypingSpeed 18ms
 Env HOME "~"
-Type "axrun rollout --help | sed -n '1,18p'"
+Type "axrun rollout --help | sed -n '1,11p'"
 Enter
 Sleep 4s
-Type "axrun rollout plan --help | sed -n '1,18p'"
+Ctrl+L
+Type "axrun rollout plan --help | sed -n '1,13p'"
 Enter
 Sleep 5s

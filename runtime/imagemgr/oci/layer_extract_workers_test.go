@@ -53,11 +53,18 @@ func TestExtractLayersWithWorkers_RollsBackReservedRefsOnError(t *testing.T) {
 
 func TestExtractLayersWithWorkers_ConcurrentAndOrdered(t *testing.T) {
 	mgr := newTestManager(t)
-	defer mgr.store.close()
 	mgr.layerWorkers = 2
 
 	const layerCount = 4
-	const delay = 200 * time.Millisecond
+	started := make([]chan struct{}, layerCount)
+	release := make([]chan struct{}, layerCount)
+	unblock := func(i int) {
+		if release[i] != nil {
+			close(release[i])
+			release[i] = nil
+		}
+	}
+	done := make(chan struct{})
 
 	layers := make([]v1.Layer, 0, layerCount)
 	wantDigests := make([]string, 0, layerCount)
@@ -66,18 +73,59 @@ func TestExtractLayersWithWorkers_ConcurrentAndOrdered(t *testing.T) {
 		if err != nil {
 			t.Fatalf("new hash %d: %v", i, err)
 		}
-		layers = append(layers, sleepLayer{
-			digest: hash,
-			delay:  delay,
+		started[i] = make(chan struct{}, 1)
+		release[i] = make(chan struct{})
+		layers = append(layers, blockLayer{
+			digest:  hash,
+			started: started[i],
+			unblock: release[i],
 		})
 		wantDigests = append(wantDigests, hash.String())
 	}
 
-	start := time.Now()
-	gotDigests, gotPaths, err := mgr.extractLayersWithWorkers(context.Background(), layers)
-	elapsed := time.Since(start)
+	var gotDigests, gotPaths []string
+	var err error
+	// Release every barrier even after a failed assertion, then join the
+	// extraction and workers before closing their store and temporary files.
+	t.Cleanup(func() {
+		for i := range release {
+			unblock(i)
+		}
+		<-done
+		if err := mgr.Close(); err != nil {
+			t.Errorf("close manager: %v", err)
+		}
+	})
+	go func() {
+		defer close(done)
+		gotDigests, gotPaths, err = mgr.extractLayersWithWorkers(context.Background(), layers)
+	}()
+	wait := func(ch <-chan struct{}, label string) {
+		t.Helper()
+		select {
+		case <-ch:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("timed out waiting for %s", label)
+		}
+	}
+	// Both workers must enter extraction before either is released. A serial
+	// implementation cannot satisfy this barrier, regardless of machine speed.
+	wait(started[0], "first layer")
+	wait(started[1], "second layer")
+	// Keep the first layer blocked while the other worker completes layers
+	// 1 and 2 and starts layer 3. Completion order must not change result order.
+	unblock(1)
+	wait(started[2], "third layer")
+	unblock(2)
+	wait(started[3], "fourth layer")
+	unblock(3)
+	unblock(0)
+	wait(done, "extraction completion")
 	if err != nil {
 		t.Fatalf("extractLayersWithWorkers() error: %v", err)
+	}
+	if len(gotDigests) != layerCount || len(gotPaths) != layerCount {
+		t.Fatalf("result lengths = (%d, %d), want (%d, %d)", len(gotDigests), len(gotPaths), layerCount, layerCount)
 	}
 
 	for i := 0; i < layerCount; i++ {
@@ -87,6 +135,13 @@ func TestExtractLayersWithWorkers_ConcurrentAndOrdered(t *testing.T) {
 		if gotPaths[i] == "" {
 			t.Fatalf("expected non-empty layer path at %d", i)
 		}
+		record, err := mgr.store.getLayer(wantDigests[i])
+		if err != nil {
+			t.Fatalf("read layer metadata at %d: %v", i, err)
+		}
+		if record == nil || gotPaths[i] != record.Path {
+			t.Fatalf("path order mismatch at %d: path %q does not match layer %s", i, gotPaths[i], wantDigests[i])
+		}
 		if _, err := os.Stat(gotPaths[i]); err != nil {
 			t.Fatalf("layer path should exist at %d: %v", i, err)
 		}
@@ -94,10 +149,6 @@ func TestExtractLayersWithWorkers_ConcurrentAndOrdered(t *testing.T) {
 		if len(layerDir) != 66 || !strings.HasPrefix(layerDir, "l-") {
 			t.Fatalf("expected content-addressed layer dir, got %s", layerDir)
 		}
-	}
-
-	if elapsed >= 700*time.Millisecond {
-		t.Fatalf("expected concurrent extraction, elapsed=%v", elapsed)
 	}
 }
 

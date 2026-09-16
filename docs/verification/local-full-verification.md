@@ -24,6 +24,8 @@ Set `VERIFY_BASE=<ref>` when the comparison base is not `origin/main`. For a bro
 
 Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its normal budget is minutes. A normal pull request may merge after its selected Tier 1 checks and GitHub checks pass; it does not also require a local full gate.
 
+Concurrency unit tests must prove overlap, ordering, and limits through explicit synchronization rather than total elapsed-time thresholds. Wall-clock deadlines may bound a stuck test, but shared-runner speed is not a correctness assertion. Release all test barriers and join workers before closing their stores or removing temporary directories.
+
 ## Tier 2: affected Linux and local integration
 
 Use the Linux devbox or a narrow privileged Docker verification only for an affected runtime boundary:
@@ -53,7 +55,7 @@ Tier 2 proves correctness with a small deterministic matrix. Sampling must not t
 `make verify-full` is the broad-change and post-merge repository gate. It is not a default prerequisite for every pull-request merge or a command to restart after each edit. On failure, first reproduce the named step directly, then use the printed `--from <step>` resume point while diagnosing:
 
 ```bash
-make verify-full ARGS='--include-local-storage'
+make verify-full
 make verify-full ARGS='--include-bpfnet-generate-check'
 make verify-full ARGS='--include-proto-breaking'
 ```
@@ -64,7 +66,7 @@ Each run publishes a summary plus a 14-day artifact containing the exact commit,
 
 Do not release or promote a commit until its exact `Full Repository Regression` job succeeds. The workflow is deliberately not a required pull-request check.
 
-Use `make verify-release` for the source and local-deployment release gate. It includes Axrun and local-storage acceptance, but it does not produce an environment qualification receipt.
+Use `make verify-release` for the full repository gate with Axrun acceptance. Deployment and environment qualification remain separate; this command does not produce an environment qualification receipt.
 
 ## Tier 4: environment qualification
 
