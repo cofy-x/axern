@@ -90,7 +90,6 @@ type SandboxRuntime interface {
 	ContainerSpec(context.Context, HandlerOptions) (*spec.Spec, error)
 	ExecContainer(context.Context, *apipb.ExecContainerRequest, HandlerOptions) (*apipb.ExecContainerResponse, error)
 	OpenExecSession(context.Context, *apipb.ExecSessionOpen, HandlerOptions) (Session, error)
-	ProcessService() ProcessService
 	FileService() FileService
 	Wait(context.Context, HandlerOptions) (Exit, error)
 	ShutDown()

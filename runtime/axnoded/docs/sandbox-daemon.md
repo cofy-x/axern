@@ -103,7 +103,17 @@ Short-lived successful workloads may exit before readiness observes the daemon. 
 
 Long-running stream/session cleanup must close stdin, request graceful termination, wait for daemon process status, and escalate to kill before releasing local streams.
 
+Session cleanup uses an independently bounded runtime wait, not the access-side Wait result: a disconnected or revoked caller can finish its wait while the process still runs. Failure to confirm termination is returned to the session owner; closing access does not terminate the Allocation or its explicit background processes.
+
+Process and ExecStream adapt their public stream requests directly to the same runtime `OpenExecSession` contract. There is no separately composed Process service or lifecycle; the API-facing controller retains timeout, signal, and stream behavior.
+
 Daemon shutdown performs the same cleanup for daemon-owned child processes: sandboxd closes open stdin pipes, sends graceful termination to active process groups, escalates to kill after the configured grace period, shuts down the HTTP server, and removes the private Unix socket.
+
+On Linux, one waiter owns child creation/registration, group signaling, `wait4`, and OS handle release under the same short critical section. Registration cannot race reaping, and an already-reaped command cannot signal a reused PID. Unregistered adopted children are reaped without caching a result by PID. Process groups are not containment: a descendant can leave its original group; runsc Allocation teardown remains the final sandbox-wide cleanup boundary. Non-Linux tooling signals the direct OS process handle and does not claim the Linux PID 1 group guarantee.
+
+Registry shutdown closes Start admission before collecting active processes. Signal, timeout, and shutdown share the waiter authority; retained exit records (up to 256) confer no signal authority. Up to 64 processes can be active. Output capture is bounded to 1 MiB per stream; each output subscription has a 256-event queue and each process admits at most 64 subscriptions. A lagging subscription receives an explicit overflow error and closes, rather than blocking process completion. After child exit, output draining has a one-second grace before local pipe/PTY closure. Closing stdin can interrupt a blocked writer without waiting for its write lock. A canceled Wait only cancels that wait; explicit background processes remain Allocation-owned, while interactive session owners perform graceful termination and bounded escalation when closing their sessions.
+
+Use `make -C runtime/axnoded test-process-race` on Linux to check the waiter, registry, private process HTTP API, and runtime client. The existing Go CI job runs this focused race gate in addition to the full node unit suite.
 
 ## API Contract
 

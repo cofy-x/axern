@@ -12,11 +12,12 @@ import (
 )
 
 type imageMountTestMounter struct {
-	imagePaths map[string]string
-	mountErr   error
-	mountErrs  map[string]error
-	umounts    []environmentcache.RootfsConfig
-	reconciled []string
+	imagePaths     map[string]string
+	mountErr       error
+	mountErrs      map[string]error
+	umounts        []environmentcache.RootfsConfig
+	reconciled     []string
+	reconcileCalls int
 }
 
 func (m *imageMountTestMounter) Resolve(cfg environmentcache.RootfsConfig) (environmentcache.RootfsConfig, error) {
@@ -58,6 +59,7 @@ func (m *imageMountTestMounter) Umount(cfg environmentcache.RootfsConfig) error 
 }
 
 func (m *imageMountTestMounter) Reconcile(leaseIDs []string) error {
+	m.reconcileCalls++
 	m.reconciled = append([]string(nil), leaseIDs...)
 	return nil
 }
@@ -112,14 +114,13 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	if _, err := tc.controller.Delete(context.Background(), &runtime.DeleteRequest{ID: "alloc-image-mount"}); err != nil {
 		t.Fatalf("Delete() error = %v", err)
 	}
-	foundImageUmount := false
+	if len(mounter.reconciled) != 0 || mounter.reconcileCalls == 0 {
+		t.Fatalf("released image remains desired: %v", mounter.reconciled)
+	}
 	for _, cfg := range mounter.umounts {
 		if cfg.SrcType == runtime.RootfsSrcType_IMAGE && cfg.ImageUrl == "example.com/axern/codex-tool:latest" {
-			foundImageUmount = true
+			t.Fatal("image release bypassed desired lease reconciliation")
 		}
-	}
-	if !foundImageUmount {
-		t.Fatalf("umounts = %#v, want image mount rootfs release", mounter.umounts)
 	}
 }
 
@@ -155,14 +156,13 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("Start() error = nil, want runtime create error")
 	}
-	foundImageUmount := false
+	if len(mounter.reconciled) != 0 || mounter.reconcileCalls == 0 {
+		t.Fatalf("failed image remains desired: %v", mounter.reconciled)
+	}
 	for _, cfg := range mounter.umounts {
 		if cfg.SrcType == runtime.RootfsSrcType_IMAGE && cfg.ImageUrl == "example.com/axern/tool:latest" {
-			foundImageUmount = true
+			t.Fatal("image release bypassed desired lease reconciliation")
 		}
-	}
-	if !foundImageUmount {
-		t.Fatalf("umounts = %#v, want image mount release after create failure", mounter.umounts)
 	}
 }
 

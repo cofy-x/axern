@@ -130,22 +130,6 @@ func (h *controllerHandler) OpenExecSession(_ context.Context, _ *apipb.ExecSess
 	return newSessionStub(), nil
 }
 
-func (h *controllerHandler) ProcessService() contract.ProcessService {
-	return controllerProcessService{handler: h}
-}
-
-type controllerProcessService struct {
-	handler *controllerHandler
-}
-
-func (s controllerProcessService) OpenProcess(_ context.Context, _ *apipb.ProcessOpen, options contract.HandlerOptions) (contract.Session, error) {
-	s.handler.lastProcessOptions = options
-	if s.handler.session != nil {
-		return s.handler.session, nil
-	}
-	return newSessionStub(), nil
-}
-
 func testTarget(id string, handler contract.SandboxRuntime) sandboxtarget.Target {
 	return sandboxtarget.Target{
 		ID:       id,

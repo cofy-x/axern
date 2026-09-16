@@ -1,8 +1,6 @@
 # Project Overview
 
-Axern is the open-source environment execution platform for agent evaluation, training, and executable data synthesis. A unified SDK exposes secure, reproducible, highly concurrent sandboxes. The canonical durable model is `Environment -> Run -> Allocation`; higher-level benchmark, agent, verifier, and training orchestration stays above the platform.
-
-The repository contains product APIs and CLIs, a durable control plane, an external gateway, node-local runtime components, networking, SDKs, and deployment tooling.
+Use this document for repository layout, workspace membership, and build orchestration changes. Product semantics belong to the [Stable Domain Model](../docs/product/domain-model.md), not this repository map.
 
 ## Repository Map
 
@@ -56,11 +54,4 @@ Use `make help` for commands and the owning module README for details. Command i
 
 See the [Devbox runbook](../docs/operations/devbox.md) and [Local Deployment](../deploy/local/README.md) for concrete operations.
 
-## Standard Change Flow
-
-1. Find the owner in the [Module Guide](module-guide.md).
-2. Read that module's contract when present and its README.
-3. Make the smallest cohesive change inside the owning boundary.
-4. Run the local contract's required checks.
-5. For a cross-module change, verify the boundary described by the [Runtime Stack](runtime-stack.md).
-6. Update only the durable docs whose contract or workflow changed.
+Task reading and validation follow the [Agent Contract](../AGENTS.md); this overview adds no separate workflow.

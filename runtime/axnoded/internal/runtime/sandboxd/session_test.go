@@ -160,7 +160,7 @@ func TestSessionWaitDrainsStreamBeforeExit(t *testing.T) {
 func TestSessionCloseSignalsWithCanceledParentContext(t *testing.T) {
 	parentCtx, cancel := context.WithCancel(context.Background())
 	client := &fakeSessionClient{
-		wait: ProcessStatus{ID: "proc-1", State: "running"},
+		wait: ProcessStatus{ID: "proc-1", State: "exited", ExitCode: sessionIntPtr(0)},
 	}
 	session := NewSession(parentCtx, client, "proc-1")
 	cancel()
@@ -174,7 +174,7 @@ func TestSessionCloseSignalsWithCanceledParentContext(t *testing.T) {
 
 func TestSessionCloseIsIdempotent(t *testing.T) {
 	client := &fakeSessionClient{
-		wait: ProcessStatus{ID: "proc-1", State: "running"},
+		wait: ProcessStatus{ID: "proc-1", State: "exited", ExitCode: sessionIntPtr(0)},
 	}
 	session := NewSession(context.Background(), client, "proc-1")
 	if err := session.Close(); err != nil {
@@ -324,9 +324,15 @@ func (f *fakeSessionClient) StreamProcess(ctx context.Context, _ string, emit fu
 	return nil
 }
 
-func (f *fakeSessionClient) WaitProcess(context.Context, string) (ProcessStatus, error) {
+func (f *fakeSessionClient) WaitProcess(ctx context.Context, _ string) (ProcessStatus, error) {
 	if f.waitDelay > 0 {
-		time.Sleep(f.waitDelay)
+		timer := time.NewTimer(f.waitDelay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return ProcessStatus{}, ctx.Err()
+		case <-timer.C:
+		}
 	}
 	return f.wait, nil
 }

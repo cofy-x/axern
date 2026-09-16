@@ -15,7 +15,6 @@ type Runtime interface {
 	KillContainer(context.Context, *runtime.SignalContainerRequest, contract.HandlerOptions) (*runtime.SignalContainerResponse, error)
 	ExecContainer(context.Context, *runtime.ExecContainerRequest, contract.HandlerOptions) (*runtime.ExecContainerResponse, error)
 	OpenExecSession(context.Context, *runtime.ExecSessionOpen, contract.HandlerOptions) (contract.Session, error)
-	ProcessService() contract.ProcessService
 	FileService() contract.FileService
 }
 

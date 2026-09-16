@@ -81,6 +81,8 @@ The OCI `metadata.db` contains only backend recovery state: extracted layer and 
 
 OCI and Nydus resources share the mountstore lease contract. Their resource implementations remain owned by `oci` and `imagefsd`. Each owner returns one bounded flat immutable-mount descriptor; axnoded projection consumes that descriptor and must not reverse-engineer these implementations. Source health and identity stay with imagemgr lease reconciliation, while projection owns only its host OverlayFS and writable artifacts. Callers recover ownership by submitting their complete desired lease set to `POST /reconcile_mount_leases`; reconciliation is scoped to that owner.
 
+Background release scans provide candidates, not release authority. Under the mount lock, the worker reloads the lease and checks that it is still releasing before cleanup. A retained or reacquired lease invalidates an older scan. A releasing lease sharing a resource with another consumer is removed without unmounting that consumer's resource.
+
 ## Inventory And Cleanup
 
 `GET /inventory` is the read-only node image summary. It combines:

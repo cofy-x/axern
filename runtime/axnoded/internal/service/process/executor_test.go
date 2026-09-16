@@ -9,9 +9,40 @@ import (
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type sessionMappingRuntime struct {
+	*runtimetest.FakeSandboxRuntime
+	request *runtime.ExecSessionOpen
+	options contract.HandlerOptions
+}
+
+func (r *sessionMappingRuntime) OpenExecSession(_ context.Context, request *runtime.ExecSessionOpen, options contract.HandlerOptions) (contract.Session, error) {
+	r.request, r.options = request, options
+	return nil, nil
+}
+
+func TestOpenProcessUsesExecSessionContract(t *testing.T) {
+	handler := &sessionMappingRuntime{}
+	_, err := NewExecutor().OpenProcess(t.Context(), Target{ID: "allocation", Handler: handler}, &runtime.ProcessOpen{
+		ID: "process", Command: []string{"sh"}, Tty: true,
+		Env: map[string]string{"B": "2", "A": "1"}, Cwd: "/work", User: "1000",
+		InitialSize: &runtime.TerminalResize{Cols: 120, Rows: 40},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "allocation", handler.options.ContainerID)
+	require.Equal(t, "process", handler.request.GetID())
+	require.Equal(t, []string{"sh"}, handler.request.GetCommand())
+	require.True(t, handler.request.GetTty())
+	require.Equal(t, "/work", handler.request.GetCwd())
+	require.Equal(t, "1000", handler.request.GetUser())
+	require.Equal(t, uint32(120), handler.request.GetInitialSize().GetCols())
+	require.Equal(t, uint32(40), handler.request.GetInitialSize().GetRows())
+	require.ElementsMatch(t, []*runtime.KeyValue{{Key: "A", Value: "1"}, {Key: "B", Value: "2"}}, handler.request.GetEnvs())
+}
 
 type execStreamStub struct {
 	ctx       context.Context

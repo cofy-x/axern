@@ -20,7 +20,9 @@ const (
 )
 
 type Registry struct {
-	waiter *proc.Waiter
+	waiter  *proc.Waiter
+	startMu sync.Mutex
+	closing bool
 
 	nextID uint64
 	mu     sync.RWMutex
@@ -64,14 +66,7 @@ func (r *Registry) Signal(id string, signal os.Signal) (Status, bool, error) {
 	if !ok {
 		return Status{}, false, nil
 	}
-	managed.mu.RLock()
-	cmd := managed.cmd
-	state := managed.status.State
-	managed.mu.RUnlock()
-	if state != ProcessStateRunning || cmd == nil || cmd.Process == nil {
-		return managed.snapshot(), true, nil
-	}
-	if err := proc.SignalProcessGroup(cmd.Process.Pid, signal); err != nil {
+	if err := managed.signal(signal); err != nil {
 		return Status{}, true, err
 	}
 	return managed.snapshot(), true, nil
@@ -121,7 +116,8 @@ func (r *Registry) SubscribeOutput(ctx context.Context, id string) (<-chan Strea
 	if outputs == nil {
 		return nil, true, fmt.Errorf("process %s was not started with streaming output", id)
 	}
-	return outputs.subscribe(ctx), true, nil
+	events, err := outputs.subscribe(ctx)
+	return events, true, err
 }
 
 func (r *Registry) Wait(ctx context.Context, id string) (Status, bool, error) {

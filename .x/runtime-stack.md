@@ -1,49 +1,20 @@
 # Runtime Stack
 
-Use this document only when a change crosses runtime, control-plane, gateway, storage, SDK, or networking boundaries. For work contained inside one subsystem, read that subsystem's `AGENTS.md` and README instead. Product object meaning remains authoritative in the [Stable Domain Model](../docs/product/domain-model.md).
+Use this routing index when a change crosses subsystem boundaries. For work contained inside one subsystem, follow its `AGENTS.md` task routes instead. Product object meaning remains authoritative in the [Stable Domain Model](../docs/product/domain-model.md); this page does not define a parallel architecture contract.
 
-## Stack Map
+Component ownership and traffic topology are defined in [Runtime Architecture](../docs/architecture/runtime-architecture.md). Use the [Module Guide](module-guide.md) to locate code owners; this page only routes cross-component changes.
 
-```text
-clients / SDKs / Axrun
-  -> gatewayd          unified external control and Allocation data edge
-     -> controld       durable Environment / Run / Allocation authority
-        -> PostgreSQL  central control state
-        -> axnoded     Allocation lifecycle dispatch over controld mTLS authority
-     -> axnoded        process, file, archive, terminal, and SSH over gatewayd mTLS authority
-     -> tunneld        Tunnel client peer
+## Authoritative Contracts
 
-axnoded
-  -> controld          status, inventory, and capability reporting
-  -> tunneld           Tunnel node peer
-  -> runsc             production sandbox lifecycle
-     -> sandboxd       sandbox PID 1 and process/file/PTY/proxy APIs
-  -> egressd / bpfnet  egress policy and host networking
-  -> imagemgr
-     -> imagefsd       immutable rootfs and read-only image data plane
-```
+Read only the contracts affected by the change:
 
-Shared API contracts live under `sdk/proto`; generated client code lives in the language SDK workspaces.
-
-## Ownership
-
-- `control/controld` owns durable product semantics, placement, lifecycle intent, target resolution, leases, TunnelSessions, authorization decisions, and PostgreSQL state.
-- `gateway/gatewayd` owns the unified external edge. It authenticates public protocols and forwards authorized control or Allocation-scoped traffic without owning placement, lifecycle, or durable product state.
-- `runtime/axnoded` owns node-local Allocation execution, recovery, cleanup, writable filesystems, and gateway-forwarded sandbox operations.
-- `runtime/egressd`, `network/bpfnet`, `runtime/imagemgr`, and `runtime/imagefsd` own their narrow node-local network or image contracts; none owns Run state.
-- `runtime/tunneld` owns reverse-TCP peer pairing. `controld` owns the TunnelSession, while `gatewayd` and `axnoded` provide the client and node peer paths.
-- Axrun and other evaluation, training, or data-synthesis systems remain callers above the execution platform.
-
-## Cross-Component Invariants
-
-- The only durable execution chain is `Environment -> Run -> Allocation`; SDK `Sandbox` is a facade over it.
-- Runsc is the only supported production runtime. Missing isolation, policy, or required capability evidence fails closed.
-- Public clients address `gatewayd`, never node targets or internal execution leases. Internal lifecycle and status traffic does not route through the gateway.
-- Axnoded's routable listener admits `NodeLifecycle` only from `controld` and `NodeSandbox` only from `gatewayd`. Root-only operator, machine network resolution, and optional local conformance use separate Unix sockets; production does not enable conformance lifecycle authority.
-- Node capability observations, admission policy, and enforcement follow the [Observed Capability Providers](../docs/architecture/observed-capability-providers.md) contract.
-- Resource requests drive placement and reservation; limits are runtime enforcement ceilings. See the [Resource Model](../docs/architecture/resource-model.md).
-- Writable rootfs and workspace data is Allocation-local. Callers must download or export required outputs before cleanup; Axern has no reusable persistent Volume or generic public Artifact root.
-- Images resolve through `axnoded -> imagemgr -> imagefsd` where required. Sandbox network policy resolves through `axnoded -> egressd / bpfnet`; strict policy never degrades silently.
+- Product identity and lifecycle: [Stable Domain Model](../docs/product/domain-model.md).
+- Control and node execution sequences: [Workload Lifecycle](../docs/architecture/workload-lifecycle-sequence.md).
+- Trust, operation access, and operator separation: [Authorization](../docs/architecture/authorization.md).
+- Capability admission and enforcement: [Observed Capability Providers](../docs/architecture/observed-capability-providers.md).
+- Placement quantities and enforcement limits: [Resource Model](../docs/architecture/resource-model.md).
+- Egress and DNS enforcement: [Sandbox Network Policy](../docs/architecture/sandbox-network-policy.md).
+- Writable data, image mounts, and cleanup: [Storage Architecture](../docs/architecture/storage-architecture.md).
 
 ## Change Routing
 
@@ -59,8 +30,4 @@ Shared API contracts live under `sdk/proto`; generated client code lives in the 
 | OCI, Nydus, rootfs, or image mounts | `runtime/axnoded`, `runtime/imagemgr`, `runtime/imagefsd`, SDK/proto when public |
 | Devbox sockets or `.dev/` stack layout | Root Make files, devbox scripts, root docs, affected service docs |
 
-## Synchronization And Validation
-
-- A shared contract change updates generated code, callers, tests, and authoritative documentation together. Protobuf generation must finish before consumers compile.
-- A socket, mount target, or `.dev/` layout change updates every owning module that names it.
-- Run the owning subsystem checks first, then the Linux, Compose, kind, or regional truth path required by the changed behavior. For `.x` changes, run `make agent-doc-check`.
+A socket, mount target, or `.dev/` layout change updates every owning module that names it. Follow the root [Agent Contract](../AGENTS.md) for synchronized contract changes and validation; this index does not add another verification tier.

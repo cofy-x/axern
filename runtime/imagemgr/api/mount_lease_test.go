@@ -17,6 +17,66 @@ func TestValidateOwnerRequiresReconcileScope(t *testing.T) {
 	}
 }
 
+func TestReleaseScanCannotDeleteRetainedLease(t *testing.T) {
+	worker := mustNewHttpWorker(t, newMockManager())
+	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
+	if _, err := worker.mountStore.Acquire(record, "lease", "axnoded"); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.mountStore.BeginRelease("lease"); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := worker.mountStore.ListReleasing()
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("candidates=%v err=%v", candidates, err)
+	}
+	if err := worker.mountStore.RetainLease("lease", "axnoded"); err != nil {
+		t.Fatal(err)
+	}
+	worker.retryReleasingMount(t.Context(), candidates[0])
+	lease, err := worker.mountStore.GetLease("lease")
+	if err != nil || lease == nil || lease.Releasing {
+		t.Fatalf("retained lease=%v err=%v", lease, err)
+	}
+}
+
+func TestReleaseRetryDropsOnlyRetiringSharedLease(t *testing.T) {
+	worker := mustNewHttpWorker(t, newMockManager())
+	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
+	for _, id := range []string{"retiring", "active"} {
+		if _, err := worker.mountStore.Acquire(record, id, "axnoded"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := worker.mountStore.BeginRelease("retiring"); err != nil {
+		t.Fatal(err)
+	}
+	worker.reconcileReleasingMounts(t.Context())
+	if lease, err := worker.mountStore.GetLease("retiring"); err != nil || lease != nil {
+		t.Fatalf("retiring lease=%v err=%v", lease, err)
+	}
+	if lease, err := worker.mountStore.GetLease("active"); err != nil || lease == nil {
+		t.Fatalf("active lease=%v err=%v", lease, err)
+	}
+}
+
+func TestReleaseRetryRecordsAttemptBeforeUnmount(t *testing.T) {
+	worker := mustNewHttpWorker(t, newMockManager())
+	// An unsupported backend fails deterministically without kernel side effects.
+	record := &mountstore.Record{CacheKey: "invalid", MountType: "invalid", MountPoint: "/mnt/invalid"}
+	if _, err := worker.mountStore.Acquire(record, "lease", "axnoded"); err != nil {
+		t.Fatal(err)
+	}
+	if err := worker.mountStore.BeginRelease("lease"); err != nil {
+		t.Fatal(err)
+	}
+	worker.reconcileReleasingMounts(t.Context())
+	lease, err := worker.mountStore.GetLease("lease")
+	if err != nil || lease == nil || !lease.Releasing || lease.Attempts != 2 || lease.LastError == "" {
+		t.Fatalf("release retry diagnostics = %+v, err=%v", lease, err)
+	}
+}
+
 func TestReleaseLeaseOnlyUnmountsFinalConsumer(t *testing.T) {
 	worker := mustNewHttpWorker(t, newMockManager())
 	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}

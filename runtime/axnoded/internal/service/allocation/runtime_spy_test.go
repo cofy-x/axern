@@ -118,8 +118,6 @@ func (h *runtimeSpyHandler) OpenExecSession(context.Context, *apipb.ExecSessionO
 	return nil, nil
 }
 
-func (h *runtimeSpyHandler) ProcessService() contract.ProcessService { return nil }
-
 func (h *runtimeSpyHandler) FileService() contract.FileService { return nil }
 
 func (h *runtimeSpyHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {

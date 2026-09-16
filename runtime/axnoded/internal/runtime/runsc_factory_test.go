@@ -23,7 +23,4 @@ func TestRunscFactoryComposesRuntimeServices(t *testing.T) {
 	if handler.FileService() == nil {
 		t.Fatal("expected runsc file service to be composed")
 	}
-	if handler.ProcessService() == nil {
-		t.Fatal("expected runsc process service to be composed")
-	}
 }

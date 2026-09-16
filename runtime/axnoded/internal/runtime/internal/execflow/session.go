@@ -46,6 +46,16 @@ func (s *SessionState) EmitStderr(data []byte) {
 	s.chunks <- contract.Chunk{Stderr: buf}
 }
 
+// EmitContext bounds backpressure by the owning session's lifetime.
+func (s *SessionState) EmitContext(ctx context.Context, chunk contract.Chunk) error {
+	select {
+	case s.chunks <- contract.Chunk{Stdout: append([]byte(nil), chunk.Stdout...), Stderr: append([]byte(nil), chunk.Stderr...)}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (s *SessionState) Recv() (contract.Chunk, error) {
 	chunk, ok := <-s.chunks
 	if !ok {

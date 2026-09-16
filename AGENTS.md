@@ -2,14 +2,14 @@
 
 ## Scope
 
-This file defines repository-wide rules for Axern. Read the nearest subtree `AGENTS.md` and owning README before changing code there; local contracts add only subsystem-specific constraints.
+This file defines repository-wide rules for Axern. Read the applicable subtree `AGENTS.md` before changing code there; local contracts add only subsystem-specific constraints.
 
-## Required Context
+## Task-Scoped Reading
 
-- Use the [Module Guide](.x/module-guide.md) to locate ownership and the [Documentation Guide](docs/README.md) to locate durable product, architecture, verification, and operational contracts.
-- Treat the [Stable Domain Model](docs/product/domain-model.md) as authoritative for product objects, ownership, and lifecycle meaning.
-- Read the [Runtime Stack](.x/runtime-stack.md) only when a change crosses control, gateway, runtime, network, storage, or SDK boundaries.
-- Read [Coding Standards](.x/coding-standards.md) for language, layering, and validation conventions.
+- Use the [Module Guide](.x/module-guide.md) when locating an owner. Once the owner is known, follow its local contract's task routes; the owning README is an index and command reference, not a mandatory cover-to-cover dependency.
+- Read [Coding Standards](.x/coding-standards.md) when implementing code. Read the [Stable Domain Model](docs/product/domain-model.md) when changing product objects, API semantics, persistence ownership, or lifecycle meaning.
+- Use the [Runtime Stack](.x/runtime-stack.md) for cross-component changes and the [Documentation Guide](docs/README.md) for other contract lookup. Read the contracts selected by the task, not every linked document recursively.
+- Before editing a document, read it and its applicable rules. Do not load unrelated architecture, deployment, or release documents for a local implementation change.
 
 ## Platform Boundaries
 
@@ -29,8 +29,7 @@ This file defines repository-wide rules for Axern. Read the nearest subtree `AGE
 
 ## Validation And Documentation
 
-- After a cohesive change, run `make verify-changed-plan` and `make verify-changed`; the repository planner selects the host-safe checks and affected heavyweight scopes.
-- Run the owning Linux, Compose, kind, or regional truth path only when the changed behavior requires it. Use `make verify-full` for broad asynchronous regression and `make verify-release` for frozen release candidates.
+- After a cohesive change, run `make verify-changed-plan` and `make verify-changed`. The [Verification Tiers](docs/verification/local-full-verification.md) own check selection and delivery-stage requirements; local contracts add only subsystem-specific checks. Run `make agent-doc-check` for Markdown edits; this does not replace checks selected for documentation builds or tooling changes.
 - For protobuf changes, run generation and generated-output checks before compilation; generation replaces `sdk/go/gen` and must not run concurrently with consumers.
 - Keep current commands in owning READMEs or runbooks, current cross-component behavior in architecture documents, and durable rationale in decisions. Do not place implementation history or completion notes in normative documents.
-- Write English and localized Markdown prose, including list items and block quotes, as one source line per natural paragraph. Run `make agent-doc-check` after changing repository Markdown.
+- Follow the [Markdown Formatting](.x/coding-standards.md#markdown-formatting) rules for documentation edits. Keep one authoritative explanation of each contract and link to it from task routes rather than copying it into agent rules.

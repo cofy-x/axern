@@ -4,6 +4,7 @@ package proc
 
 import (
 	"context"
+	"os"
 	"os/exec"
 )
 
@@ -13,7 +14,10 @@ func NewWaiter(context.Context) *Waiter {
 	return &Waiter{}
 }
 
-func (w *Waiter) Watch(cmd *exec.Cmd) <-chan Result {
+func (w *Waiter) Start(cmd *exec.Cmd, start func() error) (<-chan Result, error) {
+	if err := start(); err != nil {
+		return nil, err
+	}
 	ch := make(chan Result, 1)
 	go func() {
 		err := cmd.Wait()
@@ -21,7 +25,13 @@ func (w *Waiter) Watch(cmd *exec.Cmd) <-chan Result {
 		ch <- result
 		close(ch)
 	}()
-	return ch
+	return ch, nil
+}
+
+// Non-Linux support is host tooling only. Use the OS handle for the direct
+// child; unlike Linux PID 1 we do not own group reaping here.
+func (w *Waiter) Signal(cmd *exec.Cmd, signal os.Signal) error {
+	return cmd.Process.Signal(signal)
 }
 
 func (w *Waiter) Stop() {}

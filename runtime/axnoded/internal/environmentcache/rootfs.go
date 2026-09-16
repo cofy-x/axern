@@ -16,11 +16,11 @@ type RootFS struct {
 	imageConfig    *ImageConfig
 	immutableMount *runtime_api.ImmutableRootfsMount
 	mounter        ImageMounter
-	cleanupFunc    func()
+	releaseMount   func() error
 	mu             sync.Mutex // mu protects fields below
 	activeRefs     int64
 	retainedRefs   int64
-	deleted        bool
+	released       bool
 }
 
 type ImageConfig struct {
@@ -85,17 +85,17 @@ func (rf *RootFS) Config() RootfsConfig {
 	return rf.cfg
 }
 
-func NewRootFS(cfg RootfsConfig, mounter ImageMounter, cleanup func()) (*RootFS, error) {
+func NewRootFS(cfg RootfsConfig, mounter ImageMounter, cleanup func() error) (*RootFS, error) {
 	rootfs, _, err := NewRootFSWithReport(cfg, mounter, cleanup)
 	return rootfs, err
 }
 
-func NewRootFSWithReport(cfg RootfsConfig, mounter ImageMounter, cleanup func()) (*RootFS, RootfsPrepareReport, error) {
+func NewRootFSWithReport(cfg RootfsConfig, mounter ImageMounter, cleanup func() error) (*RootFS, RootfsPrepareReport, error) {
 	report := RootfsPrepareReport{Steps: make([]RootfsStepSample, 0, 1)}
 	rootFS := &RootFS{
-		cfg:         cfg,
-		mounter:     mounter,
-		cleanupFunc: cleanup,
+		cfg:          cfg,
+		mounter:      mounter,
+		releaseMount: cleanup,
 	}
 
 	mountStart := time.Now()

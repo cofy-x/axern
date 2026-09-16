@@ -40,7 +40,7 @@ func TestNewRootFSLocalMountLifecycle(t *testing.T) {
 	rootfs, err := NewRootFS(
 		RootfsConfig{SrcType: api.RootfsSrcType_LOCAL, Path: t.TempDir()},
 		&defaultMounter{},
-		func() { cleanupCalls++ },
+		func() error { cleanupCalls++; return nil },
 	)
 	if err != nil {
 		t.Fatalf("NewRootFS() error = %v", err)
@@ -52,7 +52,7 @@ func TestNewRootFSLocalMountLifecycle(t *testing.T) {
 	if err := rootfs.IncActiveRef(); err != nil {
 		t.Fatalf("IncActiveRef() error = %v", err)
 	}
-	if !rootfs.ReleaseActiveRef() {
+	if released, err := rootfs.ReleaseActiveRef(); !released || err != nil {
 		t.Fatal("expected active release to clean up local rootfs")
 	}
 	if cleanupCalls != 1 {
@@ -95,7 +95,7 @@ func TestRootFSRefcountAndCleanup(t *testing.T) {
 	rootfs, err := NewRootFS(
 		RootfsConfig{SrcType: api.RootfsSrcType_LOCAL, Path: "/shared"},
 		mock,
-		func() { cleanupCalls++ },
+		func() error { cleanupCalls++; return mock.Umount(RootfsConfig{}) },
 	)
 	if err != nil {
 		t.Fatalf("NewRootFS() error = %v", err)
@@ -107,13 +107,13 @@ func TestRootFSRefcountAndCleanup(t *testing.T) {
 	if err := rootfs.IncActiveRef(); err != nil {
 		t.Fatalf("IncActiveRef(second) error = %v", err)
 	}
-	if rootfs.ReleaseActiveRef() {
+	if released, err := rootfs.ReleaseActiveRef(); released || err != nil {
 		t.Fatal("expected first release to keep shared rootfs alive")
 	}
 	if mock.UmountCount() != 0 {
 		t.Fatalf("unexpected umount count after first release: %d", mock.UmountCount())
 	}
-	if !rootfs.ReleaseActiveRef() {
+	if released, err := rootfs.ReleaseActiveRef(); !released || err != nil {
 		t.Fatal("expected second release to clean up rootfs")
 	}
 	if mock.UmountCount() != 1 {

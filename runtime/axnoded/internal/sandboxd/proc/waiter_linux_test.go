@@ -4,85 +4,71 @@ package proc
 
 import (
 	"context"
+	"errors"
+	"os"
 	"os/exec"
 	"testing"
 	"time"
 )
 
-func TestProcessWaiterReplaysCachedExitStatus(t *testing.T) {
-	waiter := NewWaiter(context.Background())
-	defer waiter.Stop()
-
-	cmd := exec.Command("/bin/sh", "-c", "exit 23")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start command: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	cached := false
-	for time.Now().Before(deadline) {
-		waiter.ReapAvailable()
-		waiter.mu.Lock()
-		_, ok := waiter.cache[cmd.Process.Pid]
-		waiter.mu.Unlock()
-		if ok {
-			cached = true
-			break
+func TestWaiterRegistersImmediateExitAndRejectsLateSignal(t *testing.T) {
+	w := NewWaiter(context.Background())
+	defer w.Stop()
+	for i := 0; i < 50; i++ {
+		cmd := exec.Command("/bin/sh", "-c", "exit 23")
+		cmd.SysProcAttr = SysProcAttr()
+		done, err := w.Start(cmd, cmd.Start)
+		if err != nil {
+			t.Fatal(err)
 		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	if !cached {
-		t.Fatal("timed out waiting for cached exit status")
-	}
-
-	result := <-waiter.Watch(cmd)
-	if result.ExitCode != 23 {
-		t.Fatalf("exit code = %d, want 23", result.ExitCode)
-	}
-}
-
-func TestProcessWaiterFallbackCachesExitStatus(t *testing.T) {
-	waiter := NewWaiter(context.Background())
-	defer waiter.Stop()
-
-	cmd := exec.Command("/bin/sh", "-c", "exit 31")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start command: %v", err)
-	}
-
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		waiter.mu.Lock()
-		_, ok := waiter.cache[cmd.Process.Pid]
-		waiter.mu.Unlock()
-		if ok {
-			result := <-waiter.Watch(cmd)
-			if result.ExitCode != 31 {
-				t.Fatalf("exit code = %d, want 31", result.ExitCode)
+		select {
+		case result := <-done:
+			if result.ExitCode != 23 || result.Err != nil {
+				t.Fatalf("result = %+v", result)
 			}
-			return
+		case <-time.After(5 * time.Second):
+			t.Fatal("exit was lost")
 		}
-		time.Sleep(10 * time.Millisecond)
+		if err := w.Signal(cmd, os.Kill); !errors.Is(err, os.ErrProcessDone) {
+			t.Fatalf("late signal = %v", err)
+		}
 	}
-	t.Fatal("timed out waiting for fallback reaper to cache exit status")
 }
 
-func TestProcessWaiterWatchReapsAlreadyExitedProcess(t *testing.T) {
-	waiter := NewWaiter(context.Background())
-	defer waiter.Stop()
-
-	cmd := exec.Command("/bin/sh", "-c", "exit 29")
-	if err := cmd.Start(); err != nil {
-		t.Fatalf("start command: %v", err)
+func TestWaiterRejectsUnownedCommandEvenWithSamePID(t *testing.T) {
+	w := NewWaiter(context.Background())
+	defer w.Stop()
+	cmd := exec.Command("/bin/sh", "-c", "read line")
+	cmd.SysProcAttr = SysProcAttr()
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		t.Fatal(err)
 	}
-	time.Sleep(100 * time.Millisecond)
-
-	select {
-	case result := <-waiter.Watch(cmd):
-		if result.ExitCode != 29 {
-			t.Fatalf("exit code = %d, want 29", result.ExitCode)
+	defer stdin.Close()
+	pid := 0
+	done, err := w.Start(cmd, func() error {
+		if err := cmd.Start(); err != nil {
+			return err
 		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for already-exited process")
+		pid = cmd.Process.Pid
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = w.Signal(cmd, os.Kill); <-done }()
+	other := &exec.Cmd{Process: &os.Process{Pid: pid}}
+	if err := w.Signal(other, os.Kill); !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("unowned signal = %v", err)
+	}
+}
+
+func TestWaiterStopRejectsStart(t *testing.T) {
+	w := NewWaiter(context.Background())
+	w.Stop()
+	cmd := exec.Command("/bin/true")
+	_, err := w.Start(cmd, func() error { t.Fatal("started after stop"); return nil })
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("start = %v", err)
 	}
 }

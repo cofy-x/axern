@@ -1,6 +1,7 @@
 package environmentcache
 
 import (
+	"errors"
 	"sync"
 	"time"
 
@@ -62,13 +63,58 @@ func (lm *EnvironmentCache) ReconcileMountLeases() error {
 	defer lm.mountLeaseMu.Unlock()
 	lm.rfMu.Lock()
 	leaseIDs := make([]string, 0, len(lm.rootfsMap))
+	released := make(map[RootfsConfig]*rootfsEntry)
 	for cfg, entry := range lm.rootfsMap {
+		if entry != nil && entry.rootfs != nil && entry.rootfs.referencesReleased() {
+			released[cfg] = entry
+			continue
+		}
 		if entry != nil && entry.err == nil && cfg.LeaseID != "" {
 			leaseIDs = append(leaseIDs, cfg.LeaseID)
 		}
 	}
 	lm.rfMu.Unlock()
-	return lm.mounter.Reconcile(leaseIDs)
+	// The complete desired set is the sole release path for managed image leases.
+	// Keep released entries until delivery succeeds, so the existing sweeper can
+	// retry an unavailable imagemgr without another cleanup queue or lease copy.
+	reconcileErr := lm.mounter.Reconcile(leaseIDs)
+	err := reconcileErr
+	for cfg, entry := range released {
+		cleanupErr := reconcileErr
+		if cfg.LeaseID == "" {
+			cleanupErr = lm.mounter.Umount(cfg)
+		}
+		if cleanupErr != nil {
+			if cfg.LeaseID == "" {
+				err = errors.Join(err, cleanupErr)
+			}
+			continue
+		}
+		lm.rfMu.Lock()
+		if lm.rootfsMap[cfg] == entry {
+			delete(lm.rootfsMap, cfg)
+		}
+		lm.rfMu.Unlock()
+	}
+	return err
+}
+
+func (lm *EnvironmentCache) hasReleasedRootfs() bool {
+	lm.rfMu.Lock()
+	defer lm.rfMu.Unlock()
+	for _, entry := range lm.rootfsMap {
+		if entry != nil && entry.rootfs != nil && entry.rootfs.referencesReleased() {
+			return true
+		}
+	}
+	return false
+}
+
+func (lm *EnvironmentCache) retryReleasedRootfs() error {
+	if !lm.hasReleasedRootfs() {
+		return nil
+	}
+	return lm.ReconcileMountLeases()
 }
 
 // NewEnvironmentCache creates a new EnvironmentCache.

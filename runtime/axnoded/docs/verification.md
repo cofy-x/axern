@@ -6,6 +6,12 @@ Use the repository-wide [verification tiers](../../../docs/verification/local-fu
 
 ## Quick Check
 
+### Cgroup and page-cache kernel tests
+
+`make verify-kernel-truth` compiles the `kerneltruth`-tagged cgroup process-kill and page-cache eviction tests and executes them in a disposable privileged Linux container with a private cgroup namespace and an anonymous disk-backed volume. Root, writable delegated cgroup-v2 controllers, and an ext4, XFS, or Btrfs temporary directory are required; missing prerequisites fail the gate rather than skip assertions. The container and volume are removed after the run. Do not run these tagged tests against a shared host cgroup root.
+
+The page-cache fixture is synced and verified resident before eviction; the final zero-resident-page assertion remains mandatory. Ordinary Linux unit tests retain path validation and symlink rejection without requiring page eviction from tmpfs. The Go CI job and the existing runsc/conformance Make targets run the strict kernel gate, so excluding tagged tests from host-safe unit suites cannot silently remove kernel coverage.
+
 ### Recovery measurement diagnosis
 
 The network-policy qualification driver measures client-observed restart convergence: process start through healthy RPC and a readable recovered policy record. This is not the daemon's internal recovery duration. Health probes use a 1 ms retry interval and share the recovery deadline with the final record RPC; the scheduler and RPC transport can still add observation delay.

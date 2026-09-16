@@ -330,7 +330,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, kind
 			}
 			return
 		}
-		if err := h.environmentCache.EvictIdleEnvironment(deleteCtx, environmentID, environmentcache.RetentionReasonSelfTest); err != nil {
+		if err := h.environmentCache.EvictIdleEnvironment(environmentID, environmentcache.RetentionReasonSelfTest); err != nil {
 			if retErr == nil {
 				retErr = fmt.Errorf("cleanup self-test runtime: %w", err)
 			} else {

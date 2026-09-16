@@ -1,7 +1,7 @@
 package environmentcache
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -37,7 +37,7 @@ func (lm *EnvironmentCache) Start() {
 	lm.sweeperMu.Lock()
 	defer lm.sweeperMu.Unlock()
 
-	if lm.sweeperStop != nil || !lm.retentionEnabled() {
+	if lm.sweeperStop != nil {
 		return
 	}
 
@@ -60,21 +60,22 @@ func (lm *EnvironmentCache) Close() {
 	}
 }
 
-func (lm *EnvironmentCache) DrainRetained(ctx context.Context, reason string) {
+func (lm *EnvironmentCache) DrainRetained(reason string) error {
+	retryErr := lm.retryReleasedRootfs()
 	evictions := lm.collectAllRetained(reason)
-	lm.executeEvictions(ctx, evictions)
+	return errors.Join(retryErr, lm.executeEvictions(evictions))
 }
 
 // EvictIdleEnvironment removes one prepared environment after its last allocation has been
 // deleted. It is intentionally scoped by environment ID so internal probes can
 // prove that their own prepared environment and rootfs references were cleaned without
 // disturbing unrelated retained workloads.
-func (lm *EnvironmentCache) EvictIdleEnvironment(ctx context.Context, environmentID, reason string) error {
+func (lm *EnvironmentCache) EvictIdleEnvironment(environmentID, reason string) error {
 	lm.environmentMu.Lock()
 	environment := lm.environments[environmentID]
 	if environment == nil {
 		lm.environmentMu.Unlock()
-		return nil
+		return lm.retryReleasedRootfs()
 	}
 	if environment.refcnt != 0 {
 		refCount := environment.refcnt
@@ -85,7 +86,7 @@ func (lm *EnvironmentCache) EvictIdleEnvironment(ctx context.Context, environmen
 	lm.updateRetentionGaugesLocked()
 	lm.environmentMu.Unlock()
 
-	return lm.executeEvictions(ctx, []retentionEviction{eviction})
+	return lm.executeEvictions([]retentionEviction{eviction})
 }
 
 func (lm *EnvironmentCache) RetentionStats() RetentionStats {

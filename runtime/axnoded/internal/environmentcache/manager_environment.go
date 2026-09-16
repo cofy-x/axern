@@ -63,7 +63,9 @@ func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.Reso
 	if environment, ok := lm.environments[fr.ID]; ok {
 		if preparedEnvironmentMatchesTemplate(environment, fr) && environment.RootFS.Config() == cfg {
 			lm.environmentMu.Unlock()
-			rootfs.ReleaseActiveRef()
+			if _, err := rootfs.ReleaseActiveRef(); err != nil {
+				return result, err
+			}
 			logrus.Debugf("Prepared environment %v already exists (added concurrently)!", fr.ID)
 			result.Environment = environment
 			return result, nil
@@ -97,7 +99,7 @@ func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.Reso
 	lm.updateRetentionGaugesLocked()
 	lm.environmentMu.Unlock()
 
-	lm.executeReplacement(ctx, replacement)
+	lm.executeReplacement(replacement)
 	logrus.Debugf("Add prepared environment: %v", environment)
 	result.Environment = environment
 	result.Created = true
@@ -127,16 +129,20 @@ func (lm *EnvironmentCache) prepareReplacementLocked(environment *PreparedEnviro
 	return replacement
 }
 
-func (lm *EnvironmentCache) executeReplacement(ctx context.Context, replacement environmentReplacement) {
+func (lm *EnvironmentCache) executeReplacement(replacement environmentReplacement) {
 	if replacement.environment == nil {
 		return
 	}
 
 	if replacement.rootfs != nil {
+		var err error
 		if replacement.retained {
-			replacement.rootfs.ReleaseRetainedRef()
+			_, err = replacement.rootfs.ReleaseRetainedRef()
 		} else {
-			replacement.rootfs.ReleaseActiveRef()
+			_, err = replacement.rootfs.ReleaseActiveRef()
+		}
+		if err != nil {
+			logrus.WithError(err).Warn("release replaced environment rootfs")
 		}
 	}
 

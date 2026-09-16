@@ -50,6 +50,7 @@ type ProcessResizeRequest struct {
 }
 
 type ProcessStreamEvent struct {
+	Error  string `json:"error,omitempty"`
 	Stdout []byte `json:"stdout,omitempty"`
 	Stderr []byte `json:"stderr,omitempty"`
 }

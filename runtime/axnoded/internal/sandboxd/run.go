@@ -57,7 +57,9 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	r.waiter = proc.NewWaiter(ctx)
+	// Caller cancellation starts shutdown; the reaper must remain alive until
+	// the supervisor and process registry have finished their cleanup.
+	r.waiter = proc.NewWaiter(context.WithoutCancel(ctx))
 	defer r.waiter.Stop()
 
 	processes := daemonprocess.NewRegistry(r.waiter, r.cfg.Entrypoint.Env, r.cfg.Entrypoint.Cwd)

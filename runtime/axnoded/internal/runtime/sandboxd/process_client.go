@@ -76,6 +76,9 @@ func (c *Client) StreamProcess(ctx context.Context, id string, emit func(Process
 			}
 			return fmt.Errorf("decode sandboxd process stream response: %w", err)
 		}
+		if event.Error != "" {
+			return fmt.Errorf("sandboxd process output: %s", event.Error)
+		}
 		if err := emit(event); err != nil {
 			return err
 		}

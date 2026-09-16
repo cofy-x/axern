@@ -16,7 +16,8 @@ func (r *Registry) snapshotProcesses() []*managedProcess {
 	return processes
 }
 
-func (r *Registry) reserve(id string, managed *managedProcess) error {
+// checkCapacity runs under startMu; completion may only reduce active usage.
+func (r *Registry) checkCapacity() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	active := 0
@@ -28,7 +29,6 @@ func (r *Registry) reserve(id string, managed *managedProcess) error {
 	if active >= maxActiveProcesses {
 		return fmt.Errorf("sandboxd active process limit reached: %d: %w", maxActiveProcesses, ErrResourceLimit)
 	}
-	r.procs[id] = managed
 	return nil
 }
 

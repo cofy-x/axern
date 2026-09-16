@@ -1,7 +1,7 @@
 package environmentcache
 
 import (
-	"context"
+	"errors"
 	"sort"
 	"time"
 
@@ -29,10 +29,19 @@ func (lm *EnvironmentCache) runSweeper(stopCh <-chan struct{}, doneCh chan<- str
 		case <-stopCh:
 			return
 		case now := <-ticker.C:
-			evictions := lm.collectExpiredRetained(now, RetentionReasonTTLExpired)
-			lm.executeEvictions(context.Background(), evictions)
+			if err := lm.sweep(now); err != nil {
+				logrus.WithError(err).Warn("evict expired environments")
+			}
 		}
 	}
+}
+
+func (lm *EnvironmentCache) sweep(now time.Time) error {
+	// Retry older cleanup independently of whether this tick expires any new
+	// environments. Ordinary reference releases must not trigger unrelated RPCs.
+	retryErr := lm.retryReleasedRootfs()
+	evictions := lm.collectExpiredRetained(now, RetentionReasonTTLExpired)
+	return errors.Join(retryErr, lm.executeEvictions(evictions))
 }
 
 func (lm *EnvironmentCache) collectExpiredRetained(now time.Time, reason string) []retentionEviction {
@@ -129,7 +138,7 @@ func (lm *EnvironmentCache) prepareEvictionLocked(environment *PreparedEnvironme
 	return eviction
 }
 
-func (lm *EnvironmentCache) executeEvictions(ctx context.Context, evictions []retentionEviction) error {
+func (lm *EnvironmentCache) executeEvictions(evictions []retentionEviction) error {
 	if len(evictions) == 0 {
 		return nil
 	}
@@ -141,13 +150,15 @@ func (lm *EnvironmentCache) executeEvictions(ctx context.Context, evictions []re
 		}
 
 		releasedRootfs := false
+		var err error
 		if eviction.rootfs != nil {
 			if eviction.retained {
-				releasedRootfs = eviction.rootfs.ReleaseRetainedRef()
+				releasedRootfs, err = eviction.rootfs.ReleaseRetainedRef()
 			} else {
-				releasedRootfs = eviction.rootfs.ReleaseActiveRef()
+				releasedRootfs, err = eviction.rootfs.ReleaseActiveRef()
 			}
 		}
+		cleanupErr = errors.Join(cleanupErr, err)
 
 		metrics.RecordRetentionEviction(RetentionReuseKindEnvironment, eviction.rootfsType, eviction.reason)
 		if releasedRootfs {
@@ -155,22 +166,16 @@ func (lm *EnvironmentCache) executeEvictions(ctx context.Context, evictions []re
 		}
 
 		logrus.WithFields(logrus.Fields{
-			"environment_id":  eviction.environment.ID,
-			"rootfs_type":     eviction.rootfsType,
-			"reason":          eviction.reason,
-			"rootfs_released": releasedRootfs,
-			"was_retained":    eviction.retained,
+			"environment_id":             eviction.environment.ID,
+			"rootfs_type":                eviction.rootfsType,
+			"reason":                     eviction.reason,
+			"rootfs_references_released": releasedRootfs,
+			"was_retained":               eviction.retained,
 		}).Info("evicted prepared environment")
 	}
 
 	lm.updateRetentionGauges()
 	return cleanupErr
-}
-
-func (lm *EnvironmentCache) retentionEnabled() bool {
-	lm.environmentMu.RLock()
-	defer lm.environmentMu.RUnlock()
-	return lm.retentionEnabledLocked()
 }
 
 func (lm *EnvironmentCache) retentionEnabledLocked() bool {

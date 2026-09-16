@@ -74,7 +74,7 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 		h.runscHandler.ShutDown()
 	}
 
-	h.environmentCache.DrainRetained(ctx, environmentcache.RetentionReasonShutdown)
+	shutdownErr = errors.Join(shutdownErr, h.environmentCache.DrainRetained(environmentcache.RetentionReasonShutdown))
 	h.environmentCache.Close()
 	h.closeEgress()
 	if err := h.containerManager.Stop(ctx); err != nil {

@@ -7,10 +7,6 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 )
 
-type ProcessService interface {
-	OpenProcess(context.Context, *apipb.ProcessOpen, HandlerOptions) (Session, error)
-}
-
 type FileService interface {
 	StatFile(context.Context, *apipb.StatFileRequest, HandlerOptions) (*apipb.StatFileResponse, error)
 	ListDir(context.Context, *apipb.ListDirRequest, HandlerOptions) (*apipb.ListDirResponse, error)
