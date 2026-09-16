@@ -160,7 +160,7 @@ func TestExtractLayerTar_PreservesSetuidMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("stat file: %v", err)
 	}
-	if got, want := fileInfo.Mode()&os.ModePerm|fileInfo.Mode()&os.ModeSetuid, os.FileMode(04755); got != want {
+	if got, want := fileInfo.Mode()&(os.ModePerm|os.ModeSetuid), os.FileMode(0755)|os.ModeSetuid; got != want {
 		t.Fatalf("file mode mismatch: got %04o want %04o", got, want)
 	}
 }

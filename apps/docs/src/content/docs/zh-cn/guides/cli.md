@@ -20,11 +20,10 @@ axern context current
 axern local up
 ```
 
-Helm 安装则需要保持 Gateway port-forward，并导入 Chart 生成的 mTLS 身份。SSH 是可选能力且默认 Chart 关闭，因此基础 CLI 路径只需转发控制和 HTTP 端口：
+Helm 安装则需要保持 Gateway port-forward，并导入部署方管理的管理员 mTLS 身份。SSH 是可选能力且默认 Chart 关闭，因此基础 CLI 路径只需转发控制端口：
 
 ```bash
-kubectl --namespace axern-system port-forward svc/gatewayd \
-  25100:25000 25101:25080
+kubectl --namespace axern-system port-forward svc/gatewayd 25100:25000
 
 axern context import-kubernetes local \
   --namespace axern-system \

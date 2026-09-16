@@ -1,46 +1,36 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
-  <title id="title">Axern — Infrastructure for AI agents</title>
-  <desc id="desc">Axern wordmark and headline next to a terminal panel replaying one CLI session: create a Run-backed sandbox, execute an evaluation batch, and open a tunnel to an allocation.</desc>
-
+  <title id="title">Axern — Sandbox execution for AI agents</title>
+  <desc id="desc">Execution model, not a terminal recording: Environment defines the reusable specification, Run owns the request and result, Allocation identifies one execution, and runsc provides sandbox isolation.</desc>
   <rect width="1200" height="420" rx="24" fill="#0b0d12"/>
-
-  <g id="title-block">
-    <g transform="translate(64 56) scale(0.875)">
-      <rect width="64" height="64" rx="15" fill="#111318" stroke="#2e3442" stroke-width="1.5"/>
-      <path d="M15.5 46 28.75 16h6.5L48.5 46h-7.75l-2.6-6.5h-12.3L23.25 46H15.5Zm13.1-13h6.8L32 23.9 28.6 33Z" fill="#f7f7f8"/>
-    </g>
-    <text x="136" y="95" fill="#f5f5f7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="32" font-weight="700" letter-spacing="-0.5">Axern</text>
-
-    <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="64" font-weight="700" letter-spacing="-2">
-      <text x="64" y="208" fill="#f5f5f7">Infrastructure</text>
-      <text x="64" y="276" fill="#78a7ff">for AI agents.</text>
-    </g>
-
-    <g fill="#9aa0ad" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18">
-      <text x="64" y="322">Untrusted agent code runs behind a runsc isolation boundary;</text>
-      <text x="64" y="348">one production runtime, one resource and lifecycle model.</text>
-    </g>
-
-    <text x="64" y="390" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15">Go · Python · TypeScript SDKs</text>
+  <g transform="translate(64 56) scale(0.875)">
+    <rect width="64" height="64" rx="15" fill="#111318" stroke="#2e3442" stroke-width="1.5"/>
+    <path d="M15.5 46 28.75 16h6.5L48.5 46h-7.75l-2.6-6.5h-12.3L23.25 46H15.5Zm13.1-13h6.8L32 23.9 28.6 33Z" fill="#f7f7f8"/>
   </g>
-
-  <g id="terminal-proof">
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="136" y="95" fill="#f5f5f7" font-size="32" font-weight="700">Axern</text>
+    <text x="64" y="202" fill="#f5f5f7" font-size="52" font-weight="700" letter-spacing="-1.5">Sandbox execution</text>
+    <text x="64" y="266" fill="#78a7ff" font-size="60" font-weight="700" letter-spacing="-1.5">for AI agents.</text>
+    <g fill="#b2b8c5" font-size="20">
+      <text x="64" y="318">Evaluation · Training · Data synthesis</text>
+      <text x="64" y="350">One execution identity. One isolation boundary.</text>
+    </g>
+    <text x="64" y="390" fill="#9aa0ad" font-size="18">Go · Python · TypeScript SDKs</text>
+  </g>
+  <g id="execution-model" font-family="ui-monospace, SFMono-Regular, Menlo, monospace">
     <rect x="632" y="56" width="504" height="308" rx="14" fill="#10131a" stroke="#262c3a"/>
-    <text x="656" y="92" fill="#6d7180" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14">environment → run → allocation</text>
-    <line x1="632" y1="104" x2="1136" y2="104" stroke="#1e2330"/>
-
-    <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16">
-      <text x="656" y="140"><tspan fill="#78a7ff">&gt; </tspan><tspan fill="#e8eaf0">axern run python:3.12-slim -- python app.py</tspan></text>
-      <text x="656" y="168" fill="#7d8290">hello from axern</text>
-
-      <text x="656" y="212"><tspan fill="#78a7ff">&gt; </tspan><tspan fill="#e8eaf0">axern run --detach eval:latest -- ./evaluate</tspan></text>
-      <text x="656" y="240"><tspan fill="#42a9c2">✓ </tspan><tspan fill="#7d8290">run accepted</tspan></text>
-
-      <text x="656" y="284"><tspan fill="#78a7ff">&gt; </tspan><tspan fill="#e8eaf0">axern tunnel open --allocation-id alloc-...</tspan></text>
-      <text x="656" y="312" fill="#7d8290">reverse tunnel ready</text>
-
-      <text x="656" y="352" fill="#78a7ff">&gt; </text>
-      <rect x="674" y="338" width="10" height="19" fill="#78a7ff"/>
+    <text x="656" y="90" fill="#9aa0ad" font-size="18">EXECUTION MODEL</text>
+    <path d="M674 133V326" fill="none" stroke="#78a7ff" stroke-width="2"/>
+    <g fill="#78a7ff">
+      <circle cx="674" cy="133" r="5"/><circle cx="674" cy="197" r="5"/>
+      <circle cx="674" cy="261" r="5"/><circle cx="674" cy="325" r="5"/>
+    </g>
+    <g fill="#e8eaf0" font-size="24" font-weight="600">
+      <text x="696" y="139">Environment</text><text x="696" y="203">Run</text>
+      <text x="696" y="267">Allocation</text><text x="696" y="331">runsc sandbox</text>
+    </g>
+    <g fill="#b2b8c5" font-size="18">
+      <text x="696" y="162">Reusable specification</text><text x="696" y="226">Request and final result</text>
+      <text x="696" y="290">Unique execution identity</text><text x="696" y="354">Isolated workload</text>
     </g>
   </g>
 </svg>

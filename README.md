@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — infrastructure for AI agents: runsc isolation with one resource and lifecycle model">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — sandbox execution for AI agents: Environment → Run → Allocation → runsc sandbox">
 </p>
 
 <p align="center">
@@ -19,8 +19,10 @@ Axern is an open-source environment execution platform for agent evaluation, tra
 
 > **Project status:** Axern is pre-1.0 and under active development. It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
 
+The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade, not a second execution lifecycle. Evaluation orchestration and durable datasets belong to Axrun, Openbench, or the caller.
+
 <p align="center">
-  <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Terminal recording of the axern CLI: command surface and run creation flags">
+  <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
 </p>
 
 ## Quickstart
@@ -62,7 +64,7 @@ Source development is a separate contributor path. It builds the current checkou
 make quickstart-source
 ```
 
-For repository development, `make verify-changed` is the normal fast feedback entrypoint. Linux correctness, full regression, and release qualification are separate tiers. Every `main` commit receives an unattended, commit-bound full regression without delaying pull-request feedback; see the [verification tiers](./docs/verification/local-full-verification.md).
+For repository development, `make verify-changed` is the normal fast feedback entrypoint. Linux correctness, full regression, and release qualification are separate tiers. Every `main` commit starts a commit-bound full regression; a green PR check does not imply that this later run has passed. Check [Post-Merge Full](https://github.com/cofy-x/axern/actions/workflows/post-merge-full.yml) before release or promotion; see the [verification tiers](./docs/verification/local-full-verification.md).
 
 ## What You Can Build
 
@@ -101,7 +103,7 @@ Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/
 
 Follow the [Kubernetes installation guide](./apps/docs/src/content/docs/getting-started/kubernetes.md) to provision signing material, supply qualified node memory reserves, bind explicit Node identities, install the control plane, and admit nodes before waiting for runtime readiness. SSH is optional and uses Principal Credentials. Do not skip the identity and admission steps by running a bare Helm install.
 
-This branch contains coordinated breaking changes beyond the published release; review the [unreleased upgrade boundary](./docs/releases/unreleased.md) before selecting matching chart, image, CLI, and SDK builds.
+The current source tree contains coordinated breaking changes beyond the published release; review the [unreleased upgrade boundary](./docs/releases/unreleased.md) before selecting matching chart, image, CLI, and SDK builds. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
 
 ## Deployment
 

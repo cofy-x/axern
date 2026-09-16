@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — 面向 AI agent 的基础设施：runsc 隔离与统一的资源、生命周期模型">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — 面向 AI agent 的沙箱执行：Environment → Run → Allocation → runsc sandbox">
 </p>
 
 <p align="center">
@@ -21,8 +21,10 @@ Axern 是一个面向 agent 评测、训练与数据合成的开源环境执行�
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
+持久领域链路为 **Environment → Run → Allocation → runsc sandbox**。Sandbox 是 SDK 门面，不建立第二套执行生命周期；评测编排和持久数据集属于 Axrun、Openbench 或调用方。
+
 <p align="center">
-  <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="axern CLI 终端录制：命令面板与 run 创建参数">
+  <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="当前 axern CLI 帮助录制：本地执行、Run、SSH 和 Tunnel 命令">
 </p>
 
 ## 快速开始
@@ -64,7 +66,7 @@ axern local down
 make quickstart-source
 ```
 
-仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；每个 `main` 提交都会获得不延迟 PR 反馈的远端无人值守完整回归。详见[验证层级](./docs/verification/local-full-verification.md)。
+仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；每个 `main` 提交都会启动绑定该提交的完整回归，PR 检查通过不代表后续回归已通过。发布或晋级前检查 [Post-Merge Full](https://github.com/cofy-x/axern/actions/workflows/post-merge-full.yml)，详见[验证层级](./docs/verification/local-full-verification.md)。
 
 ## 可以构建什么
 
@@ -103,7 +105,7 @@ flowchart LR
 
 按照 [Kubernetes 安装指南](./apps/docs/src/content/docs/zh-cn/getting-started/kubernetes.md) 初始化签发材料、提供经过验证的节点内存预留值、绑定明确的 Node 身份、安装控制面，并在节点准入后等待运行时就绪。SSH 是可选能力，使用 Principal Credential。不要用裸 Helm install 跳过身份和准入步骤。
 
-本分支包含尚未发布的协同破坏性变更；选择匹配的 Chart、镜像、CLI 和 SDK 构建前，请先阅读[未发布升级边界](./docs/releases/unreleased.md)。
+当前源码包含尚未发布的协同破坏性变更；选择匹配的 Chart、镜像、CLI 和 SDK 构建前，请先阅读[未发布升级边界](./docs/releases/unreleased.md)。终端录制展示当前源码的 CLI 帮助，不是已部署工作负载或性能测量。
 
 ## 部署
 

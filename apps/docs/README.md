@@ -40,6 +40,8 @@ Regenerate the terminal GIFs from their checked-in VHS tapes with:
 make docs-assets
 ```
 
+The recordings show help from the freshly built source CLI, not deployed workloads or performance evidence. Keep each scene short enough to read without clipped or wrapped flags, clear the terminal between scenes, and exclude local configuration paths. Run `make docs-verify` after recording finishes, then inspect the resulting GIFs; asset checks validate file structure, not the meaning or legibility of terminal output. The root README uses a static execution-model SVG and these same CLI recordings rather than a separate simulated terminal animation.
+
 ## Publication
 
 The GitHub Actions workflow builds the same static output and deploys `apps/docs/dist` with the pinned workspace Wrangler version. Configure the GitHub environment `production` with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Set the repository variable `CLOUDFLARE_PAGES_PROJECT` when the Pages project is not named `axern-docs`.

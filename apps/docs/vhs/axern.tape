@@ -7,9 +7,10 @@ Set Height 600
 Set Padding 24
 Set TypingSpeed 18ms
 Env HOME "~"
-Type "axern --help | sed -n '1,17p'"
+Type "axern --help | grep -E '^  (local|run|ssh|tunnel) '"
 Enter
 Sleep 4s
-Type "axern run --help | sed -n '1,18p'"
+Ctrl+L
+Type "axern run --help | sed -n '1,11p'"
 Enter
 Sleep 5s
