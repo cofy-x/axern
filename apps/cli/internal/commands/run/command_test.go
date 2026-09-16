@@ -79,3 +79,31 @@ func TestCanReadOutputAfterInitialWait(t *testing.T) {
 		})
 	}
 }
+
+func TestTerminalWorkloadExitError(t *testing.T) {
+	exitCode := int32(7)
+	for _, test := range []struct {
+		name     string
+		run      *runv1.Run
+		wantCode int
+	}{
+		{name: "failed workload", run: &runv1.Run{Status: runv1.RunStatus_RUN_STATUS_FAILED, ExitCode: &exitCode}, wantCode: 7},
+		{name: "failed infrastructure without exit", run: &runv1.Run{Status: runv1.RunStatus_RUN_STATUS_FAILED}},
+		{name: "running observation does not expose exit", run: &runv1.Run{Status: runv1.RunStatus_RUN_STATUS_RUNNING, ExitCode: &exitCode}},
+		{name: "nil run"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			err := terminalWorkloadExitError(test.run)
+			if test.wantCode == 0 {
+				if err != nil {
+					t.Fatalf("terminalWorkloadExitError() error = %v", err)
+				}
+				return
+			}
+			var exitErr command.ExitError
+			if !errors.As(err, &exitErr) || exitErr.Code != test.wantCode {
+				t.Fatalf("terminalWorkloadExitError() error = %#v, want exit code %d", err, test.wantCode)
+			}
+		})
+	}
+}
