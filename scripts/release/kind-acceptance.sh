@@ -11,10 +11,17 @@ cluster="axern-release"
 chart="${AXERN_HELM_CHART:-oci://ghcr.io/cofy-x/charts/axern}"
 image_tag_suffix="${AXERN_RELEASE_IMAGE_TAG_SUFFIX:-}"
 # This disposable kind cluster exercises the required cgroup path with an
-# explicit non-production reserve; production values still come from a receipt.
-release_test_memory_system_reserve_bytes="${AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-536870912}"
+# explicit non-production reserve. The reserve must cover both the 512 MiB
+# runtime-conformance charge and axnoded's internal cgroup; production values
+# still come from a qualification receipt.
+release_test_minimum_memory_system_reserve_bytes=1073741824
+release_test_memory_system_reserve_bytes="${AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-1073741824}"
 if ! [[ "${release_test_memory_system_reserve_bytes}" =~ ^[1-9][0-9]*$ ]]; then
   echo "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must be a positive decimal integer" >&2
+  exit 1
+fi
+if ((release_test_memory_system_reserve_bytes < release_test_minimum_memory_system_reserve_bytes)); then
+  echo "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must reserve at least 1073741824 bytes for runtime conformance and axnoded headroom" >&2
   exit 1
 fi
 capability_ready_timeout_seconds="${AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS:-300}"
@@ -253,7 +260,7 @@ spec:
       cpu: 100m
       memory: 512MiB
 YAML
-"${cli}" --config "${config}" --timeout 10m run --file "${state_dir}/run.yaml"
+"${cli}" --config "${config}" --timeout 15m run --wait-timeout 15m --file "${state_dir}/run.yaml"
 
 if [ "$#" -gt 0 ]; then
   AXERN_SDK_ACCEPTANCE_CONFIG="${config}" \
