@@ -155,6 +155,9 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 			return err
 		}
 	}
+	if exitErr := terminalWorkloadExitError(value); exitErr != nil {
+		return exitErr
+	}
 	if waitErr != nil {
 		return waitErr
 	}
@@ -163,10 +166,24 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 		value = final
 	}
 	waitErr = err
-	if value.ExitCode != nil && value.GetExitCode() != 0 {
-		return command.ExitError{Code: int(value.GetExitCode())}
+	if exitErr := terminalWorkloadExitError(value); exitErr != nil {
+		return exitErr
 	}
 	return waitErr
+}
+
+func terminalWorkloadExitError(run *runv1.Run) error {
+	if run == nil || run.GetExitCode() == 0 {
+		return nil
+	}
+	switch run.GetStatus() {
+	case runv1.RunStatus_RUN_STATUS_SUCCEEDED,
+		runv1.RunStatus_RUN_STATUS_FAILED,
+		runv1.RunStatus_RUN_STATUS_CANCELLED:
+		return command.ExitError{Code: int(run.GetExitCode())}
+	default:
+		return nil
+	}
 }
 
 func canReadOutputAfterInitialWait(run *runv1.Run, waitErr error) bool {
