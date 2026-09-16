@@ -27,7 +27,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
       return { id: "run-1" };
     },
     async *watchRun() {
-      yield { id: "run-1", allocation_id: "alloc-1", node_id: "node-1", status: 4 };
+      yield { id: "run-1", allocation_id: "alloc-1", node_id: "node-1", status: 3 };
     },
     allocation(allocationId: string) {
       return {
@@ -123,4 +123,15 @@ test("sandbox readiness timeout cancels a silent run watch", async () => {
     (error: unknown) => error instanceof SandboxTimeoutError && error.message.includes("no state observed"),
   );
   assert.equal(watchClosed, true);
+});
+
+test("sandbox readiness rejects every terminal run status", async () => {
+  for (const status of [4, 5, 6]) {
+    await assert.rejects(
+      () => waitRunningRun("run-terminal", 1000, async function* () {
+        yield { id: "run-terminal", status, message: "terminal" };
+      }),
+      (error: unknown) => error instanceof Error && error.message.includes(`became ${status}`),
+    );
+  }
 });
