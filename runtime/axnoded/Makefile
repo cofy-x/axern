@@ -114,6 +114,11 @@ endif
 	@$(GO) clean -testcache
 	@$(GOTEST) ${TESTFLAGS} ${PACKAGES}
 
+.PHONY: test-process-race
+test-process-race: ## race-check Linux sandbox process ownership and stream cleanup
+	@test "$(GOOS)" = linux || { echo 'test-process-race requires Linux' >&2; exit 1; }
+	@$(GO) test -race -count=3 -timeout=120s ./internal/sandboxd ./internal/sandboxd/proc ./internal/sandboxd/process ./internal/sandboxd/workload ./internal/sandboxd/server ./internal/runtime/sandboxd
+
 test-host: verify-docker-network-contract verify-startup-matrix-contract ## run the host-safe unit subset for non-Linux development hosts
 	@echo "$(WHALE) $@"
 	@$(GO) clean -testcache

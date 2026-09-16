@@ -181,6 +181,9 @@ jobs:
       - name: Test full Linux node packages
         run: make axnoded-test
 
+      - name: Race-check Linux process lifecycle
+        run: make -C runtime/axnoded test-process-race
+
       - name: Fuzz network policy trust boundaries
         run: make network-policy-fuzz-smoke
 
