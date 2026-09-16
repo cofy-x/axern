@@ -37,23 +37,56 @@ export function sandboxMetadata(options: SandboxOptions, state: SandboxState): S
 export async function waitRunningRun(
   runId: string,
   timeoutMs: number,
-  watchRun: (runId: string) => AsyncIterable<Record<string, unknown>>,
+  watchRun: (runId: string, signal: AbortSignal) => AsyncIterable<Record<string, unknown>>,
 ): Promise<Record<string, unknown>> {
   const deadline = Date.now() + timeoutMs;
   let lastRun: Record<string, unknown> | undefined;
-  for await (const run of watchRun(runId)) {
-    lastRun = run;
-    const status = Number(run.status ?? 0);
-    if (status === 4 && String(run.allocation_id ?? "") !== "") {
-      return run;
+  const controller = new AbortController();
+  const iterator = watchRun(runId, controller.signal)[Symbol.asyncIterator]();
+  try {
+    for (;;) {
+      const remainingMs = deadline - Date.now();
+      if (remainingMs <= 0) break;
+      const result = await nextBeforeDeadline(iterator, remainingMs);
+      if (result === undefined || result.done) break;
+      const run = result.value;
+      lastRun = run;
+      const status = Number(run.status ?? 0);
+      if (status === 4 && String(run.allocation_id ?? "") !== "") {
+        return run;
+      }
+      if (status === 5 || status === 6 || status === 7) {
+        throw new Error(`run ${runId} became ${String(run.status ?? "")} before its sandbox allocation was running: ${String(run.message ?? "")}`);
+      }
     }
-    if (status === 5 || status === 6 || status === 7) {
-      throw new Error(`run ${runId} became ${String(run.status ?? "")} before its sandbox allocation was running: ${String(run.message ?? "")}`);
+  } finally {
+    controller.abort();
+    try {
+      const close = iterator.return?.();
+      if (close !== undefined) void close.catch(() => undefined);
+    } catch {
+      // The readiness result owns the error surface; stream cleanup is best effort.
     }
-    if (Date.now() >= deadline) break;
   }
   const details = lastRun === undefined ? "no state observed" : `${String(lastRun.status ?? "")}: ${String(lastRun.message ?? "")}`;
   throw new SandboxTimeoutError(`run ${runId} did not reach a running sandbox allocation: ${details}`);
+}
+
+async function nextBeforeDeadline<T>(
+  iterator: AsyncIterator<T>,
+  timeoutMs: number,
+): Promise<IteratorResult<T> | undefined> {
+  let timer: number | undefined;
+  try {
+    return await Promise.race([
+      iterator.next(),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(resolve, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 function sandboxSource(options: SandboxOptions): SandboxMetadata["source"] {

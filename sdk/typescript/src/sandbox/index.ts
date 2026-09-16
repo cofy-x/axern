@@ -150,7 +150,7 @@ export class Sandbox {
       const runningRun = await waitRunningRun(
         this.runId,
         this.options.readyTimeoutMs ?? 180_000,
-        (runId) => this.client.watchRun(runId),
+        (runId, signal) => this.client.watchRun(runId, { signal }),
       );
       this.currentState = {
         environmentId,

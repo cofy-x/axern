@@ -64,6 +64,11 @@ export interface ReadRunOutputOptions {
   follow?: boolean;
 }
 
+export interface WatchRunOptions {
+  afterVersion?: number;
+  signal?: AbortSignal;
+}
+
 export class AxernClient {
   readonly endpoint: string;
 
@@ -214,17 +219,22 @@ export class AxernClient {
     }
   }
 
-  async *watchRun(runId: string, afterVersion = 0): AsyncGenerator<Record<string, unknown>> {
+  async *watchRun(runId: string, options: WatchRunOptions = {}): AsyncGenerator<Record<string, unknown>> {
+    const afterVersion = options.afterVersion ?? 0;
+    const signal = options.signal;
     if (afterVersion < 0) {
       throw new Error("afterVersion must be non-negative");
     }
     let version = afterVersion;
     let retryDelayMs = 100;
     for (;;) {
+      if (signal?.aborted) return;
       const stream = serverStream(this.runControl, "WatchRun", {
         run_id: required("runId", runId),
         after_version: version,
       });
+      const cancel = () => stream.cancel();
+      signal?.addEventListener("abort", cancel, { once: true });
       try {
         for await (const response of stream) {
           const run = response.run as Record<string, unknown> | undefined;
@@ -237,9 +247,12 @@ export class AxernClient {
         }
         return;
       } catch (error) {
+        if (signal?.aborted) return;
         if (!transientReadError(error)) throw mapRpcError(error, "watch run");
+      } finally {
+        signal?.removeEventListener("abort", cancel);
       }
-      await sleep(retryDelayMs);
+      await sleep(retryDelayMs, signal);
       retryDelayMs = Math.min(retryDelayMs * 2, 2_000);
     }
   }
@@ -319,8 +332,17 @@ function transientReadError(error: unknown): boolean {
   return code === grpc.status.UNAVAILABLE || code === grpc.status.DEADLINE_EXCEEDED;
 }
 
-function sleep(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+function sleep(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return Promise.resolve();
+  return new Promise((resolve) => {
+    const complete = () => {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", complete);
+      resolve();
+    };
+    const timer = setTimeout(complete, milliseconds);
+    signal?.addEventListener("abort", complete, { once: true });
+  });
 }
 
 function controlCredentials(options: {
