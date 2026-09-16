@@ -2,20 +2,7 @@
 
 Rules and conventions for Axern contributors and agents.
 
-## Working Rules
-
-- Keep the repository platform-oriented, not template-oriented.
-- Keep Go, Rust, TypeScript, and Python as first-class workspaces.
-- Put runnable entrypoints in `apps/`, external SDKs and proto contracts in `sdk/`, internal shared libraries in `lib/`, and runtime-owned Rust code under its active runtime subtree.
-- Treat `runtime/`, `network/`, and `control/` as platform areas, not dump zones for demos or placeholder apps.
-- Keep reserved paths intentionally minimal until real platform code is ready.
-
-## Design Judgment
-
-- Prefer simple data flow and explicit ownership over premature abstraction.
-- Add abstractions only when they clarify a real domain boundary, remove meaningful duplication, or reduce maintenance risk.
-- Follow existing subsystem patterns before introducing a new style or helper layer.
-- Keep compatibility layers out of new designs unless an external contract requires them.
+Product boundaries and general design rules belong to the [Agent Contract](../AGENTS.md). This document adds implementation conventions; use existing subsystem patterns before introducing a new style or helper layer.
 
 ## Go Interface Rules
 
@@ -36,16 +23,7 @@ Rules and conventions for Axern contributors and agents.
 
 ## Validation Baseline
 
-- Prefer root `make` targets when they exist for the scope of the change.
-- Use `make verify-changed-plan` and `make verify-changed` as the normal repository handoff gate. The planner must remain host-safe and fail safe to `make verify-fast-all` for unknown or root-orchestration changes.
-- Changes to repository Markdown should run `make agent-doc-check`.
-- Cross-workspace or root-orchestration changes use `make verify-fast-all`; add `make build` only when build wiring or produced binaries changed.
-- Go changes should run the relevant package tests, subsystem validation, or the root `make test` for the affected `go.work` member.
-- Rust changes should run `cargo fmt --all --check` and `cargo test --workspace -- --test-threads=1`.
-- TypeScript changes under `sdk/typescript` should run `make sdk-typescript-verify`.
-- Python changes under `sdk/python` should run `make test-py` and `make lint-py`; run `uv build sdk/python` when package metadata or distribution behavior changes.
-- Shared protobuf contract changes should run `make protos`, `make proto-generated-check`, and `make -C sdk/proto lint`. Run generation and generated-output checks before Go compilation, never in parallel with it, because the generator replaces `sdk/go/gen` atomically at the workflow level rather than file by file.
-- Linux, Compose, kind, full-repository, and regional qualification tiers are required only when selected by the owning contract and delivery stage. A smaller smoke never substitutes for a release qualification receipt.
+Use the [Verification Tiers](../docs/verification/local-full-verification.md) for the repository gate and delivery-stage policy, then the owning module's validation section for focused checks. Prefer existing Make targets and the change planner over maintaining another language or integration test matrix here. Protobuf generation ordering is a hard constraint in the [Agent Contract](../AGENTS.md); generation commands belong to the [Proto Guide](../sdk/proto/README.md).
 
 ## Markdown Formatting
 
@@ -58,4 +36,4 @@ Rules and conventions for Axern contributors and agents.
 
 - Add a top-level product app or dashboard only when it has an explicit product owner and requirement.
 - Keep code, comments, engineering documentation, and normative repository contracts in English. Localized public documentation may use its target language; the same Markdown formatting rules apply.
-- Follow the sync rules in the [Agent Contract](../AGENTS.md) when workspace, root orchestration, or top-level platform areas change.
+- Update workspace membership and orchestration together according to the [Project Overview](project-overview.md) when changing repository structure.

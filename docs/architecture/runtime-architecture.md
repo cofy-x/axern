@@ -33,8 +33,8 @@ flowchart LR
     Ctrl -->|Allocation lifecycle| Node["axnoded lifecycle API"]
     Node --> CtrlStatus["BatchReportAllocationLifecycle"]
     CtrlStatus --> RunState["Run result + Allocation lifecycle"]
-    Gateway -->|resolve target and lease| Ctrl
-    Gateway -->|Allocation-scoped operations| NodeExec["NodeSandbox with internal allocation lease"]
+    Gateway -->|resolve target and access grant| Ctrl
+    Gateway -->|Allocation-scoped operations| NodeExec["NodeSandbox with AllocationAccessGrant"]
     NodeExec --> Node
     Gateway -->|client peer| Tunnel["tunneld"]
     Node -->|node peer| Tunnel

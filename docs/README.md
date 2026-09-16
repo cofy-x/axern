@@ -14,7 +14,13 @@ The public documentation website lives in [`apps/docs`](../apps/docs/README.md).
 | Verification | Reproducible acceptance scope                           | Keep commands executable and distinguish required checks from optional truth checks         |
 | Operations   | Repeatable development or deployment runbook            | Prefer commands and observable outcomes; remove superseded steps                            |
 
-Write English and localized Markdown prose as one source line per natural paragraph and rely on editor and rendered soft wrapping. This includes prose inside list items and block quotes. Preserve line breaks only for structures such as nested lists, tables, code blocks, frontmatter, diagrams, explicit breaks, and other syntax where source line boundaries carry meaning. See [Coding Standards](../.x/coding-standards.md) for the repository-wide rule.
+Follow the [Markdown Formatting](../.x/coding-standards.md#markdown-formatting) rules rather than maintaining a separate formatting convention here.
+
+## Reading And Authority
+
+This is a lookup index, not a required reading list. Follow [Task-Scoped Reading](../AGENTS.md#task-scoped-reading). The document types above define authority; agent contracts retain short safety constraints and route to those explanations.
+
+When a rule already has an owner, link to it instead of adding another full explanation to an AGENTS file, README, or `.x` page. Keep critical prohibitions visible in agent contracts, but update detailed behavior at its authoritative source. If code and a documented contract disagree, establish the intended behavior and report the discrepancy; do not silently treat either duplication or implementation drift as a new contract.
 
 Do not keep completed plans, migration diaries, dated progress summaries, or alternative designs here after the current contract is established. Git history preserves the process. If a non-obvious decision will constrain future work, record it as a short `docs/decisions/<topic>.md` containing the decision, rationale, consequences, and revisit condition. Create `docs/decisions/` only when the first durable decision is needed. Mark a replaced decision as superseded and link its replacement; keep current behavior in architecture documents.
 

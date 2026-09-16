@@ -2,34 +2,34 @@
 
 ## Purpose
 
-`runtime/axnoded` owns node-local Allocation execution and resource enforcement. Read the [Node Runtime README](README.md) for subsystem and document routing.
+`runtime/axnoded` owns node-local Allocation execution and resource enforcement. Use the [Node Runtime README](README.md) for commands and other document lookup; read the contracts selected by the task below.
+
+## Task Routes
+
+| Task | Required local context |
+| --- | --- |
+| Sandboxd process, wait/reap, streams, file operations, or PTY | [Sandbox Daemon](docs/sandbox-daemon.md) |
+| Runtime creation, persistence, recovery, cleanup, or package boundaries | [Node Architecture](docs/architecture.md) |
+| Resource pools, cgroup ownership, or network backend | [Resource Management](docs/resource.md) |
+| Writable rootfs, image ownership, or storage cleanup | [Rootfs Storage](docs/rootfs-storage.md) |
+| Capability observation, admission, or enforcement loss | [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md) |
+| Node identity, registration, renewal, or revocation | [Node Identity Ownership And Recovery](../../control/controld/README.md#node-identity-ownership-and-recovery), [Node Configuration](docs/configuration.md) |
+| Node API authorization or operator/debug access | [Authorization](../../docs/architecture/authorization.md), [Operator Authority Boundary](../../docs/decisions/node-operator-authority-boundary.md) |
 
 ## Ownership Boundaries
 
-- Keep `cmd/axnoded` thin, `internal/app` limited to construction and lifecycle, `internal/api` limited to protocol adapters, and `internal/service` responsible for Allocation orchestration.
-- `internal/service` is an implementation-layer name, not a product Service. Every workload path is keyed by a globally unique Allocation ID, and service subpackages must not import `internal/app` or `internal/api`.
-- Keep the single runsc executor, OCI execution, sandboxd integration, and writable rootfs views under their focused `internal/runtime` subpackages. Axnoded has no runtime registry or per-Allocation runtime selector; missing runsc requirements fail closed.
-- Keep image/rootfs coordination in `internal/environmentcache`, reusable resource pools in `internal/resources`, network integration in `internal/network`, and process-owned durable node records in `internal/nodestate`.
-- Keep observed node facts in `internal/nodecapability` and shared capability definitions in `lib/go/nodecapability`. Runtime handler declarations and sandboxd operations are separate capability domains.
-- Allocation state is one durable record per control-plane-bound Allocation. Node-local sessions and conformance probes are `DISCARD_ON_RESTART` and keep no durable Allocation record. Lifecycle workers enqueue bounded, coalesced observations without waiting for control-plane RPCs and preserve terminal evidence across retry and restart.
+- Keep entrypoints thin, `internal/app` limited to composition, `internal/api` to adapters, and `internal/service` to orchestration. Service packages must not import app or API packages. Package maps belong in Node Architecture.
+- Use the single runsc executor and typed sandboxd clients. Do not add an Allocation-selected runtime registry or duplicate shared capability definitions from `lib/go/nodecapability`.
 - The globally unique Allocation ID is the only execution identity. The lifecycle API, runtime container, cgroup lease, egress policy, tunnel routing, and capability conditions use it directly; do not add target maps, ID prefixes, attempts, generations, labels, or zero-value tests as identity aliases.
-- Keep the node execution request typed through the lifecycle and service boundaries. Secrets, registry credentials, ports, network mode, and egress policy must not be packed into JSON or behavior-bearing labels; validate them before computing the Allocation request digest or creating node-local side effects.
-- `AllocationState` is the sole node-local proof that controld admitted an Allocation to this exact node and the sole durable owner of its request digest, execution contract, and recovery obligations. Container metadata/status are runtime checkpoints; OCI labels, prefixes, field presence, or a second binding record may not authorize reporting or recovery.
-- A runtime container is durable only when the same globally unique ID has an admitted `AllocationState`. Node-local sessions and conformance probes keep no such record, are discarded on restart, and may never be reported as Allocations.
-- Egressd alone persists the exact Allocation policy/IP record. Axnoded persists no digest/revision proof copy and reconciles egressd against recovered durable Allocation executions.
-- Sandboxd readiness and operation support come from the live per-Allocation Unix socket. Never persist them as container labels or infer them from a runtime annotation.
+- Validate typed execution inputs before digest computation or side effects; never pack secrets, policy, or execution behavior into JSON or labels.
+- `AllocationState` is the sole durable node admission and recovery record. Node-local sessions and conformance probes have no such record, are discarded on restart, and must not be reported as admitted Allocations. Preserve terminal reporting and cleanup obligations across failures.
+- Egressd owns its policy record; sandboxd readiness is queried live. Neither may acquire a duplicate authoritative copy in container metadata.
 - Preserve Allocation-scoped `Exec`, `ExecStream`, and `Wait` as node-local diagnostic capabilities. They must reuse the normal process/runtime implementation, require the exact Allocation identity, and must not create a second lifecycle authority. Destructive node-local operations are explicit privileged break-glass actions; they may not silently bypass terminal reporting, cleanup ownership, or durable recovery obligations.
-- Keep routable node authority explicit: `controld` mTLS may call only `NodeLifecycle`, `gatewayd` mTLS may call only `NodeSandbox`, and local operator, machine network, and test-only conformance services remain on separate root-controlled Unix sockets. Conformance must never operate a control-plane-bound Allocation and stays disabled in production.
-- Keep human operator access separate from node-local machine APIs. An internal daemon that only needs a narrow lookup such as Allocation network resolution must not inherit ambient access to exec, termination, cleanup, or diagnostics. Operator sockets must never be world-writable; enforce the intended principal boundary with socket ownership and permissions or equivalent peer authentication.
+- Routable `NodeLifecycle` accepts only controld and `NodeSandbox` only gatewayd. Operator, machine lookup, and conformance sockets remain separate and root-controlled, never world-writable. Production disables conformance; conformance cannot operate admitted Allocations.
 - Keep only the narrow terminal lifecycle outbox required to bridge runtime cleanup and control-plane acknowledgement. Inventory, locality, sandboxd diagnostics, and other runtime/kernel observations are rebuildable projections and must not gain another durable cache.
 - Keep test adapters in explicit test-support packages and keep production packages free of bridge aliases, catch-all helpers, and convenience `pkg` layers.
-- Treat proto, config, runsc execution, capability, image-manager, and network changes as cross-owner contracts; update their authoritative code and documents together. A future isolation backend must ship as a separately qualified node implementation/pool, not as a second handler selected from Allocation metadata.
-
-- Connected nodes require an explicit Node ID. Bootstrap tokens are separate read-only file inputs, never configuration fields or environment contents. An existing identity must never read bootstrap material; renewal is deadline-driven with bounded retry, not a durable queue.
-- Node keys and pending enrollment CSR belong to the durable node root. Certificate maintenance must not prevent recovery or ExecutionLease enforcement; expired identity never falls back to registration.
+- Connected nodes require an explicit Node ID. Existing identity must never read bootstrap material or fall back to enrollment. Bootstrap material is a separate read-only file, not configuration or environment contents; identity maintenance must not block recovery or ExecutionLease enforcement.
 
 ## Validation
 
-- Run `make fmt`, `make vet`, and targeted Go tests for ordinary changes; run `make check-architecture` for package or layering changes.
-- On non-Linux hosts, use `make test-host` plus affected Linux-target compile checks. Validate runtime, cgroup, egress networking, Tunnel/SSH, and rootfs behavior through the relevant privileged Linux target selected by `make verify-changed`.
-- Use [Verification](docs/verification.md) for the runtime truth matrix.
+Use [Runtime Verification](docs/verification.md) for focused commands and the Linux truth matrix. Run targeted package tests and vet for code changes, architecture checks for layering changes, and the affected privileged Linux path for runtime, cgroup, network, rootfs, SSH, or Tunnel behavior. Host-only tests do not prove Linux kernel behavior. Repository-wide gate selection follows the root contract.
