@@ -90,7 +90,7 @@ for path in "${paths[@]}"; do
   case "${path}" in
     runtime/egressd/*|lib/go/networkpolicy/*|network/bpfnet/*|runtime/axnoded/cmd/network-policy-*|runtime/axnoded/cmd/verify-network-policy-*|runtime/axnoded/internal/egress/*|runtime/axnoded/internal/network/*|runtime/axnoded/internal/bpfnetstatus/*|runtime/axnoded/internal/nodeinventory/bpfnet_*|runtime/axnoded/internal/runtime/oci/spec_network.go|runtime/axnoded/internal/service/egress_*|runtime/axnoded/internal/service/network_policy_*|runtime/axnoded/internal/service/networking/*|runtime/axnoded/internal/service/allocation/egress_*|runtime/axnoded/scripts/qualification/*|sdk/proto/axern/private/runtime/egress/*|sdk/proto/axern/node/sandbox/v1/node.proto) network_policy_linux=true ;;
   esac
-  case "${path}" in VERSION|.github/workflows/release.yml|scripts/release/*|deploy/helm/*|deploy/images/*|mk/deploy.mk) release_contract=true ;; esac
+  case "${path}" in VERSION|.github/workflows/*|scripts/release/*|scripts/dev-env/docker-build-cache*|scripts/verification/*|scripts/verify-all.sh|deploy/helm/*|deploy/images/*|mk/deploy.mk) release_contract=true ;; esac
   case "${path}" in Makefile|mk/*|scripts/*|.github/*|deploy/*|examples/*) broad=true ;; esac
   case "${path}" in
     apps/*|control/*|gateway/*|lib/*|runtime/*|network/*|sdk/*|deploy/*|docs/*|examples/*|scripts/*|mk/*|.github/*|.x/*|AGENTS.md|Makefile|Cargo.toml|Cargo.lock|go.work|go.work.sum|package.json|pnpm-lock.yaml|pnpm-workspace.yaml|pyproject.toml|uv.lock|VERSION) ;;

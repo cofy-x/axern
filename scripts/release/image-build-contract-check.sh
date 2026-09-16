@@ -21,6 +21,7 @@ fi
 
 python3 - "${AXERN_ROOT}" <<'PY'
 import pathlib
+import re
 import sys
 
 root = pathlib.Path(sys.argv[1])
@@ -44,8 +45,8 @@ for workflow_path in (
     root / ".github/workflows/ci.yml",
     root / ".github/workflows/post-merge-full.yml",
 ):
-    if 'APT_MIRROR_SOURCE: "ustc"' not in workflow_path.read_text():
-        raise SystemExit(f"heavyweight GitHub verification does not select the CI APT mirror: {workflow_path}")
+    if re.search(r"^\s+(APT_MIRROR_SOURCE|CARGO_REGISTRY_SOURCE|GOPROXY):", workflow_path.read_text(), re.M):
+        raise SystemExit(f"hosted verification must use upstream defaults, not regional mirrors: {workflow_path}")
 
 runtime_source = (root / "runtime/axnoded/scripts/lib/verify-docker-common.sh").read_text()
 function_start = runtime_source.index("build_node_runtime_base_image()")

@@ -22,6 +22,8 @@ make verify-changed
 
 Set `VERIFY_BASE=<ref>` when the comparison base is not `origin/main`. For a broad or unclassifiable source change, the planner fails safe to `make verify-fast-all`, the complete host-safe source gate. Protobuf generated output checks finish before any Go compilation.
 
+Workflow, verification orchestration, and shared Docker build-cache changes also select `make release-check`. These paths can invalidate release and image-build contracts even without modifying release artifacts; local validation must execute those same contracts before PR CI.
+
 Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its normal budget is minutes. A normal pull request may merge after its selected Tier 1 checks and GitHub checks pass; it does not also require a local full gate.
 
 Concurrency unit tests must prove overlap, ordering, and limits through explicit synchronization rather than total elapsed-time thresholds. Wall-clock deadlines may bound a stuck test, but shared-runner speed is not a correctness assertion. Release all test barriers and join workers before closing their stores or removing temporary directories.
