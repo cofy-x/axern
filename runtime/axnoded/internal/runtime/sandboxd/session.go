@@ -63,6 +63,7 @@ type Session struct {
 	processID       string
 	base            *execflow.SessionState
 	closeOnce       sync.Once
+	closeErr        error
 	closeStdinOnce  sync.Once
 	closeStdinErr   error
 	streamDone      chan error
@@ -115,47 +116,45 @@ func (s *Session) Wait() (contract.Exit, error) {
 }
 
 func (s *Session) Close() error {
-	var err error
 	s.closeOnce.Do(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), sessionShutdownTimeout)
 		defer cancel()
 		s.closeStdinOnce.Do(func() {
 			_, s.closeStdinErr = s.client.CloseProcessStdin(cleanupCtx, s.processID)
 		})
-		err = s.closeStdinErr
-		_, _ = s.client.SignalProcess(cleanupCtx, s.processID, "TERM")
-		waitDone := make(chan struct{})
-		go func() {
-			_, _ = s.base.Wait()
-			close(waitDone)
-		}()
-		select {
-		case <-waitDone:
-		case <-cleanupCtx.Done():
-			killCtx, killCancel := context.WithTimeout(context.Background(), time.Second)
-			_, _ = s.client.SignalProcess(killCtx, s.processID, "KILL")
-			killCancel()
-			killWait := time.NewTimer(sessionKillWaitTimeout)
-			defer killWait.Stop()
-			select {
-			case <-waitDone:
-			case <-killWait.C:
-			}
+		defer s.cancel()
+		_, termErr := s.client.SignalProcess(cleanupCtx, s.processID, "TERM")
+		// An access-side Wait can finish because its context was canceled. Only
+		// a fresh, independently bounded runtime wait confirms process exit.
+		waitErr := s.waitForCleanup(cleanupCtx)
+		if waitErr == nil {
+			s.closeErr = errors.Join(s.closeStdinErr, termErr)
+			return
 		}
-		s.cancel()
+		killCtx, killCancel := context.WithTimeout(context.Background(), sessionKillWaitTimeout)
+		defer killCancel()
+		_, killErr := s.client.SignalProcess(killCtx, s.processID, "KILL")
+		finalErr := s.waitForCleanup(killCtx)
+		if finalErr != nil {
+			finalErr = fmt.Errorf("confirm exec session cleanup: %w", errors.Join(waitErr, finalErr))
+		}
+		s.closeErr = errors.Join(s.closeStdinErr, termErr, killErr, finalErr)
 	})
+	return s.closeErr
+}
+
+func (s *Session) waitForCleanup(ctx context.Context) error {
+	status, err := s.client.WaitProcess(ctx, s.processID)
+	if err != nil {
+		return err
+	}
+	_, err = processExitCode(status)
 	return err
 }
 
 func (s *Session) streamOutput() {
 	err := s.client.StreamProcess(s.ctx, s.processID, func(event ProcessStreamEvent) error {
-		if len(event.Stdout) > 0 {
-			s.base.EmitStdout(event.Stdout)
-		}
-		if len(event.Stderr) > 0 {
-			s.base.EmitStderr(event.Stderr)
-		}
-		return nil
+		return s.base.EmitContext(s.ctx, contract.Chunk{Stdout: event.Stdout, Stderr: event.Stderr})
 	})
 	if errors.Is(err, context.Canceled) {
 		err = nil
@@ -165,11 +164,16 @@ func (s *Session) streamOutput() {
 	}
 	s.streamDone <- err
 	close(s.streamDone)
+	if err != nil {
+		s.cancel()
+	}
 }
 
 func (s *Session) waitProcess() {
 	status, err := s.client.WaitProcess(s.ctx, s.processID)
 	if err != nil {
+		s.cancel()
+		err = errors.Join(err, <-s.streamDone)
 		s.base.FinishWait(contract.Exit{}, err)
 		s.base.FinishOutput()
 		return
@@ -200,6 +204,8 @@ func (s *Session) drainStream() error {
 		case streamErr = <-s.streamDone:
 		case <-time.After(streamDrainTimeout):
 			streamErr = fmt.Errorf("sandboxd process stream did not finish within %s", streamDrainTimeout)
+			s.cancel()
+			<-s.streamDone
 		}
 	})
 	return streamErr

@@ -64,6 +64,40 @@ func TestRunnerReportsStartFailure(t *testing.T) {
 	}
 }
 
+func TestRunnerCancellationKeepsReaperAliveThroughShutdown(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	defer writer.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	runner := NewRunner(Config{
+		SocketPath:      filepath.Join(shortTempDir(t), "sandboxd.sock"),
+		ShutdownTimeout: time.Second,
+		Entrypoint:      workload.Entrypoint{Args: []string{"/bin/sh", "-c", "printf ready; exec sleep 60"}},
+	}, writer, writer)
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() { code, err := runner.Run(ctx); done <- result{code, err} }()
+	// The child's pipe write establishes startup before cancellation.
+	if _, err := reader.Read(make([]byte, 5)); err != nil {
+		t.Fatal(err)
+	}
+	cancel()
+	got := <-done
+	if got.err != nil || got.code != 128+int(syscall.SIGTERM) {
+		t.Fatalf("shutdown: code=%d err=%v", got.code, got.err)
+	}
+	if state := runner.state.Status().UserProcess.State; state != workload.UserStateExited {
+		t.Fatalf("unreaped state: %s", state)
+	}
+}
+
 func TestSupervisorForwardsSignal(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("process group signal forwarding is Unix-only")

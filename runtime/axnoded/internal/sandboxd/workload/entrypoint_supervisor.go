@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -31,9 +32,13 @@ type Supervisor struct {
 	stdout          io.Writer
 	stderr          io.Writer
 
-	mu       sync.Mutex
+	startMu  sync.Mutex
+	started  bool
+	closing  bool
 	cmd      *exec.Cmd
 	done     chan ProcessResult
+	finished chan struct{}
+	result   ProcessResult
 	doneOnce sync.Once
 }
 
@@ -46,10 +51,20 @@ func NewSupervisor(entrypoint Entrypoint, shutdownTimeout time.Duration, state *
 		stdout:          stdout,
 		stderr:          stderr,
 		done:            make(chan ProcessResult, 1),
+		finished:        make(chan struct{}),
 	}
 }
 
 func (s *Supervisor) Start() <-chan ProcessResult {
+	s.startMu.Lock()
+	defer s.startMu.Unlock()
+	if s.closing {
+		return nil
+	}
+	if s.started {
+		return s.done
+	}
+	s.started = true
 	if len(s.entrypoint.Args) == 0 {
 		return nil
 	}
@@ -69,7 +84,15 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 	cmd.Stderr = s.stderr
 	cmd.SysProcAttr = proc.SysProcAttr()
 
-	if err := cmd.Start(); err != nil {
+	pid := 0
+	waitCh, err := s.waiter.Start(cmd, func() error {
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		pid = cmd.Process.Pid
+		return nil
+	})
+	if err != nil {
 		_, _ = fmt.Fprintf(s.stderr, "start user process: %v\n", err)
 		finishedAt := time.Now().UTC()
 		s.state.SetUserProcess(UserProcessStatus{
@@ -82,20 +105,14 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 		return s.done
 	}
 
-	s.mu.Lock()
 	s.cmd = cmd
-	s.mu.Unlock()
 	s.state.UpdateUserProcess(func(status *UserProcessStatus) {
 		status.State = UserStateRunning
-		status.PID = cmd.Process.Pid
+		status.PID = pid
 	})
 
-	waitCh := s.waiter.Watch(cmd)
 	go func() {
 		waitResult := <-waitCh
-		if cmd.Process != nil {
-			_ = cmd.Process.Release()
-		}
 		finishedAt := time.Now().UTC()
 		exitCode := waitResult.ExitCode
 		signalName := ""
@@ -117,12 +134,14 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 }
 
 func (s *Supervisor) Shutdown(signal os.Signal) ProcessResult {
-	s.mu.Lock()
+	s.startMu.Lock()
+	s.closing = true
 	cmd := s.cmd
-	s.mu.Unlock()
-	if cmd == nil || cmd.Process == nil {
+	s.startMu.Unlock()
+	if cmd == nil {
 		s.finish(ProcessResult{ExitCode: 0})
-		return <-s.done
+		<-s.finished
+		return s.result
 	}
 
 	s.state.UpdateUserProcess(func(status *UserProcessStatus) {
@@ -130,23 +149,33 @@ func (s *Supervisor) Shutdown(signal os.Signal) ProcessResult {
 			status.State = UserStateStopping
 		}
 	})
-	_ = proc.SignalProcessGroup(cmd.Process.Pid, signal)
+	if err := s.waiter.Signal(cmd, signal); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		return ProcessResult{ExitCode: proc.RuntimeStartExitCode, Err: err}
+	}
 
 	timer := time.NewTimer(s.shutdownTimeout)
 	defer timer.Stop()
 	select {
-	case result := <-s.done:
-		return result
+	case <-s.finished:
+		return s.result
 	case <-timer.C:
-		_ = proc.KillProcessGroup(cmd.Process.Pid)
-		result := <-s.done
-		return result
+		if err := s.waiter.Signal(cmd, os.Kill); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return ProcessResult{ExitCode: proc.RuntimeStartExitCode, Err: err}
+		}
+		select {
+		case <-s.finished:
+			return s.result
+		case <-time.After(time.Second):
+			return ProcessResult{ExitCode: proc.RuntimeStartExitCode, Err: fmt.Errorf("entrypoint kill did not complete")}
+		}
 	}
 }
 
 func (s *Supervisor) finish(result ProcessResult) {
 	s.doneOnce.Do(func() {
+		s.result = result
 		s.done <- result
 		close(s.done)
+		close(s.finished)
 	})
 }

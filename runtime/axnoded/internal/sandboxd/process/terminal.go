@@ -26,12 +26,6 @@ func (p *managedProcess) start(cmd *exec.Cmd, request StartRequest, user process
 	p.tty = tty
 	p.stdin = tty
 	p.outputDone = make(chan struct{})
-	if request.Stdin != "" {
-		if err := writeAll(tty, []byte(request.Stdin)); err != nil {
-			_ = tty.Close()
-			return err
-		}
-	}
 	go p.copyTerminalOutput(tty)
 	return nil
 }
@@ -126,17 +120,18 @@ func (p *managedProcess) waitForOutput() {
 		case <-time.After(time.Second):
 		}
 	}
-	if p.tty != nil {
-		_ = p.tty.Close()
+	p.closeIO()
+	if p.outputDone != nil {
+		<-p.outputDone
 	}
 }
 
 func (p *managedProcess) resize(cols uint32, rows uint32) error {
 	p.mu.RLock()
+	defer p.mu.RUnlock()
 	tty := p.tty
 	terminal := p.terminal
 	state := p.status.State
-	p.mu.RUnlock()
 	if !terminal || tty == nil {
 		return fmt.Errorf("process terminal is not open")
 	}

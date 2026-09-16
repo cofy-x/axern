@@ -3,6 +3,7 @@
 package proc
 
 import (
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -11,14 +12,13 @@ func SysProcAttr() *syscall.SysProcAttr {
 	return &syscall.SysProcAttr{Setpgid: true}
 }
 
-func SignalProcessGroup(pid int, signal os.Signal) error {
+func signalProcessGroup(pid int, signal os.Signal) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid process group: %d", pid)
+	}
 	sig, ok := signal.(syscall.Signal)
 	if !ok {
-		sig = syscall.SIGTERM
+		return fmt.Errorf("unsupported process signal: %v", signal)
 	}
 	return syscall.Kill(-pid, sig)
-}
-
-func KillProcessGroup(pid int) error {
-	return syscall.Kill(-pid, syscall.SIGKILL)
 }

@@ -13,24 +13,31 @@ func (r *Registry) Shutdown(ctx context.Context, grace time.Duration) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	r.startMu.Lock()
+	r.closing = true
 	active := r.activeProcesses()
+	r.startMu.Unlock()
 	if len(active) == 0 {
 		return nil
 	}
 	term, _ := proc.SignalByName("TERM")
 	for _, managed := range active {
 		_ = managed.closeStdin()
-		_ = managed.signal(term)
+		if err := managed.signal(term); err != nil {
+			return err
+		}
 	}
 	if waitManagedProcesses(ctx, active, grace) {
-		return nil
+		return ctx.Err()
 	}
 	remaining := r.activeProcesses()
 	for _, managed := range remaining {
-		_ = managed.kill()
+		if err := managed.kill(); err != nil {
+			return err
+		}
 	}
 	if waitManagedProcesses(ctx, remaining, time.Second) {
-		return nil
+		return ctx.Err()
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -93,19 +100,16 @@ func (p *managedProcess) signal(signal os.Signal) error {
 	cmd := p.cmd
 	state := p.status.State
 	p.mu.RUnlock()
-	if state != ProcessStateRunning || cmd == nil || cmd.Process == nil {
+	if state != ProcessStateRunning || cmd == nil {
 		return nil
 	}
-	return proc.SignalProcessGroup(cmd.Process.Pid, signal)
+	err := p.waiter.Signal(cmd, signal)
+	if errors.Is(err, os.ErrProcessDone) {
+		return nil
+	}
+	return err
 }
 
 func (p *managedProcess) kill() error {
-	p.mu.RLock()
-	cmd := p.cmd
-	state := p.status.State
-	p.mu.RUnlock()
-	if state != ProcessStateRunning || cmd == nil || cmd.Process == nil {
-		return nil
-	}
-	return proc.KillProcessGroup(cmd.Process.Pid)
+	return p.signal(os.Kill)
 }

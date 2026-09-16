@@ -44,7 +44,8 @@ func RunStartedCommand(ctx context.Context, cmd *exec.Cmd, waiter *Waiter) ([]by
 	defer stderrReader.Close()
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderrWriter
-	if err := cmd.Start(); err != nil {
+	waitCh, err := startCommand(cmd, waiter)
+	if err != nil {
 		stdoutWriter.Close()
 		stderrWriter.Close()
 		return nil, fmt.Errorf("start %s: %w", cmd.Path, err)
@@ -54,18 +55,28 @@ func RunStartedCommand(ctx context.Context, cmd *exec.Cmd, waiter *Waiter) ([]by
 
 	stdoutCh := readAll(stdoutReader)
 	stderrCh := readAll(stderrReader)
-	waitCh := waitForCommand(cmd, waiter)
 	var timedOut error
 	var result Result
 	select {
 	case result = <-waitCh:
 	case <-ctx.Done():
 		timedOut = ctx.Err()
-		_ = KillProcessGroup(cmd.Process.Pid)
+		if waiter != nil {
+			_ = waiter.Signal(cmd, os.Kill)
+		} else {
+			_ = cmd.Process.Kill()
+		}
 		result = <-waitCh
 	}
+	// Descendants may retain the pipe after the direct child exits. Reading
+	// output remains bounded by the caller's deadline, independently of wait.
+	stopClose := context.AfterFunc(ctx, func() { _ = stdoutReader.Close(); _ = stderrReader.Close() })
+	defer stopClose()
 	stdout := <-stdoutCh
 	stderr := <-stderrCh
+	if timedOut == nil {
+		timedOut = ctx.Err()
+	}
 	if timedOut != nil {
 		return nil, fmt.Errorf("%s: %w", strings.TrimSpace(stderr.text), timedOut)
 	}
@@ -102,14 +113,17 @@ func readAll(reader io.Reader) <-chan streamRead {
 	return ch
 }
 
-func waitForCommand(cmd *exec.Cmd, waiter *Waiter) <-chan Result {
+func startCommand(cmd *exec.Cmd, waiter *Waiter) (<-chan Result, error) {
 	if waiter != nil {
-		return waiter.Watch(cmd)
+		return waiter.Start(cmd, cmd.Start)
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
 	}
 	ch := make(chan Result, 1)
 	go func() {
 		ch <- ResultFromError(cmd.Wait())
 		close(ch)
 	}()
-	return ch
+	return ch, nil
 }

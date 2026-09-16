@@ -4,6 +4,7 @@ package proc
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -12,16 +13,19 @@ import (
 	"time"
 )
 
-const maxCachedExitStatuses = 1024
 const reapFallbackInterval = 100 * time.Millisecond
+
+type child struct {
+	cmd  *exec.Cmd
+	done chan Result
+}
 
 type Waiter struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	mu     sync.Mutex
-	waits  map[int]chan Result
-	cache  map[int]Result
-	order  []int
+	waits  map[int]child
+	done   chan struct{}
 }
 
 func NewWaiter(ctx context.Context) *Waiter {
@@ -29,39 +33,54 @@ func NewWaiter(ctx context.Context) *Waiter {
 	w := &Waiter{
 		ctx:    ctx,
 		cancel: cancel,
-		waits:  make(map[int]chan Result),
-		cache:  make(map[int]Result),
+		waits:  make(map[int]child),
+		done:   make(chan struct{}),
 	}
 	go w.reap()
 	return w
 }
 
-func (w *Waiter) Watch(cmd *exec.Cmd) <-chan Result {
-	ch := make(chan Result, 1)
-	if cmd == nil || cmd.Process == nil {
-		ch <- Result{ExitCode: RuntimeStartExitCode}
-		close(ch)
-		return ch
-	}
+// Start makes creation and registration atomic with respect to reaping. The
+// callback may configure/start the child, but must not wait for child I/O.
+func (w *Waiter) Start(cmd *exec.Cmd, start func() error) (<-chan Result, error) {
 	w.mu.Lock()
-	if result, ok := w.cache[cmd.Process.Pid]; ok {
-		delete(w.cache, cmd.Process.Pid)
-		w.mu.Unlock()
-		ch <- result
-		close(ch)
-		return ch
+	defer w.mu.Unlock()
+	if err := w.ctx.Err(); err != nil {
+		return nil, err
 	}
-	w.waits[cmd.Process.Pid] = ch
-	w.mu.Unlock()
-	w.ReapAvailable()
-	return ch
+	if err := start(); err != nil {
+		return nil, err
+	}
+	ch := make(chan Result, 1)
+	w.waits[cmd.Process.Pid] = child{cmd: cmd, done: ch}
+	return ch, nil
+}
+
+// Signal serializes group signaling with wait4 and handle release. Once reaped,
+// this exact command loses authority even if the PID is reused. This only covers
+// the original process group, not descendants which create another session.
+func (w *Waiter) Signal(cmd *exec.Cmd, signal os.Signal) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	for pid, child := range w.waits {
+		if child.cmd == cmd {
+			err := signalProcessGroup(pid, signal)
+			if errors.Is(err, syscall.ESRCH) {
+				return os.ErrProcessDone
+			}
+			return err
+		}
+	}
+	return os.ErrProcessDone
 }
 
 func (w *Waiter) Stop() {
 	w.cancel()
+	<-w.done
 }
 
 func (w *Waiter) reap() {
+	defer close(w.done)
 	sigCh := make(chan os.Signal, 64)
 	signal.Notify(sigCh, syscall.SIGCHLD)
 	defer signal.Stop(sigCh)
@@ -83,9 +102,11 @@ func (w *Waiter) reap() {
 
 func (w *Waiter) ReapAvailable() {
 	for {
+		w.mu.Lock()
 		var status syscall.WaitStatus
 		pid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, nil)
 		if err != nil || pid <= 0 {
+			w.mu.Unlock()
 			return
 		}
 		result := Result{
@@ -95,29 +116,15 @@ func (w *Waiter) ReapAvailable() {
 			result.Signal = status.Signal()
 			result.ExitCode = 128 + int(status.Signal())
 		}
-		w.mu.Lock()
-		ch := w.waits[pid]
-		if ch != nil {
+		child, owned := w.waits[pid]
+		if owned {
 			delete(w.waits, pid)
-		} else {
-			w.cacheResult(pid, result)
+			result.Err = child.cmd.Process.Release()
 		}
 		w.mu.Unlock()
-		if ch != nil {
-			ch <- result
-			close(ch)
+		if owned {
+			child.done <- result
+			close(child.done)
 		}
-	}
-}
-
-func (w *Waiter) cacheResult(pid int, result Result) {
-	if _, exists := w.cache[pid]; !exists {
-		w.order = append(w.order, pid)
-	}
-	w.cache[pid] = result
-	for len(w.order) > maxCachedExitStatuses {
-		evict := w.order[0]
-		w.order = w.order[1:]
-		delete(w.cache, evict)
 	}
 }

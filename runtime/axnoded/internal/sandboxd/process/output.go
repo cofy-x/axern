@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -21,16 +22,19 @@ type outputHub struct {
 	limit       int
 	mu          sync.Mutex
 	backlog     []StreamEvent
-	subscribers map[chan StreamEvent]<-chan struct{}
-	done        chan struct{}
+	subscribers map[chan StreamEvent]outputSubscription
 	closed      bool
+}
+
+type outputSubscription struct {
+	done <-chan struct{}
+	stop func() bool
 }
 
 func newOutputHub(limit int) *outputHub {
 	return &outputHub{
 		limit:       limit,
-		subscribers: map[chan StreamEvent]<-chan struct{}{},
-		done:        make(chan struct{}),
+		subscribers: map[chan StreamEvent]outputSubscription{},
 	}
 }
 
@@ -44,44 +48,54 @@ func (h *outputHub) publish(event StreamEvent) {
 	for len(h.backlog) > h.limit {
 		h.backlog = h.backlog[1:]
 	}
-	for ch, done := range h.subscribers {
+	for ch, subscription := range h.subscribers {
 		select {
 		case ch <- cloneStreamEvent(event):
-		case <-done:
+		case <-subscription.done:
+			subscription.stop()
+			delete(h.subscribers, ch)
+			close(ch)
+		default:
+			subscription.stop()
+			// Disconnect a lagging subscriber with an explicit loss diagnostic.
+			// Never hold process cleanup hostage to an unconsumed stream.
+			select {
+			case <-ch:
+			default:
+			}
+			ch <- StreamEvent{Error: "process output consumer exceeded bounded backlog"}
 			delete(h.subscribers, ch)
 			close(ch)
 		}
 	}
 }
 
-func (h *outputHub) subscribe(ctx context.Context) <-chan StreamEvent {
+func (h *outputHub) subscribe(ctx context.Context) (<-chan StreamEvent, error) {
 	ch := make(chan StreamEvent, h.limit)
 	h.mu.Lock()
+	if len(h.subscribers) >= 64 {
+		h.mu.Unlock()
+		return nil, fmt.Errorf("process output subscriber limit reached: %w", ErrResourceLimit)
+	}
 	for _, event := range h.backlog {
 		ch <- cloneStreamEvent(event)
 	}
 	if h.closed {
 		h.mu.Unlock()
 		close(ch)
-		return ch
+		return ch, nil
 	}
-	h.subscribers[ch] = ctx.Done()
-	h.mu.Unlock()
-
-	go func() {
-		select {
-		case <-ctx.Done():
-		case <-h.done:
-			return
-		}
+	stop := context.AfterFunc(ctx, func() {
 		h.mu.Lock()
 		if _, ok := h.subscribers[ch]; ok {
 			delete(h.subscribers, ch)
 			close(ch)
 		}
 		h.mu.Unlock()
-	}()
-	return ch
+	})
+	h.subscribers[ch] = outputSubscription{done: ctx.Done(), stop: stop}
+	h.mu.Unlock()
+	return ch, nil
 }
 
 func (h *outputHub) close() {
@@ -91,8 +105,8 @@ func (h *outputHub) close() {
 		return
 	}
 	h.closed = true
-	close(h.done)
-	for ch := range h.subscribers {
+	for ch, subscription := range h.subscribers {
+		subscription.stop()
 		close(ch)
 		delete(h.subscribers, ch)
 	}
@@ -100,6 +114,7 @@ func (h *outputHub) close() {
 
 func cloneStreamEvent(event StreamEvent) StreamEvent {
 	return StreamEvent{
+		Error:  event.Error,
 		Stdout: append([]byte(nil), event.Stdout...),
 		Stderr: append([]byte(nil), event.Stderr...),
 	}

@@ -6,9 +6,12 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/proc"
 )
 
 type managedProcess struct {
+	waiter        *proc.Waiter
 	status        Status
 	cmd           *exec.Cmd
 	stdin         io.WriteCloser
@@ -25,6 +28,7 @@ type managedProcess struct {
 	done          chan struct{}
 	mu            sync.RWMutex
 	stdinMu       sync.Mutex
+	writeMu       sync.Mutex
 }
 
 func (p *managedProcess) configureOutput(cmd *exec.Cmd, request StartRequest) error {
@@ -47,36 +51,56 @@ func (p *managedProcess) configureOutput(cmd *exec.Cmd, request StartRequest) er
 	if err != nil {
 		return err
 	}
+	p.stdoutPipe = stdoutPipe
 	stderrPipe, err := cmd.StderrPipe()
 	if err != nil {
 		return err
 	}
-	p.stdoutPipe = stdoutPipe
 	p.stderrPipe = stderrPipe
 	return nil
 }
 
 func (p *managedProcess) writeStdin(data []byte) error {
+	p.writeMu.Lock()
+	defer p.writeMu.Unlock()
 	p.stdinMu.Lock()
-	defer p.stdinMu.Unlock()
-	if p.stdin == nil {
+	stdin := p.stdin
+	p.stdinMu.Unlock()
+	if stdin == nil {
 		return fmt.Errorf("process stdin is not open")
 	}
-	return writeAll(p.stdin, data)
+	return writeAll(stdin, data)
 }
 
 func (p *managedProcess) closeStdin() error {
 	p.stdinMu.Lock()
-	defer p.stdinMu.Unlock()
 	if p.terminal {
+		p.stdinMu.Unlock()
 		return nil
 	}
 	if p.stdin == nil {
+		p.stdinMu.Unlock()
 		return nil
 	}
-	err := p.stdin.Close()
+	stdin := p.stdin
 	p.stdin = nil
-	return err
+	p.stdinMu.Unlock()
+	return stdin.Close()
+}
+
+func (p *managedProcess) closeIO() {
+	_ = p.closeStdin()
+	if p.stdoutPipe != nil {
+		_ = p.stdoutPipe.Close()
+	}
+	if p.stderrPipe != nil {
+		_ = p.stderrPipe.Close()
+	}
+	if p.tty != nil {
+		p.mu.Lock()
+		_ = p.tty.Close()
+		p.mu.Unlock()
+	}
 }
 
 func (p *managedProcess) snapshot() Status {
