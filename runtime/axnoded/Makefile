@@ -197,7 +197,11 @@ verify-network-policy-linux-smoke: ## run representative native-Linux network-po
 verify-network-policy-linux-matrix: ## run the full native-Linux runsc network-policy correctness matrix
 	@NETWORK_POLICY_LINUX_MATRIX_SCOPE=full bash ./scripts/qualification/network-policy-linux-smoke.sh
 
-verify-docker-conformance: ## run production cgroup and serialized runsc certification truth
+.PHONY: verify-kernel-truth
+verify-kernel-truth: ## verify cgroup kill and disk-backed page-cache eviction in isolated Linux
+	@GO="$(GO)" bash ./scripts/verify/verify-kernel-truth.sh
+
+verify-docker-conformance: verify-kernel-truth ## run production cgroup and serialized runsc certification truth
 	@AXNODED_VERIFY_CGROUP_ENFORCEMENT=required RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-sandboxd-e2e: ## run focused amd64 Docker e2e for axern-sandboxd
@@ -268,7 +272,7 @@ build-coding-base-runtime-image: ## build the official multi-language coding wor
 build-desktop-base-runtime-image: ## build the optional desktop computer-use runtime image
 	@bash ./scripts/runtime/build-desktop-base-runtime-image.sh
 
-verify-docker-runsc: ## run privileged Docker verification against runsc
+verify-docker-runsc: verify-kernel-truth ## run privileged Docker verification against runsc
 	@RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh
 
 verify-docker-runsc-debug: ## run privileged Docker verification against runsc with extra diagnostics

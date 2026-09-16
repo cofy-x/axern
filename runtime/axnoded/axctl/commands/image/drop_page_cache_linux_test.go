@@ -3,12 +3,15 @@
 package image
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"golang.org/x/sys/unix"
 )
 
-func TestDropMountedFilePageCacheRejectsSymlinkAndEvictsRegularFile(t *testing.T) {
+func TestDropMountedFilePageCacheRejectsSymlink(t *testing.T) {
 	root := t.TempDir()
 	directory := filepath.Join(root, "qualification")
 	if err := os.Mkdir(directory, 0o755); err != nil {
@@ -24,11 +27,8 @@ func TestDropMountedFilePageCacheRejectsSymlinkAndEvictsRegularFile(t *testing.T
 		t.Fatal(err)
 	}
 
-	if err := dropMountedFilePageCache(root, "/qualification/payload.bin", 0, int64(len(payload))); err != nil {
-		t.Fatalf("dropMountedFilePageCache() error = %v", err)
-	}
-	if err := dropMountedFilePageCache(root, "/qualification/payload-link.bin", 0, int64(len(payload))); err == nil {
-		t.Fatal("dropMountedFilePageCache() followed symlink, want error")
+	if err := dropMountedFilePageCache(root, "/qualification/payload-link.bin", 0, int64(len(payload))); !errors.Is(err, unix.ELOOP) {
+		t.Fatalf("symlink rejection: %v, want ELOOP", err)
 	}
 }
 
