@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { AxernClient } from "../src/client/index.js";
-import { SandboxValidationError } from "../src/errors/index.js";
+import { SandboxTimeoutError, SandboxValidationError } from "../src/errors/index.js";
 import { Sandbox } from "../src/sandbox/index.js";
+import { waitRunningRun } from "../src/sandbox/lifecycle.js";
 import { NetworkPolicy } from "../src/network-policy.js";
 
 test("sandbox creates image-backed environment and delegates exec", async () => {
@@ -100,4 +101,26 @@ test("client rejects negative run resource values before RPC", async () => {
       SandboxValidationError,
     );
   }
+});
+
+test("sandbox readiness timeout cancels a silent run watch", async () => {
+  let watchClosed = false;
+  const silentWatch = (signal: AbortSignal): AsyncIterable<Record<string, unknown>> => ({
+    [Symbol.asyncIterator]() {
+      return {
+        next: () => new Promise<IteratorResult<Record<string, unknown>>>((resolve) => {
+          signal.addEventListener("abort", () => {
+            watchClosed = true;
+            resolve({ done: true, value: undefined });
+          }, { once: true });
+        }),
+      };
+    },
+  });
+
+  await assert.rejects(
+    () => waitRunningRun("run-silent", 10, (_runId, signal) => silentWatch(signal)),
+    (error: unknown) => error instanceof SandboxTimeoutError && error.message.includes("no state observed"),
+  );
+  assert.equal(watchClosed, true);
 });

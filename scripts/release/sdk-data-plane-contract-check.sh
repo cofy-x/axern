@@ -87,7 +87,7 @@ for fixture in fixtures:
         raise SystemExit(f"{fixture.relative_to(root)} must declare bounded release-smoke resources")
 
 acceptance = (root / "scripts/release/sdk-data-plane-acceptance.sh").read_text()
-for value in ("run get", '${language}.run-id', "run_sdk python", "run_sdk typescript", "run_sdk go"):
+for value in ("run get", '${language}.run-id', "run_sdk python", "run_sdk typescript", "run_sdk go", "AXERN_SDK_ACCEPTANCE_PROCESS_TIMEOUT_SECONDS", "timeout --signal=TERM --kill-after=5s"):
     if value not in acceptance:
         raise SystemExit(f"SDK data-plane harness is missing CLI handshake contract: {value}")
 
@@ -99,6 +99,15 @@ for value in ('print("hello from axern")', 'print("hello from stderr"', "run_sta
 if (root / "scripts/release/verify-published-sdks.sh").exists():
     raise SystemExit("obsolete import-only published SDK verifier must not exist")
 PY
+
+if AXERN_SDK_ACCEPTANCE_CONFIG=unused \
+  AXERN_SDK_ACCEPTANCE_CONTEXT=unused \
+  AXERN_SDK_ACCEPTANCE_CLI=unused \
+  AXERN_SDK_ACCEPTANCE_PROCESS_TIMEOUT_SECONDS=300 \
+  bash "${AXERN_ROOT}/scripts/release/sdk-data-plane-acceptance.sh" candidate >/dev/null 2>&1; then
+  echo "SDK data-plane acceptance accepted a process timeout without cleanup headroom" >&2
+  exit 1
+fi
 
 if AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES=0 \
   bash "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" >/dev/null 2>&1; then

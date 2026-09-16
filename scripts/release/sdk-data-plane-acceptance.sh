@@ -17,6 +17,16 @@ for name in AXERN_SDK_ACCEPTANCE_CONFIG AXERN_SDK_ACCEPTANCE_CONTEXT AXERN_SDK_A
 done
 export AXERN_SDK_ACCEPTANCE_VERSION="${version}"
 
+sdk_process_timeout_seconds="${AXERN_SDK_ACCEPTANCE_PROCESS_TIMEOUT_SECONDS:-360}"
+if ! [[ "${sdk_process_timeout_seconds}" =~ ^[0-9]+$ ]] || [ "${sdk_process_timeout_seconds}" -le 300 ]; then
+  echo "AXERN_SDK_ACCEPTANCE_PROCESS_TIMEOUT_SECONDS must be a decimal integer greater than 300" >&2
+  exit 2
+fi
+if ! command -v timeout >/dev/null 2>&1; then
+  echo "GNU timeout is required for bounded SDK acceptance processes" >&2
+  exit 2
+fi
+
 tmp_dir="$(mktemp -d)"
 trap 'rm -rf "${tmp_dir}"' EXIT
 handshake_dir="${tmp_dir}/handshake"
@@ -43,7 +53,7 @@ run_sdk() {
   local verified_file="${handshake_dir}/${language}.verified"
   local sdk_pid=""
   rm -f "${run_file}" "${verified_file}"
-  "$@" &
+  timeout --signal=TERM --kill-after=5s "${sdk_process_timeout_seconds}s" "$@" &
   sdk_pid=$!
   for _ in $(seq 1 1200); do
     if [ -s "${run_file}" ]; then
