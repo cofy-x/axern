@@ -1,4 +1,4 @@
-ARG GO_IMAGE=golang:1.25.12
+ARG GO_IMAGE=golang:1.26.8
 ARG RUST_IMAGE=rust:1.89.0
 ARG BASE_IMAGE=ubuntu:24.04
 FROM ${GO_IMAGE} AS golang-dist
@@ -120,7 +120,7 @@ COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
-go 1.25.12
+go 1.26.8
 
 use (
 	./lib/go/executionlease

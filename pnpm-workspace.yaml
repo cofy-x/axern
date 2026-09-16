@@ -3,7 +3,10 @@ packages:
   - "sdk/typescript"
 
 overrides:
-  fast-uri: 3.1.5
+  fast-uri: 3.1.6
   protobufjs: 7.6.5
   undici: 7.29.0
-  js-yaml: 4.3.1
+  js-yaml: 4.3.2
+  'smol-toml@<1.7.1': 1.7.1
+  'svgo@<4.1.0': 4.1.0
+  'sharp@<0.35.4': 0.35.4

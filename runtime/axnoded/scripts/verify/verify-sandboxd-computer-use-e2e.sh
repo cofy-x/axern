@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "${ROOT_DIR}/../.." && pwd)"
 
 VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-$(default_verify_docker_platform)}"
 export VERIFY_DOCKER_PLATFORM
-SANDBOXD_E2E_IMAGE="${SANDBOXD_E2E_IMAGE:-${GO_IMAGE:-golang:1.25.12}}"
+SANDBOXD_E2E_IMAGE="${SANDBOXD_E2E_IMAGE:-${GO_IMAGE:-golang:1.26.8}}"
 GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
 GOSUMDB="${GOSUMDB:-sum.golang.org}"
 

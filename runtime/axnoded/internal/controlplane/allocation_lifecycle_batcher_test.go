@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 	"unicode/utf8"
 
@@ -91,40 +92,44 @@ func TestAllocationLifecycleStateBatcherRetriesFailedBatch(t *testing.T) {
 }
 
 func TestAllocationLifecycleStateBatcherRetryKeepsTerminalOverConcurrentNonterminal(t *testing.T) {
-	firstSend := make(chan struct{})
-	releaseFirstSend := make(chan struct{})
-	batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
-	var calls int
-	var mu sync.Mutex
-	batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
-		mu.Lock()
-		calls++
-		call := calls
-		mu.Unlock()
-		if call == 1 {
-			close(firstSend)
-			<-releaseFirstSend
-			return errors.New("temporary failure")
+	// Exercise retry ordering with virtual time rather than a wall-clock
+	// deadline that competes with other Linux package builds.
+	synctest.Test(t, func(t *testing.T) {
+		firstSend := make(chan struct{})
+		releaseFirstSend := make(chan struct{})
+		batches := make(chan []*nodev1.AllocationLifecycleObservation, 1)
+		var calls int
+		var mu sync.Mutex
+		batcher := newAllocationLifecycleBatcher(func(_ context.Context, observations []*nodev1.AllocationLifecycleObservation) error {
+			mu.Lock()
+			calls++
+			call := calls
+			mu.Unlock()
+			if call == 1 {
+				close(firstSend)
+				<-releaseFirstSend
+				return errors.New("temporary failure")
+			}
+			batches <- observations
+			return nil
+		})
+		batcher.Start()
+		defer batcher.Stop()
+
+		batcher.Enqueue(statusObservation("alloc-1", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
+		select {
+		case <-firstSend:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for first send")
 		}
-		batches <- observations
-		return nil
+		batcher.Enqueue(statusObservation("alloc-1", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
+		close(releaseFirstSend)
+
+		batch := awaitStatusBatch(t, batches)
+		if len(batch) != 1 || batch[0].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
+			t.Fatalf("retried batch = %#v, want terminal observation", batch)
+		}
 	})
-	batcher.Start()
-	defer batcher.Stop()
-
-	batcher.Enqueue(statusObservation("alloc-1", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED, false))
-	select {
-	case <-firstSend:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for first send")
-	}
-	batcher.Enqueue(statusObservation("alloc-1", commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, true))
-	close(releaseFirstSend)
-
-	batch := awaitStatusBatch(t, batches)
-	if len(batch) != 1 || batch[0].GetState() != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STOPPED {
-		t.Fatalf("retried batch = %#v, want terminal observation", batch)
-	}
 }
 
 func TestAllocationLifecycleStateBatcherSuccessKeepsTerminalOverConcurrentNonterminal(t *testing.T) {

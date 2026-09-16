@@ -1,7 +1,7 @@
-FROM golang:1.25.12
+FROM golang:1.26.8
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG CILIUM_EBPF_VERSION=v0.9.3
+ARG CILIUM_EBPF_VERSION=v0.22.0
 ARG APT_MIRROR_BASE_URL=
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org

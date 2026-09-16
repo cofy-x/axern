@@ -42,6 +42,8 @@ make kind-refresh-verify
 
 The repository change planner emits `network_policy_linux` and heavyweight scopes. Pull-request CI uses those outputs to keep stable check names while avoiding unrelated heavyweight work. Linux CI is authoritative for namespace, cgroup, mount, eBPF, runsc behavior; macOS is not expected to duplicate it.
 
+The required `Go` check also runs `make axnoded-test` on Linux before merge. This executes the complete node package test suite, including Linux-only ownership and startup fixtures. Neither `test-host` nor the selected network traffic matrix substitutes for this suite. Post-merge regression repeats it as part of the broader integration sequence.
+
 Compose DNS verification uses a repository-owned authoritative fixture over UDP and TCP. The refresh materializes that fixture as the explicit node resolver and verifies config, node, and real OCI sandbox DNS paths without host-resolver or public-resolver fallback.
 
 Tier 2 proves correctness with a small deterministic matrix. Sampling must not turn it into an hours-long qualification. If performance evidence is needed, keep the correctness smoke and qualification as distinct profiles and outputs.

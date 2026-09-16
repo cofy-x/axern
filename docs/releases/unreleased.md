@@ -22,4 +22,6 @@ SSH and Terminal recheck current access authority; Tunnel peers fail closed when
 
 ## Validation boundary
 
+Source builds, CI, SDK consumer checks and node development images use Go 1.26.8. Rebuild binaries and images to receive the standard-library security fixes; updating manifests alone does not repair deployed executables. Transport dependencies include gRPC 1.83.2 and x/crypto 0.56.0 for HTTP/2 and SSH denial-of-service fixes. The eBPF library and generator move together to 0.22.0, with cgroups/v3 3.1.3; generated packet programs remain checked against their source. Documentation build dependencies include the patched Astro and sharp releases.
+
 Local tests and smoke runs demonstrate correctness in their fixtures, not production capacity or regional qualification. The PR records the exact candidate and CI results. Linux kernel correctness and the Network Policy matrix must pass on the final GitHub candidate before merge; published releases still require their separate release and deployment gates.

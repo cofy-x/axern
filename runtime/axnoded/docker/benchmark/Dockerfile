@@ -1,4 +1,4 @@
-ARG GO_IMAGE=golang:1.25.12
+ARG GO_IMAGE=golang:1.26.8
 ARG BASE_IMAGE=ubuntu:24.04
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
@@ -25,7 +25,7 @@ COPY lib/go/networkpolicy/go.mod lib/go/networkpolicy/go.sum /workspace/lib/go/n
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
-go 1.25.12
+go 1.26.8
 
 use (
 	./lib/go/executionlease
