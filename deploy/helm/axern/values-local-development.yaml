@@ -23,8 +23,9 @@ node:
   image:
     repository: axern/local-node-all-in-one
     tag: dev
-  # Local validation only; production values must come from qualification.
-  memorySystemReserveBytes: "536870912"
+  # Local validation only: 512 MiB for runtime conformance plus explicit
+  # axnoded headroom. Production values must come from qualification.
+  memorySystemReserveBytes: "1073741824"
 
 gatewayd:
   image:

@@ -45,8 +45,9 @@ if "AXERN_RELEASE_VERSION:" in global_env:
 
 harness = (root / "scripts/release/kind-acceptance.sh").read_text()
 for value in (
-    "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-536870912",
+    "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES:-1073741824",
     "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must be a positive decimal integer",
+    "AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES must reserve at least 1073741824 bytes for runtime conformance and axnoded headroom",
     "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS:-300",
     "AXERN_RELEASE_CAPABILITY_READY_TIMEOUT_SECONDS must be a positive decimal integer",
     'node.memorySystemReserveBytes=${release_test_memory_system_reserve_bytes}',
@@ -62,6 +63,7 @@ for value in (
     "PLATFORM_CAPABILITY_NETWORK_BPFNET",
     "PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT",
     "admin node capability snapshot",
+    '--timeout 15m run --wait-timeout 15m --file',
 ):
     if value not in harness:
         raise SystemExit(f"kind acceptance is missing SDK hook contract: {value}")
@@ -101,6 +103,12 @@ PY
 if AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES=0 \
   bash "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" >/dev/null 2>&1; then
   echo "kind acceptance accepted an invalid test memory system reserve" >&2
+  exit 1
+fi
+
+if AXERN_RELEASE_TEST_MEMORY_SYSTEM_RESERVE_BYTES=536870912 \
+  bash "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" >/dev/null 2>&1; then
+  echo "kind acceptance accepted a reserve with no axnoded headroom" >&2
   exit 1
 fi
 

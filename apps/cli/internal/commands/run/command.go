@@ -128,7 +128,16 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 	if ready != nil {
 		value = ready
 	}
-	if value.GetAllocationID() != "" {
+	if forced.Load() {
+		return command.ExitError{Code: 130, Err: context.Canceled}
+	}
+	if interrupted.Load() {
+		if cancelFailed.Load() && waitErr == nil {
+			waitErr = fmt.Errorf("run cancellation could not be confirmed")
+		}
+		return command.ExitError{Code: 130, Err: waitErr}
+	}
+	if value.GetAllocationID() != "" && canReadOutputAfterInitialWait(value, waitErr) {
 		if _, err := apprun.ReadOutput(executionCtx, s.Clients.Node, value.GetAllocationID(), "", true, func(event apprun.OutputEvent) error {
 			if event.Truncated {
 				fmt.Fprintln(cmd.ErrOrStderr(), "warning: run output was truncated at 64 MiB")
@@ -142,33 +151,39 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 				return err
 			}
 			return nil
-		}); err != nil && grpcstatus.Code(err) != codes.NotFound {
-			if forced.Load() {
-				return command.ExitError{Code: 130, Err: err}
-			}
+		}); err != nil && grpcstatus.Code(err) != codes.NotFound && waitErr == nil {
 			return err
 		}
 	}
-	if waitErr == nil || value.GetAllocationID() != "" {
-		final, err := control.Wait(executionCtx, value.GetID(), apprun.WaitTargetTerminal, options.waitTimeout, nil)
-		if final != nil {
-			value = final
-		}
-		waitErr = err
+	if waitErr != nil {
+		return waitErr
 	}
-	if forced.Load() {
-		return command.ExitError{Code: 130, Err: context.Canceled}
+	final, err := control.Wait(executionCtx, value.GetID(), apprun.WaitTargetTerminal, options.waitTimeout, nil)
+	if final != nil {
+		value = final
 	}
-	if interrupted.Load() {
-		if cancelFailed.Load() && waitErr == nil {
-			waitErr = fmt.Errorf("run cancellation could not be confirmed")
-		}
-		return command.ExitError{Code: 130, Err: waitErr}
-	}
+	waitErr = err
 	if value.ExitCode != nil && value.GetExitCode() != 0 {
 		return command.ExitError{Code: int(value.GetExitCode())}
 	}
 	return waitErr
+}
+
+func canReadOutputAfterInitialWait(run *runv1.Run, waitErr error) bool {
+	if waitErr == nil {
+		return true
+	}
+	if run == nil {
+		return false
+	}
+	switch run.GetStatus() {
+	case runv1.RunStatus_RUN_STATUS_SUCCEEDED,
+		runv1.RunStatus_RUN_STATUS_FAILED,
+		runv1.RunStatus_RUN_STATUS_CANCELLED:
+		return true
+	default:
+		return false
+	}
 }
 
 func (o *createOptions) bind(cmd *cobra.Command) {
