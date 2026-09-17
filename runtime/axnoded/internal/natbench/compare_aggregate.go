@@ -379,13 +379,6 @@ func aggregateStartupSummaries(summaries []*StartupSummary) *StartupSummary {
 			}
 			out.Phases[phase] = aggregatedPhase
 		}
-		if summary.WaitGrace != nil {
-			if out.WaitGrace == nil {
-				out.WaitGrace = &RuntimeWaitGraceSummary{}
-			}
-			out.WaitGrace.RecoveredCount += summary.WaitGrace.RecoveredCount
-			out.WaitGrace.UnavailableCount += summary.WaitGrace.UnavailableCount
-		}
 		if summary.Bundle != nil {
 			if out.Bundle == nil {
 				out.Bundle = &BundleTemplateSummary{}
@@ -438,9 +431,6 @@ func aggregateStartupSummaries(summaries []*StartupSummary) *StartupSummary {
 		if out.Bundle.HitCount == 0 && out.Bundle.MissCount == 0 && out.Bundle.ErrorCount == 0 && out.Bundle.AverageMaterializeDurationSec == 0 {
 			out.Bundle = nil
 		}
-	}
-	if out.WaitGrace != nil && out.WaitGrace.RecoveredCount == 0 && out.WaitGrace.UnavailableCount == 0 {
-		out.WaitGrace = nil
 	}
 	finalizeStartupSummary(out)
 

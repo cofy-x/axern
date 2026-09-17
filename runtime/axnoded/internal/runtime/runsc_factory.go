@@ -87,6 +87,9 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 		rootfsViews:                       rootfsViews,
 		releaseFilestore:                  func() { releaseFilestore(false) },
 		waitForSandboxReady:               runtimesandboxd.WaitReadyForContainer,
+		newWorkloadClient: func(socketPath string) sandboxdWorkloadClient {
+			return runtimesandboxd.NewClient(socketPath)
+		},
 	}
 	handler.services = newRuntimeServices(containerRoot)
 	constructed = true

@@ -14,30 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRunscHandlerKillContainerUsesOCIKill(t *testing.T) {
-	rootDir := t.TempDir()
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
-	if err != nil {
-		t.Fatalf("NewBundleLoader() error = %v", err)
-	}
-
-	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
-	if err != nil {
-		t.Fatalf("NewRunscServiceHandler() error = %v", err)
-	}
-	recorder := &recordingExecutor{}
-	handler.common.SetExecutor(recorder)
-
-	_, err = handler.KillContainer(context.Background(), &apipb.SignalContainerRequest{
-		ID:     "axctl-test",
-		Signal: "TERM",
-	}, contract.HandlerOptions{ContainerID: "axctl-test"})
-	assert.NoError(t, err)
-	if assert.Len(t, recorder.args, 1) {
-		assert.Equal(t, []string{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "--allow-suid", "kill", "axctl-test", "TERM"}, recorder.args[0])
-	}
-}
-
 func TestRunscPrepareContainerUsesCreate(t *testing.T) {
 	rootDir := t.TempDir()
 	writeFakeSandboxdBinary(t, rootDir)

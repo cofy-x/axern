@@ -109,22 +109,8 @@ func DiffStartupSummary(before, after *StartupSnapshot) *StartupSummary {
 		}
 	}
 
-	if after.WaitGrace != nil {
-		beforeWaitGrace := RuntimeWaitGraceSnapshot{}
-		if before != nil && before.WaitGrace != nil {
-			beforeWaitGrace = *before.WaitGrace
-		}
-		waitGraceSummary := &RuntimeWaitGraceSummary{
-			RecoveredCount:   subtractStartupCounter(after.WaitGrace.RecoveredCount, beforeWaitGrace.RecoveredCount),
-			UnavailableCount: subtractStartupCounter(after.WaitGrace.UnavailableCount, beforeWaitGrace.UnavailableCount),
-		}
-		if waitGraceSummary.RecoveredCount > 0 || waitGraceSummary.UnavailableCount > 0 {
-			summary.WaitGrace = waitGraceSummary
-		}
-	}
-
 	finalizeStartupSummary(summary)
-	if len(summary.Classes) == 0 && len(summary.Phases) == 0 && summary.Bundle == nil && summary.WaitGrace == nil {
+	if len(summary.Classes) == 0 && len(summary.Phases) == 0 && summary.Bundle == nil {
 		return nil
 	}
 	return summary

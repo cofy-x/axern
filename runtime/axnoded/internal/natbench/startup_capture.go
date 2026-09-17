@@ -41,9 +41,8 @@ func CaptureStartupSnapshot(metricsURL, runtimeName, rootfsType string) (*Startu
 	collectStartupPhaseSnapshot(out, snapshot.Points, runtimeName, rootfsType)
 	collectBundleTemplateSnapshot(out, snapshot.Points, runtimeName, rootfsType)
 	collectBundleMaterializeSnapshot(out, snapshot.Points, runtimeName, rootfsType)
-	collectRuntimeWaitGraceSnapshot(out, snapshot.Points, runtimeName)
 
-	if len(out.Classes) == 0 && len(out.Phases) == 0 && out.Bundle == nil && out.WaitGrace == nil {
+	if len(out.Classes) == 0 && len(out.Phases) == 0 && out.Bundle == nil {
 		return nil, nil
 	}
 	return out, nil
@@ -198,28 +197,6 @@ func collectBundleMaterializeSnapshot(snapshot *StartupSnapshot, points []axmetr
 		return
 	}
 	snapshot.Bundle = bundle
-}
-
-func collectRuntimeWaitGraceSnapshot(snapshot *StartupSnapshot, points []axmetrics.Point, runtimeName string) {
-	waitGrace := &RuntimeWaitGraceSnapshot{}
-	for _, point := range points {
-		if point.Name != axmetrics.MetricRuntimeWaitGraceTotal || point.Type != axmetrics.TypeCounter {
-			continue
-		}
-		if point.Attributes[sdkobs.AttrRuntime] != runtimeName {
-			continue
-		}
-		switch point.Attributes[sdkobs.AttrResult] {
-		case "recovered":
-			waitGrace.RecoveredCount += roundedCounter(point.Value)
-		case "unavailable":
-			waitGrace.UnavailableCount += roundedCounter(point.Value)
-		}
-	}
-	if waitGrace.RecoveredCount == 0 && waitGrace.UnavailableCount == 0 {
-		return
-	}
-	snapshot.WaitGrace = waitGrace
 }
 
 func hasRuntimeRootfs(point axmetrics.Point, runtimeName, rootfsType string) bool {

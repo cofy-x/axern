@@ -52,8 +52,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 		counterPoint(axmetrics.MetricBundleTemplateTotal, 3, runtimeRootfsResultAttrs("runsc", "local", "hit")),
 		counterPoint(axmetrics.MetricBundleTemplateTotal, 2, runtimeRootfsResultAttrs("runsc", "local", "miss")),
 		histogramPoint(axmetrics.MetricBundleMaterializeDuration, []float64{0.01, 0.01, 0.01, 0.01, 0.01}, runtimeRootfsResultAttrs("runsc", "local", "ok")),
-		counterPoint(axmetrics.MetricRuntimeWaitGraceTotal, 3, map[string]string{sdkobs.AttrRuntime: "runsc", sdkobs.AttrResult: "recovered"}),
-		counterPoint(axmetrics.MetricRuntimeWaitGraceTotal, 1, map[string]string{sdkobs.AttrRuntime: "runsc", sdkobs.AttrResult: "unavailable"}),
 	}
 
 	before := &StartupSnapshot{
@@ -68,9 +66,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 					0.02,
 				}),
 			},
-		},
-		WaitGrace: &RuntimeWaitGraceSnapshot{
-			RecoveredCount: 1,
 		},
 		Bundle: &BundleTemplateSnapshot{
 			HitCount:              1,
@@ -90,7 +85,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 	collectStartupPhaseSnapshot(after, points, "runsc", "local")
 	collectBundleTemplateSnapshot(after, points, "runsc", "local")
 	collectBundleMaterializeSnapshot(after, points, "runsc", "local")
-	collectRuntimeWaitGraceSnapshot(after, points, "runsc")
 
 	summary := DiffStartupSummary(before, after)
 	if summary == nil {
@@ -142,15 +136,6 @@ func TestStartupSnapshotAndDiffFromMetricsSnapshot(t *testing.T) {
 	}
 	if resourceAllocate.Classes["warm"].Quantiles == nil {
 		t.Fatal("expected resource_allocate warm quantiles")
-	}
-	if summary.WaitGrace == nil {
-		t.Fatal("expected waitGrace summary")
-	}
-	if summary.WaitGrace.RecoveredCount != 2 {
-		t.Fatalf("waitGrace recovered count = %d, want 2", summary.WaitGrace.RecoveredCount)
-	}
-	if summary.WaitGrace.UnavailableCount != 1 {
-		t.Fatalf("waitGrace unavailable count = %d, want 1", summary.WaitGrace.UnavailableCount)
 	}
 	if summary.Bundle == nil {
 		t.Fatal("expected bundle summary")

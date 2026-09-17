@@ -115,7 +115,8 @@ func TestCapabilityFailStopRetainsStateForAuthoritativeCleanup(t *testing.T) {
 
 	service.failStopAllocation(t.Context(), allocationID, errors.New("runtime enforcement unavailable"))
 
-	require.EqualValues(t, 1, runtimeHandler.killCalls.Load())
+	require.EqualValues(t, 1, runtimeHandler.stopCalls.Load())
+	require.Zero(t, runtimeHandler.killCalls.Load(), "capability fail-stop must use the bounded workload-stop path, not the operator signal path")
 	require.Zero(t, runtimeHandler.deleteCalls.Load(), "capability fail-stop must not bypass output sealing and authoritative cleanup")
 	require.True(t, service.allocations.HasAllocation(allocationID))
 	require.Nil(t, service.allocations.CapabilityReconcileState(allocationID))

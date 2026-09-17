@@ -63,7 +63,9 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 	defer r.waiter.Stop()
 
 	processes := daemonprocess.NewRegistry(r.waiter, r.cfg.Entrypoint.Env, r.cfg.Entrypoint.Cwd)
+	supervisor := workload.NewSupervisor(r.cfg.Entrypoint, r.cfg.ShutdownTimeout, r.state, r.waiter, r.stdout, r.stderr)
 	server := daemonserver.New(r.state, processes, r.waiter)
+	server.SetWorkloadSupervisor(supervisor)
 	httpServer := &http.Server{Handler: server}
 	listener, err := listenUnix(r.cfg.SocketPath)
 	if err != nil {
@@ -84,20 +86,36 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 		serverErr <- nil
 	}()
 
-	supervisor := workload.NewSupervisor(r.cfg.Entrypoint, r.cfg.ShutdownTimeout, r.state, r.waiter, r.stdout, r.stderr)
 	userDone := supervisor.Start()
 	signalCh := make(chan os.Signal, 2)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
 	defer signal.Stop(signalCh)
 
 	var code int
+	serverDone := false
 	select {
 	case result := <-userDone:
 		code = result.ExitCode
+		// The supervised workload is the Allocation execution lifecycle. Keep
+		// sandboxd alive after it exits so axnoded can checkpoint the result and
+		// seal declared outputs before the OCI sandbox is deleted.
+		select {
+		case sig := <-signalCh:
+			_ = supervisor.Shutdown(sig)
+		case err := <-serverErr:
+			serverDone = true
+			if err != nil {
+				cancel()
+				return 1, err
+			}
+		case <-ctx.Done():
+			_ = supervisor.Shutdown(syscall.SIGTERM)
+		}
 	case sig := <-signalCh:
 		result := supervisor.Shutdown(sig)
 		code = result.ExitCode
 	case err := <-serverErr:
+		serverDone = true
 		if err != nil {
 			cancel()
 			return 1, err
@@ -114,8 +132,10 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 	defer providerShutdownCancel()
 	_ = server.Shutdown(providerShutdownCtx, r.cfg.ShutdownTimeout)
 	cancel()
-	if err := <-serverErr; err != nil {
-		return code, err
+	if !serverDone {
+		if err := <-serverErr; err != nil {
+			return code, err
+		}
 	}
 	return code, nil
 }

@@ -40,7 +40,7 @@ func WaitReadyOrExit(
 		case err := <-readyCh:
 			return err
 		case <-ticker.C:
-			if ok, err := acceptExitBeforeReady(runtimeName, containerID, bundlePath, meta, readExit); ok || err != nil {
+			if ok, err := rejectExitBeforeReady(runtimeName, containerID, readExit); ok || err != nil {
 				return err
 			}
 		case <-ctx.Done():
@@ -49,7 +49,7 @@ func WaitReadyOrExit(
 	}
 }
 
-func acceptExitBeforeReady(runtimeName, containerID, bundlePath string, meta *apipb.ContainerMetadata, readExit ExitStateReader) (bool, error) {
+func rejectExitBeforeReady(runtimeName, containerID string, readExit ExitStateReader) (bool, error) {
 	if readExit == nil {
 		return false, nil
 	}
@@ -60,6 +60,6 @@ func acceptExitBeforeReady(runtimeName, containerID, bundlePath string, meta *ap
 	if !ok {
 		return false, nil
 	}
-	logrus.WithField("exit_code", exit.Status).Debugf("%s workload %s exited before sandboxd readiness was observed", runtimeName, containerID)
-	return true, nil
+	logrus.WithField("exit_code", exit.Status).Warnf("%s OCI sandbox %s exited before sandboxd readiness was observed", runtimeName, containerID)
+	return true, fmt.Errorf("%s OCI sandbox %s exited with status %d before sandboxd readiness", runtimeName, containerID, exit.Status)
 }

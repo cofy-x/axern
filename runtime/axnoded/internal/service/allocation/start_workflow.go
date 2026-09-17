@@ -422,17 +422,8 @@ func (h *Controller) quiesceAllocationForOutput(ctx context.Context, request *ru
 	if handler == nil {
 		return fmt.Errorf("quiesce allocation for output: runtime unavailable: %w", errord.ErrUnavailable)
 	}
-	if _, err := handler.KillContainer(ctx, &apipb.SignalContainerRequest{ID: request.GetID(), Signal: "KILL"}, contract.HandlerOptions{ContainerID: request.GetID()}); err != nil && !isDeleteNotFound(err) {
+	if _, err := handler.StopWorkload(ctx, contract.HandlerOptions{ContainerID: request.GetID()}); err != nil && !contract.IsExitStatusUnavailable(err) && !isDeleteNotFound(err) {
 		return fmt.Errorf("quiesce allocation for output: %w", err)
-	}
-	waitSeconds := request.GetTimeout()
-	if waitSeconds <= 0 {
-		waitSeconds = 10
-	}
-	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(waitSeconds)*time.Second)
-	defer cancel()
-	if _, err := handler.Wait(waitCtx, contract.HandlerOptions{ContainerID: request.GetID()}); err != nil && !contract.IsExitStatusUnavailable(err) && !isDeleteNotFound(err) {
-		return fmt.Errorf("wait for allocation output barrier: %w", err)
 	}
 	return nil
 }

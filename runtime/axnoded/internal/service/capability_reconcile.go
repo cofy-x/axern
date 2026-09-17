@@ -458,7 +458,7 @@ func (h *sandboxService) failStopAllocation(ctx context.Context, allocationID st
 			}
 		}
 		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, err := h.Kill(killCtx, &runtimev1.KillRequest{ID: allocationID, Signal: "KILL"})
+		err := h.allocationController().FailStopWorkload(killCtx, allocationID)
 		cancel()
 		if err == nil || h.allocationRuntimeStopped(allocationID) {
 			if ackErr := h.allocationController().AckCapabilityReconcile(allocationID, 0, false, nil); ackErr == nil {

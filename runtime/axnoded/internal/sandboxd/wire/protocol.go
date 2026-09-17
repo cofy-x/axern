@@ -3,14 +3,17 @@ package wire
 const (
 	ProtocolVersion = 1
 
-	PathHealth       = "/healthz"
-	PathReady        = "/readyz"
-	PathCapabilities = "/capabilities"
-	PathDiagnostics  = "/diagnostics"
-	PathMounts       = "/mounts"
-	PathPorts        = "/ports"
-	PathProbe        = "/probe"
-	PathStatus       = "/status"
+	PathHealth         = "/healthz"
+	PathReady          = "/readyz"
+	PathCapabilities   = "/capabilities"
+	PathDiagnostics    = "/diagnostics"
+	PathMounts         = "/mounts"
+	PathPorts          = "/ports"
+	PathProbe          = "/probe"
+	PathStatus         = "/status"
+	PathWorkloadSignal = "/workload/signal"
+	PathWorkloadStop   = "/workload/stop"
+	PathWorkloadWait   = "/workload/wait"
 
 	PathFilesPrefix           = "/files/"
 	PathFileStat              = "/files/stat"

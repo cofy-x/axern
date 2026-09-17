@@ -86,6 +86,7 @@ type SandboxRuntime interface {
 	Version(context.Context) (*apipb.RuntimeVersion, error)
 	DeleteContainer(context.Context, *apipb.DeleteContainerRequest, HandlerOptions) (*apipb.DeleteContainerResponse, error)
 	KillContainer(context.Context, *apipb.SignalContainerRequest, HandlerOptions) (*apipb.SignalContainerResponse, error)
+	StopWorkload(context.Context, HandlerOptions) (Exit, error)
 	ListContainers(context.Context, HandlerOptions) ([]*UnionContainerState, error)
 	ContainerSpec(context.Context, HandlerOptions) (*spec.Spec, error)
 	ExecContainer(context.Context, *apipb.ExecContainerRequest, HandlerOptions) (*apipb.ExecContainerResponse, error)

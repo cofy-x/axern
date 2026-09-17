@@ -19,6 +19,7 @@ import (
 
 type Server struct {
 	state       *workload.State
+	workload    *workload.Supervisor
 	processes   *process.Registry
 	files       *fileapi.Service
 	computerUse *computeruse.Service
@@ -48,11 +49,18 @@ func New(state *workload.State, processes *process.Registry, waiter *proc.Waiter
 	server.mux.HandleFunc(wire.PathPorts, server.handlePorts)
 	server.mux.HandleFunc(wire.PathProbe, server.handleProbe)
 	server.mux.HandleFunc(wire.PathStatus, server.handleStatus)
+	server.mux.HandleFunc(wire.PathWorkloadSignal, server.handleWorkloadSignal)
+	server.mux.HandleFunc(wire.PathWorkloadStop, server.handleWorkloadStop)
+	server.mux.HandleFunc(wire.PathWorkloadWait, server.handleWorkloadWait)
 	server.mux.HandleFunc(wire.PathFilesPrefix, server.handleFiles)
 	server.mux.HandleFunc(wire.PathProcesses, server.handleProcesses)
 	server.mux.HandleFunc(wire.PathProcessesPrefix, server.handleProcess)
 	server.mux.HandleFunc(wire.PathComputerUsePrefix, server.handleComputerUse)
 	return server
+}
+
+func (s *Server) SetWorkloadSupervisor(supervisor *workload.Supervisor) {
+	s.workload = supervisor
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {

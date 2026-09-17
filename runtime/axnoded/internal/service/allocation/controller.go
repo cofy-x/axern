@@ -166,6 +166,27 @@ func (c *Controller) DeleteControlPlane(ctx context.Context, request *runtime.De
 	return response, nil
 }
 
+// FailStopWorkload stops only the supervised Allocation workload. It retains
+// sandboxd, runtime metadata, and AllocationState so the control-plane-owned
+// Delete path can cross the output-sealing barrier before deleting the OCI
+// sandbox. It shares the Allocation lifecycle lock with Start and Delete.
+func (c *Controller) FailStopWorkload(ctx context.Context, allocationID string) error {
+	if strings.TrimSpace(allocationID) == "" {
+		return errord.ErrInvalidArgument
+	}
+	unlockLifecycle := c.allocationLifecycleLocks.Lock(allocationID)
+	defer unlockLifecycle()
+	target, handler, err := c.runtimeHandlerForContainer(allocationID)
+	if err != nil {
+		return err
+	}
+	if target.Status != nil && target.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED {
+		return nil
+	}
+	_, err = handler.StopWorkload(ctx, contract.HandlerOptions{ContainerID: allocationID})
+	return err
+}
+
 func (c *Controller) CleanupFailedStart(ctx context.Context, allocationID string) error {
 	return c.cleanupFailedStart(ctx, allocationID)
 }

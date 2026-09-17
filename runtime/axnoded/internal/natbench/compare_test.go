@@ -99,15 +99,6 @@ func TestAggregateReportsUsesMedianPerPathMetric(t *testing.T) {
 	if got := aggregated.Startup.Phases["resource_allocate"].Classes["warm"].Count; got != 9 {
 		t.Fatalf("expected aggregated resource_allocate warm count 9, got %d", got)
 	}
-	if aggregated.Startup.WaitGrace == nil {
-		t.Fatal("expected aggregated waitGrace summary")
-	}
-	if got := aggregated.Startup.WaitGrace.RecoveredCount; got != 3 {
-		t.Fatalf("expected aggregated waitGrace recovered count 3, got %d", got)
-	}
-	if got := aggregated.Startup.WaitGrace.UnavailableCount; got != 0 {
-		t.Fatalf("expected aggregated waitGrace unavailable count 0, got %d", got)
-	}
 	if aggregated.Startup.Bundle == nil {
 		t.Fatal("expected aggregated bundle summary")
 	}
@@ -232,10 +223,6 @@ func testReport(backend string, throughput, p95 float64, mappings uint64, cpu fl
 						},
 					},
 				},
-			},
-			WaitGrace: &RuntimeWaitGraceSummary{
-				RecoveredCount:   1,
-				UnavailableCount: 0,
 			},
 			Bundle: &BundleTemplateSummary{
 				HitCount:                      2,

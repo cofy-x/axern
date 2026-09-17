@@ -19,6 +19,8 @@ type runtimeSpyHandler struct {
 	requirements       contract.HostRequirements
 	waitExitCode       int
 	waitFunc           func(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	stopFunc           func(context.Context, contract.HandlerOptions) (contract.Exit, error)
+	stopCalls          int
 	createCalls        int
 	deleteCalls        int
 	lastOptions        contract.HandlerOptions
@@ -35,6 +37,7 @@ type runtimeSpyHandler struct {
 	containerSpec      *specs.Spec
 	containerSpecError error
 	createHook         func()
+	fileService        contract.FileService
 }
 
 var _ contract.SandboxRuntime = (*runtimeSpyHandler)(nil)
@@ -93,6 +96,14 @@ func (h *runtimeSpyHandler) KillContainer(context.Context, *apipb.SignalContaine
 	return &apipb.SignalContainerResponse{}, nil
 }
 
+func (h *runtimeSpyHandler) StopWorkload(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
+	h.stopCalls++
+	if h.stopFunc != nil {
+		return h.stopFunc(ctx, options)
+	}
+	return contract.Exit{Status: 137, Timestamp: time.Now().UTC()}, nil
+}
+
 func (h *runtimeSpyHandler) ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
 	if h.listHook != nil {
 		h.listHook()
@@ -118,7 +129,7 @@ func (h *runtimeSpyHandler) OpenExecSession(context.Context, *apipb.ExecSessionO
 	return nil, nil
 }
 
-func (h *runtimeSpyHandler) FileService() contract.FileService { return nil }
+func (h *runtimeSpyHandler) FileService() contract.FileService { return h.fileService }
 
 func (h *runtimeSpyHandler) Wait(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
 	if h.waitFunc != nil {
