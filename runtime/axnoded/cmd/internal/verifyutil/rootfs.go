@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
+	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 )
 
 type RootfsSpec struct {

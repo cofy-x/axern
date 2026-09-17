@@ -93,13 +93,64 @@ test("process rejects an incomplete initial terminal size", async () => {
   );
 });
 
+test("process bounds queued output and resumes after the consumer drains it", async () => {
+  const call = new FakeProcessCall();
+  const process = new SandboxProcess({
+    allocationId: "alloc-slow-consumer",
+    call: call.rpcCall(),
+    closeClient: () => call.closeClient(),
+  });
+  for (let index = 0; index < 64; index += 1) {
+    call.emit("data", { stdout: Buffer.from(String(index)) });
+  }
+  assert.equal(call.paused, true);
+  const events = process.events()[Symbol.asyncIterator]();
+  for (let index = 0; index < 32; index += 1) {
+    assert.equal((await events.next()).done, false);
+  }
+  assert.equal(call.paused, false);
+  await process.close();
+});
+
+test("process writes complete only after the stream accepts the request", async () => {
+  const call = new FakeProcessCall();
+  const process = new SandboxProcess({
+    allocationId: "alloc-write",
+    call: call.rpcCall(),
+    closeClient: () => call.closeClient(),
+  });
+  await process.write("hello");
+  await process.closeStdin();
+  assert.deepEqual(call.writes.slice(0, 2), [
+    { stdin: Buffer.from("hello") },
+    { close_stdin: true },
+  ]);
+  await process.close();
+});
+
 class FakeProcessCall extends EventEmitter {
   closed = false;
   writes: unknown[] = [];
+  paused = false;
 
-  write(value: unknown): boolean {
+  write(value: unknown, callback?: (error?: Error | null) => void): boolean {
     this.writes.push(value);
+    callback?.();
     return true;
+  }
+
+  pause(): this {
+    this.paused = true;
+    return this;
+  }
+
+  resume(): this {
+    this.paused = false;
+    return this;
+  }
+
+  cancel(): void {
+    this.closed = true;
   }
 
   end(): void {

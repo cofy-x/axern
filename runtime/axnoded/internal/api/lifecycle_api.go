@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"github.com/cofy-x/axern/lib/go/executionlease"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -14,7 +15,6 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	nodelifecyclev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -327,6 +327,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
+		DeclaredOutputs:        cloneDeclaredOutputs(spec.GetDeclaredOutputs()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
@@ -368,6 +369,7 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		Stderr:                 spec.GetStderrPath(),
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
+		DeclaredOutputs:        cloneDeclaredOutputs(spec.GetDeclaredOutputs()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
@@ -386,6 +388,16 @@ func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*ca
 	for _, dependency := range in {
 		if dependency != nil {
 			out = append(out, proto.Clone(dependency).(*capabilityv1.CapabilityRequirement))
+		}
+	}
+	return out
+}
+
+func cloneDeclaredOutputs(in []*commonv1.DeclaredOutput) []*commonv1.DeclaredOutput {
+	out := make([]*commonv1.DeclaredOutput, 0, len(in))
+	for _, declared := range in {
+		if declared != nil {
+			out = append(out, proto.Clone(declared).(*commonv1.DeclaredOutput))
 		}
 	}
 	return out

@@ -7,7 +7,7 @@ import (
 	"time"
 
 	term "github.com/cofy-x/axern/gateway/gatewayd/internal/application/terminal"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"github.com/gorilla/websocket"
 )
 

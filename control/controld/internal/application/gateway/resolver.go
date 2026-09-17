@@ -7,8 +7,8 @@ import (
 
 	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

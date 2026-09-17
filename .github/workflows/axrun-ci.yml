@@ -6,8 +6,6 @@ on:
     paths:
       - "apps/axrun/**"
       - "scripts/axrun/**"
-      - "sdk/go/**"
-      - "sdk/proto/**"
       - "mk/axrun.mk"
       - ".github/workflows/axrun-ci.yml"
   push:
@@ -16,8 +14,6 @@ on:
     paths:
       - "apps/axrun/**"
       - "scripts/axrun/**"
-      - "sdk/go/**"
-      - "sdk/proto/**"
       - "mk/axrun.mk"
       - ".github/workflows/axrun-ci.yml"
 
@@ -28,22 +24,34 @@ jobs:
   axrun-gates:
     name: Axrun Gates
     runs-on: ubuntu-latest
-    env:
-      GOTOOLCHAIN: local
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.26.8"
-          cache-dependency-path: |
-            apps/axrun/go.sum
-            sdk/go/go.sum
+          fetch-depth: 0
 
-      - name: Bootstrap Go dependencies
-        run: make bootstrap-go
-
-      - name: Axrun checks
-        run: make axrun-check
+      - name: Enforce frozen in-repository Axrun boundary
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BASE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          case "${EVENT_NAME}" in
+            pull_request) base_sha="${PR_BASE_SHA}" ;;
+            push) base_sha="${PUSH_BASE_SHA}" ;;
+            *)
+              echo "Axrun is frozen; no source verification is required for manual dispatch."
+              exit 0
+              ;;
+          esac
+          if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
+            base_sha="$(git rev-parse HEAD^)"
+          fi
+          changed="$(git diff --name-only "${base_sha}" "${GITHUB_SHA}" -- apps/axrun scripts/axrun mk/axrun.mk)"
+          if [[ -n "${changed}" ]]; then
+            echo "The in-repository Axrun is frozen and must not be modified:" >&2
+            printf '%s\n' "${changed}" >&2
+            exit 1
+          fi
+          echo "axrun_frozen_boundary=passed"

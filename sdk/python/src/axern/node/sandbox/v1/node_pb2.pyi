@@ -1,4 +1,8 @@
+import datetime
+
 from axern.common.file.v1 import file_pb2 as _file_pb2
+from axern.control.common.v1 import common_pb2 as _common_pb2
+from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
 from google.protobuf import descriptor as _descriptor
@@ -13,9 +17,24 @@ class OutputStream(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     OUTPUT_STREAM_UNSPECIFIED: _ClassVar[OutputStream]
     OUTPUT_STREAM_STDOUT: _ClassVar[OutputStream]
     OUTPUT_STREAM_STDERR: _ClassVar[OutputStream]
+
+class SealedOutputStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    SEALED_OUTPUT_STATUS_UNSPECIFIED: _ClassVar[SealedOutputStatus]
+    SEALED_OUTPUT_STATUS_AVAILABLE: _ClassVar[SealedOutputStatus]
+    SEALED_OUTPUT_STATUS_MISSING: _ClassVar[SealedOutputStatus]
+    SEALED_OUTPUT_STATUS_REJECTED: _ClassVar[SealedOutputStatus]
+    SEALED_OUTPUT_STATUS_CAPTURE_FAILED: _ClassVar[SealedOutputStatus]
+    SEALED_OUTPUT_STATUS_NODE_UNAVAILABLE: _ClassVar[SealedOutputStatus]
 OUTPUT_STREAM_UNSPECIFIED: OutputStream
 OUTPUT_STREAM_STDOUT: OutputStream
 OUTPUT_STREAM_STDERR: OutputStream
+SEALED_OUTPUT_STATUS_UNSPECIFIED: SealedOutputStatus
+SEALED_OUTPUT_STATUS_AVAILABLE: SealedOutputStatus
+SEALED_OUTPUT_STATUS_MISSING: SealedOutputStatus
+SEALED_OUTPUT_STATUS_REJECTED: SealedOutputStatus
+SEALED_OUTPUT_STATUS_CAPTURE_FAILED: SealedOutputStatus
+SEALED_OUTPUT_STATUS_NODE_UNAVAILABLE: SealedOutputStatus
 
 class ExecSpec(_message.Message):
     __slots__ = ("argv", "env", "cwd", "timeout_seconds", "tty", "user")
@@ -149,6 +168,64 @@ class ReadOutputResponse(_message.Message):
     truncated: bool
     observed_at_unix_milli: int
     def __init__(self, stream: _Optional[_Union[OutputStream, str]] = ..., data: _Optional[bytes] = ..., next_cursor: _Optional[str] = ..., terminal: _Optional[bool] = ..., truncated: _Optional[bool] = ..., observed_at_unix_milli: _Optional[int] = ...) -> None: ...
+
+class SealedOutput(_message.Message):
+    __slots__ = ("output_id", "path", "size_bytes", "sha256", "media_type", "format", "status", "reason", "sealed_at", "expires_at")
+    OUTPUT_ID_FIELD_NUMBER: _ClassVar[int]
+    PATH_FIELD_NUMBER: _ClassVar[int]
+    SIZE_BYTES_FIELD_NUMBER: _ClassVar[int]
+    SHA256_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    FORMAT_FIELD_NUMBER: _ClassVar[int]
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    REASON_FIELD_NUMBER: _ClassVar[int]
+    SEALED_AT_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
+    output_id: str
+    path: str
+    size_bytes: int
+    sha256: str
+    media_type: str
+    format: _common_pb2.DeclaredOutputFormat
+    status: SealedOutputStatus
+    reason: str
+    sealed_at: _timestamp_pb2.Timestamp
+    expires_at: _timestamp_pb2.Timestamp
+    def __init__(self, output_id: _Optional[str] = ..., path: _Optional[str] = ..., size_bytes: _Optional[int] = ..., sha256: _Optional[str] = ..., media_type: _Optional[str] = ..., format: _Optional[_Union[_common_pb2.DeclaredOutputFormat, str]] = ..., status: _Optional[_Union[SealedOutputStatus, str]] = ..., reason: _Optional[str] = ..., sealed_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class GetSealedOutputManifestRequest(_message.Message):
+    __slots__ = ("allocation_id",)
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
+
+class GetSealedOutputManifestResponse(_message.Message):
+    __slots__ = ("outputs", "expires_at")
+    OUTPUTS_FIELD_NUMBER: _ClassVar[int]
+    EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
+    outputs: _containers.RepeatedCompositeFieldContainer[SealedOutput]
+    expires_at: _timestamp_pb2.Timestamp
+    def __init__(self, outputs: _Optional[_Iterable[_Union[SealedOutput, _Mapping]]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+
+class DownloadSealedOutputRequest(_message.Message):
+    __slots__ = ("allocation_id", "output_id", "offset")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    OUTPUT_ID_FIELD_NUMBER: _ClassVar[int]
+    OFFSET_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    output_id: str
+    offset: int
+    def __init__(self, allocation_id: _Optional[str] = ..., output_id: _Optional[str] = ..., offset: _Optional[int] = ...) -> None: ...
+
+class DownloadSealedOutputResponse(_message.Message):
+    __slots__ = ("data", "next_offset", "eof")
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    NEXT_OFFSET_FIELD_NUMBER: _ClassVar[int]
+    EOF_FIELD_NUMBER: _ClassVar[int]
+    data: bytes
+    next_offset: int
+    eof: bool
+    def __init__(self, data: _Optional[bytes] = ..., next_offset: _Optional[int] = ..., eof: _Optional[bool] = ...) -> None: ...
 
 class CapabilityStatusRequest(_message.Message):
     __slots__ = ("allocation_id",)

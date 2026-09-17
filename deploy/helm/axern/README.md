@@ -10,7 +10,7 @@ Released charts are published to GHCR as OCI artifacts:
 
 ```bash
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
-  --version 0.7.0 \
+  --version 0.8.0 \
   --namespace axern-system \
   --create-namespace \
   --set-string node.enrollment.existingSecret=axern-enrollment-tokens \

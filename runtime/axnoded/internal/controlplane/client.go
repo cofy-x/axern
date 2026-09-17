@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc"
 )
 

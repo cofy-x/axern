@@ -22,6 +22,17 @@ for artifact in "${wheel}" "${sdist}" "${typescript}"; do
   fi
 done
 
+for listing in \
+  "$(unzip -Z1 "${wheel}")" \
+  "$(tar -tzf "${sdist}")" \
+  "$(tar -tzf "${typescript}")"; do
+  if printf '%s\n' "${listing}" | grep -Eq '(^|/)(private|control/gateway)(/|$)'; then
+    echo "published SDK artifact contains a repository-private protobuf package" >&2
+    printf '%s\n' "${listing}" | grep -E '(^|/)(private|control/gateway)(/|$)' >&2
+    exit 1
+  fi
+done
+
 for artifact in "${wheel}" "${sdist}"; do
   uv run --isolated --no-project --with "${artifact}" -- \
     python "${AXERN_ROOT}/scripts/release/sdk-python-artifact-smoke.py" "${version}"
@@ -43,6 +54,11 @@ if (sdk.AXERN_VERSION !== expected || sdk.platformName() !== "axern") {
 for (const symbol of ["AxernClient", "Sandbox", "AllocationClient", "NetworkPolicy"]) {
   if (typeof sdk[symbol] !== "function") {
     throw new Error(`missing TypeScript SDK export ${symbol}`);
+  }
+}
+for (const method of ["getSealedOutputManifest", "downloadSealedOutput", "waitRun"]) {
+  if (typeof sdk.AxernClient.prototype[method] !== "function") {
+    throw new Error(`missing TypeScript SDK method ${method}`);
   }
 }
 for (const method of ["capabilityStatus", "computerUseStatus", "computerUseScreenshot"]) {
@@ -82,6 +98,15 @@ mkdir -p "${go_source}"
 go_archive="${tmp_dir}/go-sdk.tar"
 tar -C "${AXERN_ROOT}/sdk/go" --exclude='go.work' -c -f "${go_archive}" .
 tar -C "${go_source}" -x -f "${go_archive}"
+if find "${go_source}" -type f -path '*/gen/axern/private/*' -print -quit | grep -q . || \
+   find "${go_source}" -type f -path '*/gen/axern/control/gateway/*' -print -quit | grep -q .; then
+  echo "published Go SDK contains a repository-private protobuf package" >&2
+  exit 1
+fi
+if rg -n 'github.com/cofy-x/axern/(internal/proto|sdk/go/gen/axern/private)' "${go_source}"; then
+  echo "published Go SDK imports a repository-private protobuf package" >&2
+  exit 1
+fi
 if go -C "${go_source}" mod edit -json | jq -e '.Replace != null and (.Replace | length > 0)' >/dev/null; then
   echo "published Go SDK must not contain replace directives" >&2
   exit 1

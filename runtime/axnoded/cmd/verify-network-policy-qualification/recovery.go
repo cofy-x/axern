@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 )
 
 // This is an observation cadence, not a guarantee on scheduler latency or the

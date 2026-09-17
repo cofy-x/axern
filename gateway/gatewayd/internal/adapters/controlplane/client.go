@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
 )

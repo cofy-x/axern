@@ -48,7 +48,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetExecutionLeaseExpiresAtUnixNano() == 0 && record.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && record.GetTerminationMessage() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
+	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetExecutionLeaseExpiresAtUnixNano() == 0 && record.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && record.GetTerminationMessage() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && len(record.GetDeclaredOutputs()) == 0 && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -136,7 +136,7 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 // StoreAllocationIntent persists the immutable node execution contract as the
 // first create side effect. Node observations, effective runtime projection,
 // and conditions are rebuildable and are never copied into this record.
-func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, executionLeaseExpiresAt time.Time, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement) error {
+func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, executionLeaseExpiresAt time.Time, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement, declaredOutputs []*commonv1.DeclaredOutput) error {
 	allocationID = strings.TrimSpace(allocationID)
 	nodeID = strings.TrimSpace(nodeID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
@@ -164,6 +164,7 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	}
 	desired.NodeID = nodeID
 	desired.CapabilityRequirements = cloneCapabilityRequirements(requirements)
+	desired.DeclaredOutputs = cloneDeclaredOutputs(declaredOutputs)
 	if resourceSpec != nil {
 		desired.Resources = proto.Clone(resourceSpec).(*commonv1.ResourceSpec)
 	} else {
@@ -181,6 +182,16 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	state.record = desired
 	h.stateMu.Unlock()
 	return nil
+}
+
+func cloneDeclaredOutputs(in []*commonv1.DeclaredOutput) []*commonv1.DeclaredOutput {
+	out := make([]*commonv1.DeclaredOutput, 0, len(in))
+	for _, declared := range in {
+		if declared != nil {
+			out = append(out, proto.Clone(declared).(*commonv1.DeclaredOutput))
+		}
+	}
+	return out
 }
 
 // RenewExecutionLeases applies only explicitly granted authority. Absence is

@@ -5,10 +5,12 @@
  */
 
 import * as grpc from "@grpc/grpc-js";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
+import type { Writable } from "node:stream";
 
 import { loadAxernContext, loadAxernEnv, normalizeProxyMode } from "../config/index.js";
-import { mapRpcError } from "../errors/index.js";
+import { SandboxStateError, SandboxTimeoutError, mapRpcError } from "../errors/index.js";
 import { serviceConstructor, unary } from "../generated/proto.js";
 import { AllocationClient } from "../node/client.js";
 import { buildResourceSpec } from "../resources.js";
@@ -51,7 +53,41 @@ export interface CreateRunOptions {
   limitCpu?: ResourceQuantity;
   limitMemory?: ResourceQuantity;
   limitEphemeralStorage?: ResourceQuantity;
+  declaredOutputs?: readonly DeclaredOutput[];
   labels?: Record<string, string>;
+}
+
+export type DeclaredOutputFormat = "file" | "tar";
+
+export interface DeclaredOutput {
+  path: string;
+  format: DeclaredOutputFormat;
+  mediaType?: string;
+}
+
+export interface SealedOutput {
+  outputId: string;
+  path: string;
+  sizeBytes: number;
+  sha256: string;
+  mediaType: string;
+  format?: DeclaredOutputFormat;
+  status: "available" | "missing" | "rejected" | "capture_failed" | "node_unavailable" | "unspecified";
+  reason: string;
+  sealedAt?: Record<string, unknown>;
+  expiresAt?: Record<string, unknown>;
+}
+
+export interface ListOptions {
+  namespace?: string;
+  labels?: Record<string, string>;
+  cursor?: string;
+  pageSize?: number;
+}
+
+export interface ListResult<T> {
+  items: T[];
+  nextCursor: string;
 }
 
 export interface ExtensionCapability {
@@ -181,6 +217,32 @@ export class AxernClient {
     }
   }
 
+  async getEnvironment(environmentId: string): Promise<Record<string, unknown>> {
+    try {
+      const response = await unary<Record<string, unknown>, { environment: Record<string, unknown> }>(
+        this.environmentControl,
+        "GetEnvironment",
+        { environment_id: required("environmentId", environmentId) },
+      );
+      return response.environment;
+    } catch (error) {
+      throw mapRpcError(error, "get environment");
+    }
+  }
+
+  async listEnvironments(options: ListOptions = {}): Promise<ListResult<Record<string, unknown>>> {
+    try {
+      const response = await unary<Record<string, unknown>, { environments?: Record<string, unknown>[]; next_cursor?: string }>(
+        this.environmentControl,
+        "ListEnvironments",
+        { filter: { namespace: options.namespace ?? "", labels: options.labels ?? {}, cursor: options.cursor ?? "", page_size: options.pageSize ?? 0 } },
+      );
+      return { items: response.environments ?? [], nextCursor: response.next_cursor ?? "" };
+    } catch (error) {
+      throw mapRpcError(error, "list environments");
+    }
+  }
+
   async createRun(options: CreateRunOptions): Promise<Record<string, unknown>> {
     const resources = buildResourceSpec(options);
     try {
@@ -200,6 +262,11 @@ export class AxernClient {
             extension_capability_requirements: (options.extensionCapabilities ?? []).map((capability) => ({
               capability: { name: capability.name, value: capability.value ?? "" },
             })),
+            declared_outputs: (options.declaredOutputs ?? []).map((output) => ({
+              path: output.path,
+              format: output.format === "file" ? 1 : 2,
+              media_type: output.mediaType ?? "",
+            })),
             resources,
           },
           labels: options.labels ?? {},
@@ -209,6 +276,48 @@ export class AxernClient {
     } catch (error) {
       throw mapRpcError(error, "create run");
     }
+  }
+
+  async getRun(runId: string): Promise<Record<string, unknown>> {
+    try {
+      const response = await unary<Record<string, unknown>, { run: Record<string, unknown> }>(
+        this.runControl,
+        "GetRun",
+        { run_id: required("runId", runId) },
+      );
+      return response.run;
+    } catch (error) {
+      throw mapRpcError(error, "get run");
+    }
+  }
+
+  async listRuns(options: ListOptions & { statuses?: number[] } = {}): Promise<ListResult<Record<string, unknown>>> {
+    try {
+      const response = await unary<Record<string, unknown>, { runs?: Record<string, unknown>[]; next_cursor?: string }>(
+        this.runControl,
+        "ListRuns",
+        { filter: { namespace: options.namespace ?? "", labels: options.labels ?? {}, statuses: options.statuses ?? [], cursor: options.cursor ?? "", page_size: options.pageSize ?? 0 } },
+      );
+      return { items: response.runs ?? [], nextCursor: response.next_cursor ?? "" };
+    } catch (error) {
+      throw mapRpcError(error, "list runs");
+    }
+  }
+
+  async waitRun(runId: string, timeoutMs?: number): Promise<Record<string, unknown>> {
+    const initial = await this.getRun(runId);
+    if (terminalRun(initial)) return initial;
+    const controller = new AbortController();
+    const timer = timeoutMs === undefined ? undefined : setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      for await (const run of this.watchRun(runId, { afterVersion: Number(initial.version ?? 0), signal: controller.signal })) {
+        if (terminalRun(run)) return run;
+      }
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+    if (controller.signal.aborted) throw new SandboxTimeoutError(`run ${runId} wait timed out`);
+    throw new SandboxStateError(`run ${runId} watch ended before a terminal state`);
   }
 
   async cancelRun(runId: string): Promise<void> {
@@ -304,6 +413,61 @@ export class AxernClient {
     }
   }
 
+  async getSealedOutputManifest(runId: string): Promise<SealedOutput[]> {
+    const run = await this.getRun(runId);
+    const allocationId = String(run.allocation_id ?? "");
+    if (allocationId === "") throw new Error(`run ${runId} has no allocation`);
+    const NodeSandbox = serviceConstructor(["axern", "node", "sandbox", "v1", "NodeSandbox"]);
+    const node = new NodeSandbox(this.endpoint, this.credentials, this.controlOptions);
+    try {
+      const response = await unary<Record<string, unknown>, { outputs?: Record<string, unknown>[] }>(
+        node,
+        "GetSealedOutputManifest",
+        { allocation_id: allocationId },
+      );
+      return (response.outputs ?? []).map(sealedOutput);
+    } catch (error) {
+      throw mapRpcError(error, "get sealed output manifest", allocationId);
+    } finally {
+      node.close();
+    }
+  }
+
+  async downloadSealedOutput(runId: string, outputId: string, destination: Writable): Promise<SealedOutput> {
+    const outputs = await this.getSealedOutputManifest(runId);
+    const selected = outputs.find((output) => output.outputId === outputId);
+    if (selected === undefined || selected.status !== "available") {
+      throw new Error(`sealed output ${outputId} is not available`);
+    }
+    const run = await this.getRun(runId);
+    const allocationId = String(run.allocation_id ?? "");
+    const NodeSandbox = serviceConstructor(["axern", "node", "sandbox", "v1", "NodeSandbox"]);
+    const node = new NodeSandbox(this.endpoint, this.credentials, this.controlOptions);
+    const stream = serverStream(node, "DownloadSealedOutput", { allocation_id: allocationId, output_id: outputId, offset: "0" });
+    const digest = createHash("sha256");
+    let offset = 0;
+    try {
+      for await (const response of stream) {
+        const data = Buffer.from((response.data as Buffer | Uint8Array | undefined) ?? []);
+        const nextOffset = Number(response.next_offset ?? offset + data.length);
+        if (nextOffset !== offset + data.length) throw new Error("sealed output returned a non-contiguous offset");
+        digest.update(data);
+        await writeChunk(destination, data);
+        offset = nextOffset;
+      }
+    } catch (error) {
+      if (typeof error === "object" && error !== null && "code" in error) {
+        throw mapRpcError(error, "download sealed output", allocationId);
+      }
+      throw error;
+    } finally {
+      node.close();
+    }
+    if (offset !== selected.sizeBytes) throw new Error("sealed output size does not match its manifest");
+    if (digest.digest("hex") !== selected.sha256) throw new Error("sealed output digest does not match its manifest");
+    return selected;
+  }
+
   allocation(allocationId: string): AllocationClient {
     return new AllocationClient({
       allocationId: required("allocationId", allocationId),
@@ -330,6 +494,42 @@ function serverStream(client: grpc.Client, method: string, request: Record<strin
 function transientReadError(error: unknown): boolean {
   const code = (error as { code?: number }).code;
   return code === grpc.status.UNAVAILABLE || code === grpc.status.DEADLINE_EXCEEDED;
+}
+
+function terminalRun(run: Record<string, unknown>): boolean {
+  const status = Number(run.status ?? 0);
+  return status === 4 || status === 5 || status === 6;
+}
+
+function sealedOutput(value: Record<string, unknown>): SealedOutput {
+  const formats: Record<number, DeclaredOutputFormat | undefined> = { 1: "file", 2: "tar" };
+  const statuses = ["unspecified", "available", "missing", "rejected", "capture_failed", "node_unavailable"] as const;
+  return {
+    outputId: String(value.output_id ?? ""),
+    path: String(value.path ?? ""),
+    sizeBytes: Number(value.size_bytes ?? 0),
+    sha256: String(value.sha256 ?? ""),
+    mediaType: String(value.media_type ?? ""),
+    format: formats[Number(value.format ?? 0)],
+    status: statuses[Number(value.status ?? 0)] ?? "unspecified",
+    reason: String(value.reason ?? ""),
+    sealedAt: value.sealed_at as Record<string, unknown> | undefined,
+    expiresAt: value.expires_at as Record<string, unknown> | undefined,
+  };
+}
+
+function writeChunk(destination: Writable, chunk: Buffer): Promise<void> {
+  if (destination.write(chunk)) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      destination.off("drain", drained);
+      destination.off("error", failed);
+    };
+    const drained = () => { cleanup(); resolve(); };
+    const failed = (error: Error) => { cleanup(); reject(error); };
+    destination.once("drain", drained);
+    destination.once("error", failed);
+  });
 }
 
 function sleep(milliseconds: number, signal?: AbortSignal): Promise<void> {

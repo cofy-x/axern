@@ -9,6 +9,11 @@ export type {
   AxernClientOptions,
   CreateEnvironmentOptions,
   CreateRunOptions,
+  DeclaredOutput,
+  DeclaredOutputFormat,
+  ListOptions,
+  ListResult,
+  SealedOutput,
 } from "./client/index.js";
 export { loadAxernContext, loadAxernEnv } from "./config/index.js";
 export type { AxernConfig } from "./config/index.js";

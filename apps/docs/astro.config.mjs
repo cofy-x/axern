@@ -32,6 +32,7 @@ const sidebar = [
         translations: { 'zh-CN': '工作负载' },
         items: [
           { label: 'Runs', translations: { 'zh-CN': 'Run' }, link: '/guides/run/' },
+          { label: 'External runners', translations: { 'zh-CN': '外部 runner' }, link: '/guides/external-runners/' },
         ],
       },
       {
@@ -69,14 +70,6 @@ const sidebar = [
       { label: 'Python', link: '/sdk/python/' },
       { label: 'Go', link: '/sdk/go/' },
       { label: 'TypeScript', link: '/sdk/typescript/' },
-    ],
-  },
-  {
-    label: 'Axrun',
-    translations: { 'zh-CN': 'Axrun' },
-    items: [
-      { label: 'Agent Workflows', translations: { 'zh-CN': 'Agent 工作流' }, link: '/axrun/' },
-      { label: 'TaskSets and Local Workflows', translations: { 'zh-CN': 'TaskSet 与本地工作流' }, link: '/axrun/local-workflows/' },
     ],
   },
   {

@@ -2,13 +2,13 @@ syntax = "proto3";
 
 package axern.private.control.node.v1;
 
-option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1;privatecontrolnodev1";
+option go_package = "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1;privatecontrolnodev1";
 
 import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
 import "axern/control/tunnel/v1/tunnel.proto";
 import "google/protobuf/timestamp.proto";
-import "axern/control/gateway/v1/gateway.proto";
+import "axern/private/control/gateway/v1/gateway.proto";
 
 enum RootfsType {
   ROOTFS_TYPE_UNSPECIFIED = 0;
@@ -318,7 +318,7 @@ message NodeAllocationAccessGrant {
   string validation_token_hash = 3;
   google.protobuf.Timestamp expires_at = 4;
   bool revoked = 5;
-  axern.control.gateway.v1.AllocationAccessPurpose purpose = 6;
+  axern.private.control.gateway.v1.AllocationAccessPurpose purpose = 6;
   int64 revision = 7;
 }
 

@@ -103,6 +103,21 @@ message ImageMount {
   bool readonly = 3;
 }
 
+enum DeclaredOutputFormat {
+  DECLARED_OUTPUT_FORMAT_UNSPECIFIED = 0;
+  DECLARED_OUTPUT_FORMAT_FILE = 1;
+  DECLARED_OUTPUT_FORMAT_TAR = 2;
+}
+
+// DeclaredOutput identifies one bounded Allocation-local result that must be
+// sealed before runtime cleanup. It is a Run output contract, not a durable
+// artifact or workspace identity.
+message DeclaredOutput {
+  string path = 1;
+  DeclaredOutputFormat format = 2;
+  string media_type = 3;
+}
+
 message ExecutionConfig {
   repeated string argv = 1;
   map<string, string> env = 2;
@@ -114,6 +129,7 @@ message ExecutionConfig {
   repeated SecretEnvVar secret_env = 8;
   repeated SecretFile secret_files = 9;
   repeated ImageMount image_mounts = 10;
+  repeated DeclaredOutput declared_outputs = 11;
 }
 
 // AllocationLifecycleState tracks only placement and infrastructure cleanup.

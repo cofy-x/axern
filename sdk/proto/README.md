@@ -8,7 +8,7 @@ Layout:
 - `axern/control/identity/v1`: public authenticated Principal identity API
 - `axern/control/admin/v1`: platform administration, Principal, credential, and namespace authorization APIs
 - `axern/control/run/v1`: public one-shot Run API, including the Environment input frozen at admission
-- `axern/control/gateway/v1`: gateway-workload-only Allocation route, Credential authorization, and terminal target resolution API; not exposed on the public control edge
+- `axern/private/control/gateway/v1`: repo-internal gateway-to-control Allocation routing and access-grant protocol; never published in an SDK artifact
 - `axern/control/tunnel/v1`: public tunnel session API for allocation-scoped reverse TCP tunnels
 - `axern/control/quota/v1`: public namespace resource quota API
 - `axern/private/control/node/v1`: repo-internal control-plane/node coordination API for ordered atomic node reporting with explicit finite execution-lease grants, Allocation lifecycle, allocation-access-grant replication, and TunnelSession replication. A fresh process identity plus monotonic sequence fences the complete `NodeSummary`; nested capability evidence has no parallel ordering identity. NodeEnrollment is exposed on a separate TLS listener: initial registration uses a one-time token and certificate renewal uses the exact verified Node URI. Normal NodeControl messages have no enrollment-token field. Node reports must include axnoded's aggregate `runtime_slots` contract; controld does not infer it from implementation-specific pools.

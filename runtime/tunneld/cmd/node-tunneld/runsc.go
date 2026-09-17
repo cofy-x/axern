@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 )
 
 func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string, _ *nodenetworkv1.ResolveAllocationNetworkResponse) error {

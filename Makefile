@@ -21,7 +21,6 @@ DEVBOX_BUILD_PROXY ?= none
 include mk/common.mk
 include mk/devbox.mk
 include mk/dev-env.mk
-include mk/axrun.mk
 include mk/root.mk
 include mk/deploy.mk
 include mk/subsystems/axnoded.mk

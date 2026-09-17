@@ -8,7 +8,7 @@ import (
 
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/auth"
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -352,6 +352,45 @@ func (s *Server) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesan
 		return client.ReadOutput(backendCtx, req)
 	}, func(up nodesandboxv1.NodeSandbox_ReadOutputClient) error {
 		header, err := acceptedAllocationAccessGrantHeader(up, "run output", func() error {
+			_, err := up.Recv()
+			return err
+		})
+		if err != nil {
+			return err
+		}
+		if err := stream.SendHeader(header); err != nil {
+			return err
+		}
+		for {
+			response, err := up.Recv()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			if err := stream.Send(response); err != nil {
+				return err
+			}
+		}
+	})
+}
+
+func (s *Server) GetSealedOutputManifest(ctx context.Context, req *nodesandboxv1.GetSealedOutputManifestRequest) (*nodesandboxv1.GetSealedOutputManifestResponse, error) {
+	var response *nodesandboxv1.GetSealedOutputManifestResponse
+	err := s.unaryForPurpose(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
+		var err error
+		response, err = client.GetSealedOutputManifest(backendCtx, req)
+		return err
+	})
+	return response, err
+}
+
+func (s *Server) DownloadSealedOutput(req *nodesandboxv1.DownloadSealedOutputRequest, stream nodesandboxv1.NodeSandbox_DownloadSealedOutputServer) error {
+	return serverStreamForPurpose(s, stream.Context(), req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT, isAccessGrantOpenRejection, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) (nodesandboxv1.NodeSandbox_DownloadSealedOutputClient, error) {
+		return client.DownloadSealedOutput(backendCtx, req)
+	}, func(up nodesandboxv1.NodeSandbox_DownloadSealedOutputClient) error {
+		header, err := acceptedAllocationAccessGrantHeader(up, "sealed output download", func() error {
 			_, err := up.Recv()
 			return err
 		})

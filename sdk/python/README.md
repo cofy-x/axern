@@ -200,7 +200,7 @@ with Sandbox(
 ```python
 metadata = sandbox.metadata
 print(metadata.environment_id, metadata.run_id, metadata.allocation_id)
-print(metadata.node_id, metadata.run_id, metadata.tunnel_session_id)
+print(metadata.run_id, metadata.tunnel_session_id)
 ```
 
 ## Capabilities
@@ -300,6 +300,27 @@ make sdk-python-verify
 make local-compose-python-sdk-e2e
 ```
 
-## Run Output Retention
+## Declared And Stream Output
 
-Run output reads expose Allocation-local stdout/stderr after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. The combined readable limit is 64 MiB, with an explicit truncation signal. Node-process restart preserves sealed output; node-disk loss does not. Ordinary writable files still require explicit download before termination. No durable output object or persistent workspace is created.
+Declare bounded result paths when creating a Run or Sandbox. Axern quiesces the Allocation and seals each regular file or directory-as-tar before runtime cleanup. Query the manifest and download by the persisted `run_id`; full downloads verify the declared size and SHA-256 digest.
+
+```python
+from axern_sdk import DeclaredOutput, DeclaredOutputFormat, Sandbox
+
+with Sandbox(
+    client=client,
+    image="docker.io/library/python:3.12-slim",
+    declared_outputs=[DeclaredOutput("/tmp/result.json", DeclaredOutputFormat.FILE, "application/json")],
+) as sandbox:
+    sandbox.write_text("/tmp/result.json", '{"ok":true}\n')
+    run_id = sandbox.metadata.run_id
+
+run = client.wait_run(run_id, timeout=60)
+output = next(item for item in client.get_sealed_output_manifest(run_id) if item.path == "/tmp/result.json")
+with open("result.json", "wb") as destination:
+    client.download_sealed_output(run_id, output.output_id, destination)
+```
+
+Declared output is retained on the Node for 15 minutes after cleanup starts. It survives axnoded restart, but not Node-disk loss, and must be copied to caller-owned durable storage. Limits are 16 paths, 64 MiB per file, 256 MiB per tar archive, and 256 MiB total. Missing, unsafe, wrong-kind, oversized, capture-failed, and node-unavailable results are explicit manifest states. This is not a persistent workspace, Artifact service, or object store.
+
+stdout/stderr use the same node-local retention lifecycle and have a combined 64 MiB readable limit. Python `exec()` collects at most 1 MiB per stream while continuing to drain the RPC and reports truncation; use `exec_stream()` or `process()` for larger output. `Sandbox.close()` requests Run cancellation and reports cleanup failures, but does not wait for the durable terminal state; call `wait_run()` explicitly when terminal confirmation matters.

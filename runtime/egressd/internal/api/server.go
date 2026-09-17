@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	"github.com/cofy-x/axern/runtime/egressd/internal/policy"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

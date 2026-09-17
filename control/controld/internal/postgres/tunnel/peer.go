@@ -16,7 +16,7 @@ func (s *Store) ValidatePeer(ctx context.Context, sessionID string, kind tunnelv
 		return nil, err
 	}
 	var active bool
-	if err := s.db.Pool().QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM nodes WHERE node_id = $1 AND lifecycle_status = 'active')", session.GetNodeID()).Scan(&active); err != nil {
+	if err := s.db.Pool().QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM nodes WHERE node_id = $1 AND lifecycle_status = 'active')", internal.nodeID).Scan(&active); err != nil {
 		return nil, err
 	}
 	if !active {

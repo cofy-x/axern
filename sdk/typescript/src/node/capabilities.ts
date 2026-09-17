@@ -11,7 +11,7 @@ import type { NodeClientContext } from "./context.js";
 
 export async function capabilityStatus(ctx: NodeClientContext, options: NodeCallOptions = {}): Promise<CapabilityStatus> {
   try {
-    const response = await ctx.withAuthRetry(60, (client) =>
+    const response = await ctx.withAuthRetry((client) =>
       unary<Record<string, unknown>, Record<string, unknown>>(
         client,
         "CapabilityStatus",

@@ -112,10 +112,9 @@ TUNNEL_SESSION_EVENT_REASON_CODE_RELAY_FRAME_TOO_LARGE: TunnelSessionEventReason
 TUNNEL_SESSION_EVENT_REASON_CODE_RELAY_OPPOSITE_MISSING: TunnelSessionEventReasonCode
 
 class TunnelSession(_message.Message):
-    __slots__ = ("session_id", "allocation_id", "node_id", "remote_port", "client_edge_target", "status", "reason", "bound_addr", "created_at", "updated_at", "expires_at", "relay_id", "ready_at", "last_peer_event_at", "bytes_in", "bytes_out", "namespace", "creator_principal_id")
+    __slots__ = ("session_id", "allocation_id", "remote_port", "client_edge_target", "status", "reason", "bound_addr", "created_at", "updated_at", "expires_at", "relay_id", "ready_at", "last_peer_event_at", "bytes_in", "bytes_out", "namespace", "creator_principal_id")
     SESSION_ID_FIELD_NUMBER: _ClassVar[int]
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    NODE_ID_FIELD_NUMBER: _ClassVar[int]
     REMOTE_PORT_FIELD_NUMBER: _ClassVar[int]
     CLIENT_EDGE_TARGET_FIELD_NUMBER: _ClassVar[int]
     STATUS_FIELD_NUMBER: _ClassVar[int]
@@ -133,7 +132,6 @@ class TunnelSession(_message.Message):
     CREATOR_PRINCIPAL_ID_FIELD_NUMBER: _ClassVar[int]
     session_id: str
     allocation_id: str
-    node_id: str
     remote_port: int
     client_edge_target: str
     status: TunnelSessionStatus
@@ -149,7 +147,7 @@ class TunnelSession(_message.Message):
     bytes_out: int
     namespace: str
     creator_principal_id: str
-    def __init__(self, session_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., remote_port: _Optional[int] = ..., client_edge_target: _Optional[str] = ..., status: _Optional[_Union[TunnelSessionStatus, str]] = ..., reason: _Optional[str] = ..., bound_addr: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., relay_id: _Optional[str] = ..., ready_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_peer_event_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ..., namespace: _Optional[str] = ..., creator_principal_id: _Optional[str] = ...) -> None: ...
+    def __init__(self, session_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., remote_port: _Optional[int] = ..., client_edge_target: _Optional[str] = ..., status: _Optional[_Union[TunnelSessionStatus, str]] = ..., reason: _Optional[str] = ..., bound_addr: _Optional[str] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., relay_id: _Optional[str] = ..., ready_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., last_peer_event_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., bytes_in: _Optional[int] = ..., bytes_out: _Optional[int] = ..., namespace: _Optional[str] = ..., creator_principal_id: _Optional[str] = ...) -> None: ...
 
 class TunnelSessionEvent(_message.Message):
     __slots__ = ("event_id", "session_id", "event_type", "status", "reason", "bound_addr", "created_at", "reason_code", "relay_id", "peer_kind", "bytes_in", "bytes_out")
@@ -214,16 +212,14 @@ class GetTunnelSessionResponse(_message.Message):
     def __init__(self, session: _Optional[_Union[TunnelSession, _Mapping]] = ...) -> None: ...
 
 class ListTunnelSessionsRequest(_message.Message):
-    __slots__ = ("allocation_id", "node_id", "include_terminal", "namespace")
+    __slots__ = ("allocation_id", "include_terminal", "namespace")
     ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
-    NODE_ID_FIELD_NUMBER: _ClassVar[int]
     INCLUDE_TERMINAL_FIELD_NUMBER: _ClassVar[int]
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
     allocation_id: str
-    node_id: str
     include_terminal: bool
     namespace: str
-    def __init__(self, allocation_id: _Optional[str] = ..., node_id: _Optional[str] = ..., include_terminal: _Optional[bool] = ..., namespace: _Optional[str] = ...) -> None: ...
+    def __init__(self, allocation_id: _Optional[str] = ..., include_terminal: _Optional[bool] = ..., namespace: _Optional[str] = ...) -> None: ...
 
 class ListTunnelSessionsResponse(_message.Message):
     __slots__ = ("sessions",)

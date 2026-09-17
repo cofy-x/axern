@@ -43,7 +43,7 @@ func TestExecutionLeaseExpiryTerminationIntentClassifiesRuntimeExit(t *testing.T
 	s := newTestService(t, runtimetest.NewFakeSandboxRuntime())
 	const allocationID = "allocation-lease-expired"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	if err := s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil); err != nil {
+	if err := s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.allocations.MarkTerminationIntent(
@@ -158,7 +158,7 @@ func TestTerminalCheckpointSeedsDurableOutboxBeforeContainerCleanup(t *testing.T
 	stateStore := storetest.NewMockStore()
 	outbox := controlplane.NewAllocationLifecycleOutbox(stateStore)
 	allocationController := allocation.NewController(allocation.Options{Store: stateStore})
-	if err := allocationController.StoreAllocationIntent("alloc-recovered", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil); err != nil {
+	if err := allocationController.StoreAllocationIntent("alloc-recovered", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil); err != nil {
 		t.Fatalf("StoreAllocationIntent() error = %v", err)
 	}
 	service := &sandboxService{

@@ -10,12 +10,12 @@ members = [
 
 [[package]]
 name = "axern"
-version = "0.7.0"
+version = "0.8.0"
 source = { virtual = "." }
 
 [[package]]
 name = "axern-sdk"
-version = "0.7.0"
+version = "0.8.0"
 source = { editable = "sdk/python" }
 dependencies = [
     { name = "grpcio" },

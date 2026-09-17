@@ -7,7 +7,7 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
@@ -16,7 +16,11 @@ import (
 )
 
 func (s *Server) unary(ctx context.Context, req proto.Message, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
-	return s.withResolvedClient(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, nodekernel.IsAllocationAccessGrantRejected, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
+	return s.unaryForPurpose(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, call)
+}
+
+func (s *Server) unaryForPurpose(ctx context.Context, req proto.Message, purpose gatewayv1.AllocationAccessPurpose, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
+	return s.withResolvedClient(ctx, req, purpose, nodekernel.IsAllocationAccessGrantRejected, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		return call(backendCtx, client)
 	})
 }

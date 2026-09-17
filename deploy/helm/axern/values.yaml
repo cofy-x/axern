@@ -190,16 +190,16 @@ postgres:
     storageClassName: ""
 
 runtimeCatalog:
-  python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.7.0
-  serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.7.0
-  codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.7.0
-  desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.7.0
+  python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.8.0
+  serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.8.0
+  codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.8.0
+  desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.8.0
 
 controld:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/controld
-    tag: v0.7.0
+    tag: v0.8.0
     digest: ""
     pullPolicy: ""
   heartbeatFreshnessWindow: 15s
@@ -216,14 +216,14 @@ tunneld:
   drain: false
   image:
     repository: ghcr.io/cofy-x/axern/tunneld
-    tag: v0.7.0
+    tag: v0.8.0
     digest: ""
     pullPolicy: ""
 
 node:
   image:
     repository: ghcr.io/cofy-x/axern/node-all-in-one
-    tag: v0.7.0
+    tag: v0.8.0
     digest: ""
     pullPolicy: ""
   privileged: true
@@ -283,7 +283,7 @@ gatewayd:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/gatewayd
-    tag: v0.7.0
+    tag: v0.8.0
     digest: ""
     pullPolicy: ""
   controlEdge:

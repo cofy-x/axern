@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	privateenvironmentv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/environment/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	privateenvironmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 )

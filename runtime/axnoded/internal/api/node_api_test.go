@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"io"
 	"testing"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	controlplane "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodeinventory"
@@ -17,7 +18,6 @@ import (
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	grpcstatus "google.golang.org/grpc/status"
@@ -57,6 +57,14 @@ type fakeNodeSandboxService struct {
 
 func (f *fakeNodeSandboxService) ReadAllocationOutput(ctx context.Context, id, cursor string) ([]allocationoutput.Chunk, bool, error) {
 	return allocationoutput.New(f).Read(ctx, id, cursor)
+}
+
+func (f *fakeNodeSandboxService) SealedOutputManifest(context.Context, string) (allocationoutput.Manifest, error) {
+	return allocationoutput.Manifest{}, nil
+}
+
+func (f *fakeNodeSandboxService) ReadSealedOutput(context.Context, string, string, int64, int64) ([]byte, int64, bool, error) {
+	return nil, 0, true, nil
 }
 func allocationAccessIncomingContext(parent context.Context, token string) context.Context {
 	return metadata.NewIncomingContext(parent, metadata.Pairs(accessGrantTokenMetadataKey, token))

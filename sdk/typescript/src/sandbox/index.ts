@@ -5,7 +5,7 @@
  */
 
 import { AxernClient } from "../client/index.js";
-import type { ExtensionCapability } from "../client/index.js";
+import type { DeclaredOutput, ExtensionCapability } from "../client/index.js";
 import { SandboxStateError } from "../errors/index.js";
 import type { AllocationClient } from "../node/client.js";
 import type { SandboxProcess } from "../node/process.js";
@@ -53,6 +53,7 @@ export interface SandboxOptions {
   cwd?: string;
   networkPolicy?: NetworkPolicy;
   extensionCapabilities?: readonly ExtensionCapability[];
+  declaredOutputs?: readonly DeclaredOutput[];
   requestCpu?: ResourceQuantity;
   requestMemory?: ResourceQuantity;
   requestEphemeralStorage?: ResourceQuantity;
@@ -70,7 +71,6 @@ export interface SandboxState {
   environmentId: string;
   runId: string;
   allocationId: string;
-  nodeId: string;
   startedAt: Date;
 }
 
@@ -138,6 +138,7 @@ export class Sandbox {
         cwd: this.options.cwd,
         networkPolicy: this.options.networkPolicy,
         extensionCapabilities: this.options.extensionCapabilities,
+        declaredOutputs: this.options.declaredOutputs,
         requestCpu: this.options.requestCpu,
         requestMemory: this.options.requestMemory,
         requestEphemeralStorage: this.options.requestEphemeralStorage,
@@ -156,7 +157,6 @@ export class Sandbox {
         environmentId,
         runId: this.runId,
         allocationId: String(runningRun.allocation_id ?? ""),
-        nodeId: String(runningRun.node_id ?? ""),
         startedAt: new Date(),
       };
       this.currentMetadata = sandboxMetadata(this.options, this.currentState);
@@ -174,12 +174,17 @@ export class Sandbox {
       }
       return this;
     } catch (error) {
-      await this.close();
+      try {
+        await this.close();
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "sandbox start and cleanup failed");
+      }
       throw error;
     }
   }
 
   async close(): Promise<void> {
+    const errors: unknown[] = [];
     const runId = this.runId;
     const tunnelRuntime = this.tunnelRuntime;
     this.runId = "";
@@ -187,17 +192,18 @@ export class Sandbox {
     this.currentState = undefined;
     this.currentMetadata = undefined;
     if (tunnelRuntime !== undefined) {
-      await tunnelRuntime.stop().catch(() => undefined);
+      await tunnelRuntime.stop().catch((error: unknown) => errors.push(error));
     }
     if (runId !== "") {
-      await this.client.cancelRun(runId).catch(() => undefined);
+      await this.client.cancelRun(runId).catch((error: unknown) => errors.push(error));
     }
     if (this.createdEnvironment && this.environmentId !== "") {
       const environmentId = this.environmentId;
       this.environmentId = "";
       this.createdEnvironment = false;
-      await this.client.deleteEnvironment(environmentId).catch(() => undefined);
+      await this.client.deleteEnvironment(environmentId).catch((error: unknown) => errors.push(error));
     }
+    if (errors.length > 0) throw new AggregateError(errors, "sandbox cleanup failed");
   }
 
   async exec(command: Command, options: ExecOptions = {}): Promise<ExecResult> {

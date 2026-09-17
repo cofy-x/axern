@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterable
 
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk._internal.resources import ResourceQuantity
@@ -23,6 +23,7 @@ from axern_sdk.sandbox.async_files import AsyncSandboxFileMixin
 from axern_sdk.sandbox.async_lifecycle import wait_running_run
 from axern_sdk.sandbox.async_renewal import AsyncTunnelRenewal
 from axern_sdk.network_policy import NetworkPolicy
+from axern_sdk.models import DeclaredOutput
 from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
@@ -50,6 +51,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
+        declared_outputs: Iterable[DeclaredOutput] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
         connector: ConnectorConfig | None = None,
@@ -79,6 +81,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
         self._extension_capabilities = dict(extension_capabilities or {})
+        self._declared_outputs = list(declared_outputs or ())
         self._upstream = upstream
         self._remote_port = remote_port
         self._gateway_transport = client._gateway_transport()
@@ -119,10 +122,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         return self.state.allocation_id
 
     @property
-    def node_id(self) -> str:
-        return self.state.node_id
-
-    @property
     def tunnel_session_id(self) -> str:
         return self.state.tunnel_session_id
 
@@ -137,7 +136,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
             environment_id=state.environment_id,
             run_id=state.run_id,
             allocation_id=state.allocation_id,
-            node_id=state.node_id,
             tunnel_session_id=state.tunnel_session_id,
             bound_addr=state.bound_addr,
             started_at_ns=self._started_at_ns,
@@ -169,6 +167,7 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
                 extension_capabilities=self._extension_capabilities,
+                declared_outputs=self._declared_outputs,
                 namespace=self._namespace,
                 labels=self._labels,
             )
@@ -216,17 +215,20 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
                 environment_id=environment_id,
                 run_id=run.id,
                 allocation_id=run.allocation_id,
-                node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,
             )
             self._started_at_ns = time.time_ns()
             return self
-        except BaseException:
-            await asyncio.shield(self.close())
+        except BaseException as start_error:
+            try:
+                await asyncio.shield(self.close())
+            except Exception as cleanup_error:
+                raise BaseExceptionGroup("sandbox start and cleanup failed", [start_error, cleanup_error]) from None
             raise
 
     async def close(self) -> None:
+        errors: list[Exception] = []
         tunnel_session_id = self._created_tunnel_session_id
         if not tunnel_session_id and self._state is not None:
             tunnel_session_id = self._state.tunnel_session_id
@@ -239,24 +241,26 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         if tunnel_session_id:
             try:
                 await self._client.revoke_tunnel_session(tunnel_session_id, reason="sandbox closed", timeout=10.0)
-            except Exception:
-                pass
+            except Exception as error:
+                errors.append(error)
             self._created_tunnel_session_id = ""
         if self._created_run_id:
             try:
                 await self._client.cancel_run(self._created_run_id, timeout=30.0)
-            except Exception:
-                pass
+            except Exception as error:
+                errors.append(error)
             self._created_run_id = ""
         if self._created_environment and self._created_environment_id:
             try:
                 await self._client.delete_environment(self._created_environment_id, timeout=30.0)
-            except Exception:
-                pass
+            except Exception as error:
+                errors.append(error)
             self._created_environment = False
             self._created_environment_id = ""
         self._state = None
         self._started_at_ns = 0
+        if errors:
+            raise ExceptionGroup("sandbox cleanup failed", errors)
 
     async def exec(
         self,
@@ -273,7 +277,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ExecResult:
         return await self._node_client().exec(
@@ -289,7 +292,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
             encoding=encoding,
             errors=errors,
             shell=shell,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -306,7 +308,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> AsyncIterator[ProcessEvent]:
         async for event in self._node_client().exec_stream(
@@ -320,7 +321,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
             encoding=encoding,
             errors=errors,
             shell=shell,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         ):
             yield event
@@ -337,7 +337,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
         initial_cols: int = 0,
         initial_rows: int = 0,
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> AsyncSandboxProcess:
         return await self._node_client().process(
@@ -350,7 +349,6 @@ class AsyncSandbox(AsyncSandboxCapabilityMixin, AsyncSandboxComputerUseMixin, As
             initial_cols=initial_cols,
             initial_rows=initial_rows,
             shell=shell,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 

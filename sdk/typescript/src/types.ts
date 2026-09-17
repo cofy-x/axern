@@ -15,7 +15,6 @@ export interface ExecOptions {
   user?: string;
   tty?: boolean;
   check?: boolean;
-  leaseTtlSeconds?: number;
   rpcTimeoutMs?: number;
 }
 
@@ -103,12 +102,10 @@ export interface DownloadDirOptions {
 export interface UploadArchiveOptions {
   createParents?: boolean;
   overwrite?: boolean;
-  leaseTtlSeconds?: number;
   rpcTimeoutMs?: number;
 }
 
 export interface DownloadArchiveOptions {
-  leaseTtlSeconds?: number;
   rpcTimeoutMs?: number;
 }
 

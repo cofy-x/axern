@@ -36,13 +36,12 @@ message Run {
   // Latest allocation capability condition projection. It is independent
   // from Run lifecycle status and message.
   axern.control.capability.v1.CapabilityConditionSet capability_conditions = 14;
-  string node_id = 15;
   // Immutable Environment input frozen atomically with Run admission. The
   // source record may be deleted after this Run is created.
-  axern.control.environment.v1.EnvironmentSpec environment_spec = 16;
-  axern.control.environment.v1.ResolvedEnvironmentSpec resolved_environment_spec = 17;
+  axern.control.environment.v1.EnvironmentSpec environment_spec = 15;
+  axern.control.environment.v1.ResolvedEnvironmentSpec resolved_environment_spec = 16;
   // Node-local stdout/stderr availability deadline; node loss may make bytes unavailable earlier.
-  google.protobuf.Timestamp output_expires_at = 18;
+  google.protobuf.Timestamp output_expires_at = 17;
 }
 
 message RunListFilter {

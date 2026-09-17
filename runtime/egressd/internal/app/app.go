@@ -11,10 +11,10 @@ import (
 	"strings"
 	"syscall"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	"github.com/cofy-x/axern/runtime/egressd/internal/api"
 	"github.com/cofy-x/axern/runtime/egressd/internal/enforcement"
 	"github.com/cofy-x/axern/runtime/egressd/internal/policy"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/grpc"
 	grpc_health "google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"

@@ -143,7 +143,7 @@ func isTunnelRelayControlMethod(method string) bool {
 }
 
 func isGatewayControlMethod(method string) bool {
-	return strings.HasPrefix(method, "/axern.control.gateway.v1.GatewayControl/")
+	return strings.HasPrefix(method, "/axern.private.control.gateway.v1.GatewayControl/")
 }
 
 func isNodeControlMethod(method string) bool {
@@ -155,7 +155,7 @@ func isUnclassifiedControlMethod(method string) bool {
 		return false
 	}
 	for _, internalService := range []string{
-		"/axern.control.gateway.v1.GatewayControl/",
+		"/axern.private.control.gateway.v1.GatewayControl/",
 		"/axern.private.control.node.v1.NodeControl/",
 	} {
 		if strings.HasPrefix(method, internalService) {

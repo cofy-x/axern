@@ -44,8 +44,10 @@ breaking: tools
 	fi
 
 generate-go: tools
-	PATH="$(BIN_DIR):$$PATH" $(BUF) generate --template buf.gen.yaml
+	PATH="$(BIN_DIR):$$PATH" $(BUF) generate --template buf.gen.yaml --exclude-path axern/private
+	PATH="$(BIN_DIR):$$PATH" $(BUF) generate --template buf.gen.private.yaml --path axern/private
 	PATH="$(BIN_DIR):$$PATH" $(GO_FIX_ACRONYM) -w -a '(Id|Io|Uuid|Os)$$' $$(find ../go/gen/axern -name '*.pb.go')
+	PATH="$(BIN_DIR):$$PATH" $(GO_FIX_ACRONYM) -w -a '(Id|Io|Uuid|Os)$$' $$(find ../../internal/proto/gen/axern -name '*.pb.go')
 
 clean:
 	rm -rf "$(BIN_DIR)"

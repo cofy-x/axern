@@ -124,7 +124,7 @@ func (s *Server) ListTunnelSessions(ctx context.Context, req *tunnelv1.ListTunne
 		opErr = grpcstatus.Error(codes.FailedPrecondition, "tunnel control is not configured")
 		return nil, opErr
 	}
-	sessions, err := s.deps.Tunnels.List(ctx, req.GetNamespace(), req.GetAllocationID(), req.GetNodeID(), req.GetIncludeTerminal(), s.deps.Now())
+	sessions, err := s.deps.Tunnels.List(ctx, req.GetNamespace(), req.GetAllocationID(), req.GetIncludeTerminal(), s.deps.Now())
 	if err != nil {
 		opErr = err
 		return nil, err

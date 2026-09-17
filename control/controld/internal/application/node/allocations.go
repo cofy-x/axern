@@ -7,7 +7,7 @@ import (
 	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 )
 
 type AllocationControl interface {

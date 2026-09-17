@@ -30,7 +30,6 @@ export class NodeClientContext {
   }
 
   async withAuthRetry<T>(
-    _leaseTtlSeconds: number,
     operation: (client: grpc.Client) => Promise<T>,
   ): Promise<T> {
     const client = this.rpcClient();

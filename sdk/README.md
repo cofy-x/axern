@@ -18,6 +18,7 @@ The common public contract is captured as versioned fixtures in `sdk/contracts/v
 | Single-file APIs | `read_bytes`, `read_text`, `write_bytes`, `write_text` | `ReadFile`, `WriteFile` | `readFile`, `readText`, `writeFile`, `writeText` |
 | File metadata/ops | `stat`, `list_dir`, `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch` | `Stat`, `ListDir`, `Exists`, `Mkdir`, `Remove`, `Copy`, `Move`, `Chmod`, `Touch` | `stat`, `listDir`, `exists`, `mkdir`, `remove`, `copy`, `move`, `chmod`, `touch` |
 | Directory transfer | `upload_dir`, `download_dir` | `UploadDir`, `DownloadDir` | `uploadDir`, `downloadDir` |
+| Declared output | `DeclaredOutput`, manifest/download by Run ID | `DeclaredOutput`, manifest/download by Run ID | `declaredOutputs`, manifest/download by Run ID |
 | Tunnel | `upstream`, `remote_port` | `OpenTunnel(ctx, TunnelOptions)` | `tunnel: { upstream, proxyPort }` |
 | Capability discovery | `capability_status()` | `CapabilityStatus(ctx)` | `capabilityStatus()` |
 | Computer Use | status, screenshot, display, mouse, keyboard | status, screenshot, display, mouse, keyboard | status, screenshot, display, mouse, keyboard |
@@ -52,6 +53,7 @@ This target runs:
 - `make sdk-typescript-verify`
 - `make agent-doc-check`
 - clean installation of the Python wheel and sdist, npm tarball, and standalone Go module from their publishable boundaries
+- package-content checks that reject repository-private Proto packages and imports
 
 ## Compose Validation
 

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -79,6 +79,32 @@ func TestReadOutputUsesRunOutputAccessPurpose(t *testing.T) {
 	}
 	if got := h.resolver.requests[0].GetPurpose(); got != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT {
 		t.Fatalf("allocation access purpose = %v, want run output", got)
+	}
+}
+
+func TestSealedOutputUsesRunOutputAccessPurpose(t *testing.T) {
+	h := newHarness(t)
+	defer h.Close()
+
+	manifest, err := h.client.GetSealedOutputManifest(context.Background(), &nodesandboxv1.GetSealedOutputManifestRequest{AllocationID: "alloc-public"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.GetOutputs()) != 1 || manifest.GetOutputs()[0].GetOutputID() != "output-one" {
+		t.Fatalf("manifest = %#v", manifest)
+	}
+	stream, err := h.client.DownloadSealedOutput(context.Background(), &nodesandboxv1.DownloadSealedOutputRequest{AllocationID: "alloc-public", OutputID: "output-one"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunk, err := stream.Recv()
+	if err != nil || string(chunk.GetData()) != "candidate" || !chunk.GetEof() {
+		t.Fatalf("download = %#v, %v", chunk, err)
+	}
+	for _, request := range h.resolver.requests {
+		if request.GetPurpose() != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT {
+			t.Fatalf("allocation access purpose = %v", request.GetPurpose())
+		}
 	}
 }
 
@@ -502,6 +528,17 @@ func (b *fakeBackend) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream no
 		NextCursor: "cursor-1",
 		Terminal:   true,
 	})
+}
+
+func (b *fakeBackend) GetSealedOutputManifest(context.Context, *nodesandboxv1.GetSealedOutputManifestRequest) (*nodesandboxv1.GetSealedOutputManifestResponse, error) {
+	return &nodesandboxv1.GetSealedOutputManifestResponse{Outputs: []*nodesandboxv1.SealedOutput{{OutputID: "output-one"}}}, nil
+}
+
+func (b *fakeBackend) DownloadSealedOutput(_ *nodesandboxv1.DownloadSealedOutputRequest, stream nodesandboxv1.NodeSandbox_DownloadSealedOutputServer) error {
+	if err := stream.SendHeader(metadata.Pairs(nodekernel.AllocationAccessGrantAcceptedHeader, "1")); err != nil {
+		return err
+	}
+	return stream.Send(&nodesandboxv1.DownloadSealedOutputResponse{Data: []byte("candidate"), NextOffset: 9, Eof: true})
 }
 
 func (b *fakeBackend) Process(stream nodesandboxv1.NodeSandbox_ProcessServer) error {

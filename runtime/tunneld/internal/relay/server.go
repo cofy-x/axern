@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
+	tunnelrelaycontrolv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/tunnel/v1"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"

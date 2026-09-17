@@ -146,10 +146,11 @@ func errorClassStatus(class ErrorClass) error {
 	case ErrorClassAlreadyExists:
 		return errord.ErrAlreadyExists
 	case ErrorClassUnavailable,
-		ErrorClassCommandFailed,
 		ErrorClassTimeout,
+		ErrorClassInternal:
+		return errord.ErrUnavailable
+	case ErrorClassCommandFailed,
 		ErrorClassMethodNotAllowed,
-		ErrorClassInternal,
 		ErrorClassFailedCondition:
 		return errord.ErrFailedPrecondition
 	default:

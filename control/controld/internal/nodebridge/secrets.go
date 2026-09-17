@@ -7,9 +7,9 @@ import (
 
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
+	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
 
 type secretReferenceContext struct {

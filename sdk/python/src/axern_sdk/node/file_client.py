@@ -26,7 +26,6 @@ class AllocationFileMixin:
             method_name: str,
             request_factory: Callable[[], object],
             *,
-            lease_ttl_seconds: int,
             rpc_timeout: float | None,
         ) -> Any: ...
 
@@ -36,7 +35,6 @@ class AllocationFileMixin:
         self,
         path: str,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> SandboxFileInfo:
         if not path:
@@ -45,7 +43,6 @@ class AllocationFileMixin:
             "sandbox stat file",
             "StatFile",
             lambda: node_pb2.StatFileRequest(allocation_id=self._allocation_id, path=path),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return file_info(response.info)
@@ -54,7 +51,6 @@ class AllocationFileMixin:
         self,
         path: str,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> list[SandboxFileInfo]:
         if not path:
@@ -63,7 +59,6 @@ class AllocationFileMixin:
             "sandbox list directory",
             "ListDir",
             lambda: node_pb2.ListDirRequest(allocation_id=self._allocation_id, path=path),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return [file_info(entry) for entry in response.entries]
@@ -72,7 +67,6 @@ class AllocationFileMixin:
         self,
         path: str,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> bytes:
         if not path:
@@ -81,7 +75,6 @@ class AllocationFileMixin:
             "sandbox read file",
             "ReadFile",
             lambda: node_pb2.ReadFileRequest(allocation_id=self._allocation_id, path=path),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return bytes(response.data)
@@ -92,7 +85,6 @@ class AllocationFileMixin:
         data: bytes,
         *,
         create_parents: bool = True,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:
@@ -106,7 +98,6 @@ class AllocationFileMixin:
                 data=data,
                 create_parents=create_parents,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -115,7 +106,6 @@ class AllocationFileMixin:
         path: str,
         *,
         parents: bool = True,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:
@@ -128,7 +118,6 @@ class AllocationFileMixin:
                 path=path,
                 parents=parents,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -138,7 +127,6 @@ class AllocationFileMixin:
         *,
         recursive: bool = False,
         force: bool = False,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:
@@ -152,7 +140,6 @@ class AllocationFileMixin:
                 recursive=recursive,
                 force=force,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -160,7 +147,6 @@ class AllocationFileMixin:
         self,
         path: str,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> bool:
         if not path:
@@ -169,7 +155,6 @@ class AllocationFileMixin:
             "sandbox exists",
             "Exists",
             lambda: node_pb2.ExistsRequest(allocation_id=self._allocation_id, path=path),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return bool(response.exists)
@@ -181,7 +166,6 @@ class AllocationFileMixin:
         *,
         recursive: bool = False,
         overwrite: bool = True,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not src_path or not dst_path:
@@ -196,7 +180,6 @@ class AllocationFileMixin:
                 recursive=recursive,
                 overwrite=overwrite,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -206,7 +189,6 @@ class AllocationFileMixin:
         dst_path: str,
         *,
         overwrite: bool = True,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not src_path or not dst_path:
@@ -220,7 +202,6 @@ class AllocationFileMixin:
                 dst_path=dst_path,
                 overwrite=overwrite,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -230,7 +211,6 @@ class AllocationFileMixin:
         mode: int,
         *,
         recursive: bool = False,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:
@@ -244,7 +224,6 @@ class AllocationFileMixin:
                 mode=mode,
                 recursive=recursive,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -254,7 +233,6 @@ class AllocationFileMixin:
         *,
         create: bool = True,
         mtime_ns: int = 0,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:
@@ -268,7 +246,6 @@ class AllocationFileMixin:
                 create=create,
                 mtime_ns=mtime_ns,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -279,7 +256,6 @@ class AllocationFileMixin:
         *,
         create_parents: bool = True,
         overwrite: bool = True,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:
@@ -302,7 +278,6 @@ class AllocationFileMixin:
         path: str,
         writer: Callable[[bytes], object],
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         if not path:

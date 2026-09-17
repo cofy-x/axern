@@ -3,8 +3,8 @@ package service
 import (
 	"context"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 )
 
 func (h *sandboxService) NetworkPolicyDiagnostics(ctx context.Context, allocationID string) NetworkPolicyDiagnostics {

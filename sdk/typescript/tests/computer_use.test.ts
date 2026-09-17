@@ -103,7 +103,7 @@ function fakeContext(responses: Record<string, Record<string, unknown>>): {
     authRequest(payload: Record<string, unknown>) {
       return { allocation_id: "alloc-1", ...payload };
     },
-    async withAuthRetry(_ttl: number, operation: (value: unknown) => Promise<unknown>) {
+    async withAuthRetry(operation: (value: unknown) => Promise<unknown>) {
       return operation(client);
     },
   } as unknown as NodeClientContext;

@@ -15,7 +15,6 @@ import (
 
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
@@ -58,6 +57,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 		NetworkPolicy:         policy,
 		ReadyTimeout:          time.Second,
 		ExtensionCapabilities: []ExtensionCapability{{Name: "example.com/accelerator", Value: "v1"}},
+		DeclaredOutputs:       []DeclaredOutput{{Path: "/tmp/result.json", Format: DeclaredOutputFile, MediaType: "application/json"}},
 		ImageMounts: []ImageMount{{
 			Image:  "example.com/axern/codex-tool:latest",
 			Target: "/opt/axern/tools/codex",
@@ -81,7 +81,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if err != nil {
 		t.Fatalf("metadata: %v", err)
 	}
-	if metadata.EnvironmentID != "env-1" || metadata.RunID != "run-1" || metadata.AllocationID != "alloc-1" || metadata.NodeID != "node-1" {
+	if metadata.EnvironmentID != "env-1" || metadata.RunID != "run-1" || metadata.AllocationID != "alloc-1" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
 	}
 	if got := fake.createRunRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
@@ -89,6 +89,9 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 	if got := fake.createRunRequest.GetConfig().GetExtensionCapabilityRequirements(); len(got) != 1 || got[0].GetCapability().GetName() != "example.com/accelerator" || got[0].GetCapability().GetValue() != "v1" {
 		t.Fatalf("unexpected extension capability requirements: %#v", got)
+	}
+	if got := fake.createRunRequest.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/result.json" || got[0].GetMediaType() != "application/json" {
+		t.Fatalf("unexpected declared outputs: %#v", got)
 	}
 	if got := fake.createRunRequest.GetConfig().GetNetwork().GetEgressPolicy().GetStrict().GetAllowedDomains(); len(got) != 1 || got[0] != "example.com" {
 		t.Fatalf("unexpected network policy: %#v", got)
@@ -569,7 +572,6 @@ func startTestSandbox(t *testing.T, ctx context.Context, dialer func(context.Con
 type fakeAxernServer struct {
 	environmentv1.UnimplementedEnvironmentControlServer
 	runv1.UnimplementedRunControlServer
-	gatewayv1.UnimplementedGatewayControlServer
 	tunnelcontrolv1.UnimplementedTunnelControlServer
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
@@ -628,7 +630,6 @@ func newBufconnServer(t *testing.T, fake *fakeAxernServer) (*grpc.Server, func(c
 	server := grpc.NewServer()
 	environmentv1.RegisterEnvironmentControlServer(server, fake)
 	runv1.RegisterRunControlServer(server, fake)
-	gatewayv1.RegisterGatewayControlServer(server, fake)
 	tunnelcontrolv1.RegisterTunnelControlServer(server, fake)
 	nodesandboxv1.RegisterNodeSandboxServer(server, fake)
 	go func() {
@@ -661,7 +662,6 @@ func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunCon
 	return stream.Send(&runv1.WatchRunResponse{Run: &runv1.Run{
 		ID:           "run-1",
 		AllocationID: "alloc-1",
-		NodeID:       "node-1",
 		Status:       runv1.RunStatus_RUN_STATUS_RUNNING,
 	}})
 }
@@ -669,17 +669,6 @@ func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunCon
 func (f *fakeAxernServer) CancelRun(context.Context, *runv1.CancelRunRequest) (*runv1.CancelRunResponse, error) {
 	f.cancelledRun = true
 	return &runv1.CancelRunResponse{Run: &runv1.Run{ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_CANCELLED}}, nil
-}
-
-func (f *fakeAxernServer) ResolveAllocationTerminal(context.Context, *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
-	return &gatewayv1.ResolveAllocationTerminalResponse{
-		AllocationID: "alloc-1",
-		NodeID:       "node-1",
-		NodeTarget:   "bufnet",
-		AccessGrant: &gatewayv1.AllocationAccessGrant{
-			PlaintextToken: "lease-token",
-		},
-	}, nil
 }
 
 func (f *fakeAxernServer) CreateTunnelSession(_ context.Context, request *tunnelcontrolv1.CreateTunnelSessionRequest) (*tunnelcontrolv1.CreateTunnelSessionResponse, error) {
@@ -720,7 +709,6 @@ func fakeTunnelSession() *tunnelcontrolv1.TunnelSession {
 	return &tunnelcontrolv1.TunnelSession{
 		SessionID:        "tun-1",
 		AllocationID:     "alloc-1",
-		NodeID:           "node-1",
 		RemotePort:       9000,
 		ClientEdgeTarget: "gateway.example:25000",
 		BoundAddr:        "127.0.0.1:9000",

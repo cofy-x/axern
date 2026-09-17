@@ -32,8 +32,8 @@ import (
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
+	privateenvironmentv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/environment/v1"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	privateenvironmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/credentials"
 )

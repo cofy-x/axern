@@ -4,9 +4,9 @@ import (
 	"flag"
 	"time"
 
+	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
-	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
 
 const (

@@ -58,7 +58,7 @@ The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-
 
 `--detach` creates the Run without following output; `--wait-timeout` bounds how long the CLI waits for the Run to become active (`0` disables the wait). Detaching does not detach the workload from the platform — the Run continues to a terminal state under the control plane and remains inspectable.
 
-Run status is durable. Allocation-local stdout/stderr remain readable after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. Node-process restart preserves sealed logs; node-disk loss does not. Output reads are limited to 64 MiB combined, with an explicit truncation signal. Download ordinary workspace files before cleanup; durable output publication belongs to the caller.
+Run status is durable. Allocation-local stdout/stderr and explicitly declared files or directory-as-tar outputs remain readable for 15 minutes after cleanup begins. The node quiesces the Allocation and atomically publishes the manifest before runtime deletion. Node-process restart preserves sealed bytes; node-disk loss does not. Declared-output limits are 16 paths, 64 MiB per file, 256 MiB per tar, and 256 MiB total. Missing, rejected, capture-failed, and node-unavailable states are explicit. Durable publication remains the caller's responsibility.
 
 ## Isolation and resources
 

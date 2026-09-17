@@ -3,6 +3,7 @@ package startplan
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
 	"path"
 	"strings"
 
@@ -13,6 +14,8 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
 )
+
+const maxDeclaredOutputs = 16
 
 func ResourcesToLinux(resources *commonv1.ResourceSpec) *runtime.LinuxContainerResources {
 	const (
@@ -134,6 +137,39 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 	for _, imageMount := range request.GetImageMounts() {
 		if imageMount == nil {
 			return fmt.Errorf("image mount is required: %w", errord.ErrInvalidArgument)
+		}
+	}
+	if len(request.GetDeclaredOutputs()) > maxDeclaredOutputs {
+		return fmt.Errorf("declared outputs exceed maximum %d: %w", maxDeclaredOutputs, errord.ErrInvalidArgument)
+	}
+	seenOutputs := make(map[string]struct{}, len(request.GetDeclaredOutputs()))
+	for _, declared := range request.GetDeclaredOutputs() {
+		if declared == nil {
+			return fmt.Errorf("declared output is required: %w", errord.ErrInvalidArgument)
+		}
+		rawPath := strings.TrimSpace(declared.GetPath())
+		cleanPath := path.Clean(rawPath)
+		if rawPath == "" || cleanPath == "/" || !strings.HasPrefix(cleanPath, "/") || hasParentPathElement(rawPath) {
+			return fmt.Errorf("declared output path %q must be an absolute container path below /: %w", rawPath, errord.ErrInvalidArgument)
+		}
+		if _, ok := seenOutputs[cleanPath]; ok {
+			return fmt.Errorf("declared output path %q is duplicated: %w", cleanPath, errord.ErrInvalidArgument)
+		}
+		seenOutputs[cleanPath] = struct{}{}
+		switch declared.GetFormat() {
+		case commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+			commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_TAR:
+		default:
+			return fmt.Errorf("declared output path %q has unsupported format: %w", cleanPath, errord.ErrInvalidArgument)
+		}
+		mediaType := strings.TrimSpace(declared.GetMediaType())
+		if len(mediaType) > 128 {
+			return fmt.Errorf("declared output path %q media type exceeds 128 bytes: %w", cleanPath, errord.ErrInvalidArgument)
+		}
+		if mediaType != "" {
+			if _, _, err := mime.ParseMediaType(mediaType); err != nil {
+				return fmt.Errorf("declared output path %q media type is invalid: %w", cleanPath, errord.ErrInvalidArgument)
+			}
 		}
 	}
 	seenEnv := make(map[string]struct{}, len(request.GetSecretEnv()))

@@ -5,7 +5,7 @@ import (
 	"io"
 	"time"
 
-	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
 )
 
 func RenderAllocationLifecycleRetry(w io.Writer, retry *privateadminv1.AllocationLifecycleRetry) {

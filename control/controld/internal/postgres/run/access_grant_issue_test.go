@@ -6,7 +6,7 @@ import (
 	"time"
 
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

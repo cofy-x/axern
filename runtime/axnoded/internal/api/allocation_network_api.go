@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
+	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )

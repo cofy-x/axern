@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GENERATED_PATHS=(
   "sdk/go/gen"
+  "internal/proto/gen"
   "sdk/python/src/axern"
   "runtime/axnoded/internal/apipb"
 )

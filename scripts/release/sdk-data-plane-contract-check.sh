@@ -86,6 +86,11 @@ for fixture in fixtures:
     if "100m" not in text or "512MiB" not in text:
         raise SystemExit(f"{fixture.relative_to(root)} must declare bounded release-smoke resources")
 
+python_fixture = fixtures[0].read_text()
+for value in ("DeclaredOutput", "get_sealed_output_manifest", "download_sealed_output", "sealed_output=true"):
+    if value not in python_fixture:
+        raise SystemExit(f"Python SDK acceptance is missing external-runner output contract: {value}")
+
 acceptance = (root / "scripts/release/sdk-data-plane-acceptance.sh").read_text()
 for value in ("run get", '${language}.run-id', "run_sdk python", "run_sdk typescript", "run_sdk go", "AXERN_SDK_ACCEPTANCE_PROCESS_TIMEOUT_SECONDS", "timeout --signal=TERM --kill-after=5s"):
     if value not in acceptance:

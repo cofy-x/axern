@@ -18,10 +18,10 @@ import (
 	"strings"
 	"time"
 
+	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 	"google.golang.org/protobuf/proto"
 )
 

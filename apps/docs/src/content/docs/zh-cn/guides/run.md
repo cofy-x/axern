@@ -58,7 +58,7 @@ axern run --file run.yaml
 
 `--detach` 创建 Run 但不跟随输出；`--wait-timeout` 限定 CLI 等待 Run 进入活跃状态的时长（`0` 表示不等待）。Detach 的只是 CLI——Run 会在控制面管理下继续运行到终态，并始终可查询。
 
-Run 状态是持久的。Allocation 本地 stdout/stderr 在 runtime 清理后仍可读取，截止时间由 `output_expires_at` 表达，固定为开始清理后的 15 分钟。节点进程重启保留已封存日志，但节点磁盘丢失不可恢复。输出读取的合计上限为 64 MiB，并提供明确的截断信号。普通工作区文件仍需在清理前下载；持久输出发布由调用方负责。
+Run 状态是持久的。Allocation 本地 stdout/stderr 与显式声明的文件或目录 tar 从开始清理起可读取 15 分钟。节点在删除 runtime 前先静止 Allocation 并原子发布 manifest。节点进程重启保留封存字节，但节点磁盘丢失不可恢复。声明输出限制为 16 个路径、单文件 64 MiB、单 tar 256 MiB、总计 256 MiB；缺失、拒绝、捕获失败和节点不可用均为显式状态。持久发布仍由调用方负责。
 
 ## 隔离与资源
 

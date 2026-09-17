@@ -144,7 +144,6 @@ class SandboxTest(unittest.TestCase):
                 user="",
                 tty=False,
                 input=b"",
-                lease_ttl_seconds=60,
                 rpc_timeout=None,
             )
 
@@ -252,6 +251,31 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(text_result.stdout_text(), "é")
         self.assertEqual(text_result.stdout_bytes(), "é".encode())
 
+    def test_sync_exec_bounds_collected_output_while_draining_the_stream(self) -> None:
+        from axern_sdk.node import AllocationClient
+
+        class FakeProcess:
+            def close_stdin(self):
+                pass
+
+            def close(self):
+                pass
+
+            def events(self):
+                yield ProcessEvent(stream="stdout", data=b"x" * ((1 << 20) + 1))
+                yield ProcessEvent(stream="exit", exit_code=0)
+
+        class FakeNodeClient(AllocationClient):
+            def process(self, *args, **kwargs):
+                del args, kwargs
+                return FakeProcess()
+
+        result = FakeNodeClient.__new__(FakeNodeClient)._exec_via_process(
+            ["large-output"], env=None, cwd="", timeout_seconds=0, user="", tty=False, input=None, rpc_timeout=None
+        )
+        self.assertEqual(len(result.stdout), 1 << 20)
+        self.assertTrue(result.stdout_truncated)
+
 
 
 class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
@@ -328,7 +352,6 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                 user="",
                 tty=False,
                 input=b"",
-                lease_ttl_seconds=60,
                 rpc_timeout=None,
             )
 

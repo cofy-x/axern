@@ -211,3 +211,7 @@ make sdk-go-examples-smoke
 ```
 
 With local compose running, `make local-compose-go-sdk-e2e` verifies real sandbox exec, process, files, archives, and tunnels through one Allocation-scoped lifecycle.
+
+## Declared Output
+
+Add `DeclaredOutputs` to `SandboxOptions` or `ExecutionConfig` before Run creation. After the Run is terminal, call `GetSealedOutputManifest(ctx, runID)` and `DownloadSealedOutput(ctx, runID, outputID, offset, writer)`. A zero-offset download verifies the complete size and SHA-256 digest. The sealed bytes are node-local for 15 minutes after cleanup starts, survive axnoded restart but not Node-disk loss, and must be copied into caller-owned durable storage. Limits are 16 paths, 64 MiB per file, 256 MiB per tar, and 256 MiB total. This does not create a persistent workspace or object store.

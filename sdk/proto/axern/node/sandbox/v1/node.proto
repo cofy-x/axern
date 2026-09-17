@@ -3,6 +3,8 @@ syntax = "proto3";
 package axern.node.sandbox.v1;
 
 import "axern/common/file/v1/file.proto";
+import "axern/control/common/v1/common.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1;nodesandboxv1";
 
@@ -90,6 +92,49 @@ message ReadOutputResponse {
   bool terminal = 4;
   bool truncated = 5;
   int64 observed_at_unix_milli = 6;
+}
+
+enum SealedOutputStatus {
+  SEALED_OUTPUT_STATUS_UNSPECIFIED = 0;
+  SEALED_OUTPUT_STATUS_AVAILABLE = 1;
+  SEALED_OUTPUT_STATUS_MISSING = 2;
+  SEALED_OUTPUT_STATUS_REJECTED = 3;
+  SEALED_OUTPUT_STATUS_CAPTURE_FAILED = 4;
+  SEALED_OUTPUT_STATUS_NODE_UNAVAILABLE = 5;
+}
+
+message SealedOutput {
+  string output_id = 1;
+  string path = 2;
+  int64 size_bytes = 3;
+  string sha256 = 4;
+  string media_type = 5;
+  axern.control.common.v1.DeclaredOutputFormat format = 6;
+  SealedOutputStatus status = 7;
+  string reason = 8;
+  google.protobuf.Timestamp sealed_at = 9;
+  google.protobuf.Timestamp expires_at = 10;
+}
+
+message GetSealedOutputManifestRequest {
+  string allocation_id = 1;
+}
+
+message GetSealedOutputManifestResponse {
+  repeated SealedOutput outputs = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+message DownloadSealedOutputRequest {
+  string allocation_id = 1;
+  string output_id = 2;
+  int64 offset = 3;
+}
+
+message DownloadSealedOutputResponse {
+  bytes data = 1;
+  int64 next_offset = 2;
+  bool eof = 3;
 }
 
 // Capabilities
@@ -338,6 +383,8 @@ service NodeSandbox {
   rpc Exec(ExecRequest) returns (ExecResponse) {}
   rpc Process(stream ProcessRequest) returns (stream ProcessResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
+  rpc GetSealedOutputManifest(GetSealedOutputManifestRequest) returns (GetSealedOutputManifestResponse) {}
+  rpc DownloadSealedOutput(DownloadSealedOutputRequest) returns (stream DownloadSealedOutputResponse) {}
   rpc CapabilityStatus(CapabilityStatusRequest) returns (CapabilityStatusResponse) {}
   rpc StatFile(StatFileRequest) returns (StatFileResponse) {}
   rpc ListDir(ListDirRequest) returns (ListDirResponse) {}

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	"github.com/cofy-x/axern/runtime/egressd/internal/dnsforward"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

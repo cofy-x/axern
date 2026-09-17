@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package axern.private.node.lifecycle.v1;
 
-option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1;nodelifecyclev1";
+option go_package = "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1;nodelifecyclev1";
 
 import "axern/control/common/v1/common.proto";
 import "axern/control/environment/v1/environment.proto";
@@ -64,6 +64,7 @@ message ResolvedExecutionConfig {
   axern.control.environment.v1.OciExecutionProfile execution_profile = 19;
   repeated ImageMount image_mounts = 20;
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 21;
+  repeated axern.control.common.v1.DeclaredOutput declared_outputs = 22;
 }
 
 message CreateAllocationRequest {

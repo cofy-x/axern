@@ -14,18 +14,11 @@ test -x "${repo_dir}/bin/axern" || {
   echo "missing ${repo_dir}/bin/axern; run make axern-cli-build" >&2
   exit 1
 }
-test -x "${repo_dir}/bin/axrun" || {
-  echo "missing ${repo_dir}/bin/axrun; run make axrun-build" >&2
-  exit 1
-}
-
 mkdir -p "${docs_dir}/public/terminal"
 recording_bin=$(mktemp -d "${TMPDIR:-/tmp}/axern-docs-vhs.XXXXXX")
 trap 'rm -rf "${recording_bin}"' EXIT
 ln -s "${repo_dir}/bin/axern" "${recording_bin}/axern"
-ln -s "${repo_dir}/bin/axrun" "${recording_bin}/axrun"
 export PATH="${recording_bin}:${PATH}"
 
 cd "${repo_dir}"
 vhs "${docs_dir}/vhs/axern.tape"
-vhs "${docs_dir}/vhs/axrun.tape"

@@ -1,6 +1,6 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axrun-build axrun-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check cli-e2e-environment-contract \
 		grafana-assets-check \
 		build-go test-go lint-go fmt-go \
@@ -25,7 +25,6 @@ bootstrap-tools: ## Verify required local toolchains are available
 	@$(UV) --version
 
 bootstrap-go: ## Download Go module dependencies
-	$(GO) -C apps/axrun mod download
 	$(GO) -C apps/cli mod download
 	$(GO) -C control/controld mod download
 	$(GO) -C gateway/gatewayd mod download
@@ -70,7 +69,7 @@ verify-full: ## Run the serial full repository gate for broad changes or post-me
 	bash $(ROOTDIR)/scripts/verify-all.sh $(ARGS)
 
 verify-release: ## Run the source/deployment release gate; environment qualification remains separate
-	bash $(ROOTDIR)/scripts/verify-all.sh --include-axrun $(ARGS)
+	bash $(ROOTDIR)/scripts/verify-all.sh $(ARGS)
 
 fmt: fmt-go fmt-rust ## Format root Go and Rust workspaces
 
@@ -128,7 +127,6 @@ release-build: release-check ## Build CLI archives and the Helm package
 
 build-go: ## Build the root Go binaries
 	mkdir -p bin
-	$(GO) build -o bin/axrun ./apps/axrun
 	$(GO) build -o bin/axern ./apps/cli
 	$(GO) -C control/controld build -o ../../bin/controld ./cmd/controld
 	$(GO) -C control/controld build -o ../../bin/controld-migrate ./cmd/migrate
@@ -143,13 +141,6 @@ build-go: ## Build the root Go binaries
 axern-cli-build: ## Build the product CLI binary
 	mkdir -p bin
 	$(GO) build -o bin/axern ./apps/cli
-
-axrun-build: ## Build the Axrun CLI binary
-	mkdir -p bin
-	$(GO) build -o bin/axrun ./apps/axrun
-
-axrun-install: ## Build and install the Axrun CLI into the active Go bin directory
-	bash $(ROOTDIR)/scripts/install-axrun.sh
 
 bpfnetctl-build: ## Build the bpfnet diagnostic CLI
 	mkdir -p bin
@@ -177,7 +168,7 @@ grafana-assets-check: ## Verify Helm Grafana assets match local Grafana assets
 	bash $(ROOTDIR)/scripts/grafana-assets-check.sh
 
 test-go: ## Run root Go tests
-	$(GO) test -tags=axern_contract ./apps/axrun/... ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/networkpolicy/... ./lib/go/observability/... ./sdk/go/...
+	$(GO) test -tags=axern_contract ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/networkpolicy/... ./lib/go/observability/... ./sdk/go/...
 	$(GO) -C control/controld test ./...
 	$(GO) -C gateway/gatewayd test ./...
 	$(GO) -C runtime/imagemgr test ./...
@@ -185,7 +176,7 @@ test-go: ## Run root Go tests
 	$(GO) -C runtime/tunneld test ./...
 
 fmt-go: ## Format root Go files
-	find apps/axrun apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -w
+	find apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -w
 
 imagemgr-build: ## Build the imagemgr daemon
 	mkdir -p bin
@@ -195,7 +186,7 @@ imagemgr-test: ## Run imagemgr tests
 	$(GO) -C runtime/imagemgr test ./...
 
 lint-go: ## Ensure root Go files are formatted
-	test -z "$$(find apps/axrun apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
+	test -z "$$(find apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
 
 sdk-go-verify: ## Run Go SDK tests, race smoke, vet, and formatting checks
 	$(GO) test -tags=axern_contract ./sdk/go/...
@@ -254,7 +245,7 @@ docs-verify: ## Build and fully verify the publishable Axern documentation site
 docs-layout-check: docs-build ## Run headless-Chrome layout smoke checks on the built docs site
 	$(PNPM) --filter @cofy-x/axern-docs run check:layout
 
-docs-assets: axern-cli-build axrun-build ## Regenerate Axern documentation terminal recordings
+docs-assets: axern-cli-build ## Regenerate Axern documentation terminal recordings
 	bash $(ROOTDIR)/apps/docs/scripts/generate-terminal-assets.sh
 
 docs-social-card: ## Regenerate the public social preview from its SVG source

@@ -7,7 +7,7 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 )
 
 type admissionRejectionDiagnostics struct {

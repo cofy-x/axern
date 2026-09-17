@@ -20,6 +20,7 @@ require (
 )
 
 require (
+	github.com/cofy-x/axern/internal/proto v0.0.0
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
 	github.com/cofy-x/axern/lib/go/nodecapability v0.0.0
 	golang.org/x/net v0.59.0 // indirect
@@ -33,3 +34,5 @@ replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
 
 replace github.com/cofy-x/axern/lib/go/nodecapability => ../../lib/go/nodecapability
+
+replace github.com/cofy-x/axern/internal/proto => ../../internal/proto

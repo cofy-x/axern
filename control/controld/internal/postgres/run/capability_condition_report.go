@@ -9,7 +9,7 @@ import (
 	"time"
 
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
+	controlnodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"github.com/jackc/pgx/v5"
 )
 

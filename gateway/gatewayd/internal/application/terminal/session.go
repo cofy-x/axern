@@ -7,8 +7,8 @@ import (
 
 	nodekernel "github.com/cofy-x/axern/gateway/gatewayd/internal/kernel/nodebridge"
 	"github.com/cofy-x/axern/gateway/gatewayd/internal/observability"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"

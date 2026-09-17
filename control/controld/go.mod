@@ -40,6 +40,7 @@ require (
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/cofy-x/axern/internal/proto v0.0.0
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
 	github.com/cofy-x/axern/lib/go/observability v0.0.0
 	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
@@ -86,3 +87,5 @@ replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
 replace github.com/cofy-x/axern/lib/go/imageref => ../../lib/go/imageref
 
 replace github.com/cofy-x/axern/lib/go/observability => ../../lib/go/observability
+
+replace github.com/cofy-x/axern/internal/proto => ../../internal/proto

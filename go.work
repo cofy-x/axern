@@ -1,10 +1,10 @@
 go 1.26.8
 
 use (
-	./apps/axrun
 	./apps/cli
 	./control/controld
 	./gateway/gatewayd
+	./internal/proto
 	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref

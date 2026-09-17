@@ -4,7 +4,10 @@ go 1.26.8
 
 replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 
+replace github.com/cofy-x/axern/internal/proto => ../../internal/proto
+
 require (
+	github.com/cofy-x/axern/internal/proto v0.0.0
 	github.com/cofy-x/axern/sdk/go v0.0.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/sirupsen/logrus v1.9.4

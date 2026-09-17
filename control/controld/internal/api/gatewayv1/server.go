@@ -7,8 +7,8 @@ import (
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	ctrlobs "github.com/cofy-x/axern/control/controld/internal/observability"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

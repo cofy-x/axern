@@ -16,6 +16,7 @@ func sessionSelectColumns() string {
 }
 
 type sessionInternal struct {
+	nodeID          string
 	clientTokenHash string
 	nodeTokenCipher []byte
 	nodeTokenHash   string
@@ -35,7 +36,7 @@ func scanSession(row rowScanner) (*tunnelv1.TunnelSession, sessionInternal, erro
 		expiresAt                time.Time
 		readyAt, lastPeerEventAt *time.Time
 	)
-	err := row.Scan(&session.SessionID, &session.AllocationID, &session.Namespace, &session.CreatorPrincipalID, &session.NodeID, &session.RemotePort, &session.RelayID, &session.ClientEdgeTarget, &statusText, &session.Reason, &session.BoundAddr, &internal.clientTokenHash, &internal.nodeTokenCipher, &internal.nodeTokenHash, &internal.nodeEdgeTarget, &createdAt, &updatedAt, &expiresAt, &readyAt, &lastPeerEventAt, &session.BytesIn, &session.BytesOut)
+	err := row.Scan(&session.SessionID, &session.AllocationID, &session.Namespace, &session.CreatorPrincipalID, &internal.nodeID, &session.RemotePort, &session.RelayID, &session.ClientEdgeTarget, &statusText, &session.Reason, &session.BoundAddr, &internal.clientTokenHash, &internal.nodeTokenCipher, &internal.nodeTokenHash, &internal.nodeEdgeTarget, &createdAt, &updatedAt, &expiresAt, &readyAt, &lastPeerEventAt, &session.BytesIn, &session.BytesOut)
 	if err != nil {
 		return nil, sessionInternal{}, err
 	}

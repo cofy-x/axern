@@ -27,7 +27,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
       return { id: "run-1" };
     },
     async *watchRun() {
-      yield { id: "run-1", allocation_id: "alloc-1", node_id: "node-1", status: 3 };
+      yield { id: "run-1", allocation_id: "alloc-1", status: 3 };
     },
     allocation(allocationId: string) {
       return {
@@ -66,6 +66,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
     limitCpu: "1500m",
     limitMemory: "1GiB",
     extensionCapabilities: [{ name: "example.com/accelerator", value: "v1" }],
+    declaredOutputs: [{ path: "/tmp/result.json", format: "file", mediaType: "application/json" }],
   });
   await sandbox.start();
   const result = await sandbox.exec("echo ok");
@@ -84,6 +85,7 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
   assert.equal(runOptions?.limitCpu, "1500m");
   assert.equal(runOptions?.limitMemory, "1GiB");
   assert.deepEqual(runOptions?.extensionCapabilities, [{ name: "example.com/accelerator", value: "v1" }]);
+  assert.deepEqual(runOptions?.declaredOutputs, [{ path: "/tmp/result.json", format: "file", mediaType: "application/json" }]);
   assert.equal(runOptions?.networkPolicy, networkPolicy);
 });
 

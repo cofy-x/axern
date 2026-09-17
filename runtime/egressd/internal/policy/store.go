@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 

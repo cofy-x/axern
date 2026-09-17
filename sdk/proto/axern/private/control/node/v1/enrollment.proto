@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package axern.private.control.node.v1;
 
-option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1;privatecontrolnodev1";
+option go_package = "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1;privatecontrolnodev1";
 
 // Bootstrap accepts only a node-specific, time-bounded admission token.
 // Renewal uses the verified Node certificate instead of that token.
