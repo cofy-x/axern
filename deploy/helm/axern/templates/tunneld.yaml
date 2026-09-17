@@ -33,7 +33,7 @@ spec:
             - -ec
           args:
             - |
-              until curl -fsS http://controld.{{ .Release.Namespace }}.svc.cluster.local:24001/healthz >/dev/null; do
+              until curl -fsS http://controld.{{ .Release.Namespace }}.svc:24001/healthz >/dev/null; do
                 echo "waiting for controld"
                 sleep 2
               done
