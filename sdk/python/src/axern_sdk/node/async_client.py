@@ -19,6 +19,8 @@ from axern_sdk.node.async_computer_use_client import AsyncAllocationComputerUseM
 from axern_sdk.node.models import ExecCommand, ExecResult, ProcessEvent
 from axern_sdk.node.protocol import exec_spec, text_exec_result
 
+_MAX_COLLECTED_EXEC_OUTPUT_BYTES = 1 << 20
+
 
 def _process_initial_size(cols: int, rows: int) -> node_pb2.TerminalResize | None:
     if (cols == 0) != (rows == 0):
@@ -55,7 +57,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ExecResult:
         argv = exec_argv(command, shell=shell)
@@ -68,7 +69,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
             user=user,
             tty=tty,
             input=stdin,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         if text:
@@ -90,7 +90,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> AsyncIterator[ProcessEvent]:
         argv = exec_argv(command, shell=shell)
@@ -102,7 +101,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         async for event in self._process_events_with_input(process, stdin):
@@ -121,7 +119,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         initial_cols: int = 0,
         initial_rows: int = 0,
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> AsyncSandboxProcess:
         argv = exec_argv(command, shell=shell)
@@ -156,7 +153,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         method_name: str,
         request_factory: Callable[[], object],
         *,
-        lease_ttl_seconds: int,
         rpc_timeout: float | None,
     ):
         try:
@@ -175,7 +171,6 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
         user: str,
         tty: bool,
         input: bytes | None,
-        lease_ttl_seconds: int,
         rpc_timeout: float | None,
     ) -> ExecResult:
         process = await self.process(
@@ -185,22 +180,33 @@ class AsyncAllocationClient(AsyncAllocationCapabilityMixin, AsyncAllocationCompu
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         stdout = bytearray()
         stderr = bytearray()
         exit_code: int | None = None
+        stdout_truncated = False
+        stderr_truncated = False
         async for event in self._process_events_with_input(process, input or b""):
             if event.stream == "stdout":
-                stdout.extend(event.data)
+                remaining = _MAX_COLLECTED_EXEC_OUTPUT_BYTES - len(stdout)
+                stdout.extend(event.data[:remaining])
+                stdout_truncated = stdout_truncated or len(event.data) > remaining
             elif event.stream == "stderr":
-                stderr.extend(event.data)
+                remaining = _MAX_COLLECTED_EXEC_OUTPUT_BYTES - len(stderr)
+                stderr.extend(event.data[:remaining])
+                stderr_truncated = stderr_truncated or len(event.data) > remaining
             elif event.exit_code is not None:
                 exit_code = event.exit_code
         if exit_code is None:
             raise SandboxConnectionError("sandbox process ended without exit status")
-        return ExecResult(exit_code=exit_code, stdout=bytes(stdout), stderr=bytes(stderr))
+        return ExecResult(
+            exit_code=exit_code,
+            stdout=bytes(stdout),
+            stderr=bytes(stderr),
+            stdout_truncated=stdout_truncated,
+            stderr_truncated=stderr_truncated,
+        )
 
     async def _process_events_with_input(
         self,

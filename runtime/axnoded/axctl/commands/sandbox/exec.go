@@ -12,9 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	nodeoperatorv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/operator/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/axctl/client"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/urfave/cli"
 	"golang.org/x/term"
 )

@@ -85,7 +85,7 @@ func PrintMetadata(sandbox *axern.Sandbox) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("run=%s allocation=%s node=%s\n", metadata.RunID, metadata.AllocationID, metadata.NodeID)
+	fmt.Printf("run=%s allocation=%s\n", metadata.RunID, metadata.AllocationID)
 	return nil
 }
 

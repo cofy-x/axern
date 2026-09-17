@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	nodecontrolpb "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"github.com/cofy-x/axern/lib/go/executionlease"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -13,7 +14,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	servicecontrolplane "github.com/cofy-x/axern/runtime/axnoded/internal/service/controlplane"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodecontrolpb "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type ControlPlaneReporterHealth struct {

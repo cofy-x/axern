@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/protobuf/proto"
 )
 

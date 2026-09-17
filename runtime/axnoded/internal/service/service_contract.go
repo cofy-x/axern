@@ -14,6 +14,8 @@ import (
 
 type SandboxService interface {
 	ReadAllocationOutput(context.Context, string, string) ([]allocationoutput.Chunk, bool, error)
+	SealedOutputManifest(context.Context, string) (allocationoutput.Manifest, error)
+	ReadSealedOutput(context.Context, string, string, int64, int64) ([]byte, int64, bool, error)
 	// Sandbox-local data-plane operations.
 	SandboxFileService
 	SandboxComputerUseService

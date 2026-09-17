@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

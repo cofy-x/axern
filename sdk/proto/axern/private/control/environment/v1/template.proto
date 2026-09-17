@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package axern.private.control.environment.v1;
 
-option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/environment/v1;privateenvironmentv1";
+option go_package = "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/environment/v1;privateenvironmentv1";
 
 import "axern/control/environment/v1/environment.proto";
 

@@ -4,7 +4,6 @@
 
 <p align="center">
   <a href="https://github.com/cofy-x/axern/actions/workflows/ci.yml"><img src="https://github.com/cofy-x/axern/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml"><img src="https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml/badge.svg" alt="Axrun CI"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License: Apache-2.0"></a>
 </p>
 
@@ -19,7 +18,7 @@ Axern is an open-source environment execution platform for agent evaluation, tra
 
 > **Project status:** Axern is pre-1.0 and under active development. It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
 
-The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade, not a second execution lifecycle. Evaluation orchestration and durable datasets belong to Axrun, Openbench, or the caller.
+The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade, not a second execution lifecycle. Evaluation orchestration, CandidateBundle and verifier schemas, trajectories, and durable datasets belong to an external runner or benchmark adapter.
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
@@ -70,7 +69,7 @@ For repository development, `make verify-changed` is the normal fast feedback en
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
 - **Evaluation and synthesis batches:** execute isolated work concurrently through Runs, with explicit inputs, outputs, and lifecycle evidence.
-- **Reproducible agent execution:** use Axrun to coordinate immutable tasks, verification, trajectories, usage, and typed artifacts.
+- **External runner integration:** use the released SDK to run inference, seal bounded declared outputs, and verify them in a fresh Run without learning Node or runtime identities.
 
 ## Why Axern
 
@@ -92,10 +91,10 @@ flowchart LR
     Node --> Egress["egressd\ntrusted egress policy enforcement"]
     Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
     Node --> Runtime["runsc sandboxes"]
-    Axrun["axrun\nagent tasks and evidence"] --> Gateway
+    Runner["external runner\nagent tasks and evidence"] --> Gateway
 ```
 
-`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. Sandbox files are not reusable persistent volumes, so callers export required outputs before cleanup. See the [runtime architecture](./docs/architecture/runtime-architecture.md) and [resource model](./docs/architecture/resource-model.md) for the detailed contracts.
+`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before their 15-minute expiry. This is not a persistent workspace or object store. See the [external runner guide](./docs/product/external-runner-integration.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
 
 Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md). Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
 
@@ -103,7 +102,7 @@ Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/
 
 Follow the [Kubernetes installation guide](./apps/docs/src/content/docs/getting-started/kubernetes.md) to provision signing material, supply qualified node memory reserves, bind explicit Node identities, install the control plane, and admit nodes before waiting for runtime readiness. SSH is optional and uses Principal Credentials. Do not skip the identity and admission steps by running a bare Helm install.
 
-The v0.7.0 upgrade requires coordinated chart, image, CLI, and SDK builds and fresh state; review the [v0.7.0 upgrade boundary](./docs/releases/v0.7.0.md). Use published release artifacts only after publication completes; a source version is not proof of artifact availability. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
+The v0.8.0 release is a breaking public-SDK boundary change; review the [v0.8.0 release notes](./docs/releases/v0.8.0.md). Use published release artifacts only after publication completes; a source version is not proof of artifact availability. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
 
 ## Deployment
 

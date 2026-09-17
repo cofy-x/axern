@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package axern.private.runtime.egress.v1;
 
-option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1;runtimeegressv1";
+option go_package = "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1;runtimeegressv1";
 
 import "axern/control/common/v1/common.proto";
 import "google/protobuf/timestamp.proto";

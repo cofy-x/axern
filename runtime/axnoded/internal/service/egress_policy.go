@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"

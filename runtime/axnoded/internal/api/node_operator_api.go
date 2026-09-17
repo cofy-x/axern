@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	controlnodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
+	nodeoperatorv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/operator/v1"
 	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	grpcstatus "google.golang.org/grpc/status"

@@ -80,18 +80,6 @@ const sandbox = await new Sandbox({
 
 `NetworkPolicy.allowDomains("example.com", "*.example.com")` allows only strict HTTP/HTTPS destinations validated by DNS plus HTTP Host or TLS SNI. `NetworkPolicy.strict({ cidrRules: [...] })` adds explicit TCP/UDP CIDR and port grants; `NetworkPolicy.denyAll()` allows no egress.
 
-Run a tool from a separate image with `execImage` or `processImage`. OCI and Nydus refs use the same image field. When `mounts` is omitted, the SDK requests `/workspace -> /workspace`; pass `mounts: []` for no shared paths. Use `new Sandbox({ image })` when the image should be the sandbox rootfs with normal files, exec, process, tunnel, and lifecycle APIs; image-backed processes are temporary side processes attached to an existing sandbox.
-
-```ts
-import { workspaceMount } from "@cofy-x/axern-sdk";
-
-const result = await sandbox.execImage("ghcr.io/cofy-x/agent:latest", "tool run", {
-  check: true,
-  mounts: [workspaceMount("/workspace")],
-});
-console.log(result.stdoutText());
-```
-
 `AxernClient` requires an explicit endpoint. Use `AxernClient.fromContext()` in interactive examples or `AxernClient.fromEnv()` in environment-driven automation. Neither the client constructor nor `Sandbox` silently reads the user directory.
 
 ## Configuration
@@ -106,6 +94,7 @@ Common options:
 - `requestCpu`, `requestMemory`, `requestEphemeralStorage`: scheduler resource requests such as `500m`, `512MiB`, and `1GiB`; numeric CPU values are cores and numeric memory/storage values are bytes
 - `limitCpu`, `limitMemory`, `limitEphemeralStorage`: runtime hard limits; numeric CPU values are cores and numeric memory/storage values are bytes
 - `readyTimeoutMs`: Run allocation startup timeout
+- `declaredOutputs`: bounded files or directory-as-tar outputs sealed before runtime cleanup
 
 Tunnel options:
 
@@ -152,6 +141,8 @@ The SDK loads protobuf definitions through `@grpc/proto-loader`. Dynamic proto a
 
 This SDK is Node.js-first. Browser automation runs as caller-owned workload software through process and Computer Use operations; generated TypeScript proto stubs and full control-plane administration APIs remain outside its public contract.
 
-## Run Output Retention
+## Declared And Stream Output
 
-Run output reads expose Allocation-local stdout/stderr after runtime cleanup until `output_expires_at`, fixed at 15 minutes after cleanup begins. The combined readable limit is 64 MiB, with an explicit truncation signal. Node-process restart preserves sealed output; node-disk loss does not. Ordinary writable files still require explicit download before termination. No durable output object or persistent workspace is created.
+Pass `declaredOutputs` when creating a Run or Sandbox, then use `getSealedOutputManifest(runId)` and `downloadSealedOutput(runId, outputId, writable)` after the Run becomes terminal. Full downloads verify size and SHA-256 while respecting the destination stream's backpressure. Declared output is Node-local for 15 minutes after cleanup starts: it survives axnoded restart but not Node-disk loss. Limits are 16 paths, 64 MiB per file, 256 MiB per tar, and 256 MiB total. It is not a persistent workspace or object store.
+
+Attached Process queues at most 64 unread events, pauses the gRPC stream at the bound, and resumes below the low-water mark. `write`, `closeStdin`, signal, and resize promises resolve only after the gRPC write callback. Closing an attached process attempts `TERM`; durable workload termination remains Run cancellation. `Sandbox.close()` reports cleanup failures and does not wait for a terminal Run, so call `waitRun()` when terminal confirmation is required.

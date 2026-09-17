@@ -4,7 +4,6 @@
 
 <p align="center">
   <a href="https://github.com/cofy-x/axern/actions/workflows/ci.yml"><img src="https://github.com/cofy-x/axern/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml"><img src="https://github.com/cofy-x/axern/actions/workflows/axrun-ci.yml/badge.svg" alt="Axrun CI"></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="许可证：Apache-2.0"></a>
 </p>
 
@@ -21,7 +20,7 @@ Axern 是一个面向 agent 评测、训练与数据合成的开源环境执行�
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
-持久领域链路为 **Environment → Run → Allocation → runsc sandbox**。Sandbox 是 SDK 门面，不建立第二套执行生命周期；评测编排和持久数据集属于 Axrun、Openbench 或调用方。
+持久领域链路为 **Environment → Run → Allocation → runsc sandbox**。Sandbox 是 SDK 门面，不建立第二套执行生命周期；评测编排、CandidateBundle 与 verifier schema、trajectory 和持久数据集属于外部 runner 或 benchmark adapter。
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="当前 axern CLI 帮助录制：本地执行、Run、SSH 和 Tunnel 命令">
@@ -72,7 +71,7 @@ make quickstart-source
 
 - **Agent 沙箱：** 在 runsc 隔离边界后执行 agent 生成的代码，同时保留进程、文件、终端和输出 API。
 - **评测与数据合成批次：** 通过 Run 并发执行隔离工作负载，并显式记录输入、输出和生命周期证据。
-- **可复现的 agent 执行：** 使用 Axrun 编排不可变任务、结果验证、轨迹、用量和类型化产物。
+- **外部 runner 集成：** 只通过已发布 SDK 完成 inference、有限声明输出封存与全新 Run 验证，无需理解 Node 或 runtime 身份。
 
 ## 为什么选择 Axern
 
@@ -94,10 +93,10 @@ flowchart LR
     Node --> Egress["egressd\n可信出站策略执行"]
     Node --> Image["imagemgr + imagefsd\nOCI 与 Nydus rootfs"]
     Node --> Runtime["runsc 沙箱"]
-    Axrun["axrun\nagent 任务与证据"] --> Gateway
+    Runner["外部 runner\nagent 任务与证据"] --> Gateway
 ```
 
-`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Sandbox 文件不是可复用持久卷，因此调用方需要在清理前导出所需输出。详细契约见[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
+`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在 15 分钟过期时间内下载并持久发布这些字节。这不是持久 Workspace 或对象存储。详细契约见[外部 runner 集成](./docs/product/external-runner-integration.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
 
 公共客户端提供 Go、Python 和 TypeScript 版本，位于 [`sdk/`](./sdk/README.md)。共享的传输契约定义在 [`sdk/proto`](./sdk/proto/README.md)。
 
@@ -105,7 +104,7 @@ flowchart LR
 
 按照 [Kubernetes 安装指南](./apps/docs/src/content/docs/zh-cn/getting-started/kubernetes.md) 初始化签发材料、提供经过验证的节点内存预留值、绑定明确的 Node 身份、安装控制面，并在节点准入后等待运行时就绪。SSH 是可选能力，使用 Principal Credential。不要用裸 Helm install 跳过身份和准入步骤。
 
-升级至 v0.7.0 需要配套的 Chart、镜像、CLI 和 SDK 构建，以及全新状态；请先阅读 [v0.7.0 升级边界](./docs/releases/v0.7.0.md)。仅在发布完成后使用对应发布产物，源码版本号不代表产物已经可用。终端录制展示当前源码的 CLI 帮助，不是已部署工作负载或性能测量。
+v0.8.0 包含破坏性的公共 SDK 边界调整；请先阅读 [v0.8.0 发布说明](./docs/releases/v0.8.0.md)。仅在发布完成后使用对应发布产物，源码版本号不代表产物已经可用。终端录制展示当前源码的 CLI 帮助，不是已部署工作负载或性能测量。
 
 ## 部署
 

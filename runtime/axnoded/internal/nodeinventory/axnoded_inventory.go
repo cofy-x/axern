@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	os2 "github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -16,7 +17,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

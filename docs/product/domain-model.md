@@ -60,7 +60,7 @@ An Environment does not contain replicas, rollout, service discovery, readiness 
 
 ### Run
 
-A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, its admitted Environment snapshot, exactly one Allocation, cancellation, terminal result, and failure classification. Axern currently stores no durable output object or output reference on Run.
+A Run is the smallest complete unit of execution visible to a user or SDK. It owns one immutable execution request, its admitted Environment snapshot, exactly one Allocation, cancellation, terminal result, failure classification, and any bounded declared-output specification. Declared output bytes remain node-local and time-bounded; they are not a new control-plane object.
 
 The stable state projection is:
 
@@ -157,7 +157,7 @@ Process, file, archive, terminal, SSH, and sandbox operations are important publ
 - File and archive operations access the Allocation-private filesystem. They do not promise persistence after Allocation replacement or node loss.
 - Tunnel is the SDK and CLI capability; TunnelSession is its durable subordinate record.
 
-If bytes must survive execution, the caller downloads them or publishes them through an explicit artifact-delivery contract. A random writable file does not become durable because it existed in a sandbox.
+If selected bytes must survive Allocation cleanup long enough for a recovering caller to download them, the Run declares a bounded file or tar output before admission. A random writable file does not become retained merely because it existed in a sandbox, and long-term publication remains the caller's responsibility.
 
 ## SDK Sandbox
 
@@ -180,7 +180,9 @@ Closing a Sandbox terminates or cancels its Run according to the SDK contract, r
 
 Run result is durable control-plane metadata: terminal status, exit-code knowledge, failure classification, message, and usage. It does not make stdout, stderr, or sandbox files durable.
 
-Stdout and stderr remain Allocation-local. When infrastructure cleanup begins, the control-plane transaction freezes `output_expires_at` at 15 minutes after that transition. Before deleting live logs, the node seals a bounded read-only snapshot; output reads survive runtime cleanup and node-process restart until that deadline, but not node-disk loss. The API delivers at most 64 MiB combined, with an explicit truncation signal; snapshot storage keeps at most 64 MiB plus one byte per stream to preserve existing cursors. Output-only access cannot execute processes or modify files. Ordinary writable files must be explicitly downloaded or archived before Allocation cleanup; durable publication belongs to the caller.
+Stdout, stderr, and declared outputs remain Allocation-local. When infrastructure cleanup begins, the control-plane transaction freezes `output_expires_at` at 15 minutes after that transition. Before deleting the runtime, the node quiesces it and atomically publishes one read-only manifest containing the bounded log snapshot and each declared file or tar object. Runtime cleanup cannot cross that publication barrier; a failed capture retries under the same cleanup intent. Reads survive runtime cleanup and node-process restart until the deadline, but not node-disk loss.
+
+The stdout/stderr API delivers at most 64 MiB combined, with an explicit truncation signal. A Run may declare at most 16 output paths. A file is limited to 64 MiB, a tar archive to 256 MiB, and all declared objects together to 256 MiB. Paths must be absolute below `/`; symlinks, unsafe archives, wrong object kinds, missing paths, and oversized results are reported explicitly in the immutable manifest. Every available object has a random object identity, byte length, SHA-256 integrity digest, media type, format, seal time, and expiry. Digest is integrity evidence, never domain identity. Output-only access cannot execute processes or modify files. Long-term publication remains the caller's responsibility.
 
 Axern does not define a generic public Artifact root object or imply an object-storage backend. Large stdout, files, and object bytes do not belong in PostgreSQL; PostgreSQL stores only Run result metadata.
 
@@ -191,10 +193,10 @@ Axern does not define a generic public Artifact root object or imply an object-s
 | Principal, Namespace, Environment, Run, Allocation, Secret metadata    | controld / PostgreSQL             | gateway cache, node recovery state         |
 | Allocation resource charges, access grants, TunnelSession, capability requirements, audit | controld / PostgreSQL | process-local queues or relay memory |
 | ExecutionLease receipt deadline | axnoded Allocation recovery record, derived from controld heartbeat response | gateway access-grant cache or OCI metadata |
-| Runtime, mount, network, cleanup, output, and node recovery state      | axnoded and its node-local stores | cross-node product truth                   |
+| Runtime, mount, network, cleanup, sealed output, and node recovery state | axnoded and its node-local stores | cross-node product truth                |
 | Image cache and read-only mount leases                                 | imagemgr / imagefsd               | Run status or writable workspace truth     |
 | Process streams, PTY, terminal, SSH connections                        | node and gateway transient state  | durable results or long-term authorization |
-| Delivered object bytes                                                 | explicit object-storage contract  | PostgreSQL and allocation-local files      |
+| Long-term delivered object bytes                                       | caller-owned object-storage contract | PostgreSQL and time-bounded node retention |
 
 Each fact has one authority. Caches and projections must identify their source, revision, owning Allocation where applicable, and invalidation condition; restart or partition must not promote them into a second source of truth.
 
@@ -221,7 +223,7 @@ The following concepts must not enter the controld workload schema, public core 
 | Browser Dashboard or remote IDE                             | Separate product composed from process, file, terminal, SSH, and Tunnel capabilities        |
 | Cluster, Region, cloud account, image build                 | Deployment infrastructure, Acklet, Kova, or another provider system                         |
 
-Axrun may live in the same repository and integrate deeply through public SDKs. That does not authorize Axrun TaskSet, agent, verifier, trajectory, or rollout records to become Axern control-plane objects.
+Independent runners integrate only through released public SDKs. The frozen in-repository Axrun implementation does not define Axern contracts. TaskSet, agent, CandidateBundle, verifier, VerificationResult, trajectory, or rollout records must not become Axern control-plane objects.
 
 The package name `runtime/axnoded/internal/service` denotes an implementation service layer, not a product object, and does not require a mechanical rename.
 

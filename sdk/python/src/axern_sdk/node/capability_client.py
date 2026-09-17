@@ -22,21 +22,18 @@ class AllocationCapabilityMixin:
             method_name: str,
             request_factory: Callable[[], object],
             *,
-            lease_ttl_seconds: int,
             rpc_timeout: float | None,
         ) -> Any: ...
 
     def capability_status(
         self,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> CapabilityStatus:
         response = self._call_unary(
             "sandbox capability status",
             "CapabilityStatus",
             lambda: node_pb2.CapabilityStatusRequest(allocation_id=self._allocation_id),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return capability_status(response)

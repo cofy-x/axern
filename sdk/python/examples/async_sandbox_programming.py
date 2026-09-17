@@ -47,7 +47,7 @@ async def main() -> None:
                         print(event.text(), end="")
 
             metadata = sandbox.metadata
-            print(f"sandbox allocation={metadata.allocation_id} node={metadata.node_id}")
+            print(f"sandbox run={metadata.run_id} allocation={metadata.allocation_id}")
 
 
 if __name__ == "__main__":

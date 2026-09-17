@@ -32,21 +32,18 @@ class AsyncAllocationComputerUseMixin:
             method_name: str,
             request_factory: Callable[[], object],
             *,
-            lease_ttl_seconds: int,
             rpc_timeout: float | None,
         ) -> Any: ...
 
     async def computer_use_status(
         self,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ComputerUseStatus:
         response = await self._call_unary(
             "sandbox computer-use status",
             "ComputerUseStatus",
             lambda: node_pb2.ComputerUseStatusRequest(allocation_id=self._allocation_id),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return computer_use_status(response)
@@ -59,7 +56,6 @@ class AsyncAllocationComputerUseMixin:
         format: str = "",
         quality: int = 0,
         scale: float = 0,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ComputerUseScreenshot:
         response = await self._call_unary(
@@ -73,7 +69,6 @@ class AsyncAllocationComputerUseMixin:
                 quality=quality,
                 scale=scale,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return computer_use_screenshot(response)
@@ -81,14 +76,12 @@ class AsyncAllocationComputerUseMixin:
     async def computer_use_display(
         self,
         *,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ComputerUseDisplay:
         response = await self._call_unary(
             "sandbox computer-use display",
             "ComputerUseDisplay",
             lambda: node_pb2.ComputerUseDisplayRequest(allocation_id=self._allocation_id),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         return computer_use_display(response)
@@ -104,7 +97,6 @@ class AsyncAllocationComputerUseMixin:
         button: str = "",
         direction: str = "",
         amount: int = 0,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         await self._call_unary(
@@ -121,7 +113,6 @@ class AsyncAllocationComputerUseMixin:
                 direction=direction,
                 amount=amount,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -132,7 +123,6 @@ class AsyncAllocationComputerUseMixin:
         key: str = "",
         keys: list[str] | tuple[str, ...] = (),
         delay_ms: int = 0,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> None:
         await self._call_unary(
@@ -145,6 +135,5 @@ class AsyncAllocationComputerUseMixin:
                 keys=list(keys),
                 delay_ms=delay_ms,
             ),
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )

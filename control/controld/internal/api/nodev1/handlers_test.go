@@ -9,11 +9,11 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
+	controlnodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -383,5 +383,5 @@ func (f *fakeTunnelControl) ReportStatus(ctx context.Context, nodeID, sessionID 
 	f.reportCalled = true
 	f.nodeID = nodeID
 	f.sessionID = sessionID
-	return &tunnelv1.TunnelSession{SessionID: sessionID, NodeID: nodeID, Status: status}, nil
+	return &tunnelv1.TunnelSession{SessionID: sessionID, Status: status}, nil
 }

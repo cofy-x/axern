@@ -1,7 +1,7 @@
 package relayv1
 
 import (
-	tunnelrelaycontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/tunnel/v1"
+	tunnelrelaycontrolv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/tunnel/v1"
 )
 
 type Server struct {

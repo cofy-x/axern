@@ -90,7 +90,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted)
+	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted, request.GetDeclaredOutputs())
 	if err != nil {
 		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err

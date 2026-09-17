@@ -51,6 +51,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cilium/ebpf v0.22.0 // indirect
+	github.com/cofy-x/axern/internal/proto v0.0.0
 	github.com/cofy-x/axern/lib/go/grpcclient v0.0.0
 	github.com/cofy-x/axern/lib/go/observability v0.0.0
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
@@ -86,3 +87,5 @@ require (
 replace github.com/cofy-x/axern/lib/go/grpcclient => ../../lib/go/grpcclient
 
 replace github.com/cofy-x/axern/lib/go/observability => ../../lib/go/observability
+
+replace github.com/cofy-x/axern/internal/proto => ../../internal/proto

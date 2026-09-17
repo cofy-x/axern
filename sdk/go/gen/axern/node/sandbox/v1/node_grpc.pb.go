@@ -19,28 +19,30 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	NodeSandbox_Exec_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Exec"
-	NodeSandbox_Process_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/Process"
-	NodeSandbox_ReadOutput_FullMethodName            = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
-	NodeSandbox_CapabilityStatus_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus"
-	NodeSandbox_StatFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/StatFile"
-	NodeSandbox_ListDir_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/ListDir"
-	NodeSandbox_ReadFile_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/ReadFile"
-	NodeSandbox_WriteFile_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/WriteFile"
-	NodeSandbox_Mkdir_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Mkdir"
-	NodeSandbox_Remove_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/Remove"
-	NodeSandbox_Exists_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/Exists"
-	NodeSandbox_Copy_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Copy"
-	NodeSandbox_Move_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Move"
-	NodeSandbox_Chmod_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Chmod"
-	NodeSandbox_Touch_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Touch"
-	NodeSandbox_UploadArchive_FullMethodName         = "/axern.node.sandbox.v1.NodeSandbox/UploadArchive"
-	NodeSandbox_DownloadArchive_FullMethodName       = "/axern.node.sandbox.v1.NodeSandbox/DownloadArchive"
-	NodeSandbox_ComputerUseStatus_FullMethodName     = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseStatus"
-	NodeSandbox_ComputerUseScreenshot_FullMethodName = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseScreenshot"
-	NodeSandbox_ComputerUseDisplay_FullMethodName    = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseDisplay"
-	NodeSandbox_ComputerUseMouse_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseMouse"
-	NodeSandbox_ComputerUseKeyboard_FullMethodName   = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseKeyboard"
+	NodeSandbox_Exec_FullMethodName                    = "/axern.node.sandbox.v1.NodeSandbox/Exec"
+	NodeSandbox_Process_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Process"
+	NodeSandbox_ReadOutput_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
+	NodeSandbox_GetSealedOutputManifest_FullMethodName = "/axern.node.sandbox.v1.NodeSandbox/GetSealedOutputManifest"
+	NodeSandbox_DownloadSealedOutput_FullMethodName    = "/axern.node.sandbox.v1.NodeSandbox/DownloadSealedOutput"
+	NodeSandbox_CapabilityStatus_FullMethodName        = "/axern.node.sandbox.v1.NodeSandbox/CapabilityStatus"
+	NodeSandbox_StatFile_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/StatFile"
+	NodeSandbox_ListDir_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/ListDir"
+	NodeSandbox_ReadFile_FullMethodName                = "/axern.node.sandbox.v1.NodeSandbox/ReadFile"
+	NodeSandbox_WriteFile_FullMethodName               = "/axern.node.sandbox.v1.NodeSandbox/WriteFile"
+	NodeSandbox_Mkdir_FullMethodName                   = "/axern.node.sandbox.v1.NodeSandbox/Mkdir"
+	NodeSandbox_Remove_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Remove"
+	NodeSandbox_Exists_FullMethodName                  = "/axern.node.sandbox.v1.NodeSandbox/Exists"
+	NodeSandbox_Copy_FullMethodName                    = "/axern.node.sandbox.v1.NodeSandbox/Copy"
+	NodeSandbox_Move_FullMethodName                    = "/axern.node.sandbox.v1.NodeSandbox/Move"
+	NodeSandbox_Chmod_FullMethodName                   = "/axern.node.sandbox.v1.NodeSandbox/Chmod"
+	NodeSandbox_Touch_FullMethodName                   = "/axern.node.sandbox.v1.NodeSandbox/Touch"
+	NodeSandbox_UploadArchive_FullMethodName           = "/axern.node.sandbox.v1.NodeSandbox/UploadArchive"
+	NodeSandbox_DownloadArchive_FullMethodName         = "/axern.node.sandbox.v1.NodeSandbox/DownloadArchive"
+	NodeSandbox_ComputerUseStatus_FullMethodName       = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseStatus"
+	NodeSandbox_ComputerUseScreenshot_FullMethodName   = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseScreenshot"
+	NodeSandbox_ComputerUseDisplay_FullMethodName      = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseDisplay"
+	NodeSandbox_ComputerUseMouse_FullMethodName        = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseMouse"
+	NodeSandbox_ComputerUseKeyboard_FullMethodName     = "/axern.node.sandbox.v1.NodeSandbox/ComputerUseKeyboard"
 )
 
 // NodeSandboxClient is the client API for NodeSandbox service.
@@ -50,6 +52,8 @@ type NodeSandboxClient interface {
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
 	Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error)
 	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
+	GetSealedOutputManifest(ctx context.Context, in *GetSealedOutputManifestRequest, opts ...grpc.CallOption) (*GetSealedOutputManifestResponse, error)
+	DownloadSealedOutput(ctx context.Context, in *DownloadSealedOutputRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadSealedOutputClient, error)
 	CapabilityStatus(ctx context.Context, in *CapabilityStatusRequest, opts ...grpc.CallOption) (*CapabilityStatusResponse, error)
 	StatFile(ctx context.Context, in *StatFileRequest, opts ...grpc.CallOption) (*StatFileResponse, error)
 	ListDir(ctx context.Context, in *ListDirRequest, opts ...grpc.CallOption) (*ListDirResponse, error)
@@ -145,6 +149,47 @@ type nodeSandboxReadOutputClient struct {
 
 func (x *nodeSandboxReadOutputClient) Recv() (*ReadOutputResponse, error) {
 	m := new(ReadOutputResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *nodeSandboxClient) GetSealedOutputManifest(ctx context.Context, in *GetSealedOutputManifestRequest, opts ...grpc.CallOption) (*GetSealedOutputManifestResponse, error) {
+	out := new(GetSealedOutputManifestResponse)
+	err := c.cc.Invoke(ctx, NodeSandbox_GetSealedOutputManifest_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeSandboxClient) DownloadSealedOutput(ctx context.Context, in *DownloadSealedOutputRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadSealedOutputClient, error) {
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_DownloadSealedOutput_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeSandboxDownloadSealedOutputClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type NodeSandbox_DownloadSealedOutputClient interface {
+	Recv() (*DownloadSealedOutputResponse, error)
+	grpc.ClientStream
+}
+
+type nodeSandboxDownloadSealedOutputClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeSandboxDownloadSealedOutputClient) Recv() (*DownloadSealedOutputResponse, error) {
+	m := new(DownloadSealedOutputResponse)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -260,7 +305,7 @@ func (c *nodeSandboxClient) Touch(ctx context.Context, in *TouchRequest, opts ..
 }
 
 func (c *nodeSandboxClient) UploadArchive(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_UploadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[2], NodeSandbox_UploadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_UploadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -294,7 +339,7 @@ func (x *nodeSandboxUploadArchiveClient) CloseAndRecv() (*UploadArchiveResponse,
 }
 
 func (c *nodeSandboxClient) DownloadArchive(ctx context.Context, in *DownloadArchiveRequest, opts ...grpc.CallOption) (NodeSandbox_DownloadArchiveClient, error) {
-	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[3], NodeSandbox_DownloadArchive_FullMethodName, opts...)
+	stream, err := c.cc.NewStream(ctx, &NodeSandbox_ServiceDesc.Streams[4], NodeSandbox_DownloadArchive_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -377,6 +422,8 @@ type NodeSandboxServer interface {
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
 	Process(NodeSandbox_ProcessServer) error
 	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
+	GetSealedOutputManifest(context.Context, *GetSealedOutputManifestRequest) (*GetSealedOutputManifestResponse, error)
+	DownloadSealedOutput(*DownloadSealedOutputRequest, NodeSandbox_DownloadSealedOutputServer) error
 	CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error)
 	StatFile(context.Context, *StatFileRequest) (*StatFileResponse, error)
 	ListDir(context.Context, *ListDirRequest) (*ListDirResponse, error)
@@ -411,6 +458,12 @@ func (UnimplementedNodeSandboxServer) Process(NodeSandbox_ProcessServer) error {
 }
 func (UnimplementedNodeSandboxServer) ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error {
 	return status.Errorf(codes.Unimplemented, "method ReadOutput not implemented")
+}
+func (UnimplementedNodeSandboxServer) GetSealedOutputManifest(context.Context, *GetSealedOutputManifestRequest) (*GetSealedOutputManifestResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSealedOutputManifest not implemented")
+}
+func (UnimplementedNodeSandboxServer) DownloadSealedOutput(*DownloadSealedOutputRequest, NodeSandbox_DownloadSealedOutputServer) error {
+	return status.Errorf(codes.Unimplemented, "method DownloadSealedOutput not implemented")
 }
 func (UnimplementedNodeSandboxServer) CapabilityStatus(context.Context, *CapabilityStatusRequest) (*CapabilityStatusResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CapabilityStatus not implemented")
@@ -544,6 +597,45 @@ type nodeSandboxReadOutputServer struct {
 }
 
 func (x *nodeSandboxReadOutputServer) Send(m *ReadOutputResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func _NodeSandbox_GetSealedOutputManifest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetSealedOutputManifestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeSandboxServer).GetSealedOutputManifest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeSandbox_GetSealedOutputManifest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeSandboxServer).GetSealedOutputManifest(ctx, req.(*GetSealedOutputManifestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeSandbox_DownloadSealedOutput_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(DownloadSealedOutputRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NodeSandboxServer).DownloadSealedOutput(m, &nodeSandboxDownloadSealedOutputServer{stream})
+}
+
+type NodeSandbox_DownloadSealedOutputServer interface {
+	Send(*DownloadSealedOutputResponse) error
+	grpc.ServerStream
+}
+
+type nodeSandboxDownloadSealedOutputServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeSandboxDownloadSealedOutputServer) Send(m *DownloadSealedOutputResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -912,6 +1004,10 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _NodeSandbox_Exec_Handler,
 		},
 		{
+			MethodName: "GetSealedOutputManifest",
+			Handler:    _NodeSandbox_GetSealedOutputManifest_Handler,
+		},
+		{
 			MethodName: "CapabilityStatus",
 			Handler:    _NodeSandbox_CapabilityStatus_Handler,
 		},
@@ -990,6 +1086,11 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ReadOutput",
 			Handler:       _NodeSandbox_ReadOutput_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "DownloadSealedOutput",
+			Handler:       _NodeSandbox_DownloadSealedOutput_Handler,
 			ServerStreams: true,
 		},
 		{

@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	"github.com/cofy-x/axern/runtime/egressd/internal/dnsforward"
 	"github.com/cofy-x/axern/runtime/egressd/internal/l7inspect"
 	obs "github.com/cofy-x/axern/runtime/egressd/internal/observability"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/protobuf/proto"
 )
 

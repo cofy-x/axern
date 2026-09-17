@@ -17,7 +17,7 @@ export async function uploadArchive(
   options: UploadArchiveOptions = {},
 ): Promise<void> {
   try {
-    await ctx.withAuthRetry(options.leaseTtlSeconds ?? 300, (client) =>
+    await ctx.withAuthRetry((client) =>
       uploadArchiveStream(client, ctx.authRequest({
         path: nonEmptyPath(path),
         format: 1,

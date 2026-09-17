@@ -11,8 +11,8 @@ import (
 	tunnelkernel "github.com/cofy-x/axern/control/controld/internal/kernel/tunnel"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -598,7 +598,7 @@ func TestRevokedNodeRejectsTunnelCreationRenewalAndPeers(t *testing.T) {
 	if _, err := store.ValidatePeer(ctx, id, tunnelv1.TunnelPeerKind_TUNNEL_PEER_KIND_CLIENT, result.ClientToken, now); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.Pool().Exec(ctx, "UPDATE nodes SET lifecycle_status='revoked' WHERE node_id=$1", result.Session.GetNodeID()); err != nil {
+	if _, err := db.Pool().Exec(ctx, "UPDATE nodes SET lifecycle_status='revoked' WHERE node_id='node-test'"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Create(ctx, tunnelkernel.CreateParams{AllocationID: "alloc-revoked", Now: now}); grpcstatus.Code(err) != codes.PermissionDenied {

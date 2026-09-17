@@ -25,6 +25,11 @@ export class SandboxProcess {
   private error: unknown;
   private ended = false;
   private exit?: ProcessResult;
+  private paused = false;
+  private closed = false;
+
+  private static readonly maxQueuedEvents = 64;
+  private static readonly resumeQueuedEvents = 32;
 
   constructor(options: SandboxProcessOptions) {
     this.allocationId = options.allocationId;
@@ -39,28 +44,28 @@ export class SandboxProcess {
     this.call.on("end", () => this.finish());
   }
 
-  write(data: Buffer | Uint8Array | string): void {
-    this.call.write({ stdin: Buffer.isBuffer(data) ? data : Buffer.from(data) });
+  write(data: Buffer | Uint8Array | string): Promise<void> {
+    return this.writeRequest({ stdin: Buffer.isBuffer(data) ? data : Buffer.from(data) });
   }
 
-  closeStdin(): void {
-    this.call.write({ close_stdin: true });
+  closeStdin(): Promise<void> {
+    return this.writeRequest({ close_stdin: true });
   }
 
-  resize(cols: number, rows: number): void {
-    this.call.write({ resize: { cols, rows } });
+  resize(cols: number, rows: number): Promise<void> {
+    return this.writeRequest({ resize: { cols, rows } });
   }
 
-  signal(signal: string): void {
-    this.call.write({ signal: { signal } });
+  signal(signal: string): Promise<void> {
+    return this.writeRequest({ signal: { signal } });
   }
 
-  terminate(): void {
-    this.signal("TERM");
+  terminate(): Promise<void> {
+    return this.signal("TERM");
   }
 
-  kill(): void {
-    this.signal("KILL");
+  kill(): Promise<void> {
+    return this.signal("KILL");
   }
 
   async waitReady(): Promise<void> {
@@ -92,7 +97,13 @@ export class SandboxProcess {
   }
 
   async close(): Promise<void> {
+    if (this.closed) return;
+    if (!this.ended && this.exit === undefined) {
+      await this.terminate().catch(() => undefined);
+    }
+    this.closed = true;
     this.call.end();
+    this.call.cancel();
     this.closeClient();
   }
 
@@ -115,6 +126,10 @@ export class SandboxProcess {
   private nextEvent(): Promise<IteratorResult<ProcessEvent>> {
     const event = this.queue.shift();
     if (event !== undefined) {
+      if (this.paused && this.queue.length <= SandboxProcess.resumeQueuedEvents) {
+        this.paused = false;
+        this.call.resume();
+      }
       return Promise.resolve({ done: false, value: event });
     }
     if (this.ended) {
@@ -133,8 +148,33 @@ export class SandboxProcess {
     if (waiter !== undefined) {
       waiter({ done: false, value: event });
     } else {
+      if (this.queue.length >= SandboxProcess.maxQueuedEvents) {
+        this.error = new Error("sandbox process consumer is too slow; event queue limit exceeded");
+        this.call.cancel();
+        this.finish();
+        return;
+      }
       this.queue.push(event);
+      if (!this.paused && this.queue.length >= SandboxProcess.maxQueuedEvents) {
+        this.paused = true;
+        this.call.pause();
+      }
     }
+  }
+
+  private writeRequest(request: Record<string, unknown>): Promise<void> {
+    if (this.closed || this.ended) {
+      return Promise.reject(new Error("sandbox process stream is closed"));
+    }
+    return new Promise((resolve, reject) => {
+      this.call.write(request, (error?: Error | null) => {
+        if (error !== undefined && error !== null) {
+          reject(mapRpcError(error, "sandbox process write", this.allocationId));
+          return;
+        }
+        resolve();
+      });
+    });
   }
 
   private finish(): void {

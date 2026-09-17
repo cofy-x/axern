@@ -168,7 +168,7 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	controller := service.allocationController()
 	const allocationID = "interrupted-before-oci-create"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil))
+	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 

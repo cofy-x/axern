@@ -113,7 +113,7 @@ function fakeContext(options: {
         ...payload,
       };
     },
-    async withAuthRetry(_ttl: number, operation: (client: unknown) => Promise<unknown>) {
+    async withAuthRetry(operation: (client: unknown) => Promise<unknown>) {
       return operation(options.withClient);
     },
     rpcClient() {

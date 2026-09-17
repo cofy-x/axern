@@ -26,7 +26,6 @@ type Control struct {
 type ListParams struct {
 	Namespace       string
 	AllocationID    string
-	NodeID          string
 	IncludeTerminal bool
 }
 
@@ -60,7 +59,6 @@ func (c Control) List(ctx context.Context, params ListParams) (*tunnelv1.ListTun
 	return c.client.ListTunnelSessions(ctx, &tunnelv1.ListTunnelSessionsRequest{
 		Namespace:       params.Namespace,
 		AllocationID:    params.AllocationID,
-		NodeID:          params.NodeID,
 		IncludeTerminal: params.IncludeTerminal,
 	})
 }

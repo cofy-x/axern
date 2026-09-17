@@ -12,7 +12,7 @@ This document defines the stable user-facing boundary shared by Axern SDKs and e
 
 ## Sandbox Files And Outputs
 
-Sandbox writable files and retained stdout/stderr belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract. Download required files before termination. Run stdout/stderr remain readable after runtime cleanup until the control-plane `output_expires_at` deadline, for 15 minutes from cleanup initiation, subject to node-disk availability and the combined 64 MiB output limit. An upper-layer system owns durable publication of downloaded bytes.
+Sandbox writable files, retained stdout/stderr, and bounded declared outputs belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract. A caller can declare up to 16 regular-file or directory-as-tar paths in the immutable Run specification. The node quiesces the Allocation and atomically publishes their manifest before deleting the runtime. Run stdout/stderr and declared outputs remain readable for 15 minutes from cleanup initiation, subject to node-disk availability. An upper-layer system owns durable publication of downloaded bytes.
 
 ```python
 from axern_sdk import AxernClient, Sandbox
@@ -24,7 +24,7 @@ with Sandbox(client=client, template_id="python311") as sandbox:
     sandbox.download_file("/tmp/result.txt", "result.txt", overwrite=False)
 ```
 
-The downloaded file belongs to the caller's filesystem. It is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [storage lifetime contract](../architecture/storage-architecture.md) for recovery and rebuild rules.
+For crash recovery between harness completion and client download, declare the path at Run creation and retrieve it later by persisted `run_id`. Full SDK downloads verify the manifest size and SHA-256 digest. The downloaded file belongs to the caller's filesystem; it is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [external runner integration guide](external-runner-integration.md) and [storage lifetime contract](../architecture/storage-architecture.md).
 
 ## Connections
 

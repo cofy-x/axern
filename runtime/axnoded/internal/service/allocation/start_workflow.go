@@ -342,6 +342,28 @@ func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.Dele
 }
 
 func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
+	expiry := time.Unix(0, request.GetOutputExpiresAtUnixNano()).UTC()
+	if request.GetOutputExpiresAtUnixNano() > 0 && time.Now().Before(expiry) {
+		declarations := h.declaredOutputs(request.GetID())
+		target, loadErr := h.containers().Get(request.GetID())
+		sources := allocationoutput.Sources{Terminal: true}
+		capture := func(_ context.Context, _ string) ([]allocationoutput.Entry, error) {
+			return unavailableDeclaredOutputs(declarations, time.Now().UTC()), nil
+		}
+		if loadErr == nil && target.Metadata != nil {
+			if err := h.quiesceAllocationForOutput(ctx, request, target); err != nil {
+				return new(runtime.DeleteResponse), err
+			}
+			sources.Stdout = target.Metadata.GetStdout()
+			sources.Stderr = target.Metadata.GetStderr()
+			capture = h.captureDeclaredOutputs(request.GetID(), declarations)
+		}
+		// Publishing the immutable manifest is the cleanup barrier. A retry sees
+		// the same manifest and can continue runtime deletion without recapturing.
+		if err := h.outputRetention.Seal(ctx, request.GetID(), expiry, sources, capture); err != nil {
+			return new(runtime.DeleteResponse), fmt.Errorf("seal allocation output: %w", err)
+		}
+	}
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{
 		ID:      request.ID,
 		Timeout: 0,
@@ -349,13 +371,6 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	runtimeAbsent := isDeleteNotFound(err)
 	if err != nil && !runtimeAbsent {
 		return new(runtime.DeleteResponse), err
-	}
-	if request.GetOutputExpiresAtUnixNano() > 0 {
-		if target, loadErr := h.containers().Get(request.ID); loadErr == nil && target.Metadata != nil {
-			if err := h.outputRetention.Preserve(request.ID, time.Unix(0, request.GetOutputExpiresAtUnixNano()), allocationoutput.Sources{Stdout: target.Metadata.GetStdout(), Stderr: target.Metadata.GetStderr(), Terminal: true}); err != nil {
-				return new(runtime.DeleteResponse), err
-			}
-		}
 	}
 	// Runtime deletion releases the secret bind mounts. Remove their host-side
 	// plaintext before retiring the allocation's durable recovery state, so a
@@ -382,4 +397,27 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 		return new(runtime.DeleteResponse), err
 	}
 	return &runtime.DeleteResponse{}, nil
+}
+
+func (h *Controller) quiesceAllocationForOutput(ctx context.Context, request *runtime.DeleteRequest, target *container.Container) error {
+	if target.Status != nil && target.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED {
+		return nil
+	}
+	handler := h.runscHandler
+	if handler == nil {
+		return fmt.Errorf("quiesce allocation for output: runtime unavailable: %w", errord.ErrUnavailable)
+	}
+	if _, err := handler.KillContainer(ctx, &apipb.SignalContainerRequest{ID: request.GetID(), Signal: "KILL"}, contract.HandlerOptions{ContainerID: request.GetID()}); err != nil && !isDeleteNotFound(err) {
+		return fmt.Errorf("quiesce allocation for output: %w", err)
+	}
+	waitSeconds := request.GetTimeout()
+	if waitSeconds <= 0 {
+		waitSeconds = 10
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, time.Duration(waitSeconds)*time.Second)
+	defer cancel()
+	if _, err := handler.Wait(waitCtx, contract.HandlerOptions{ContainerID: request.GetID()}); err != nil && !contract.IsExitStatusUnavailable(err) && !isDeleteNotFound(err) {
+		return fmt.Errorf("wait for allocation output barrier: %w", err)
+	}
+	return nil
 }

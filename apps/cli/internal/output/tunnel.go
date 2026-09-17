@@ -14,7 +14,6 @@ func RenderTunnel(w io.Writer, session *tunnelcontrolv1.TunnelSession) {
 	}
 	fmt.Fprintf(w, "Session:      %s\n", session.GetSessionID())
 	fmt.Fprintf(w, "Allocation:   %s\n", session.GetAllocationID())
-	fmt.Fprintf(w, "Node:         %s\n", session.GetNodeID())
 	fmt.Fprintf(w, "Status:       %s\n", trimEnumPrefix(session.GetStatus().String(), "TUNNEL_SESSION_STATUS_"))
 	fmt.Fprintf(w, "Remote:       127.0.0.1:%d\n", session.GetRemotePort())
 	fmt.Fprintf(w, "Relay:        %s\n", session.GetClientEdgeTarget())

@@ -112,6 +112,7 @@ message AllocationState {
   int64 execution_lease_expires_at_unix_nano = 10;
   axern.control.common.v1.WorkloadDiagnosticCode termination_diagnostic_code = 11;
   string termination_message = 12;
+  repeated axern.control.common.v1.DeclaredOutput declared_outputs = 13;
 }
 
 // AllocationCapabilityReconcileState is the durable node-local intent to

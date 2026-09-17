@@ -2,6 +2,8 @@ package axernsdk
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"path"
 	"strings"
 	"time"
@@ -13,6 +15,21 @@ import (
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
+
+type ListEnvironmentsOptions struct {
+	Namespace string
+	Labels    map[string]string
+	Cursor    string
+	PageSize  int32
+}
+
+type ListRunsOptions struct {
+	Namespace string
+	Statuses  []runv1.RunStatus
+	Labels    map[string]string
+	Cursor    string
+	PageSize  int32
+}
 
 // CreateEnvironmentOptions configures a control-plane environment.
 type CreateEnvironmentOptions struct {
@@ -40,7 +57,23 @@ type CreateRunOptions struct {
 	LimitCPU                ResourceQuantity
 	LimitMemory             ResourceQuantity
 	LimitEphemeralStorage   ResourceQuantity
+	DeclaredOutputs         []DeclaredOutput
 	Labels                  map[string]string
+}
+
+type DeclaredOutputFormat string
+
+const (
+	DeclaredOutputFile DeclaredOutputFormat = "file"
+	DeclaredOutputTar  DeclaredOutputFormat = "tar"
+)
+
+// DeclaredOutput asks Axern to seal one bounded file or directory archive
+// before the Allocation filesystem is removed.
+type DeclaredOutput struct {
+	Path      string
+	Format    DeclaredOutputFormat
+	MediaType string
 }
 
 // CreateRun creates a single Axern allocation.
@@ -66,6 +99,7 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 			ExtensionCapabilityRequirements: extensionCapabilityRequirements(options.ExtensionCapabilities),
 			ImageMounts:                     executionImageMounts(options.ImageMounts),
 			Resources:                       resources,
+			DeclaredOutputs:                 declaredOutputProtos(options.DeclaredOutputs),
 		},
 		Labels: cloneMap(options.Labels),
 	})
@@ -75,6 +109,21 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 	return response.GetRun(), nil
 }
 
+func declaredOutputProtos(outputs []DeclaredOutput) []*commonv1.DeclaredOutput {
+	result := make([]*commonv1.DeclaredOutput, 0, len(outputs))
+	for _, output := range outputs {
+		format := commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_UNSPECIFIED
+		switch output.Format {
+		case DeclaredOutputFile:
+			format = commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE
+		case DeclaredOutputTar:
+			format = commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_TAR
+		}
+		result = append(result, &commonv1.DeclaredOutput{Path: output.Path, Format: format, MediaType: output.MediaType})
+	}
+	return result
+}
+
 // CancelRun releases the allocation owned by runID.
 func (c *Client) CancelRun(ctx context.Context, runID string) error {
 	if runID == "" {
@@ -82,6 +131,66 @@ func (c *Client) CancelRun(ctx context.Context, runID string) error {
 	}
 	_, err := c.runs.CancelRun(ctx, &runv1.CancelRunRequest{RunID: runID})
 	return mapRPCError(err, "cancel run", runID)
+}
+
+func (c *Client) GetRun(ctx context.Context, runID string) (*runv1.Run, error) {
+	if runID == "" {
+		return nil, requiredError("run_id")
+	}
+	response, err := c.runs.GetRun(ctx, &runv1.GetRunRequest{RunID: runID})
+	if err != nil {
+		return nil, mapRPCError(err, "get run", runID)
+	}
+	return response.GetRun(), nil
+}
+
+func (c *Client) ListRuns(ctx context.Context, options ListRunsOptions) (*runv1.ListRunsResponse, error) {
+	response, err := c.runs.ListRuns(ctx, &runv1.ListRunsRequest{Filter: &runv1.RunListFilter{
+		Namespace: options.Namespace,
+		Statuses:  append([]runv1.RunStatus(nil), options.Statuses...),
+		Labels:    cloneMap(options.Labels),
+		Cursor:    options.Cursor,
+		PageSize:  options.PageSize,
+	}})
+	if err != nil {
+		return nil, mapRPCError(err, "list runs", "")
+	}
+	return response, nil
+}
+
+func (c *Client) WaitRun(ctx context.Context, runID string) (*runv1.Run, error) {
+	run, err := c.GetRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	if runTerminal(run) {
+		return run, nil
+	}
+	watch, err := c.WatchRun(ctx, runID, run.GetVersion())
+	if err != nil {
+		return nil, err
+	}
+	for {
+		run, err = watch.Recv()
+		if err != nil {
+			if err == io.EOF {
+				return nil, fmt.Errorf("run %s watch ended before a terminal state", runID)
+			}
+			return nil, err
+		}
+		if runTerminal(run) {
+			return run, nil
+		}
+	}
+}
+
+func runTerminal(run *runv1.Run) bool {
+	switch run.GetStatus() {
+	case runv1.RunStatus_RUN_STATUS_SUCCEEDED, runv1.RunStatus_RUN_STATUS_FAILED, runv1.RunStatus_RUN_STATUS_CANCELLED:
+		return true
+	default:
+		return false
+	}
 }
 
 // CreateEnvironment creates an Axern environment from a template or image.
@@ -115,6 +224,30 @@ func (c *Client) CreateEnvironment(ctx context.Context, options CreateEnvironmen
 func (c *Client) DeleteEnvironment(ctx context.Context, environmentID string) error {
 	_, err := c.environments.DeleteEnvironment(ctx, &environmentv1.DeleteEnvironmentRequest{EnvironmentID: environmentID})
 	return mapRPCError(err, "delete environment", "")
+}
+
+func (c *Client) GetEnvironment(ctx context.Context, environmentID string) (*environmentv1.Environment, error) {
+	if environmentID == "" {
+		return nil, requiredError("environment_id")
+	}
+	response, err := c.environments.GetEnvironment(ctx, &environmentv1.GetEnvironmentRequest{EnvironmentID: environmentID})
+	if err != nil {
+		return nil, mapRPCError(err, "get environment", environmentID)
+	}
+	return response.GetEnvironment(), nil
+}
+
+func (c *Client) ListEnvironments(ctx context.Context, options ListEnvironmentsOptions) (*environmentv1.ListEnvironmentsResponse, error) {
+	response, err := c.environments.ListEnvironments(ctx, &environmentv1.ListEnvironmentsRequest{Filter: &environmentv1.ListFilter{
+		Namespace: options.Namespace,
+		Labels:    cloneMap(options.Labels),
+		Cursor:    options.Cursor,
+		PageSize:  options.PageSize,
+	}})
+	if err != nil {
+		return nil, mapRPCError(err, "list environments", "")
+	}
+	return response, nil
 }
 
 func networkSpec(policy *NetworkPolicy) *commonv1.NetworkSpec {

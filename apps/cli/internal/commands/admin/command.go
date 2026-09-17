@@ -8,8 +8,8 @@ import (
 	appadmin "github.com/cofy-x/axern/apps/cli/internal/application/admin"
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	"github.com/cofy-x/axern/apps/cli/internal/output"
+	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
-	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"github.com/spf13/cobra"
 )
 

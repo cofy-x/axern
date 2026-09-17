@@ -203,6 +203,16 @@ class SandboxTest(unittest.TestCase):
         with self.assertRaisesRegex(SandboxConnectionError, "without exit status"):
             list(process.events())
 
+    def test_sync_process_rejects_input_when_the_bounded_queue_is_full(self) -> None:
+        from axern_sdk.node import SandboxProcess
+
+        requests: queue.Queue[object | None] = queue.Queue(maxsize=1)
+        process = SandboxProcess(channel=_ClosableChannel(), responses=iter([]), requests=requests)
+        process.write(b"first")
+        with self.assertRaisesRegex(SandboxConnectionError, "input queue is full"):
+            process.write(b"second")
+        process.close()
+
     def test_direct_node_config_is_not_public_api(self) -> None:
         import axern_sdk
         import axern_sdk.node

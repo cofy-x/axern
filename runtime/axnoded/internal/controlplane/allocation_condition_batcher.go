@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/proto"
 )
 

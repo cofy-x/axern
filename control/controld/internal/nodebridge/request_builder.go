@@ -6,10 +6,11 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
+	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 type createAllocationRequestParams struct {
@@ -58,6 +59,7 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		ExecutionProfile:                cloneOciExecutionProfile(resolvedSpec.GetExecutionProfile()),
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
 		CapabilityRequirements:          cloneCapabilityRequirements(params.CapabilityRequirements),
+		DeclaredOutputs:                 cloneDeclaredOutputs(cfg.GetDeclaredOutputs()),
 	}
 	if strings.TrimSpace(params.ResolvedSecrets.DockerConfigJSON) != "" {
 		out.RegistryCredential = &privatenodev1.RegistryCredential{DockerConfigJson: params.ResolvedSecrets.DockerConfigJSON}
@@ -72,6 +74,16 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 			Target:  mount.GetTarget(),
 			Options: cloneStringSlice(mount.GetOptions()),
 		})
+	}
+	return out
+}
+
+func cloneDeclaredOutputs(in []*commonv1.DeclaredOutput) []*commonv1.DeclaredOutput {
+	out := make([]*commonv1.DeclaredOutput, 0, len(in))
+	for _, declared := range in {
+		if declared != nil {
+			out = append(out, proto.Clone(declared).(*commonv1.DeclaredOutput))
+		}
 	}
 	return out
 }

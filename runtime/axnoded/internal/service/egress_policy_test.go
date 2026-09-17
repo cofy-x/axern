@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
+	runtimeegressv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/runtime/egress/v1"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/egress"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	runtimeegressv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/runtime/egress/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

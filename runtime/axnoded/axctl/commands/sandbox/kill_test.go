@@ -3,8 +3,8 @@ package sandbox
 import (
 	"testing"
 
+	nodeoperatorv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/operator/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/urfave/cli"
 )

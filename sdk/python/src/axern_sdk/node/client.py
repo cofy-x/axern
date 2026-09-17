@@ -19,6 +19,8 @@ from axern_sdk.node.models import ExecCommand, ExecResult, ProcessEvent
 from axern_sdk.node.process import SandboxProcess, process_request_iterator
 from axern_sdk.node.protocol import exec_spec, text_exec_result
 
+_MAX_COLLECTED_EXEC_OUTPUT_BYTES = 1 << 20
+_PROCESS_REQUEST_QUEUE_CAPACITY = 64
 
 def _process_initial_size(cols: int, rows: int) -> node_pb2.TerminalResize | None:
     if (cols == 0) != (rows == 0):
@@ -55,7 +57,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ExecResult:
         argv = exec_argv(command, shell=shell)
@@ -68,7 +69,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
             user=user,
             tty=tty,
             input=stdin,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         if text:
@@ -90,7 +90,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> Iterator[ProcessEvent]:
         argv = exec_argv(command, shell=shell)
@@ -102,7 +101,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         try:
@@ -127,13 +125,12 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         initial_cols: int = 0,
         initial_rows: int = 0,
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> SandboxProcess:
         argv = exec_argv(command, shell=shell)
         initial_size = _process_initial_size(initial_cols, initial_rows)
         channel = self._gateway_channel()
-        requests: queue.Queue[object | None] = queue.Queue()
+        requests: queue.Queue[object | None] = queue.Queue(maxsize=_PROCESS_REQUEST_QUEUE_CAPACITY)
         open_payload = node_pb2.ProcessOpen(
             allocation_id=self._allocation_id,
             spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=tty),
@@ -166,7 +163,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         method_name: str,
         request_factory: Callable[[], object],
         *,
-        lease_ttl_seconds: int,
         rpc_timeout: float | None,
     ):
         try:
@@ -185,7 +181,6 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
         user: str,
         tty: bool,
         input: bytes | None,
-        lease_ttl_seconds: int,
         rpc_timeout: float | None,
     ) -> ExecResult:
         process = self.process(
@@ -195,21 +190,26 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
             timeout_seconds=timeout_seconds,
             user=user,
             tty=tty,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
         stdout = bytearray()
         stderr = bytearray()
         exit_code: int | None = None
+        stdout_truncated = False
+        stderr_truncated = False
         try:
             if input:
                 process.write(input)
             process.close_stdin()
             for event in process.events():
                 if event.stream == "stdout":
-                    stdout.extend(event.data)
+                    remaining = _MAX_COLLECTED_EXEC_OUTPUT_BYTES - len(stdout)
+                    stdout.extend(event.data[:remaining])
+                    stdout_truncated = stdout_truncated or len(event.data) > remaining
                 elif event.stream == "stderr":
-                    stderr.extend(event.data)
+                    remaining = _MAX_COLLECTED_EXEC_OUTPUT_BYTES - len(stderr)
+                    stderr.extend(event.data[:remaining])
+                    stderr_truncated = stderr_truncated or len(event.data) > remaining
                 elif event.exit_code is not None:
                     exit_code = event.exit_code
         except BaseException:
@@ -217,7 +217,13 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
             raise
         if exit_code is None:
             raise SandboxConnectionError("sandbox process ended without exit status")
-        return ExecResult(exit_code=exit_code, stdout=bytes(stdout), stderr=bytes(stderr))
+        return ExecResult(
+            exit_code=exit_code,
+            stdout=bytes(stdout),
+            stderr=bytes(stderr),
+            stdout_truncated=stdout_truncated,
+            stderr_truncated=stderr_truncated,
+        )
 
     def _gateway_channel(self) -> grpc.Channel:
         return self._client._channel

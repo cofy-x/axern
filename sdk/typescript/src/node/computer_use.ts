@@ -93,7 +93,7 @@ async function computerUseUnary(
   rpcTimeoutMs?: number,
 ): Promise<Record<string, unknown>> {
   try {
-    return await ctx.withAuthRetry(60, (client) =>
+    return await ctx.withAuthRetry((client) =>
       unary(client, method, ctx.authRequest(payload), rpcTimeoutMs),
     );
   } catch (error) {

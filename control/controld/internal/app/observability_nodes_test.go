@@ -6,8 +6,8 @@ import (
 	"time"
 
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )

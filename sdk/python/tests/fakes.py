@@ -41,14 +41,13 @@ class _FakeClient:
 
     def create_run(self, **kwargs):
         self.created_run = kwargs
-        return run_pb2.Run(id="run-1", allocation_id="alloc-1", node_id="node-1")
+        return run_pb2.Run(id="run-1", allocation_id="alloc-1")
 
     def watch_run(self, run_id: str, **kwargs):
         del kwargs
         yield run_pb2.Run(
             id=run_id,
             allocation_id="alloc-1",
-            node_id="node-1",
             version=1,
             status=run_pb2.RUN_STATUS_RUNNING,
         )
@@ -104,7 +103,6 @@ class _AsyncFakeClient(_FakeClient):
         yield run_pb2.Run(
             id=run_id,
             allocation_id="alloc-1",
-            node_id="node-1",
             version=1,
             status=run_pb2.RUN_STATUS_RUNNING,
         )

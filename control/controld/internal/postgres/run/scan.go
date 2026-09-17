@@ -66,8 +66,9 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		createdAt, updatedAt        time.Time
 		exitCode                    sql.NullInt32
 		outputExpiry                sql.NullTime
+		ignoredNodeID               string
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &run.NodeID, &outputExpiry, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &ignoredNodeID, &outputExpiry, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)

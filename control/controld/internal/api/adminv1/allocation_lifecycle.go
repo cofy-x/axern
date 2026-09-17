@@ -5,7 +5,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
-	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
+	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"

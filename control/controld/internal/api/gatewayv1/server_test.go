@@ -7,7 +7,7 @@ import (
 	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
-	gatewaypb "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewaypb "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )

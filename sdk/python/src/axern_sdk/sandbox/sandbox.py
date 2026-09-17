@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk._internal.resources import ResourceQuantity
@@ -21,6 +21,7 @@ from axern_sdk.sandbox.computer_use import SandboxComputerUseMixin
 from axern_sdk.sandbox.files import SandboxFileMixin
 from axern_sdk.sandbox.lifecycle import wait_running_run
 from axern_sdk.network_policy import NetworkPolicy
+from axern_sdk.models import DeclaredOutput
 from axern_sdk.sandbox.renewal import TunnelRenewal
 from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
@@ -49,6 +50,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
+        declared_outputs: Iterable[DeclaredOutput] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
         connector: ConnectorConfig | None = None,
@@ -78,6 +80,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
         self._extension_capabilities = dict(extension_capabilities or {})
+        self._declared_outputs = list(declared_outputs or ())
         self._upstream = upstream
         self._remote_port = remote_port
         self._gateway_transport = client._gateway_transport()
@@ -119,10 +122,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         return self.state.allocation_id
 
     @property
-    def node_id(self) -> str:
-        return self.state.node_id
-
-    @property
     def tunnel_session_id(self) -> str:
         return self.state.tunnel_session_id
 
@@ -137,7 +136,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             environment_id=state.environment_id,
             run_id=state.run_id,
             allocation_id=state.allocation_id,
-            node_id=state.node_id,
             tunnel_session_id=state.tunnel_session_id,
             bound_addr=state.bound_addr,
             started_at_ns=self._started_at_ns,
@@ -169,6 +167,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
                 extension_capabilities=self._extension_capabilities,
+                declared_outputs=self._declared_outputs,
                 namespace=self._namespace,
                 labels=self._labels,
             )
@@ -217,17 +216,20 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                 environment_id=environment_id,
                 run_id=run.id,
                 allocation_id=run.allocation_id,
-                node_id=run.node_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,
             )
             self._started_at_ns = time.time_ns()
             return self
-        except Exception:
-            self.close()
+        except Exception as start_error:
+            try:
+                self.close()
+            except Exception as cleanup_error:
+                raise ExceptionGroup("sandbox start and cleanup failed", [start_error, cleanup_error]) from None
             raise
 
     def close(self) -> None:
+        errors: list[Exception] = []
         tunnel_session_id = self._created_tunnel_session_id
         if not tunnel_session_id and self._state is not None:
             tunnel_session_id = self._state.tunnel_session_id
@@ -240,24 +242,26 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         if tunnel_session_id:
             try:
                 self._client.revoke_tunnel_session(tunnel_session_id, reason="sandbox closed", timeout=10.0)
-            except Exception:
-                pass
+            except Exception as error:
+                errors.append(error)
             self._created_tunnel_session_id = ""
         if self._created_run_id:
             try:
                 self._client.cancel_run(self._created_run_id, timeout=30.0)
-            except Exception:
-                pass
+            except Exception as error:
+                errors.append(error)
             self._created_run_id = ""
         if self._created_environment and self._created_environment_id:
             try:
                 self._client.delete_environment(self._created_environment_id, timeout=30.0)
-            except Exception:
-                pass
+            except Exception as error:
+                errors.append(error)
             self._created_environment = False
             self._created_environment_id = ""
         self._state = None
         self._started_at_ns = 0
+        if errors:
+            raise ExceptionGroup("sandbox cleanup failed", errors)
 
     def _resolve_environment(self) -> str:
         if self._environment_id:
@@ -307,7 +311,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> ExecResult:
         return self._node_client().exec(
@@ -323,7 +326,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             encoding=encoding,
             errors=errors,
             shell=shell,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -340,7 +342,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         encoding: str = "utf-8",
         errors: str = "strict",
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> Iterator[ProcessEvent]:
         return self._node_client().exec_stream(
@@ -354,7 +355,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             encoding=encoding,
             errors=errors,
             shell=shell,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 
@@ -370,7 +370,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         initial_cols: int = 0,
         initial_rows: int = 0,
         shell: bool | None = None,
-        lease_ttl_seconds: int = 60,
         rpc_timeout: float | None = None,
     ) -> SandboxProcess:
         return self._node_client().process(
@@ -383,7 +382,6 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             initial_cols=initial_cols,
             initial_rows=initial_rows,
             shell=shell,
-            lease_ttl_seconds=lease_ttl_seconds,
             rpc_timeout=rpc_timeout,
         )
 

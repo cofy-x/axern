@@ -36,7 +36,7 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 - [Long-Term Direction](product/product-direction.md): product north star, durable principles, investment areas, and non-goals.
 - [Stable Domain Model](product/domain-model.md): normative product objects, ownership, lifecycle meaning, and boundaries for API and persistence design.
 - [SDK User Model](product/sdk-user-model.md): intended SDK concepts and common lifecycle contract.
-- [Axrun Architecture](../apps/axrun/docs/architecture.md): product-owned agent execution and trajectory model.
+- [External Runner Integration](product/external-runner-integration.md): public-SDK-only inference, declared output, and fresh verifier flow.
 
 ## Architecture
 
@@ -58,6 +58,7 @@ For a module-internal design, prefer that module's `docs/` directory. Promote ma
 
 ## Development And Operations
 
+- [v0.8.0 Release Notes](releases/v0.8.0.md): breaking public SDK boundary, declared output sealing, and external-runner recovery.
 - [v0.7.0 Release Notes](releases/v0.7.0.md): coordinated execution-platform, state, identity, SDK and runtime reliability changes, with a clean-state upgrade procedure.
 - [v0.6.2 Release Notes](releases/v0.6.2.md): published sandbox network policies with resolver-independent OCI startup.
 - [v0.6.1 Release Notes](releases/v0.6.1.md): immutable unpublished candidate with capability-complete local readiness.

@@ -7,7 +7,7 @@ Axern separates durable product intent from node-local execution. Public clients
 
 ```mermaid
 flowchart LR
-    Clients["CLI · SDKs · Axrun"] --> Gateway["gatewayd\npublic control + data edge"]
+    Clients["CLI · SDKs · external runners"] --> Gateway["gatewayd\npublic control + data edge"]
     Gateway -->|control APIs + target resolution| Control["controld\ndurable intent + placement"]
     Control --> Postgres[(PostgreSQL)]
     Control -->|lifecycle| Node["axnoded\nsandbox lifecycle"]
@@ -25,6 +25,6 @@ flowchart LR
 - **Control plane:** persists resources and coordinates placement, leases, health, allocation-scoped status, and cleanup.
 - **Node runtime:** owns sandbox processes, filesystems, images, networking (an eBPF NAT dataplane with an explicit iptables rollback; see [Node Networking](/architecture/networking/)), probes, and node-local reconciliation.
 - **SDKs:** expose Sandbox ergonomics over the durable `Environment -> Run -> Allocation` chain without creating another workload model.
-- **Axrun and higher layers:** own agent tasks, verification, trajectories, rewards, evaluation, and data-synthesis workflows above the execution platform.
+- **External runners and benchmark adapters:** own agent tasks, CandidateBundle and verifier schemas, trajectories, rewards, evaluation, and data-synthesis workflows above the execution platform.
 
 This page intentionally stays conceptual. The repository's [runtime architecture](https://github.com/cofy-x/axern/blob/main/docs/architecture/runtime-architecture.md), [resource model](https://github.com/cofy-x/axern/blob/main/docs/architecture/resource-model.md), and [workload lifecycle](https://github.com/cofy-x/axern/blob/main/docs/architecture/workload-lifecycle-sequence.md) are the engineering sources of truth.

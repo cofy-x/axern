@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	nodeoperatorv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/operator/v1"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
 	"github.com/urfave/cli"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

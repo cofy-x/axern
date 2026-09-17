@@ -44,7 +44,7 @@ func (s *Store) Renew(ctx context.Context, sessionID, clientToken string, ttl ti
 	if err != nil {
 		return nil, err
 	}
-	if err := requireActiveNode(ctx, tx, current.GetNodeID()); err != nil {
+	if err := requireActiveNode(ctx, tx, internal.nodeID); err != nil {
 		return nil, err
 	}
 	if terminal(current.GetStatus()) {

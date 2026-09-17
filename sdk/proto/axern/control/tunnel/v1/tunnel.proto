@@ -66,22 +66,21 @@ enum TunnelSessionEventReasonCode {
 message TunnelSession {
   string session_id = 1;
   string allocation_id = 2;
-  string node_id = 3;
-  int32 remote_port = 4;
-  string client_edge_target = 5;
-  TunnelSessionStatus status = 6;
-  string reason = 7;
-  string bound_addr = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
-  google.protobuf.Timestamp expires_at = 11;
-  string relay_id = 12;
-  google.protobuf.Timestamp ready_at = 13;
-  google.protobuf.Timestamp last_peer_event_at = 14;
-  int64 bytes_in = 15;
-  int64 bytes_out = 16;
-  string namespace = 17;
-  string creator_principal_id = 18;
+  int32 remote_port = 3;
+  string client_edge_target = 4;
+  TunnelSessionStatus status = 5;
+  string reason = 6;
+  string bound_addr = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  google.protobuf.Timestamp expires_at = 10;
+  string relay_id = 11;
+  google.protobuf.Timestamp ready_at = 12;
+  google.protobuf.Timestamp last_peer_event_at = 13;
+  int64 bytes_in = 14;
+  int64 bytes_out = 15;
+  string namespace = 16;
+  string creator_principal_id = 17;
 }
 
 message TunnelSessionEvent {
@@ -122,9 +121,8 @@ message GetTunnelSessionResponse {
 
 message ListTunnelSessionsRequest {
   string allocation_id = 1;
-  string node_id = 2;
-  bool include_terminal = 3;
-  string namespace = 4;
+  bool include_terminal = 2;
+  string namespace = 3;
 }
 
 message ListTunnelSessionsResponse {

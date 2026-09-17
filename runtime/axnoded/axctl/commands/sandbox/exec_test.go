@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	nodeoperatorv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/operator/v1"
+	nodeoperatorv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/operator/v1"
 )
 
 type fakeExecRPCClient struct {

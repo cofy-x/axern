@@ -89,7 +89,6 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 		AllocationID:       allocationID,
 		Namespace:          alloc.Namespace,
 		CreatorPrincipalID: actor.Principal.ID,
-		NodeID:             alloc.NodeID,
 		RemotePort:         remotePort,
 		RelayID:            relay.ID,
 		ClientEdgeTarget:   relay.ClientTarget,

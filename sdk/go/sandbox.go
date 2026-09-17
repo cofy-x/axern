@@ -24,6 +24,7 @@ type SandboxOptions struct {
 	Cwd                     string
 	NetworkPolicy           *NetworkPolicy
 	ExtensionCapabilities   []ExtensionCapability
+	DeclaredOutputs         []DeclaredOutput
 	ImageMounts             []ImageMount
 	RequestCPU              ResourceQuantity
 	RequestMemory           ResourceQuantity
@@ -58,7 +59,6 @@ type SandboxState struct {
 	EnvironmentID   string
 	RunID           string
 	AllocationID    string
-	NodeID          string
 	StartedAt       time.Time
 	TunnelSessionID string
 	BoundAddr       string
@@ -103,6 +103,7 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		Cwd:                     s.options.Cwd,
 		NetworkPolicy:           s.options.NetworkPolicy,
 		ExtensionCapabilities:   append([]ExtensionCapability(nil), s.options.ExtensionCapabilities...),
+		DeclaredOutputs:         append([]DeclaredOutput(nil), s.options.DeclaredOutputs...),
 		ImageMounts:             s.options.ImageMounts,
 		RequestCPU:              s.options.RequestCPU,
 		RequestMemory:           s.options.RequestMemory,
@@ -126,7 +127,6 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		EnvironmentID: environmentID,
 		RunID:         run.GetID(),
 		AllocationID:  run.GetAllocationID(),
-		NodeID:        run.GetNodeID(),
 		StartedAt:     time.Now(),
 	}
 	s.started = true

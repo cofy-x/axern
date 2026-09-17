@@ -50,7 +50,7 @@ axern run list
 axern run logs <run-id>
 ```
 
-Run 状态会持久保存；输出流由 Allocation 本地的节点文件提供，仅在清理前可读。需要保留字节的调用方必须及时消费并写入上层系统；Axern 核心不提供持久输出对象或固定保留期。
+Run 状态会持久保存；stdout/stderr 与显式声明的文件或目录 tar 会在 runtime 清理前封存在节点，并从开始清理起保留 15 分钟。它们可跨 axnoded 重启，但不能跨节点磁盘丢失；调用方必须把已接受的字节复制到自己的持久存储。Axern 不提供持久 Workspace 或通用对象存储。
 
 ## 下一步
 

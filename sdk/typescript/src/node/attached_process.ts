@@ -24,12 +24,12 @@ export async function process(ctx: NodeClientContext, command: Command, options:
     call,
     closeClient: () => client.close(),
   });
-  call.write({
+  await new Promise<void>((resolve, reject) => call.write({
     open: ctx.authRequest({
       spec: execSpec(argv, options),
       ...(initialSize === undefined ? {} : { initial_size: initialSize }),
     }),
-  });
+  }, (error?: Error | null) => error == null ? resolve() : reject(error)));
   try {
     await sandboxProcess.waitReady();
     return sandboxProcess;

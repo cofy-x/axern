@@ -5,11 +5,11 @@ import (
 	"net"
 	"strings"
 
+	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/cmd/internal/verifyutil"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/bpfnetstatus"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/natbench"
-	privatenodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/lifecycle/v1"
 )
 
 func runVerifyEgress(cfg verifyEgressConfig) error {

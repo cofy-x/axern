@@ -25,6 +25,7 @@ message StartRequest {
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 14;
   repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 15;
   int64 execution_lease_ttl_seconds = 16;
+  repeated axern.control.common.v1.DeclaredOutput declared_outputs = 17;
 }
 
 message RegistryCredential {

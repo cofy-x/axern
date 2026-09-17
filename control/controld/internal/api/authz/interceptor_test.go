@@ -10,6 +10,8 @@ import (
 	"time"
 
 	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
+	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -19,8 +21,6 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -178,7 +178,7 @@ func TestUnknownControlServiceFailsClosed(t *testing.T) {
 func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 	i := &Interceptor{gatewayPeer: func(context.Context) bool { return false }}
 	called := false
-	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"}, func(context.Context, any) (any, error) {
+	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.private.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"}, func(context.Context, any) (any, error) {
 		called = true
 		return nil, nil
 	})

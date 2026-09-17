@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	adminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/admin/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -18,7 +19,6 @@ import (
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
-	privateadminv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )

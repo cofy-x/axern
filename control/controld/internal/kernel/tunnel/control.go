@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type Control interface {
 	Create(ctx context.Context, params CreateParams) (*CreateResult, error)
 	Get(ctx context.Context, sessionID string, now time.Time) (*tunnelv1.TunnelSession, error)
-	List(ctx context.Context, namespace, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error)
+	List(ctx context.Context, namespace, allocationID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error)
 	ListEvents(ctx context.Context, sessionID string, limit int32, now time.Time) ([]*tunnelv1.TunnelSessionEvent, error)
 	Revoke(ctx context.Context, sessionID, reason string, now time.Time) (*tunnelv1.TunnelSession, error)
 	Renew(ctx context.Context, sessionID, clientToken string, ttl time.Duration, now time.Time) (*tunnelv1.TunnelSession, error)

@@ -13,8 +13,11 @@ from axern_sdk import (
     AsyncSandbox,
     AxernClient,
     CapabilityStatus,
+    DeclaredOutput,
+    DeclaredOutputFormat,
     ExecResult,
     Sandbox,
+    SandboxConnectionError,
     SandboxNotStartedError,
 )
 import axern_sdk.client as client_module
@@ -44,6 +47,13 @@ class SandboxTest(unittest.TestCase):
             limit_cpu="4",
             limit_memory="8GiB",
             limit_ephemeral_storage="10GiB",
+            declared_outputs=[
+                DeclaredOutput(
+                    "/tmp/result.json",
+                    DeclaredOutputFormat.FILE,
+                    "application/json",
+                )
+            ],
             upstream="127.0.0.1:8080",
             remote_port=8786,
             _connector_factory=connector_factory,
@@ -61,6 +71,7 @@ class SandboxTest(unittest.TestCase):
             self.assertEqual(client.created_run["limit_cpu"], "4")
             self.assertEqual(client.created_run["limit_memory"], "8GiB")
             self.assertEqual(client.created_run["limit_ephemeral_storage"], "10GiB")
+            self.assertEqual(client.created_run["declared_outputs"][0].path, "/tmp/result.json")
             self.assertEqual(client.created_tunnel["allocation_id"], "alloc-1")
             self.assertEqual(client.created_tunnel["remote_port"], 8786)
             self.assertTrue(connectors[0].started)
@@ -159,7 +170,8 @@ class SandboxTest(unittest.TestCase):
         sandbox = Sandbox(client=client, image="docker.io/library/python:3.12-slim")
         sandbox.start()
         client.cancel_run = fail_cancel_run
-        sandbox.close()
+        with self.assertRaisesRegex(ExceptionGroup, "sandbox cleanup failed"):
+            sandbox.close()
 
         self.assertEqual(client.deleted_environments[0][0], "env-1")
 
@@ -192,7 +204,7 @@ class SandboxTest(unittest.TestCase):
 
         async def run() -> None:
             try:
-                with self.assertRaises(grpc.aio.AioRpcError):
+                with self.assertRaises(SandboxConnectionError):
                     await client.cancel_run("run-1", timeout=0.01)
             finally:
                 await client.close()

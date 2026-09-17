@@ -22,7 +22,7 @@ from axern_sdk.errors import (
     SandboxValidationError,
     sandbox_capability_error_info,
 )
-from axern_sdk.models import ImageMount, SecretEnvVar, SecretFile
+from axern_sdk.models import DeclaredOutput, DeclaredOutputFormat, ImageMount, SealedOutput, SecretEnvVar, SecretFile
 from axern_sdk.network_policy import CIDRRule, NetworkPolicy, PortRange
 from axern_sdk.node import (
     AsyncAllocationClient,
@@ -47,7 +47,7 @@ from axern_sdk.node import (
 from axern_sdk.sandbox import AsyncSandbox, Sandbox, SandboxFileInfo, SandboxFileKind, SandboxMetadata, SandboxState
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     "AxernError",
@@ -84,6 +84,8 @@ __all__ = [
     "ComputerUseRegion",
     "ComputerUseScreenshot",
     "ComputerUseStatus",
+    "DeclaredOutput",
+    "DeclaredOutputFormat",
     "ExecCommand",
     "ExecResult",
     "ProcessEvent",
@@ -92,6 +94,7 @@ __all__ = [
     "NetworkPolicy",
     "PortRange",
     "ProcessResult",
+    "SealedOutput",
     "Sandbox",
     "SandboxFileInfo",
     "SandboxFileKind",

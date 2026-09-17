@@ -2,7 +2,9 @@ package executionkernel
 
 import (
 	"fmt"
+	"mime"
 	"path"
+	"sort"
 	"strings"
 
 	networkpolicy "github.com/cofy-x/axern/lib/go/networkpolicy"
@@ -14,6 +16,8 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const MaxDeclaredOutputs = 16
+
 func NormalizeConfig(in *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	out := &commonv1.ExecutionConfig{}
 	if in != nil {
@@ -21,6 +25,7 @@ func NormalizeConfig(in *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	}
 	out.Resources = NormalizeResources(out.GetResources())
 	out.ImageMounts = NormalizeImageMounts(out.GetImageMounts())
+	out.DeclaredOutputs = normalizeDeclaredOutputs(out.GetDeclaredOutputs())
 	if network, err := networkpolicy.Normalize(out.GetNetwork()); err == nil {
 		out.Network = network
 	}
@@ -107,6 +112,9 @@ func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*com
 	if err := ValidateNetwork(in.GetNetwork()); err != nil {
 		return nil, err
 	}
+	if err := validateDeclaredOutputs(in.GetDeclaredOutputs()); err != nil {
+		return nil, err
+	}
 	out := NormalizeConfig(in)
 	resources, err := NormalizeResourcesForRootfs(out.GetResources(), readonly)
 	if err != nil {
@@ -114,6 +122,68 @@ func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*com
 	}
 	out.Resources = resources
 	return out, ValidateResources(out.Resources)
+}
+
+func normalizeDeclaredOutputs(in []*commonv1.DeclaredOutput) []*commonv1.DeclaredOutput {
+	out := make([]*commonv1.DeclaredOutput, 0, len(in))
+	for _, declared := range in {
+		if declared == nil {
+			continue
+		}
+		out = append(out, &commonv1.DeclaredOutput{
+			Path:      path.Clean(strings.TrimSpace(declared.GetPath())),
+			Format:    declared.GetFormat(),
+			MediaType: strings.TrimSpace(declared.GetMediaType()),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].GetPath() < out[j].GetPath() })
+	return out
+}
+
+func validateDeclaredOutputs(in []*commonv1.DeclaredOutput) error {
+	if len(in) > MaxDeclaredOutputs {
+		return grpcstatus.Errorf(codes.InvalidArgument, "config.declared_outputs has %d entries; maximum is %d", len(in), MaxDeclaredOutputs)
+	}
+	seen := make(map[string]struct{}, len(in))
+	for _, declared := range in {
+		if declared == nil {
+			return grpcstatus.Error(codes.InvalidArgument, "config.declared_outputs entry is required")
+		}
+		rawPath := strings.TrimSpace(declared.GetPath())
+		cleanPath := path.Clean(rawPath)
+		if rawPath == "" || cleanPath == "/" || !strings.HasPrefix(cleanPath, "/") || hasParentPathElement(rawPath) {
+			return grpcstatus.Errorf(codes.InvalidArgument, "config.declared_outputs path %q must be an absolute sandbox path below /", rawPath)
+		}
+		if _, ok := seen[cleanPath]; ok {
+			return grpcstatus.Errorf(codes.InvalidArgument, "config.declared_outputs path %q is duplicated", cleanPath)
+		}
+		seen[cleanPath] = struct{}{}
+		switch declared.GetFormat() {
+		case commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+			commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_TAR:
+		default:
+			return grpcstatus.Errorf(codes.InvalidArgument, "config.declared_outputs path %q has unsupported format %s", cleanPath, declared.GetFormat())
+		}
+		mediaType := strings.TrimSpace(declared.GetMediaType())
+		if len(mediaType) > 128 {
+			return grpcstatus.Errorf(codes.InvalidArgument, "config.declared_outputs path %q media_type exceeds 128 bytes", cleanPath)
+		}
+		if mediaType != "" {
+			if _, _, err := mime.ParseMediaType(mediaType); err != nil {
+				return grpcstatus.Errorf(codes.InvalidArgument, "config.declared_outputs path %q media_type is invalid", cleanPath)
+			}
+		}
+	}
+	return nil
+}
+
+func hasParentPathElement(value string) bool {
+	for _, element := range strings.Split(value, "/") {
+		if element == ".." {
+			return true
+		}
+	}
+	return false
 }
 
 func ValidateNetwork(in *commonv1.NetworkSpec) error {

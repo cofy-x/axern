@@ -1,6 +1,8 @@
 package allocationoutput
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,14 +14,33 @@ import (
 )
 
 // Retention owns sealed output bytes, never execution or admission authority.
-// The manifest is published only after both bounded log files have been synced.
+// The manifest is published only after bounded logs and declared objects have
+// been synced.
 // The immutable control-plane expiry is also the durable deletion intent.
 type Retention struct{ root string }
 
-type manifest struct {
+var ErrSealedStateUnavailable = errors.New("sealed output state is unavailable")
+
+type Entry struct {
+	OutputID  string    `json:"output_id"`
+	Path      string    `json:"path"`
+	Object    string    `json:"object,omitempty"`
+	SHA256    string    `json:"sha256,omitempty"`
+	MediaType string    `json:"media_type,omitempty"`
+	Format    string    `json:"format"`
+	Status    string    `json:"status"`
+	Reason    string    `json:"reason,omitempty"`
+	SizeBytes int64     `json:"size_bytes,omitempty"`
+	SealedAt  time.Time `json:"sealed_at"`
+}
+
+type Manifest struct {
 	AllocationID string    `json:"allocation_id"`
 	ExpiresAt    time.Time `json:"expires_at"`
+	Entries      []Entry   `json:"entries,omitempty"`
 }
+
+type Capture func(context.Context, string) ([]Entry, error)
 
 type Sources struct {
 	Stdout   string
@@ -39,6 +60,10 @@ func (r *Retention) path(id string) (string, error) {
 }
 
 func (r *Retention) Preserve(id string, expiry time.Time, source Sources) error {
+	return r.Seal(context.Background(), id, expiry, source, nil)
+}
+
+func (r *Retention) Seal(ctx context.Context, id string, expiry time.Time, source Sources, capture Capture) error {
 	if !time.Now().Before(expiry) {
 		return nil
 	}
@@ -59,6 +84,32 @@ func (r *Retention) Preserve(id string, expiry time.Time, source Sources) error 
 				return fmt.Errorf("retained output is not a regular file")
 			}
 		}
+		for _, entry := range existing.Entries {
+			if entry.Status != "available" {
+				continue
+			}
+			if entry.Object == "" || filepath.Base(entry.Object) != entry.Object || strings.ContainsAny(entry.Object, "/\\") {
+				return fmt.Errorf("retained output object identity is invalid")
+			}
+			objectPath := filepath.Join(dest, "objects", entry.Object)
+			info, err := os.Stat(objectPath)
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() || info.Size() != entry.SizeBytes {
+				return fmt.Errorf("retained output object does not match manifest")
+			}
+			if entry.SHA256 == "" {
+				return fmt.Errorf("retained output object has no integrity digest")
+			}
+			digest, err := fileSHA256(objectPath)
+			if err != nil {
+				return err
+			}
+			if digest != entry.SHA256 {
+				return fmt.Errorf("retained output object digest does not match manifest")
+			}
+		}
 		return syncDir(r.root)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
@@ -76,7 +127,21 @@ func (r *Retention) Preserve(id string, expiry time.Time, source Sources) error 
 			return err
 		}
 	}
-	payload, err := json.Marshal(manifest{AllocationID: id, ExpiresAt: expiry.UTC()})
+	entries := []Entry(nil)
+	if capture != nil {
+		objects := filepath.Join(tmp, "objects")
+		if err := os.Mkdir(objects, 0o700); err != nil {
+			return err
+		}
+		entries, err = capture(ctx, objects)
+		if err != nil {
+			return err
+		}
+		if err := syncDir(objects); err != nil {
+			return err
+		}
+	}
+	payload, err := json.Marshal(Manifest{AllocationID: id, ExpiresAt: expiry.UTC(), Entries: entries})
 	if err != nil {
 		return err
 	}
@@ -126,10 +191,27 @@ func writeSynced(path string, data []byte) error {
 		return err
 	}
 	defer f.Close()
-	if _, err := f.Write(data); err != nil {
+	n, err := f.Write(data)
+	if err != nil {
 		return err
 	}
+	if n != len(data) {
+		return io.ErrShortWrite
+	}
 	return f.Sync()
+}
+
+func fileSHA256(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	digest := sha256.New()
+	if _, err := io.Copy(digest, file); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", digest.Sum(nil)), nil
 }
 
 func syncDir(path string) error {
@@ -141,8 +223,17 @@ func syncDir(path string) error {
 	return dir.Sync()
 }
 
-func (r *Retention) readManifest(path string) (manifest, error) {
-	var m manifest
+// CreateObject creates one immutable object in a private sealing directory.
+// The caller must close the returned file before publishing the manifest.
+func CreateObject(objectsDir, objectID string) (*os.File, error) {
+	if objectID == "" || filepath.Base(objectID) != objectID || strings.ContainsAny(objectID, "/\\") {
+		return nil, fmt.Errorf("invalid sealed output object identity")
+	}
+	return os.OpenFile(filepath.Join(objectsDir, objectID), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+}
+
+func (r *Retention) readManifest(path string) (Manifest, error) {
+	var m Manifest
 	data, err := os.ReadFile(filepath.Join(path, "manifest.json"))
 	if err != nil {
 		return m, err
@@ -154,6 +245,76 @@ func (r *Retention) readManifest(path string) (manifest, error) {
 		return m, fmt.Errorf("output manifest has no expiry")
 	}
 	return m, nil
+}
+
+func (r *Retention) Manifest(id string, now time.Time) (Manifest, error) {
+	path, err := r.path(id)
+	if err != nil {
+		return Manifest{}, err
+	}
+	m, err := r.readManifest(path)
+	if err != nil {
+		return Manifest{}, err
+	}
+	if m.AllocationID != id {
+		return Manifest{}, fmt.Errorf("output manifest identity mismatch")
+	}
+	if !now.Before(m.ExpiresAt) {
+		return Manifest{}, os.ErrNotExist
+	}
+	return m, nil
+}
+
+func (r *Retention) ReadSealedOutput(id, outputID string, offset, limit int64, now time.Time) ([]byte, int64, bool, error) {
+	if offset < 0 || limit <= 0 {
+		return nil, offset, false, fmt.Errorf("sealed output offset or limit is invalid")
+	}
+	m, err := r.Manifest(id, now)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, offset, false, fmt.Errorf("%w: manifest is missing or expired", ErrSealedStateUnavailable)
+		}
+		return nil, offset, false, err
+	}
+	var selected *Entry
+	for index := range m.Entries {
+		if m.Entries[index].OutputID == outputID {
+			selected = &m.Entries[index]
+			break
+		}
+	}
+	if selected == nil || selected.Status != "available" || selected.Object == "" {
+		return nil, offset, false, os.ErrNotExist
+	}
+	if filepath.Base(selected.Object) != selected.Object || strings.ContainsAny(selected.Object, "/\\") {
+		return nil, offset, false, fmt.Errorf("sealed output object identity is invalid")
+	}
+	objectPath := filepath.Join(r.root, id, "objects", selected.Object)
+	file, err := os.Open(objectPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, offset, false, fmt.Errorf("%w: object is missing", ErrSealedStateUnavailable)
+		}
+		return nil, offset, false, err
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, offset, false, err
+	}
+	if !info.Mode().IsRegular() || info.Size() != selected.SizeBytes || offset > info.Size() {
+		return nil, offset, false, fmt.Errorf("sealed output object does not match manifest")
+	}
+	if offset == info.Size() {
+		return nil, offset, true, nil
+	}
+	data := make([]byte, min64(limit, info.Size()-offset))
+	n, readErr := file.ReadAt(data, offset)
+	if readErr != nil && !errors.Is(readErr, io.EOF) {
+		return nil, offset, false, readErr
+	}
+	next := offset + int64(n)
+	return data[:n], next, next == info.Size(), nil
 }
 
 func (r *Retention) Sources(id string, now time.Time) (Sources, error) {

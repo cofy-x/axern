@@ -109,7 +109,7 @@ export async function touch(ctx: NodeClientContext, path: string, options: Touch
 
 async function fileUnary(ctx: NodeClientContext, method: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
   try {
-    return await ctx.withAuthRetry(300, (client) =>
+    return await ctx.withAuthRetry((client) =>
       unary(client, method, ctx.authRequest(payload)),
     );
   } catch (error) {

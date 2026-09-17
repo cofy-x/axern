@@ -2,17 +2,17 @@ package runkernel
 
 import (
 	"context"
-	gatewayv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/gateway/v1"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"time"
 
 	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 type AllocationRecord struct {

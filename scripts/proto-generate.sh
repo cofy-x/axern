@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 rm -rf sdk/go/gen/axern
+rm -rf internal/proto/gen/axern
 find sdk/python/src/axern -type d -name '__pycache__' -prune -exec rm -rf {} +
 find sdk/python/src/axern -type f \( \
   -name '*_pb2.py' -o \

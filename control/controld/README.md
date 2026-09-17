@@ -110,7 +110,7 @@ Public product APIs:
 
 - `sdk/proto/axern/control/environment/v1/environment.proto`
 - `sdk/proto/axern/control/secret/v1/secret.proto`
-- `sdk/proto/axern/control/gateway/v1/gateway.proto`
+- `sdk/proto/axern/private/control/gateway/v1/gateway.proto`
 - `sdk/proto/axern/control/namespace/v1/namespace.proto`
 - `sdk/proto/axern/control/run/v1/run.proto`
 - `sdk/proto/axern/control/quota/v1/quota.proto`

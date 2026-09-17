@@ -124,7 +124,10 @@ class SandboxProcess:
     def _send(self, request: object) -> None:
         if self._closed:
             raise RuntimeError("sandbox process is closed")
-        self._requests.put(request)
+        try:
+            self._requests.put_nowait(request)
+        except queue.Full as exc:
+            raise SandboxConnectionError("sandbox process input queue is full") from exc
 
     def _event_from_response(self, response) -> ProcessEvent | None:
         payload = response.WhichOneof("payload")
@@ -140,7 +143,13 @@ class SandboxProcess:
     def _close_requests(self) -> None:
         if not self._closed:
             self._closed = True
-            self._requests.put(None)
+            while True:
+                try:
+                    self._requests.put_nowait(None)
+                    break
+                except queue.Full:
+                    with suppress(queue.Empty):
+                        self._requests.get_nowait()
 
 
 def process_request_iterator(

@@ -50,7 +50,7 @@ axern run list
 axern run logs <run-id>
 ```
 
-Run status is durable. Output streaming is backed by Allocation-local node files and is available only until cleanup; callers that need retained bytes must consume and persist them in an upper-layer system. Axern core provides no durable output object or fixed retention promise.
+Run status is durable. stdout/stderr and explicitly declared files or directory-as-tar outputs are sealed on the Node before runtime cleanup and remain readable for 15 minutes after cleanup starts. They survive axnoded restart, not Node-disk loss, and callers must copy accepted bytes to their own durable store. Axern does not provide a persistent workspace or general object store.
 
 ## Next steps
 

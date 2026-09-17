@@ -10,6 +10,7 @@ WORKDIR /workspace
 
 COPY runtime/axnoded/go.mod runtime/axnoded/go.sum /workspace/runtime/axnoded/
 COPY runtime/egressd/go.mod runtime/egressd/go.sum /workspace/runtime/egressd/
+COPY internal/proto/go.mod internal/proto/go.sum /workspace/internal/proto/
 COPY network/bpfnet/go.mod /workspace/network/bpfnet/go.mod
 COPY lib/go/executionlease/go.mod /workspace/lib/go/executionlease/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
@@ -22,6 +23,7 @@ RUN cat > /workspace/go.work <<'EOF'
 go 1.26.8
 
 use (
+	./internal/proto
 	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref
@@ -43,6 +45,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 
 COPY runtime/axnoded/ /workspace/runtime/axnoded/
 COPY runtime/egressd/ /workspace/runtime/egressd/
+COPY internal/proto/ /workspace/internal/proto/
 COPY network/bpfnet/ /workspace/network/bpfnet/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
@@ -71,6 +74,7 @@ WORKDIR /workspace
 
 COPY control/controld/go.mod control/controld/go.sum /workspace/control/controld/
 COPY gateway/gatewayd/go.mod gateway/gatewayd/go.sum /workspace/gateway/gatewayd/
+COPY internal/proto/go.mod internal/proto/go.sum /workspace/internal/proto/
 COPY lib/go/executionlease/go.mod /workspace/lib/go/executionlease/go.mod
 COPY lib/go/grpcclient/go.mod lib/go/grpcclient/go.sum /workspace/lib/go/grpcclient/
 COPY lib/go/imageref/go.mod /workspace/lib/go/imageref/go.mod
@@ -85,6 +89,7 @@ go 1.26.8
 use (
 	./control/controld
 	./gateway/gatewayd
+	./internal/proto
 	./lib/go/executionlease
 	./lib/go/grpcclient
 	./lib/go/imageref
@@ -104,6 +109,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 
 COPY control/controld/ /workspace/control/controld/
 COPY gateway/gatewayd/ /workspace/gateway/gatewayd/
+COPY internal/proto/ /workspace/internal/proto/
 COPY lib/go/ /workspace/lib/go/
 COPY sdk/go/ /workspace/sdk/go/
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \

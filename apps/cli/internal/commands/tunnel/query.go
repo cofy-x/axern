@@ -31,7 +31,7 @@ func getCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func listCommand(runtime command.Runtime) *cobra.Command {
-	var namespace, allocationID, nodeID string
+	var namespace, allocationID string
 	var includeTerminal bool
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -39,7 +39,7 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 		Args:  command.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return withControl(cmd, runtime, func(control apptunnel.Control, ctx context.Context) error {
-				response, err := control.List(ctx, apptunnel.ListParams{Namespace: strings.TrimSpace(namespace), AllocationID: strings.TrimSpace(allocationID), NodeID: strings.TrimSpace(nodeID), IncludeTerminal: includeTerminal})
+				response, err := control.List(ctx, apptunnel.ListParams{Namespace: strings.TrimSpace(namespace), AllocationID: strings.TrimSpace(allocationID), IncludeTerminal: includeTerminal})
 				if err != nil {
 					return err
 				}
@@ -49,7 +49,6 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&namespace, "namespace", "default", "namespace scope")
 	cmd.Flags().StringVar(&allocationID, "allocation-id", "", "filter by allocation id")
-	cmd.Flags().StringVar(&nodeID, "node-id", "", "filter by node id")
 	cmd.Flags().BoolVar(&includeTerminal, "include-terminal", false, "include revoked, expired, and failed sessions")
 	return cmd
 }
@@ -144,7 +143,6 @@ func withControl(cmd *cobra.Command, runtime command.Runtime, action func(apptun
 type sessionDTO struct {
 	SessionID        string `json:"session_id"`
 	AllocationID     string `json:"allocation_id"`
-	NodeID           string `json:"node_id,omitempty"`
 	Status           string `json:"status"`
 	RemotePort       int32  `json:"remote_port"`
 	BoundAddr        string `json:"bound_addr,omitempty"`
@@ -217,7 +215,7 @@ func sessionDTOFromProto(session *controltunnelv1.TunnelSession) sessionDTO {
 		return sessionDTO{}
 	}
 	value := sessionDTO{
-		SessionID: session.GetSessionID(), AllocationID: session.GetAllocationID(), NodeID: session.GetNodeID(),
+		SessionID: session.GetSessionID(), AllocationID: session.GetAllocationID(),
 		Status: enumValue(session.GetStatus().String(), "TUNNEL_SESSION_STATUS_"), RemotePort: session.GetRemotePort(),
 		BoundAddr: session.GetBoundAddr(), RelayID: session.GetRelayID(),
 		ClientEdgeTarget: session.GetClientEdgeTarget(), Reason: session.GetReason(),

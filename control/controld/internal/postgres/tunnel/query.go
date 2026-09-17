@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -33,7 +33,7 @@ func (s *Store) ResolveRelayTarget(ctx context.Context, sessionID string, now ti
 	return internal.nodeEdgeTarget, nil
 }
 
-func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error) {
+func (s *Store) List(ctx context.Context, namespace, allocationID string, includeTerminal bool, now time.Time) ([]*tunnelv1.TunnelSession, error) {
 	if s == nil || s.db == nil || s.db.Pool() == nil {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
 	}
@@ -49,10 +49,6 @@ func (s *Store) List(ctx context.Context, namespace, allocationID, nodeID string
 	if v := strings.TrimSpace(allocationID); v != "" {
 		args = append(args, v)
 		conds = append(conds, fmt.Sprintf("allocation_id = $%d", len(args)))
-	}
-	if v := strings.TrimSpace(nodeID); v != "" {
-		args = append(args, v)
-		conds = append(conds, fmt.Sprintf("EXISTS (SELECT 1 FROM allocations a WHERE a.allocation_id = tunnel_sessions.allocation_id AND a.node_id = $%d)", len(args)))
 	}
 	if !includeTerminal {
 		conds = append(conds, "status NOT IN ('TUNNEL_SESSION_STATUS_REVOKED','TUNNEL_SESSION_STATUS_EXPIRED','TUNNEL_SESSION_STATUS_FAILED')")

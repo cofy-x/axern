@@ -21,6 +21,31 @@ func (h *sandboxService) ReadAllocationOutput(ctx context.Context, id, cursor st
 	return allocationoutput.NewWithSources(h.allocationOutputSources).Read(ctx, id, cursor)
 }
 
+func (h *sandboxService) SealedOutputManifest(_ context.Context, id string) (allocationoutput.Manifest, error) {
+	manifest, err := allocationoutput.NewRetention(h.config.RootDir).Manifest(id, time.Now())
+	if errors.Is(err, os.ErrNotExist) {
+		return allocationoutput.Manifest{}, status.Error(codes.Unavailable, "sealed output manifest is not present on this node")
+	}
+	if err != nil {
+		return allocationoutput.Manifest{}, status.Error(codes.Internal, "sealed output metadata is invalid")
+	}
+	return manifest, nil
+}
+
+func (h *sandboxService) ReadSealedOutput(_ context.Context, id, outputID string, offset, limit int64) ([]byte, int64, bool, error) {
+	data, next, eof, err := allocationoutput.NewRetention(h.config.RootDir).ReadSealedOutput(id, outputID, offset, limit, time.Now())
+	if errors.Is(err, allocationoutput.ErrSealedStateUnavailable) {
+		return nil, offset, false, status.Error(codes.Unavailable, "sealed output bytes are not present on this node")
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, offset, false, status.Error(codes.NotFound, "sealed output object does not exist")
+	}
+	if err != nil {
+		return nil, offset, false, status.Error(codes.Internal, "sealed output failed integrity validation")
+	}
+	return data, next, eof, nil
+}
+
 func (h *sandboxService) allocationOutputSources(ctx context.Context, id string) (allocationoutput.Sources, error) {
 	retained, err := allocationoutput.NewRetention(h.config.RootDir).Sources(id, time.Now())
 	if err == nil {

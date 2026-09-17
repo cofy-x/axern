@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
+	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
-	nodenetworkv1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/node/network/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )

@@ -13,7 +13,7 @@ import type { NodeClientContext } from "./context.js";
 export async function exec(ctx: NodeClientContext, command: Command, options: ExecOptions = {}): Promise<ExecResult> {
   const argv = normalizeCommand(command);
   try {
-    const response = await ctx.withAuthRetry(options.leaseTtlSeconds ?? 300, async (client) =>
+    const response = await ctx.withAuthRetry(async (client) =>
       unary<Record<string, unknown>, Record<string, unknown>>(
         client,
         "Exec",

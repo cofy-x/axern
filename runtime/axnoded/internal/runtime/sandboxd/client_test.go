@@ -359,8 +359,9 @@ func TestOperationErrorMapsSandboxdClasses(t *testing.T) {
 		{name: "invalid", err: &StatusError{Code: ErrorCodeInvalidArgument}, want: errord.ErrInvalidArgument},
 		{name: "not found", err: &StatusError{Code: ErrorCodeNotFound}, want: errord.ErrNotFound},
 		{name: "already exists", err: &StatusError{Code: ErrorCodeAlreadyExists}, want: errord.ErrAlreadyExists},
-		{name: "unavailable", err: &StatusError{Code: ErrorCodeUnavailable}, want: errord.ErrFailedPrecondition},
-		{name: "timeout", err: &StatusError{Code: ErrorCodeTimeout}, want: errord.ErrFailedPrecondition},
+		{name: "unavailable", err: &StatusError{Code: ErrorCodeUnavailable}, want: errord.ErrUnavailable},
+		{name: "timeout", err: &StatusError{Code: ErrorCodeTimeout}, want: errord.ErrUnavailable},
+		{name: "internal", err: &StatusError{Code: ErrorCodeInternal}, want: errord.ErrUnavailable},
 		{name: "method not allowed", err: &StatusError{Code: ErrorCodeMethodNotAllowed}, want: errord.ErrFailedPrecondition},
 	}
 	for _, tt := range tests {

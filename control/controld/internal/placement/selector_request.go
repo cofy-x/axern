@@ -5,12 +5,12 @@ import (
 	"strings"
 
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	controlnodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	networkpolicy "github.com/cofy-x/axern/lib/go/networkpolicy"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
-	controlnodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1.ExecutionConfig) (*placementkernel.Request, error) {

@@ -11,9 +11,9 @@ import (
 	"time"
 	"unicode/utf8"
 
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
-	nodev1 "github.com/cofy-x/axern/sdk/go/gen/axern/private/control/node/v1"
 )
 
 func TestAllocationLifecycleStateBatcherCoalescesLatestObservation(t *testing.T) {

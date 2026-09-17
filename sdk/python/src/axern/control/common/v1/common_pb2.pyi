@@ -21,6 +21,12 @@ class EgressProtocol(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     EGRESS_PROTOCOL_TCP: _ClassVar[EgressProtocol]
     EGRESS_PROTOCOL_UDP: _ClassVar[EgressProtocol]
 
+class DeclaredOutputFormat(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    DECLARED_OUTPUT_FORMAT_UNSPECIFIED: _ClassVar[DeclaredOutputFormat]
+    DECLARED_OUTPUT_FORMAT_FILE: _ClassVar[DeclaredOutputFormat]
+    DECLARED_OUTPUT_FORMAT_TAR: _ClassVar[DeclaredOutputFormat]
+
 class AllocationLifecycleState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
     ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED: _ClassVar[AllocationLifecycleState]
@@ -53,6 +59,9 @@ NETWORK_MODE_HOST: NetworkMode
 EGRESS_PROTOCOL_UNSPECIFIED: EgressProtocol
 EGRESS_PROTOCOL_TCP: EgressProtocol
 EGRESS_PROTOCOL_UDP: EgressProtocol
+DECLARED_OUTPUT_FORMAT_UNSPECIFIED: DeclaredOutputFormat
+DECLARED_OUTPUT_FORMAT_FILE: DeclaredOutputFormat
+DECLARED_OUTPUT_FORMAT_TAR: DeclaredOutputFormat
 ALLOCATION_LIFECYCLE_STATE_UNSPECIFIED: AllocationLifecycleState
 ALLOCATION_LIFECYCLE_STATE_BOUND: AllocationLifecycleState
 ALLOCATION_LIFECYCLE_STATE_STARTING: AllocationLifecycleState
@@ -189,8 +198,18 @@ class ImageMount(_message.Message):
     readonly: bool
     def __init__(self, image: _Optional[str] = ..., target: _Optional[str] = ..., readonly: _Optional[bool] = ...) -> None: ...
 
+class DeclaredOutput(_message.Message):
+    __slots__ = ("path", "format", "media_type")
+    PATH_FIELD_NUMBER: _ClassVar[int]
+    FORMAT_FIELD_NUMBER: _ClassVar[int]
+    MEDIA_TYPE_FIELD_NUMBER: _ClassVar[int]
+    path: str
+    format: DeclaredOutputFormat
+    media_type: str
+    def __init__(self, path: _Optional[str] = ..., format: _Optional[_Union[DeclaredOutputFormat, str]] = ..., media_type: _Optional[str] = ...) -> None: ...
+
 class ExecutionConfig(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "resources", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "image_mounts")
+    __slots__ = ("argv", "env", "cwd", "resources", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "image_mounts", "declared_outputs")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -208,6 +227,7 @@ class ExecutionConfig(_message.Message):
     SECRET_ENV_FIELD_NUMBER: _ClassVar[int]
     SECRET_FILES_FIELD_NUMBER: _ClassVar[int]
     IMAGE_MOUNTS_FIELD_NUMBER: _ClassVar[int]
+    DECLARED_OUTPUTS_FIELD_NUMBER: _ClassVar[int]
     argv: _containers.RepeatedScalarFieldContainer[str]
     env: _containers.ScalarMap[str, str]
     cwd: str
@@ -218,4 +238,5 @@ class ExecutionConfig(_message.Message):
     secret_env: _containers.RepeatedCompositeFieldContainer[SecretEnvVar]
     secret_files: _containers.RepeatedCompositeFieldContainer[SecretFile]
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ...) -> None: ...
+    declared_outputs: _containers.RepeatedCompositeFieldContainer[DeclaredOutput]
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., declared_outputs: _Optional[_Iterable[_Union[DeclaredOutput, _Mapping]]] = ...) -> None: ...

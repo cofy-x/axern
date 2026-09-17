@@ -11,7 +11,7 @@ uv add axern-sdk==<version>
 
 The official package is published as [`axern-sdk` on PyPI](https://pypi.org/project/axern-sdk/).
 
-For v0.7.0, pin `axern-sdk==0.7.0` only after publication completes and upgrade the platform together; follow the [clean-state upgrade boundary](/guides/upgrades/).
+For v0.8.0, pin `axern-sdk==0.8.0` only after publication completes and upgrade the platform together; review the [breaking release notes](https://github.com/cofy-x/axern/blob/main/docs/releases/v0.8.0.md).
 
 ```python
 import os
