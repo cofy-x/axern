@@ -9,6 +9,7 @@ import sys
 import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -16,7 +17,17 @@ os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
 os.environ.setdefault("GLOG_minloglevel", "2")
 
 from axern.control.tunnel.v1 import tunnel_pb2
-from axern_sdk import AsyncAxernClient, AsyncSandbox, AxernClient, Sandbox
+from axern.control.run.v1 import run_pb2
+from axern_sdk import (
+    AsyncAxernClient,
+    AsyncSandbox,
+    AxernClient,
+    DeclaredOutput,
+    DeclaredOutputFormat,
+    Sandbox,
+    SandboxError,
+    TunnelConnector,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -78,23 +89,43 @@ def main() -> int:
                 download_dir = root / "download-tree"
                 sandbox.upload_dir(upload_dir, "/tmp/axern-sdk-upload-tree")
                 sandbox.download_dir("/tmp/axern-sdk-upload-tree", download_dir)
-                if download_dir.joinpath("nested", "data.txt").read_text() != "archive-ok\n":
+                if (
+                    download_dir.joinpath("nested", "data.txt").read_text()
+                    != "archive-ok\n"
+                ):
                     raise SystemExit("sandbox upload/download dir round trip failed")
                 if not sandbox.exists("/tmp/axern-sdk-v2.txt"):
                     raise SystemExit("sandbox exists returned false for a written file")
                 if sandbox.stat("/tmp/axern-sdk-v2.txt").size != len("file-api-ok\n"):
                     raise SystemExit("sandbox stat returned an unexpected file size")
-                if not any(entry.path == "/tmp/axern-sdk-v2.txt" for entry in sandbox.list_dir("/tmp")):
+                if not any(
+                    entry.path == "/tmp/axern-sdk-v2.txt"
+                    for entry in sandbox.list_dir("/tmp")
+                ):
                     raise SystemExit("sandbox list_dir did not include a written file")
                 file_process = sandbox.exec(
-                    ["python", "-c", "from pathlib import Path; print(Path('/tmp/axern-sdk-v2.txt').read_text().strip().upper())"],
+                    [
+                        "python",
+                        "-c",
+                        "from pathlib import Path; print(Path('/tmp/axern-sdk-v2.txt').read_text().strip().upper())",
+                    ],
                     timeout_seconds=15,
                     text=True,
                 )
                 if file_process.stdout.strip() != "FILE-API-OK":
-                    raise SystemExit("sandbox file/process round trip returned unexpected stdout")
-                sandbox.copy("/tmp/axern-sdk-v2.txt", "/tmp/axern-sdk-v2-copy.txt", overwrite=True)
-                sandbox.move("/tmp/axern-sdk-v2-copy.txt", "/tmp/axern-sdk-v2-moved.txt", overwrite=True)
+                    raise SystemExit(
+                        "sandbox file/process round trip returned unexpected stdout"
+                    )
+                sandbox.copy(
+                    "/tmp/axern-sdk-v2.txt",
+                    "/tmp/axern-sdk-v2-copy.txt",
+                    overwrite=True,
+                )
+                sandbox.move(
+                    "/tmp/axern-sdk-v2-copy.txt",
+                    "/tmp/axern-sdk-v2-moved.txt",
+                    overwrite=True,
+                )
                 sandbox.chmod("/tmp/axern-sdk-v2-moved.txt", 0o600)
                 sandbox.touch("/tmp/axern-sdk-v2-moved.txt")
                 sandbox.mkdir("/tmp/axern-sdk-v2-dir")
@@ -103,24 +134,61 @@ def main() -> int:
                     raise SystemExit("sandbox remove left the directory behind")
                 phase = "sync-process"
                 with sandbox.process(
-                    ["/bin/sh", "-lc", "cat | tr '[:lower:]' '[:upper:]'; printf 'process-err' >&2; exit 3"],
+                    [
+                        "/bin/sh",
+                        "-lc",
+                        "cat | tr '[:lower:]' '[:upper:]'; printf 'process-err' >&2; exit 3",
+                    ],
                     timeout_seconds=15,
                 ) as process:
                     process.write("process-ok\n")
                     process.close_stdin()
                     process_events = list(process.events())
-                if b"".join(event.data for event in process_events if event.stream == "stdout").strip() != b"PROCESS-OK":
-                    raise SystemExit(f"sandbox process returned unexpected stdout: {process_events!r}")
-                if b"".join(event.data for event in process_events if event.stream == "stderr") != b"process-err":
-                    raise SystemExit(f"sandbox process returned unexpected stderr: {process_events!r}")
+                if (
+                    b"".join(
+                        event.data
+                        for event in process_events
+                        if event.stream == "stdout"
+                    ).strip()
+                    != b"PROCESS-OK"
+                ):
+                    raise SystemExit(
+                        f"sandbox process returned unexpected stdout: {process_events!r}"
+                    )
+                if (
+                    b"".join(
+                        event.data
+                        for event in process_events
+                        if event.stream == "stderr"
+                    )
+                    != b"process-err"
+                ):
+                    raise SystemExit(
+                        f"sandbox process returned unexpected stderr: {process_events!r}"
+                    )
                 if process_events[-1].exit_code != 3:
-                    raise SystemExit(f"sandbox process exit code = {process_events[-1].exit_code}, want 3")
+                    raise SystemExit(
+                        f"sandbox process exit code = {process_events[-1].exit_code}, want 3"
+                    )
                 phase = "sync-exec-stream"
-                stream_events = list(sandbox.exec_stream(["python", "-c", "print('stream-ok')"], timeout_seconds=15))
-                if b"".join(event.data for event in stream_events if event.stream == "stdout").strip() != b"stream-ok":
+                stream_events = list(
+                    sandbox.exec_stream(
+                        ["python", "-c", "print('stream-ok')"], timeout_seconds=15
+                    )
+                )
+                if (
+                    b"".join(
+                        event.data
+                        for event in stream_events
+                        if event.stream == "stdout"
+                    ).strip()
+                    != b"stream-ok"
+                ):
                     raise SystemExit("sandbox exec_stream returned unexpected stdout")
                 if stream_events[-1].exit_code != 0:
-                    raise SystemExit(f"sandbox exec_stream exit code = {stream_events[-1].exit_code}, want 0")
+                    raise SystemExit(
+                        f"sandbox exec_stream exit code = {stream_events[-1].exit_code}, want 0"
+                    )
                 code = f"""
 import sys
 import urllib.request
@@ -129,34 +197,50 @@ with urllib.request.urlopen("http://{sandbox.bound_addr}/index.txt", timeout=5) 
     sys.stdout.write(response.read().decode().strip())
 """
                 phase = "sync-tunnel-request"
-                result = sandbox.exec(["python", "-c", code], timeout_seconds=15, check=True)
+                result = sandbox.exec(
+                    ["python", "-c", code], timeout_seconds=15, check=True
+                )
                 observed = result.stdout_text().strip()
                 if observed != marker:
-                    raise SystemExit(f"unexpected sandbox tunnel response: {observed!r}")
+                    raise SystemExit(
+                        f"unexpected sandbox tunnel response: {observed!r}"
+                    )
                 events = client.list_tunnel_events(sandbox.tunnel_session_id, limit=50)
-                require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED)
-                require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_NODE_CONNECTED)
+                require_event(
+                    events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED
+                )
+                require_event(
+                    events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_NODE_CONNECTED
+                )
                 require_event(events, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_PAIRED)
                 session_id = sandbox.tunnel_session_id
                 run_id = sandbox.run_id
             phase = "sync-cleanup"
             session = client.get_tunnel_session(session_id)
             if session.status != tunnel_pb2.TUNNEL_SESSION_STATUS_REVOKED:
-                raise SystemExit(f"tunnel status after sandbox close = {session.status}, want revoked")
+                raise SystemExit(
+                    f"tunnel status after sandbox close = {session.status}, want revoked"
+                )
             print(
                 "python_sdk_sandbox_tunnel_e2e_ok=true "
-				f"run_id={run_id} session_id={session_id}"
+                f"run_id={run_id} session_id={session_id}"
             )
+            phase = "low-level-model-gateway"
+            run_low_level_model_gateway_check(client, upstream, marker)
             phase = "async-check"
             asyncio.run(run_async_sandbox_check(args))
             return 0
         except BaseException as exc:
             if not getattr(exc, "_axern_e2e_logged", False):
-                log_e2e_failure(args, phase=phase, run_id=run_id, session_id=session_id, exc=exc)
+                log_e2e_failure(
+                    args, phase=phase, run_id=run_id, session_id=session_id, exc=exc
+                )
             raise
         finally:
             client.close()
             server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 def _handler_for(root: Path):
@@ -168,6 +252,223 @@ def _handler_for(root: Path):
             return
 
     return Handler
+
+
+def run_low_level_model_gateway_check(
+    client: AxernClient,
+    upstream: str,
+    marker: str,
+) -> None:
+    """Exercise the repository-external runner order using only public SDK APIs."""
+
+    environment = client.create_environment(
+        template_id="python311",
+        labels={"axern.e2e": "external-model-gateway"},
+    )
+    run_id = ""
+    session_id = ""
+    connector: TunnelConnector | None = None
+    try:
+        workload = """
+import time
+import urllib.request
+from pathlib import Path
+
+root = Path('/run/axrun')
+while not root.joinpath('inputs-ready').exists():
+    time.sleep(0.05)
+config = dict(
+    line.split('=', 1)
+    for line in root.joinpath('model.env').read_text().splitlines()
+    if line
+)
+with urllib.request.urlopen(config['MODEL_ENDPOINT'] + '/index.txt', timeout=5) as response:
+    Path('/tmp/candidate.txt').write_bytes(response.read())
+while not root.joinpath('finish').exists():
+    time.sleep(0.05)
+"""
+        run = client.create_run(
+            environment_id=environment.id,
+            argv=["python", "-c", workload],
+            declared_outputs=[
+                DeclaredOutput(
+                    "/tmp/candidate.txt",
+                    DeclaredOutputFormat.FILE,
+                    "text/plain",
+                )
+            ],
+            labels={"axern.e2e": "external-model-gateway"},
+        )
+        run_id = run.id
+        run = wait_for_allocation(client, run.id)
+        allocation = client.allocation(run.allocation_id)
+        tunnel = client.create_tunnel_session(
+            allocation_id=run.allocation_id,
+            ttl_seconds=45,
+            wait_ready=True,
+            ready_timeout_seconds=30,
+        )
+        session_id = tunnel.session.session_id
+        connector = TunnelConnector(
+            client=client,
+            session=tunnel.session,
+            client_token=tunnel.client_token,
+            local_target=upstream,
+        )
+        connector.start()
+        wait_for_tunnel_client(client, session_id)
+
+        allocation.mkdir("/run/axrun", parents=True)
+        endpoint = (
+            tunnel.session.bound_addr or f"127.0.0.1:{tunnel.session.remote_port}"
+        )
+        allocation.write_file(
+            "/run/axrun/model.env",
+            f"MODEL_ENDPOINT=http://{endpoint}\n".encode(),
+        )
+        allocation.write_file("/run/axrun/prompt.txt", b"non-sensitive prompt\n")
+        allocation.write_file("/run/axrun/inputs-ready", b"ready\n")
+        wait_for_file(allocation, "/tmp/candidate.txt")
+
+        client.revoke_tunnel_session(session_id, reason="model access complete")
+        if not connector.wait_closed(25):
+            raise RuntimeError(
+                "tunnel connector did not close within the revocation bound"
+            )
+        run_after_revoke = client.get_run(run_id)
+        if run_after_revoke.status != run_pb2.RUN_STATUS_RUNNING:
+            raise RuntimeError("Tunnel revoke unexpectedly terminated the Run")
+        denied = allocation.exec(
+            [
+                "python",
+                "-c",
+                "import sys,urllib.request; "
+                f"url='http://{endpoint}/index.txt'; "
+                "\ntry: urllib.request.urlopen(url, timeout=2); sys.exit(2)"
+                "\nexcept Exception: print('revoked')",
+            ],
+            timeout_seconds=10,
+            check=True,
+            text=True,
+        )
+        if denied.stdout.strip() != "revoked":
+            raise RuntimeError("revoked Tunnel still accepted a new model request")
+
+        allocation.write_file("/run/axrun/finish", b"finish\n")
+        terminal = client.wait_run(run_id, timeout=60)
+        if terminal.status != run_pb2.RUN_STATUS_SUCCEEDED:
+            raise RuntimeError("model-gateway Run did not succeed")
+        candidate = download_only_output(client, run_id)
+        if candidate.decode().strip() != marker:
+            raise RuntimeError("model-gateway CandidateBundle content is invalid")
+
+        verify_fresh_run(client, environment.id, candidate)
+        print(
+            "python_sdk_external_model_gateway_e2e_ok=true "
+            f"run_id={run_id} session_id={session_id}"
+        )
+        run_id = ""
+        session_id = ""
+    finally:
+        if connector is not None:
+            connector.stop()
+        if session_id:
+            try:
+                client.revoke_tunnel_session(session_id, reason="test cleanup")
+            except Exception:
+                pass
+        if run_id:
+            try:
+                client.cancel_run(run_id)
+            except Exception:
+                pass
+        client.delete_environment(environment.id)
+
+
+def wait_for_allocation(client: AxernClient, run_id: str):
+    for run in client.watch_run(run_id, timeout=180):
+        if run.status == run_pb2.RUN_STATUS_RUNNING and run.allocation_id:
+            return run
+        if run.status in {
+            run_pb2.RUN_STATUS_SUCCEEDED,
+            run_pb2.RUN_STATUS_FAILED,
+            run_pb2.RUN_STATUS_CANCELLED,
+        }:
+            raise RuntimeError("Run terminated before Allocation binding")
+    raise RuntimeError("Run watch ended before Allocation binding")
+
+
+def wait_for_tunnel_client(client: AxernClient, session_id: str) -> None:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        events = client.list_tunnel_events(session_id, limit=50)
+        if any(
+            event.event_type == tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED
+            for event in events
+        ):
+            return
+        time.sleep(0.1)
+    raise RuntimeError("Tunnel client did not connect")
+
+
+def wait_for_file(allocation, path: str) -> None:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        if allocation.exists(path):
+            return
+        time.sleep(0.1)
+    raise RuntimeError(f"Allocation did not produce {path}")
+
+
+def download_only_output(client: AxernClient, run_id: str) -> bytes:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            outputs = client.get_sealed_output_manifest(run_id)
+        except SandboxError as error:
+            if getattr(error, "code", "") not in {"NOT_FOUND", "UNAVAILABLE"}:
+                raise
+            time.sleep(0.1)
+            continue
+        if len(outputs) == 1 and outputs[0].status == "available":
+            destination = BytesIO()
+            client.download_sealed_output(run_id, outputs[0].output_id, destination)
+            return destination.getvalue()
+        time.sleep(0.1)
+    raise RuntimeError("declared output was not sealed")
+
+
+def verify_fresh_run(
+    client: AxernClient,
+    environment_id: str,
+    candidate: bytes,
+) -> None:
+    with Sandbox(
+        client=client,
+        environment_id=environment_id,
+        argv=["python", "-c", "import time; time.sleep(600)"],
+    ) as verifier:
+        verifier_run = client.get_run(verifier.run_id)
+        if (
+            verifier_run.config.image_mounts
+            or verifier_run.config.secret_env
+            or verifier_run.config.secret_files
+        ):
+            raise RuntimeError("fresh verifier inherited inference Run projections")
+        if verifier.tunnel_session_id:
+            raise RuntimeError("fresh verifier inherited inference TunnelSession")
+        verifier.write_file("/tmp/candidate.txt", candidate)
+        result = verifier.exec(
+            [
+                "python",
+                "-c",
+                "from pathlib import Path; "
+                "assert Path('/tmp/candidate.txt').read_text().strip()",
+            ],
+            check=True,
+        )
+        if result.exit_code != 0:
+            raise RuntimeError("fresh verifier rejected CandidateBundle")
 
 
 async def run_async_sandbox_check(args: argparse.Namespace) -> None:
@@ -189,67 +490,146 @@ async def run_async_sandbox_check(args: argparse.Namespace) -> None:
             ) as sandbox:
                 run_id = sandbox.run_id
                 phase = "async-exec"
-                result = await sandbox.exec(["python", "-c", "print('async-ok')"], timeout_seconds=15, check=True)
+                result = await sandbox.exec(
+                    ["python", "-c", "print('async-ok')"],
+                    timeout_seconds=15,
+                    check=True,
+                )
                 if result.stdout_text().strip() != "async-ok":
-                    raise SystemExit(f"unexpected async sandbox exec response: {result.stdout_text()!r}")
+                    raise SystemExit(
+                        f"unexpected async sandbox exec response: {result.stdout_text()!r}"
+                    )
                 if not (await sandbox.read_file("/etc/hostname")).strip():
-                    raise SystemExit("async sandbox read_file returned an empty hostname")
+                    raise SystemExit(
+                        "async sandbox read_file returned an empty hostname"
+                    )
                 phase = "async-file-api"
                 await sandbox.write_file("/tmp/axern-sdk-async.txt", "async-file-ok\n")
-                if await sandbox.read_file("/tmp/axern-sdk-async.txt") != "async-file-ok\n":
+                if (
+                    await sandbox.read_file("/tmp/axern-sdk-async.txt")
+                    != "async-file-ok\n"
+                ):
                     raise SystemExit("async sandbox file API round trip failed")
                 with TemporaryDirectory() as tmp:
                     root = Path(tmp)
                     upload_source = root / "async-upload.bin"
                     download_target = root / "downloaded" / "async-upload.bin"
                     upload_source.write_bytes(b"\x00axern-async-upload\xff")
-                    await sandbox.upload_file(upload_source, "/tmp/axern-sdk-async-upload.bin")
-                    await sandbox.download_file("/tmp/axern-sdk-async-upload.bin", download_target)
+                    await sandbox.upload_file(
+                        upload_source, "/tmp/axern-sdk-async-upload.bin"
+                    )
+                    await sandbox.download_file(
+                        "/tmp/axern-sdk-async-upload.bin", download_target
+                    )
                     if download_target.read_bytes() != upload_source.read_bytes():
-                        raise SystemExit("async sandbox upload/download file round trip failed")
+                        raise SystemExit(
+                            "async sandbox upload/download file round trip failed"
+                        )
                     upload_dir = root / "async-upload-tree"
                     upload_dir.joinpath("nested").mkdir(parents=True)
-                    upload_dir.joinpath("nested", "data.txt").write_text("async-archive-ok\n")
+                    upload_dir.joinpath("nested", "data.txt").write_text(
+                        "async-archive-ok\n"
+                    )
                     download_dir = root / "async-download-tree"
-                    await sandbox.upload_dir(upload_dir, "/tmp/axern-sdk-async-upload-tree")
-                    await sandbox.download_dir("/tmp/axern-sdk-async-upload-tree", download_dir)
-                    if download_dir.joinpath("nested", "data.txt").read_text() != "async-archive-ok\n":
-                        raise SystemExit("async sandbox upload/download dir round trip failed")
+                    await sandbox.upload_dir(
+                        upload_dir, "/tmp/axern-sdk-async-upload-tree"
+                    )
+                    await sandbox.download_dir(
+                        "/tmp/axern-sdk-async-upload-tree", download_dir
+                    )
+                    if (
+                        download_dir.joinpath("nested", "data.txt").read_text()
+                        != "async-archive-ok\n"
+                    ):
+                        raise SystemExit(
+                            "async sandbox upload/download dir round trip failed"
+                        )
                 if not await sandbox.exists("/tmp/axern-sdk-async.txt"):
-                    raise SystemExit("async sandbox exists returned false for a written file")
-                if (await sandbox.stat("/tmp/axern-sdk-async.txt")).size != len("async-file-ok\n"):
-                    raise SystemExit("async sandbox stat returned an unexpected file size")
-                if not any(entry.path == "/tmp/axern-sdk-async.txt" for entry in await sandbox.list_dir("/tmp")):
-                    raise SystemExit("async sandbox list_dir did not include a written file")
+                    raise SystemExit(
+                        "async sandbox exists returned false for a written file"
+                    )
+                if (await sandbox.stat("/tmp/axern-sdk-async.txt")).size != len(
+                    "async-file-ok\n"
+                ):
+                    raise SystemExit(
+                        "async sandbox stat returned an unexpected file size"
+                    )
+                if not any(
+                    entry.path == "/tmp/axern-sdk-async.txt"
+                    for entry in await sandbox.list_dir("/tmp")
+                ):
+                    raise SystemExit(
+                        "async sandbox list_dir did not include a written file"
+                    )
                 async_file_process = await sandbox.exec(
-                    ["python", "-c", "from pathlib import Path; print(Path('/tmp/axern-sdk-async.txt').read_text().strip().upper())"],
+                    [
+                        "python",
+                        "-c",
+                        "from pathlib import Path; print(Path('/tmp/axern-sdk-async.txt').read_text().strip().upper())",
+                    ],
                     timeout_seconds=15,
                     text=True,
                 )
                 if async_file_process.stdout.strip() != "ASYNC-FILE-OK":
-                    raise SystemExit("async sandbox file/process round trip returned unexpected stdout")
-                await sandbox.copy("/tmp/axern-sdk-async.txt", "/tmp/axern-sdk-async-copy.txt", overwrite=True)
-                await sandbox.move("/tmp/axern-sdk-async-copy.txt", "/tmp/axern-sdk-async-moved.txt", overwrite=True)
+                    raise SystemExit(
+                        "async sandbox file/process round trip returned unexpected stdout"
+                    )
+                await sandbox.copy(
+                    "/tmp/axern-sdk-async.txt",
+                    "/tmp/axern-sdk-async-copy.txt",
+                    overwrite=True,
+                )
+                await sandbox.move(
+                    "/tmp/axern-sdk-async-copy.txt",
+                    "/tmp/axern-sdk-async-moved.txt",
+                    overwrite=True,
+                )
                 await sandbox.chmod("/tmp/axern-sdk-async-moved.txt", 0o600)
                 await sandbox.touch("/tmp/axern-sdk-async-moved.txt")
                 await sandbox.mkdir("/tmp/axern-sdk-async-dir")
-                await sandbox.remove("/tmp/axern-sdk-async-dir", recursive=True, force=True)
+                await sandbox.remove(
+                    "/tmp/axern-sdk-async-dir", recursive=True, force=True
+                )
                 if await sandbox.exists("/tmp/axern-sdk-async-dir"):
                     raise SystemExit("async sandbox remove left the directory behind")
                 phase = "async-process"
                 async with await sandbox.process(
-                    ["/bin/sh", "-lc", "cat | tr '[:lower:]' '[:upper:]'; printf 'async-process-err' >&2; exit 3"],
+                    [
+                        "/bin/sh",
+                        "-lc",
+                        "cat | tr '[:lower:]' '[:upper:]'; printf 'async-process-err' >&2; exit 3",
+                    ],
                     timeout_seconds=15,
                 ) as process:
                     await process.write("async-process-ok\n")
                     await process.close_stdin()
                     process_events = [event async for event in process.events()]
-                if b"".join(event.data for event in process_events if event.stream == "stdout").strip() != b"ASYNC-PROCESS-OK":
-                    raise SystemExit(f"async sandbox process returned unexpected stdout: {process_events!r}")
-                if b"".join(event.data for event in process_events if event.stream == "stderr") != b"async-process-err":
-                    raise SystemExit(f"async sandbox process returned unexpected stderr: {process_events!r}")
+                if (
+                    b"".join(
+                        event.data
+                        for event in process_events
+                        if event.stream == "stdout"
+                    ).strip()
+                    != b"ASYNC-PROCESS-OK"
+                ):
+                    raise SystemExit(
+                        f"async sandbox process returned unexpected stdout: {process_events!r}"
+                    )
+                if (
+                    b"".join(
+                        event.data
+                        for event in process_events
+                        if event.stream == "stderr"
+                    )
+                    != b"async-process-err"
+                ):
+                    raise SystemExit(
+                        f"async sandbox process returned unexpected stderr: {process_events!r}"
+                    )
                 if process_events[-1].exit_code != 3:
-                    raise SystemExit(f"async sandbox process exit code = {process_events[-1].exit_code}, want 3")
+                    raise SystemExit(
+                        f"async sandbox process exit code = {process_events[-1].exit_code}, want 3"
+                    )
                 phase = "async-exec-stream"
                 for index in range(5):
                     stream_events = [
@@ -260,10 +640,21 @@ async def run_async_sandbox_check(args: argparse.Namespace) -> None:
                         )
                     ]
                     expected = f"async-stream-ok-{index}".encode()
-                    if b"".join(event.data for event in stream_events if event.stream == "stdout").strip() != expected:
-                        raise SystemExit("async sandbox exec_stream returned unexpected stdout")
+                    if (
+                        b"".join(
+                            event.data
+                            for event in stream_events
+                            if event.stream == "stdout"
+                        ).strip()
+                        != expected
+                    ):
+                        raise SystemExit(
+                            "async sandbox exec_stream returned unexpected stdout"
+                        )
                     if stream_events[-1].exit_code != 0:
-                        raise SystemExit(f"async sandbox exec_stream exit code = {stream_events[-1].exit_code}, want 0")
+                        raise SystemExit(
+                            f"async sandbox exec_stream exit code = {stream_events[-1].exit_code}, want 0"
+                        )
     except BaseException as exc:
         log_e2e_failure(args, phase=phase, run_id=run_id, session_id="", exc=exc)
         raise
@@ -279,7 +670,7 @@ def log_e2e_failure(
 ) -> None:
     print(
         "python_sdk_sandbox_e2e_failed=true "
-		f"phase={phase} "
+        f"phase={phase} "
         f"run_id={run_id or '-'} session_id={session_id or '-'} "
         f"node_container={args.node_container} "
         f"error_type={type(exc).__name__} error={exc}",
@@ -290,7 +681,9 @@ def log_e2e_failure(
 
 def require_event(events: list[tunnel_pb2.TunnelSessionEvent], event_type: int) -> None:
     if not any(event.event_type == event_type for event in events):
-        raise SystemExit(f"missing tunnel event {tunnel_pb2.TunnelSessionEventType.Name(event_type)}")
+        raise SystemExit(
+            f"missing tunnel event {tunnel_pb2.TunnelSessionEventType.Name(event_type)}"
+        )
 
 
 if __name__ == "__main__":

@@ -100,7 +100,6 @@ message SecretFile {
 message ImageMount {
   string image = 1;
   string target = 2;
-  bool readonly = 3;
 }
 
 enum DeclaredOutputFormat {

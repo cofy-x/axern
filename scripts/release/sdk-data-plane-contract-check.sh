@@ -55,6 +55,7 @@ for value in (
     "AXERN_SDK_ACCEPTANCE_CONFIG",
     "AXERN_SDK_ACCEPTANCE_CONTEXT=release",
     "AXERN_SDK_ACCEPTANCE_CLI",
+    "AXERN_SDK_ACCEPTANCE_IMAGE_MOUNT",
     "namespace create default --output json",
     "doctor --namespace default --output json",
     "cpu: 100m",
@@ -87,7 +88,7 @@ for fixture in fixtures:
         raise SystemExit(f"{fixture.relative_to(root)} must declare bounded release-smoke resources")
 
 python_fixture = fixtures[0].read_text()
-for value in ("DeclaredOutput", "get_sealed_output_manifest", "download_sealed_output", "sealed_output=true"):
+for value in ("DeclaredOutput", "ImageMount", "assert_read_only_image_mount", "get_sealed_output_manifest", "download_sealed_output", "sealed_output=true"):
     if value not in python_fixture:
         raise SystemExit(f"Python SDK acceptance is missing external-runner output contract: {value}")
 

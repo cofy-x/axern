@@ -16,18 +16,19 @@ from axern_sdk import (
     DeclaredOutput,
     DeclaredOutputFormat,
     ExecResult,
+    ImageMount,
     Sandbox,
     SandboxConnectionError,
     SandboxNotStartedError,
+    SecretEnvVar,
+    SecretFile,
 )
 import axern_sdk.client as client_module
 from axern_sdk.client import _resource_spec
 from fakes import _AsyncFakeClient, _FakeClient, _FakeConnector
 
 
-
 class SandboxTest(unittest.TestCase):
-
     def test_run_backed_sandbox_opens_tunnel_and_cleans_up(self) -> None:
         client = _FakeClient()
         connectors: list[_FakeConnector] = []
@@ -54,6 +55,11 @@ class SandboxTest(unittest.TestCase):
                     "application/json",
                 )
             ],
+            image_mounts=[ImageMount("registry.example/tool@sha256:aaa", "/__tool")],
+            secret_env=[SecretEnvVar("WORKLOAD_TOKEN", "secret-workload", "token")],
+            secret_files=[
+                SecretFile("/run/secrets/config", "secret-config", "config.json")
+            ],
             upstream="127.0.0.1:8080",
             remote_port=8786,
             _connector_factory=connector_factory,
@@ -63,15 +69,28 @@ class SandboxTest(unittest.TestCase):
             self.assertEqual(sandbox.run_id, "run-1")
             self.assertEqual(sandbox.allocation_id, "alloc-1")
             self.assertEqual(sandbox.bound_addr, "127.0.0.1:8786")
-            self.assertEqual(client.created_environment["image_ref"], "docker.io/library/python:3.12-slim")
-            self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")
+            self.assertEqual(
+                client.created_environment["image_ref"],
+                "docker.io/library/python:3.12-slim",
+            )
+            self.assertEqual(
+                client.created_environment["registry_credential_id"], "sec-regcred"
+            )
             self.assertEqual(client.created_run["request_cpu"], "2")
             self.assertEqual(client.created_run["request_memory"], "4GiB")
             self.assertEqual(client.created_run["request_ephemeral_storage"], "6GiB")
             self.assertEqual(client.created_run["limit_cpu"], "4")
             self.assertEqual(client.created_run["limit_memory"], "8GiB")
             self.assertEqual(client.created_run["limit_ephemeral_storage"], "10GiB")
-            self.assertEqual(client.created_run["declared_outputs"][0].path, "/tmp/result.json")
+            self.assertEqual(
+                client.created_run["declared_outputs"][0].path, "/tmp/result.json"
+            )
+            self.assertEqual(client.created_run["image_mounts"][0].target, "/__tool")
+            self.assertEqual(client.created_run["secret_env"][0].name, "WORKLOAD_TOKEN")
+            self.assertEqual(
+                client.created_run["secret_files"][0].path,
+                "/run/secrets/config",
+            )
             self.assertEqual(client.created_tunnel["allocation_id"], "alloc-1")
             self.assertEqual(client.created_tunnel["remote_port"], 8786)
             self.assertTrue(connectors[0].started)
@@ -94,6 +113,30 @@ class SandboxTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             Sandbox(client=client)
 
+    def test_run_projections_are_frozen_per_sandbox_and_not_inherited(self) -> None:
+        client = _FakeClient()
+        mounts = [ImageMount("registry.example/tool@sha256:aaa", "/__tool")]
+        secret_env = [SecretEnvVar("WORKLOAD_TOKEN", "secret-workload", "token")]
+        first = Sandbox(
+            client=client,
+            environment_id="env-1",
+            image_mounts=mounts,
+            secret_env=secret_env,
+        )
+        mounts.append(ImageMount("registry.example/late@sha256:bbb", "/__late"))
+        secret_env.clear()
+        with first:
+            pass
+        first_spec = client.created_run
+        self.assertEqual(len(first_spec["image_mounts"]), 1)
+        self.assertEqual(len(first_spec["secret_env"]), 1)
+
+        with Sandbox(client=client, environment_id="env-1"):
+            pass
+        self.assertEqual(client.created_run["image_mounts"], [])
+        self.assertEqual(client.created_run["secret_env"], [])
+        self.assertEqual(client.created_run["secret_files"], [])
+
     def test_client_from_env_reads_control_settings(self) -> None:
         fake_channel = grpc.insecure_channel("127.0.0.1:9")
         env = {
@@ -102,11 +145,14 @@ class SandboxTest(unittest.TestCase):
             "AXERN_TLS_CERT": "/tmp/client.crt",
             "AXERN_TLS_KEY": "/tmp/client.key",
         }
-        with mock.patch.dict(os.environ, env), mock.patch.object(
-            client_module,
-            "control_channel",
-            return_value=fake_channel,
-        ) as channel_factory:
+        with (
+            mock.patch.dict(os.environ, env),
+            mock.patch.object(
+                client_module,
+                "control_channel",
+                return_value=fake_channel,
+            ) as channel_factory,
+        ):
             client = AxernClient.from_env()
 
         channel_factory.assert_called_once_with(
@@ -122,7 +168,9 @@ class SandboxTest(unittest.TestCase):
     def test_create_environment_rejects_image_with_explicit_template(self) -> None:
         client = AxernClient.__new__(AxernClient)
         with self.assertRaises(ValueError):
-            client.create_environment(image_ref="docker.io/library/python:3.12-slim", template_id="python311")
+            client.create_environment(
+                image_ref="docker.io/library/python:3.12-slim", template_id="python311"
+            )
 
     def test_create_environment_requires_template_or_image(self) -> None:
         client = AxernClient.__new__(AxernClient)
@@ -158,7 +206,9 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(resources.requests.ephemeral_storage_bytes, 256 * 1024 * 1024)
         self.assertEqual(resources.limits.cpu_milli, 1500)
         self.assertEqual(resources.limits.memory_bytes, 1024 * 1024 * 1024)
-        self.assertEqual(resources.limits.ephemeral_storage_bytes, 2 * 1024 * 1024 * 1024)
+        self.assertEqual(
+            resources.limits.ephemeral_storage_bytes, 2 * 1024 * 1024 * 1024
+        )
 
     def test_close_still_deletes_environment_when_cancel_run_fails(self) -> None:
         client = _FakeClient()
@@ -212,9 +262,7 @@ class SandboxTest(unittest.TestCase):
         asyncio.run(run())
 
 
-
 class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
-
     async def test_async_sandbox_exec_and_cleanup(self) -> None:
         client = _AsyncFakeClient()
         calls = []
@@ -231,13 +279,26 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
             client=client,
             image="docker.io/library/python:3.12-slim",
             registry_credential_id="sec-regcred",
+            image_mounts=[ImageMount("registry.example/tool@sha256:aaa", "/__tool")],
+            secret_env=[SecretEnvVar("WORKLOAD_TOKEN", "secret-workload", "token")],
+            secret_files=[
+                SecretFile("/run/secrets/config", "secret-config", "config.json")
+            ],
             _node_client_factory=FakeAsyncNodeClient,
         ) as sandbox:
             result = await sandbox.exec(["python", "-V"], check=True)
             self.assertEqual(sandbox.allocation_id, "alloc-1")
 
         self.assertEqual(result.stdout_text(), "async-ok\n")
-        self.assertEqual(client.created_environment["registry_credential_id"], "sec-regcred")
+        self.assertEqual(
+            client.created_environment["registry_credential_id"], "sec-regcred"
+        )
+        self.assertEqual(client.created_run["image_mounts"][0].target, "/__tool")
+        self.assertEqual(client.created_run["secret_env"][0].name, "WORKLOAD_TOKEN")
+        self.assertEqual(
+            client.created_run["secret_files"][0].path,
+            "/run/secrets/config",
+        )
         self.assertEqual(calls[0]["allocation_id"], "alloc-1")
         self.assertEqual(calls[1]["argv"], ["python", "-V"])
         self.assertEqual(client.cancelled[0][0], "run-1")
@@ -281,7 +342,9 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
                     yield None
 
         client = SlowReplicaClient()
-        sandbox = AsyncSandbox(client=client, image="docker.io/library/python:3.12-slim")
+        sandbox = AsyncSandbox(
+            client=client, image="docker.io/library/python:3.12-slim"
+        )
         task = asyncio.create_task(sandbox.start())
         await asyncio.wait_for(client.run_wait_started.wait(), timeout=1.0)
 
@@ -293,7 +356,6 @@ class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(client.deleted_environments[0][0], "env-1")
         with self.assertRaises(SandboxNotStartedError):
             _ = sandbox.state
-
 
 
 if __name__ == "__main__":

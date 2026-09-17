@@ -263,7 +263,7 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 func TestResolveExecutionSecretsReturnsContextualErrors(t *testing.T) {
 	_, err := resolveExecutionSecrets(context.Background(), stubSecretResolver{}, stubSecretResolver{}, &commonv1.ExecutionConfig{
 		SecretEnv: []*commonv1.SecretEnvVar{{Name: "TOKEN", SecretID: "sec-missing", Key: "token"}},
-	}, &environmentv1.Environment{})
+	}, &environmentv1.Environment{Namespace: "default"})
 	if err == nil || !strings.Contains(err.Error(), `config.secret_env "TOKEN" references secret "sec-missing"`) {
 		t.Fatalf("err = %v, want contextual secret_env message", err)
 	}
@@ -322,7 +322,7 @@ func TestAllocationDeletedUsesNodeStatus(t *testing.T) {
 
 type stubSecretResolver struct{}
 
-func (stubSecretResolver) Resolve(context.Context, string) (*secretkernel.ResolvedSecret, bool, error) {
+func (stubSecretResolver) Resolve(context.Context, string, string) (*secretkernel.ResolvedSecret, bool, error) {
 	return nil, false, nil
 }
 

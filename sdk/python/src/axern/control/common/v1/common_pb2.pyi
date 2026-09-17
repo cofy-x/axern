@@ -189,14 +189,12 @@ class SecretFile(_message.Message):
     def __init__(self, path: _Optional[str] = ..., secret_id: _Optional[str] = ..., key: _Optional[str] = ..., mode: _Optional[int] = ..., optional: _Optional[bool] = ...) -> None: ...
 
 class ImageMount(_message.Message):
-    __slots__ = ("image", "target", "readonly")
+    __slots__ = ("image", "target")
     IMAGE_FIELD_NUMBER: _ClassVar[int]
     TARGET_FIELD_NUMBER: _ClassVar[int]
-    READONLY_FIELD_NUMBER: _ClassVar[int]
     image: str
     target: str
-    readonly: bool
-    def __init__(self, image: _Optional[str] = ..., target: _Optional[str] = ..., readonly: _Optional[bool] = ...) -> None: ...
+    def __init__(self, image: _Optional[str] = ..., target: _Optional[str] = ...) -> None: ...
 
 class DeclaredOutput(_message.Message):
     __slots__ = ("path", "format", "media_type")

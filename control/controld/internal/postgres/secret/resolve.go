@@ -12,8 +12,10 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *Store) Resolve(ctx context.Context, id string) (*secretkernel.ResolvedSecret, bool, error) {
-	return s.resolveRecord(ctx, getRecordTx, id)
+func (s *Store) Resolve(ctx context.Context, namespace, id string) (*secretkernel.ResolvedSecret, bool, error) {
+	return s.resolveRecord(ctx, func(ctx context.Context, q rowQuery, id string) (*secretv1.Secret, []byte, error) {
+		return getRecordInNamespaceTx(ctx, q, namespace, id)
+	}, id)
 }
 
 func (s *Store) resolveRecord(ctx context.Context, read func(context.Context, rowQuery, string) (*secretv1.Secret, []byte, error), id string) (*secretkernel.ResolvedSecret, bool, error) {
@@ -36,7 +38,7 @@ func (s *Store) resolveRecord(ctx context.Context, read func(context.Context, ro
 }
 
 func (s *Store) ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error) {
-	resolved, ok, err := s.Resolve(ctx, id)
+	resolved, ok, err := s.resolveRecord(ctx, getRecordTx, id)
 	if err != nil || !ok {
 		return "", ok, err
 	}

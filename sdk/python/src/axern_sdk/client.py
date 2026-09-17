@@ -20,11 +20,18 @@ from axern.control.tunnel.v1 import tunnel_pb2, tunnel_pb2_grpc
 from axern_sdk._internal.channel import control_channel
 from axern_sdk._internal.errors import sandbox_rpc_error
 from axern_sdk._internal.resources import ResourceQuantity, cpu_milli, memory_bytes
-from axern_sdk._internal.specs import environment_spec
+from axern_sdk._internal.specs import environment_spec, execution_projections
 from axern_sdk.context import load_context
 from axern_sdk.errors import SandboxLifecycleError, SandboxTimeoutError
 from axern_sdk.network_policy import NetworkPolicy
-from axern_sdk.models import DeclaredOutput, DeclaredOutputFormat, SealedOutput
+from axern_sdk.models import (
+    DeclaredOutput,
+    DeclaredOutputFormat,
+    ImageMount,
+    SealedOutput,
+    SecretEnvVar,
+    SecretFile,
+)
 from axern_sdk.tunnel.config import _GatewayTransport
 
 
@@ -352,10 +359,20 @@ class AxernClient:
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
+        image_mounts: Iterable[ImageMount] | None = None,
+        secret_env: Iterable[SecretEnvVar] | None = None,
+        secret_files: Iterable[SecretFile] | None = None,
         declared_outputs: Iterable[DeclaredOutput] | None = None,
         labels: dict[str, str] | None = None,
         timeout: float | None = 120.0,
     ) -> run_pb2.Run:
+        image_mount_protos, secret_env_protos, secret_file_protos = (
+            execution_projections(
+                image_mounts=image_mounts,
+                secret_env=secret_env,
+                secret_files=secret_files,
+            )
+        )
         response = _control_rpc(
             "create run",
             lambda: self.runs.CreateRun(
@@ -384,6 +401,9 @@ class AxernClient:
                         extension_capability_requirements=_extension_capability_requirements(
                             extension_capabilities
                         ),
+                        image_mounts=image_mount_protos,
+                        secret_env=secret_env_protos,
+                        secret_files=secret_file_protos,
                         declared_outputs=_declared_output_protos(declared_outputs),
                     ),
                     labels=dict(labels or {}),
@@ -463,9 +483,7 @@ class AxernClient:
         ):
             if _run_is_terminal(updated):
                 return updated
-        raise SandboxLifecycleError(
-            f"run {run_id} watch ended before a terminal state"
-        )
+        raise SandboxLifecycleError(f"run {run_id} watch ended before a terminal state")
 
     def allocation(self, allocation_id: str):
         """Recover Allocation-scoped operations from a persisted public identity."""

@@ -99,7 +99,7 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 		if target == "." || !strings.HasPrefix(target, "/") || pathHasParentReference(rawTarget) {
 			return fmt.Errorf("image mount target %q must be an absolute container path below /: %w", rawTarget, errord.ErrInvalidArgument)
 		}
-		if _, protected := protectedImageMountTargets[target]; protected {
+		if protectedImageMountTarget(target) {
 			return fmt.Errorf("image mount target %q is protected: %w", target, errord.ErrInvalidArgument)
 		}
 		for existing := range seen {
@@ -125,6 +125,15 @@ func validateImageMountTargets(request *runtime.StartRequest) error {
 		seen[target] = struct{}{}
 	}
 	return nil
+}
+
+func protectedImageMountTarget(target string) bool {
+	for protected := range protectedImageMountTargets {
+		if containerPathsOverlap(target, protected) {
+			return true
+		}
+	}
+	return false
 }
 
 func validateImageMountTargetDoesNotOverlapMounts(target string, mounts []*runtime.Mount) error {

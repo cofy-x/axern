@@ -60,6 +60,10 @@ func TestMaterializeResolvedSecretFilesRejectsUnsafeOrDuplicateTargets(t *testin
 	for _, files := range [][]*runtime.ResolvedSecretFile{
 		{{Path: "../token", Content: []byte("secret")}},
 		{{Path: "/token"}, {Path: "/token"}},
+		{{Path: "/run/secrets"}, {Path: "/run/secrets/token"}},
+		{{Path: "/etc/shadow", Content: []byte("secret"), Mode: 0o400}},
+		{{Path: "/proc/sys/token", Content: []byte("secret"), Mode: 0o400}},
+		{{Path: "/run/secrets/token", Content: []byte("secret"), Mode: 0o600}},
 		{nil},
 	} {
 		_, _, err := MaterializeResolvedSecretFiles(&runtime.StartRequest{AllocationID: "alloc-safe", SecretFiles: files})

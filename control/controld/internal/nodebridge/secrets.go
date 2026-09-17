@@ -21,6 +21,10 @@ type secretReferenceContext struct {
 
 func resolveExecutionSecrets(ctx context.Context, secrets secretkernel.ValueResolver, credentials environmentkernel.RegistryCredentialResolver, config *commonv1.ExecutionConfig, env *environmentv1.Environment) (resolvedExecutionSecrets, error) {
 	cfg := configOrEmpty(config)
+	namespace := strings.TrimSpace(env.GetNamespace())
+	if namespace == "" && (len(cfg.GetSecretEnv()) > 0 || len(cfg.GetSecretFiles()) > 0) {
+		return resolvedExecutionSecrets{}, fmt.Errorf("resolve execution secrets: environment namespace is required")
+	}
 	out := resolvedExecutionSecrets{}
 	for _, item := range cfg.GetSecretEnv() {
 		if item == nil {
@@ -31,7 +35,7 @@ func resolveExecutionSecrets(ctx context.Context, secrets secretkernel.ValueReso
 			target:   strings.TrimSpace(item.GetName()),
 			secretID: item.GetSecretID(),
 			key:      item.GetKey(),
-		}, item.GetOptional())
+		}, namespace, item.GetOptional())
 		if err != nil {
 			return resolvedExecutionSecrets{}, err
 		}
@@ -52,7 +56,7 @@ func resolveExecutionSecrets(ctx context.Context, secrets secretkernel.ValueReso
 			target:   strings.TrimSpace(item.GetPath()),
 			secretID: item.GetSecretID(),
 			key:      item.GetKey(),
-		}, item.GetOptional())
+		}, namespace, item.GetOptional())
 		if err != nil {
 			return resolvedExecutionSecrets{}, err
 		}
@@ -86,14 +90,14 @@ func resolveExecutionSecrets(ctx context.Context, secrets secretkernel.ValueReso
 	return out, nil
 }
 
-func resolveSecretValue(ctx context.Context, resolver secretkernel.ValueResolver, ref secretReferenceContext, optional bool) (string, bool, error) {
+func resolveSecretValue(ctx context.Context, resolver secretkernel.ValueResolver, ref secretReferenceContext, namespace string, optional bool) (string, bool, error) {
 	if resolver == nil {
 		if optional {
 			return "", false, nil
 		}
 		return "", false, fmt.Errorf("%s %q references secret %q, but secret resolution is not configured", ref.field, ref.target, ref.secretID)
 	}
-	resolved, ok, err := resolver.Resolve(ctx, strings.TrimSpace(ref.secretID))
+	resolved, ok, err := resolver.Resolve(ctx, namespace, strings.TrimSpace(ref.secretID))
 	if err != nil {
 		return "", false, fmt.Errorf("resolve %s %q from secret %q key %q: %w", ref.field, ref.target, ref.secretID, ref.key, err)
 	}

@@ -32,9 +32,66 @@ func TestValidateExecutionConfigSecretRefs(t *testing.T) {
 			wantCode: codes.InvalidArgument,
 		},
 		{
+			name: "overlapping file paths",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "/run/secrets", SecretID: "sec-1", Key: "a"},
+				{Path: "/run/secrets/token", SecretID: "sec-2", Key: "b"},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
 			name: "missing secret id",
 			config: &commonv1.ExecutionConfig{SecretEnv: []*commonv1.SecretEnvVar{
 				{Name: "TOKEN", Key: "token"},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "invalid env name",
+			config: &commonv1.ExecutionConfig{SecretEnv: []*commonv1.SecretEnvVar{
+				{Name: "MODEL-TOKEN", SecretID: "sec-1", Key: "token"},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "relative file path",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "run/secrets/token", SecretID: "sec-1", Key: "token"},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "parent file path",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "/run/secrets/../token", SecretID: "sec-1", Key: "token"},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "unsafe file mode",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "/run/secrets/token", SecretID: "sec-1", Key: "token", Mode: 0o1000},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "writable file mode",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "/run/secrets/token", SecretID: "sec-1", Key: "token", Mode: 0o600},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "protected runtime path",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "/proc/sys/kernel/token", SecretID: "sec-1", Key: "token", Mode: 0o400},
+			}},
+			wantCode: codes.InvalidArgument,
+		},
+		{
+			name: "critical system file",
+			config: &commonv1.ExecutionConfig{SecretFiles: []*commonv1.SecretFile{
+				{Path: "/etc/shadow", SecretID: "sec-1", Key: "token", Mode: 0o400},
 			}},
 			wantCode: codes.InvalidArgument,
 		},
@@ -77,6 +134,18 @@ func TestValidateExecutionConfigImageMounts(t *testing.T) {
 			name: "protected target",
 			config: &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{{
 				Image: "image", Target: "/usr",
+			}}},
+		},
+		{
+			name: "target below protected path",
+			config: &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{{
+				Image: "example.com/tool:latest", Target: "/usr/local/tool",
+			}}},
+		},
+		{
+			name: "invalid OCI reference",
+			config: &commonv1.ExecutionConfig{ImageMounts: []*commonv1.ImageMount{{
+				Image: "not a valid image reference", Target: "/__tool",
 			}}},
 		},
 		{

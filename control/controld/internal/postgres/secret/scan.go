@@ -17,12 +17,22 @@ type rowQuery interface {
 }
 
 func getRecordTx(ctx context.Context, q rowQuery, id string) (*secretv1.Secret, []byte, error) {
+	return getRecordInNamespaceTx(ctx, q, "", id)
+}
+
+func getRecordInNamespaceTx(ctx context.Context, q rowQuery, namespace, id string) (*secretv1.Secret, []byte, error) {
 	var ciphertext []byte
-	row := q.QueryRow(ctx, `
+	query := `
 		SELECT secret_id, namespace, type, data_keys, labels, created_at, encrypted_payload
 		FROM secrets
 		WHERE secret_id = $1
-	`, strings.TrimSpace(id))
+	`
+	args := []any{strings.TrimSpace(id)}
+	if strings.TrimSpace(namespace) != "" {
+		query += ` AND namespace = $2`
+		args = append(args, strings.TrimSpace(namespace))
+	}
+	row := q.QueryRow(ctx, query, args...)
 	secret, err := scanSecretMetadataWithCiphertext(row, &ciphertext)
 	if err != nil {
 		return nil, nil, err

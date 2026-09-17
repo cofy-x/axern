@@ -90,7 +90,7 @@ spec:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.GetSecretEnv()[0].GetSecretID() != "secret-a" || config.GetSecretFiles()[0].GetMode() != 0o440 || !config.GetImageMounts()[0].GetReadonly() {
+	if config.GetSecretEnv()[0].GetSecretID() != "secret-a" || config.GetSecretFiles()[0].GetMode() != 0o440 || config.GetImageMounts()[0].GetTarget() != "/opt/tools" {
 		t.Fatalf("execution config = %#v", config)
 	}
 }

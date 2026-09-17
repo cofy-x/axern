@@ -24,12 +24,59 @@ func NormalizeConfig(in *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 		out = proto.Clone(in).(*commonv1.ExecutionConfig)
 	}
 	out.Resources = NormalizeResources(out.GetResources())
+	out.SecretEnv = normalizeSecretEnv(out.GetSecretEnv())
+	out.SecretFiles = normalizeSecretFiles(out.GetSecretFiles())
 	out.ImageMounts = NormalizeImageMounts(out.GetImageMounts())
 	out.DeclaredOutputs = normalizeDeclaredOutputs(out.GetDeclaredOutputs())
 	if network, err := networkpolicy.Normalize(out.GetNetwork()); err == nil {
 		out.Network = network
 	}
 	out.ExtensionCapabilityRequirements = normalizeExtensionCapabilityRequirements(out.GetExtensionCapabilityRequirements())
+	return out
+}
+
+func normalizeSecretEnv(in []*commonv1.SecretEnvVar) []*commonv1.SecretEnvVar {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*commonv1.SecretEnvVar, 0, len(in))
+	for _, item := range in {
+		if item == nil {
+			continue
+		}
+		out = append(out, &commonv1.SecretEnvVar{
+			Name:     strings.TrimSpace(item.GetName()),
+			SecretID: strings.TrimSpace(item.GetSecretID()),
+			Key:      strings.TrimSpace(item.GetKey()),
+			Optional: item.GetOptional(),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeSecretFiles(in []*commonv1.SecretFile) []*commonv1.SecretFile {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]*commonv1.SecretFile, 0, len(in))
+	for _, item := range in {
+		if item == nil {
+			continue
+		}
+		out = append(out, &commonv1.SecretFile{
+			Path:     path.Clean(strings.TrimSpace(item.GetPath())),
+			SecretID: strings.TrimSpace(item.GetSecretID()),
+			Key:      strings.TrimSpace(item.GetKey()),
+			Mode:     item.GetMode(),
+			Optional: item.GetOptional(),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
 	return out
 }
 
@@ -45,9 +92,8 @@ func NormalizeImageMounts(in []*commonv1.ImageMount) []*commonv1.ImageMount {
 		image := strings.TrimSpace(mount.GetImage())
 		target := path.Clean(strings.TrimSpace(mount.GetTarget()))
 		out = append(out, &commonv1.ImageMount{
-			Image:    image,
-			Target:   target,
-			Readonly: true,
+			Image:  image,
+			Target: target,
 		})
 	}
 	if len(out) == 0 {
