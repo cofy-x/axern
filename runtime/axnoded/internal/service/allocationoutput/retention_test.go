@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+const testOutputContractSHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
 func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 	root := t.TempDir()
 	expiry := time.Now().Add(time.Minute).UTC()
@@ -18,7 +20,7 @@ func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 	digest := sha256.Sum256(content)
 	r := NewRetention(root)
 	captures := 0
-	err := r.Seal(context.Background(), "allocation-one", expiry, Sources{Terminal: true}, func(_ context.Context, objects string) ([]Entry, error) {
+	err := r.Seal(context.Background(), "allocation-one", expiry, testOutputContractSHA256, Sources{Terminal: true}, func(_ context.Context, objects string) ([]Entry, error) {
 		captures++
 		object, err := CreateObject(objects, "object-one")
 		if err != nil {
@@ -53,7 +55,7 @@ func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 	if err != nil || string(data) != "idate bundle" || next != int64(len(content)) || !eof {
 		t.Fatalf("second read = %q, %d, %t, %v", data, next, eof, err)
 	}
-	if err := r.Seal(context.Background(), "allocation-one", expiry, Sources{}, func(context.Context, string) ([]Entry, error) {
+	if err := r.Seal(context.Background(), "allocation-one", expiry, testOutputContractSHA256, Sources{}, func(context.Context, string) ([]Entry, error) {
 		captures++
 		return nil, errors.New("must not recapture")
 	}); err != nil {
@@ -62,11 +64,14 @@ func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 	if captures != 1 {
 		t.Fatalf("captures = %d, want 1", captures)
 	}
+	if err := r.Seal(context.Background(), "allocation-one", expiry, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", Sources{}, nil); err == nil {
+		t.Fatal("changed declared-output contract accepted on retry")
+	}
 	objectPath := filepath.Join(root, "allocation-output", "allocation-one", "objects", "object-one")
 	if err := os.WriteFile(objectPath, []byte("tampered! bundle"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := r.Seal(context.Background(), "allocation-one", expiry, Sources{}, nil); err == nil {
+	if err := r.Seal(context.Background(), "allocation-one", expiry, testOutputContractSHA256, Sources{}, nil); err == nil {
 		t.Fatal("same-size sealed output corruption accepted")
 	}
 	if err := os.WriteFile(objectPath, content, 0600); err != nil {
@@ -78,7 +83,7 @@ func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 	if _, _, _, err := r.ReadSealedOutput("allocation-one", "output-one", 0, 64, time.Now()); !errors.Is(err, ErrSealedStateUnavailable) {
 		t.Fatalf("missing sealed bytes = %v, want unavailable", err)
 	}
-	if err := r.Seal(context.Background(), "allocation-one", expiry, Sources{}, nil); err == nil {
+	if err := r.Seal(context.Background(), "allocation-one", expiry, testOutputContractSHA256, Sources{}, nil); err == nil {
 		t.Fatal("incomplete sealed output accepted")
 	}
 }

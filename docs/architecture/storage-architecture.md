@@ -28,6 +28,8 @@ Allocation ownership, globally unique identities, idempotent lifecycle operation
 
 Node cleanup quiesces the runtime, captures declared outputs, syncs object bytes and the manifest, and atomically publishes the sealed snapshot before deleting the runtime. A partial sealing directory is never readable and is removed during recovery; the same durable cleanup intent retries capture after restart. Mount cleanup and writable Allocation-charge release happen only after the output barrier and must complete before the associated resource commitment is released. Failed cleanup retains its ownership and retry state; it must not advertise still-owned capacity as free. Node restart reconciles these records against runtime inventory.
 
+The final control-plane delete carries a presence-bearing output-sealing command built only from the persisted Run specification and its immutable retention deadline. It is an ephemeral command, not another output authority. When node recovery state exists, its declared-output copy must match the command exactly; when that state is unexpectedly absent, the node publishes explicit `node_unavailable` entries instead of an empty success manifest. The sealed manifest stores only a deterministic contract digest so retries cannot change paths, formats, media types, ordering, or the explicit zero-output contract. That digest is an integrity check, never an Allocation identity.
+
 The preserved implementation boundaries are `runtime/axnoded/internal/nodestate`, `internal/service/allocation`, and `internal/runtime/rootfsview`, with image lease coordination in `internal/environmentcache`. These are execution safety and recovery mechanisms, not generic storage-provider abstractions.
 
 ## Rebuild Boundary

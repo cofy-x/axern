@@ -79,7 +79,7 @@ const (
 	MetricCapabilityTransitionTotal                 = "axern.axnoded_capability_transition_total"
 	MetricCapabilityRecoveryDebounceTotal           = "axern.axnoded_capability_recovery_debounce_total"
 	MetricCapabilityAllocationVerificationTotal     = "axern.axnoded_capability_allocation_verification_total"
-	MetricCapabilityFailStopCleanupTotal            = "axern.axnoded_capability_fail_stop_cleanup_total"
+	MetricCapabilityFailStopTotal                   = "axern.axnoded_capability_fail_stop_total"
 )
 
 const MetricNetworkNeighborResetTotal = "axern.axnoded_network_neighbor_reset_total"
@@ -623,8 +623,8 @@ func RecordCapabilityAllocationVerification(runtime, result string) {
 	recordCounter(MetricCapabilityAllocationVerificationTotal, "Allocation capability verification and fail-stop outcomes.", attribute.String(sdkobs.AttrRuntime, runtime), attribute.String(sdkobs.AttrResult, result))
 }
 
-func RecordCapabilityFailStopCleanup(runtime, result string) {
-	recordCounter(MetricCapabilityFailStopCleanupTotal, "Fail-stop allocation deletion and cleanup outcomes.", attribute.String(sdkobs.AttrRuntime, runtime), attribute.String(sdkobs.AttrResult, result))
+func RecordCapabilityFailStop(runtime, result string) {
+	recordCounter(MetricCapabilityFailStopTotal, "Capability fail-stop runtime termination outcomes.", attribute.String(sdkobs.AttrRuntime, runtime), attribute.String(sdkobs.AttrResult, result))
 }
 
 func startAttrs(startClass, runtime, rootfsType, result string) []attribute.KeyValue {

@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type fakeNodeLifecycleServer struct {
@@ -20,12 +22,14 @@ type fakeNodeLifecycleServer struct {
 	deleteErr    error
 	deleteErrors []error
 	deleteCalls  int
+	lastDelete   *privatenodev1.DeleteAllocationRequest
 }
 
-func (s *fakeNodeLifecycleServer) DeleteAllocation(context.Context, *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error) {
+func (s *fakeNodeLifecycleServer) DeleteAllocation(_ context.Context, req *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.deleteCalls++
+	s.lastDelete = proto.Clone(req).(*privatenodev1.DeleteAllocationRequest)
 	if len(s.deleteErrors) > 0 {
 		err := s.deleteErrors[0]
 		s.deleteErrors = s.deleteErrors[1:]
@@ -37,6 +41,37 @@ func (s *fakeNodeLifecycleServer) DeleteAllocation(context.Context, *privatenode
 		return nil, s.deleteErr
 	}
 	return &privatenodev1.DeleteAllocationResponse{}, nil
+}
+
+func TestGRPCClientPreservesDeleteOutputContract(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lis.Close()
+
+	fake := &fakeNodeLifecycleServer{}
+	server := grpc.NewServer()
+	privatenodev1.RegisterNodeLifecycleServer(server, fake)
+	go server.Serve(lis)
+	defer server.Stop()
+
+	client := NewGRPCClient(func(string) credentials.TransportCredentials { return insecure.NewCredentials() })
+	defer client.Close()
+	_, err = client.DeleteAllocation(context.Background(), lis.Addr().String(), &privatenodev1.DeleteAllocationRequest{
+		AllocationID: "allocation-output",
+		OutputSealing: &privatenodev1.OutputSealingRequest{Outputs: []*commonv1.DeclaredOutput{{
+			Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+		}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if got := fake.lastDelete.GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" {
+		t.Fatalf("delete request after gRPC transport = %#v", fake.lastDelete)
+	}
 }
 
 func TestGRPCClientReusesConnectionPerTarget(t *testing.T) {

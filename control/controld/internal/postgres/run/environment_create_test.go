@@ -133,10 +133,16 @@ func TestRunKeepsEnvironmentSnapshotAfterEnvironmentDelete(t *testing.T) {
 	`, now); err != nil {
 		t.Fatal(err)
 	}
+	runConfigJSON, err := marshalProtoJSON(&commonv1.ExecutionConfig{DeclaredOutputs: []*commonv1.DeclaredOutput{{
+		Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
+	}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Pool().Exec(ctx, `
 		INSERT INTO runs (run_id, namespace, environment_id, status, config, environment_spec, resolved_environment_spec, labels, created_at, updated_at)
-		VALUES ('run-snapshot', 'default', $2, 'RUN_STATUS_PLACED', '{}'::jsonb, $3::jsonb, $4::jsonb, '{}'::jsonb, $1, $1)
-	`, now, env.GetID(), specJSON, resolvedJSON); err != nil {
+		VALUES ('run-snapshot', 'default', $2, 'RUN_STATUS_PLACED', $3::jsonb, $4::jsonb, $5::jsonb, '{}'::jsonb, $1, $1)
+	`, now, env.GetID(), runConfigJSON, specJSON, resolvedJSON); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool().Exec(ctx, `
@@ -157,6 +163,9 @@ func TestRunKeepsEnvironmentSnapshotAfterEnvironmentDelete(t *testing.T) {
 	}
 	if !proto.Equal(start.Run.GetEnvironmentSpec(), env.GetSpec()) || !proto.Equal(start.Run.GetResolvedEnvironmentSpec(), env.GetResolvedSpec()) {
 		t.Fatalf("Run Environment snapshot = %#v / %#v", start.Run.GetEnvironmentSpec(), start.Run.GetResolvedEnvironmentSpec())
+	}
+	if got := start.Run.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" {
+		t.Fatalf("Run declared outputs after database recovery = %#v", got)
 	}
 }
 

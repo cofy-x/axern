@@ -278,6 +278,9 @@ func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode c
 	}
 	desired := cloneAllocationRecord(state.record)
 	h.stateMu.RUnlock()
+	if desired.GetTerminationDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+		return nil
+	}
 	desired.TerminationDiagnosticCode = diagnosticCode
 	desired.TerminationMessage = strings.TrimSpace(message)
 	if err := h.persistAllocationRecord(desired); err != nil {
@@ -498,6 +501,10 @@ func (h *Controller) BeginCapabilityTermination(allocationID string, cause error
 	}
 	reconcile.LastError = capabilitycontract.BoundedReason(combined.Error())
 	desired.CapabilityReconcile = reconcile
+	if desired.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+		desired.TerminationDiagnosticCode = commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST
+		desired.TerminationMessage = "allocation capability enforcement was lost"
+	}
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist capability termination ownership: %w", err)
 	}

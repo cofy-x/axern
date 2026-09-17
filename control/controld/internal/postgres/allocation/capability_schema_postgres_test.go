@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -174,8 +175,32 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	if err := replaceConditions(conflict, conditionAt); err == nil {
 		t.Fatal("equal-time conflicting condition projection was accepted")
 	}
+	if _, err := db.Pool().Exec(ctx, `
+		UPDATE runs
+		SET config = '{"declaredOutputs":[{"path":"/tmp/candidate.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}]}'::jsonb
+		WHERE run_id = $1
+	`, allocationID); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Pool().Exec(ctx, `UPDATE allocations SET lifecycle_state = $2 WHERE allocation_id = $1`, allocationID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String()); err != nil {
 		t.Fatal(err)
+	}
+	if err := ScheduleReconcile(ctx, db.Pool(), allocationkernel.ScheduleDeleteRequest(allocationID, now), now); err != nil {
+		t.Fatal(err)
+	}
+	items, err := ClaimDueReconcileItems(ctx, db.Pool(), "output-sealing-test-"+suffix, 100, now, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var outputItem *allocationkernel.ReconcileItem
+	for index := range items {
+		if items[index].AllocationID == allocationID {
+			outputItem = &items[index]
+			break
+		}
+	}
+	if outputItem == nil || len(outputItem.DeclaredOutputs) != 1 || outputItem.DeclaredOutputs[0].GetPath() != "/tmp/candidate.patch" {
+		t.Fatalf("claimed output-sealing contract = %#v", items)
 	}
 	late := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt.Add(time.Second)), Conditions: conflict.GetConditions()}
 	if err := replaceConditions(late, conditionAt.Add(time.Second)); err != nil {

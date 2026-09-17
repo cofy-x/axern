@@ -348,7 +348,7 @@ func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string,
 	return &capabilityv1.CapabilityConditionSet{}, f.createErr
 }
 
-func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, string, *time.Time) error {
+func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, string, *allocationkernel.OutputSealing) error {
 	f.deleted++
 	return f.deleteErr
 }

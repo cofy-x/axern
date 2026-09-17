@@ -342,26 +342,41 @@ func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.Dele
 }
 
 func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
-	expiry := time.Unix(0, request.GetOutputExpiresAtUnixNano()).UTC()
-	if request.GetOutputExpiresAtUnixNano() > 0 && time.Now().Before(expiry) {
-		declarations := h.declaredOutputs(request.GetID())
-		target, loadErr := h.containers().Get(request.GetID())
-		sources := allocationoutput.Sources{Terminal: true}
-		capture := func(_ context.Context, _ string) ([]allocationoutput.Entry, error) {
-			return unavailableDeclaredOutputs(declarations, time.Now().UTC()), nil
+	if outputSealing := request.GetOutputSealing(); outputSealing != nil {
+		expiry := time.Unix(0, outputSealing.GetExpiresAtUnixNano()).UTC()
+		if outputSealing.GetExpiresAtUnixNano() <= 0 {
+			return new(runtime.DeleteResponse), fmt.Errorf("output sealing expiry is required: %w", errord.ErrInvalidArgument)
 		}
-		if loadErr == nil && target.Metadata != nil {
-			if err := h.quiesceAllocationForOutput(ctx, request, target); err != nil {
+		if time.Now().Before(expiry) {
+			if err := startplan.ValidateDeclaredOutputs(outputSealing.GetOutputs()); err != nil {
 				return new(runtime.DeleteResponse), err
 			}
-			sources.Stdout = target.Metadata.GetStdout()
-			sources.Stderr = target.Metadata.GetStderr()
-			capture = h.captureDeclaredOutputs(request.GetID(), declarations)
-		}
-		// Publishing the immutable manifest is the cleanup barrier. A retry sees
-		// the same manifest and can continue runtime deletion without recapturing.
-		if err := h.outputRetention.Seal(ctx, request.GetID(), expiry, sources, capture); err != nil {
-			return new(runtime.DeleteResponse), fmt.Errorf("seal allocation output: %w", err)
+			declarations, localStatePresent, err := h.cleanupDeclaredOutputs(request.GetID(), outputSealing.GetOutputs())
+			if err != nil {
+				return new(runtime.DeleteResponse), err
+			}
+			contractDigest, err := declaredOutputContractSHA256(declarations)
+			if err != nil {
+				return new(runtime.DeleteResponse), err
+			}
+			target, loadErr := h.containers().Get(request.GetID())
+			sources := allocationoutput.Sources{Terminal: true}
+			capture := func(_ context.Context, _ string) ([]allocationoutput.Entry, error) {
+				return unavailableDeclaredOutputs(declarations, time.Now().UTC()), nil
+			}
+			if loadErr == nil && target.Metadata != nil && localStatePresent {
+				if err := h.quiesceAllocationForOutput(ctx, request, target); err != nil {
+					return new(runtime.DeleteResponse), err
+				}
+				sources.Stdout = target.Metadata.GetStdout()
+				sources.Stderr = target.Metadata.GetStderr()
+				capture = h.captureDeclaredOutputs(request.GetID(), declarations)
+			}
+			// Publishing the immutable manifest is the cleanup barrier. A retry sees
+			// the same manifest and can continue runtime deletion without recapturing.
+			if err := h.outputRetention.Seal(ctx, request.GetID(), expiry, contractDigest, sources, capture); err != nil {
+				return new(runtime.DeleteResponse), fmt.Errorf("seal allocation output: %w", err)
+			}
 		}
 	}
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{

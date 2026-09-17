@@ -27,21 +27,25 @@ type failingAllocationStateStore struct {
 	puts              atomic.Int64
 }
 
-func TestStoreAllocationIntentOwnsImmutableResourceSpec(t *testing.T) {
+func TestStoreAllocationIntentOwnsImmutableExecutionSpec(t *testing.T) {
 	store := storetest.NewMockStore()
 	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
 	const allocationID = "allocation-resource-intent"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	resources := &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 << 20}, Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), resources, nil, nil))
+	outputs := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), resources, nil, outputs))
 
 	resources.Requests.MemoryBytes = 1
+	outputs[0].Path = "/tmp/mutated"
 	got := fixture.controller.ResourceSpec(allocationID)
 	require.NotNil(t, got)
 	assert.Equal(t, int64(64<<20), got.GetRequests().GetMemoryBytes())
 	var persisted apipb.AllocationState
 	require.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
 	assert.True(t, proto.Equal(got, persisted.GetResources()))
+	require.Len(t, persisted.GetDeclaredOutputs(), 1)
+	assert.Equal(t, "/tmp/candidate.patch", persisted.GetDeclaredOutputs()[0].GetPath())
 }
 
 func TestCapabilityReconcileIntentDoesNotLoseConcurrentOrPostRestartWork(t *testing.T) {
@@ -237,6 +241,7 @@ func TestTerminationIntentSurvivesNodeRestart(t *testing.T) {
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
 	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired"))
+	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_CLEANUP, "later cleanup"))
 
 	code, message := fixture.controller.TerminationIntent(allocationID)
 	assert.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, code)

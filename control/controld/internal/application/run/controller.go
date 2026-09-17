@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
@@ -31,7 +32,7 @@ type CandidateSelector interface {
 
 type AllocationLifecycle interface {
 	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error)
-	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputExpiresAt *time.Time) error
+	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing) error
 }
 
 type AuthoritativeStore interface {
