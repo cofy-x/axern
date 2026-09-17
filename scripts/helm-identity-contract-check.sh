@@ -7,12 +7,15 @@ import subprocess
 import sys
 
 chart = pathlib.Path(sys.argv[1]) / "deploy/helm/axern"
-args = ["helm", "template", "identity-test", str(chart),
+args = ["helm", "template", "identity-test", str(chart), "--namespace", "identity-test",
         "--set-string", "node.memorySystemReserveBytes=1",
         "--set-string", "node.enrollment.existingSecret=initial-tokens",
         "--set-json", 'node.enrollment.nodes=[{"nodeName":"worker-a","nodeID":"identity-a"},{"nodeName":"worker-b","nodeID":"identity-b"}]']
 rendered = subprocess.check_output(args, text=True)
 ssh_rendered = subprocess.check_output(args + ["--set", "gatewayd.ssh.enabled=true"], text=True)
+assert "controld.identity-test.svc:24000" in rendered, "control target must match the cluster-domain-independent service SAN"
+assert "tunneld.identity-test.svc:24100" in rendered, "relay target must match the cluster-domain-independent service SAN"
+assert ".svc.cluster.local" not in rendered, "chart must not hard-code the Kubernetes cluster domain"
 for removed in ("authorized_keys", "ssh-authorized-keys", "dev-token", "GATEWAYD_DEV_TOKEN"):
     assert removed not in ssh_rendered, "removed gateway authentication returned"
 for locale in ("", "zh-cn/"):

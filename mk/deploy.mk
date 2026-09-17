@@ -37,7 +37,7 @@ AXERN_PKI_DIR ?= $(ROOTDIR)/.dev/helm-pki/$(AXERN_HELM_RELEASE)
 AXERN_WORKLOAD_CLUSTER ?= axern.local
 AXERN_PKI_SECRET ?= axern-pki
 AXERN_PKI_SIGNER_SECRET ?= axern-pki-signer
-AXERN_PKI_DNS_NAMES ?= localhost,host.docker.internal,controld,controld.$(AXERN_HELM_NAMESPACE).svc.cluster.local,gatewayd,gatewayd.$(AXERN_HELM_NAMESPACE).svc.cluster.local,tunneld,tunneld.$(AXERN_HELM_NAMESPACE).svc.cluster.local
+AXERN_PKI_DNS_NAMES ?= localhost,host.docker.internal,controld,controld.$(AXERN_HELM_NAMESPACE).svc,gatewayd,gatewayd.$(AXERN_HELM_NAMESPACE).svc,tunneld,tunneld.$(AXERN_HELM_NAMESPACE).svc
 
 AXERN_REGISTRY_PULL_SECRET ?= registry-pull
 AXERN_REGISTRY_SERVER ?=

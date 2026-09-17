@@ -48,6 +48,9 @@ cleanup() {
     echo "--- axnoded file log ---" >&2
     kubectl --namespace "${namespace}" exec "$(kubectl --namespace "${namespace}" get pod -l app.kubernetes.io/component=node -o jsonpath='{.items[0].metadata.name}')" -- \
       sh -c 'tail -n 1000 /var/log/axnoded/axnoded.log' >&2 || true
+    echo "--- node-tunneld file log ---" >&2
+    kubectl --namespace "${namespace}" exec "$(kubectl --namespace "${namespace}" get pod -l app.kubernetes.io/component=node -o jsonpath='{.items[0].metadata.name}')" -- \
+      sh -c 'tail -n 500 /var/log/axnoded/node-tunneld.log' >&2 || true
   fi
   jobs -p | xargs kill >/dev/null 2>&1 || true
   kind delete cluster --name "${cluster}" >/dev/null 2>&1 || true
@@ -74,7 +77,8 @@ fi
 kind create cluster --name "${cluster}" --wait 120s
 kubectl create namespace "${namespace}"
 cli="${AXERN_CLI_BINARY:-${AXERN_ROOT}/bin/axern}"
-"${cli}" admin pki bootstrap --directory "${state_dir}/pki" --cluster axern.local --dns localhost,controld,gatewayd,tunneld
+"${cli}" admin pki bootstrap --directory "${state_dir}/pki" --cluster axern.local \
+  --dns "localhost,controld,gatewayd,tunneld,controld.${namespace}.svc,gatewayd.${namespace}.svc,tunneld.${namespace}.svc"
 kubectl --namespace "${namespace}" create secret generic axern-pki \
   --from-file=ca.crt="${state_dir}/pki/ca.crt" \
   --from-file=controld.pem="${state_dir}/pki/controld.pem" \

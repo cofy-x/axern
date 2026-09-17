@@ -122,11 +122,11 @@ topologySpreadConstraints:
 {{- end -}}
 
 {{- define "axern.controldTarget" -}}
-{{- printf "controld.%s.svc.cluster.local:24000" .Release.Namespace -}}
+{{- printf "controld.%s.svc:24000" .Release.Namespace -}}
 {{- end -}}
 
 {{- define "axern.tunneldTarget" -}}
-{{- printf "tunneld.%s.svc.cluster.local:24100" .Release.Namespace -}}
+{{- printf "tunneld.%s.svc:24100" .Release.Namespace -}}
 {{- end -}}
 
 {{- define "axern.tunnelRelays" -}}
@@ -134,7 +134,7 @@ topologySpreadConstraints:
 {{- end -}}
 
 {{- define "axern.otelEndpoint" -}}
-{{- default (printf "http://otel-collector.%s.svc.cluster.local:4317" .Release.Namespace) .Values.observability.otlp.endpoint -}}
+{{- default (printf "http://otel-collector.%s.svc:4317" .Release.Namespace) .Values.observability.otlp.endpoint -}}
 {{- end -}}
 
 {{- define "axern.otelEnv" -}}
