@@ -81,14 +81,21 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	return cloneCapabilityConditionSet(resp.GetCapabilityVerification()), nil
 }
 
-func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputExpiresAt *time.Time) error {
+func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing) error {
 	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
+	var sealingRequest *privatenodev1.OutputSealingRequest
+	if outputSealing != nil {
+		sealingRequest = &privatenodev1.OutputSealingRequest{
+			ExpiresAtUnixNano: outputSealing.ExpiresAt.UTC().UnixNano(),
+			Outputs:           cloneDeclaredOutputs(outputSealing.Outputs),
+		}
+	}
 	_, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
-		AllocationID:            allocationID,
-		NodeID:                  nodeID,
-		TimeoutSeconds:          10,
-		OutputExpiresAtUnixNano: outputExpiryNanos(outputExpiresAt),
+		AllocationID:   allocationID,
+		NodeID:         nodeID,
+		TimeoutSeconds: 10,
+		OutputSealing:  sealingRequest,
 	})
 	if grpcstatus.Code(err) == codes.NotFound {
 		return nil
@@ -148,11 +155,4 @@ func nodeLifecycleErrorClass(err error) string {
 		return strings.ToLower(code.String())
 	}
 	return "error"
-}
-
-func outputExpiryNanos(deadline *time.Time) int64 {
-	if deadline == nil {
-		return 0
-	}
-	return deadline.UnixNano()
 }

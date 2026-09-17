@@ -47,11 +47,18 @@ func (h *sandboxService) stopExpiredExecutionLeases(parent context.Context, now 
 			logrus.WithError(err).WithField("allocation_id", allocationID).Error("persist expired execution lease termination intent")
 			continue
 		}
+		if h.allocationRuntimeStopped(allocationID) {
+			continue
+		}
 		ctx, cancel := context.WithTimeout(parent, 30*time.Second)
-		_, err := h.allocationController().Delete(ctx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 10})
+		// Lease expiry owns fail-stop, not resource release. Keep the runtime
+		// container metadata and durable AllocationState until controld observes
+		// the terminal result and issues the authoritative cleanup request; that
+		// request is also the output-sealing barrier.
+		_, err := h.Kill(ctx, &runtimev1.KillRequest{ID: allocationID, Signal: "KILL"})
 		cancel()
 		if err != nil {
-			logrus.WithError(err).WithField("allocation_id", allocationID).Error("retry expired execution lease cleanup")
+			logrus.WithError(err).WithField("allocation_id", allocationID).Error("retry expired execution lease fail-stop")
 		}
 	}
 }

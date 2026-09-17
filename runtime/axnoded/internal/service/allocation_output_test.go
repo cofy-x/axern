@@ -24,6 +24,7 @@ func TestSealedOutputDistinguishesLostNodeStateFromUnknownObject(t *testing.T) {
 		context.Background(),
 		allocationID,
 		time.Now().Add(time.Hour),
+		"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		allocationoutput.Sources{},
 		nil,
 	))

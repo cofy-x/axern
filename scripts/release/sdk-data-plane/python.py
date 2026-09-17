@@ -39,6 +39,7 @@ def main() -> None:
             ],
             labels={"axern.release.acceptance": "python"},
         ) as sandbox:
+            assert_declared_output(client, sandbox.run_id, "/tmp/axern-candidate.txt")
             result = sandbox.exec(
                 ["python", "-c", f"from pathlib import Path; Path('/tmp/axern-candidate.txt').write_text({marker!r}); print({marker!r})"],
                 check=True,
@@ -68,6 +69,7 @@ def main() -> None:
             ],
             labels={"axern.release.acceptance": "python-verifier"},
         ) as verifier:
+            assert_declared_output(client, verifier.run_id, "/tmp/verification.txt")
             verifier.write_file("/tmp/candidate.txt", candidate)
             verifier.exec(
                 [
@@ -104,6 +106,15 @@ def wait_verified(path: Path) -> None:
             return
         time.sleep(0.1)
     raise TimeoutError("CLI did not verify the Python SDK Run")
+
+
+def assert_declared_output(client: AxernClient, run_id: str, expected_path: str) -> None:
+    run = client.get_run(run_id, timeout=10)
+    paths = [output.path for output in run.config.declared_outputs]
+    if paths != [expected_path]:
+        raise RuntimeError(
+            f"Run did not preserve its declared-output contract: {paths!r}"
+        )
 
 
 def wait_sealed_output(client: AxernClient, run_id: str):

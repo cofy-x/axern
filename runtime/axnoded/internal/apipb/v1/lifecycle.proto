@@ -48,10 +48,15 @@ message StartResponse {
   axern.control.capability.v1.CapabilityConditionSet capability_verification = 2;
 }
 
+message OutputSealingRequest {
+  int64 expires_at_unix_nano = 1;
+  repeated axern.control.common.v1.DeclaredOutput outputs = 2;
+}
+
 message DeleteRequest {
   string id = 1;
   int64 timeout = 2;
-  int64 output_expires_at_unix_nano = 3;
+  OutputSealingRequest output_sealing = 3;
 }
 
 message DeleteResponse {}

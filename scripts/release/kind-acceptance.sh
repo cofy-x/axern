@@ -170,6 +170,7 @@ wait_for_release_capabilities() {
           python3 - "${snapshot_json}" <<'PY'
 import json
 import pathlib
+import re
 import sys
 from datetime import datetime, timezone
 
@@ -185,7 +186,12 @@ def is_available(item):
     valid_until = item.get("validUntil")
     if not valid_until:
         return True
-    return datetime.fromisoformat(valid_until.replace("Z", "+00:00")) > now
+    # Protobuf JSON timestamps may carry nanoseconds, while some supported
+    # host Python versions accept at most microseconds in fromisoformat().
+    # Truncation is sufficient for this readiness deadline comparison and
+    # keeps the release harness portable without weakening the expiry check.
+    normalized = re.sub(r"(\.\d{6})\d+", r"\1", valid_until)
+    return datetime.fromisoformat(normalized.replace("Z", "+00:00")) > now
 
 available = {
     item.get("key", {}).get("platform")

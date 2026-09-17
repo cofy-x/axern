@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -22,6 +23,74 @@ type declaredOutputFileService struct {
 	content []byte
 	statErr error
 	readErr error
+}
+
+func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *testing.T) {
+	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
+	local := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
+	if err := fixture.controller.StoreAllocationIntent(
+		"allocation-output-contract", "node-a",
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		time.Now().Add(time.Minute), nil, nil, local,
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	requested := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
+	resolved, present, err := fixture.controller.cleanupDeclaredOutputs("allocation-output-contract", requested)
+	if err != nil || !present || len(resolved) != 1 || resolved[0].GetPath() != "/tmp/candidate.patch" {
+		t.Fatalf("cleanupDeclaredOutputs() = %#v, %v", resolved, err)
+	}
+	requested[0].Path = "/tmp/mutated"
+	if resolved[0].GetPath() != "/tmp/candidate.patch" {
+		t.Fatal("cleanup contract aliases the caller request")
+	}
+
+	_, _, err = fixture.controller.cleanupDeclaredOutputs("allocation-output-contract", []*commonv1.DeclaredOutput{{
+		Path: "/tmp/different", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+	}})
+	if err == nil {
+		t.Fatal("cleanupDeclaredOutputs() accepted a conflicting durable contract")
+	}
+
+	recovered, present, err := fixture.controller.cleanupDeclaredOutputs("allocation-state-missing", local)
+	if err != nil || present || len(recovered) != 1 || recovered[0].GetPath() != "/tmp/candidate.patch" {
+		t.Fatalf("cleanupDeclaredOutputs() without local state = %#v, %v", recovered, err)
+	}
+	if err := fixture.controller.StoreAllocationIntent(
+		"allocation-zero-outputs", "node-a",
+		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		time.Now().Add(time.Minute), nil, nil, nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	zero, present, err := fixture.controller.cleanupDeclaredOutputs("allocation-zero-outputs", nil)
+	if err != nil || !present || len(zero) != 0 {
+		t.Fatalf("explicit zero-output contract = %#v, present=%t, err=%v", zero, present, err)
+	}
+}
+
+func TestDeclaredOutputContractDigestIsDeterministicAndOrderSensitive(t *testing.T) {
+	empty, err := declaredOutputContractSHA256(nil)
+	if err != nil || empty != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" {
+		t.Fatalf("empty contract digest = %q, %v", empty, err)
+	}
+	left := []*commonv1.DeclaredOutput{
+		{Path: "/tmp/one", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE},
+		{Path: "/tmp/two", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_TAR},
+	}
+	first, err := declaredOutputContractSHA256(left)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := declaredOutputContractSHA256(cloneDeclaredOutputs(left))
+	if err != nil || first != second {
+		t.Fatalf("deterministic digest = %q / %q, %v", first, second, err)
+	}
+	reversed, err := declaredOutputContractSHA256([]*commonv1.DeclaredOutput{left[1], left[0]})
+	if err != nil || reversed == first {
+		t.Fatalf("reordered contract digest = %q, want different from %q", reversed, first)
+	}
 }
 
 func (f declaredOutputFileService) StatFile(context.Context, *apipb.StatFileRequest, contract.HandlerOptions) (*apipb.StatFileResponse, error) {

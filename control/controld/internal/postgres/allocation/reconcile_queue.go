@@ -52,6 +52,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			SELECT q.allocation_id, a.run_id, r.environment_id, a.lifecycle_state, a.node_id, n.node_target,
 				q.reconcile_attempts, q.last_error, q.next_run_at,
 				`+capabilityDependenciesProjectionSQL+` AS capability_requirements,
+				COALESCE(r.config->'declaredOutputs', '[]'::jsonb) AS declared_outputs,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.claim_expires_at, '-infinity'::timestamptz)) AS eligible_at, a.output_expires_at,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
 			FROM allocation_reconcile_queue q
@@ -62,7 +63,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			  AND (q.claim_expires_at IS NULL OR q.claim_expires_at <= $1)
 		), candidates AS (
 			SELECT r.allocation_id, r.run_id, r.environment_id, r.lifecycle_state, r.node_id, r.node_target,
-				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.eligible_at, r.output_expires_at
+				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.declared_outputs, r.eligible_at, r.output_expires_at
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
 			ORDER BY r.node_rank ASC, r.next_run_at ASC, r.allocation_id ASC
@@ -77,7 +78,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			RETURNING q.allocation_id
 		)
 		SELECT c.allocation_id, c.run_id, c.environment_id, c.lifecycle_state, c.node_id, c.node_target,
-			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.eligible_at, c.output_expires_at
+			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.declared_outputs, c.eligible_at, c.output_expires_at
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
 		ORDER BY c.allocation_id ASC
@@ -89,13 +90,16 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	out := make([]allocationkernel.ReconcileItem, 0)
 	for rows.Next() {
 		item := allocationkernel.ReconcileItem{ClaimOwner: owner}
-		var dependenciesJSON []byte
+		var dependenciesJSON, declaredOutputsJSON []byte
 		var lifecycleState string
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &item.EligibleAt, &item.OutputExpiresAt); err != nil {
+		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &declaredOutputsJSON, &item.EligibleAt, &item.OutputExpiresAt); err != nil {
 			return nil, err
 		}
 		item.LifecycleState = allocationkernel.ParseLifecycleState(lifecycleState)
 		if err := decodeCapabilityRequirements(dependenciesJSON, &item); err != nil {
+			return nil, err
+		}
+		if err := decodeDeclaredOutputs(declaredOutputsJSON, &item); err != nil {
 			return nil, err
 		}
 		out = append(out, item)
@@ -145,6 +149,23 @@ func decodeCapabilityRequirements(payload []byte, item *allocationkernel.Reconci
 			return fmt.Errorf("unmarshal allocation capability requirement: %w", err)
 		}
 		item.CapabilityRequirements = append(item.CapabilityRequirements, requirement)
+	}
+	return nil
+}
+
+func decodeDeclaredOutputs(payload []byte, item *allocationkernel.ReconcileItem) error {
+	var raw []json.RawMessage
+	if len(payload) > 0 && string(payload) != "null" {
+		if err := json.Unmarshal(payload, &raw); err != nil {
+			return fmt.Errorf("unmarshal declared outputs for allocation %s: %w", item.AllocationID, err)
+		}
+	}
+	for _, entry := range raw {
+		declared := &commonv1.DeclaredOutput{}
+		if err := protojson.Unmarshal(entry, declared); err != nil {
+			return fmt.Errorf("unmarshal declared output for allocation %s: %w", item.AllocationID, err)
+		}
+		item.DeclaredOutputs = append(item.DeclaredOutputs, declared)
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/cofy-x/axern/lib/go/executionlease"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	"google.golang.org/protobuf/proto"
 )
 
 var ErrReconcileClaimLost = errors.New("allocation reconcile claim lost")
@@ -39,6 +40,37 @@ type ReconcileItem struct {
 	NextRunAt              time.Time
 	EligibleAt             time.Time
 	CapabilityRequirements []*capabilityv1.CapabilityRequirement
+	DeclaredOutputs        []*commonv1.DeclaredOutput
+}
+
+// OutputSealing is an ephemeral final-cleanup command built from the
+// authoritative Run specification. It is not a second persisted lifecycle or
+// output authority.
+type OutputSealing struct {
+	ExpiresAt time.Time
+	Outputs   []*commonv1.DeclaredOutput
+}
+
+func (i ReconcileItem) OutputSealingRequest() *OutputSealing {
+	if i.OutputExpiresAt == nil {
+		return nil
+	}
+	return &OutputSealing{
+		ExpiresAt: i.OutputExpiresAt.UTC(),
+		Outputs:   cloneDeclaredOutputs(i.DeclaredOutputs),
+	}
+}
+
+func cloneDeclaredOutputs(outputs []*commonv1.DeclaredOutput) []*commonv1.DeclaredOutput {
+	cloned := make([]*commonv1.DeclaredOutput, 0, len(outputs))
+	for _, output := range outputs {
+		if output == nil {
+			cloned = append(cloned, nil)
+			continue
+		}
+		cloned = append(cloned, proto.Clone(output).(*commonv1.DeclaredOutput))
+	}
+	return cloned
 }
 
 type ScheduleReconcileRequest struct {

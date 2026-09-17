@@ -205,7 +205,13 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, nil)
 	stageStarted = time.Now()
-	deleteRequest := &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds(), OutputExpiresAtUnixNano: req.GetOutputExpiresAtUnixNano()}
+	deleteRequest := &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds()}
+	if outputSealing := req.GetOutputSealing(); outputSealing != nil {
+		deleteRequest.OutputSealing = &runtimev1.OutputSealingRequest{
+			ExpiresAtUnixNano: outputSealing.GetExpiresAtUnixNano(),
+			Outputs:           cloneDeclaredOutputs(outputSealing.GetOutputs()),
+		}
+	}
 	var err error
 	if requestNodeID == "" {
 		_, err = s.svc.Delete(ctx, deleteRequest)

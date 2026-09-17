@@ -35,9 +35,10 @@ type Entry struct {
 }
 
 type Manifest struct {
-	AllocationID string    `json:"allocation_id"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	Entries      []Entry   `json:"entries,omitempty"`
+	AllocationID         string    `json:"allocation_id"`
+	OutputContractSHA256 string    `json:"output_contract_sha256"`
+	ExpiresAt            time.Time `json:"expires_at"`
+	Entries              []Entry   `json:"entries,omitempty"`
 }
 
 type Capture func(context.Context, string) ([]Entry, error)
@@ -60,20 +61,25 @@ func (r *Retention) path(id string) (string, error) {
 }
 
 func (r *Retention) Preserve(id string, expiry time.Time, source Sources) error {
-	return r.Seal(context.Background(), id, expiry, source, nil)
+	return r.Seal(context.Background(), id, expiry, emptyOutputContractSHA256, source, nil)
 }
 
-func (r *Retention) Seal(ctx context.Context, id string, expiry time.Time, source Sources, capture Capture) error {
+const emptyOutputContractSHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+func (r *Retention) Seal(ctx context.Context, id string, expiry time.Time, outputContractSHA256 string, source Sources, capture Capture) error {
 	if !time.Now().Before(expiry) {
 		return nil
+	}
+	if len(outputContractSHA256) != sha256.Size*2 {
+		return fmt.Errorf("declared-output contract digest is invalid")
 	}
 	dest, err := r.path(id)
 	if err != nil {
 		return err
 	}
 	if existing, err := r.readManifest(dest); err == nil {
-		if existing.AllocationID != id || !existing.ExpiresAt.Equal(expiry) {
-			return fmt.Errorf("Allocation output retention identity or expiry conflict")
+		if existing.AllocationID != id || !existing.ExpiresAt.Equal(expiry) || existing.OutputContractSHA256 != outputContractSHA256 {
+			return fmt.Errorf("Allocation output retention identity, expiry, or contract conflict")
 		}
 		for _, name := range []string{"stdout", "stderr"} {
 			info, err := os.Stat(filepath.Join(dest, name))
@@ -141,7 +147,7 @@ func (r *Retention) Seal(ctx context.Context, id string, expiry time.Time, sourc
 			return err
 		}
 	}
-	payload, err := json.Marshal(Manifest{AllocationID: id, ExpiresAt: expiry.UTC(), Entries: entries})
+	payload, err := json.Marshal(Manifest{AllocationID: id, OutputContractSHA256: outputContractSHA256, ExpiresAt: expiry.UTC(), Entries: entries})
 	if err != nil {
 		return err
 	}

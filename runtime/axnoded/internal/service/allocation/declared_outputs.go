@@ -3,6 +3,7 @@ package allocation
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -29,14 +31,58 @@ const (
 
 var errDeclaredOutputTooLarge = errors.New("declared output exceeds the sealed-output limit")
 
-func (h *Controller) declaredOutputs(allocationID string) []*commonv1.DeclaredOutput {
+// cleanupDeclaredOutputs resolves the control-plane cleanup contract against
+// the node's crash-recovery copy. The Run specification remains authoritative;
+// the durable node copy detects a mismatched identity rather than silently
+// sealing a different set of paths. Carrying the contract on Delete also lets
+// a retry publish explicit unavailable entries if local state was lost after a
+// fail-stop, instead of publishing a misleading empty manifest.
+func (h *Controller) cleanupDeclaredOutputs(allocationID string, requested []*commonv1.DeclaredOutput) ([]*commonv1.DeclaredOutput, bool, error) {
+	local, present := h.durableDeclaredOutputs(allocationID)
+	if present && !declaredOutputListsEqual(local, requested) {
+		return nil, true, fmt.Errorf("allocation %q declared-output cleanup contract conflicts with durable execution specification: %w", allocationID, errord.ErrFailedPrecondition)
+	}
+	return cloneDeclaredOutputs(requested), present, nil
+}
+
+func (h *Controller) durableDeclaredOutputs(allocationID string) ([]*commonv1.DeclaredOutput, bool) {
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[allocationID]
-	if state == nil || state.record == nil {
-		return nil
+	if state == nil || state.record == nil || strings.TrimSpace(state.record.GetNodeID()) == "" {
+		return nil, false
 	}
-	return cloneDeclaredOutputs(state.record.GetDeclaredOutputs())
+	return cloneDeclaredOutputs(state.record.GetDeclaredOutputs()), true
+}
+
+func declaredOutputListsEqual(left, right []*commonv1.DeclaredOutput) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if !proto.Equal(left[i], right[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func declaredOutputContractSHA256(outputs []*commonv1.DeclaredOutput) (string, error) {
+	digest := sha256.New()
+	for _, output := range outputs {
+		if output == nil {
+			return "", fmt.Errorf("declared-output contract contains a nil entry: %w", errord.ErrInvalidArgument)
+		}
+		payload, err := (proto.MarshalOptions{Deterministic: true}).Marshal(output)
+		if err != nil {
+			return "", fmt.Errorf("marshal declared-output contract: %w", err)
+		}
+		var size [8]byte
+		binary.BigEndian.PutUint64(size[:], uint64(len(payload)))
+		_, _ = digest.Write(size[:])
+		_, _ = digest.Write(payload)
+	}
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
 
 func unavailableDeclaredOutputs(declarations []*commonv1.DeclaredOutput, now time.Time) []allocationoutput.Entry {

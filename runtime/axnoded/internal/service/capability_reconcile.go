@@ -445,33 +445,49 @@ func verificationMessage(verification contract.CapabilityVerification) string {
 func (h *sandboxService) failStopAllocation(ctx context.Context, allocationID string, verifyErr error) {
 	runtimeName := config.RuntimeNameRunsc
 	metrics.RecordCapabilityAllocationVerification(runtimeName, "fail_stop")
-	// Emit before Delete removes allocation state. A successful fail-stop must
-	// remain distinguishable from a workload-originated exit or kernel OOM.
 	// Do not log verifyErr: verifier errors may contain policy destinations.
 	logrus.WithFields(logrus.Fields{
 		"allocation_id": allocationID, "runtime": runtimeName,
 		"termination_owner": "capability_reconcile",
 	}).Warn("allocation fail-stop initiated")
 	for {
-		deleteCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, err := h.allocationController().Delete(deleteCtx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 10})
-		cancel()
-		if err == nil {
-			metrics.RecordCapabilityFailStopCleanup(runtimeName, "success")
-			return
+		if h.allocationRuntimeStopped(allocationID) {
+			if err := h.allocationController().AckCapabilityReconcile(allocationID, 0, false, nil); err == nil {
+				metrics.RecordCapabilityFailStop(runtimeName, "success")
+				return
+			}
 		}
-		metrics.RecordCapabilityFailStopCleanup(runtimeName, "retry")
+		killCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, err := h.Kill(killCtx, &runtimev1.KillRequest{ID: allocationID, Signal: "KILL"})
+		cancel()
+		if err == nil || h.allocationRuntimeStopped(allocationID) {
+			if ackErr := h.allocationController().AckCapabilityReconcile(allocationID, 0, false, nil); ackErr == nil {
+				metrics.RecordCapabilityFailStop(runtimeName, "success")
+				return
+			} else {
+				err = ackErr
+			}
+		}
+		metrics.RecordCapabilityFailStop(runtimeName, "retry")
 		_ = h.allocationController().AckCapabilityReconcile(allocationID, 0, true, errors.Join(verifyErr, err))
-		logrus.WithError(err).WithField("allocation_id", allocationID).Error("retry fail-stop allocation cleanup")
+		logrus.WithError(err).WithField("allocation_id", allocationID).Error("retry capability fail-stop")
 		timer := time.NewTimer(5 * time.Second)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			metrics.RecordCapabilityFailStopCleanup(runtimeName, "worker_stopped")
+			metrics.RecordCapabilityFailStop(runtimeName, "worker_stopped")
 			return
 		case <-timer.C:
 		}
 	}
+}
+
+func (h *sandboxService) allocationRuntimeStopped(allocationID string) bool {
+	container, err := h.containerManager.Get(allocationID)
+	if err != nil || container == nil {
+		return true
+	}
+	return container.Status != nil && container.Status.Get().State() == runtimev1.ContainerState_CONTAINER_EXITED
 }
 
 func (h *sandboxService) scheduleCapabilityTermination(allocationID string, cause error) error {

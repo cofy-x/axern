@@ -14,6 +14,8 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCapabilityVerificationRetriesOnlyInconclusiveResults(t *testing.T) {
@@ -99,6 +101,27 @@ func TestCapabilityReconcileInterruptionRequestsRetryInsteadOfFailStop(t *testin
 	if err == nil {
 		t.Fatal("interrupted capability verification did not request retry")
 	}
+}
+
+func TestCapabilityFailStopRetainsStateForAuthoritativeCleanup(t *testing.T) {
+	runtimeHandler := &deleteCountingRuntime{FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
+	service := newTestService(t, runtimeHandler)
+	const allocationID = "allocation-capability-fail-stop"
+	const digest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	require.NoError(t, service.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
+	service.containerManager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, service, allocationID)
+	require.NoError(t, service.allocations.BeginCapabilityTermination(allocationID, errors.New("runtime enforcement unavailable")))
+
+	service.failStopAllocation(t.Context(), allocationID, errors.New("runtime enforcement unavailable"))
+
+	require.EqualValues(t, 1, runtimeHandler.killCalls.Load())
+	require.Zero(t, runtimeHandler.deleteCalls.Load(), "capability fail-stop must not bypass output sealing and authoritative cleanup")
+	require.True(t, service.allocations.HasAllocation(allocationID))
+	require.Nil(t, service.allocations.CapabilityReconcileState(allocationID))
+	code, message := service.allocations.TerminationIntent(allocationID)
+	require.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST, code)
+	require.Equal(t, "allocation capability enforcement was lost", message)
 }
 
 func TestPeriodicCapabilityAuditCoversOperationalAndFailStopDependencies(t *testing.T) {

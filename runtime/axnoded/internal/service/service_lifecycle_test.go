@@ -19,11 +19,17 @@ import (
 type deleteCountingRuntime struct {
 	*runtimetest.FakeSandboxRuntime
 	deleteCalls atomic.Int64
+	killCalls   atomic.Int64
 }
 
 func (r *deleteCountingRuntime) DeleteContainer(ctx context.Context, request *runtimeapi.DeleteContainerRequest, options contract.HandlerOptions) (*runtimeapi.DeleteContainerResponse, error) {
 	r.deleteCalls.Add(1)
 	return r.FakeSandboxRuntime.DeleteContainer(ctx, request, options)
+}
+
+func (r *deleteCountingRuntime) KillContainer(ctx context.Context, request *runtimeapi.SignalContainerRequest, options contract.HandlerOptions) (*runtimeapi.SignalContainerResponse, error) {
+	r.killCalls.Add(1)
+	return r.FakeSandboxRuntime.KillContainer(ctx, request, options)
 }
 
 func TestRunReturnsWithoutBlocking(t *testing.T) {
@@ -114,7 +120,7 @@ func TestShutdownPreservesLiveAllocationForRestartRecovery(t *testing.T) {
 	require.True(t, s.allocations.HasAllocation(allocationID), "durable Allocation recovery record must survive process shutdown")
 }
 
-func TestExpiredExecutionLeaseStopsAllocation(t *testing.T) {
+func TestExpiredExecutionLeaseStopsRuntimeAndRetainsCleanupState(t *testing.T) {
 	runtimeHandler := &deleteCountingRuntime{FakeSandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
 	s := newTestService(t, runtimeHandler)
 	const allocationID = "allocation-expired"
@@ -127,6 +133,7 @@ func TestExpiredExecutionLeaseStopsAllocation(t *testing.T) {
 
 	s.stopExpiredExecutionLeases(t.Context(), now.Add(time.Minute))
 
-	require.EqualValues(t, 1, runtimeHandler.deleteCalls.Load())
-	require.False(t, s.allocations.HasAllocation(allocationID))
+	require.EqualValues(t, 1, runtimeHandler.killCalls.Load())
+	require.Zero(t, runtimeHandler.deleteCalls.Load(), "lease fail-stop must not bypass control-plane cleanup and output sealing")
+	require.True(t, s.allocations.HasAllocation(allocationID), "cleanup state must survive until authoritative DeleteAllocation")
 }

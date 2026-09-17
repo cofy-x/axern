@@ -133,7 +133,7 @@ func TestSnapshotCurrentSanitizesAttributeValues(t *testing.T) {
 func TestCapabilityGovernanceMetricsUseBoundedDimensions(t *testing.T) {
 	ResetForTest()
 	RecordCapabilityRecoveryDebounce("PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT", "CAPABILITY_PROVIDER_RUNTIME_CONFORMANCE")
-	RecordCapabilityFailStopCleanup("runsc", "retry")
+	RecordCapabilityFailStop("runsc", "retry")
 
 	snapshot := SnapshotCurrent()
 	if len(snapshot.Points) != 2 {
@@ -145,9 +145,9 @@ func TestCapabilityGovernanceMetricsUseBoundedDimensions(t *testing.T) {
 			if point.Attributes["capability"] == "" || point.Attributes["provider"] == "" {
 				t.Fatalf("recovery debounce attributes = %#v", point.Attributes)
 			}
-		case MetricCapabilityFailStopCleanupTotal:
+		case MetricCapabilityFailStopTotal:
 			if point.Attributes[sdkobs.AttrRuntime] != "runsc" || point.Attributes[sdkobs.AttrResult] != "retry" {
-				t.Fatalf("fail-stop cleanup attributes = %#v", point.Attributes)
+				t.Fatalf("fail-stop attributes = %#v", point.Attributes)
 			}
 		default:
 			t.Fatalf("unexpected metric %q", point.Name)
