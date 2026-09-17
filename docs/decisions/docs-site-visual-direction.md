@@ -6,7 +6,7 @@ The Axern documentation site presents the product first as open-source sandboxes
 
 ## Design Contract
 
-- Lead with the AI Sandbox category and product outcome, then provide a local path to a working sandbox. Show real SDK and CLI usage immediately after the hero, and route readers into the documentation by intent (quickstart, SDK, self-hosting, Axrun) rather than by marketing narrative.
+- Lead with the AI Sandbox category and product outcome, then provide a local path to a working sandbox. Show real SDK and CLI usage immediately after the hero, and route readers into the documentation by intent (quickstart, SDK, self-hosting, and external-runner integration) rather than by marketing narrative.
 - Use a compact grid, square borders, high-contrast controls, and a small set of reusable spacing and color tokens.
 - Use code, terminal recordings, and runtime state as the primary product imagery.
 - Use the homepage live execution deck to combine runtime events, isolation, lifecycle, and output in one observable surface. Keep terminal recordings with the code or guide they substantiate.

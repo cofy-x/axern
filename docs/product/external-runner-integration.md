@@ -61,4 +61,4 @@ If the manifest is not yet available immediately after the Run becomes terminal,
 
 Released Python, TypeScript, and Go SDK artifacts include public control, Run, Tunnel, and NodeSandbox contracts only. Gateway routing, plaintext access grants, Node enrollment/control, lifecycle delivery, operator/debug, egress, network resolver, and relay-control Protocol Buffers are repository-private and absent from SDK packages. External projects must not import Axern internal packages or use a source checkout, local path, or Go `replace` directive.
 
-The repository release acceptance runs a public Python consumer through inference output sealing and a fresh verifier Allocation. Candidate and published artifacts are additionally installed into clean source-free consumers before release completion.
+Released SDK artifacts must install into source-free consumers and provide the complete public execution flow without local paths, source checkouts, internal packages, or workspace replacements.

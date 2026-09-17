@@ -43,7 +43,7 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 - [Runtime Architecture](architecture/runtime-architecture.md): concise current control-plane and node-runtime model.
 - [Observed Capability Providers](architecture/observed-capability-providers.md): typed node observations, capability policy, transactional admission, and allocation enforcement.
 - [Sandbox Network Policy](architecture/sandbox-network-policy.md): strict fail-closed egress, DNS-only deny semantics, canonical rules, and admission requirements.
-- [Workload Lifecycle](architecture/workload-lifecycle-sequence.md): end-to-end control and sandbox data-plane sequences.
+- [Execution Lifecycle](architecture/execution-lifecycle.md): end-to-end Run and Allocation ownership, transitions, data plane, cleanup, and failure guarantees.
 - [Resource Model](architecture/resource-model.md): requests, limits, quota, admission, and diagnostics.
 - [Principal And Namespace Authorization](architecture/authorization.md): public mTLS identity mapping, scoped roles, gateway trust, and rotation.
 - [Storage Architecture](architecture/storage-architecture.md): durable control state, Allocation-local writable data, image mounts, output transfer, and cleanup.
@@ -56,18 +56,9 @@ For a module-internal design, prefer that module's `docs/` directory. Promote ma
 - [Verification Tiers](verification/local-full-verification.md): change-selected fast checks, Linux correctness, asynchronous full regression, and release qualification boundaries.
 - [Dependency License Policy](legal/dependency-licenses.md): release dependency inventory and incompatible-license gate.
 
-## Development And Operations
+## Releases And Operations
 
-- [v0.8.0 Release Notes](releases/v0.8.0.md): breaking public SDK boundary, declared output sealing, and external-runner recovery.
-- [v0.7.0 Release Notes](releases/v0.7.0.md): coordinated execution-platform, state, identity, SDK and runtime reliability changes, with a clean-state upgrade procedure.
-- [v0.6.2 Release Notes](releases/v0.6.2.md): published sandbox network policies with resolver-independent OCI startup.
-- [v0.6.1 Release Notes](releases/v0.6.1.md): immutable unpublished candidate with capability-complete local readiness.
-- [v0.6.0 Release Notes](releases/v0.6.0.md): fail-closed sandbox egress, DNS-only deny policies, and cross-language SDK support.
-- [v0.5.1 Release Notes](releases/v0.5.1.md): source-free local image loading and immutable imported-image generations.
-- [v0.5.0 Release Notes](releases/v0.5.0.md): immutable rootfs, observed capabilities, sandbox memory budgets, and the coordinated upgrade boundary.
-- [v0.4.1 Release Notes](releases/v0.4.1.md): Linux arm64 release qualification and Homebrew publication completion.
-- [v0.4.0 Release Notes](releases/v0.4.0.md): source-free local operation, foreground Runs, and durable Run output.
-- [v0.3.1 Release Notes](releases/v0.3.1.md): authorization, diagnostics, and the clean-install boundary for the v0.3 platform baseline.
+- [`releases/`](releases/): version-specific behavior, compatibility, and upgrade history. Release notes are historical records, not current architecture.
 - [Devbox Workflow](operations/devbox.md): Linux source-development stack, service restart, and debugging.
 - [Release Operations](operations/releases.md): immutable versioning, GHCR and Helm publication, and fresh-cluster acceptance.
 - [Runtime Logs](operations/runtime-logs.md): critical logs, node-local paths, and symptom routing.

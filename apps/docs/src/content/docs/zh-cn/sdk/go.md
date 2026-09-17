@@ -11,7 +11,7 @@ go get github.com/cofy-x/axern/sdk/go@<version>
 
 把 `<version>` 替换为 Gateway 和运行时使用的 Axern Release；Go SDK 不是浮动的 `latest` 依赖。
 
-对于 v0.8.0，仅在发布完成后使用 `v0.8.0`，并配套升级平台；请阅读[破坏性发布说明](https://github.com/cofy-x/axern/blob/main/docs/releases/v0.8.0.md)。
+使用与 Axern Gateway 和运行时匹配的正式 SDK 版本，并在升级前阅读对应的[发布说明](https://github.com/cofy-x/axern/tree/main/docs/releases)。
 
 官方 module 索引在 [`pkg.go.dev`](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go)。
 

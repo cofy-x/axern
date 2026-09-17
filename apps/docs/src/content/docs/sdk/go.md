@@ -11,7 +11,7 @@ go get github.com/cofy-x/axern/sdk/go@<version>
 
 Replace `<version>` with the Axern release used by the gateway and runtime; the Go SDK is not a floating `latest` dependency.
 
-For v0.8.0, use `v0.8.0` only after publication completes and upgrade the platform together; review the [breaking release notes](https://github.com/cofy-x/axern/blob/main/docs/releases/v0.8.0.md).
+Use a published SDK version that matches the Axern gateway and runtime, and review the corresponding [release notes](https://github.com/cofy-x/axern/tree/main/docs/releases) before upgrading.
 
 The official module is indexed on [`pkg.go.dev`](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go).
 

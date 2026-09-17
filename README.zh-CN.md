@@ -104,7 +104,7 @@ flowchart LR
 
 按照 [Kubernetes 安装指南](./apps/docs/src/content/docs/zh-cn/getting-started/kubernetes.md) 初始化签发材料、提供经过验证的节点内存预留值、绑定明确的 Node 身份、安装控制面，并在节点准入后等待运行时就绪。SSH 是可选能力，使用 Principal Credential。不要用裸 Helm install 跳过身份和准入步骤。
 
-v0.8.0 包含破坏性的公共 SDK 边界调整；请先阅读 [v0.8.0 发布说明](./docs/releases/v0.8.0.md)。仅在发布完成后使用对应发布产物，源码版本号不代表产物已经可用。终端录制展示当前源码的 CLI 帮助，不是已部署工作负载或性能测量。
+每个 Axern Release 都应视为配套的 CLI、SDK、Chart 和运行时版本。升级前请阅读对应的[发布说明](./docs/releases/)，并仅在发布完成后使用正式产物；源码版本号不代表产物已经可用。终端录制展示当前源码的 CLI 帮助，不是已部署工作负载或性能测量。
 
 ## 部署
 

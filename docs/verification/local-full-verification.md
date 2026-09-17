@@ -72,7 +72,7 @@ During a serial gate, Docker builds still validate all inputs through BuildKit, 
 
 Do not release or promote a commit until its exact `Full Repository Regression` job succeeds. The workflow is deliberately not a required pull-request check.
 
-Use `make verify-release` for the full repository gate with Axrun acceptance. Deployment and environment qualification remain separate; this command does not produce an environment qualification receipt.
+Use `make verify-release` for the source and local-deployment release gate. External-runner acceptance, deployed environment qualification, and regional performance or capacity evidence remain separately owned; this command does not produce those receipts.
 
 ## Tier 4: environment qualification
 

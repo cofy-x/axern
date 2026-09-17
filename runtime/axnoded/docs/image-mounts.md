@@ -55,9 +55,9 @@ options=["rbind","ro"]
 
 Stable runtime IDs include image, target, and read-only flag so different mount sets do not reuse the wrong environment template.
 
-## Axrun Use
+## External Runner Use
 
-Axrun can use the generic image-mount primitive for caller-supplied agent tools:
+An external runner can use the generic image-mount primitive for caller-supplied agent tools:
 
 ```text
 native task sandbox image
@@ -66,10 +66,9 @@ native task sandbox image
   -> patch, stdout, trajectory, raw evidence, exports
 ```
 
-Task images and agent images remain separate. Axrun owns agent profiles and TaskSet materialization; Axern receives only ordinary immutable image mounts and allocation-local file/archive operations. Credentials and provider endpoints are injected at runtime, not baked into images.
+Task images and tool images remain separate. The external runner owns agent configuration, benchmark input, and task materialization; Axern receives only immutable image mounts and Allocation-local file/archive operations. Credentials and provider endpoints are injected at runtime, not baked into images.
 
 ## Verification
 
 - `make local-compose-image-mount-smoke`
-- `make axrun-local-smoke` for the local functional path
 - Linux Axern acceptance for read-only mount isolation and restart recovery

@@ -3,11 +3,11 @@ title: Upgrades and Versioning
 description: Keep the CLI, local stack, Helm chart, and SDKs on one coherent Axern version.
 ---
 
-Axern publishes the CLI, Helm chart, runtime images, and all three SDKs under one repository version. Treat a pre-1.0 release as one coherent unit: mixed versions are not a supported combination.
+Axern publishes the CLI, Helm chart, runtime images, and all three SDKs under one repository version. Treat each release as one coherent unit: mixed versions are not a supported combination.
 
-## v0.7.0 clean-state boundary
+## Before an upgrade
 
-Upgrading from v0.6.2 to v0.7.0 requires fresh control-plane and node-local state, not an in-place Helm upgrade. Export required output, stop workloads and confirm cleanup before replacing state. Recreate Node enrollment and Principal Credentials using the [Kubernetes installation guide](/getting-started/kubernetes/). Review the [v0.7.0 release notes](https://github.com/cofy-x/axern/blob/main/docs/releases/v0.7.0.md) for removed APIs, coordinated component versions and rollback requirements. Do not erase recovery records beneath running sandboxes or use candidate versions before publication completes.
+Read the target release's [release notes](https://github.com/cofy-x/axern/tree/main/docs/releases) before changing any component. The notes define whether state can be retained, which contracts changed, and whether the release requires a clean deployment. Export required outputs and confirm that workloads and cleanup have converged before replacing state. Never erase node recovery records beneath running sandboxes, and do not use candidate versions before publication completes.
 
 ## Upgrade the CLI
 
@@ -37,7 +37,7 @@ This deliberately replaces local data and identity material. See the [Local Axer
 
 ## Upgrade a Kubernetes install
 
-For a release that explicitly supports retaining the existing state, pin the chart to the same release as the CLI and review your operator-owned values against the new chart. Do not carry old image tags or removed settings forward. The following command is not the v0.6.2-to-v0.7.0 upgrade procedure:
+When the target release explicitly supports retaining existing state, pin the chart to the same release as the CLI and review operator-owned values against the new chart. Do not carry old image tags or removed settings forward. When retention is not supported, export required outputs, stop workloads, confirm cleanup, and follow the target release's clean-deployment procedure instead of running an in-place upgrade.
 
 ```bash
 helm upgrade axern oci://ghcr.io/cofy-x/charts/axern \
@@ -60,6 +60,6 @@ Match the SDK package version to the Axern release and commit your lockfile or r
 
 Do not use a floating `latest` dependency in production; the SDK and control-plane contracts are versioned together.
 
-## Pre-1.0 expectations
+## Compatibility expectations
 
-Before 1.0, minor releases may change public commands, specs, and SDK surfaces. Read the curated release notes in the repository's [`docs/releases/`](https://github.com/cofy-x/axern/tree/main/docs/releases) when upgrading across minor versions, and rerun `axern doctor --namespace default` against the upgraded platform before resuming workloads.
+Public compatibility is defined by the target release notes, not by internal database tables, protobuf packages, or node-local files. Read the curated notes when upgrading across versions, and rerun `axern doctor --namespace default` against the upgraded platform before resuming workloads.

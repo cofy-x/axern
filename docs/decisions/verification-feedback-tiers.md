@@ -14,7 +14,7 @@ Every `main` commit starts the remote `Post-Merge Full` workflow. It runs the re
 
 ## Rationale
 
-Local macOS checks and GitHub Linux checks previously repeated source coverage, while multi-hour regional sampling sat on the same foreground critical path. This increased feedback time without making each layer more authoritative. Assigning one owner to each kind of evidence keeps the normal development loop short while preserving stronger release evidence.
+Each kind of evidence has one verification owner. Host-safe checks provide fast source feedback, Linux checks prove platform-specific behavior, full regression detects broad integration failures, and environment qualification proves a specific candidate in its target environment. Keeping those responsibilities distinct avoids duplicate gates while preserving stronger release evidence.
 
 The maintainability budgets are five minutes for warm host-safe feedback, fifteen minutes for the standard selected PR path, and forty-five minutes for asynchronous full regression. Qualification is intentionally outside the PR feedback budget.
 
