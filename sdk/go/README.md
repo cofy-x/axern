@@ -183,7 +183,7 @@ make sdk-go-examples-smoke
 - Use `ExecOptions{Check: true}` for command-style failures that should return `ExecError`.
 - Branch on helpers such as `IsNotFound`, `IsTimeout`, `IsUnavailable`, and `IsValidation` instead of parsing error text.
 - Sandboxd-backed capability failures remain `RPCError` values. When provider diagnostics are present, `RPCError.Capability` contains structured capability, provider, provider state, reason, and missing dependency details.
-- Use tunnels when a sandbox must reach a caller-local upstream such as a mock HTTP service or development server. Provider credentials and agent-specific configuration are owned by Axrun or another caller, not by the Axern sandbox lifecycle.
+- Use tunnels when a sandbox must reach a caller-local upstream such as a mock HTTP service or development server. Provider credentials and agent-specific configuration are owned by the external runner or another caller, not by the Axern sandbox lifecycle.
 
 ```go
 result, err := sandbox.Exec(ctx, axern.Args("python", "-c", "import sys; sys.exit(7)"), axern.ExecOptions{Check: true})

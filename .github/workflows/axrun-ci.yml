@@ -48,9 +48,11 @@ jobs:
           if [[ -z "${base_sha}" || "${base_sha}" =~ ^0+$ ]]; then
             base_sha="$(git rev-parse HEAD^)"
           fi
-          changed="$(git diff --name-only "${base_sha}" "${GITHUB_SHA}" -- apps/axrun scripts/axrun mk/axrun.mk)"
+          changed="$(git diff --name-only "${base_sha}" "${GITHUB_SHA}" -- \
+            apps/axrun scripts/axrun mk/axrun.mk \
+            ':(exclude)apps/axrun/AGENTS.md')"
           if [[ -n "${changed}" ]]; then
-            echo "The in-repository Axrun is frozen and must not be modified:" >&2
+            echo "The in-repository Axrun implementation is frozen and must not be modified:" >&2
             printf '%s\n' "${changed}" >&2
             exit 1
           fi

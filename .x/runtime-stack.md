@@ -9,7 +9,7 @@ Component ownership and traffic topology are defined in [Runtime Architecture](.
 Read only the contracts affected by the change:
 
 - Product identity and lifecycle: [Stable Domain Model](../docs/product/domain-model.md).
-- Control and node execution sequences: [Workload Lifecycle](../docs/architecture/workload-lifecycle-sequence.md).
+- Control and node execution sequences: [Execution Lifecycle](../docs/architecture/execution-lifecycle.md).
 - Trust, operation access, and operator separation: [Authorization](../docs/architecture/authorization.md).
 - Capability admission and enforcement: [Observed Capability Providers](../docs/architecture/observed-capability-providers.md).
 - Placement quantities and enforcement limits: [Resource Model](../docs/architecture/resource-model.md).

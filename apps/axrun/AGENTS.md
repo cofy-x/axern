@@ -1,22 +1,14 @@
-# Axrun Agent Contract
+# Axrun Subtree Contract
 
-## Purpose
+## Boundary
 
-`apps/axrun` is Axern's native agent harness, task runner, verifier, and trajectory-capture CLI. It consumes public Axern APIs and remains above the execution platform. Use the [Axrun README](README.md) to route detailed architecture, domain-model, rollout-evidence, usage, and acceptance work.
+`apps/axrun` is not an Axern product surface and does not define public Axern APIs, domain objects, release requirements, or documentation. New runner, benchmark, agent, verifier, trajectory, dataset, and training behavior belongs in an external project that consumes a released Axern SDK.
 
-## Ownership Boundaries
-
-- Keep `internal/cliapp` as the composition root, `internal/commands/<domain>` as CLI adapters, and `internal/application/<domain>` as workflow orchestration.
-- Keep native records and invariants in `internal/domain` and `internal/contract`, compiled task inputs in `internal/taskset`, rollout lifecycle in `internal/rollout`, backend adapters in `internal/backend`, and Axern/local execution adapters in `internal/sandbox`.
-- Use public Axern SDK/API surfaces only. Do not import control-plane or runtime internals, node lifecycle APIs, database adapters, or implementation-only protos.
-- Keep execution compiled-only: rollout consumes a frozen TaskSet descriptor and native `TaskInstance` records.
-- Keep task runtime images separate from read-only agent/tool images, and keep agent implementations behind focused adapters rather than in the rollout engine.
-- Keep Axrun an atomic execution, verification, and trajectory-capture capability. Benchmark suites, seed generation, provider policy, and training orchestration belong to callers.
-- Keep `plan.json` immutable, `run.json` as a lifecycle envelope, and each Episode identity single-use. Persist authoritative JSON atomically, publish the artifact manifest once, and hold the per-run filesystem lock across create/resume execution.
-- Keep credentials in owner-only local Agent Profile configuration and resolve them only for execution. Persist only non-secret behavior fingerprints; credential-like runtime environment keys are not rollout-plan fields.
-- Axern-backed execution must follow the platform [Stable Domain Model](../../docs/product/domain-model.md); Axrun must not create a second control plane.
+- Do not extend this subtree with new product capabilities or use it to justify changes to Axern's public model.
+- Do not import control-plane, gateway, runtime, database, node-lifecycle, or implementation-only protobuf packages.
+- Any necessary maintenance must preserve the platform [Stable Domain Model](../../docs/product/domain-model.md) and remain removable without changing Axern contracts.
+- Security or build fixes are explicit exceptions to the frozen-source check. They must stay local to this subtree unless the same defect is independently present in an owned Axern component.
 
 ## Validation
 
-- Run `go test ./apps/axrun/...`, `go vet ./apps/axrun/...`, `test -z "$(gofmt -l apps/axrun)"`, and `make axrun-local-smoke`.
-- Run `make axrun-verify` for release-level Axrun changes.
+For a necessary local maintenance change, run `go test ./apps/axrun/...`, `go vet ./apps/axrun/...`, and `test -z "$(gofmt -l apps/axrun)"`. Do not treat Axrun-specific validation as Axern release qualification.

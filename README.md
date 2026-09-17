@@ -102,7 +102,7 @@ Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/
 
 Follow the [Kubernetes installation guide](./apps/docs/src/content/docs/getting-started/kubernetes.md) to provision signing material, supply qualified node memory reserves, bind explicit Node identities, install the control plane, and admit nodes before waiting for runtime readiness. SSH is optional and uses Principal Credentials. Do not skip the identity and admission steps by running a bare Helm install.
 
-The v0.8.0 release is a breaking public-SDK boundary change; review the [v0.8.0 release notes](./docs/releases/v0.8.0.md). Use published release artifacts only after publication completes; a source version is not proof of artifact availability. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
+Treat each Axern release as one coordinated CLI, SDK, chart, and runtime version. Review its [release notes](./docs/releases/) before upgrading and use artifacts only after publication completes; a source version is not proof of artifact availability. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
 
 ## Deployment
 

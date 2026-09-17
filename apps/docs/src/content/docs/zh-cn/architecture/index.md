@@ -27,4 +27,4 @@ flowchart LR
 - **SDK：** 在持久的 `Environment -> Run -> Allocation` 链之上提供 Sandbox 易用接口，不创建另一套工作负载模型。
 - **外部 runner 与 benchmark adapter：** 在执行平台之上管理 agent 任务、CandidateBundle 与 verifier schema、轨迹、reward、评测和数据合成工作流。
 
-本页刻意保持概念层。仓库的 [运行时架构](https://github.com/cofy-x/axern/blob/main/docs/architecture/runtime-architecture.md)、[资源模型](https://github.com/cofy-x/axern/blob/main/docs/architecture/resource-model.md)和 [工作负载生命周期](https://github.com/cofy-x/axern/blob/main/docs/architecture/workload-lifecycle-sequence.md) 是工程层面的权威来源。
+本页刻意保持概念层。仓库的 [运行时架构](https://github.com/cofy-x/axern/blob/main/docs/architecture/runtime-architecture.md)、[资源模型](https://github.com/cofy-x/axern/blob/main/docs/architecture/resource-model.md)和 [执行生命周期](https://github.com/cofy-x/axern/blob/main/docs/architecture/execution-lifecycle.md) 是工程层面的权威来源。

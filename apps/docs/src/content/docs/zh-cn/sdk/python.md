@@ -11,7 +11,7 @@ uv add axern-sdk==<version>
 
 官方包发布在 [PyPI 的 `axern-sdk`](https://pypi.org/project/axern-sdk/)。
 
-对于 v0.8.0，仅在发布完成后锁定 `axern-sdk==0.8.0`，并配套升级平台；请阅读[破坏性发布说明](https://github.com/cofy-x/axern/blob/main/docs/releases/v0.8.0.md)。
+将 SDK 锁定到 Gateway 和运行时使用的 Axern Release，仅在发布完成后安装，并在升级前阅读对应的[发布说明](https://github.com/cofy-x/axern/tree/main/docs/releases)。
 
 ```python
 import os
