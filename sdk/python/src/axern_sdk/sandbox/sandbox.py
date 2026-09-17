@@ -21,9 +21,14 @@ from axern_sdk.sandbox.computer_use import SandboxComputerUseMixin
 from axern_sdk.sandbox.files import SandboxFileMixin
 from axern_sdk.sandbox.lifecycle import wait_running_run
 from axern_sdk.network_policy import NetworkPolicy
-from axern_sdk.models import DeclaredOutput
+from axern_sdk.models import DeclaredOutput, ImageMount, SecretEnvVar, SecretFile
 from axern_sdk.sandbox.renewal import TunnelRenewal
-from axern_sdk.sandbox.types import DEFAULT_SANDBOX_ARGV, SandboxMetadata, SandboxState, _validate_source
+from axern_sdk.sandbox.types import (
+    DEFAULT_SANDBOX_ARGV,
+    SandboxMetadata,
+    SandboxState,
+    _validate_source,
+)
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
 
@@ -50,6 +55,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         limit_memory: ResourceQuantity = "",
         limit_ephemeral_storage: ResourceQuantity = "",
         extension_capabilities: dict[str, str] | None = None,
+        image_mounts: Iterable[ImageMount] | None = None,
+        secret_env: Iterable[SecretEnvVar] | None = None,
+        secret_files: Iterable[SecretFile] | None = None,
         declared_outputs: Iterable[DeclaredOutput] | None = None,
         upstream: str = "",
         remote_port: int | None = None,
@@ -62,7 +70,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         _node_client_factory: Callable[..., AllocationClient] = AllocationClient,
         _renew_interval_seconds: float | None = None,
     ) -> None:
-        _validate_source(image=image, template_id=template_id, environment_id=environment_id)
+        _validate_source(
+            image=image, template_id=template_id, environment_id=environment_id
+        )
         self._client = client
         self._image = image
         self._registry_credential_id = registry_credential_id
@@ -80,10 +90,12 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         self._limit_memory = limit_memory
         self._limit_ephemeral_storage = limit_ephemeral_storage
         self._extension_capabilities = dict(extension_capabilities or {})
+        self._image_mounts = list(image_mounts or ())
+        self._secret_env = list(secret_env or ())
+        self._secret_files = list(secret_files or ())
         self._declared_outputs = list(declared_outputs or ())
         self._upstream = upstream
         self._remote_port = remote_port
-        self._gateway_transport = client._gateway_transport()
         self._connector_config = connector or ConnectorConfig()
         self._ready_timeout_seconds = ready_timeout_seconds
         self._tunnel_ttl_seconds = tunnel_ttl_seconds
@@ -167,6 +179,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                 limit_memory=self._limit_memory,
                 limit_ephemeral_storage=self._limit_ephemeral_storage,
                 extension_capabilities=self._extension_capabilities,
+                image_mounts=self._image_mounts,
+                secret_env=self._secret_env,
+                secret_files=self._secret_files,
                 declared_outputs=self._declared_outputs,
                 namespace=self._namespace,
                 labels=self._labels,
@@ -201,7 +216,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                     session=session,
                     client_token=tunnel.client_token,
                     local_target=self._upstream,
-                    transport=self._gateway_transport,
+                    client=self._client,
                     connector_config=self._connector_config,
                 )
                 self._connector.start()
@@ -225,7 +240,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             try:
                 self.close()
             except Exception as cleanup_error:
-                raise ExceptionGroup("sandbox start and cleanup failed", [start_error, cleanup_error]) from None
+                raise ExceptionGroup(
+                    "sandbox start and cleanup failed", [start_error, cleanup_error]
+                ) from None
             raise
 
     def close(self) -> None:
@@ -241,10 +258,13 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             self._connector = None
         if tunnel_session_id:
             try:
-                self._client.revoke_tunnel_session(tunnel_session_id, reason="sandbox closed", timeout=10.0)
+                self._client.revoke_tunnel_session(
+                    tunnel_session_id, reason="sandbox closed", timeout=10.0
+                )
             except Exception as error:
                 errors.append(error)
             self._created_tunnel_session_id = ""
+        self._tunnel_client_token = ""
         if self._created_run_id:
             try:
                 self._client.cancel_run(self._created_run_id, timeout=30.0)
@@ -253,7 +273,9 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             self._created_run_id = ""
         if self._created_environment and self._created_environment_id:
             try:
-                self._client.delete_environment(self._created_environment_id, timeout=30.0)
+                self._client.delete_environment(
+                    self._created_environment_id, timeout=30.0
+                )
             except Exception as error:
                 errors.append(error)
             self._created_environment = False
@@ -287,14 +309,24 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         deadline = time.monotonic() + self._connector_ready_timeout_seconds
         while time.monotonic() < deadline:
             if self._renewal is not None and self._renewal.error is not None:
-                raise RuntimeError(f"tunnel renew failed: {self._renewal.error}") from self._renewal.error
+                raise RuntimeError(
+                    f"tunnel renew failed: {self._renewal.error}"
+                ) from self._renewal.error
             if self._connector is not None and self._connector.error is not None:
-                raise RuntimeError(f"tunnel connector failed: {self._connector.error}") from self._connector.error
+                raise RuntimeError(
+                    f"tunnel connector failed: {self._connector.error}"
+                ) from self._connector.error
             events = self._client.list_tunnel_events(session_id, limit=50)
-            if any(event.event_type == tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED for event in events):
+            if any(
+                event.event_type
+                == tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED
+                for event in events
+            ):
                 return
             time.sleep(0.25)
-        raise SandboxTimeoutError(f"tunnel client peer did not connect within {self._connector_ready_timeout_seconds}s")
+        raise SandboxTimeoutError(
+            f"tunnel client peer did not connect within {self._connector_ready_timeout_seconds}s"
+        )
 
     def exec(
         self,

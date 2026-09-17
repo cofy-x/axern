@@ -84,7 +84,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	if metadata.EnvironmentID != "env-1" || metadata.RunID != "run-1" || metadata.AllocationID != "alloc-1" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
 	}
-	if got := fake.createRunRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" || !got[0].GetReadonly() {
+	if got := fake.createRunRequest.GetConfig().GetImageMounts(); len(got) != 1 || got[0].GetImage() != "example.com/axern/codex-tool:latest" || got[0].GetTarget() != "/opt/axern/tools/codex" {
 		t.Fatalf("unexpected image mounts: %#v", got)
 	}
 	if got := fake.createRunRequest.GetConfig().GetExtensionCapabilityRequirements(); len(got) != 1 || got[0].GetCapability().GetName() != "example.com/accelerator" || got[0].GetCapability().GetValue() != "v1" {

@@ -274,9 +274,8 @@ func extensionCapabilityRequirements(values []ExtensionCapability) []*capability
 
 // ImageMount describes a read-only OCI image mounted into the workload rootfs.
 type ImageMount struct {
-	Image    string
-	Target   string
-	Readonly bool
+	Image  string
+	Target string
 }
 
 func executionImageMounts(mounts []ImageMount) []*commonv1.ImageMount {
@@ -286,9 +285,8 @@ func executionImageMounts(mounts []ImageMount) []*commonv1.ImageMount {
 	out := make([]*commonv1.ImageMount, 0, len(mounts))
 	for _, mount := range mounts {
 		out = append(out, &commonv1.ImageMount{
-			Image:    mount.Image,
-			Target:   mount.Target,
-			Readonly: true,
+			Image:  mount.Image,
+			Target: mount.Target,
 		})
 	}
 	return out
@@ -319,12 +317,12 @@ func validateImageMounts(mounts []ImageMount) error {
 }
 
 func protectedImageMountTarget(target string) bool {
-	switch target {
-	case "/bin", "/dev", "/etc", "/lib", "/lib64", "/mnt", "/proc", "/run", "/sbin", "/sys", "/usr":
-		return true
-	default:
-		return false
+	for _, protected := range []string{"/bin", "/dev", "/etc", "/lib", "/lib64", "/mnt", "/proc", "/run", "/sbin", "/sys", "/usr"} {
+		if pathsOverlap(target, protected) {
+			return true
+		}
 	}
+	return false
 }
 
 func pathHasParentReference(value string) bool {

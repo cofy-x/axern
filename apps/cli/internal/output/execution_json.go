@@ -58,9 +58,8 @@ type SecretFileJSON struct {
 }
 
 type ImageMountJSON struct {
-	Image    string `json:"image"`
-	Target   string `json:"target"`
-	Readonly bool   `json:"readonly"`
+	Image  string `json:"image"`
+	Target string `json:"target"`
 }
 
 func NewExecutionConfigJSON(config *commonv1.ExecutionConfig) *ExecutionConfigJSON {
@@ -182,9 +181,8 @@ func newImageMountJSONs(mounts []*commonv1.ImageMount) []*ImageMountJSON {
 			continue
 		}
 		out = append(out, &ImageMountJSON{
-			Image:    mount.GetImage(),
-			Target:   mount.GetTarget(),
-			Readonly: mount.GetReadonly(),
+			Image:  mount.GetImage(),
+			Target: mount.GetTarget(),
 		})
 	}
 	return out

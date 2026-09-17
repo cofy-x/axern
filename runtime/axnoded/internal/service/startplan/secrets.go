@@ -36,9 +36,19 @@ func MaterializeResolvedSecretFiles(request *runtime.StartRequest) ([]*runtime.M
 			cleanup()
 			return nil, nil, fmt.Errorf("resolved secret file path %q must be an absolute container path below /", rawTarget)
 		}
-		if _, exists := seenTargets[target]; exists {
+		if protectedSecretFileTarget(target) {
 			cleanup()
-			return nil, nil, fmt.Errorf("resolved secret file %q is duplicated", target)
+			return nil, nil, fmt.Errorf("resolved secret file path %q overlaps a protected runtime path", target)
+		}
+		if item.GetMode() > 0o777 || item.GetMode()&0o222 != 0 {
+			cleanup()
+			return nil, nil, fmt.Errorf("resolved secret file %q mode must be read-only permissions within 0777", target)
+		}
+		for existing := range seenTargets {
+			if target == existing || strings.HasPrefix(target, existing+"/") || strings.HasPrefix(existing, target+"/") {
+				cleanup()
+				return nil, nil, fmt.Errorf("resolved secret file path %q overlaps path %q", target, existing)
+			}
 		}
 		seenTargets[target] = struct{}{}
 		rel := strings.TrimPrefix(target, "/")
@@ -63,6 +73,20 @@ func MaterializeResolvedSecretFiles(request *runtime.StartRequest) ([]*runtime.M
 		})
 	}
 	return mounts, cleanup, nil
+}
+
+func protectedSecretFileTarget(target string) bool {
+	for _, protected := range []string{"/bin", "/boot", "/dev", "/lib", "/lib64", "/proc", "/sbin", "/sys", "/usr", "/run/axern", "/var/run/axern"} {
+		if target == protected || strings.HasPrefix(target, protected+"/") || strings.HasPrefix(protected, target+"/") {
+			return true
+		}
+	}
+	for _, protected := range []string{"/etc/group", "/etc/gshadow", "/etc/hostname", "/etc/hosts", "/etc/ld.so.preload", "/etc/passwd", "/etc/resolv.conf", "/etc/shadow"} {
+		if target == protected || strings.HasPrefix(target, protected+"/") || strings.HasPrefix(protected, target+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // CleanupResolvedSecretFiles removes the allocation-owned host files backing

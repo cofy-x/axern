@@ -178,6 +178,12 @@ func TestValidateImageMountTargetsRejectsProtectedAndOverlappingTargets(t *testi
 			}}},
 		},
 		{
+			name: "below protected path",
+			request: &runtime.StartRequest{ImageMounts: []*runtime.ImageMount{{
+				Image: "image", Target: "/usr/local/tool",
+			}}},
+		},
+		{
 			name: "overlapping dynamic mount",
 			request: &runtime.StartRequest{
 				ImageMounts: []*runtime.ImageMount{{Image: "image", Target: "/opt/axern/tools"}},

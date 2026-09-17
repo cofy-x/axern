@@ -37,7 +37,7 @@ func TestPostgresSecretStoreEncryptsPayloadAtRest(t *testing.T) {
 		t.Fatal("encrypted payload unexpectedly contains plaintext secret value")
 	}
 
-	resolved, ok, err := app.secretDB.Resolve(context.Background(), secret.GetID())
+	resolved, ok, err := app.secretDB.Resolve(context.Background(), secret.GetNamespace(), secret.GetID())
 	if err != nil {
 		t.Fatalf("Resolve() error = %v", err)
 	}
@@ -46,5 +46,8 @@ func TestPostgresSecretStoreEncryptsPayloadAtRest(t *testing.T) {
 	}
 	if resolved.Data["token"] != "super-secret-value" {
 		t.Fatalf("resolved token = %q, want super-secret-value", resolved.Data["token"])
+	}
+	if _, ok, err := app.secretDB.Resolve(context.Background(), "other-namespace", secret.GetID()); err != nil || ok {
+		t.Fatalf("Resolve(other namespace) = ok=%t err=%v, want missing", ok, err)
 	}
 }

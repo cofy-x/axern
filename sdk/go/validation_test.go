@@ -23,6 +23,10 @@ func TestSandboxOptionValidation(t *testing.T) {
 	if !IsValidation(err) {
 		t.Fatalf("NewSandbox protected image mount target error = %v, want validation", err)
 	}
+	_, err = NewSandbox(SandboxOptions{Client: &Client{}, TemplateID: "python311", ImageMounts: []ImageMount{{Image: "tool", Target: "/usr/local/tool"}}})
+	if !IsValidation(err) {
+		t.Fatalf("NewSandbox nested protected image mount target error = %v, want validation", err)
+	}
 }
 
 func TestExecAndProcessOptionValidation(t *testing.T) {

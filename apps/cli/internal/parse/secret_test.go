@@ -31,6 +31,12 @@ func TestSecretFiles(t *testing.T) {
 	}
 }
 
+func TestSecretFilesRejectWritableMode(t *testing.T) {
+	if _, err := SecretFiles([]string{"/run/secrets/token=sec-1:token:0600"}); err == nil {
+		t.Fatal("SecretFiles accepted a writable mode")
+	}
+}
+
 func TestSecretType(t *testing.T) {
 	tests := []struct {
 		input   string

@@ -20,6 +20,12 @@ The runner persists the public `environment_id`, `run_id`, and `allocation_id`. 
 
 Inference and verification are separate Runs and Allocations. A verifier receives the downloaded candidate through the public file or archive API; it never reuses the inference writable filesystem. CandidateBundle and VerificationResult schemas remain caller-owned bytes and media types rather than Axern product objects.
 
+Tool/runtime bundles may be attached with immutable read-only image mounts. Secret projections are explicit inputs for ordinary workload credentials that truly must exist inside a sandbox. A fresh verifier Run must declare its own mounts and Secret references and never inherits them from the inference Environment or Run. The public SDK supplies only image references, mount targets, Secret IDs, keys, and projection targets; it never supplies Node identity, runtime identity, or plaintext Secret values.
+
+Claude Code runtime images are digest-pinned and mounted read-only at the canonical `/__claude_code` target. This is an ordinary `ImageMount` in the inference Run, not a new agent product object, and it is absent from the fresh verifier unless that verifier explicitly declares its own mount.
+
+Model-provider identity belongs to the external runner, not the sandbox. The recommended model path is `Allocation -> TunnelSession -> runner-local loopback model gateway -> provider`. The runner retains the Axern mTLS private key, Provider API key or client certificate, routing policy, budget and protocol adaptation. Only the Allocation-local TCP endpoint enters the sandbox; the Tunnel client token and real Provider identity do not. Revoking or expiring the Tunnel closes model access without extending or terminating the Run. A TunnelSession never enters CandidateBundle or VerificationResult bytes and must not be reused by the fresh verifier.
+
 ## Declared Outputs
 
 Declare outputs in the immutable Run specification before execution. Each declaration contains an absolute sandbox path, `file` or `tar` format, and optional media type. At cleanup, axnoded quiesces the Allocation and atomically seals stdout, stderr, and declared objects before runtime deletion.
@@ -42,7 +48,7 @@ Sealed output survives runtime deletion, client restart, and axnoded process res
 
 An attached process belongs to one Allocation and one live stream. `close` attempts `TERM` before closing the stream; explicit `kill` uses `KILL`. Disconnect does not create a durable process identity. Run cancellation and Allocation cleanup remain the only durable workload termination path.
 
-SSH, Terminal, and Tunnel are diagnostic and interactive access. Their connection state is never an episode, candidate, verifier result, or durable Run result. Revoking access closes or prevents data-plane connections but does not by itself redefine the Run lifecycle.
+SSH and Terminal are diagnostic and interactive access. Tunnel is also the generic Allocation-scoped reverse-TCP primitive used for a runner-owned loopback model gateway. None of their connection state is an episode, candidate, verifier result, or durable Run result. Revoking access closes or prevents data-plane connections but does not by itself redefine the Run lifecycle. Tunnel peers are revalidated every 15 seconds with a 5-second deadline, so the online revocation and control-loss bound is 20 seconds excluding process scheduling pauses; Axern does not promise zero-delay revocation.
 
 ## Recovery
 

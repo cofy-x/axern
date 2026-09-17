@@ -13,7 +13,7 @@ func formatImageMounts(mounts []*commonv1.ImageMount) string {
 		if mount == nil {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("%s:%s:ro", mount.GetImage(), mount.GetTarget()))
+		parts = append(parts, fmt.Sprintf("%s:%s", mount.GetImage(), mount.GetTarget()))
 	}
 	return strings.Join(parts, " ")
 }

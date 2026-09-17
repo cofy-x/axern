@@ -70,6 +70,7 @@ fi
 namespace="compose-image-mount-smoke-$(date +%s)"
 run_id=""
 environment_id=""
+secret_id=""
 local_smoke_init_axern_cmd compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
 
 extract_run_json_field() {
@@ -115,6 +116,10 @@ cleanup_image_mount_smoke() {
     local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" environment delete "${environment_id}" -o json >/dev/null 2>&1 || true
     environment_id=""
   fi
+  if [ -n "${secret_id}" ]; then
+    local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" secret delete "${secret_id}" -o json >/dev/null 2>&1 || true
+    secret_id=""
+  fi
   local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace delete "${namespace}" -o json >/dev/null 2>&1 || true
   cleanup_bundle_build_dir
   end_env_lock compose
@@ -122,13 +127,19 @@ cleanup_image_mount_smoke() {
 }
 trap cleanup_image_mount_smoke EXIT
 
+local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace create "${namespace}" -o json >/dev/null
+secret_json="$(local_smoke_create_secret "${namespace}")"
+secret_id="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["secret"]["id"])' <<<"${secret_json}")"
+
 create_output="$(
   local_smoke_json_once_or_recover_by_namespace run runs run "${namespace}" \
     "${AXERN_SMOKE_CMD[@]}" run --detach -o json \
       --namespace "${namespace}" \
-      --image-mount "${bundle_cluster_image}:/opt/axern/tools/hello:ro" \
+      --image-mount "${bundle_cluster_image}:/opt/axern/tools/hello" \
+      --secret-env "AXERN_SMOKE_TOKEN=${secret_id}:token" \
+      --secret-file "/run/secrets/axern-token=${secret_id}:token:0400" \
       "${task_cluster_image}" -- /bin/sh -lc \
-      '/opt/axern/tools/hello/bin/hello-tool | grep -Fx image-mount-smoke-ok && ! touch /opt/axern/tools/hello/write-test' || true
+      '/opt/axern/tools/hello/bin/hello-tool | grep -Fx image-mount-smoke-ok && test "$AXERN_SMOKE_TOKEN" = "$(cat /run/secrets/axern-token)" && test "$(stat -c %a /run/secrets/axern-token)" = 400 && ! sh -c "printf changed > /run/secrets/axern-token" && ! touch /opt/axern/tools/hello/write-test' || true
 )"
 if ! run_id="$(extract_run_json_field id <<<"${create_output}" 2>/dev/null)"; then
   printf '%s\n' "${create_output}" >&2
@@ -144,6 +155,8 @@ run_id="$(extract_run_json_field id <<<"${run_json}")"
 environment_id="$(extract_run_json_field environment_id <<<"${run_json}")"
 python3 -c 'import json,sys
 run=json.load(sys.stdin)["run"]
+if "hello-local" in json.dumps(run):
+    raise SystemExit("Run metadata leaked Secret plaintext")
 if run["status"] != "succeeded":
     raise SystemExit("run status = %s, want succeeded" % run["status"])
 if run.get("exit_code") is not None and run.get("exit_code") != 0:
@@ -154,6 +167,8 @@ if [ -n "${environment_id}" ]; then
   local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" environment delete "${environment_id}" -o json >/dev/null
   environment_id=""
 fi
+local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" secret delete "${secret_id}" -o json >/dev/null
+secret_id=""
 local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace delete "${namespace}" -o json >/dev/null
 
 echo "compose_image_mount_smoke_ok=true"

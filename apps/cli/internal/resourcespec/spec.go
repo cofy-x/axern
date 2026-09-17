@@ -250,7 +250,7 @@ func (e Envelope) secretAndImageMounts() ([]*commonv1.SecretEnvVar, []*commonv1.
 			return nil, nil, nil, fmt.Errorf("spec.image_mounts[%d].target is duplicated", index)
 		}
 		imageTargets[item.Target] = struct{}{}
-		imageMounts = append(imageMounts, &commonv1.ImageMount{Image: item.Image, Target: item.Target, Readonly: true})
+		imageMounts = append(imageMounts, &commonv1.ImageMount{Image: item.Image, Target: item.Target})
 	}
 	return secretEnv, secretFiles, imageMounts, nil
 }

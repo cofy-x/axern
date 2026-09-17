@@ -43,7 +43,7 @@ local-compose-image-import: ## Import IMAGE from host Docker into the local Dock
 local-compose-registry-image-smoke: ## Verify Axern can start an image from the repo-managed local registry in compose
 	bash $(ROOTDIR)/scripts/dev-env/compose-registry-image-smoke.sh
 
-local-compose-image-mount-smoke: ## Verify compose run image_mounts with a read-only reusable image bundle
+local-compose-image-mount-smoke: ## Verify compose Run read-only image mounts and Secret projections
 	bash $(ROOTDIR)/scripts/dev-env/compose-image-mount-smoke.sh
 
 local-compose-nydus-smoke: ## Verify Axern can start a compose sandbox from a Nydus image through imagemgr/imagefsd

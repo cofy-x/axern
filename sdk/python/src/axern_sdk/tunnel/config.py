@@ -24,4 +24,5 @@ class ConnectorConfig:
     ping_interval_seconds: float = 15.0
     pong_timeout_seconds: float = 45.0
     max_streams: int = 256
+    frame_queue_size: int = 128
     local_connect_timeout_seconds: float = 5.0

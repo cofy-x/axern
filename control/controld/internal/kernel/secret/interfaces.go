@@ -41,7 +41,7 @@ type Mutator interface {
 }
 
 type ValueResolver interface {
-	Resolve(ctx context.Context, id string) (*ResolvedSecret, bool, error)
+	Resolve(ctx context.Context, namespace, id string) (*ResolvedSecret, bool, error)
 }
 
 type DockerConfigResolver interface {

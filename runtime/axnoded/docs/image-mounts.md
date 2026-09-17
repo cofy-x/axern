@@ -17,7 +17,8 @@ This is generic platform behavior. Agent CLIs, compilers, debuggers, test tools,
 
 - `image`: image reference resolved by the node image runtime.
 - `target`: absolute sandbox path below `/`.
-- `readonly`: read-only flag. Image mounts are read-only.
+
+Image mounts are unconditionally read-only. The public contract has no writable flag; controld resolves every accepted entry to an internal read-only runtime projection.
 
 Validation rules:
 
@@ -53,7 +54,7 @@ target=<target>
 options=["rbind","ro"]
 ```
 
-Stable runtime IDs include image, target, and read-only flag so different mount sets do not reuse the wrong environment template.
+Stable runtime IDs include image, target, and the internal read-only invariant so different mount sets do not reuse the wrong environment template.
 
 ## External Runner Use
 
@@ -66,9 +67,9 @@ native task sandbox image
   -> patch, stdout, trajectory, raw evidence, exports
 ```
 
-Task images and tool images remain separate. The external runner owns agent configuration, benchmark input, and task materialization; Axern receives only immutable image mounts and Allocation-local file/archive operations. Credentials and provider endpoints are injected at runtime, not baked into images.
+Task images and tool images remain separate. The external runner owns agent configuration, benchmark input, and task materialization; Axern receives only immutable image mounts and Allocation-local file/archive operations. Ordinary workload Secrets may use explicit Run projections. Model-provider identity remains in the external runner and is reached through an Allocation-scoped Tunnel to its loopback model gateway; it is neither baked into the image nor projected into the sandbox.
 
 ## Verification
 
-- `make local-compose-image-mount-smoke`
+- `make local-compose-image-mount-smoke` (read-only image mount plus environment/file Secret projections)
 - Linux Axern acceptance for read-only mount isolation and restart recovery

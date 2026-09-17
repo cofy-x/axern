@@ -59,7 +59,7 @@ func SecretFiles(values []string) ([]*commonv1.SecretFile, error) {
 		}
 		if strings.TrimSpace(modeText) != "" {
 			mode, err := strconv.ParseUint(strings.TrimSpace(modeText), 8, 32)
-			if err != nil {
+			if err != nil || mode > 0o777 || mode&0o222 != 0 {
 				return nil, fmt.Errorf("invalid secret file mode %q", modeText)
 			}
 			file.Mode = uint32(mode)

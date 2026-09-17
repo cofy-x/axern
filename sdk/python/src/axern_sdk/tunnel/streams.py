@@ -28,20 +28,33 @@ class _ConnectorState:
         self._lock = threading.Lock()
         self._conns: dict[int, socket.socket] = {}
         self._last_seen = time.monotonic()
+        self._closed = threading.Event()
+        self._heartbeat: threading.Thread | None = None
 
     def run(self, responses: Iterator[tunnel_pb2.TunnelFrame]) -> None:
-        heartbeat = threading.Thread(target=self._heartbeat_loop, name="axern-tunnel-heartbeat", daemon=True)
-        heartbeat.start()
-        for frame in responses:
-            if self._stop.is_set():
-                return
-            self._last_seen = time.monotonic()
-            self._handle_frame(frame)
+        self._heartbeat = threading.Thread(
+            target=self._heartbeat_loop,
+            name="axern-tunnel-heartbeat",
+            daemon=True,
+        )
+        self._heartbeat.start()
+        try:
+            for frame in responses:
+                if self._stop.is_set():
+                    return
+                self._last_seen = time.monotonic()
+                self._handle_frame(frame)
+        finally:
+            self._closed.set()
+            self._frames.close()
+            self._heartbeat.join()
 
     def _handle_frame(self, frame: tunnel_pb2.TunnelFrame) -> None:
         payload = frame.WhichOneof("payload")
         if payload == "ping":
-            self._frames.put(tunnel_pb2.TunnelFrame(pong=tunnel_pb2.Pong(id=frame.ping.id)))
+            self._frames.put(
+                tunnel_pb2.TunnelFrame(pong=tunnel_pb2.Pong(id=frame.ping.id))
+            )
         elif payload == "pong":
             return
         elif payload == "stream_open":
@@ -53,7 +66,10 @@ class _ConnectorState:
 
     def _open_local(self, stream_id: int) -> None:
         with self._lock:
-            if self._config.max_streams > 0 and len(self._conns) >= self._config.max_streams:
+            if (
+                self._config.max_streams > 0
+                and len(self._conns) >= self._config.max_streams
+            ):
                 self._send_stream_close(stream_id, "connector max streams reached")
                 return
         try:
@@ -69,7 +85,9 @@ class _ConnectorState:
             self._conns[stream_id] = conn
         if old is not None:
             old.close()
-        threading.Thread(target=self._copy_local_to_relay, args=(stream_id, conn), daemon=True).start()
+        threading.Thread(
+            target=self._copy_local_to_relay, args=(stream_id, conn), daemon=True
+        ).start()
 
     def _write_local(self, stream_id: int, data: bytes) -> None:
         if not data:
@@ -90,7 +108,13 @@ class _ConnectorState:
                 if not data:
                     self._send_stream_close(stream_id)
                     return
-                self._frames.put(tunnel_pb2.TunnelFrame(stream_data=tunnel_pb2.StreamData(stream_id=stream_id, data=data)))
+                self._frames.put(
+                    tunnel_pb2.TunnelFrame(
+                        stream_data=tunnel_pb2.StreamData(
+                            stream_id=stream_id, data=data
+                        )
+                    )
+                )
         except OSError as exc:
             self._send_stream_close(stream_id, str(exc))
         finally:
@@ -99,15 +123,23 @@ class _ConnectorState:
     def _heartbeat_loop(self) -> None:
         if self._config.ping_interval_seconds <= 0:
             return
-        while not self._stop.wait(self._config.ping_interval_seconds):
+        while not self._closed.wait(self._config.ping_interval_seconds):
+            if self._stop.is_set():
+                return
             if time.monotonic() - self._last_seen > self._config.pong_timeout_seconds:
                 self._stop.set()
                 self._frames.close()
                 return
-            self._frames.put(tunnel_pb2.TunnelFrame(ping=tunnel_pb2.Ping(id=str(time.time_ns()))))
+            self._frames.put(
+                tunnel_pb2.TunnelFrame(ping=tunnel_pb2.Ping(id=str(time.time_ns())))
+            )
 
     def _send_stream_close(self, stream_id: int, error: str = "") -> None:
-        self._frames.put(tunnel_pb2.TunnelFrame(stream_close=tunnel_pb2.StreamClose(stream_id=stream_id, error=error)))
+        self._frames.put(
+            tunnel_pb2.TunnelFrame(
+                stream_close=tunnel_pb2.StreamClose(stream_id=stream_id, error=error)
+            )
+        )
 
     def _close_local(self, stream_id: int) -> None:
         with self._lock:

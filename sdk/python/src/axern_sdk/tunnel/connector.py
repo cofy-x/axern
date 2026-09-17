@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from typing import Protocol
 
 import grpc
 
@@ -14,6 +15,10 @@ from axern_sdk.tunnel.frames import _FrameQueue
 from axern_sdk.tunnel.streams import _ConnectorState
 
 
+class _TunnelClient(Protocol):
+    def _gateway_transport(self) -> _GatewayTransport: ...
+
+
 class TunnelConnector:
     """Connects one Axern tunnel session to a local TCP upstream."""
 
@@ -23,15 +28,16 @@ class TunnelConnector:
         session: control_tunnel_pb2.TunnelSession,
         client_token: str,
         local_target: str,
-        transport: _GatewayTransport,
+        client: _TunnelClient,
         connector_config: ConnectorConfig | None = None,
     ) -> None:
         self._session = session
         self._client_token = client_token
         self._local_target = local_target
-        self._transport = transport
+        self._transport = client._gateway_transport()
         self._connector_config = connector_config or ConnectorConfig()
         self._stop = threading.Event()
+        self._done = threading.Event()
         self._thread: threading.Thread | None = None
         self._error: BaseException | None = None
         self._active_channel: grpc.Channel | None = None
@@ -45,7 +51,11 @@ class TunnelConnector:
     def start(self) -> None:
         if self._thread is not None:
             return
-        self._thread = threading.Thread(target=self.run, name=f"axern-tunnel-{self._session.session_id}", daemon=True)
+        self._thread = threading.Thread(
+            target=self.run,
+            name=f"axern-tunnel-{self._session.session_id}",
+            daemon=True,
+        )
         self._thread.start()
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -57,24 +67,33 @@ class TunnelConnector:
                 self._active_channel.close()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
+        self._client_token = ""
+
+    def wait_closed(self, timeout: float | None = None) -> bool:
+        """Wait until the connector stops reconnecting and releases its streams."""
+
+        return self._done.wait(timeout)
 
     def run(self) -> None:
-        backoff = 1.0
-        while not self._stop.is_set():
-            try:
-                self._run_once()
-                if not self._stop.is_set():
+        try:
+            backoff = 1.0
+            while not self._stop.is_set():
+                try:
+                    self._run_once()
+                    if not self._stop.is_set():
+                        backoff = self._sleep_before_reconnect(backoff)
+                except grpc.RpcError as exc:
+                    if _terminal_rpc_error(exc):
+                        self._error = exc
+                        self._stop.set()
+                        return
                     backoff = self._sleep_before_reconnect(backoff)
-            except grpc.RpcError as exc:
-                if _terminal_rpc_error(exc):
+                except BaseException as exc:
                     self._error = exc
                     self._stop.set()
                     return
-                backoff = self._sleep_before_reconnect(backoff)
-            except BaseException as exc:
-                self._error = exc
-                self._stop.set()
-                return
+        finally:
+            self._done.set()
 
     def _run_once(self) -> None:
         target = self._session.client_edge_target
@@ -89,7 +108,9 @@ class TunnelConnector:
             server_name=self._transport.server_name or None,
             proxy_mode=self._transport.proxy_mode,
         )
-        frames = _FrameQueue(self._stop)
+        frames = _FrameQueue(
+            self._stop, capacity=self._connector_config.frame_queue_size
+        )
         frames.put(
             tunnel_pb2.TunnelFrame(
                 peer_open=tunnel_pb2.PeerOpen(
@@ -109,7 +130,9 @@ class TunnelConnector:
             with self._active_lock:
                 self._active_channel = channel
                 self._active_frames = frames
-            responses = tunnel_pb2_grpc.TunnelRelayStub(channel).ConnectPeer(iter(frames))
+            responses = tunnel_pb2_grpc.TunnelRelayStub(channel).ConnectPeer(
+                iter(frames)
+            )
             state.run(responses)
         finally:
             with self._active_lock:
@@ -128,4 +151,8 @@ class TunnelConnector:
 
 
 def _terminal_rpc_error(exc: grpc.RpcError) -> bool:
-    return exc.code() in (grpc.StatusCode.PERMISSION_DENIED, grpc.StatusCode.UNAUTHENTICATED, grpc.StatusCode.NOT_FOUND)
+    return exc.code() in (
+        grpc.StatusCode.PERMISSION_DENIED,
+        grpc.StatusCode.UNAUTHENTICATED,
+        grpc.StatusCode.NOT_FOUND,
+    )

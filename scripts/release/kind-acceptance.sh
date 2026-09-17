@@ -288,9 +288,11 @@ YAML
 "${cli}" --config "${config}" --timeout 15m run --wait-timeout 15m --file "${state_dir}/run.yaml"
 
 if [ "$#" -gt 0 ]; then
+  sdk_acceptance_image="${AXERN_RELEASE_REGISTRY}/python311-runtime:${tag}${image_tag_suffix:+-${image_tag_suffix}}"
   AXERN_SDK_ACCEPTANCE_CONFIG="${config}" \
     AXERN_SDK_ACCEPTANCE_CONTEXT=release \
     AXERN_SDK_ACCEPTANCE_CLI="${cli}" \
+    AXERN_SDK_ACCEPTANCE_IMAGE_MOUNT="${sdk_acceptance_image}" \
     "$@"
 fi
 
