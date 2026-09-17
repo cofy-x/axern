@@ -31,9 +31,28 @@ if ! [[ "${capability_ready_timeout_seconds}" =~ ^[1-9][0-9]*$ ]]; then
 fi
 state_dir="$(mktemp -d)"
 cleanup() {
+  local status=$?
+  if ((status != 0)); then
+    echo "--- release acceptance diagnostics ---" >&2
+    kubectl --namespace "${namespace}" get pods -o wide >&2 || true
+    if [[ -n "${config:-}" && -f "${config}" && -n "${cli:-}" ]]; then
+      echo "--- allocation lifecycle retries ---" >&2
+      "${cli}" --config "${config}" admin allocation-retry list --output json >&2 || true
+    fi
+    echo "--- controld logs ---" >&2
+    kubectl --namespace "${namespace}" logs deployment/controld --all-containers --tail=500 >&2 || true
+    echo "--- gatewayd logs ---" >&2
+    kubectl --namespace "${namespace}" logs deployment/gatewayd --all-containers --tail=300 >&2 || true
+    echo "--- node container logs ---" >&2
+    kubectl --namespace "${namespace}" logs -l app.kubernetes.io/component=node --all-containers --tail=500 >&2 || true
+    echo "--- axnoded file log ---" >&2
+    kubectl --namespace "${namespace}" exec "$(kubectl --namespace "${namespace}" get pod -l app.kubernetes.io/component=node -o jsonpath='{.items[0].metadata.name}')" -- \
+      sh -c 'tail -n 1000 /var/log/axnoded/axnoded.log' >&2 || true
+  fi
   jobs -p | xargs kill >/dev/null 2>&1 || true
   kind delete cluster --name "${cluster}" >/dev/null 2>&1 || true
   rm -rf "${state_dir}"
+  return "${status}"
 }
 trap cleanup EXIT
 
