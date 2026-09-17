@@ -53,7 +53,6 @@ const (
 	MetricResourcePoolRefillDuration                = "axern.axnoded_resource_pool_refill_duration_seconds"
 	MetricBundleTemplateTotal                       = "axern.axnoded_bundle_template_total"
 	MetricBundleMaterializeDuration                 = "axern.axnoded_bundle_materialize_duration_seconds"
-	MetricRuntimeWaitGraceTotal                     = "axern.axnoded_runtime_wait_grace_total"
 	MetricControlPlaneRPCTotal                      = "axern.axnoded_control_plane_rpc_total"
 	MetricControlPlaneRPCDuration                   = "axern.axnoded_control_plane_rpc_duration_seconds"
 	MetricAllocationLifecycleQueueTotal             = "axern.axnoded_allocation_lifecycle_queue_total"
@@ -111,7 +110,6 @@ const (
 	descResourcePoolRefillDuration                = "Axnoded resource pool refill duration."
 	descBundleTemplateTotal                       = "Axnoded bundle template results."
 	descBundleMaterializeDuration                 = "Axnoded bundle materialization duration."
-	descRuntimeWaitGraceTotal                     = "Axnoded runtime wait grace-path resolutions."
 	descControlPlaneRPCTotal                      = "Axnoded control-plane reporter RPC attempts."
 	descControlPlaneRPCDuration                   = "Axnoded control-plane reporter RPC duration."
 	descAllocationLifecycleQueueTotal             = "Axnoded allocation lifecycle queue events."
@@ -434,15 +432,6 @@ func RecordBundleMaterializeDuration(runtime, rootfsType, result string, seconds
 		descBundleMaterializeDuration,
 		seconds,
 		runtimeRootfsResultAttrs(runtime, rootfsType, result)...,
-	)
-}
-
-func RecordRuntimeWaitGrace(runtime, result string) {
-	recordCounter(
-		MetricRuntimeWaitGraceTotal,
-		descRuntimeWaitGraceTotal,
-		attribute.String(sdkobs.AttrRuntime, runtime),
-		attribute.String(sdkobs.AttrResult, result),
 	)
 }
 

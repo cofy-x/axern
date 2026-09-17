@@ -29,7 +29,6 @@ type StartupSummary struct {
 	DominantPhaseP95 map[string]string                           `json:"dominantPhaseP95,omitempty"`
 	DominantPhaseP99 map[string]string                           `json:"dominantPhaseP99,omitempty"`
 	Bundle           *BundleTemplateSummary                      `json:"bundle,omitempty"`
-	WaitGrace        *RuntimeWaitGraceSummary                    `json:"waitGrace,omitempty"`
 }
 
 type StartupClassSummary struct {
@@ -46,7 +45,6 @@ type StartupSnapshot struct {
 	Classes    map[string]StartupClassSnapshot `json:"classes,omitempty"`
 	Phases     map[string]StartupPhaseSnapshot `json:"phases,omitempty"`
 	Bundle     *BundleTemplateSnapshot         `json:"bundle,omitempty"`
-	WaitGrace  *RuntimeWaitGraceSnapshot       `json:"waitGrace,omitempty"`
 }
 
 type StartupClassSnapshot struct {
@@ -105,14 +103,4 @@ type BundleTemplateSnapshot struct {
 	MaterializeCount      uint64             `json:"materializeCount,omitempty"`
 	MaterializeSumSeconds float64            `json:"materializeSumSeconds,omitempty"`
 	MaterializeHistogram  *HistogramSnapshot `json:"materializeHistogram,omitempty"`
-}
-
-type RuntimeWaitGraceSummary struct {
-	RecoveredCount   uint64 `json:"recoveredCount,omitempty"`
-	UnavailableCount uint64 `json:"unavailableCount,omitempty"`
-}
-
-type RuntimeWaitGraceSnapshot struct {
-	RecoveredCount   uint64 `json:"recoveredCount,omitempty"`
-	UnavailableCount uint64 `json:"unavailableCount,omitempty"`
 }

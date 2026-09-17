@@ -32,7 +32,7 @@ func TestWaitReadyOrExitReturnsReadySuccess(t *testing.T) {
 	}
 }
 
-func TestWaitReadyOrExitReturnsExitWithoutWaitingForReadyTimeout(t *testing.T) {
+func TestWaitReadyOrExitRejectsExitWithoutWaitingForReadyTimeout(t *testing.T) {
 	meta := &apipb.ContainerMetadata{}
 	start := time.Now()
 
@@ -50,15 +50,15 @@ func TestWaitReadyOrExitReturnsExitWithoutWaitingForReadyTimeout(t *testing.T) {
 			return contract.Exit{Timestamp: time.Now(), Status: 0}, true, nil
 		},
 	)
-	if err != nil {
-		t.Fatalf("WaitReadyOrExit() error = %v", err)
+	if err == nil {
+		t.Fatal("WaitReadyOrExit() error = nil, want OCI-before-readiness failure")
 	}
 	if elapsed := time.Since(start); elapsed >= time.Second {
 		t.Fatalf("WaitReadyOrExit() elapsed = %v, want fast exit recovery", elapsed)
 	}
 }
 
-func TestWaitReadyOrExitAcceptsNonZeroExitBeforeReady(t *testing.T) {
+func TestWaitReadyOrExitRejectsNonZeroExitBeforeReady(t *testing.T) {
 	meta := &apipb.ContainerMetadata{}
 	err := WaitReadyOrExit(
 		context.Background(),
@@ -74,8 +74,8 @@ func TestWaitReadyOrExitAcceptsNonZeroExitBeforeReady(t *testing.T) {
 			return contract.Exit{Timestamp: time.Now(), Status: 42}, true, nil
 		},
 	)
-	if err != nil {
-		t.Fatalf("WaitReadyOrExit() error = %v", err)
+	if err == nil {
+		t.Fatal("WaitReadyOrExit() error = nil, want OCI-before-readiness failure")
 	}
 }
 

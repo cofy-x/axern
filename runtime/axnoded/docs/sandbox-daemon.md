@@ -92,14 +92,15 @@ Rules:
 | Operation    | Contract                                                                                                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
 | create       | Runtime starts sandboxd; `axnoded` waits for daemon control readiness and records internal socket/capability metadata. |
-| wait         | Runtime wait observes sandboxd follow-exit so user process exit status remains the container result.                   |
-| kill         | Runtime kill targets PID 1; sandboxd forwards termination to the supervised process group.                             |
-| delete       | Runtime deletes the OCI container and bundle-local daemon state.                                                       |
+| wait         | Runtime wait observes the supervised workload result through sandboxd; OCI PID 1 may remain alive for output sealing.  |
+| signal       | Operator signals target only the supervised workload process group; they do not delete or stop the OCI sandbox.         |
+| fail-stop    | Lease/capability enforcement uses bounded supervised-workload stop and retains sandboxd plus node recovery state.       |
+| delete       | Final control-plane cleanup seals declared outputs through the live daemon, then deletes OCI and bundle-local state.    |
 | process/exec | Uses sandboxd process APIs when `process` capability is present.                                                       |
 | terminal/PTY | Uses sandboxd process session APIs for PTY allocation, stdin, resize, streams, signals, and final status.              |
 | file/archive | Uses sandboxd file APIs; missing readiness, socket metadata, or capability fails closed.                               |
 
-Short-lived successful workloads may exit before readiness observes the daemon. Clean runtime exit before readiness is valid for short commands; startup failure or non-zero exit before readiness remains a create failure.
+The supervised user workload, not OCI PID 1, is the Allocation execution result. After that workload exits, sandboxd stays alive to report the immutable result and serve the file/archive API until the authoritative final Delete crosses the output-sealing barrier. A node fail-stop never terminates sandboxd or removes its socket. Workload start failure, short-lived completion, and non-zero exit are immutable workload results reported through sandboxd; daemon readiness and capability negotiation remain separate create-time requirements.
 
 Long-running stream/session cleanup must close stdin, request graceful termination, wait for daemon process status, and escalate to kill before releasing local streams.
 
@@ -107,7 +108,7 @@ Session cleanup uses an independently bounded runtime wait, not the access-side 
 
 Process and ExecStream adapt their public stream requests directly to the same runtime `OpenExecSession` contract. There is no separately composed Process service or lifecycle; the API-facing controller retains timeout, signal, and stream behavior.
 
-Daemon shutdown performs the same cleanup for daemon-owned child processes: sandboxd closes open stdin pipes, sends graceful termination to active process groups, escalates to kill after the configured grace period, shuts down the HTTP server, and removes the private Unix socket.
+Final OCI cleanup shuts down daemon-owned child processes: sandboxd closes open stdin pipes, sends graceful termination to active process groups, escalates to kill after the configured grace period, shuts down the HTTP server, and removes the private Unix socket. This is distinct from stopping the supervised Allocation workload for lease expiry, capability loss, cancellation, or output sealing.
 
 On Linux, one waiter owns child creation/registration, group signaling, `wait4`, and OS handle release under the same short critical section. Registration cannot race reaping, and an already-reaped command cannot signal a reused PID. Unregistered adopted children are reaped without caching a result by PID. Process groups are not containment: a descendant can leave its original group; runsc Allocation teardown remains the final sandbox-wide cleanup boundary. Non-Linux tooling signals the direct OS process handle and does not claim the Linux PID 1 group guarantee.
 

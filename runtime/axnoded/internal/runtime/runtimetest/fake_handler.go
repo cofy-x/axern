@@ -48,6 +48,10 @@ func (f *FakeSandboxRuntime) KillContainer(ctx context.Context, request *apipb.S
 	return &apipb.SignalContainerResponse{}, getErrorFromContext(ctx)
 }
 
+func (f *FakeSandboxRuntime) StopWorkload(ctx context.Context, options contract.HandlerOptions) (contract.Exit, error) {
+	return contract.Exit{Timestamp: time.Now().UTC(), Status: 137}, getErrorFromContext(ctx)
+}
+
 func (f *FakeSandboxRuntime) ListContainers(ctx context.Context, options contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
 	return []*contract.UnionContainerState{}, getErrorFromContext(ctx)
 }

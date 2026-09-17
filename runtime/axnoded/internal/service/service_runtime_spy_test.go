@@ -18,6 +18,7 @@ type runtimeSpyHandler struct {
 	deleteCalls        int
 	deleteHook         func()
 	killCalls          int
+	stopCalls          int
 	lastOptions        contract.HandlerOptions
 	lastExecOptions    contract.HandlerOptions
 	lastSessionOptions contract.HandlerOptions
@@ -91,6 +92,12 @@ func (h *runtimeSpyHandler) KillContainer(_ context.Context, request *apipb.Sign
 		return &apipb.SignalContainerResponse{}, h.killError
 	}
 	return &apipb.SignalContainerResponse{}, nil
+}
+
+func (h *runtimeSpyHandler) StopWorkload(_ context.Context, options contract.HandlerOptions) (contract.Exit, error) {
+	h.stopCalls++
+	h.lastOptions = options
+	return contract.Exit{Status: 137, Timestamp: time.Now().UTC()}, nil
 }
 
 func (h *runtimeSpyHandler) ListContainers(_ context.Context, _ contract.HandlerOptions) ([]*contract.UnionContainerState, error) {

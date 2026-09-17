@@ -25,6 +25,18 @@ type declaredOutputFileService struct {
 	readErr error
 }
 
+type stoppedWorkloadFileService struct {
+	declaredOutputFileService
+	stopped func() bool
+}
+
+func (f stoppedWorkloadFileService) StatFile(ctx context.Context, request *apipb.StatFileRequest, options contract.HandlerOptions) (*apipb.StatFileResponse, error) {
+	if !f.stopped() {
+		return nil, errord.ErrFailedPrecondition
+	}
+	return f.declaredOutputFileService.StatFile(ctx, request, options)
+}
+
 func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *testing.T) {
 	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
 	local := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}

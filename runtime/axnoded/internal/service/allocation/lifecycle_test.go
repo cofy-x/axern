@@ -8,6 +8,8 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	filev1 "github.com/cofy-x/axern/sdk/go/gen/axern/common/file/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,6 +160,64 @@ func TestDeleteOutputSealingPreservesExplicitZeroOutputContract(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, manifest.Entries)
 	require.Equal(t, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", manifest.OutputContractSHA256)
+}
+
+func TestDeleteStopsWorkloadBeforeSealingAndDeletesRuntimeAfterBarrier(t *testing.T) {
+	workloadStopped := make(chan struct{})
+	handler := &runtimeSpyHandler{
+		name: "runsc",
+		stopFunc: func(context.Context, contract.HandlerOptions) (contract.Exit, error) {
+			close(workloadStopped)
+			return contract.Exit{Status: 137, Timestamp: time.Now().UTC()}, nil
+		},
+		waitFunc: func(ctx context.Context, _ contract.HandlerOptions) (contract.Exit, error) {
+			select {
+			case <-workloadStopped:
+				return contract.Exit{Status: 137, Timestamp: time.Now().UTC()}, nil
+			case <-ctx.Done():
+				return contract.Exit{}, ctx.Err()
+			}
+		},
+	}
+	handler.fileService = stoppedWorkloadFileService{
+		declaredOutputFileService: declaredOutputFileService{
+			kind:    filev1.SandboxFileKind_SANDBOX_FILE_KIND_FILE,
+			content: []byte("candidate"),
+		},
+		stopped: func() bool { return handler.stopCalls == 1 && handler.deleteCalls == 0 },
+	}
+	fixture := newTestAllocationController(t, handler)
+	const allocationID = "allocation-output-barrier"
+	declaration := &commonv1.DeclaredOutput{
+		Path: "/tmp/candidate.txt", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+	}
+	require.NoError(t, fixture.controller.StoreAllocationIntent(
+		allocationID, "node-a",
+		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		time.Now().Add(time.Minute), nil, nil, []*commonv1.DeclaredOutput{declaration},
+	))
+	writeContainerSpecFile(t, fixture.controller.config.RootDir, allocationID, nil)
+	require.NoError(t, fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{}))
+	require.NoError(t, fixture.manager.SyncRuntimeIdentityFromState(allocationID, &contract.UnionContainerState{
+		ID: allocationID, Status: contract.ContainerStatusRunning, InitProcessPid: 101,
+		Created: time.Now().UTC().Format(time.RFC3339Nano),
+	}))
+	require.NoError(t, fixture.manager.StartMonitor(allocationID, &apipb.ContainerMetadata{}))
+
+	_, err := fixture.controller.Delete(t.Context(), &runtime.DeleteRequest{
+		ID: allocationID,
+		OutputSealing: &runtime.OutputSealingRequest{
+			ExpiresAtUnixNano: time.Now().Add(time.Hour).UTC().UnixNano(),
+			Outputs:           []*commonv1.DeclaredOutput{declaration},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, handler.stopCalls)
+	require.Equal(t, 1, handler.deleteCalls)
+	manifest, err := fixture.controller.outputRetention.Manifest(allocationID, time.Now())
+	require.NoError(t, err)
+	require.Len(t, manifest.Entries, 1)
+	require.Equal(t, "available", manifest.Entries[0].Status)
 }
 
 func storeTestContainer(t *testing.T, fixture testAllocationController, containerID string, runtimeName string) {

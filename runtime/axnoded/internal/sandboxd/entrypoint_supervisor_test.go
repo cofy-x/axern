@@ -24,7 +24,18 @@ func TestRunnerReturnsUserExitCode(t *testing.T) {
 			Args: []string{"/bin/sh", "-c", "exit 7"},
 		},
 	}
-	code, err := NewRunner(cfg, &bytes.Buffer{}, &bytes.Buffer{}).Run(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	runner := NewRunner(cfg, &bytes.Buffer{}, &bytes.Buffer{})
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() { code, err := runner.Run(ctx); done <- result{code, err} }()
+	waitForState(t, runner.state, workload.UserStateExited)
+	cancel()
+	got := <-done
+	code, err := got.code, got.err
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}
@@ -45,7 +56,17 @@ func TestRunnerReportsStartFailure(t *testing.T) {
 	}
 	stderr := &bytes.Buffer{}
 	runner := NewRunner(cfg, &bytes.Buffer{}, stderr)
-	code, err := runner.Run(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() { code, err := runner.Run(ctx); done <- result{code, err} }()
+	waitForState(t, runner.state, workload.UserStateFailed)
+	cancel()
+	got := <-done
+	code, err := got.code, got.err
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
 	}

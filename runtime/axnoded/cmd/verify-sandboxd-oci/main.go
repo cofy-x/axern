@@ -12,6 +12,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
+	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -37,6 +38,7 @@ type runCase struct {
 	expectOut        []string
 	expectReady      bool
 	expectProcessAPI bool
+	expectOutputSeal bool
 	signalAfter      time.Duration
 }
 
@@ -89,18 +91,20 @@ func run(cfg config) error {
 
 	cases := []runCase{
 		{
-			name:        "exit7",
-			argv:        []string{"/bin/sh", "-c", "printf 'pid1=%s env=%s cwd=%s\\n' \"$(cat /proc/1/comm)\" \"$AXERN_SANDBOXD_E2E\" \"$(pwd)\"; sleep 1; exit 7"},
-			env:         []*apipb.KeyValue{{Key: "AXERN_SANDBOXD_E2E", Value: "ok"}},
-			cwd:         "/tmp",
-			expected:    7,
-			expectOut:   []string{"pid1=axern-sandboxd env=ok cwd=/tmp"},
-			expectReady: true,
+			name:             "exit7",
+			argv:             []string{"/bin/sh", "-c", "printf 'pid1=%s env=%s cwd=%s\\n' \"$(cat /proc/1/comm)\" \"$AXERN_SANDBOXD_E2E\" \"$(pwd)\"; printf candidate > /tmp/axern-output-sealing-candidate; sleep 1; exit 7"},
+			env:              []*apipb.KeyValue{{Key: "AXERN_SANDBOXD_E2E", Value: "ok"}},
+			cwd:              "/tmp",
+			expected:         7,
+			expectOut:        []string{"pid1=axern-sandboxd env=ok cwd=/tmp"},
+			expectReady:      true,
+			expectOutputSeal: true,
 		},
 		{
-			name:     "missing",
-			argv:     []string{"/tmp/axern-sandboxd-missing-binary"},
-			expected: 127,
+			name:        "missing",
+			argv:        []string{"/tmp/axern-sandboxd-missing-binary"},
+			expected:    127,
+			expectReady: true,
 		},
 		{
 			name:             "signal",
@@ -219,131 +223,73 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	caseFailure := func(err error) error {
 		return fmt.Errorf("%s: %w\n%s", tc.name, err, caseDiagnostics(bundlePath, stdoutPath, stderrPath, runtimeOut.String()))
 	}
-	if tc.signalAfter > 0 {
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("%s: start runtime: %w: %s", tc.name, err, runtimeOut.String())
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("%s: start runtime: %w: %s", tc.name, err, runtimeOut.String())
+	}
+	cleanupRuntime := func() error {
+		killErr := killContainer(cfg, runtimeRoot, containerID)
+		_ = cmd.Wait()
+		deleteErr := deleteContainer(cfg, runtimeRoot, containerID)
+		if killErr != nil {
+			return fmt.Errorf("stop sandboxd container: %w", killErr)
 		}
-		if tc.expectReady {
-			if err := assertSandboxdReady(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
+		if deleteErr != nil {
+			return fmt.Errorf("delete sandboxd container: %w", deleteErr)
 		}
-		if tc.expectProcessAPI {
-			if err := assertSandboxdProcessAPI(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdFileAPI(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdProbePortsMounts(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdBackedExecContainer(ctx, cfg, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdBackedExecSession(ctx, cfg, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdBackedFileService(ctx, cfg, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-		}
-		time.Sleep(tc.signalAfter)
-		if err := killContainer(cfg, runtimeRoot, containerID); err != nil {
-			_ = cmd.Wait()
-			return fmt.Errorf("%s: signal container: %w", tc.name, err)
-		}
-		err = cmd.Wait()
-		code := exitCode(err)
-		if code != tc.expected {
-			err := caseFailure(fmt.Errorf("exit code = %d, want %d", code, tc.expected))
-			_ = deleteContainer(cfg, runtimeRoot, containerID)
-			return err
-		}
-		_ = deleteContainer(cfg, runtimeRoot, containerID)
 		return nil
 	}
-
+	cleanupAfterFailure := func() {
+		_ = cleanupRuntime()
+	}
 	if tc.expectReady {
-		if err := cmd.Start(); err != nil {
-			return fmt.Errorf("%s: start runtime: %w: %s", tc.name, err, runtimeOut.String())
-		}
 		if err := assertSandboxdReady(ctx, bundlePath); err != nil {
-			_ = killContainer(cfg, runtimeRoot, containerID)
-			_ = cmd.Wait()
-			_ = deleteContainer(cfg, runtimeRoot, containerID)
+			cleanupAfterFailure()
 			return caseFailure(err)
 		}
-		if tc.expectProcessAPI {
-			if err := assertSandboxdProcessAPI(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdFileAPI(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdProbePortsMounts(ctx, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdBackedExecContainer(ctx, cfg, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdBackedExecSession(ctx, cfg, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
-				return caseFailure(err)
-			}
-			if err := assertSandboxdBackedFileService(ctx, cfg, bundlePath); err != nil {
-				_ = killContainer(cfg, runtimeRoot, containerID)
-				_ = cmd.Wait()
-				_ = deleteContainer(cfg, runtimeRoot, containerID)
+	}
+	if tc.expectProcessAPI {
+		checks := []func() error{
+			func() error { return assertSandboxdProcessAPI(ctx, bundlePath) },
+			func() error { return assertSandboxdFileAPI(ctx, bundlePath) },
+			func() error { return assertSandboxdProbePortsMounts(ctx, bundlePath) },
+			func() error { return assertSandboxdBackedExecContainer(ctx, cfg, bundlePath) },
+			func() error { return assertSandboxdBackedExecSession(ctx, cfg, bundlePath) },
+			func() error { return assertSandboxdBackedFileService(ctx, cfg, bundlePath) },
+		}
+		for _, check := range checks {
+			if err := check(); err != nil {
+				cleanupAfterFailure()
 				return caseFailure(err)
 			}
 		}
-		err = cmd.Wait()
-	} else {
-		err = cmd.Run()
 	}
-	code := exitCode(err)
-	if code != tc.expected {
-		err := caseFailure(fmt.Errorf("exit code = %d, want %d", code, tc.expected))
-		_ = deleteContainer(cfg, runtimeRoot, containerID)
-		return err
+	client := runtimesandboxd.NewClient(runtimeoci.SandboxdBundleSocketPath(bundlePath))
+	if tc.signalAfter > 0 {
+		time.Sleep(tc.signalAfter)
+		if err := client.SignalWorkload(ctx, "TERM"); err != nil {
+			cleanupAfterFailure()
+			return caseFailure(fmt.Errorf("signal workload: %w", err))
+		}
 	}
-	_ = deleteContainer(cfg, runtimeRoot, containerID)
+	result, err := client.WaitWorkload(ctx)
+	if err != nil {
+		cleanupAfterFailure()
+		return caseFailure(fmt.Errorf("wait workload: %w", err))
+	}
+	if result.ExitCode != tc.expected {
+		cleanupAfterFailure()
+		return caseFailure(fmt.Errorf("workload exit code = %d, want %d", result.ExitCode, tc.expected))
+	}
+	if tc.expectOutputSeal {
+		output, readErr := client.ReadFile(ctx, "/tmp/axern-output-sealing-candidate")
+		if readErr != nil || string(output.Data) != "candidate" {
+			cleanupAfterFailure()
+			return caseFailure(fmt.Errorf("read candidate after workload exit: data=%q err=%v", output.Data, readErr))
+		}
+	}
+	if err := cleanupRuntime(); err != nil {
+		return caseFailure(err)
+	}
 	if err := assertOutput(stdoutPath, runtimeOut.String(), tc.expectOut); err != nil {
 		return fmt.Errorf("%s: %w", tc.name, err)
 	}

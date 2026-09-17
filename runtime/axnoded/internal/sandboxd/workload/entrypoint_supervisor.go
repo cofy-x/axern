@@ -1,6 +1,7 @@
 package workload
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,9 +20,10 @@ type Entrypoint struct {
 }
 
 type ProcessResult struct {
-	ExitCode int
-	Signal   os.Signal
-	Err      error
+	ExitCode   int
+	Signal     os.Signal
+	FinishedAt time.Time
+	Err        error
 }
 
 type Supervisor struct {
@@ -101,7 +103,7 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 			FinishedAt: &finishedAt,
 			LastError:  err.Error(),
 		})
-		s.finish(ProcessResult{ExitCode: proc.RuntimeStartExitCode, Err: err})
+		s.finish(ProcessResult{ExitCode: proc.RuntimeStartExitCode, FinishedAt: finishedAt, Err: err})
 		return s.done
 	}
 
@@ -128,7 +130,7 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 				status.LastError = waitResult.Err.Error()
 			}
 		})
-		s.finish(ProcessResult{ExitCode: exitCode, Signal: waitResult.Signal, Err: waitResult.Err})
+		s.finish(ProcessResult{ExitCode: exitCode, Signal: waitResult.Signal, FinishedAt: finishedAt, Err: waitResult.Err})
 	}()
 	return s.done
 }
@@ -139,7 +141,7 @@ func (s *Supervisor) Shutdown(signal os.Signal) ProcessResult {
 	cmd := s.cmd
 	s.startMu.Unlock()
 	if cmd == nil {
-		s.finish(ProcessResult{ExitCode: 0})
+		s.finish(ProcessResult{ExitCode: 0, FinishedAt: time.Now().UTC()})
 		<-s.finished
 		return s.result
 	}
@@ -168,6 +170,25 @@ func (s *Supervisor) Shutdown(signal os.Signal) ProcessResult {
 		case <-time.After(time.Second):
 			return ProcessResult{ExitCode: proc.RuntimeStartExitCode, Err: fmt.Errorf("entrypoint kill did not complete")}
 		}
+	}
+}
+
+func (s *Supervisor) Signal(signal os.Signal) error {
+	s.startMu.Lock()
+	cmd := s.cmd
+	s.startMu.Unlock()
+	if cmd == nil {
+		return os.ErrProcessDone
+	}
+	return s.waiter.Signal(cmd, signal)
+}
+
+func (s *Supervisor) Wait(ctx context.Context) (ProcessResult, error) {
+	select {
+	case <-s.finished:
+		return s.result, nil
+	case <-ctx.Done():
+		return ProcessResult{}, ctx.Err()
 	}
 }
 

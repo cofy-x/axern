@@ -28,6 +28,7 @@ type RunscServiceHandler struct {
 	shutdownOnce                      sync.Once
 	waitLocks                         sync.Map
 	waitForSandboxReady               sandboxd.ReadyWaiter
+	newWorkloadClient                 func(string) sandboxdWorkloadClient
 	services                          runtimeServices
 }
 
@@ -37,9 +38,7 @@ type runscState struct {
 }
 
 var (
-	runscExitStateGracePeriod = 5 * time.Second
-	runscWaitRetryTimeout     = 200 * time.Millisecond
-	runscForceStopTimeout     = 5 * time.Second
+	runscForceStopTimeout = 5 * time.Second
 )
 
 func (r *RunscServiceHandler) FileService() contract.FileService {
