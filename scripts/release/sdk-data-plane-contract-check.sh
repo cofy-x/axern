@@ -8,6 +8,7 @@ bash -n \
   "${AXERN_ROOT}/scripts/release/local-release-smoke.sh" \
   "${AXERN_ROOT}/scripts/release/sdk-data-plane-acceptance.sh"
 node --check "${AXERN_ROOT}/scripts/release/sdk-data-plane/typescript.mjs"
+python3 "${AXERN_ROOT}/scripts/release/sdk-data-plane/contract_test.py"
 test -z "$(gofmt -l "${AXERN_ROOT}/scripts/release/sdk-data-plane/main.go")" || {
   echo "Go SDK data-plane acceptance fixture is not formatted" >&2
   exit 1
