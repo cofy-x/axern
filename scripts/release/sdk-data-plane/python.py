@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 
 import axern_sdk
+from axern.control.common.v1 import common_pb2
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk import (
     AxernClient,
@@ -19,6 +20,7 @@ from axern_sdk import (
     SandboxError,
     TunnelConnector,
 )
+from contract import normalized_declared_output_contract
 
 
 def main() -> None:
@@ -38,31 +40,28 @@ def main() -> None:
             template_id="python311",
             labels={"axern.release.acceptance": "python"},
         )
+        declared_outputs = [
+            DeclaredOutput(
+                path="/tmp/axern-output.txt",
+                format=DeclaredOutputFormat.FILE,
+                media_type="text/plain",
+            ),
+            DeclaredOutput(
+                path="/tmp/axern-output-dir",
+                format=DeclaredOutputFormat.TAR,
+                media_type="application/x-tar",
+            ),
+        ]
         with Sandbox(
             client=client,
             environment_id=environment.id,
             request_cpu="100m",
             request_memory="512MiB",
             image_mounts=[ImageMount(image_mount, "/__runtime_probe")],
-            declared_outputs=[
-                DeclaredOutput(
-                    path="/tmp/axern-output.txt",
-                    format=DeclaredOutputFormat.FILE,
-                    media_type="text/plain",
-                ),
-                DeclaredOutput(
-                    path="/tmp/axern-output-dir",
-                    format=DeclaredOutputFormat.TAR,
-                    media_type="application/x-tar",
-                ),
-            ],
+            declared_outputs=declared_outputs,
             labels={"axern.release.acceptance": "python"},
         ) as sandbox:
-            assert_declared_outputs(
-                client,
-                sandbox.run_id,
-                ["/tmp/axern-output.txt", "/tmp/axern-output-dir"],
-            )
+            assert_declared_outputs(client, sandbox.run_id, declared_outputs)
             assert_read_only_image_mount(client, sandbox)
             assert_public_tunnel(client, sandbox, marker)
             task_input = handshake / "python-task-input.txt"
@@ -135,21 +134,22 @@ def main() -> None:
             timeout=60,
         )
         assert_output_archive(output_archive.getvalue(), marker)
+        second_declared_outputs = [
+            DeclaredOutput(
+                path="/tmp/second-output.txt",
+                format=DeclaredOutputFormat.FILE,
+                media_type="text/plain",
+            )
+        ]
         with Sandbox(
             client=client,
             environment_id=environment.id,
             request_cpu="100m",
             request_memory="512MiB",
-            declared_outputs=[
-                DeclaredOutput(
-                    path="/tmp/second-output.txt",
-                    format=DeclaredOutputFormat.FILE,
-                    media_type="text/plain",
-                )
-            ],
+            declared_outputs=second_declared_outputs,
             labels={"axern.release.acceptance": "python-second-run"},
         ) as second:
-            assert_declared_outputs(client, second.run_id, ["/tmp/second-output.txt"])
+            assert_declared_outputs(client, second.run_id, second_declared_outputs)
             if client.get_run(second.run_id).config.image_mounts:
                 raise RuntimeError("second independent Run inherited an ImageMount")
             second.write_file("/tmp/input.txt", output)
@@ -293,13 +293,25 @@ def wait_tunnel_client(client: AxernClient, session_id: str) -> None:
 
 
 def assert_declared_outputs(
-    client: AxernClient, run_id: str, expected_paths: list[str]
+    client: AxernClient, run_id: str, expected_outputs: list[DeclaredOutput]
 ) -> None:
     run = client.get_run(run_id, timeout=10)
-    paths = [output.path for output in run.config.declared_outputs]
-    if paths != expected_paths:
+    format_values = {
+        DeclaredOutputFormat.FILE: common_pb2.DECLARED_OUTPUT_FORMAT_FILE,
+        DeclaredOutputFormat.TAR: common_pb2.DECLARED_OUTPUT_FORMAT_TAR,
+    }
+    actual = normalized_declared_output_contract(
+        run.config.declared_outputs,
+        format_number=int,
+    )
+    expected = normalized_declared_output_contract(
+        expected_outputs,
+        format_number=format_values.__getitem__,
+    )
+    if actual != expected:
         raise RuntimeError(
-            f"Run did not preserve its declared-output contract: {paths!r}"
+            "Run did not preserve its declared-output contract: "
+            f"expected={expected!r} actual={actual!r}"
         )
 
 
