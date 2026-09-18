@@ -15,10 +15,11 @@ const (
 )
 
 type Metadata struct {
-	Version   string    `json:"version"`
-	Profile   string    `json:"profile,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Version        string    `json:"version"`
+	ComposeProject string    `json:"compose_project"`
+	Profile        string    `json:"profile,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Component struct {

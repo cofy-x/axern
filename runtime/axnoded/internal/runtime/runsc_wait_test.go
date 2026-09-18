@@ -58,10 +58,67 @@ func TestRunscHandlerWaitUsesSandboxdWorkloadResult(t *testing.T) {
 	assert.Equal(t, exitedAt, exit.Timestamp)
 }
 
-func TestRunscHandlerWaitFailsClosedWhenSandboxdResultUnavailable(t *testing.T) {
+func TestRunscHandlerWaitRetriesSandboxdTransportFailureWhileRuntimeLives(t *testing.T) {
 	handler := newRunscWorkloadTestHandler(t, &workloadClientStub{err: errors.New("socket unavailable")})
+	handler.common.SetExecutor(&scriptedExecutor{outputs: map[string][][]byte{
+		"state": {[]byte(`{"status":"running"}`)},
+	}})
+	_, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "allocation-one"})
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, contract.ErrExitStatusUnavailable)
+	assert.ErrorContains(t, err, `runtime state is "running"`)
+}
+
+func TestRunscHandlerWaitReportsUnavailableResultOnlyAfterRuntimeExit(t *testing.T) {
+	handler := newRunscWorkloadTestHandler(t, &workloadClientStub{err: errors.New("socket unavailable")})
+	handler.common.SetExecutor(&scriptedExecutor{outputs: map[string][][]byte{
+		"state": {[]byte(`{"status":"stopped"}`)},
+	}})
 	_, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "allocation-one"})
 	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+}
+
+func TestRunscHandlerWaitUsesDurableRuntimeExitWhenStateIsUnavailable(t *testing.T) {
+	handler := newRunscWorkloadTestHandler(t, &workloadClientStub{err: errors.New("socket unavailable")})
+	require.NoError(t, handler.persistExitState("allocation-one", contract.Exit{Status: 1, Timestamp: time.Now().UTC()}))
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{
+		"state": {errors.New("container no longer exists")},
+	}})
+	_, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "allocation-one"})
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+}
+
+func TestRunscHandlerWaitReportsUnavailableResultWhenRuntimeInventoryConfirmsRemoval(t *testing.T) {
+	handler := newRunscWorkloadTestHandler(t, &workloadClientStub{err: errors.New("socket unavailable")})
+	handler.common.SetExecutor(&scriptedExecutor{
+		outputs: map[string][][]byte{"": {[]byte(`[]`)}},
+		errors:  map[string][]error{"state": {errors.New("runtime state unavailable")}},
+	})
+	_, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "allocation-one"})
+	assert.ErrorIs(t, err, contract.ErrExitStatusUnavailable)
+}
+
+func TestRunscHandlerWaitRetriesWhenStateAndInventoryAreUnavailable(t *testing.T) {
+	handler := newRunscWorkloadTestHandler(t, &workloadClientStub{err: errors.New("socket unavailable")})
+	handler.common.SetExecutor(&scriptedExecutor{errors: map[string][]error{
+		"state": {errors.New("runtime state unavailable")},
+		"":      {errors.New("runtime inventory unavailable")},
+	}})
+	_, err := handler.Wait(context.Background(), contract.HandlerOptions{ContainerID: "allocation-one"})
+	require.Error(t, err)
+	assert.NotErrorIs(t, err, contract.ErrExitStatusUnavailable)
+}
+
+func TestRunscHandlerWaitCancellationDoesNotFabricateUnavailableExit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	handler := newRunscWorkloadTestHandler(t, &workloadClientStub{err: context.Canceled})
+	handler.common.SetExecutor(&scriptedExecutor{outputs: map[string][][]byte{
+		"state": {[]byte(`{"status":"stopped"}`)},
+	}})
+	_, err := handler.Wait(ctx, contract.HandlerOptions{ContainerID: "allocation-one"})
+	assert.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, contract.ErrExitStatusUnavailable)
 }
 
 func TestRunscHandlerKillSignalsSupervisedWorkloadWithoutOCIKill(t *testing.T) {

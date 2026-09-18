@@ -459,6 +459,26 @@ func TestHousekeeping(t *testing.T) {
 
 }
 
+func TestHousekeepingDoesNotCreateLifecycleMonitor(t *testing.T) {
+	healthChan := make(chan bool, 1)
+	runtimeHandler := runtimetest.NewFakeSandboxRuntime()
+	m := &Manager{
+		root:             t.TempDir(),
+		recyclePath:      t.TempDir(),
+		containers:       cmap.New[*Container](),
+		runtimeHandler:   runtimeHandler,
+		monitors:         cmap.New[*containerMonitor](),
+		resourceManagers: cmap.New[resourcemanager.Manager](),
+		healthChan:       healthChan,
+	}
+	const id = "prepared-allocation"
+	require.NoError(t, m.StoreMetadata(id, &apipb.ContainerMetadata{}))
+
+	m.housekeeping()
+
+	assert.False(t, m.monitors.Has(id), "housekeeping must not cross the activation readiness barrier")
+}
+
 func TestManagerStopIsIdempotent(t *testing.T) {
 	resourceManager := &stopTestResourceManager{}
 	m := &Manager{

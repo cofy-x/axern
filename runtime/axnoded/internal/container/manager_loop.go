@@ -162,9 +162,11 @@ func (m *Manager) syncEvent(event Event) {
 	}
 }
 
-// StartMonitor synchronously registers the runtime-exit observer before a
-// successful create is exposed to callers. Registration is the lifecycle
-// barrier; only the runtime Wait itself runs asynchronously.
+// StartMonitor synchronously registers the runtime-exit observer after the
+// runtime activation path has crossed sandboxd readiness, or after startup
+// recovery has classified the complete runtime inventory. Registration is the
+// lifecycle barrier; housekeeping must never infer it from runtime liveness.
+// Only the runtime Wait itself runs asynchronously.
 func (m *Manager) StartMonitor(id string, metaData *apipb.ContainerMetadata) error {
 	if m.stopped.Load() {
 		return errors.New("container manager is stopped")

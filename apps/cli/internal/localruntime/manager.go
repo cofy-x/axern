@@ -332,7 +332,11 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if err := m.writeContext(options.Use); err != nil {
 		return err
 	}
-	metadata := Metadata{Version: m.Version, Profile: options.Profile, UpdatedAt: time.Now().UTC()}
+	composeProject := ProjectName
+	if metadataErr == nil && existing.ComposeProject != "" {
+		composeProject = existing.ComposeProject
+	}
+	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, Profile: options.Profile, UpdatedAt: time.Now().UTC()}
 	if metadataErr == nil {
 		metadata.CreatedAt = existing.CreatedAt
 	}
@@ -884,7 +888,11 @@ func (m *Manager) writeContext(use bool) error {
 }
 
 func (m *Manager) composeArgs(profile string, args ...string) []string {
-	value := []string{"compose", "--project-name", ProjectName, "--env-file", m.envPath(), "-f", m.composePath()}
+	project := ProjectName
+	if metadata, err := loadMetadata(m.metadataPath()); err == nil && metadata.ComposeProject != "" {
+		project = metadata.ComposeProject
+	}
+	value := []string{"compose", "--project-name", project, "--env-file", m.envPath(), "-f", m.composePath()}
 	if profile != "" {
 		value = append(value, "--profile", profile)
 	}

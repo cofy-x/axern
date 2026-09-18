@@ -55,13 +55,49 @@ func (r *RunscServiceHandler) Wait(ctx context.Context, options contract.Handler
 	}
 	result, err := client.WaitWorkload(ctx)
 	if err != nil {
-		return contract.Exit{}, fmt.Errorf("wait for sandboxd workload: %w: %w", err, contract.ErrExitStatusUnavailable)
+		return contract.Exit{}, r.classifyWorkloadWaitError(ctx, options.ContainerID, err)
 	}
 	exit, err := workloadExit(result)
 	if err != nil {
 		return contract.Exit{}, fmt.Errorf("wait for sandboxd workload: %w", err)
 	}
 	return exit, nil
+}
+
+// classifyWorkloadWaitError preserves the distinction between a temporarily
+// unreachable sandboxd control socket and confirmed OCI termination without a
+// recoverable workload result. Runtime liveness is only an observation, but it
+// is sufficient to reject a false terminal classification: a running OCI
+// sandbox cannot have an authoritative unavailable exit result. The monitor
+// retries ordinary transport errors and commits ErrExitStatusUnavailable only
+// after runsc or its durable exit checkpoint proves termination.
+func (r *RunscServiceHandler) classifyWorkloadWaitError(ctx context.Context, containerID string, waitErr error) error {
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return fmt.Errorf("wait for sandboxd workload: %w", ctxErr)
+	}
+	state, stateErr := r.state(ctx, containerID)
+	if stateErr == nil && state.Status == string(contract.ContainerStatusExited) {
+		return fmt.Errorf("wait for sandboxd workload after confirmed runtime exit: %w: %w", waitErr, contract.ErrExitStatusUnavailable)
+	}
+	if _, exited, exitErr := r.readExitState(containerID); exitErr == nil && exited {
+		return fmt.Errorf("wait for sandboxd workload after durable runtime exit: %w: %w", waitErr, contract.ErrExitStatusUnavailable)
+	}
+	if stateErr != nil {
+		if runtimeContainerAbsent(stateErr, containerID) {
+			return fmt.Errorf("wait for sandboxd workload after confirmed runtime removal: %w: %w", waitErr, contract.ErrExitStatusUnavailable)
+		}
+		inventory, inventoryErr := r.ListContainers(ctx, contract.HandlerOptions{})
+		if inventoryErr == nil {
+			for _, candidate := range inventory {
+				if candidate != nil && candidate.ID == containerID {
+					return fmt.Errorf("wait for sandboxd workload: %w (runtime state unavailable: %v; inventory status: %s)", waitErr, stateErr, candidate.Status)
+				}
+			}
+			return fmt.Errorf("wait for sandboxd workload after runtime disappeared from authoritative inventory: %w: %w", waitErr, contract.ErrExitStatusUnavailable)
+		}
+		return fmt.Errorf("wait for sandboxd workload: %w (runtime state unavailable: %v; runtime inventory unavailable: %v)", waitErr, stateErr, inventoryErr)
+	}
+	return fmt.Errorf("wait for sandboxd workload while runtime state is %q: %w", state.Status, waitErr)
 }
 
 func workloadExit(result wire.WorkloadExitResponse) (contract.Exit, error) {

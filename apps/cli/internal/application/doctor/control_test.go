@@ -22,6 +22,8 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestDiagnoseReadOnlyIsHealthyWithoutMutatingResources(t *testing.T) {
@@ -223,6 +225,15 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 			t.Fatalf("DNSProbe() = %#v", check)
 		}
 	})
+	t.Run("cleanup waits for allocation release", func(t *testing.T) {
+		namespace := &fakeNamespaceClient{deleteErrors: []error{grpcstatus.Error(codes.FailedPrecondition, "namespace has resource-owning allocations")}}
+		check := DNSProbe(context.Background(), &Session{
+			Namespace: namespace, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
+		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
+		if check.Code != "runtime_dns_sandbox_resolved" || namespace.deleteCalls != 2 {
+			t.Fatalf("DNSProbe() = %#v, namespace deletes = %d", check, namespace.deleteCalls)
+		}
+	})
 }
 
 func successfulOpener(environments *fakeEnvironmentClient, runs *fakeRunClient) SessionOpener {
@@ -309,9 +320,10 @@ func writeTLSFixture(t *testing.T, now time.Time, validity time.Duration) TLSCon
 }
 
 type fakeNamespaceClient struct {
-	createCalls int
-	deleteCalls int
-	deleteErr   error
+	createCalls  int
+	deleteCalls  int
+	deleteErr    error
+	deleteErrors []error
 }
 
 func (f *fakeNamespaceClient) CreateNamespace(_ context.Context, request *namespacev1.CreateNamespaceRequest, _ ...grpc.CallOption) (*namespacev1.CreateNamespaceResponse, error) {
@@ -325,6 +337,11 @@ func (*fakeNamespaceClient) GetNamespace(context.Context, *namespacev1.GetNamesp
 
 func (f *fakeNamespaceClient) DeleteNamespace(_ context.Context, request *namespacev1.DeleteNamespaceRequest, _ ...grpc.CallOption) (*namespacev1.DeleteNamespaceResponse, error) {
 	f.deleteCalls++
+	if len(f.deleteErrors) > 0 {
+		err := f.deleteErrors[0]
+		f.deleteErrors = f.deleteErrors[1:]
+		return nil, err
+	}
 	if f.deleteErr != nil {
 		return nil, f.deleteErr
 	}

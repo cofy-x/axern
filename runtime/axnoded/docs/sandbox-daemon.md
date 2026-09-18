@@ -91,7 +91,7 @@ Rules:
 
 | Operation    | Contract                                                                                                               |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| create       | Runtime starts sandboxd; `axnoded` waits for daemon control readiness and records internal socket/capability metadata. |
+| create       | Runtime starts sandboxd; `axnoded` waits for daemon control readiness before registering the workload monitor. Housekeeping cannot infer this barrier from OCI liveness. |
 | wait         | Runtime wait observes the supervised workload result through sandboxd; OCI PID 1 may remain alive for output sealing.  |
 | signal       | Operator signals target only the supervised workload process group; they do not delete or stop the OCI sandbox.         |
 | fail-stop    | Lease/capability enforcement uses bounded supervised-workload stop and retains sandboxd plus node recovery state.       |
@@ -101,6 +101,8 @@ Rules:
 | file/archive | Uses sandboxd file APIs; missing readiness, socket metadata, or capability fails closed.                               |
 
 The supervised user workload, not OCI PID 1, is the Allocation execution result. After that workload exits, sandboxd stays alive to report the immutable result and serve the file/archive API until the authoritative final Delete crosses the output-sealing barrier. A node fail-stop never terminates sandboxd or removes its socket. Workload start failure, short-lived completion, and non-zero exit are immutable workload results reported through sandboxd; daemon readiness and capability negotiation remain separate create-time requirements.
+
+A sandboxd socket transport failure is not terminal evidence while runsc still reports the exact Allocation runtime as live. The monitor retries that observation. Only an immutable sandboxd workload result, or confirmed OCI termination with no recoverable workload result, may advance the local runtime checkpoint to terminal.
 
 Long-running stream/session cleanup must close stdin, request graceful termination, wait for daemon process status, and escalate to kill before releasing local streams.
 

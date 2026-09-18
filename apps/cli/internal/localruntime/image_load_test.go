@@ -42,13 +42,25 @@ func (r *imageLoadRunner) Pipe(_ context.Context, stdout, _ io.Writer, _ string,
 
 func prepareManagedLocalState(t *testing.T, dir string) {
 	t.Helper()
-	if err := saveMetadata(filepath.Join(dir, "metadata.json"), Metadata{Version: "test", CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
+	if err := saveMetadata(filepath.Join(dir, "metadata.json"), Metadata{Version: "test", ComposeProject: ProjectName, CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
 		t.Fatalf("save metadata: %v", err)
 	}
 	for _, name := range []string{"compose.env", "compose.yaml"} {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("test\n"), 0o600); err != nil {
 			t.Fatalf("write %s: %v", name, err)
 		}
+	}
+}
+
+func TestComposeArgsUseStateOwnedProject(t *testing.T) {
+	dir := t.TempDir()
+	if err := saveMetadata(filepath.Join(dir, "metadata.json"), Metadata{Version: "test", ComposeProject: "axern-source", CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("save metadata: %v", err)
+	}
+	manager := &Manager{Dir: dir}
+	want := []string{"compose", "--project-name", "axern-source", "--env-file", filepath.Join(dir, "compose.env"), "-f", filepath.Join(dir, "compose.yaml"), "ps"}
+	if got := manager.composeArgs("", "ps"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("composeArgs() = %v, want %v", got, want)
 	}
 }
 
