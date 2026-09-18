@@ -11,12 +11,12 @@ import (
 func TestNormalizeConfigForRootfsValidatesAndOrdersDeclaredOutputs(t *testing.T) {
 	config, err := NormalizeConfigForRootfs(&commonv1.ExecutionConfig{DeclaredOutputs: []*commonv1.DeclaredOutput{
 		{Path: " /workspace/result/ ", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_TAR, MediaType: " application/x-tar "},
-		{Path: "/workspace/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"},
+		{Path: "/workspace/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"},
 	}}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := config.GetDeclaredOutputs(); len(got) != 2 || got[0].GetPath() != "/workspace/candidate.patch" || got[1].GetPath() != "/workspace/result" {
+	if got := config.GetDeclaredOutputs(); len(got) != 2 || got[0].GetPath() != "/workspace/output.patch" || got[1].GetPath() != "/workspace/result" {
 		t.Fatalf("declared outputs = %+v", got)
 	}
 }

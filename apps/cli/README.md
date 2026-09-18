@@ -4,9 +4,8 @@
 
 ## Product Boundary
 
-- `axern` manages contexts, namespaces, environments, runs, quotas, secrets, tunnels, SSH sessions, interactive agents, and audited admin workflows.
+- `axern` manages contexts, namespaces, environments, runs, quotas, secrets, tunnels, SSH sessions, interactive terminals, and audited admin workflows.
 - SDKs are the explicit programmatic interface.
-- `axrun` owns reproducible agent rollout planning, execution, validation, and trajectory export.
 
 The command path is:
 

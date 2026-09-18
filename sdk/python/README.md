@@ -193,9 +193,9 @@ with Sandbox(
     print(sandbox.bound_addr)
 ```
 
-For a lower-level runner flow, create the Run, wait for its public `allocation_id`, create a TunnelSession, then construct `TunnelConnector(client=client, ...)`. The connector inherits the Axern mTLS transport from the client; callers never import a private transport type. `wait_closed()` provides bounded cleanup/revocation observation. Tunnel authority is finite, does not renew the Run or ExecutionLease, and is revalidated online within 20 seconds (15-second interval plus a 5-second validation deadline).
+For lower-level use, create the Run, wait for its public `allocation_id`, create a TunnelSession, then construct `TunnelConnector(client=client, ...)`. The connector inherits the Axern mTLS transport from the client; callers never import a private transport type. `wait_closed()` provides bounded cleanup/revocation observation. Tunnel authority is finite, does not renew the Run or ExecutionLease, and is revalidated online within 20 seconds (15-second interval plus a 5-second validation deadline).
 
-For model access, keep the Provider API key, client certificate, routing and budget in a runner-local loopback gateway and tunnel raw TCP to it. Never copy the Provider identity, Axern mTLS key or Tunnel client token into the sandbox, Run metadata, declared output or CandidateBundle.
+Keep caller-local service credentials outside the sandbox and tunnel only the raw TCP endpoint. Never copy the Axern mTLS key or Tunnel client token into the sandbox, Run metadata, or declared output.
 
 ## Metadata
 
@@ -306,7 +306,7 @@ make local-compose-python-sdk-e2e
 
 ## Read-only Image Mounts And Secret Projections
 
-Image mounts and Secret projections are immutable Run inputs. Image mounts are always read-only and therefore expose only an image reference and target path. Secret inputs carry references (`secret_id` and `key`), never plaintext values. They belong to the Run that declares them and are not inherited by a later verification Run.
+Image mounts and Secret projections are immutable Run inputs. Image mounts are always read-only and therefore expose only an image reference and target path. Secret inputs carry references (`secret_id` and `key`), never plaintext values. They belong to the Run that declares them and are not inherited by another Run.
 
 ```python
 from axern_sdk import ImageMount, Sandbox, SecretFile
@@ -334,7 +334,7 @@ with Sandbox(
 
 Targets, environment names, duplicate projections, file modes, and Secret namespace ownership are validated by the control plane. Secret files default to `0400`; explicit modes must contain no write bits, and pseudo-filesystems, executable/library trees, Axern's runtime state, and critical host-identity files are protected targets. Optional projections may be absent, but an existing Secret in another Namespace is never eligible.
 
-Secret projection is for a least-privilege workload credential that must exist inside that Run. It is not the recommended Provider-credential path for an external agent runner; use the Tunnel-backed runner-local model gateway described above.
+Secret projection is for a least-privilege workload credential that must exist inside that Run. Credentials for a caller-local service remain outside the sandbox and are not projected through this API.
 
 ## Declared And Stream Output
 

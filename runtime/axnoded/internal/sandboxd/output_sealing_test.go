@@ -19,14 +19,14 @@ func TestStoppedWorkloadKeepsFileServiceAliveUntilSandboxCleanup(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, os.RemoveAll(root)) })
 	socketPath := filepath.Join(root, "sandboxd.sock")
-	outputPath := filepath.Join(root, "candidate.txt")
+	outputPath := filepath.Join(root, "output.txt")
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	runner := daemon.NewRunner(daemon.Config{
 		SocketPath:      socketPath,
 		ShutdownTimeout: time.Second,
 		Entrypoint: workload.Entrypoint{Args: []string{
-			"/bin/sh", "-c", `printf candidate > "$0"; exec sleep 60`, outputPath,
+			"/bin/sh", "-c", `printf output > "$0"; exec sleep 60`, outputPath,
 		}},
 	}, &bytes.Buffer{}, &bytes.Buffer{})
 	type runResult struct {
@@ -56,7 +56,7 @@ func TestStoppedWorkloadKeepsFileServiceAliveUntilSandboxCleanup(t *testing.T) {
 
 	contents, err := client.ReadFile(t.Context(), outputPath)
 	require.NoError(t, err)
-	require.Equal(t, "candidate", string(contents.Data))
+	require.Equal(t, "output", string(contents.Data))
 	select {
 	case result := <-runDone:
 		t.Fatalf("sandboxd exited before output sealing: code=%d err=%v", result.code, result.err)

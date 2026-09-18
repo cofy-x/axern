@@ -43,7 +43,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 			Argv: []string{"/bin/sh"},
 			Env:  map[string]string{"RUN": "true"},
 			DeclaredOutputs: []*commonv1.DeclaredOutput{{
-				Path: "/workspace/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
+				Path: "/workspace/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
 			}},
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 100, MemoryBytes: 1024},
@@ -79,7 +79,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	if req.GetConfig().GetEnv()["BASE"] != "true" || req.GetConfig().GetEnv()["RUN"] != "true" {
 		t.Fatalf("env merge failed: %+v", req.GetConfig().GetEnv())
 	}
-	if got := req.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/workspace/candidate.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
+	if got := req.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/workspace/output.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
 		t.Fatalf("declared outputs were not preserved: %#v", got)
 	}
 }
@@ -293,7 +293,7 @@ func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	client := &captureLifecycleClient{}
 	bridge := New(client, Config{})
-	declared := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE}}
+	declared := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE}}
 	expiresAt := time.Now().Add(time.Hour)
 	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", &allocationkernel.OutputSealing{ExpiresAt: expiresAt, Outputs: declared}); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
@@ -304,7 +304,7 @@ func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	if client.lastDelete.GetOutputSealing().GetExpiresAtUnixNano() != expiresAt.UnixNano() {
 		t.Fatalf("delete output expiry = %d, want %d", client.lastDelete.GetOutputSealing().GetExpiresAtUnixNano(), expiresAt.UnixNano())
 	}
-	if got := client.lastDelete.GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" {
+	if got := client.lastDelete.GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("delete declared outputs = %#v", got)
 	}
 }

@@ -18,7 +18,7 @@ cmp "${work_dir}/all" "${work_dir}/partition"
 # left by the source suite on another runner.
 grep -Eq '^axern-cli-e2e: build-go([[:space:]]|$)' "${ROOT_DIR}/mk/root.mk"
 [ "$(sort "${work_dir}/partition" | uniq -d | wc -l | tr -d ' ')" = 0 ]
-for args in '--suite missing' '--suite source --from build' '--suite runtime --include-axrun'; do
+for args in '--suite missing' '--suite source --from build' '--suite runtime --include-proto-breaking'; do
   read -r -a options <<<"${args}"
   if bash "${VERIFY}" "${options[@]}" --list >/dev/null 2>&1; then
     echo "invalid suite options accepted: ${args}" >&2

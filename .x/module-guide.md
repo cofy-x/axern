@@ -6,7 +6,6 @@ Use this page to identify the owner of a task and then switch to that module's l
 
 | Module           | Responsibility                                                                            | Local context                                                                  |
 | :--------------- | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
-| `apps/axrun`     | Agent harness, task execution, verification, and trajectory capture                       | [Contract](../apps/axrun/AGENTS.md), [README](../apps/axrun/README.md)         |
 | `apps/cli`       | Product CLI for Axern control and data-plane workflows                                    | [Contract](../apps/cli/AGENTS.md), [README](../apps/cli/README.md)             |
 | `apps/docs`      | Public documentation website, localized user guides, and publishable documentation assets | [Contract](../apps/docs/AGENTS.md), [README](../apps/docs/README.md)           |
 | `sdk/proto`      | Shared public and internal protobuf contracts and generation entrypoints                  | [README](../sdk/proto/README.md)                                               |

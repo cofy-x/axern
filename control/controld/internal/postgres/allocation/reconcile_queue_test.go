@@ -9,10 +9,10 @@ import (
 
 func TestDecodeDeclaredOutputsPreservesCleanupContract(t *testing.T) {
 	item := &allocationkernel.ReconcileItem{AllocationID: "allocation-output"}
-	if err := decodeDeclaredOutputs([]byte(`[{"path":"/tmp/candidate.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}]`), item); err != nil {
+	if err := decodeDeclaredOutputs([]byte(`[{"path":"/tmp/output.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}]`), item); err != nil {
 		t.Fatal(err)
 	}
-	if got := item.DeclaredOutputs; len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
+	if got := item.DeclaredOutputs; len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
 		t.Fatalf("declared outputs = %#v", got)
 	}
 }

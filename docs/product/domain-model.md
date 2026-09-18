@@ -4,7 +4,7 @@ This document defines Axern's stable product identities, lifecycle ownership, an
 
 ## Platform Boundary
 
-Axern provides secure, rebuildable, high-concurrency environment execution for agent evaluation, training, and data synthesis. Evaluation policy, model configuration, episodes, verification semantics, trajectories, datasets, scoring, and training loops belong to external callers.
+Axern provides secure, rebuildable, high-concurrency environment execution for agent evaluation, training, and data synthesis. Caller workflows remain outside the Run and Allocation state machine.
 
 The only durable execution chain is:
 
@@ -107,7 +107,7 @@ Process, file, archive, terminal, SSH, and Tunnel are public Allocation capabili
 
 Run result is durable metadata: terminal status, exit-code knowledge, diagnostic, message, and usage. Stdout, stderr, and writable files remain node-local unless the immutable Run specification declares bounded outputs.
 
-Declared output sealing is a cleanup barrier, not an Artifact service. The node publishes one immutable, read-only manifest and retains available bytes for a bounded period; node-disk loss remains explicit, and the caller owns durable publication. Limits and recovery semantics are defined by the [External Runner Integration](external-runner-integration.md) contract.
+Declared output sealing is a cleanup barrier, not an Artifact service. The node publishes one immutable, read-only manifest and retains available bytes for a bounded period; node-disk loss remains explicit, and the caller owns durable publication. Limits and recovery semantics are defined by the [storage lifetime contract](../architecture/storage-architecture.md).
 
 ## Fact Ownership
 
@@ -128,12 +128,8 @@ Run and Allocation never double-own a fact: Run owns immutable execution intent 
 | --- | --- |
 | Service, Replica, Route, Rollout | External PaaS or application |
 | Function, Invoke, worker dispatch | Caller queue or workflow system |
-| Agent profile, provider, prompt, budget | Agent harness or training system |
-| Evaluation, TaskSet, Episode, Verifier, Trajectory, Dataset | External evaluation or training layer |
 | Persistent Workspace or Volume provisioning | External storage or workspace layer |
 | Dashboard, IDE, cluster, region, cloud account, image build | Composed product or deployment infrastructure |
-
-Independent runners use released public SDKs. Their records and implementations do not define Axern contracts or enter the control-plane workload schema.
 
 ## Invariants
 
@@ -146,6 +142,6 @@ Independent runners use released public SDKs. Their records and implementations 
 7. Node-local data is not described as durable without explicit delivery.
 8. Restart or partition cannot create two authoritative owners or revive terminal state.
 9. Cleanup is idempotent, owner-aware, and observable; unknown state is not safely released.
-10. Evaluation, retry policy, scoring, and training semantics remain outside the Run/Allocation state machine.
+10. Caller policy remains outside the Run/Allocation state machine.
 
 Public protobufs, SDK types, CLI nouns, and durable records must use these meanings. Internal schema or transport changes may be coordinated atomically, but compatibility exists only where the published public contract defines it. A proposed new product object must prove independent identity, lifecycle, authorization, cleanup, and a real workload that existing objects cannot express.

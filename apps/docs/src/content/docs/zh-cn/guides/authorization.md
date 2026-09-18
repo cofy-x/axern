@@ -57,6 +57,6 @@ axern doctor --namespace default
 
 私钥保留在用户的 Context 中，从不上传。轮换证书时，先添加新的公钥证书，切换客户端 Context，确认 `identity whoami`，然后吊销旧凭据。
 
-外部 runner Worker 使用专用 Principal Credential 和显式 Namespace role。传输身份不会授予任意 Allocation 访问权：Gateway 授权和按用途签发的 Allocation access grant 仍然必须执行；Credential 或 Namespace role 撤销会阻止新访问，但不会重定义 Run 生命周期。
+SDK consumer 使用专用 Principal Credential 和显式 Namespace role。传输身份不会授予任意 Allocation 访问权：Gateway 授权和按用途签发的 Allocation access grant 仍然必须执行；Credential 或 Namespace role 撤销会阻止新访问，但不会重定义 Run 生命周期。
 
 完整的信任与审计模型见仓库的 [授权架构](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md)。集群运维者应使用类型化的 `axern admin` 工作流执行审计操作，而不是调用调试 HTTP 接口。

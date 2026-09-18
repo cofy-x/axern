@@ -39,7 +39,7 @@ func (f stoppedWorkloadFileService) StatFile(ctx context.Context, request *apipb
 
 func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *testing.T) {
 	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
-	local := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
+	local := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
 	if err := fixture.controller.StoreAllocationIntent(
 		"allocation-output-contract", "node-a",
 		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -48,13 +48,13 @@ func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *te
 		t.Fatal(err)
 	}
 
-	requested := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
+	requested := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
 	resolved, present, err := fixture.controller.cleanupDeclaredOutputs("allocation-output-contract", requested)
-	if err != nil || !present || len(resolved) != 1 || resolved[0].GetPath() != "/tmp/candidate.patch" {
+	if err != nil || !present || len(resolved) != 1 || resolved[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("cleanupDeclaredOutputs() = %#v, %v", resolved, err)
 	}
 	requested[0].Path = "/tmp/mutated"
-	if resolved[0].GetPath() != "/tmp/candidate.patch" {
+	if resolved[0].GetPath() != "/tmp/output.patch" {
 		t.Fatal("cleanup contract aliases the caller request")
 	}
 
@@ -66,7 +66,7 @@ func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *te
 	}
 
 	recovered, present, err := fixture.controller.cleanupDeclaredOutputs("allocation-state-missing", local)
-	if err != nil || present || len(recovered) != 1 || recovered[0].GetPath() != "/tmp/candidate.patch" {
+	if err != nil || present || len(recovered) != 1 || recovered[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("cleanupDeclaredOutputs() without local state = %#v, %v", recovered, err)
 	}
 	if err := fixture.controller.StoreAllocationIntent(
@@ -126,12 +126,12 @@ func (f declaredOutputFileService) DownloadArchive(_ context.Context, _ *apipb.D
 
 func TestCaptureDeclaredFileProducesImmutableObjectMetadata(t *testing.T) {
 	objects := t.TempDir()
-	content := []byte("candidate bundle")
+	content := []byte("declared output")
 	entry, err := captureDeclaredOutput(
 		context.Background(),
 		declaredOutputFileService{kind: filev1.SandboxFileKind_SANDBOX_FILE_KIND_FILE, content: content},
 		contract.HandlerOptions{ContainerID: "allocation-one"},
-		&commonv1.DeclaredOutput{Path: "/workspace/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"},
+		&commonv1.DeclaredOutput{Path: "/workspace/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"},
 		objects,
 		maxSealedTotalBytes,
 	)

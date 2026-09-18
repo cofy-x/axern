@@ -24,7 +24,7 @@ with Sandbox(client=client, template_id="python311") as sandbox:
     sandbox.download_file("/tmp/result.txt", "result.txt", overwrite=False)
 ```
 
-For crash recovery between harness completion and client download, declare the path at Run creation and retrieve it later by persisted `run_id`. Full SDK downloads verify the manifest size and SHA-256 digest. The downloaded file belongs to the caller's filesystem; it is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [external runner integration guide](external-runner-integration.md) and [storage lifetime contract](../architecture/storage-architecture.md).
+For crash recovery between process completion and client download, declare the path at Run creation and retrieve it later by persisted `run_id`. Full SDK downloads verify the manifest size and SHA-256 digest. The downloaded file belongs to the caller's filesystem; it is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [storage lifetime contract](../architecture/storage-architecture.md).
 
 ## Connections
 

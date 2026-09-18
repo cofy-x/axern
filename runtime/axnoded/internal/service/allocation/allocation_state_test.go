@@ -33,7 +33,7 @@ func TestStoreAllocationIntentOwnsImmutableExecutionSpec(t *testing.T) {
 	const allocationID = "allocation-resource-intent"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	resources := &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 << 20}, Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
-	outputs := []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
+	outputs := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
 	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), resources, nil, outputs))
 
 	resources.Requests.MemoryBytes = 1
@@ -45,7 +45,7 @@ func TestStoreAllocationIntentOwnsImmutableExecutionSpec(t *testing.T) {
 	require.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &persisted))
 	assert.True(t, proto.Equal(got, persisted.GetResources()))
 	require.Len(t, persisted.GetDeclaredOutputs(), 1)
-	assert.Equal(t, "/tmp/candidate.patch", persisted.GetDeclaredOutputs()[0].GetPath())
+	assert.Equal(t, "/tmp/output.patch", persisted.GetDeclaredOutputs()[0].GetPath())
 }
 
 func TestCapabilityReconcileIntentDoesNotLoseConcurrentOrPostRestartWork(t *testing.T) {

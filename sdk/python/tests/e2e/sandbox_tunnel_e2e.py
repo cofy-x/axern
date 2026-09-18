@@ -225,8 +225,8 @@ with urllib.request.urlopen("http://{sandbox.bound_addr}/index.txt", timeout=5) 
                 "python_sdk_sandbox_tunnel_e2e_ok=true "
                 f"run_id={run_id} session_id={session_id}"
             )
-            phase = "low-level-model-gateway"
-            run_low_level_model_gateway_check(client, upstream, marker)
+            phase = "low-level-loopback-service"
+            run_low_level_loopback_service_check(client, upstream, marker)
             phase = "async-check"
             asyncio.run(run_async_sandbox_check(args))
             return 0
@@ -254,16 +254,16 @@ def _handler_for(root: Path):
     return Handler
 
 
-def run_low_level_model_gateway_check(
+def run_low_level_loopback_service_check(
     client: AxernClient,
     upstream: str,
     marker: str,
 ) -> None:
-    """Exercise the repository-external runner order using only public SDK APIs."""
+    """Exercise a client readiness barrier using only public SDK APIs."""
 
     environment = client.create_environment(
         template_id="python311",
-        labels={"axern.e2e": "external-model-gateway"},
+        labels={"axern.e2e": "loopback-service"},
     )
     run_id = ""
     session_id = ""
@@ -274,16 +274,16 @@ import time
 import urllib.request
 from pathlib import Path
 
-root = Path('/run/axrun')
+root = Path('/run/client-inputs')
 while not root.joinpath('inputs-ready').exists():
     time.sleep(0.05)
 config = dict(
     line.split('=', 1)
-    for line in root.joinpath('model.env').read_text().splitlines()
+    for line in root.joinpath('service.env').read_text().splitlines()
     if line
 )
-with urllib.request.urlopen(config['MODEL_ENDPOINT'] + '/index.txt', timeout=5) as response:
-    Path('/tmp/candidate.txt').write_bytes(response.read())
+with urllib.request.urlopen(config['SERVICE_ENDPOINT'] + '/index.txt', timeout=5) as response:
+    Path('/tmp/output.txt').write_bytes(response.read())
 while not root.joinpath('finish').exists():
     time.sleep(0.05)
 """
@@ -292,12 +292,12 @@ while not root.joinpath('finish').exists():
             argv=["python", "-c", workload],
             declared_outputs=[
                 DeclaredOutput(
-                    "/tmp/candidate.txt",
+                    "/tmp/output.txt",
                     DeclaredOutputFormat.FILE,
                     "text/plain",
                 )
             ],
-            labels={"axern.e2e": "external-model-gateway"},
+            labels={"axern.e2e": "loopback-service"},
         )
         run_id = run.id
         run = wait_for_allocation(client, run.id)
@@ -318,19 +318,19 @@ while not root.joinpath('finish').exists():
         connector.start()
         wait_for_tunnel_client(client, session_id)
 
-        allocation.mkdir("/run/axrun", parents=True)
+        allocation.mkdir("/run/client-inputs", parents=True)
         endpoint = (
             tunnel.session.bound_addr or f"127.0.0.1:{tunnel.session.remote_port}"
         )
         allocation.write_file(
-            "/run/axrun/model.env",
-            f"MODEL_ENDPOINT=http://{endpoint}\n".encode(),
+            "/run/client-inputs/service.env",
+            f"SERVICE_ENDPOINT=http://{endpoint}\n".encode(),
         )
-        allocation.write_file("/run/axrun/prompt.txt", b"non-sensitive prompt\n")
-        allocation.write_file("/run/axrun/inputs-ready", b"ready\n")
-        wait_for_file(allocation, "/tmp/candidate.txt")
+        allocation.write_file("/run/client-inputs/input.txt", b"non-sensitive input\n")
+        allocation.write_file("/run/client-inputs/inputs-ready", b"ready\n")
+        wait_for_file(allocation, "/tmp/output.txt")
 
-        client.revoke_tunnel_session(session_id, reason="model access complete")
+        client.revoke_tunnel_session(session_id, reason="service access complete")
         if not connector.wait_closed(25):
             raise RuntimeError(
                 "tunnel connector did not close within the revocation bound"
@@ -352,19 +352,19 @@ while not root.joinpath('finish').exists():
             text=True,
         )
         if denied.stdout.strip() != "revoked":
-            raise RuntimeError("revoked Tunnel still accepted a new model request")
+            raise RuntimeError("revoked Tunnel still accepted a new request")
 
-        allocation.write_file("/run/axrun/finish", b"finish\n")
+        allocation.write_file("/run/client-inputs/finish", b"finish\n")
         terminal = client.wait_run(run_id, timeout=60)
         if terminal.status != run_pb2.RUN_STATUS_SUCCEEDED:
-            raise RuntimeError("model-gateway Run did not succeed")
-        candidate = download_only_output(client, run_id)
-        if candidate.decode().strip() != marker:
-            raise RuntimeError("model-gateway CandidateBundle content is invalid")
+            raise RuntimeError("loopback-service Run did not succeed")
+        output = download_only_output(client, run_id)
+        if output.decode().strip() != marker:
+            raise RuntimeError("declared output content is invalid")
 
-        verify_fresh_run(client, environment.id, candidate)
+        check_fresh_run(client, environment.id, output)
         print(
-            "python_sdk_external_model_gateway_e2e_ok=true "
+            "python_sdk_loopback_service_e2e_ok=true "
             f"run_id={run_id} session_id={session_id}"
         )
         run_id = ""
@@ -438,37 +438,37 @@ def download_only_output(client: AxernClient, run_id: str) -> bytes:
     raise RuntimeError("declared output was not sealed")
 
 
-def verify_fresh_run(
+def check_fresh_run(
     client: AxernClient,
     environment_id: str,
-    candidate: bytes,
+    output: bytes,
 ) -> None:
     with Sandbox(
         client=client,
         environment_id=environment_id,
         argv=["python", "-c", "import time; time.sleep(600)"],
-    ) as verifier:
-        verifier_run = client.get_run(verifier.run_id)
+    ) as fresh:
+        fresh_run = client.get_run(fresh.run_id)
         if (
-            verifier_run.config.image_mounts
-            or verifier_run.config.secret_env
-            or verifier_run.config.secret_files
+            fresh_run.config.image_mounts
+            or fresh_run.config.secret_env
+            or fresh_run.config.secret_files
         ):
-            raise RuntimeError("fresh verifier inherited inference Run projections")
-        if verifier.tunnel_session_id:
-            raise RuntimeError("fresh verifier inherited inference TunnelSession")
-        verifier.write_file("/tmp/candidate.txt", candidate)
-        result = verifier.exec(
+            raise RuntimeError("fresh Run inherited earlier Run projections")
+        if fresh.tunnel_session_id:
+            raise RuntimeError("fresh Run inherited earlier TunnelSession")
+        fresh.write_file("/tmp/input.txt", output)
+        result = fresh.exec(
             [
                 "python",
                 "-c",
                 "from pathlib import Path; "
-                "assert Path('/tmp/candidate.txt').read_text().strip()",
+                "assert Path('/tmp/input.txt').read_text().strip()",
             ],
             check=True,
         )
         if result.exit_code != 0:
-            raise RuntimeError("fresh verifier rejected CandidateBundle")
+            raise RuntimeError("fresh Run rejected input")
 
 
 async def run_async_sandbox_check(args: argparse.Namespace) -> None:

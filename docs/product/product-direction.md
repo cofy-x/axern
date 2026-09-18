@@ -13,14 +13,14 @@ Axern is an open-source environment execution platform for agent evaluation, tra
 - **Explicit authority:** process, file, archive, terminal, SSH, Tunnel, and output access are finite and Allocation-scoped.
 - **Durable control, local execution:** PostgreSQL owns central product intent; node runtime and kernel state remain local, recoverable projections.
 - **Rebuildable inputs, explicit outputs:** Environments are immutable, writable state is Allocation-local, and selected outputs use bounded delivery to caller-owned storage.
-- **Public composition:** CLIs and external runners use released SDKs rather than internal packages or alternate control planes.
+- **Public composition:** CLIs and SDK consumers use released APIs rather than internal packages or alternate control planes.
 - **Local-to-deployed continuity:** development and deployed environments exercise the same contracts; Linux- or cluster-specific behavior is proven in the environment that owns it.
 
 ## Product Boundary
 
 Axern owns Namespace, Environment, Run, Allocation, Node, Secret, authorization, resource admission, execution leases, capability evidence, Allocation operations, TunnelSession, and bounded output delivery.
 
-Axern does not own agent profiles, model providers, prompts, budgets, episodes, evaluation policy, verifier schemas, trajectories, datasets, training loops, services, replicas, routes, persistent workspaces, volume provisioning, clusters, regions, cloud accounts, or image builds. Those capabilities belong to external runners, applications, storage systems, or deployment infrastructure.
+Axern does not own application orchestration, service deployment, persistent workspaces, volume provisioning, clusters, regions, cloud accounts, or image builds. Those capabilities belong to callers, applications, storage systems, or deployment infrastructure.
 
 SSH, Terminal, and Tunnel are execution-platform capabilities, not reasons to introduce service deployment or application-session models. Node-local operator tools are diagnostics, not public lifecycle authorities.
 

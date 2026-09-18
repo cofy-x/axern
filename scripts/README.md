@@ -14,7 +14,6 @@ Scripts:
 - `devbox/stack.sh` Starts, stops, restarts, and inspects the standalone source-development stack inside the Linux devbox: repo-local Postgres plus the Axern daemons running directly from source.
 - `dev-db-reset.sh` Drops, recreates, and initializes a local Axern Postgres database from the latest `controld` schema SQL. This is a development reset tool, not a migration runner.
 - `agent-doc-check.sh` Verifies repo-local Markdown links and checks that module-level agent contracts are indexed. Use it after changing repository Markdown.
-- `axrun/local-smoke.sh` Verifies deterministic compilation of a local `axrun/v1` TaskSet bundle and its OCI layout.
 - `gatewayd-architecture-check.sh` Verifies gatewayd package layout and dependency direction.
 - `imagemgr-architecture-check.sh` Verifies imagemgr package layout and dependency direction.
 - `verify-all.sh` Runs the repository validation pass serially: root lint/build/test, shared proto validation, `network/bpfnet` tests, plus the standardized `controld`, `axern` CLI, `bpfnetctl`, and `axnoded` E2E / verify entrypoints. `make -C network/bpfnet generate-check` is opt-in via `--include-bpfnet-generate-check` because it is slow and usually only matters when committed tc artifacts changed. Use `--bootstrap` on a fresh machine and `--from <step>` to resume long runs.

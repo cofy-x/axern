@@ -16,7 +16,7 @@ const testOutputContractSHA256 = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 	root := t.TempDir()
 	expiry := time.Now().Add(time.Minute).UTC()
-	content := []byte("candidate bundle")
+	content := []byte("declared output")
 	digest := sha256.Sum256(content)
 	r := NewRetention(root)
 	captures := 0
@@ -48,11 +48,11 @@ func TestSealPublishesDeclaredOutputAtomically(t *testing.T) {
 		t.Fatalf("manifest = %+v", manifest)
 	}
 	data, next, eof, err := r.ReadSealedOutput("allocation-one", "output-one", 0, 4, time.Now())
-	if err != nil || string(data) != "cand" || next != 4 || eof {
+	if err != nil || string(data) != "decl" || next != 4 || eof {
 		t.Fatalf("first read = %q, %d, %t, %v", data, next, eof, err)
 	}
 	data, next, eof, err = r.ReadSealedOutput("allocation-one", "output-one", next, 64, time.Now())
-	if err != nil || string(data) != "idate bundle" || next != int64(len(content)) || !eof {
+	if err != nil || string(data) != "ared output" || next != int64(len(content)) || !eof {
 		t.Fatalf("second read = %q, %d, %t, %v", data, next, eof, err)
 	}
 	if err := r.Seal(context.Background(), "allocation-one", expiry, testOutputContractSHA256, Sources{}, func(context.Context, string) ([]Entry, error) {

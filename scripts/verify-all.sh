@@ -8,7 +8,6 @@ from_step=""
 to_step=""
 include_proto_breaking=false
 include_bpfnet_generate_check=false
-include_axrun=false
 bootstrap_first=false
 suite=all
 
@@ -23,8 +22,6 @@ Options:
   --bootstrap            Run `make bootstrap` before validation.
   --include-bpfnet-generate-check
                          Include slow `make -C network/bpfnet generate-check`.
-  --include-axrun
-                         Include Axrun tests, vet, and local acceptance gates.
   --list                 List the ordered validation steps and exit.
   --suite <name>         Select all (default), source, or runtime. The two
                          named suites partition the default full gate.
@@ -40,8 +37,6 @@ Notes:
   - Proto breaking checks are opt-in during the active V1 control-plane reset.
   - `network/bpfnet generate-check` is opt-in because it is slow and only
     relevant when the committed tc artifacts may have changed.
-  - `axrun-verify` is opt-in because local acceptance smoke runs are heavier
-    than standard workspace unit tests.
   - It intentionally excludes demos, benchmarks, perf profiles, and optional
     feature-gated integration tests that do not have a standard repo-level
     entrypoint today.
@@ -56,10 +51,6 @@ while (($# > 0)); do
       ;;
     --include-bpfnet-generate-check)
       include_bpfnet_generate_check=true
-      shift
-      ;;
-    --include-axrun)
-      include_axrun=true
       shift
       ;;
     --include-proto-breaking)
@@ -110,7 +101,7 @@ case "${suite}" in
   all|source|runtime) ;;
   *) echo "unknown verification suite: ${suite}" >&2; exit 1 ;;
 esac
-if [ "${suite}" != all ] && { [ -n "${from_step}${to_step}" ] || [ "${include_axrun}" = true ] || [ "${include_proto_breaking}" = true ] || [ "${include_bpfnet_generate_check}" = true ]; }; then
+if [ "${suite}" != all ] && { [ -n "${from_step}${to_step}" ] || [ "${include_proto_breaking}" = true ] || [ "${include_bpfnet_generate_check}" = true ]; }; then
   echo "named suites cannot be combined with ranges or optional gates; use --suite all" >&2
   exit 1
 fi
@@ -167,7 +158,6 @@ describe_step() {
       fi
       ;;
     axern-cli-e2e) echo "Run product CLI end-to-end verification" ;;
-    axrun-verify) echo "Run Axrun package tests, vet, formatting, and local acceptance gates" ;;
     axnoded-verify-docker-runsc) echo "Run axnoded Docker truth-path verification for runsc" ;;
     axnoded-verify-docker-runsc-ebpf) echo "Run axnoded Docker truth-path verification for runsc with ebpf NAT" ;;
     axnoded-verify-bpfnetctl-e2e) echo "Run bpfnetctl JSON readiness E2E against the axnoded ebpf dashboard demo" ;;
@@ -246,9 +236,6 @@ run_step() {
       ;;
     axern-cli-e2e)
       run_cmd make axern-cli-e2e
-      ;;
-    axrun-verify)
-      run_cmd make axrun-verify
       ;;
     axnoded-verify-docker-runsc)
       run_cmd make -C runtime/axnoded verify-docker-runsc
@@ -329,10 +316,6 @@ steps+=(
   axnoded-test
   axern-cli-e2e
 )
-
-if [ "${include_axrun}" = true ]; then
-  steps+=(axrun-verify)
-fi
 
 steps+=(
   axnoded-verify-docker-runsc

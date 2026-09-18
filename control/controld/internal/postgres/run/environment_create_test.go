@@ -134,7 +134,7 @@ func TestRunKeepsEnvironmentSnapshotAfterEnvironmentDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	runConfigJSON, err := marshalProtoJSON(&commonv1.ExecutionConfig{DeclaredOutputs: []*commonv1.DeclaredOutput{{
-		Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
+		Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
 	}}})
 	if err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func TestRunKeepsEnvironmentSnapshotAfterEnvironmentDelete(t *testing.T) {
 	if !proto.Equal(start.Run.GetEnvironmentSpec(), env.GetSpec()) || !proto.Equal(start.Run.GetResolvedEnvironmentSpec(), env.GetResolvedSpec()) {
 		t.Fatalf("Run Environment snapshot = %#v / %#v", start.Run.GetEnvironmentSpec(), start.Run.GetResolvedEnvironmentSpec())
 	}
-	if got := start.Run.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" {
+	if got := start.Run.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("Run declared outputs after database recovery = %#v", got)
 	}
 }

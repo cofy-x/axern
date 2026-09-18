@@ -2,9 +2,9 @@
 
 ## Platform Boundaries
 
-- Axern is an open-source environment execution platform for agent evaluation, training, and executable data synthesis, not a general PaaS or an all-in-one benchmark, agent, or training product.
+- Axern is an open-source environment execution platform for agent evaluation, training, and executable data synthesis.
 - The durable execution model is `Environment -> Run -> Allocation`. `Sandbox` is an SDK facade over that chain; terminal, process, file, SSH, and Tunnel capabilities bind to an explicit, never-reused Allocation ID.
-- Evaluation, rollout, verifier, provider, budget, dataset, and training orchestration belongs to external callers.
+- Caller workflows remain outside the Run and Allocation state machine.
 - Runsc is the supported production sandbox backend. Missing required isolation or platform capability must fail closed.
 - PostgreSQL is the only authoritative central state backend. Internal schema changes must update the owning model atomically; do not preserve obsolete internal tables, protobuf gaps, aliases, dual reads, or dual writes unless a published compatibility contract explicitly requires them.
 - Keep root deployment contracts cloud-neutral; provider credentials, account setup, and regional orchestration belong outside this repository.

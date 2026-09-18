@@ -120,7 +120,7 @@ func TestDeleteOutputSealingDiagnosesMissingNodeStateAndFencesRetries(t *testing
 		OutputSealing: &runtime.OutputSealingRequest{
 			ExpiresAtUnixNano: expiresAt.UnixNano(),
 			Outputs: []*commonv1.DeclaredOutput{{
-				Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+				Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
 			}},
 		},
 	}
@@ -131,7 +131,7 @@ func TestDeleteOutputSealingDiagnosesMissingNodeStateAndFencesRetries(t *testing
 	require.NoError(t, err)
 	require.Len(t, manifest.Entries, 1)
 	require.Equal(t, "node_unavailable", manifest.Entries[0].Status)
-	require.Equal(t, "/tmp/candidate.patch", manifest.Entries[0].Path)
+	require.Equal(t, "/tmp/output.patch", manifest.Entries[0].Path)
 	outputID := manifest.Entries[0].OutputID
 
 	_, err = fixture.controller.Delete(context.Background(), request)

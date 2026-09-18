@@ -8,7 +8,7 @@ Axern separates durable product intent from node-local execution:
 - `axnoded` owns node-local Allocation execution, recovery, cleanup, and allocation-scoped reporting. Its local state and queues cannot become a second source of product truth.
 - `gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane protocols. It owns no placement, lifecycle, or durable product state.
 - `imagemgr`, `imagefsd`, `egressd`, `bpfnet`, and `tunneld` own narrow image, network, or relay responsibilities below the Run lifecycle.
-- SDK `Sandbox` objects compose the durable `Environment -> Run -> Allocation` chain. Independent runners and other evaluation, training, or data-synthesis systems remain callers above the platform.
+- SDK `Sandbox` objects compose the durable `Environment -> Run -> Allocation` chain without creating another lifecycle.
 
 ## External And Internal Flows
 
