@@ -7,6 +7,7 @@ import (
 
 	"github.com/cofy-x/axern/lib/go/observability"
 	"github.com/sirupsen/logrus"
+	"go.opentelemetry.io/otel/attribute"
 	otelog "go.opentelemetry.io/otel/log"
 	"go.opentelemetry.io/otel/log/global"
 )
@@ -36,20 +37,20 @@ func (h *Hook) Fire(entry *logrus.Entry) error {
 	record.SetObservedTimestamp(time.Now())
 	record.SetSeverity(severity(entry.Level))
 	record.SetSeverityText(entry.Level.String())
-	record.SetBody(otelog.StringValue(observability.SanitizeLogBody(entry.Message)))
+	record.SetBody(attribute.StringValue(observability.SanitizeLogBody(entry.Message)))
 	if entry.HasCaller() && entry.Caller != nil {
 		record.AddAttributes(
-			otelog.String("code.filepath", entry.Caller.File),
-			otelog.Int("code.lineno", entry.Caller.Line),
-			otelog.String("code.function", entry.Caller.Function),
+			attribute.String("code.filepath", entry.Caller.File),
+			attribute.Int("code.lineno", entry.Caller.Line),
+			attribute.String("code.function", entry.Caller.Function),
 		)
 	}
 	for key, value := range entry.Data {
 		if observability.SensitiveKey(key) {
-			record.AddAttributes(otelog.String(key, "[redacted]"))
+			record.AddAttributes(attribute.String(key, "[redacted]"))
 			continue
 		}
-		record.AddAttributes(otelog.String(key, observability.SanitizeValue(fmt.Sprint(value))))
+		record.AddAttributes(attribute.String(key, observability.SanitizeValue(fmt.Sprint(value))))
 	}
 	h.logger.Emit(ctx, record)
 	return nil
