@@ -61,7 +61,7 @@ ln -s "${COMPOSE_STATE_DIR}/ssh" "${local_dir}/ssh"
 
 axern_bin="$(local_smoke_axern_bin)"
 axern_version="$("${axern_bin}" version)"
-python3 - "${local_dir}/metadata.json" "${axern_version}" <<'PY'
+python3 - "${local_dir}/metadata.json" "${axern_version}" "${COMPOSE_PROJECT_NAME}" <<'PY'
 import datetime
 import json
 import pathlib
@@ -70,6 +70,7 @@ import sys
 now = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 pathlib.Path(sys.argv[1]).write_text(json.dumps({
     "version": sys.argv[2],
+    "compose_project": sys.argv[3],
     "created_at": now,
     "updated_at": now,
 }, indent=2) + "\n")

@@ -76,17 +76,10 @@ func (m *Manager) housekeeping() {
 		// Exited allocations retain all resource claims until the authoritative
 		// Delete workflow completes ordered cleanup.
 	}
-
 	dir, err := os.ReadDir(m.recyclePath)
 	if err == nil {
 		for _, d := range dir {
 			os.RemoveAll(filepath.Join(m.recyclePath, d.Name()))
-		}
-	}
-
-	for item := range m.containers.IterBuffered() {
-		if err := m.StartMonitor(item.Key, item.Val.Metadata); err != nil {
-			logrus.WithError(err).WithField("container_id", item.Key).Error("start container monitor during housekeeping")
 		}
 	}
 

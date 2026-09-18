@@ -39,6 +39,7 @@ type runCase struct {
 	expectReady      bool
 	expectProcessAPI bool
 	expectOutputSeal bool
+	expectedOutput   string
 	signalAfter      time.Duration
 }
 
@@ -99,6 +100,7 @@ func run(cfg config) error {
 			expectOut:        []string{"pid1=axern-sandboxd env=ok cwd=/tmp"},
 			expectReady:      true,
 			expectOutputSeal: true,
+			expectedOutput:   "output",
 		},
 		{
 			name:        "missing",
@@ -220,9 +222,6 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	var runtimeOut bytes.Buffer
 	cmd.Stdout = &runtimeOut
 	cmd.Stderr = &runtimeOut
-	caseFailure := func(err error) error {
-		return fmt.Errorf("%s: %w\n%s", tc.name, err, caseDiagnostics(bundlePath, stdoutPath, stderrPath, runtimeOut.String()))
-	}
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("%s: start runtime: %w: %s", tc.name, err, runtimeOut.String())
 	}
@@ -238,12 +237,17 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 		return nil
 	}
-	cleanupAfterFailure := func() {
-		_ = cleanupRuntime()
+	caseFailure := func(err error) error {
+		// Capture the live runtime and sandboxd state before cleanup removes the
+		// socket and bundle evidence that explain the original failure.
+		diagnostics := caseDiagnostics(bundlePath, stdoutPath, stderrPath, runtimeOut.String())
+		if cleanupErr := cleanupRuntime(); cleanupErr != nil {
+			return fmt.Errorf("%s: %w; cleanup: %v\n%s", tc.name, err, cleanupErr, diagnostics)
+		}
+		return fmt.Errorf("%s: %w\n%s", tc.name, err, diagnostics)
 	}
 	if tc.expectReady {
 		if err := assertSandboxdReady(ctx, bundlePath); err != nil {
-			cleanupAfterFailure()
 			return caseFailure(err)
 		}
 	}
@@ -258,7 +262,6 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 		for _, check := range checks {
 			if err := check(); err != nil {
-				cleanupAfterFailure()
 				return caseFailure(err)
 			}
 		}
@@ -267,23 +270,19 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	if tc.signalAfter > 0 {
 		time.Sleep(tc.signalAfter)
 		if err := client.SignalWorkload(ctx, "TERM"); err != nil {
-			cleanupAfterFailure()
 			return caseFailure(fmt.Errorf("signal workload: %w", err))
 		}
 	}
 	result, err := client.WaitWorkload(ctx)
 	if err != nil {
-		cleanupAfterFailure()
 		return caseFailure(fmt.Errorf("wait workload: %w", err))
 	}
 	if result.ExitCode != tc.expected {
-		cleanupAfterFailure()
 		return caseFailure(fmt.Errorf("workload exit code = %d, want %d", result.ExitCode, tc.expected))
 	}
 	if tc.expectOutputSeal {
 		output, readErr := client.ReadFile(ctx, "/tmp/axern-output-sealing-file")
-		if readErr != nil || string(output.Data) != "candidate" {
-			cleanupAfterFailure()
+		if readErr != nil || string(output.Data) != tc.expectedOutput {
 			return caseFailure(fmt.Errorf("read output after workload exit: data=%q err=%v", output.Data, readErr))
 		}
 	}

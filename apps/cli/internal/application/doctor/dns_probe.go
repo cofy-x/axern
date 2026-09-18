@@ -167,9 +167,39 @@ func cleanupDNSProbe(parent context.Context, session *Session, namespace, secret
 		}
 	}
 	if createdNamespace {
-		if _, err := session.Namespace.DeleteNamespace(ctx, &namespacev1.DeleteNamespaceRequest{Namespace: namespace}); err != nil && grpcstatus.Code(err) != codes.NotFound {
+		if err := deleteDNSProbeNamespace(ctx, session.Namespace, namespace); err != nil {
 			result = errors.Join(result, err)
 		}
 	}
 	return result
+}
+
+func deleteDNSProbeNamespace(ctx context.Context, client NamespaceClient, namespace string) error {
+	const retryInterval = 100 * time.Millisecond
+	for {
+		_, err := client.DeleteNamespace(ctx, &namespacev1.DeleteNamespaceRequest{Namespace: namespace})
+		switch grpcstatus.Code(err) {
+		case codes.OK, codes.NotFound:
+			return nil
+		case codes.FailedPrecondition:
+			// A terminal Run can precede release of its Allocation. Namespace
+			// deletion is the public cleanup barrier, so wait for that durable
+			// lifecycle to converge instead of treating terminal Run state as
+			// proof that node resources have already been released.
+		case codes.Canceled, codes.DeadlineExceeded:
+			return err
+		default:
+			return err
+		}
+
+		timer := time.NewTimer(retryInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }

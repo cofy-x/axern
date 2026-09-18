@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const AXERN_VERSION = "0.9.0";
+export const AXERN_VERSION = "0.9.1";
 
 export function platformName(): string {
   return "axern";
