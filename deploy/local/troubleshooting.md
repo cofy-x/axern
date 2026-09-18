@@ -10,10 +10,10 @@ Compose:
 
 ```bash
 make local-compose-status
-docker ps --filter 'name=axern-local'
-docker logs --tail=160 axern-local-controld-1
-docker logs --tail=160 axern-local-node-1
-docker logs --tail=160 axern-local-gatewayd-1
+docker ps --filter 'name=axern-source'
+docker logs --tail=160 axern-source-controld-1
+docker logs --tail=160 axern-source-node-1
+docker logs --tail=160 axern-source-gatewayd-1
 ```
 
 Kind:
@@ -31,10 +31,10 @@ Node-local checks:
 
 ```bash
 # compose
-docker exec axern-local-node-1 axctl node check
-docker exec axern-local-node-1 axctl allocation list
-docker exec axern-local-node-1 axctl image list
-docker exec axern-local-node-1 axctl image mounts
+docker exec axern-source-node-1 axctl node check
+docker exec axern-source-node-1 axctl allocation list
+docker exec axern-source-node-1 axctl image list
+docker exec axern-source-node-1 axctl image mounts
 
 # kind
 NODE_POD="$(kubectl -n axern-local get pods -l app=node-all-in-one -o jsonpath='{.items[0].metadata.name}')"
@@ -66,26 +66,26 @@ Service logs:
 
 | Component          | Command                                                 |
 | ------------------ | ------------------------------------------------------- |
-| `controld`         | `docker logs --tail=200 axern-local-controld-1`         |
-| `controld-migrate` | `docker logs --tail=200 axern-local-controld-migrate-1` |
-| `tunneld`          | `docker logs --tail=200 axern-local-tunneld-1`          |
-| `node-all-in-one`  | `docker logs --tail=200 axern-local-node-1`             |
-| `gatewayd`         | `docker logs --tail=200 axern-local-gatewayd-1`         |
-| `postgres`         | `docker logs --tail=120 axern-local-postgres-1`         |
+| `controld`         | `docker logs --tail=200 axern-source-controld-1`         |
+| `controld-migrate` | `docker logs --tail=200 axern-source-controld-migrate-1` |
+| `tunneld`          | `docker logs --tail=200 axern-source-tunneld-1`          |
+| `node-all-in-one`  | `docker logs --tail=200 axern-source-node-1`             |
+| `gatewayd`         | `docker logs --tail=200 axern-source-gatewayd-1`         |
+| `postgres`         | `docker logs --tail=120 axern-source-postgres-1`         |
 
 Node-internal logs:
 
 ```bash
-docker exec axern-local-node-1 tail -n 200 /var/log/axnoded/axnoded.log
-docker exec axern-local-node-1 tail -n 200 /var/log/axnoded/node-tunneld.log
-docker exec axern-local-node-1 tail -n 200 /var/lib/imagemgr/logs/imagemgr.log
-docker exec axern-local-node-1 sh -lc 'find /var/lib/imagemgr/daemons -maxdepth 3 -name daemon.log -print -exec tail -n 80 {} \;'
+docker exec axern-source-node-1 tail -n 200 /var/log/axnoded/axnoded.log
+docker exec axern-source-node-1 tail -n 200 /var/log/axnoded/node-tunneld.log
+docker exec axern-source-node-1 tail -n 200 /var/lib/imagemgr/logs/imagemgr.log
+docker exec axern-source-node-1 sh -lc 'find /var/lib/imagemgr/daemons -maxdepth 3 -name daemon.log -print -exec tail -n 80 {} \;'
 ```
 
 Config:
 
 ```bash
-docker exec axern-local-node-1 cat /var/lib/axnoded/node-config.toml
+docker exec axern-source-node-1 cat /var/lib/axnoded/node-config.toml
 ```
 
 ### Kind
@@ -125,10 +125,10 @@ Compose:
 
 ```bash
 make local-compose-status
-docker ps --filter 'name=axern-local'
-docker logs --tail=120 axern-local-controld-migrate-1
-docker logs --tail=120 axern-local-controld-1
-docker logs --tail=120 axern-local-node-1
+docker ps --filter 'name=axern-source'
+docker logs --tail=120 axern-source-controld-migrate-1
+docker logs --tail=120 axern-source-controld-1
+docker logs --tail=120 axern-source-node-1
 ```
 
 Kind:
@@ -148,8 +148,8 @@ Compose:
 
 ```bash
 curl -fsS http://127.0.0.1:24101/nodesz
-docker logs --tail=200 axern-local-controld-1
-docker exec axern-local-node-1 tail -n 200 /var/log/axnoded/axnoded.log
+docker logs --tail=200 axern-source-controld-1
+docker exec axern-source-node-1 tail -n 200 /var/log/axnoded/axnoded.log
 ```
 
 Kind:
@@ -166,9 +166,9 @@ kubectl -n axern-local exec "${NODE_POD}" -- tail -n 200 /var/log/axnoded/axnode
 Compose:
 
 ```bash
-docker logs --tail=160 axern-local-controld-1
-docker exec axern-local-node-1 axctl allocation list
-docker exec axern-local-node-1 tail -n 240 /var/log/axnoded/axnoded.log
+docker logs --tail=160 axern-source-controld-1
+docker exec axern-source-node-1 axctl allocation list
+docker exec axern-source-node-1 tail -n 240 /var/log/axnoded/axnoded.log
 ```
 
 Kind:
@@ -185,11 +185,11 @@ kubectl -n axern-local exec "${NODE_POD}" -- tail -n 240 /var/log/axnoded/axnode
 Compose:
 
 ```bash
-docker exec axern-local-node-1 axctl image list
-docker exec axern-local-node-1 axctl image mounts
-docker exec axern-local-node-1 tail -n 200 /var/log/axnoded/axnoded.log
-docker exec axern-local-node-1 tail -n 240 /var/lib/imagemgr/logs/imagemgr.log
-docker exec axern-local-node-1 sh -lc 'find /var/lib/imagemgr/daemons -maxdepth 3 -name daemon.log -print -exec tail -n 80 {} \;'
+docker exec axern-source-node-1 axctl image list
+docker exec axern-source-node-1 axctl image mounts
+docker exec axern-source-node-1 tail -n 200 /var/log/axnoded/axnoded.log
+docker exec axern-source-node-1 tail -n 240 /var/lib/imagemgr/logs/imagemgr.log
+docker exec axern-source-node-1 sh -lc 'find /var/lib/imagemgr/daemons -maxdepth 3 -name daemon.log -print -exec tail -n 80 {} \;'
 ```
 
 Kind:
@@ -209,9 +209,9 @@ Compose:
 
 ```bash
 curl -fsS http://127.0.0.1:25080/healthz
-docker logs --tail=200 axern-local-gatewayd-1
-docker logs --tail=200 axern-local-controld-1
-docker exec axern-local-node-1 tail -n 160 /var/log/axnoded/axnoded.log
+docker logs --tail=200 axern-source-gatewayd-1
+docker logs --tail=200 axern-source-controld-1
+docker exec axern-source-node-1 tail -n 160 /var/log/axnoded/axnoded.log
 ```
 
 Kind:
@@ -229,10 +229,10 @@ kubectl -n axern-local exec "${NODE_POD}" -- tail -n 160 /var/log/axnoded/axnode
 Compose:
 
 ```bash
-docker logs --tail=200 axern-local-tunneld-1
-docker logs --tail=200 axern-local-controld-1
-docker exec axern-local-node-1 tail -n 240 /var/log/axnoded/node-tunneld.log
-docker exec axern-local-node-1 tail -n 160 /var/log/axnoded/axnoded.log
+docker logs --tail=200 axern-source-tunneld-1
+docker logs --tail=200 axern-source-controld-1
+docker exec axern-source-node-1 tail -n 240 /var/log/axnoded/node-tunneld.log
+docker exec axern-source-node-1 tail -n 160 /var/log/axnoded/axnoded.log
 ```
 
 Kind:

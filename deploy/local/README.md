@@ -10,6 +10,8 @@ This directory contains the repo-supported local truth environments:
 - `otel/`: optional local OpenTelemetry/LGTM config
 - `state/`: generated local PKI, CLI env files, SSH keys, and runtime state
 
+The source Compose workflow owns the `axern-source` Docker Compose project. The released CLI owns the separate `axern-local` project and its state under the platform application-data directory. Public commands such as `axern run`, `axern ssh`, and `axern tunnel` can use either configured context, but `axern local ...` manages only the released-CLI instance and must not be mixed with this source workflow.
+
 For gateway, terminal, and SSH examples, see [Gateway Quickstart](gateway-quickstart.md).
 
 ## Start

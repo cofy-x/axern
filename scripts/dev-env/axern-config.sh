@@ -33,10 +33,10 @@ ensure_compose_ssh_keys() {
   client_key="${ssh_dir}/gateway_client_ed25519"
   mkdir -p "${ssh_dir}"
   if [ ! -s "${host_key}" ]; then
-    ssh-keygen -q -t ed25519 -N "" -f "${host_key}" -C "axern-local-gatewayd" >/dev/null
+    ssh-keygen -q -t ed25519 -N "" -f "${host_key}" -C "axern-source-gatewayd" >/dev/null
   fi
   if [ ! -s "${client_key}" ]; then
-    ssh-keygen -q -t ed25519 -N "" -f "${client_key}" -C "axern-local-client" >/dev/null
+    ssh-keygen -q -t ed25519 -N "" -f "${client_key}" -C "axern-source-client" >/dev/null
   fi
   chmod 700 "${ssh_dir}"
   chmod 600 "${host_key}" "${client_key}"

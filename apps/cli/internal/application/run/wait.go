@@ -2,7 +2,9 @@ package run
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -37,45 +39,69 @@ func (c Control) Wait(ctx context.Context, runID string, target WaitTarget, time
 	}
 	defer cancel()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	resp, err := c.Get(waitCtx, runID)
+	if err != nil {
+		return nil, err
+	}
+	last := resp.GetRun()
+	if last == nil {
+		return nil, fmt.Errorf("get run %s returned an empty response", runID)
+	}
+	if onUpdate != nil {
+		onUpdate(last)
+	}
+	if done, waitErr := runWaitResult(runID, target, last); done {
+		return last, waitErr
+	}
 
-	var last *runv1.Run
-	for {
-		resp, err := c.Get(waitCtx, runID)
-		if err != nil {
-			return last, err
+	watch, err := c.client.WatchRun(waitCtx, &runv1.WatchRunRequest{RunID: runID, AfterVersion: last.GetVersion()})
+	if err != nil {
+		if waitCtx.Err() != nil {
+			return last, runWaitTimeoutError(waitCtx, runID, target)
 		}
-		last = resp.GetRun()
+		return last, err
+	}
+	for {
+		update, recvErr := watch.Recv()
+		if recvErr != nil {
+			if waitCtx.Err() != nil {
+				return last, runWaitTimeoutError(waitCtx, runID, target)
+			}
+			if errors.Is(recvErr, io.EOF) {
+				return last, fmt.Errorf("run %s watch ended before reaching %s", runID, target)
+			}
+			return last, recvErr
+		}
+		if update.GetRun() == nil {
+			return last, fmt.Errorf("watch run %s returned an empty response", runID)
+		}
+		last = update.GetRun()
 		if onUpdate != nil {
 			onUpdate(last)
 		}
-		if last == nil {
-			select {
-			case <-waitCtx.Done():
-				return last, runWaitTimeoutError(waitCtx, runID, target)
-			case <-ticker.C:
-			}
-			continue
-		}
-		if runFailed(last) {
-			return last, runWaitFailure(runID, last)
-		}
-		if runSucceeded(last) {
-			return last, nil
-		}
-		if target == WaitTargetRunning && last.GetStatus() == runv1.RunStatus_RUN_STATUS_RUNNING {
-			return last, nil
-		}
-		if target == WaitTargetTerminal && runTerminal(last) {
-			return last, nil
-		}
-		select {
-		case <-waitCtx.Done():
-			return last, runWaitTimeoutError(waitCtx, runID, target)
-		case <-ticker.C:
+		if done, waitErr := runWaitResult(runID, target, last); done {
+			return last, waitErr
 		}
 	}
+}
+
+func runWaitResult(runID string, target WaitTarget, run *runv1.Run) (bool, error) {
+	if run == nil {
+		return false, nil
+	}
+	if runFailed(run) {
+		return true, runWaitFailure(runID, run)
+	}
+	if runSucceeded(run) {
+		return true, nil
+	}
+	if target == WaitTargetRunning && run.GetStatus() == runv1.RunStatus_RUN_STATUS_RUNNING {
+		return true, nil
+	}
+	if target == WaitTargetTerminal && runTerminal(run) {
+		return true, nil
+	}
+	return false, nil
 }
 
 func runWaitTimeoutError(ctx context.Context, runID string, target WaitTarget) error {

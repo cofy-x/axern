@@ -2,6 +2,7 @@ package run
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -54,15 +55,123 @@ func TestCreateUsesExplicitEnvironmentID(t *testing.T) {
 }
 
 func TestWaitHandlesEmptyRunResponse(t *testing.T) {
+	updates := 0
 	control := New(&fakeRunClient{
 		getResponses: []*runv1.GetRunResponse{{}},
 	})
 
-	_, err := control.Wait(context.Background(), "run-1", WaitTargetRunning, time.Millisecond, nil)
+	_, err := control.Wait(context.Background(), "run-1", WaitTargetRunning, time.Millisecond, func(*runv1.Run) {
+		updates++
+	})
 	if err == nil {
-		t.Fatal("Wait returned nil error, want timeout")
+		t.Fatal("Wait returned nil error, want empty response error")
 	}
-	if !strings.Contains(err.Error(), "timed out waiting for run run-1") {
+	if !strings.Contains(err.Error(), "empty response") {
+		t.Fatalf("Wait error = %v, want empty response", err)
+	}
+	if updates != 0 {
+		t.Fatalf("onUpdate calls = %d, want 0 for an invalid response", updates)
+	}
+}
+
+func TestWaitReturnsInitialTerminalSnapshotWithoutWatch(t *testing.T) {
+	runs := &fakeRunClient{getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+		ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_SUCCEEDED, Version: 3,
+	}}}}
+	control := New(runs)
+
+	result, err := control.Wait(context.Background(), "run-1", WaitTargetTerminal, time.Second, nil)
+	if err != nil {
+		t.Fatalf("Wait returned error: %v", err)
+	}
+	if result.GetStatus() != runv1.RunStatus_RUN_STATUS_SUCCEEDED {
+		t.Fatalf("Wait status = %s, want succeeded", result.GetStatus())
+	}
+	if runs.watchCalls != 0 {
+		t.Fatalf("WatchRun calls = %d, want 0 for an initial terminal snapshot", runs.watchCalls)
+	}
+}
+
+func TestWaitUsesWatchAfterInitialSnapshot(t *testing.T) {
+	runs := &fakeRunClient{
+		getResponses:   []*runv1.GetRunResponse{{Run: &runv1.Run{ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_PLACED, Version: 1}}},
+		watchResponses: []*runv1.WatchRunResponse{{Run: &runv1.Run{ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_RUNNING, Version: 2}}},
+	}
+	control := New(runs)
+
+	result, err := control.Wait(context.Background(), "run-1", WaitTargetRunning, time.Second, nil)
+	if err != nil {
+		t.Fatalf("Wait returned error: %v", err)
+	}
+	if result.GetStatus() != runv1.RunStatus_RUN_STATUS_RUNNING {
+		t.Fatalf("Wait status = %s, want running", result.GetStatus())
+	}
+	if runs.getCalls != 1 || runs.watchCalls != 1 {
+		t.Fatalf("calls = get %d watch %d, want 1 each", runs.getCalls, runs.watchCalls)
+	}
+	if runs.watchRequest.GetRunID() != "run-1" || runs.watchRequest.GetAfterVersion() != 1 {
+		t.Fatalf("WatchRun request = %+v, want run-1 after version 1", runs.watchRequest)
+	}
+}
+
+func TestWaitReportsTerminalWatchFailure(t *testing.T) {
+	runs := &fakeRunClient{
+		getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+			ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_RUNNING, Version: 2,
+		}}},
+		watchResponses: []*runv1.WatchRunResponse{{Run: &runv1.Run{
+			ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_FAILED, Version: 3, Message: "runtime exited",
+		}}},
+	}
+	control := New(runs)
+
+	result, err := control.Wait(context.Background(), "run-1", WaitTargetTerminal, time.Second, nil)
+	if err == nil || !strings.Contains(err.Error(), "runtime exited") {
+		t.Fatalf("Wait error = %v, want terminal diagnostic", err)
+	}
+	if result.GetStatus() != runv1.RunStatus_RUN_STATUS_FAILED {
+		t.Fatalf("Wait status = %s, want failed", result.GetStatus())
+	}
+}
+
+func TestWaitRejectsWatchEndingBeforeTarget(t *testing.T) {
+	runs := &fakeRunClient{getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+		ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_PLACED, Version: 1,
+	}}}}
+	control := New(runs)
+
+	_, err := control.Wait(context.Background(), "run-1", WaitTargetRunning, time.Second, nil)
+	if err == nil || !strings.Contains(err.Error(), "watch ended before reaching running") {
+		t.Fatalf("Wait error = %v, want premature watch end", err)
+	}
+}
+
+func TestWaitRejectsEmptyWatchResponse(t *testing.T) {
+	runs := &fakeRunClient{
+		getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+			ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_PLACED, Version: 1,
+		}}},
+		watchResponses: []*runv1.WatchRunResponse{{}},
+	}
+	control := New(runs)
+
+	_, err := control.Wait(context.Background(), "run-1", WaitTargetRunning, time.Second, nil)
+	if err == nil || !strings.Contains(err.Error(), "watch run run-1 returned an empty response") {
+		t.Fatalf("Wait error = %v, want empty watch response", err)
+	}
+}
+
+func TestWaitTimeoutCancelsBlockedWatch(t *testing.T) {
+	runs := &fakeRunClient{
+		getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+			ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_PLACED, Version: 1,
+		}}},
+		watchBlocks: true,
+	}
+	control := New(runs)
+
+	_, err := control.Wait(context.Background(), "run-1", WaitTargetRunning, time.Millisecond, nil)
+	if err == nil || !strings.Contains(err.Error(), "timed out waiting for run run-1") {
 		t.Fatalf("Wait error = %v, want timeout", err)
 	}
 }
@@ -78,9 +187,13 @@ func TestParseWaitTargetAcceptsCaseInsensitiveInput(t *testing.T) {
 }
 
 type fakeRunClient struct {
-	createRequest *runv1.CreateRunRequest
-	getCalls      int
-	getResponses  []*runv1.GetRunResponse
+	createRequest  *runv1.CreateRunRequest
+	getCalls       int
+	getResponses   []*runv1.GetRunResponse
+	watchCalls     int
+	watchRequest   *runv1.WatchRunRequest
+	watchResponses []*runv1.WatchRunResponse
+	watchBlocks    bool
 }
 
 func (f *fakeRunClient) CreateRun(_ context.Context, req *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
@@ -98,6 +211,33 @@ func (f *fakeRunClient) GetRun(context.Context, *runv1.GetRunRequest, ...grpc.Ca
 		return f.getResponses[index], nil
 	}
 	return &runv1.GetRunResponse{}, nil
+}
+
+func (f *fakeRunClient) WatchRun(ctx context.Context, req *runv1.WatchRunRequest, _ ...grpc.CallOption) (runv1.RunControl_WatchRunClient, error) {
+	f.watchCalls++
+	f.watchRequest = req
+	return &fakeRunWatch{ctx: ctx, responses: f.watchResponses, block: f.watchBlocks}, nil
+}
+
+type fakeRunWatch struct {
+	grpc.ClientStream
+	ctx       context.Context
+	responses []*runv1.WatchRunResponse
+	index     int
+	block     bool
+}
+
+func (f *fakeRunWatch) Recv() (*runv1.WatchRunResponse, error) {
+	if f.index >= len(f.responses) {
+		if f.block {
+			<-f.ctx.Done()
+			return nil, f.ctx.Err()
+		}
+		return nil, io.EOF
+	}
+	response := f.responses[f.index]
+	f.index++
+	return response, nil
 }
 
 func (f *fakeRunClient) ListRuns(context.Context, *runv1.ListRunsRequest, ...grpc.CallOption) (*runv1.ListRunsResponse, error) {
