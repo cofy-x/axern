@@ -36,7 +36,6 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 - [Long-Term Direction](product/product-direction.md): product north star, durable principles, investment areas, and non-goals.
 - [Stable Domain Model](product/domain-model.md): normative product objects, ownership, lifecycle meaning, and boundaries for API and persistence design.
 - [SDK User Model](product/sdk-user-model.md): intended SDK concepts and common lifecycle contract.
-- [External Runner Integration](product/external-runner-integration.md): public-SDK-only inference, declared output, and fresh verifier flow.
 
 ## Architecture
 

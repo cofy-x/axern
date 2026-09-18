@@ -61,7 +61,7 @@ func TestGRPCClientPreservesDeleteOutputContract(t *testing.T) {
 	_, err = client.DeleteAllocation(context.Background(), lis.Addr().String(), &privatenodev1.DeleteAllocationRequest{
 		AllocationID: "allocation-output",
 		OutputSealing: &privatenodev1.OutputSealingRequest{Outputs: []*commonv1.DeclaredOutput{{
-			Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+			Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
 		}}},
 	})
 	if err != nil {
@@ -69,7 +69,7 @@ func TestGRPCClientPreservesDeleteOutputContract(t *testing.T) {
 	}
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
-	if got := fake.lastDelete.GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" {
+	if got := fake.lastDelete.GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("delete request after gRPC transport = %#v", fake.lastDelete)
 	}
 }

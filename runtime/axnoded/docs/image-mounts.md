@@ -56,18 +56,18 @@ options=["rbind","ro"]
 
 Stable runtime IDs include image, target, and the internal read-only invariant so different mount sets do not reuse the wrong environment template.
 
-## External Runner Use
+## SDK Consumer Use
 
-An external runner can use the generic image-mount primitive for caller-supplied agent tools:
+An SDK consumer can use the generic image-mount primitive for caller-supplied read-only tools:
 
 ```text
-native task sandbox image
-  + agent/tool image mount
-  + agent command inside the task sandbox
-  -> patch, stdout, trajectory, raw evidence, exports
+base sandbox image
+  + tool image mount
+  + command inside the sandbox
+  -> stdout and declared outputs
 ```
 
-Task images and tool images remain separate. The external runner owns agent configuration, benchmark input, and task materialization; Axern receives only immutable image mounts and Allocation-local file/archive operations. Ordinary workload Secrets may use explicit Run projections. Model-provider identity remains in the external runner and is reached through an Allocation-scoped Tunnel to its loopback model gateway; it is neither baked into the image nor projected into the sandbox.
+Base images and tool images remain separate. Axern receives only immutable image mounts and Allocation-local file/archive operations. Workload credentials that must exist inside the sandbox use explicit Run Secret projections; caller-local services remain reachable through an Allocation-scoped Tunnel without becoming image or Run metadata.
 
 ## Verification
 

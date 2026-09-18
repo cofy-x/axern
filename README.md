@@ -18,7 +18,7 @@ Axern is an open-source environment execution platform for agent evaluation, tra
 
 > **Project status:** Axern is pre-1.0 and under active development. It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
 
-The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade, not a second execution lifecycle. Evaluation orchestration, CandidateBundle and verifier schemas, trajectories, and durable datasets belong to an external runner or benchmark adapter.
+The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade over that chain, not a second execution lifecycle.
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
@@ -69,7 +69,7 @@ For repository development, `make verify-changed` is the normal fast feedback en
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
 - **Evaluation and synthesis batches:** execute isolated work concurrently through Runs, with explicit inputs, outputs, and lifecycle evidence.
-- **External runner integration:** use the released SDK to run inference, seal bounded declared outputs, and verify them in a fresh Run without learning Node or runtime identities.
+- **SDK-driven execution:** use a released SDK to create Runs, operate their Allocations, seal bounded declared outputs, and recover by public resource identity.
 
 ## Why Axern
 
@@ -91,10 +91,9 @@ flowchart LR
     Node --> Egress["egressd\ntrusted egress policy enforcement"]
     Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
     Node --> Runtime["runsc sandboxes"]
-    Runner["external runner\nagent tasks and evidence"] --> Gateway
 ```
 
-`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before their 15-minute expiry. This is not a persistent workspace or object store. See the [external runner guide](./docs/product/external-runner-integration.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
+`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before their 15-minute expiry. This is not a persistent workspace or object store. See the [storage architecture](./docs/architecture/storage-architecture.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
 
 Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md). Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
 

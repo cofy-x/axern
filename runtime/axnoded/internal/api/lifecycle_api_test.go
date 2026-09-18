@@ -208,7 +208,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 				Baseline: &environmentv1.OciBaselinePolicy{NoFileLimit: 2097152},
 			},
 			DeclaredOutputs: []*commonv1.DeclaredOutput{{
-				Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
+				Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
 			}},
 		},
 	})
@@ -255,7 +255,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	if startReq.GetEnvironment().GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
 		t.Fatalf("execution profile nofile = %d, want 2097152", startReq.GetEnvironment().GetExecutionProfile().GetBaseline().GetNoFileLimit())
 	}
-	if got := startReq.GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
+	if got := startReq.GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
 		t.Fatalf("declared outputs were not preserved: %#v", got)
 	}
 }
@@ -299,7 +299,7 @@ func TestNodeLifecycleDeleteAllocationBridgesRequest(t *testing.T) {
 		OutputSealing: &nodelifecyclev1.OutputSealingRequest{
 			ExpiresAtUnixNano: time.Now().Add(time.Hour).UnixNano(),
 			Outputs: []*commonv1.DeclaredOutput{{
-				Path: "/tmp/candidate.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
+				Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE,
 			}},
 		},
 	})
@@ -312,7 +312,7 @@ func TestNodeLifecycleDeleteAllocationBridgesRequest(t *testing.T) {
 	if fakeService.deleteRequests[0].GetID() != "alloc-123" || fakeService.deleteRequests[0].GetTimeout() != 9 {
 		t.Fatalf("delete request = %#v", fakeService.deleteRequests[0])
 	}
-	if got := fakeService.deleteRequests[0].GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/candidate.patch" {
+	if got := fakeService.deleteRequests[0].GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("delete declared outputs = %#v", got)
 	}
 	if len(fakeService.listRequests) != 1 || fakeService.listRequests[0].GetID() != "alloc-123" {

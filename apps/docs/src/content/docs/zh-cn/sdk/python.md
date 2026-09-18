@@ -53,7 +53,7 @@ with Sandbox(
     sandbox.exec(["/__claude_code/bin/claude"], check=True)
 ```
 
-SDK 只发送 Secret 引用，不发送明文。新的 verification Run 必须显式声明自己的镜像挂载和 Secret 投影，不会从 inference Run 自动继承。模型 Provider 的 key 和证书应保留在外部 runner，通过 Allocation-scoped TunnelSession 暴露 runner 本机 loopback model gateway；不要把 Provider 身份投影进 sandbox。
+SDK 只发送 Secret 引用，不发送明文。每个 Run 都必须显式声明自己的镜像挂载和 Secret 投影，不能从之前的 Run 自动继承。调用方本地服务的凭据保留在 sandbox 外部，sandbox 可通过 Allocation-scoped TunnelSession 访问该服务。
 
 Secret 文件默认权限为 `0400`，显式 mode 也不得包含写权限。伪文件系统、可执行文件/系统库目录、Axern 运行时状态路径和关键系统身份文件不能作为 Secret 目标。
 

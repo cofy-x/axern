@@ -46,12 +46,12 @@ def main() -> None:
             image_mounts=[ImageMount(image_mount, "/__runtime_probe")],
             declared_outputs=[
                 DeclaredOutput(
-                    path="/tmp/axern-candidate.txt",
+                    path="/tmp/axern-output.txt",
                     format=DeclaredOutputFormat.FILE,
                     media_type="text/plain",
                 ),
                 DeclaredOutput(
-                    path="/tmp/axern-trajectory",
+                    path="/tmp/axern-output-dir",
                     format=DeclaredOutputFormat.TAR,
                     media_type="application/x-tar",
                 ),
@@ -61,7 +61,7 @@ def main() -> None:
             assert_declared_outputs(
                 client,
                 sandbox.run_id,
-                ["/tmp/axern-candidate.txt", "/tmp/axern-trajectory"],
+                ["/tmp/axern-output.txt", "/tmp/axern-output-dir"],
             )
             assert_read_only_image_mount(client, sandbox)
             assert_public_tunnel(client, sandbox, marker)
@@ -98,9 +98,9 @@ def main() -> None:
                     "-c",
                     "from pathlib import Path; "
                     "value=Path('/tmp/axern-task-input.txt').read_text(); "
-                    "Path('/tmp/axern-candidate.txt').write_text(value); "
-                    "Path('/tmp/axern-trajectory').mkdir(); "
-                    "Path('/tmp/axern-trajectory/log.txt').write_text(value); "
+                    "Path('/tmp/axern-output.txt').write_text(value); "
+                    "Path('/tmp/axern-output-dir').mkdir(); "
+                    "Path('/tmp/axern-output-dir/log.txt').write_text(value); "
                     "print(value)",
                 ],
                 check=True,
@@ -115,26 +115,26 @@ def main() -> None:
         outputs = wait_sealed_outputs(
             client,
             run_id,
-            ["/tmp/axern-candidate.txt", "/tmp/axern-trajectory"],
+            ["/tmp/axern-output.txt", "/tmp/axern-output-dir"],
         )
         destination = BytesIO()
         client.download_sealed_output(
             run_id,
-            outputs["/tmp/axern-candidate.txt"].output_id,
+            outputs["/tmp/axern-output.txt"].output_id,
             destination,
             timeout=60,
         )
-        candidate = destination.getvalue()
-        if candidate.decode().strip() != marker:
-            raise RuntimeError("sealed declared output did not preserve the candidate")
-        trajectory = BytesIO()
+        output = destination.getvalue()
+        if output.decode().strip() != marker:
+            raise RuntimeError("sealed declared output did not preserve the file")
+        output_archive = BytesIO()
         client.download_sealed_output(
             run_id,
-            outputs["/tmp/axern-trajectory"].output_id,
-            trajectory,
+            outputs["/tmp/axern-output-dir"].output_id,
+            output_archive,
             timeout=60,
         )
-        assert_trajectory_archive(trajectory.getvalue(), marker)
+        assert_output_archive(output_archive.getvalue(), marker)
         with Sandbox(
             client=client,
             environment_id=environment.id,
@@ -142,46 +142,42 @@ def main() -> None:
             request_memory="512MiB",
             declared_outputs=[
                 DeclaredOutput(
-                    path="/tmp/verification.txt",
+                    path="/tmp/second-output.txt",
                     format=DeclaredOutputFormat.FILE,
                     media_type="text/plain",
                 )
             ],
-            labels={"axern.release.acceptance": "python-verifier"},
-        ) as verifier:
-            assert_declared_outputs(client, verifier.run_id, ["/tmp/verification.txt"])
-            if client.get_run(verifier.run_id).config.image_mounts:
-                raise RuntimeError(
-                    "fresh verification Run inherited inference ImageMount"
-                )
-            verifier.write_file("/tmp/candidate.txt", candidate)
-            verifier.exec(
+            labels={"axern.release.acceptance": "python-second-run"},
+        ) as second:
+            assert_declared_outputs(client, second.run_id, ["/tmp/second-output.txt"])
+            if client.get_run(second.run_id).config.image_mounts:
+                raise RuntimeError("second independent Run inherited an ImageMount")
+            second.write_file("/tmp/input.txt", output)
+            second.exec(
                 [
                     "python",
                     "-c",
-                    "from pathlib import Path; candidate=Path('/tmp/candidate.txt').read_text().strip(); "
-                    f"assert candidate == {marker!r}; Path('/tmp/verification.txt').write_text('verified')",
+                    "from pathlib import Path; value=Path('/tmp/input.txt').read_text().strip(); "
+                    f"assert value == {marker!r}; Path('/tmp/second-output.txt').write_text('complete')",
                 ],
                 check=True,
             )
-            verification_run_id = verifier.run_id
-        client.wait_run(verification_run_id, timeout=60)
-        verification = wait_sealed_outputs(
-            client, verification_run_id, ["/tmp/verification.txt"]
-        )["/tmp/verification.txt"]
-        verified = BytesIO()
+            second_run_id = second.run_id
+        client.wait_run(second_run_id, timeout=60)
+        second_output = wait_sealed_outputs(
+            client, second_run_id, ["/tmp/second-output.txt"]
+        )["/tmp/second-output.txt"]
+        downloaded = BytesIO()
         client.download_sealed_output(
-            verification_run_id, verification.output_id, verified, timeout=60
+            second_run_id, second_output.output_id, downloaded, timeout=60
         )
-        if verified.getvalue() != b"verified":
-            raise RuntimeError("fresh verification Run returned an invalid result")
-        handshake.joinpath("python.run-id").write_text(
-            verification_run_id, encoding="utf-8"
-        )
+        if downloaded.getvalue() != b"complete":
+            raise RuntimeError("second independent Run returned an invalid output")
+        handshake.joinpath("python.run-id").write_text(second_run_id, encoding="utf-8")
         wait_verified(handshake / "python.verified")
         print(
-            f"sdk_data_plane=python inference_run_id={run_id} "
-            f"verification_run_id={verification_run_id} sealed_output=true ok=true"
+            f"sdk_data_plane=python first_run_id={run_id} "
+            f"second_run_id={second_run_id} sealed_output=true ok=true"
         )
     finally:
         if environment is not None:
@@ -324,16 +320,14 @@ def wait_sealed_outputs(client: AxernClient, run_id: str, expected_paths: list[s
     raise TimeoutError("declared output was not sealed before the retention deadline")
 
 
-def assert_trajectory_archive(payload: bytes, marker: str) -> None:
+def assert_output_archive(payload: bytes, marker: str) -> None:
     with tarfile.open(fileobj=BytesIO(payload), mode="r:") as archive:
         members = [member for member in archive.getmembers() if member.isfile()]
         if len(members) != 1 or Path(members[0].name).name != "log.txt":
-            raise RuntimeError(f"unexpected trajectory archive: {members!r}")
+            raise RuntimeError(f"unexpected declared-output archive: {members!r}")
         extracted = archive.extractfile(members[0])
         if extracted is None or extracted.read().decode().strip() != marker:
-            raise RuntimeError(
-                "trajectory archive did not preserve its declared output"
-            )
+            raise RuntimeError("declared-output archive did not preserve its file")
 
 
 def required(name: str) -> str:

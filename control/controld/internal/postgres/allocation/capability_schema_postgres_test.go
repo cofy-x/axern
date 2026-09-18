@@ -177,7 +177,7 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	}
 	if _, err := db.Pool().Exec(ctx, `
 		UPDATE runs
-		SET config = '{"declaredOutputs":[{"path":"/tmp/candidate.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}]}'::jsonb
+		SET config = '{"declaredOutputs":[{"path":"/tmp/output.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}]}'::jsonb
 		WHERE run_id = $1
 	`, allocationID); err != nil {
 		t.Fatal(err)
@@ -199,7 +199,7 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 			break
 		}
 	}
-	if outputItem == nil || len(outputItem.DeclaredOutputs) != 1 || outputItem.DeclaredOutputs[0].GetPath() != "/tmp/candidate.patch" {
+	if outputItem == nil || len(outputItem.DeclaredOutputs) != 1 || outputItem.DeclaredOutputs[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("claimed output-sealing contract = %#v", items)
 	}
 	late := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt.Add(time.Second)), Conditions: conflict.GetConditions()}

@@ -172,7 +172,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         aria-controls="axern-runtime-scene"
         data-scene-mode="BATCH"
       >
-        <span>{zh ? '批量评测' : 'Evaluation Batch'}</span>
+        <span>{zh ? '并发 Run' : 'Concurrent Runs'}</span>
         <strong>runsc</strong>
       </button>
     </div>
@@ -261,12 +261,12 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     </article>
     <article>
       <div class="ax-workload-meta">
-        <span class="ax-workload-tag">[ RUNNERS ]</span>
+        <span class="ax-workload-tag">[ OUTPUTS ]</span>
         <span class="ax-workload-index">04 / 04</span>
       </div>
-      <h3>{zh ? '集成外部 Runner' : 'Integrate external runners'}</h3>
-      <p>{zh ? '通过正式 SDK 驱动隔离的 inference 与 verification Run，并下载受限的声明输出。' : 'Drive isolated inference and verification Runs through released SDKs, then download bounded declared outputs.'}</p>
-      <a href={`${base}/guides/external-runners/`}>{zh ? '查看集成合同' : 'Read the integration contract'}</a>
+      <h3>{zh ? '交付声明输出' : 'Deliver declared outputs'}</h3>
+      <p>{zh ? '在 Run 中声明有限输出，在 runtime 清理前封存并通过 SDK 校验下载。' : 'Declare bounded Run outputs, seal them before runtime cleanup, and download them with SDK verification.'}</p>
+      <a href={`${base}/guides/run/`}>{zh ? '查看 Run 合同' : 'Read the Run contract'}</a>
     </article>
   </div>
 </section>

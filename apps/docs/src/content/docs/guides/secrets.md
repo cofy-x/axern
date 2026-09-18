@@ -47,6 +47,6 @@ For an Environment registry credential, create a new Environment because the Env
 
 :::note
 
-Secrets hold platform credential material such as registry pulls. Agent provider tokens belong in the evaluation or training harness credential store, not generic platform Secret APIs unless a sandbox explicitly needs them.
+Secrets hold platform credential material such as registry pulls. Caller-local service credentials remain outside generic platform Secret APIs unless a sandbox explicitly needs them.
 
 :::

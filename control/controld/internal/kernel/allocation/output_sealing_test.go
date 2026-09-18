@@ -16,10 +16,10 @@ func TestReconcileItemOutputSealingPresenceDistinguishesOrdinaryDeleteAndZeroOut
 	if got == nil || !got.ExpiresAt.Equal(expiresAt) || len(got.Outputs) != 0 {
 		t.Fatalf("explicit zero-output sealing = %#v", got)
 	}
-	item := ReconcileItem{OutputExpiresAt: &expiresAt, DeclaredOutputs: []*commonv1.DeclaredOutput{{Path: "/tmp/candidate.patch"}}}
+	item := ReconcileItem{OutputExpiresAt: &expiresAt, DeclaredOutputs: []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch"}}}
 	got = item.OutputSealingRequest()
 	item.DeclaredOutputs[0].Path = "/tmp/mutated.patch"
-	if got.Outputs[0].GetPath() != "/tmp/candidate.patch" {
+	if got.Outputs[0].GetPath() != "/tmp/output.patch" {
 		t.Fatal("output sealing command aliases the reconcile projection")
 	}
 }

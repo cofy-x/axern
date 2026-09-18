@@ -31,7 +31,7 @@ Pass the environment ID to any workload instead of resolving the source again:
 axern run --environment <environment-id> -- python -c 'print("ok")'
 ```
 
-The SDKs accept the same `environment_id` source when constructing a Sandbox, which avoids resolving the same source for every evaluation sample.
+The SDKs accept the same `environment_id` source when constructing a Sandbox, which avoids resolving the same source for every Run.
 
 ## Namespaces
 

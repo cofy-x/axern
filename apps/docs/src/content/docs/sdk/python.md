@@ -53,7 +53,7 @@ with Sandbox(
     sandbox.exec(["/__claude_code/bin/claude"], check=True)
 ```
 
-The SDK sends Secret references only, never plaintext. A later verification Run must declare its own mounts and Secret projections; it does not inherit them. Keep model-provider keys and certificates in the external runner and expose its loopback model gateway through an Allocation-scoped TunnelSession; do not project Provider identity into the sandbox.
+The SDK sends Secret references only, never plaintext. Every Run must declare its own mounts and Secret projections; they are not inherited from an earlier Run. Credentials for caller-local services remain outside the sandbox, which can reach those services through an Allocation-scoped TunnelSession.
 
 Secret files default to mode `0400`; explicit modes must be read-only. Axern rejects pseudo-filesystems, executable/library trees, its runtime-state paths, and critical system identity files as Secret targets.
 

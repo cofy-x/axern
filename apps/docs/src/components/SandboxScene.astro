@@ -376,17 +376,17 @@
         cycle: ['01 PROVISION', '02 READY', '03 EXECUTE', '04 CLEAN'],
       },
       BATCH: {
-		context: 'AXERN / EVALUATION BATCH', id: 'RUN_41C2', runtime: 'RUNSC',
-		command: 'evaluator.map(dataset)', coreLabel: 'SANDBOX POOL', coreRuntime: '32 ACTIVE',
-		flowFunction: 'score', flowValue: 'trajectory', outputLabel: 'RESULTS', outputValue: '32 COMPLETE',
-		resultLabel: 'BATCH', resultValue: 'PASS 31 / FAIL 1',
+		context: 'AXERN / CONCURRENT RUNS', id: 'RUN_41C2', runtime: 'RUNSC',
+		command: 'client.map(inputs)', coreLabel: 'SANDBOX POOL', coreRuntime: '32 ACTIVE',
+		flowFunction: 'exec', flowValue: 'command', outputLabel: 'OUTPUTS', outputValue: '32 COMPLETE',
+		resultLabel: 'RUNS', resultValue: '31 OK / 1 FAILED',
 		events: [
-		  ['DATASET LOADED', '32 SAMPLES'],
+		  ['INPUTS READY', '32 ITEMS'],
 		  ['SANDBOXES READY', 'RUNTIME RUNSC'],
-		  ['TRAJECTORIES CAPTURED', 'RESULTS EXPORTED'],
+		  ['OUTPUTS SEALED', 'RESULTS AVAILABLE'],
 		  ['RESOURCES RELEASED', 'CLEANUP COMPLETE'],
 		],
-		cycle: ['01 QUEUE', '02 PROVISION', '03 EVALUATE', '04 CLEAN'],
+		cycle: ['01 QUEUE', '02 PROVISION', '03 EXECUTE', '04 CLEAN'],
       },
     } as const;
     let currentPhase = '';

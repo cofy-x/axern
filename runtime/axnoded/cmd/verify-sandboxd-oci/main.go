@@ -92,7 +92,7 @@ func run(cfg config) error {
 	cases := []runCase{
 		{
 			name:             "exit7",
-			argv:             []string{"/bin/sh", "-c", "printf 'pid1=%s env=%s cwd=%s\\n' \"$(cat /proc/1/comm)\" \"$AXERN_SANDBOXD_E2E\" \"$(pwd)\"; printf candidate > /tmp/axern-output-sealing-candidate; sleep 1; exit 7"},
+			argv:             []string{"/bin/sh", "-c", "printf 'pid1=%s env=%s cwd=%s\\n' \"$(cat /proc/1/comm)\" \"$AXERN_SANDBOXD_E2E\" \"$(pwd)\"; printf output > /tmp/axern-output-sealing-file; sleep 1; exit 7"},
 			env:              []*apipb.KeyValue{{Key: "AXERN_SANDBOXD_E2E", Value: "ok"}},
 			cwd:              "/tmp",
 			expected:         7,
@@ -281,10 +281,10 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		return caseFailure(fmt.Errorf("workload exit code = %d, want %d", result.ExitCode, tc.expected))
 	}
 	if tc.expectOutputSeal {
-		output, readErr := client.ReadFile(ctx, "/tmp/axern-output-sealing-candidate")
+		output, readErr := client.ReadFile(ctx, "/tmp/axern-output-sealing-file")
 		if readErr != nil || string(output.Data) != "candidate" {
 			cleanupAfterFailure()
-			return caseFailure(fmt.Errorf("read candidate after workload exit: data=%q err=%v", output.Data, readErr))
+			return caseFailure(fmt.Errorf("read output after workload exit: data=%q err=%v", output.Data, readErr))
 		}
 	}
 	if err := cleanupRuntime(); err != nil {

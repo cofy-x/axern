@@ -4,7 +4,7 @@ This package builds the public documentation at [`axern.cofy-x.space`](https://a
 
 ## Content Boundary
 
-`src/content/docs/` owns public user journeys for installation, CLI, SDKs, external runners, and concise platform concepts. English pages are normative. Files under `src/content/docs/zh-cn/` translate selected pages; missing translations use Starlight's explicit English fallback.
+`src/content/docs/` owns public user journeys for installation, CLI, SDKs, and concise platform concepts. English pages are normative. Files under `src/content/docs/zh-cn/` translate selected pages; missing translations use Starlight's explicit English fallback.
 
 The repository root [`docs/`](../../docs/README.md) owns detailed engineering architecture, maintainer operations, verification contracts, and product design. Public pages link to those documents when readers need implementation detail instead of duplicating them.
 

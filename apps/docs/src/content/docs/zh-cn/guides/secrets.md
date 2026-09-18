@@ -47,6 +47,6 @@ Secret 是不可变的。Environment 或未终止 Run 的必需引用存在时�
 
 :::note
 
-Secret 存放平台凭据材料，如镜像仓库拉取凭据。Agent Provider token 应由评测或训练 harness 的凭据存储管理；只有 Sandbox 明确需要时才投影进工作负载。
+Secret 存放平台凭据材料，如镜像仓库拉取凭据。调用方本地服务的凭据应保留在 Sandbox 外部；只有 Sandbox 明确需要的最小权限凭据才投影进工作负载。
 
 :::

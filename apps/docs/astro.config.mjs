@@ -32,7 +32,6 @@ const sidebar = [
         translations: { 'zh-CN': '工作负载' },
         items: [
           { label: 'Runs', translations: { 'zh-CN': 'Run' }, link: '/guides/run/' },
-          { label: 'External runners', translations: { 'zh-CN': '外部 runner' }, link: '/guides/external-runners/' },
         ],
       },
       {

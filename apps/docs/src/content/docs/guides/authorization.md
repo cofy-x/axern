@@ -57,6 +57,6 @@ Certificate issuance and CA policy remain operator-owned; the certificate must b
 
 Private keys remain in the user's context and are never uploaded. To rotate a certificate, add the new public certificate first, switch the client context, confirm `identity whoami`, and then revoke the old credential.
 
-External runner workers use a dedicated Principal Credential and explicit namespace roles. Transport identity never grants arbitrary Allocation access: gateway authorization and purpose-scoped Allocation access grants remain mandatory, and credential or namespace-role revocation prevents new access without redefining the Run lifecycle.
+SDK consumers use a dedicated Principal Credential and explicit namespace roles. Transport identity never grants arbitrary Allocation access: gateway authorization and purpose-scoped Allocation access grants remain mandatory, and credential or namespace-role revocation prevents new access without redefining the Run lifecycle.
 
 For the complete trust and audit model, see the repository's [authorization architecture](https://github.com/cofy-x/axern/blob/main/docs/architecture/authorization.md). Cluster operators should use the typed `axern admin` workflows for audited operations rather than debug HTTP endpoints.

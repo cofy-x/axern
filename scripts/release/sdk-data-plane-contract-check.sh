@@ -90,7 +90,7 @@ for fixture in fixtures:
 python_fixture = fixtures[0].read_text()
 for value in ("DeclaredOutput", "ImageMount", "assert_read_only_image_mount", "get_sealed_output_manifest", "download_sealed_output", "sealed_output=true"):
     if value not in python_fixture:
-        raise SystemExit(f"Python SDK acceptance is missing external-runner output contract: {value}")
+        raise SystemExit(f"Python SDK acceptance is missing public SDK output contract: {value}")
 
 acceptance = (root / "scripts/release/sdk-data-plane-acceptance.sh").read_text()
 for value in ("run get", '${language}.run-id', "run_sdk python", "run_sdk typescript", "run_sdk go", "AXERN_SDK_ACCEPTANCE_PROCESS_TIMEOUT_SECONDS", "timeout --signal=TERM --kill-after=5s"):
