@@ -4,18 +4,23 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type imageLoadRunner struct {
 	outputs         map[string][]byte
+	runCalls        int
 	sourceArgs      []string
 	destinationArgs []string
 }
 
 func (r *imageLoadRunner) Run(context.Context, io.Writer, io.Writer, string, ...string) error {
+	r.runCalls++
 	return nil
 }
 
@@ -35,8 +40,21 @@ func (r *imageLoadRunner) Pipe(_ context.Context, stdout, _ io.Writer, _ string,
 	return err
 }
 
+func prepareManagedLocalState(t *testing.T, dir string) {
+	t.Helper()
+	if err := saveMetadata(filepath.Join(dir, "metadata.json"), Metadata{Version: "test", CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("save metadata: %v", err)
+	}
+	for _, name := range []string{"compose.env", "compose.yaml"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("test\n"), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+}
+
 func TestImageLoadStreamsImmutableImageIDIntoNode(t *testing.T) {
 	dir := t.TempDir()
+	prepareManagedLocalState(t, dir)
 	runner := &imageLoadRunner{outputs: map[string][]byte{
 		"docker image inspect demo:dev": []byte(`[{"Id":"sha256:source","Os":"linux","Architecture":"amd64"}]`),
 		"docker compose --project-name axern-local --env-file " + dir + "/compose.env -f " + dir + "/compose.yaml images -q node": []byte("sha256:node\n"),
@@ -68,6 +86,7 @@ func TestImageLoadStreamsImmutableImageIDIntoNode(t *testing.T) {
 
 func TestImageLoadRejectsPlatformMismatchBeforeStreaming(t *testing.T) {
 	dir := t.TempDir()
+	prepareManagedLocalState(t, dir)
 	runner := &imageLoadRunner{outputs: map[string][]byte{
 		"docker image inspect demo:dev": []byte(`[{"Id":"sha256:source","Os":"linux","Architecture":"arm64"}]`),
 		"docker compose --project-name axern-local --env-file " + dir + "/compose.env -f " + dir + "/compose.yaml images -q node": []byte("sha256:node\n"),
@@ -80,6 +99,34 @@ func TestImageLoadRejectsPlatformMismatchBeforeStreaming(t *testing.T) {
 	}
 	if runner.sourceArgs != nil {
 		t.Fatal("platform mismatch started streaming")
+	}
+}
+
+func TestImageLoadRejectsUninitializedLocalStateBeforePull(t *testing.T) {
+	dir := t.TempDir()
+	runner := &imageLoadRunner{}
+	manager := &Manager{Dir: dir, Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
+
+	_, err := manager.ImageLoad(t.Context(), "demo:dev", ImageLoadOptions{Pull: true})
+	if err == nil || !strings.Contains(err.Error(), "only manages the CLI-owned local stack") {
+		t.Fatalf("ImageLoad() error = %v", err)
+	}
+	if runner.runCalls != 0 {
+		t.Fatalf("ImageLoad() pulled before validating local ownership")
+	}
+}
+
+func TestImageLoadReportsRecoverableIncompleteManagedConfiguration(t *testing.T) {
+	dir := t.TempDir()
+	if err := saveMetadata(filepath.Join(dir, "metadata.json"), Metadata{Version: "test", CreatedAt: time.Now(), UpdatedAt: time.Now()}); err != nil {
+		t.Fatalf("save metadata: %v", err)
+	}
+	runner := &imageLoadRunner{}
+	manager := &Manager{Dir: dir, Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
+
+	_, err := manager.ImageLoad(t.Context(), "demo:dev", ImageLoadOptions{})
+	if err == nil || !strings.Contains(err.Error(), "run `axern local up` to rebuild it") {
+		t.Fatalf("ImageLoad() error = %v", err)
 	}
 }
 

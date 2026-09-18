@@ -128,6 +128,20 @@ func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageL
 	if imageRef == "" {
 		return nil, fmt.Errorf("image ref is required")
 	}
+	if _, err := loadMetadata(m.metadataPath()); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, fmt.Errorf("Axern local is not initialized; run `axern local up` before loading images; `axern local image load` only manages the CLI-owned local stack")
+		}
+		return nil, fmt.Errorf("read Axern local metadata: %w", err)
+	}
+	for _, path := range []string{m.envPath(), m.composePath()} {
+		if _, err := os.Stat(path); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("Axern local managed configuration is incomplete; run `axern local up` to rebuild it")
+			}
+			return nil, fmt.Errorf("inspect Axern local state: %w", err)
+		}
+	}
 	if options.Pull {
 		if err := m.Runner.Run(ctx, m.Stdout, m.Stderr, "docker", "image", "pull", imageRef); err != nil {
 			return nil, err

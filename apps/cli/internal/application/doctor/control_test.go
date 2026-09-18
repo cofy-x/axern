@@ -395,6 +395,20 @@ func (f *fakeRunClient) GetRun(context.Context, *runv1.GetRunRequest, ...grpc.Ca
 	return &runv1.GetRunResponse{Run: &runv1.Run{ID: "run-probe", Status: status, ExitCode: exitCode}}, nil
 }
 
+func (f *fakeRunClient) WatchRun(ctx context.Context, _ *runv1.WatchRunRequest, _ ...grpc.CallOption) (runv1.RunControl_WatchRunClient, error) {
+	return &fakeRunWatch{ctx: ctx}, nil
+}
+
+type fakeRunWatch struct {
+	grpc.ClientStream
+	ctx context.Context
+}
+
+func (f *fakeRunWatch) Recv() (*runv1.WatchRunResponse, error) {
+	<-f.ctx.Done()
+	return nil, f.ctx.Err()
+}
+
 func testExitCode(value int32) *int32 {
 	return &value
 }
