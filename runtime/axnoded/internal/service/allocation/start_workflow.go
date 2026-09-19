@@ -342,6 +342,7 @@ func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.Dele
 }
 
 func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
+	response := new(runtime.DeleteResponse)
 	if outputSealing := request.GetOutputSealing(); outputSealing != nil {
 		expiry := time.Unix(0, outputSealing.GetExpiresAtUnixNano()).UTC()
 		if outputSealing.GetExpiresAtUnixNano() <= 0 {
@@ -379,6 +380,13 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 			}
 		}
 	}
+	if snapshotSealing := request.GetRootfsSnapshotSealing(); snapshotSealing != nil {
+		result, err := h.sealRootfsSnapshot(ctx, request.GetID(), snapshotSealing)
+		if err != nil {
+			return response, WrapRootfsSnapshotSealingError(err)
+		}
+		response.RootfsSnapshot = result
+	}
 	_, resource, err := h.deleteContainerRuntime(ctx, &apipb.DeleteContainerRequest{
 		ID:      request.ID,
 		Timeout: 0,
@@ -411,7 +419,7 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	if err := finalize(request.ID, resource); err != nil {
 		return new(runtime.DeleteResponse), err
 	}
-	return &runtime.DeleteResponse{}, nil
+	return response, nil
 }
 
 func (h *Controller) quiesceAllocationForOutput(ctx context.Context, request *runtime.DeleteRequest, target *container.Container) error {

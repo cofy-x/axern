@@ -29,6 +29,13 @@ func (h *sandboxService) DeleteControlPlaneAllocation(ctx context.Context, nodeI
 	return h.delete(ctx, request, nodeID)
 }
 
+func (h *sandboxService) AcknowledgeControlPlaneAllocationRelease(allocationID, nodeID string) error {
+	if h == nil {
+		return fmt.Errorf("control-plane allocation release acknowledgement is required")
+	}
+	return h.allocationController().AcknowledgeRootfsSnapshotRelease(allocationID, nodeID)
+}
+
 func (h *sandboxService) HasControlPlaneAllocation(allocationID, nodeID string) bool {
 	return h != nil && h.allocationController().AdmittedAllocationMatches(allocationID, strings.TrimSpace(nodeID))
 }

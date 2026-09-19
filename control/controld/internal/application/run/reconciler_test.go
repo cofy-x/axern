@@ -12,6 +12,8 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func TestReconcilerCompletesDeleteRetry(t *testing.T) {
@@ -68,6 +70,69 @@ func TestReconcilerReschedulesDeleteRetryFailure(t *testing.T) {
 	}
 	if store.scheduledLastError != "node unavailable" {
 		t.Fatalf("scheduled last error = %q, want node unavailable", store.scheduledLastError)
+	}
+}
+
+func TestReconcilerMarksSnapshotFailedAfterBoundedPublicationRetries(t *testing.T) {
+	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+	store := &fakeReconcileStore{items: []allocationkernel.ReconcileItem{{
+		AllocationID: "alloc-a", LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		NodeID: "node-a", NodeTarget: "node-a:24010", RootfsSnapshotRequested: true,
+		ReconcileAttempts: allocationkernel.RootfsSnapshotMaxAttempts - 1,
+	}}}
+	lifecycle := &fakeReconcileLifecycle{snapshotDeleteErr: grpcstatus.Error(codes.Aborted, "registry unavailable")}
+
+	if err := NewReconciler(store, lifecycle, "worker-a", func() time.Time { return now }).ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending() error = %v", err)
+	}
+	if store.failedSnapshotAllocationID != "alloc-a" || store.failedSnapshotMessage != "rootfs snapshot publication failed after bounded retries" {
+		t.Fatalf("failed snapshot = allocation %q message %q", store.failedSnapshotAllocationID, store.failedSnapshotMessage)
+	}
+	if lifecycle.deleted != 2 {
+		t.Fatalf("delete calls = %d, want snapshot attempt plus cleanup", lifecycle.deleted)
+	}
+	if store.completedAllocationID != "alloc-a" || store.scheduledAllocationID != "" {
+		t.Fatalf("completion = %q scheduled = %q", store.completedAllocationID, store.scheduledAllocationID)
+	}
+}
+
+func TestReconcilerDoesNotMisclassifyCleanupFailureAsSnapshotFailure(t *testing.T) {
+	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+	store := &fakeReconcileStore{items: []allocationkernel.ReconcileItem{{
+		AllocationID: "alloc-a", LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		NodeID: "node-a", NodeTarget: "node-a:24010", RootfsSnapshotRequested: true,
+		ReconcileAttempts: allocationkernel.RootfsSnapshotMaxAttempts,
+	}}}
+	lifecycle := &fakeReconcileLifecycle{snapshotDeleteErr: grpcstatus.Error(codes.Unavailable, "runtime cleanup unavailable")}
+
+	if err := NewReconciler(store, lifecycle, "worker-a", func() time.Time { return now }).ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending() error = %v", err)
+	}
+	if store.failedSnapshotAllocationID != "" {
+		t.Fatalf("cleanup failure marked snapshot failed: %q", store.failedSnapshotAllocationID)
+	}
+	if store.scheduledAllocationID != "alloc-a" || !store.scheduledIncrementAttempts {
+		t.Fatalf("cleanup retry = allocation %q increment=%t", store.scheduledAllocationID, store.scheduledIncrementAttempts)
+	}
+}
+
+func TestReconcilerUsesSnapshotFinalizationDeadline(t *testing.T) {
+	now := time.Date(2026, 5, 1, 9, 0, 0, 0, time.UTC)
+	store := &fakeReconcileStore{items: []allocationkernel.ReconcileItem{{
+		AllocationID: "alloc-a", LifecycleState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING,
+		NodeID: "node-a", NodeTarget: "node-a:24010", RootfsSnapshotRequested: true,
+	}}}
+	lifecycle := &fakeReconcileLifecycle{}
+
+	if err := NewReconciler(store, lifecycle, "worker-a", func() time.Time { return now }).ReconcilePending(context.Background(), now); err != nil {
+		t.Fatalf("ReconcilePending() error = %v", err)
+	}
+	if !lifecycle.deleteHasDeadline {
+		t.Fatal("snapshot delete context has no deadline")
+	}
+	remaining := time.Until(lifecycle.deleteDeadline)
+	if remaining < allocationkernel.RootfsSnapshotOperationTimeout-time.Minute || remaining > allocationkernel.RootfsSnapshotOperationTimeout {
+		t.Fatalf("snapshot deadline remaining = %s, want approximately %s", remaining, allocationkernel.RootfsSnapshotOperationTimeout)
 	}
 }
 
@@ -257,6 +322,8 @@ type fakeReconcileStore struct {
 	completedAllocationID      string
 	failedAllocationID         string
 	failedMessage              string
+	failedSnapshotAllocationID string
+	failedSnapshotMessage      string
 	markErr                    error
 	scheduledAllocationID      string
 	scheduledIntent            allocationkernel.ReconcileIntent
@@ -279,8 +346,19 @@ func (f *fakeReconcileStore) CompleteAllocationStart(_ context.Context, allocati
 	return nil
 }
 
-func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID, _ string, _ time.Time) error {
+func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID, _ string, _ *allocationkernel.RootfsSnapshotResult, _ time.Time) error {
 	f.completedAllocationID = allocationID
+	return nil
+}
+
+func (f *fakeReconcileStore) CompleteAllocationReleaseAcknowledgement(_ context.Context, allocationID, _ string, _ time.Time) error {
+	f.completedAllocationID = allocationID
+	return nil
+}
+
+func (f *fakeReconcileStore) MarkRootfsSnapshotFailed(_ context.Context, allocationID, _ string, message string, _ time.Time) error {
+	f.failedSnapshotAllocationID = allocationID
+	f.failedSnapshotMessage = message
 	return nil
 }
 
@@ -330,9 +408,12 @@ type fakeReconcileLifecycle struct {
 	deleted                    int
 	created                    int
 	deleteErr                  error
+	snapshotDeleteErr          error
 	createErr                  error
 	createDeadline             time.Time
 	createHasDeadline          bool
+	deleteDeadline             time.Time
+	deleteHasDeadline          bool
 	waitForCancellation        bool
 	createObservedCancellation bool
 }
@@ -348,7 +429,15 @@ func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string,
 	return &capabilityv1.CapabilityConditionSet{}, f.createErr
 }
 
-func (f *fakeReconcileLifecycle) DeleteAllocation(context.Context, string, string, string, *allocationkernel.OutputSealing) error {
+func (f *fakeReconcileLifecycle) DeleteAllocation(ctx context.Context, _, _, _ string, _ *allocationkernel.OutputSealing, snapshot *allocationkernel.RootfsSnapshotSealing) (*allocationkernel.RootfsSnapshotResult, error) {
 	f.deleted++
-	return f.deleteErr
+	f.deleteDeadline, f.deleteHasDeadline = ctx.Deadline()
+	if snapshot != nil && f.snapshotDeleteErr != nil {
+		return nil, f.snapshotDeleteErr
+	}
+	return nil, f.deleteErr
+}
+
+func (f *fakeReconcileLifecycle) AcknowledgeAllocationRelease(context.Context, string, string, string) error {
+	return nil
 }

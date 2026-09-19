@@ -2,6 +2,7 @@ package config
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -166,6 +167,16 @@ func TestRuntimeConfigImageManagerEnabledValue(t *testing.T) {
 			t.Fatalf("expected default socket path %q, got %q", DefaultImageManagerSocket, cfg.ImageManagerSocketPath())
 		}
 	})
+}
+
+func TestRootfsSnapshotRepositoryRequiresImageManager(t *testing.T) {
+	enabled := false
+	cfg := DefaultConfig()
+	cfg.PluginConfig.RuntimeConfig.ImageManagerEnabled = &enabled
+	cfg.PluginConfig.RuntimeConfig.RootfsSnapshotRepository = "registry.example/axern/snapshots"
+	if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "requires image_manager_enabled") {
+		t.Fatalf("Validate() error = %v, want image manager requirement", err)
+	}
 }
 
 func TestDefaultConfigSetsIdleEnvironmentRetentionDefaults(t *testing.T) {

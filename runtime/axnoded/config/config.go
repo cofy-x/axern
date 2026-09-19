@@ -54,6 +54,16 @@ type ExtensionCapabilityConfig struct {
 	Value string `toml:"value" json:"value"`
 }
 
+func (c Config) Validate() error {
+	if err := c.ValidateNodeIdentity(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.PluginConfig.RuntimeConfig.RootfsSnapshotRepository) != "" && !c.PluginConfig.RuntimeConfig.ImageManagerEnabledValue() {
+		return fmt.Errorf("rootfs_snapshot_repository requires image_manager_enabled")
+	}
+	return nil
+}
+
 // RuntimeConfig defines runsc and shared node execution policy.
 type RuntimeConfig struct {
 	Runsc RuntimeInstanceConfig `toml:"runsc" json:"runsc"`
@@ -72,6 +82,10 @@ type RuntimeConfig struct {
 
 	// ImageManagerSocket points to the local imagemgr Unix socket.
 	ImageManagerSocket string `toml:"image_manager_socket" json:"imageManagerSocket"`
+
+	// RootfsSnapshotRepository is the platform-owned OCI repository used for
+	// immutable Allocation rootfs snapshots. Empty disables the capability.
+	RootfsSnapshotRepository string `toml:"rootfs_snapshot_repository" json:"rootfsSnapshotRepository"`
 
 	// FilestoreDir is the validated root for runtime writable storage.
 	FilestoreDir string `toml:"filestore_dir" json:"filestoreDir"`

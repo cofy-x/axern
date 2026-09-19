@@ -1,6 +1,9 @@
 package imageref
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 const DefaultRegistry = "index.docker.io"
 
@@ -53,6 +56,29 @@ func NormalizeRegistryHost(host string) string {
 	host = strings.TrimPrefix(host, "https://")
 	host = strings.TrimSuffix(host, "/")
 	return host
+}
+
+// WithDigest binds ref's repository to digest. A tag is intentionally removed:
+// callers use this when a mutable user-facing reference has already been
+// resolved and the resulting identity crosses an execution boundary.
+func WithDigest(ref, digest string) (string, error) {
+	ref = Normalize(ref)
+	digest = strings.TrimSpace(digest)
+	algorithm, encoded, ok := strings.Cut(digest, ":")
+	if ref == "" || !ok || algorithm != "sha256" || len(encoded) != 64 {
+		return "", fmt.Errorf("image reference and sha256 digest are required")
+	}
+	if at := strings.IndexByte(ref, '@'); at >= 0 {
+		ref = ref[:at]
+	}
+	lastSlash := strings.LastIndexByte(ref, '/')
+	if colon := strings.LastIndexByte(ref, ':'); colon > lastSlash {
+		ref = ref[:colon]
+	}
+	if strings.TrimSpace(ref) == "" {
+		return "", fmt.Errorf("image repository is required")
+	}
+	return ref + "@" + digest, nil
 }
 
 func UseHTTPFor(ref string, insecureRegistries map[string]struct{}) bool {

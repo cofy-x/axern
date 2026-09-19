@@ -49,6 +49,7 @@ type Spec struct {
 	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
 	ImageMounts           []ImageMount      `json:"image_mounts,omitempty" yaml:"image_mounts,omitempty"`
+	RootfsSnapshot        bool              `json:"rootfs_snapshot,omitempty" yaml:"rootfs_snapshot,omitempty"`
 }
 
 type Source struct {
@@ -193,7 +194,7 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &commonv1.ExecutionConfig{
+	config := &commonv1.ExecutionConfig{
 		Argv:                            append([]string(nil), e.Spec.Command.Argv...),
 		Cwd:                             e.Spec.Command.Cwd,
 		Env:                             cloneMap(e.Spec.Env),
@@ -202,7 +203,11 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 		SecretEnv:                       secretEnv,
 		SecretFiles:                     secretFiles,
 		ImageMounts:                     imageMounts,
-	}, nil
+	}
+	if e.Spec.RootfsSnapshot {
+		config.RootfsSnapshot = &commonv1.RootfsSnapshot{}
+	}
+	return config, nil
 }
 
 func (e Envelope) secretAndImageMounts() ([]*commonv1.SecretEnvVar, []*commonv1.SecretFile, []*commonv1.ImageMount, error) {

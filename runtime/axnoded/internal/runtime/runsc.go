@@ -14,6 +14,7 @@ import (
 
 var _ contract.SandboxRuntime = &RunscServiceHandler{}
 var _ contract.AllocationCapabilityVerifier = &RunscServiceHandler{}
+var _ contract.RootfsSnapshotter = &RunscServiceHandler{}
 
 type RunscServiceHandler struct {
 	common                            *ocihost.Common

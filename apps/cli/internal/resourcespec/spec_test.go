@@ -77,6 +77,7 @@ spec:
     - {path: /run/secrets/config, secret_id: secret-a, key: config, mode: "0440"}
   image_mounts:
     - {image: example.test/tools:latest, target: /opt/tools}
+  rootfs_snapshot: true
 `)
 	envelope, err := Load(path, KindRun)
 	if err != nil {
@@ -92,6 +93,9 @@ spec:
 	}
 	if config.GetSecretEnv()[0].GetSecretID() != "secret-a" || config.GetSecretFiles()[0].GetMode() != 0o440 || config.GetImageMounts()[0].GetTarget() != "/opt/tools" {
 		t.Fatalf("execution config = %#v", config)
+	}
+	if config.GetRootfsSnapshot() == nil {
+		t.Fatal("rootfs snapshot contract was not mapped")
 	}
 }
 

@@ -32,7 +32,8 @@ type CandidateSelector interface {
 
 type AllocationLifecycle interface {
 	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error)
-	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing) error
+	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing, rootfsSnapshot *allocationkernel.RootfsSnapshotSealing) (*allocationkernel.RootfsSnapshotResult, error)
+	AcknowledgeAllocationRelease(ctx context.Context, target, allocationID, nodeID string) error
 }
 
 type AuthoritativeStore interface {

@@ -76,7 +76,9 @@ type AllocationReporter interface {
 type ReconcileStore interface {
 	LoadStartAllocation(ctx context.Context, allocationID string) (*StartAllocation, error)
 	CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
-	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, now time.Time) error
+	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, snapshot *allocationkernel.RootfsSnapshotResult, now time.Time) error
+	CompleteAllocationReleaseAcknowledgement(ctx context.Context, allocationID, claimOwner string, now time.Time) error
+	MarkRootfsSnapshotFailed(ctx context.Context, allocationID, claimOwner, message string, now time.Time) error
 	MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error)
 	ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, claimTTL time.Duration) ([]allocationkernel.ReconcileItem, error)
 	RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error)

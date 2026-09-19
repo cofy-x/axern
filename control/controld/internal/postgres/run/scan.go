@@ -20,7 +20,7 @@ func environmentSelectSQL() string {
 
 func runSelectSQL() string {
 	return `SELECT r.run_id, r.namespace, r.environment_id, a.allocation_id, r.status,
-		r.config, r.environment_spec, r.resolved_environment_spec, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message,
+		r.config, r.environment_spec, r.resolved_environment_spec, r.labels, r.version, r.created_at, r.updated_at, r.exit_code, r.diagnostic_code, r.message, r.rootfs_snapshot_result,
 		a.node_id, a.output_expires_at,
 		COALESCE((SELECT conditions FROM allocation_capability_conditions c WHERE c.allocation_id = a.allocation_id), '{}'::jsonb)
 		FROM runs r JOIN allocations a ON a.run_id = r.run_id`
@@ -63,12 +63,13 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		resolvedEnvironmentSpecJSON []byte
 		labelsJSON                  []byte
 		capabilityConditionsJSON    []byte
+		rootfsSnapshotJSON          []byte
 		createdAt, updatedAt        time.Time
 		exitCode                    sql.NullInt32
 		outputExpiry                sql.NullTime
 		ignoredNodeID               string
 	)
-	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &ignoredNodeID, &outputExpiry, &capabilityConditionsJSON); err != nil {
+	if err := row.Scan(&run.ID, &run.Namespace, &run.EnvironmentID, &run.AllocationID, &statusText, &configJSON, &environmentSpecJSON, &resolvedEnvironmentSpecJSON, &labelsJSON, &run.Version, &createdAt, &updatedAt, &exitCode, &diagnosticCodeText, &run.Message, &rootfsSnapshotJSON, &ignoredNodeID, &outputExpiry, &capabilityConditionsJSON); err != nil {
 		return nil, err
 	}
 	run.Status = parseRunStatus(statusText)
@@ -93,6 +94,13 @@ func scanRun(row scanner) (*runv1.Run, error) {
 		return nil, fmt.Errorf("unmarshal run resolved environment spec: %w", err)
 	}
 	run.Labels = unmarshalJSONMap(labelsJSON)
+	rootfsSnapshot := &runv1.RootfsSnapshotResult{}
+	if err := protojson.Unmarshal(rootfsSnapshotJSON, rootfsSnapshot); err != nil {
+		return nil, fmt.Errorf("unmarshal rootfs snapshot result: %w", err)
+	}
+	if rootfsSnapshot.GetStatus() != runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_UNSPECIFIED {
+		run.RootfsSnapshot = rootfsSnapshot
+	}
 	conditionSet := &capabilityv1.CapabilityConditionSet{}
 	if err := protojson.Unmarshal(capabilityConditionsJSON, conditionSet); err != nil {
 		return nil, fmt.Errorf("unmarshal run capability conditions: %w", err)

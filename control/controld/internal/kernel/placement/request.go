@@ -20,6 +20,7 @@ type Request struct {
 	MemoryLimitBytes                int64
 	RootfsWritable                  bool
 	EphemeralStorageLimitBytes      int64
+	RootfsSnapshot                  bool
 	RequestedCpuMilli               int64
 	RequestedMemoryBytes            int64
 	RequestedEphemeralStorageBytes  int64
@@ -63,6 +64,7 @@ func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.
 		RootfsWritable:              out.RootfsWritable,
 		EphemeralStorageLimitBytes:  out.EphemeralStorageLimitBytes,
 		EROFSBacking:                erofsBacking,
+		RootfsSnapshot:              out.RootfsSnapshot,
 		ExtensionCapabilityRequests: out.ExtensionCapabilityRequirements,
 	}
 	var requirements []*capabilityv1.CapabilityKey

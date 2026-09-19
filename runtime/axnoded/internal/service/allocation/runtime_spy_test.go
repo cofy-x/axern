@@ -3,6 +3,7 @@ package allocation
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -38,6 +39,7 @@ type runtimeSpyHandler struct {
 	containerSpecError error
 	createHook         func()
 	fileService        contract.FileService
+	snapshotCalls      int
 }
 
 var _ contract.SandboxRuntime = (*runtimeSpyHandler)(nil)
@@ -139,6 +141,12 @@ func (h *runtimeSpyHandler) Wait(ctx context.Context, options contract.HandlerOp
 }
 
 func (h *runtimeSpyHandler) ShutDown() {}
+
+func (h *runtimeSpyHandler) SnapshotRootfsUpper(_ context.Context, _ string, output io.Writer) error {
+	h.snapshotCalls++
+	_, err := output.Write([]byte("upper-layer"))
+	return err
+}
 
 func writeContainerSpecFile(t *testing.T, rootDir, containerID string, annotations map[string]string) {
 	t.Helper()

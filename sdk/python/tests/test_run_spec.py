@@ -46,6 +46,7 @@ class RunSpecTest(unittest.TestCase):
 
         client.create_run(
             environment_id="env-1",
+            rootfs_snapshot=True,
             image_mounts=(
                 ImageMount("registry.example/tool@sha256:aaa", "/__tool"),
                 ImageMount("registry.example/data@sha256:bbb", "/__data"),
@@ -78,6 +79,7 @@ class RunSpecTest(unittest.TestCase):
                 ("registry.example/data@sha256:bbb", "/__data"),
             ],
         )
+        self.assertTrue(config.HasField("rootfs_snapshot"))
         self.assertEqual(
             [
                 (item.name, item.secret_id, item.key, item.optional)
@@ -133,6 +135,15 @@ class RunSpecTest(unittest.TestCase):
                 parameters = inspect.signature(target).parameters
                 for name in names:
                     self.assertIn(name, parameters)
+
+        self.assertIn(
+            "rootfs_snapshot", inspect.signature(AxernClient.create_run).parameters
+        )
+        self.assertIn(
+            "rootfs_snapshot", inspect.signature(AsyncAxernClient.create_run).parameters
+        )
+        self.assertNotIn("rootfs_snapshot", inspect.signature(Sandbox).parameters)
+        self.assertNotIn("rootfs_snapshot", inspect.signature(AsyncSandbox).parameters)
 
     def test_public_models_cannot_carry_plaintext_or_writable_mount_intent(
         self,

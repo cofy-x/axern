@@ -26,6 +26,15 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	if expiry := run.GetOutputExpiresAt(); expiry != nil {
 		fmt.Fprintf(w, "Output Expires At: %s\n", FormatProtoTimestamp(expiry))
 	}
+	if snapshot := run.GetRootfsSnapshot(); snapshot != nil {
+		fmt.Fprintf(w, "Rootfs Snapshot: %s\n", snapshot.GetStatus().String())
+		if snapshot.GetEnvironmentID() != "" {
+			fmt.Fprintf(w, "Snapshot Environment ID: %s\n", snapshot.GetEnvironmentID())
+		}
+		if snapshot.GetMessage() != "" {
+			fmt.Fprintf(w, "Snapshot Message: %s\n", snapshot.GetMessage())
+		}
+	}
 	if len(run.GetConfig().GetArgv()) > 0 {
 		fmt.Fprintf(w, "Argv: %v\n", run.GetConfig().GetArgv())
 	}

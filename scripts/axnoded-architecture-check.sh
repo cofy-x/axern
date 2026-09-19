@@ -88,6 +88,7 @@ runtime/axnoded/internal/service/allocationoutput
 runtime/axnoded/internal/service/controlplane
 runtime/axnoded/internal/service/networking
 runtime/axnoded/internal/service/process
+runtime/axnoded/internal/service/rootfssnapshot
 runtime/axnoded/internal/service/sandboxaccess
 runtime/axnoded/internal/service/sandboxcontrol
 runtime/axnoded/internal/service/sandboxtarget

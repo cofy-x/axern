@@ -31,6 +31,28 @@ func TestRegistryHost(t *testing.T) {
 	}
 }
 
+func TestWithDigestRemovesMutableTagWithoutRemovingRegistryPort(t *testing.T) {
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	got, err := WithDigest("localhost:5001/team/runtime:latest", digest)
+	if err != nil {
+		t.Fatalf("WithDigest() error = %v", err)
+	}
+	if want := "localhost:5001/team/runtime@" + digest; got != want {
+		t.Fatalf("WithDigest() = %q, want %q", got, want)
+	}
+}
+
+func TestWithDigestReplacesExistingDigest(t *testing.T) {
+	const digest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	got, err := WithDigest("registry.example/team/runtime@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", digest)
+	if err != nil {
+		t.Fatalf("WithDigest() error = %v", err)
+	}
+	if want := "registry.example/team/runtime@" + digest; got != want {
+		t.Fatalf("WithDigest() = %q, want %q", got, want)
+	}
+}
+
 func TestUseHTTPFor(t *testing.T) {
 	registries := HostSetFromCSV("localhost:5001, http://host.docker.internal:5001/")
 	for _, input := range []string{

@@ -108,6 +108,7 @@ Useful symptoms:
 | `image_manager_enabled` | Enables `imagemgr` for image-backed rootfs and inventory. | Defaults to true. Set false for local-rootfs-only setups. |
 | `image_lib_dir` | Local rootfs/image library directory. | Used by image/rootfs flows under axnoded. |
 | `image_manager_socket` | Unix socket for `imagemgr`. | Ignored when `image_manager_enabled = false`; default is `/var/run/imagemgr.sock`. |
+| `rootfs_snapshot_repository` | Platform-owned OCI repository for requested successful Run rootfs results. | Empty disables the observed rootfs-snapshot capability. The repository uses imagemgr's registry credentials; quota, retention, and unreferenced-blob GC are operator policy. |
 | `egress_manager_socket` | Trusted node-local `egressd` Unix socket used for fail-closed sandbox policy lifecycle. | Defaults to `/run/egressd/egressd.sock`; absence keeps policy capabilities unavailable without affecting unrestricted sandboxes. |
 | `idle_environment_retention_ttl` | How long idle environment templates/rootfs state remain warm. | Empty falls back to `5m`. |
 | `idle_environment_retention_max` | Max retained static environment templates per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and bundle templates, never an allocation-less OCI container. |

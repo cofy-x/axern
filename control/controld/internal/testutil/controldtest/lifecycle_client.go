@@ -84,6 +84,10 @@ func (f *FakeNodeLifecycleClient) DeleteAllocation(ctx context.Context, target s
 	return &privatenodev1.DeleteAllocationResponse{}, nil
 }
 
+func (f *FakeNodeLifecycleClient) AcknowledgeAllocationRelease(context.Context, string, *privatenodev1.AcknowledgeAllocationReleaseRequest) (*privatenodev1.AcknowledgeAllocationReleaseResponse, error) {
+	return &privatenodev1.AcknowledgeAllocationReleaseResponse{}, nil
+}
+
 func (f *FakeNodeLifecycleClient) GetAllocationLifecycle(ctx context.Context, target string, req *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {
 	_ = ctx
 	_ = target

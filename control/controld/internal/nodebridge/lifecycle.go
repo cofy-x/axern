@@ -17,6 +17,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -31,6 +32,13 @@ type Bridge struct {
 	registryCredentials environmentkernel.RegistryCredentialResolver
 	createTimeout       time.Duration
 	operationTimeout    time.Duration
+}
+
+func cloneOCIImageDescriptor(in *environmentv1.OciImageDescriptor) *environmentv1.OciImageDescriptor {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*environmentv1.OciImageDescriptor)
 }
 
 type Config struct {
@@ -81,8 +89,21 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	return cloneCapabilityConditionSet(resp.GetCapabilityVerification()), nil
 }
 
-func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing) error {
-	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
+func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing, snapshot *allocationkernel.RootfsSnapshotSealing) (*allocationkernel.RootfsSnapshotResult, error) {
+	var callCtx context.Context
+	var cancel context.CancelFunc
+	if snapshot != nil {
+		// The reconciler owns the longer snapshot-finalization deadline and
+		// renews the durable claim while this call is active. Do not silently
+		// re-cap the streaming RPC with the ordinary cleanup timeout.
+		if _, hasDeadline := ctx.Deadline(); hasDeadline {
+			callCtx, cancel = context.WithCancel(ctx)
+		} else {
+			callCtx, cancel = context.WithTimeout(ctx, allocationkernel.RootfsSnapshotOperationTimeout)
+		}
+	} else {
+		callCtx, cancel = context.WithTimeout(ctx, b.operationTimeout)
+	}
 	defer cancel()
 	var sealingRequest *privatenodev1.OutputSealingRequest
 	if outputSealing != nil {
@@ -91,15 +112,52 @@ func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID stri
 			Outputs:           cloneDeclaredOutputs(outputSealing.Outputs),
 		}
 	}
-	_, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
-		AllocationID:   allocationID,
-		NodeID:         nodeID,
-		TimeoutSeconds: 10,
-		OutputSealing:  sealingRequest,
+	var snapshotRequest *privatenodev1.RootfsSnapshotSealingRequest
+	if snapshot != nil {
+		snapshotRequest = &privatenodev1.RootfsSnapshotSealingRequest{BaseImageRef: strings.TrimSpace(snapshot.BaseImageRef)}
+		if credentialID := strings.TrimSpace(snapshot.RegistryCredentialID); credentialID != "" {
+			if b.registryCredentials == nil {
+				return nil, grpcstatus.Error(codes.FailedPrecondition, "snapshot base registry credential resolver is unavailable")
+			}
+			dockerConfigJSON, ok, resolveErr := b.registryCredentials.ResolveDockerConfigJSON(callCtx, credentialID)
+			if resolveErr != nil {
+				return nil, resolveErr
+			}
+			if !ok {
+				return nil, grpcstatus.Errorf(codes.FailedPrecondition, "snapshot base registry credential %q not found", credentialID)
+			}
+			snapshotRequest.BaseRegistryCredential = &privatenodev1.RegistryCredential{DockerConfigJson: dockerConfigJSON}
+		}
+	}
+	resp, err := b.client.DeleteAllocation(callCtx, target, &privatenodev1.DeleteAllocationRequest{
+		AllocationID:          allocationID,
+		NodeID:                nodeID,
+		TimeoutSeconds:        10,
+		OutputSealing:         sealingRequest,
+		RootfsSnapshotSealing: snapshotRequest,
 	})
 	if grpcstatus.Code(err) == codes.NotFound {
-		return nil
+		if snapshot != nil {
+			return nil, grpcstatus.Error(codes.FailedPrecondition, "node no longer has the runtime or recovery state required to seal the rootfs snapshot")
+		}
+		return nil, nil
 	}
+	if err != nil {
+		return nil, err
+	}
+	if result := resp.GetRootfsSnapshot(); result != nil {
+		return &allocationkernel.RootfsSnapshotResult{
+			ImageRef: result.GetImageRef(), ImageDescriptor: cloneOCIImageDescriptor(result.GetImageDescriptor()),
+			PlatformOS: result.GetPlatformOS(), PlatformArch: result.GetPlatformArch(), PlatformVariant: result.GetPlatformVariant(),
+		}, nil
+	}
+	return nil, nil
+}
+
+func (b *Bridge) AcknowledgeAllocationRelease(ctx context.Context, target, allocationID, nodeID string) error {
+	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
+	defer cancel()
+	_, err := b.client.AcknowledgeAllocationRelease(callCtx, target, &privatenodev1.AcknowledgeAllocationReleaseRequest{AllocationID: allocationID, NodeID: nodeID})
 	return err
 }
 

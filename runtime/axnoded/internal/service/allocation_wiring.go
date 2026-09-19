@@ -1,8 +1,11 @@
 package service
 
 import (
+	"strings"
+
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/rootfssnapshot"
 )
 
 func (h *sandboxService) configureAllocationController() {
@@ -13,6 +16,10 @@ func (h *sandboxService) configureAllocationController() {
 }
 
 func (h *sandboxService) allocationOptions() allocation.Options {
+	var snapshotPublisher rootfssnapshot.Publisher
+	if strings.TrimSpace(h.config.PluginConfig.RuntimeConfig.RootfsSnapshotRepository) != "" {
+		snapshotPublisher = rootfssnapshot.NewPublisher(h.config.PluginConfig.RuntimeConfig.ImageManagerSocketPath())
+	}
 	return allocation.Options{
 		Config: h.config,
 		Store:  h.store,
@@ -27,6 +34,7 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 		RootfsCapabilityGate:        h.verifyRootfsCapabilityRequirements,
 		PreActivationCapabilityGate: h.verifyPreparedAllocationCapabilities,
 		Egress:                      h.egressClient,
+		RootfsSnapshots:             snapshotPublisher,
 	}
 }
 

@@ -21,6 +21,8 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"go.opentelemetry.io/otel/attribute"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 )
 
 func (h *sandboxService) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
@@ -90,7 +92,7 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted, request.GetDeclaredOutputs())
+	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted, request.GetDeclaredOutputs(), request.GetRootfsSnapshot())
 	if err != nil {
 		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err
@@ -229,6 +231,7 @@ func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs b
 		RootfsWritable:                  !template.GetRootfs().GetReadonly(),
 		EphemeralStorageLimitBytes:      resources.GetLimits().GetEphemeralStorageBytes(),
 		EROFSBacking:                    erofs,
+		RootfsSnapshot:                  request.GetRootfsSnapshot() != nil,
 		ExtensionCapabilityRequests:     request.GetExtensionCapabilityRequirements(),
 	}
 }
@@ -389,14 +392,30 @@ func (h *sandboxService) delete(ctx context.Context, request *runtime.DeleteRequ
 		resp, err := controller.DeleteControlPlane(ctx, request, controlPlaneNodeID)
 		if err != nil {
 			op.SetErrorStatus("allocation delete failed")
-			return resp, errord.ToGRPC(err)
+			return resp, allocationDeleteGRPCError(err)
 		}
 		return resp, nil
 	}
 	resp, err := controller.Delete(ctx, request)
 	if err != nil {
 		op.SetErrorStatus("allocation delete failed")
-		return resp, errord.ToGRPC(err)
+		return resp, allocationDeleteGRPCError(err)
 	}
 	return resp, nil
+}
+
+func allocationDeleteGRPCError(err error) error {
+	mapped := errord.ToGRPC(err)
+	if !allocation.IsRootfsSnapshotSealingError(err) {
+		return mapped
+	}
+	switch grpcstatus.Code(mapped) {
+	case codes.InvalidArgument, codes.FailedPrecondition, codes.ResourceExhausted, codes.Unimplemented, codes.Canceled, codes.DeadlineExceeded:
+		return mapped
+	default:
+		// Aborted identifies a retryable failure inside the rootfs sealing
+		// barrier. Ordinary cleanup failures keep their own status and cannot
+		// exhaust the snapshot publication budget.
+		return grpcstatus.Error(codes.Aborted, err.Error())
+	}
 }

@@ -97,10 +97,10 @@ func (s *Server) WatchRun(req *runv1.WatchRunRequest, stream runv1.RunControl_Wa
 				return err
 			}
 			after = run.GetVersion()
-			if isTerminalRun(run.GetStatus()) {
+			if runkernel.IsWatchComplete(run) {
 				return nil
 			}
-		} else if isTerminalRun(run.GetStatus()) {
+		} else if runkernel.IsWatchComplete(run) {
 			return nil
 		}
 	}
@@ -129,13 +129,4 @@ func (s *Server) CancelRun(ctx context.Context, req *runv1.CancelRunRequest) (*r
 		return nil, err
 	}
 	return &runv1.CancelRunResponse{Run: run}, nil
-}
-
-func isTerminalRun(status runv1.RunStatus) bool {
-	switch status {
-	case runv1.RunStatus_RUN_STATUS_SUCCEEDED, runv1.RunStatus_RUN_STATUS_FAILED, runv1.RunStatus_RUN_STATUS_CANCELLED:
-		return true
-	default:
-		return false
-	}
 }

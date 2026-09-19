@@ -145,4 +145,8 @@ This SDK is Node.js-first. Browser automation runs as caller-owned workload soft
 
 Pass `declaredOutputs` when creating a Run or Sandbox, then use `getSealedOutputManifest(runId)` and `downloadSealedOutput(runId, outputId, writable)` after the Run becomes terminal. Full downloads verify size and SHA-256 while respecting the destination stream's backpressure. Declared output is Node-local for 15 minutes after cleanup starts: it survives axnoded restart but not Node-disk loss. Limits are 16 paths, 64 MiB per file, 256 MiB per tar, and 256 MiB total. It is not a persistent workspace or object store.
 
+## Reusable Rootfs Environment
+
+Set `rootfsSnapshot: true` on a finite `createRun()` call, then call `waitRootfsSnapshot(runId)` after the workload succeeds. The returned `environment_id` names a normal Environment that can start multiple fresh copy-on-write Runs. The content-addressed image contains writable rootfs changes only; bind and image mounts, Secret projections, kernel filesystems, processes, sockets, and sessions are excluded. Failed or cancelled Runs produce no Environment. The option is deliberately absent from `Sandbox`, whose close path cancels its long-lived Run.
+
 Attached Process queues at most 64 unread events, pauses the gRPC stream at the bound, and resumes below the low-water mark. `write`, `closeStdin`, signal, and resize promises resolve only after the gRPC write callback. Closing an attached process attempts `TERM`; durable workload termination remains Run cancellation. `Sandbox.close()` reports cleanup failures and does not wait for a terminal Run, so call `waitRun()` when terminal confirmation is required.

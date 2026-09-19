@@ -202,7 +202,7 @@ func TestValidateConditionSetUsesOneProjectionTimestamp(t *testing.T) {
 func TestDeriveRequirementsUsesExecutionCapabilities(t *testing.T) {
 	keys, err := DeriveRequirements(RequirementInput{
 		NetworkMode: "default", NetworkBackend: "ebpf",
-		MemoryLimitBytes: 1, RootfsWritable: true, EROFSBacking: true,
+		MemoryLimitBytes: 1, RootfsWritable: true, EROFSBacking: true, RootfsSnapshot: true,
 		ExtensionCapabilityRequests: []*capabilityv1.ExtensionCapabilityRequirement{{Capability: &capabilityv1.ExtensionCapability{Name: "example.com/gpu", Value: "a100"}}},
 	})
 	if err != nil {
@@ -213,6 +213,7 @@ func TestDeriveRequirementsUsesExecutionCapabilities(t *testing.T) {
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT,
 	} {
 		if !containsPlatform(keys, required) {
 			t.Fatalf("requirements do not contain %s", required)

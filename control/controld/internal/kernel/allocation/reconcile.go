@@ -7,6 +7,7 @@ import (
 	"github.com/cofy-x/axern/lib/go/executionlease"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -18,29 +19,58 @@ const (
 	CreateRetryInitialDelay   = 2 * time.Second
 	CreateRetryMaxDelay       = 30 * time.Second
 	CreateRetryMaxAttempts    = 5
+	RootfsSnapshotMaxAttempts = 5
 	CreateExecutionTimeout    = 10 * time.Minute
-	LifecycleOperationTimeout = 60 * time.Second
-	ReconcileClaimTTL         = 30 * time.Second
-	ReconcileClaimRenewal     = 10 * time.Second
-	ReconcileWorkerCount      = 8
-	ExecutionLeaseTTL         = executionlease.TTL
+	// RootfsSnapshotOperationTimeout bounds the finalization barrier without
+	// inheriting the short control RPC timeout used by ordinary cleanup. Large
+	// snapshots stream with backpressure and may legitimately outlive a CLI
+	// wait; the reconcile claim is renewed for the whole operation.
+	RootfsSnapshotOperationTimeout = 2 * time.Hour
+	LifecycleOperationTimeout      = 60 * time.Second
+	ReconcileClaimTTL              = 30 * time.Second
+	ReconcileClaimRenewal          = 10 * time.Second
+	ReconcileWorkerCount           = 8
+	ExecutionLeaseTTL              = executionlease.TTL
 )
 
 type ReconcileItem struct {
-	OutputExpiresAt        *time.Time
-	AllocationID           string
-	RunID                  string
-	EnvironmentID          string
-	LifecycleState         commonv1.AllocationLifecycleState
-	NodeID                 string
-	NodeTarget             string
-	ReconcileAttempts      int
-	LastReconcileError     string
-	ClaimOwner             string
-	NextRunAt              time.Time
-	EligibleAt             time.Time
-	CapabilityRequirements []*capabilityv1.CapabilityRequirement
-	DeclaredOutputs        []*commonv1.DeclaredOutput
+	OutputExpiresAt         *time.Time
+	AllocationID            string
+	RunID                   string
+	EnvironmentID           string
+	LifecycleState          commonv1.AllocationLifecycleState
+	NodeID                  string
+	NodeTarget              string
+	ReconcileAttempts       int
+	LastReconcileError      string
+	ClaimOwner              string
+	NextRunAt               time.Time
+	EligibleAt              time.Time
+	CapabilityRequirements  []*capabilityv1.CapabilityRequirement
+	DeclaredOutputs         []*commonv1.DeclaredOutput
+	RootfsSnapshotRequested bool
+	BaseImageRef            string
+	RegistryCredentialID    string
+}
+
+type RootfsSnapshotSealing struct {
+	BaseImageRef         string
+	RegistryCredentialID string
+}
+
+type RootfsSnapshotResult struct {
+	ImageRef        string
+	ImageDescriptor *environmentv1.OciImageDescriptor
+	PlatformOS      string
+	PlatformArch    string
+	PlatformVariant string
+}
+
+func (i ReconcileItem) RootfsSnapshotSealingRequest() *RootfsSnapshotSealing {
+	if !i.RootfsSnapshotRequested || i.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING {
+		return nil
+	}
+	return &RootfsSnapshotSealing{BaseImageRef: i.BaseImageRef, RegistryCredentialID: i.RegistryCredentialID}
 }
 
 // OutputSealing is an ephemeral final-cleanup command built from the
@@ -196,6 +226,10 @@ func ScheduleDeleteRetryRequest(allocationID string, lastError string, now time.
 		LastReconcileError: lastError,
 		IncrementAttempts:  true,
 	}
+}
+
+func RootfsSnapshotRetryExhausted(currentAttempts int) bool {
+	return currentAttempts+1 >= RootfsSnapshotMaxAttempts
 }
 
 func ScheduleDeleteRequest(allocationID string, now time.Time) ScheduleReconcileRequest {

@@ -25,7 +25,10 @@ func TestNormalizeConfigForWritableRootfsResolvesEphemeralStorageContract(t *tes
 }
 
 func TestNormalizeConfigForRootfsRejectsEphemeralStorageConflicts(t *testing.T) {
-	_, err := NormalizeConfigForRootfs(&commonv1.ExecutionConfig{Resources: &commonv1.ResourceSpec{
+	_, err := NormalizeConfigForRootfs(&commonv1.ExecutionConfig{RootfsSnapshot: &commonv1.RootfsSnapshot{}}, true)
+	assert.Equal(t, codes.InvalidArgument, grpcstatus.Code(err))
+
+	_, err = NormalizeConfigForRootfs(&commonv1.ExecutionConfig{Resources: &commonv1.ResourceSpec{
 		Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1},
 	}}, true)
 	assert.Equal(t, codes.InvalidArgument, grpcstatus.Code(err))

@@ -36,6 +36,10 @@ func (f *fakeNodeLifecycleService) Delete(ctx context.Context, req *runtimev1.De
 	return f.DeleteControlPlaneAllocation(ctx, "", req)
 }
 
+func (f *fakeNodeLifecycleService) AcknowledgeControlPlaneAllocationRelease(string, string) error {
+	return nil
+}
+
 func (f *fakeNodeLifecycleService) ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error) {
 	return cloneCapabilityRequirements(f.admittedDependencies), nil, nil
 }

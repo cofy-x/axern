@@ -71,7 +71,7 @@ make quickstart-source
 
 - **Agent 沙箱：** 在 runsc 隔离边界后执行 agent 生成的代码，同时保留进程、文件、终端和输出 API。
 - **评测与数据合成批次：** 通过 Run 并发执行隔离工作负载，并显式记录输入、输出和生命周期证据。
-- **SDK 驱动执行：** 通过正式发布的 SDK 创建 Run、操作其 Allocation、封存有限的声明输出，并使用公共资源身份恢复查询。
+- **SDK 驱动执行：** 通过正式发布的 SDK 创建 Run、操作其 Allocation、封存有限的声明输出、将成功执行后的可写 rootfs 发布为可复用 Environment，并使用公共资源身份恢复查询。
 
 ## 为什么选择 Axern
 
@@ -95,7 +95,7 @@ flowchart LR
     Node --> Runtime["runsc 沙箱"]
 ```
 
-`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在 15 分钟过期时间内下载并持久发布这些字节。这不是持久 Workspace 或对象存储。详细契约见[存储架构](./docs/architecture/storage-architecture.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
+`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在 15 分钟过期时间内下载并持久发布这些字节。成功的有限 Run 还可以独立地把完整可写 rootfs 发布为内容寻址 OCI 镜像和普通可复用 Environment。两条路径都不会创建持久 Workspace 或通用对象存储。详细契约见[存储架构](./docs/architecture/storage-architecture.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
 
 公共客户端提供 Go、Python 和 TypeScript 版本，位于 [`sdk/`](./sdk/README.md)。共享的传输契约定义在 [`sdk/proto`](./sdk/proto/README.md)。
 

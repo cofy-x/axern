@@ -96,7 +96,7 @@ func NewSandboxService(ctx context.Context, cfg config.Config, bootstrapTokenFil
 	if ctx == nil {
 		return nil, fmt.Errorf("sandbox service context is required")
 	}
-	if err := cfg.ValidateNodeIdentity(); err != nil {
+	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 	if err := validateMemoryBoundaryConfiguration(cfg); err != nil {
@@ -312,7 +312,10 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.cleanupDiscardOnRestartContainers(context.Background(), discardInventory.retained()); err != nil {
 		return err
 	}
-	retained := durableInventory.retained()
+	retained, err := durableInventory.retainedForRecovery(h.allocationController())
+	if err != nil {
+		return err
+	}
 	if err := h.allocationController().RestoreAllocationState(retained.allIDs()); err != nil {
 		return err
 	}
@@ -499,6 +502,13 @@ func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, i
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
+		pending, err := h.allocationController().RootfsSnapshotPending(id)
+		if err != nil {
+			return fmt.Errorf("classify terminal rootfs snapshot %s: %w", id, err)
+		}
+		if pending {
+			continue
+		}
 		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
 			ContainerID: id,
 			ForceDelete: true,
@@ -517,6 +527,23 @@ func (i runtimeInventory) retained() runtimeInventory {
 		}
 	}
 	return result
+}
+
+func (i runtimeInventory) retainedForRecovery(controller *allocation.Controller) (runtimeInventory, error) {
+	result := make(runtimeInventory, len(i))
+	for id, state := range i {
+		if state == nil {
+			continue
+		}
+		pending, err := controller.RootfsSnapshotPending(id)
+		if err != nil {
+			return nil, fmt.Errorf("classify retained rootfs snapshot %s: %w", id, err)
+		}
+		if state.Status != contract.ContainerStatusExited || pending {
+			result[id] = state
+		}
+	}
+	return result, nil
 }
 
 func (i runtimeInventory) allIDs() map[string]struct{} {

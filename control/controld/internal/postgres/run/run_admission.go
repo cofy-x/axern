@@ -84,6 +84,17 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 			CreatedAt:               timestamppb.New(now),
 			UpdatedAt:               timestamppb.New(now),
 		}
+		if normalizedConfig.GetRootfsSnapshot() != nil {
+			run.RootfsSnapshot = &runv1.RootfsSnapshotResult{Status: runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_PENDING}
+		}
+		snapshotResult := run.GetRootfsSnapshot()
+		if snapshotResult == nil {
+			snapshotResult = &runv1.RootfsSnapshotResult{}
+		}
+		rootfsSnapshotJSON, err := marshalProtoJSON(snapshotResult)
+		if err != nil {
+			return err
+		}
 		alloc = &runkernel.AllocationRecord{
 			AllocationID:           run.GetAllocationID(),
 			NodeID:                 selected.Record.NodeID,
@@ -93,9 +104,9 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO runs (
 				run_id, namespace, environment_id, status,
-				config, environment_spec, resolved_environment_spec, labels, version, created_at, updated_at, message
-			) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11, '')
-		`, run.GetID(), run.GetNamespace(), run.GetEnvironmentID(), run.GetStatus().String(), cfgJSON, environmentSpecJSON, resolvedEnvironmentSpecJSON, labelsJSON, run.GetVersion(), now.UTC(), now.UTC()); err != nil {
+				config, environment_spec, resolved_environment_spec, labels, version, created_at, updated_at, message, rootfs_snapshot_result
+			) VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9, $10, $11, '', $12::jsonb)
+		`, run.GetID(), run.GetNamespace(), run.GetEnvironmentID(), run.GetStatus().String(), cfgJSON, environmentSpecJSON, resolvedEnvironmentSpecJSON, labelsJSON, run.GetVersion(), now.UTC(), now.UTC(), rootfsSnapshotJSON); err != nil {
 			return fmt.Errorf("insert run: %w", err)
 		}
 		if err := insertRunSecretReferences(ctx, tx, run); err != nil {

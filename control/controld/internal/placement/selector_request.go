@@ -30,6 +30,7 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 		MemoryLimitBytes:                limits.GetMemoryBytes(),
 		RootfsWritable:                  !template.GetRootfsReadonly(),
 		EphemeralStorageLimitBytes:      limits.GetEphemeralStorageBytes(),
+		RootfsSnapshot:                  config.GetRootfsSnapshot() != nil,
 		ExtensionCapabilityRequests:     config.GetExtensionCapabilityRequirements(),
 	})
 	if err != nil {
@@ -45,6 +46,7 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 		RequestedCpuMilli:              requests.GetCpuMilli(),
 		RequestedMemoryBytes:           requests.GetMemoryBytes(),
 		RequestedEphemeralStorageBytes: requests.GetEphemeralStorageBytes(),
+		RootfsSnapshot:                 config.GetRootfsSnapshot() != nil,
 		Network:                        network,
 		CapabilityRequirements:         capabilities,
 		ExtensionCapabilityRequirements: cloneExtensionRequirements(

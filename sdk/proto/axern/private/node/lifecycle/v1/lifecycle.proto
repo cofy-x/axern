@@ -39,6 +39,7 @@ message RegistryCredential {
 service NodeLifecycle {
   rpc CreateAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
   rpc DeleteAllocation(DeleteAllocationRequest) returns (DeleteAllocationResponse) {}
+  rpc AcknowledgeAllocationRelease(AcknowledgeAllocationReleaseRequest) returns (AcknowledgeAllocationReleaseResponse) {}
   rpc GetAllocationLifecycle(GetAllocationLifecycleRequest) returns (GetAllocationLifecycleResponse) {}
 }
 
@@ -65,6 +66,7 @@ message ResolvedExecutionConfig {
   repeated ImageMount image_mounts = 20;
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 21;
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 22;
+  axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 23;
 }
 
 message CreateAllocationRequest {
@@ -84,14 +86,40 @@ message OutputSealingRequest {
   repeated axern.control.common.v1.DeclaredOutput outputs = 2;
 }
 
+// RootfsSnapshotSealingRequest is the transient final-cleanup command derived
+// from the immutable Run specification. Registry credentials are used only to
+// read the original private base image and are never persisted by axnoded.
+message RootfsSnapshotSealingRequest {
+  string base_image_ref = 1;
+  RegistryCredential base_registry_credential = 2;
+}
+
+message RootfsSnapshotSealingResult {
+  string image_ref = 1;
+  axern.control.environment.v1.OciImageDescriptor image_descriptor = 2;
+  string platform_os = 3;
+  string platform_arch = 4;
+  string platform_variant = 5;
+}
+
 message DeleteAllocationRequest {
   string allocation_id = 1;
   string node_id = 2;
   int64 timeout_seconds = 3;
   OutputSealingRequest output_sealing = 4;
+  RootfsSnapshotSealingRequest rootfs_snapshot_sealing = 5;
 }
 
-message DeleteAllocationResponse {}
+message DeleteAllocationResponse {
+  RootfsSnapshotSealingResult rootfs_snapshot = 1;
+}
+
+message AcknowledgeAllocationReleaseRequest {
+  string allocation_id = 1;
+  string node_id = 2;
+}
+
+message AcknowledgeAllocationReleaseResponse {}
 
 message GetAllocationLifecycleRequest {
   string allocation_id = 1;

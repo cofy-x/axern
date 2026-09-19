@@ -32,6 +32,7 @@ type serviceLike interface {
 	Delete(context.Context, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
 	StartControlPlaneAllocation(context.Context, string, *runtimev1.StartRequest) (*runtimev1.StartResponse, error)
 	DeleteControlPlaneAllocation(context.Context, string, *runtimev1.DeleteRequest) (*runtimev1.DeleteResponse, error)
+	AcknowledgeControlPlaneAllocationRelease(string, string) error
 	HasControlPlaneAllocation(string, string) bool
 	IsControlPlaneAllocation(string) bool
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
@@ -212,11 +213,21 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 			Outputs:           cloneDeclaredOutputs(outputSealing.GetOutputs()),
 		}
 	}
+	if snapshot := req.GetRootfsSnapshotSealing(); snapshot != nil {
+		credentialJSON := ""
+		if credential := snapshot.GetBaseRegistryCredential(); credential != nil {
+			credentialJSON = credential.GetDockerConfigJson()
+		}
+		deleteRequest.RootfsSnapshotSealing = &runtimev1.RootfsSnapshotSealingRequest{
+			BaseImageRef: snapshot.GetBaseImageRef(), BaseRegistryCredentialJson: credentialJSON,
+		}
+	}
+	var response *runtimev1.DeleteResponse
 	var err error
 	if requestNodeID == "" {
-		_, err = s.svc.Delete(ctx, deleteRequest)
+		response, err = s.svc.Delete(ctx, deleteRequest)
 	} else {
-		_, err = s.svc.DeleteControlPlaneAllocation(ctx, requestNodeID, deleteRequest)
+		response, err = s.svc.DeleteControlPlaneAllocation(ctx, requestNodeID, deleteRequest)
 	}
 	if err != nil {
 		if allocationDeleteNotFound(err) {
@@ -235,7 +246,38 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		return nil, err
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageConfirmDeleted, "", stageStarted, nil)
-	return &nodelifecyclev1.DeleteAllocationResponse{}, nil
+	result := &nodelifecyclev1.DeleteAllocationResponse{}
+	if snapshot := response.GetRootfsSnapshot(); snapshot != nil {
+		result.RootfsSnapshot = &nodelifecyclev1.RootfsSnapshotSealingResult{
+			ImageRef: snapshot.GetImageRef(), ImageDescriptor: cloneOCIImageDescriptor(snapshot.GetImageDescriptor()),
+			PlatformOS: snapshot.GetPlatformOS(), PlatformArch: snapshot.GetPlatformArch(), PlatformVariant: snapshot.GetPlatformVariant(),
+		}
+	}
+	return result, nil
+}
+
+func (s *nodeLifecycleServer) AcknowledgeAllocationRelease(_ context.Context, req *nodelifecyclev1.AcknowledgeAllocationReleaseRequest) (*nodelifecyclev1.AcknowledgeAllocationReleaseResponse, error) {
+	if s.allowLocal {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "release acknowledgement is control-plane only")
+	}
+	allocationID, nodeID := strings.TrimSpace(req.GetAllocationID()), strings.TrimSpace(req.GetNodeID())
+	if allocationID == "" || nodeID == "" {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation_id and node_id are required")
+	}
+	if nodeID != s.nodeID {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "allocation node_id does not match this node")
+	}
+	if err := s.svc.AcknowledgeControlPlaneAllocationRelease(allocationID, nodeID); err != nil {
+		return nil, err
+	}
+	return &nodelifecyclev1.AcknowledgeAllocationReleaseResponse{}, nil
+}
+
+func cloneOCIImageDescriptor(in *environmentv1.OciImageDescriptor) *environmentv1.OciImageDescriptor {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*environmentv1.OciImageDescriptor)
 }
 
 func allocationDeleteNotFound(err error) bool {
@@ -334,11 +376,19 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		ImageMounts:            cloneImageMounts(spec.GetImageMounts()),
 		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
 		DeclaredOutputs:        cloneDeclaredOutputs(spec.GetDeclaredOutputs()),
+		RootfsSnapshot:         cloneRootfsSnapshot(spec.GetRootfsSnapshot()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
 		ExecutionLeaseTtlSeconds: req.GetExecutionLeaseTtlSeconds(),
 	}, nil
+}
+
+func cloneRootfsSnapshot(in *commonv1.RootfsSnapshot) *commonv1.RootfsSnapshot {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*commonv1.RootfsSnapshot)
 }
 
 func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.ResolvedExecutionConfig) (*runtimev1.StartRequest, error) {

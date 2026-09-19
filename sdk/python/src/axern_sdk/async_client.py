@@ -351,6 +351,7 @@ class AsyncAxernClient:
         secret_env: Iterable[SecretEnvVar] | None = None,
         secret_files: Iterable[SecretFile] | None = None,
         declared_outputs: Iterable[DeclaredOutput] | None = None,
+        rootfs_snapshot: bool = False,
         labels: dict[str, str] | None = None,
         timeout: float | None = 120.0,
     ) -> run_pb2.Run:
@@ -393,6 +394,9 @@ class AsyncAxernClient:
                         secret_env=secret_env_protos,
                         secret_files=secret_file_protos,
                         declared_outputs=_declared_output_protos(declared_outputs),
+                        rootfs_snapshot=(
+                            common_pb2.RootfsSnapshot() if rootfs_snapshot else None
+                        ),
                     ),
                     labels=dict(labels or {}),
                 ),
@@ -400,6 +404,39 @@ class AsyncAxernClient:
             ),
         )
         return response.run
+
+    async def wait_rootfs_snapshot(
+        self, run_id: str, *, timeout: float | None = None
+    ) -> run_pb2.RootfsSnapshotResult:
+        loop = asyncio.get_running_loop()
+        deadline = None if timeout is None else loop.time() + timeout
+        run = await self.get_run(run_id, timeout=timeout)
+
+        def result(current: run_pb2.Run) -> run_pb2.RootfsSnapshotResult | None:
+            if not current.HasField("rootfs_snapshot"):
+                raise SandboxLifecycleError(
+                    f"run {run_id} did not request a rootfs snapshot"
+                )
+            if current.rootfs_snapshot.status == run_pb2.ROOTFS_SNAPSHOT_STATUS_READY:
+                return current.rootfs_snapshot
+            if current.rootfs_snapshot.status == run_pb2.ROOTFS_SNAPSHOT_STATUS_FAILED:
+                raise SandboxLifecycleError(
+                    f"run {run_id} rootfs snapshot failed: "
+                    f"{current.rootfs_snapshot.message}"
+                )
+            return None
+
+        if snapshot := result(run):
+            return snapshot
+        remaining = None if deadline is None else max(0.0, deadline - loop.time())
+        async for updated in self.watch_run(
+            run_id, after_version=run.version, timeout=remaining
+        ):
+            if snapshot := result(updated):
+                return snapshot
+        raise SandboxLifecycleError(
+            f"run {run_id} watch ended before the rootfs snapshot was finalized"
+        )
 
     async def get_sealed_output_manifest(
         self,

@@ -15,6 +15,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/rootfssnapshot"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -42,6 +43,7 @@ type Options struct {
 	RootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *environmentcache.RootFS) error
 	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	Egress                      egress.Manager
+	RootfsSnapshots             rootfssnapshot.Publisher
 }
 
 type Controller struct {
@@ -59,6 +61,7 @@ type Controller struct {
 	rootfsCapabilityGate        func(context.Context, *runtime.StartRequest, *environmentcache.RootFS) error
 	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	egress                      egress.Manager
+	rootfsSnapshots             rootfssnapshot.Publisher
 
 	stateMu          sync.RWMutex
 	allocationStates map[string]*allocationState
@@ -97,6 +100,7 @@ func NewController(options Options) *Controller {
 		rootfsCapabilityGate:        options.RootfsCapabilityGate,
 		preActivationCapabilityGate: options.PreActivationCapabilityGate,
 		egress:                      options.Egress,
+		rootfsSnapshots:             options.RootfsSnapshots,
 		allocationStates:            make(map[string]*allocationState),
 	}
 	if c.startMetricSink == nil {

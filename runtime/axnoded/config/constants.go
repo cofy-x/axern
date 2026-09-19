@@ -46,6 +46,9 @@ const (
 	BridgeIPBucket = "network_interfaces"
 	// AllocationStateBucket stores one durable record per active allocation.
 	AllocationStateBucket = "allocations"
+	// RootfsSnapshotReceiptBucket stores a completed rootfs publication result
+	// until controld commits and acknowledges the derived Environment.
+	RootfsSnapshotReceiptBucket = "rootfs_snapshot_receipts"
 	// AllocationLifecycleOutboxBucket stores terminal allocation observations until
 	// controld has acknowledged the corresponding status-report RPC. Resource
 	// cleanup may remove the container checkpoint before that acknowledgement,

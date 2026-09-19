@@ -114,6 +114,43 @@ func TestWaitUsesWatchAfterInitialSnapshot(t *testing.T) {
 	}
 }
 
+func TestWaitRootfsSnapshotUsesRunVersionAndReturnsDerivedEnvironment(t *testing.T) {
+	runs := &fakeRunClient{
+		getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+			ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_SUCCEEDED, Version: 3,
+			RootfsSnapshot: &runv1.RootfsSnapshotResult{Status: runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_PENDING},
+		}}},
+		watchResponses: []*runv1.WatchRunResponse{{Run: &runv1.Run{
+			ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_SUCCEEDED, Version: 4,
+			RootfsSnapshot: &runv1.RootfsSnapshotResult{Status: runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_READY, EnvironmentID: "env-snapshot"},
+		}}},
+	}
+	control := New(runs)
+
+	result, err := control.Wait(context.Background(), "run-1", WaitTargetRootfsSnapshot, time.Second, nil)
+	if err != nil {
+		t.Fatalf("Wait returned error: %v", err)
+	}
+	if result.GetRootfsSnapshot().GetEnvironmentID() != "env-snapshot" {
+		t.Fatalf("snapshot environment = %q, want env-snapshot", result.GetRootfsSnapshot().GetEnvironmentID())
+	}
+	if runs.watchRequest.GetAfterVersion() != 3 {
+		t.Fatalf("WatchRun after version = %d, want 3", runs.watchRequest.GetAfterVersion())
+	}
+}
+
+func TestWaitRootfsSnapshotReturnsSnapshotFailure(t *testing.T) {
+	runs := &fakeRunClient{getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{
+		ID: "run-1", Status: runv1.RunStatus_RUN_STATUS_SUCCEEDED, Version: 4,
+		RootfsSnapshot: &runv1.RootfsSnapshotResult{Status: runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_FAILED, Message: "registry denied"},
+	}}}}
+
+	_, err := New(runs).Wait(context.Background(), "run-1", WaitTargetRootfsSnapshot, time.Second, nil)
+	if err == nil || !strings.Contains(err.Error(), "registry denied") {
+		t.Fatalf("Wait error = %v, want snapshot diagnostic", err)
+	}
+}
+
 func TestWaitReportsTerminalWatchFailure(t *testing.T) {
 	runs := &fakeRunClient{
 		getResponses: []*runv1.GetRunResponse{{Run: &runv1.Run{

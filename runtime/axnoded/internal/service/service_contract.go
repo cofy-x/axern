@@ -50,6 +50,7 @@ type SandboxService interface {
 type ControlPlaneAllocationService interface {
 	StartControlPlaneAllocation(context.Context, string, *runtime.StartRequest) (*runtime.StartResponse, error)
 	DeleteControlPlaneAllocation(context.Context, string, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
+	AcknowledgeControlPlaneAllocationRelease(string, string) error
 	HasControlPlaneAllocation(string, string) bool
 	IsControlPlaneAllocation(string) bool
 }
@@ -105,6 +106,7 @@ type NodeLifecycleService interface {
 	Delete(context.Context, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
 	StartControlPlaneAllocation(context.Context, string, *runtime.StartRequest) (*runtime.StartResponse, error)
 	DeleteControlPlaneAllocation(context.Context, string, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
+	AcknowledgeControlPlaneAllocationRelease(string, string) error
 	HasControlPlaneAllocation(string, string) bool
 	IsControlPlaneAllocation(string) bool
 	List(context.Context, *runtime.ListContainersRequest) (*runtime.ListContainersResponse, error)

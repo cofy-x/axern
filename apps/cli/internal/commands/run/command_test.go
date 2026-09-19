@@ -11,7 +11,7 @@ import (
 
 func TestRunIsForegroundRootAndCreateIsRemoved(t *testing.T) {
 	cmd := Command(command.Runtime{})
-	for _, name := range []string{"template", "environment", "file", "detach", "wait-timeout"} {
+	for _, name := range []string{"template", "environment", "file", "detach", "wait-timeout", "snapshot-rootfs"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("run flag --%s is missing", name)
 		}
@@ -23,6 +23,16 @@ func TestRunIsForegroundRootAndCreateIsRemoved(t *testing.T) {
 	}
 	if found, _, err := cmd.Find([]string{"create"}); err == nil && found != cmd {
 		t.Fatal("run create is still registered")
+	}
+}
+
+func TestExecutionConfigRequestsRootfsSnapshotByPresence(t *testing.T) {
+	config, err := executionConfig(createOptions{rootfsSnapshot: true})
+	if err != nil {
+		t.Fatalf("executionConfig() error = %v", err)
+	}
+	if config.GetRootfsSnapshot() == nil {
+		t.Fatal("executionConfig() omitted the rootfs snapshot contract")
 	}
 }
 

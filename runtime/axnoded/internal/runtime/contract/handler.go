@@ -2,6 +2,7 @@ package contract
 
 import (
 	"context"
+	"io"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
@@ -50,6 +51,14 @@ type AllocationCapabilityVerifier interface {
 // written by the runtime before the process is created.
 type AllocationEnforcementManifestProvider interface {
 	AllocationEnforcementManifest(context.Context, string) (*apipb.AllocationEnforcementManifest, error)
+}
+
+// RootfsSnapshotter exports the stopped workload's runsc writable rootfs upper
+// tar. It does not include processes, kernel filesystems or bind mounts and
+// must be called while the supervising sandbox still exists, before runtime
+// deletion. The image boundary owns conversion to OCI layer semantics.
+type RootfsSnapshotter interface {
+	SnapshotRootfsUpper(context.Context, string, io.Writer) error
 }
 
 type CapabilityVerificationState uint8

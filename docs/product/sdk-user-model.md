@@ -26,6 +26,12 @@ with Sandbox(client=client, template_id="python311") as sandbox:
 
 For crash recovery between process completion and client download, declare the path at Run creation and retrieve it later by persisted `run_id`. Full SDK downloads verify the manifest size and SHA-256 digest. The downloaded file belongs to the caller's filesystem; it is not an automatic object-store upload or a persistence guarantee for the Sandbox directory. Immutable image inputs and Allocation-local writable workspaces remain separate runtime concerns. See the [storage lifetime contract](../architecture/storage-architecture.md).
 
+## Reusable Rootfs Results
+
+Callers that need multiple fresh Allocations from one successfully prepared filesystem can set `rootfs_snapshot` when creating a Run and wait for its separate snapshot result. On success, the result contains a new Environment ID backed by a content-addressed OCI image. Every later Run from that Environment receives its own copy-on-write Allocation. This is a direct Run option rather than a Sandbox option: `Sandbox.close()` cancels its long-lived Run, while rootfs sealing requires a successful primary workload exit.
+
+The snapshot contains the writable rootfs changes only. Allocation bind mounts, image mounts, Secret projections, kernel filesystems, active processes, sockets, sessions, and declared-output retention are not copied. Snapshot creation is bounded by the Run's ephemeral-storage limit and a 32 GiB platform ceiling. A cancelled or failed Run never produces an Environment, and a missing node recovery record produces an explicit failed result rather than an empty image.
+
 ## Connections
 
 SDK constructors require explicit endpoint and TLS configuration. Environment and context loading are explicit factories:

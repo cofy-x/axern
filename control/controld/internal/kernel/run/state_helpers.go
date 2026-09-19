@@ -50,3 +50,14 @@ func IsTerminal(status runv1.RunStatus) bool {
 		return false
 	}
 }
+
+// IsWatchComplete reports whether a Run has no remaining public state change
+// for WatchRun to publish. Workload termination alone is insufficient when a
+// requested rootfs snapshot is still being finalized asynchronously.
+func IsWatchComplete(run *runv1.Run) bool {
+	if run == nil || !IsTerminal(run.GetStatus()) {
+		return false
+	}
+	snapshot := run.GetRootfsSnapshot()
+	return snapshot == nil || snapshot.GetStatus() != runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_PENDING
+}

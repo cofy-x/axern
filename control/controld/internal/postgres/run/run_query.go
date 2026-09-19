@@ -33,9 +33,15 @@ func (s *Store) WatchRun(ctx context.Context, id string, afterVersion int64) (*r
 	for {
 		run, err := s.GetRun(ctx, id)
 		if err != nil {
+			// pgx may surface a socket read/write error when cancellation races
+			// an in-flight query. The public watch contract is owned by the
+			// caller context, so preserve that stable cause when it is known.
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return nil, ctxErr
+			}
 			return nil, err
 		}
-		if run.GetVersion() > afterVersion || runkernel.IsTerminal(run.GetStatus()) {
+		if run.GetVersion() > afterVersion || runkernel.IsWatchComplete(run) {
 			return run, nil
 		}
 		if err := subscription.wait(ctx); err != nil {

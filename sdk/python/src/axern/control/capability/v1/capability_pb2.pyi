@@ -26,6 +26,7 @@ class PlatformCapability(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     PLATFORM_CAPABILITY_EGRESSD_STRICT_EGRESS_SELF_TEST: _ClassVar[PlatformCapability]
     PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT: _ClassVar[PlatformCapability]
     PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT: _ClassVar[PlatformCapability]
+    PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT: _ClassVar[PlatformCapability]
 
 class CapabilityState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     __slots__ = ()
@@ -86,6 +87,7 @@ PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST: PlatformCapability
 PLATFORM_CAPABILITY_EGRESSD_STRICT_EGRESS_SELF_TEST: PlatformCapability
 PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT: PlatformCapability
 PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT: PlatformCapability
+PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT: PlatformCapability
 CAPABILITY_STATE_UNSPECIFIED: CapabilityState
 CAPABILITY_STATE_AVAILABLE: CapabilityState
 CAPABILITY_STATE_DEGRADED: CapabilityState

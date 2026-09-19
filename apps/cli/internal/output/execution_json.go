@@ -16,6 +16,7 @@ type ExecutionConfigJSON struct {
 	SecretEnv                       []*SecretEnvVarJSON                   `json:"secret_env,omitempty"`
 	SecretFiles                     []*SecretFileJSON                     `json:"secret_files,omitempty"`
 	ImageMounts                     []*ImageMountJSON                     `json:"image_mounts,omitempty"`
+	RootfsSnapshot                  bool                                  `json:"rootfs_snapshot,omitempty"`
 }
 
 type ResourceQuantityJSON struct {
@@ -77,6 +78,7 @@ func NewExecutionConfigJSON(config *commonv1.ExecutionConfig) *ExecutionConfigJS
 		SecretEnv:                       newSecretEnvVarJSONs(config.GetSecretEnv()),
 		SecretFiles:                     newSecretFileJSONs(config.GetSecretFiles()),
 		ImageMounts:                     newImageMountJSONs(config.GetImageMounts()),
+		RootfsSnapshot:                  config.GetRootfsSnapshot() != nil,
 	}
 }
 

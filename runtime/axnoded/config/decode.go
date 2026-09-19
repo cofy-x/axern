@@ -14,7 +14,7 @@ func Decode(data []byte) (Config, error) {
 	if err := toml.NewDecoder(bytes.NewReader(data)).Strict(true).Decode(&cfg); err != nil {
 		return Config{}, fmt.Errorf("decode node configuration: %w", err)
 	}
-	if err := cfg.ValidateNodeIdentity(); err != nil {
+	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
 	return cfg, nil

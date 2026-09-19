@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/natefinch/lumberjack.v2"
 
@@ -38,6 +39,7 @@ func Run(args []string) error {
 	httpSockPath := flags.String("http_sock", api.DefaultHttpSockPath, "Http api socket path")
 	nydusSuffix := flags.String("nydus_suffix", "", "Tag suffix to try when detecting Nydus images (e.g., '-nydus')")
 	registryAuthsPath := flags.String("registry_auths_path", "", "Path to registry authentication credentials file (registry_auths.json)")
+	snapshotRepository := flags.String("snapshot_repository", "", "Platform-owned OCI repository for immutable Allocation rootfs snapshots")
 	registryMirrorURL := flags.String("registry_mirror_url", "", "Dynamic registry mirror origin used for OCI pulls and Nydus bootstrap fetches")
 	enableTracing := flags.Bool("enable_tracing", false, "Enable OpenTelemetry tracing for mount/unmount operations")
 	cgroupMemoryLimitStr := flags.String("cgroup_memory_limit", "0", "Memory limit for imagefsd cgroup, e.g. 512MiB, 2GiB, or raw bytes (0 = no limit)")
@@ -50,6 +52,11 @@ func Run(args []string) error {
 	}
 	if strings.TrimSpace(*nodeID) == "" {
 		return fmt.Errorf("node_id is required")
+	}
+	if repository := strings.TrimSpace(*snapshotRepository); repository != "" {
+		if _, err := name.NewRepository(repository, name.WeakValidation); err != nil {
+			return fmt.Errorf("invalid snapshot_repository %q: %w", repository, err)
+		}
 	}
 
 	cgroupMemoryLimit, err := parseMemorySize(*cgroupMemoryLimitStr)
@@ -153,13 +160,15 @@ func Run(args []string) error {
 	defer mountStore.Close()
 
 	worker, err := api.NewHttpWorker(&api.HttpWorkerConfig{
-		LifecycleContext: ctx,
-		Manager:          mgr,
-		OCIManager:       ociMgr,
-		NydusClient:      nydusClient,
-		NydusSuffix:      *nydusSuffix,
-		RegistryProxyURL: registryProxyURL,
-		MountStore:       mountStore,
+		LifecycleContext:   ctx,
+		Manager:            mgr,
+		OCIManager:         ociMgr,
+		NydusClient:        nydusClient,
+		NydusSuffix:        *nydusSuffix,
+		RegistryProxyURL:   registryProxyURL,
+		MountStore:         mountStore,
+		Registry:           sharedRegistryClient,
+		SnapshotRepository: *snapshotRepository,
 	})
 	if err != nil {
 		return fmt.Errorf("create http worker: %w", err)

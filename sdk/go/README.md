@@ -215,3 +215,21 @@ With local compose running, `make local-compose-go-sdk-e2e` verifies real sandbo
 ## Declared Output
 
 Add `DeclaredOutputs` to `SandboxOptions` or `ExecutionConfig` before Run creation. After the Run is terminal, call `GetSealedOutputManifest(ctx, runID)` and `DownloadSealedOutput(ctx, runID, outputID, offset, writer)`. A zero-offset download verifies the complete size and SHA-256 digest. The sealed bytes are node-local for 15 minutes after cleanup starts, survive axnoded restart but not Node-disk loss, and must be copied into caller-owned durable storage. Limits are 16 paths, 64 MiB per file, 256 MiB per tar, and 256 MiB total. This does not create a persistent workspace or object store.
+
+## Reusable Rootfs Environment
+
+Set `CreateRunOptions.RootfsSnapshot` on a finite Run that should publish its successful post-workload rootfs as a new Environment. Wait for the separate finalization result, then start any number of fresh copy-on-write Runs from its Environment ID:
+
+```go
+prepared, err := client.CreateRun(ctx, axern.CreateRunOptions{
+	EnvironmentID:  baseEnvironmentID,
+	Argv:           []string{"/bin/sh", "-lc", "./compile.sh"},
+	RootfsSnapshot: true,
+})
+if err != nil { return err }
+snapshot, err := client.WaitRootfsSnapshot(ctx, prepared.GetID())
+if err != nil { return err }
+_, err = client.CreateRun(ctx, axern.CreateRunOptions{EnvironmentID: snapshot.GetEnvironmentID(), Argv: []string{"./test.sh"}})
+```
+
+Only the writable rootfs is captured. Bind and image mounts, Secret projections, kernel filesystems, active processes, sockets, and sessions are excluded. Failed or cancelled workloads produce no Environment. This option intentionally belongs to direct Run creation, not `SandboxOptions`, because closing a Sandbox cancels its long-lived Run.
