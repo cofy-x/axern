@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -199,11 +200,14 @@ func TestDoctorReportsRequiredRuntimeDNSFailure(t *testing.T) {
 	t.Fatal("doctor did not report runtime_dns")
 }
 
-type recordingRunner struct{ calls [][]string }
+type recordingRunner struct {
+	calls  [][]string
+	runErr error
+}
 
 func (r *recordingRunner) Run(_ context.Context, _, _ io.Writer, name string, args ...string) error {
 	r.calls = append(r.calls, append([]string{name}, args...))
-	return nil
+	return r.runErr
 }
 
 func (*recordingRunner) Output(context.Context, string, ...string) ([]byte, error) { return nil, nil }
@@ -221,5 +225,50 @@ func TestStartupDiagnosticsIncludesBoundedCoreLogs(t *testing.T) {
 	}
 	if !bytes.Contains(stderr.Bytes(), []byte("Recent core service logs follow.")) {
 		t.Fatalf("diagnostic stderr = %q", stderr.String())
+	}
+}
+
+func TestPlatformImagePullUsesBoundedProgressOutsideTerminal(t *testing.T) {
+	runner := &recordingRunner{}
+	var stderr bytes.Buffer
+	manager := &Manager{Dir: t.TempDir(), Runner: runner, Stdout: io.Discard, Stderr: &stderr}
+	if err := manager.pullPlatformImages(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("pull calls = %d, want 1", len(runner.calls))
+	}
+	wantTail := []string{"--progress", "quiet", "pull", "postgres", "controld", "tunneld", "node", "gatewayd"}
+	got := runner.calls[0]
+	if len(got) < len(wantTail) || !reflect.DeepEqual(got[len(got)-len(wantTail):], wantTail) {
+		t.Fatalf("pull command = %#v, want tail %#v", got, wantTail)
+	}
+	for _, message := range []string{"Pulling Axern platform images...", "Axern platform images are ready (elapsed"} {
+		if !strings.Contains(stderr.String(), message) {
+			t.Fatalf("pull stderr = %q, missing %q", stderr.String(), message)
+		}
+	}
+}
+
+func TestComposePullArgsPreserveInteractiveProgress(t *testing.T) {
+	services := []string{"postgres", "node"}
+	if got, want := composePullArgs(true, services), []string{"pull", "postgres", "node"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("interactive args = %#v, want %#v", got, want)
+	}
+	if got, want := composePullArgs(false, services), []string{"--progress", "quiet", "pull", "postgres", "node"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("non-interactive args = %#v, want %#v", got, want)
+	}
+}
+
+func TestPlatformImagePullPreservesFailureWithoutSuccessMessage(t *testing.T) {
+	runner := &recordingRunner{runErr: errors.New("registry unavailable")}
+	var stderr bytes.Buffer
+	manager := &Manager{Dir: t.TempDir(), Runner: runner, Stdout: io.Discard, Stderr: &stderr}
+	err := manager.pullPlatformImages(context.Background(), "")
+	if err == nil || !strings.Contains(err.Error(), "registry unavailable") {
+		t.Fatalf("pull error = %v", err)
+	}
+	if strings.Contains(stderr.String(), "images are ready") {
+		t.Fatalf("pull stderr announced success: %q", stderr.String())
 	}
 }

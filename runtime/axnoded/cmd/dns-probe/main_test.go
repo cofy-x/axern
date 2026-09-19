@@ -62,6 +62,16 @@ func TestRunProbeClassifiesAllPartialAndNoSuccess(t *testing.T) {
 	}
 }
 
+func TestRunProbeClassifiesMissingResolverSet(t *testing.T) {
+	value := runProbe(context.Background(), nil, "example.test.", time.Second, func(context.Context, string, string, time.Duration) bool {
+		t.Fatal("lookup called without a resolver")
+		return false
+	})
+	if value.Status != "fail" || value.Code != "runtime_dns_node_no_resolvers" || value.EffectiveResolverCount != 0 {
+		t.Fatalf("runProbe() = %#v", value)
+	}
+}
+
 func TestRunProbeCancellationAndOutputAreSanitized(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

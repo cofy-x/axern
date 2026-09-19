@@ -29,18 +29,18 @@ type Component struct {
 }
 
 type Status struct {
-	State          string         `json:"state"`
-	CLIVersion     string         `json:"cli_version"`
-	StackVersion   string         `json:"stack_version,omitempty"`
-	Profile        string         `json:"profile,omitempty"`
-	DataPath       string         `json:"data_path"`
-	DiskBytes      int64          `json:"disk_bytes"`
-	GatewayHTTPURL string         `json:"gateway_http_url"`
-	GatewayTarget  string         `json:"gateway_target"`
-	Ports          map[string]int `json:"ports"`
-	CurrentContext string         `json:"current_context,omitempty"`
-	ContextCurrent bool           `json:"context_current"`
-	Components     []Component    `json:"components,omitempty"`
+	State              string         `json:"state"`
+	CLIVersion         string         `json:"cli_version"`
+	StackVersion       string         `json:"stack_version,omitempty"`
+	Profile            string         `json:"profile,omitempty"`
+	DataPath           string         `json:"data_path"`
+	DiskAllocatedBytes int64          `json:"disk_allocated_bytes"`
+	GatewayHTTPURL     string         `json:"gateway_http_url"`
+	GatewayTarget      string         `json:"gateway_target"`
+	Ports              map[string]int `json:"ports"`
+	CurrentContext     string         `json:"current_context,omitempty"`
+	ContextCurrent     bool           `json:"context_current"`
+	Components         []Component    `json:"components,omitempty"`
 }
 
 type Check struct {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"strings"
 )
 
@@ -16,11 +17,21 @@ var defaultLocalDNSResolverPaths = []string{
 }
 
 func localDNSNameservers() ([]string, error) {
-	override := os.Getenv(localDNSNameserversEnv)
-	if strings.TrimSpace(override) == "" {
+	return desiredLocalDNSNameservers(runtime.GOOS, os.Getenv(localDNSNameserversEnv), defaultLocalDNSResolverPaths)
+}
+
+func desiredLocalDNSNameservers(goos, override string, paths []string) ([]string, error) {
+	if strings.TrimSpace(override) != "" {
+		return discoverLocalDNSNameservers(override, nil)
+	}
+	// Docker Desktop owns a VM-local resolver that is more authoritative and
+	// reachable from the Node container than the macOS host resolver set. On
+	// native Linux, materialize the host's usable resolver snapshot so a local
+	// stub such as systemd-resolved is never propagated into a nested sandbox.
+	if goos != "linux" {
 		return nil, nil
 	}
-	return discoverLocalDNSNameservers(override, nil)
+	return discoverLocalDNSNameservers("", paths)
 }
 
 func discoverLocalDNSNameservers(override string, paths []string) ([]string, error) {
@@ -40,7 +51,6 @@ func discoverLocalDNSNameservers(override string, paths []string) ([]string, err
 		return nameservers, nil
 	}
 
-	var nameservers []string
 	for _, path := range paths {
 		file, err := os.Open(path)
 		if err != nil {
@@ -61,14 +71,11 @@ func discoverLocalDNSNameservers(override string, paths []string) ([]string, err
 		if scanner.Err() != nil {
 			continue
 		}
-		for _, address := range fileNameservers {
-			nameservers = appendUnique(nameservers, address)
+		if len(fileNameservers) > 0 {
+			return fileNameservers, nil
 		}
 	}
-	if len(nameservers) == 0 {
-		return nil, fmt.Errorf("host resolver configuration has no non-loopback nameserver")
-	}
-	return nameservers, nil
+	return nil, fmt.Errorf("host resolver configuration has no non-loopback nameserver")
 }
 
 func usableDNSNameserver(value string) (string, bool) {

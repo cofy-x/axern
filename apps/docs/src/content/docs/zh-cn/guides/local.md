@@ -19,7 +19,7 @@ description: Local Axern 的环境要求、生命周期、数据、版本替换�
 | ------------------------------ | ------------------------------------------------------------------------------------- |
 | `axern local up`               | 预检、生成部署、启动、等待健康并配置 `local` Context                                  |
 | `axern local image load IMAGE` | 将宿主 Docker 镜像流式导入本地节点；`--pull` 会先拉取镜像                             |
-| `axern local status`           | 展示版本、健康端点、数据路径、Context 和磁盘占用                                      |
+| `axern local status`           | 展示版本、健康端点、数据路径、Context 和宿主机实际分配的磁盘占用                      |
 | `axern local logs [component]` | 聚合或指定组件日志，支持 `--follow`、`--tail`、`--since`                              |
 | `axern local doctor`           | 只读检查主机、Docker、端口、版本、健康状态和 Node DNS；`--probe` 额外验证 Sandbox DNS |
 | `axern local down`             | 删除容器和网络，保留数据                                                              |
@@ -58,9 +58,9 @@ axern local logs node --tail 200
 
 ## 工作负载 DNS
 
-默认情况下，axnoded 会从 Node 容器的实际 Resolver 配置派生非 loopback 上游，供 OCI 工作负载使用。Docker 容器内的 loopback Resolver 无法从嵌套 Sandbox 访问，因此不会直接复制；如果 Docker 提供外部上游元数据，axnoded 会使用其中可达的地址。
+在原生 Linux 上，`local up` 会快照第一个含可用非 loopback 地址的 Resolver 文件：先检查 `/etc/resolv.conf`，再回退到 `/run/systemd/resolve/resolv.conf`，因此 systemd-resolved 的 loopback stub 不会进入嵌套 Sandbox。在 Docker Desktop 上，VM 内的 Node Resolver 配置才是权威来源，axnoded 会从 Node 容器派生实际的非 loopback 上游。Docker 容器内的 loopback Resolver 始终不会直接复制到 Sandbox。
 
-`axern local doctor` 会验证已初始化 Stack 实际使用的 materialized `compose.env`（`runtime_dns_config`），并从运行中的 Node 容器直接查询 axnoded 的每一个有效 Resolver（`runtime_dns_node`）。materialized override 为空表示由 axnoded 从 Node 环境派生，并不是无效配置。这两项检查都是只读操作，默认超时为 15 秒，可用 `--check-timeout` 调整。
+`axern local doctor` 会验证已初始化 Stack 实际使用的 materialized `compose.env`（`runtime_dns_config`），并从运行中的 Node 容器直接查询每一个有效 Resolver（`runtime_dns_node`）。`local up` 在报告 ready 前执行同一项 Node 查询；缺少可用 Resolver 或全部 Resolver 均不可达属于 required failure，部分可达则报告为 degraded。这两项检查默认超时为 15 秒，可用 `--check-timeout` 调整。
 
 要通过真实 `runsc` OCI Sandbox 和正常公共 API 路径验证 DNS，请显式运行：
 
@@ -78,7 +78,7 @@ VPN 或企业网络有时要求使用 Node 容器实际配置中不可见的 DNS
 AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up
 ```
 
-这些值必须是 Docker 工作负载可访问的 IP 地址；loopback、未指定地址、空值和主机名都会被拒绝。运行中的实例修改 DNS 后，执行 `axern local down` 再执行 `axern local up`，即可在保留数据的同时重建 Node 容器。
+这些值必须是 Docker 工作负载可访问的 IP 地址；loopback、未指定地址、空值和主机名都会被拒绝。修改 DNS 后重新执行 `axern local up`；只有期望的 Resolver 快照与已应用配置不同时，它才会重建本地服务。
 
 ## 版本替换与卸载
 

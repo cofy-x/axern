@@ -29,7 +29,7 @@ axern local doctor
 axern local logs gatewayd --follow --tail 100
 ```
 
-`local doctor` checks the host, Docker, ports, versions, and component health, and prints an executable recommendation per failed check. Common causes: conflicting ports (the local stack does not allocate alternates), Docker proxy settings, and VPN-provided DNS that the host resolver files do not list — set `AXERN_LOCAL_DNS_NAMESERVERS` and recreate the stack. See the [`axern local` reference](/guides/local/) for the port table and recovery flows.
+`local doctor` checks the host, Docker, ports, versions, and component health, and prints an executable recommendation per failed check. Common causes: conflicting ports (the local stack does not allocate alternates), Docker proxy settings, and VPN-provided DNS that the host resolver files do not list — set `AXERN_LOCAL_DNS_NAMESERVERS` and rerun `axern local up`. See the [`axern local` reference](/guides/local/) for the port table and recovery flows.
 
 ## Workloads
 
