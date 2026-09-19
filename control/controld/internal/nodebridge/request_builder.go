@@ -130,11 +130,14 @@ func imageDescriptorRef(environment *environmentv1.Environment) string {
 			return immutable
 		}
 	}
+	// Template-backed Environments already carry the deployment-owned runtime
+	// reference in the resolved descriptor. Keep that reference intact: source
+	// and single-node deployments may intentionally bind it to a node-local
+	// imported image, while release deployments own their registry publication
+	// policy. Combining an override tag with the embedded catalog digest
+	// manufactures an identity that neither the node import nor a registry owns.
 	for _, key := range []string{"org.opencontainers.image.ref.name", "io.axern.image.ref"} {
 		if ref := strings.TrimSpace(desc.GetAnnotations()[key]); ref != "" {
-			if immutable, err := imageref.WithDigest(ref, desc.GetDigest()); err == nil {
-				return immutable
-			}
 			return ref
 		}
 	}

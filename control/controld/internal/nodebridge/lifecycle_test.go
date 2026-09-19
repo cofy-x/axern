@@ -120,6 +120,26 @@ func TestBuildCreateAllocationRequestBindsImageRepositoryToResolvedDigest(t *tes
 	}
 }
 
+func TestBuildCreateAllocationRequestPreservesTemplateRuntimeReference(t *testing.T) {
+	env := &environmentv1.Environment{
+		ID: "env-template",
+		Spec: &environmentv1.EnvironmentSpec{
+			TemplateID:      "python311",
+			TemplateVersion: "3.11.0",
+		},
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{
+			Digest: "sha256:0000000000000000000000000000000000000000000000000000000000000311",
+			Annotations: map[string]string{
+				"org.opencontainers.image.ref.name": "axern/python311-runtime:dev",
+			},
+		}},
+	}
+	req := buildCreateAllocationRequestFromParams(createAllocationRequestParams{Environment: env})
+	if got, want := req.GetConfig().GetImageDescriptor(), "axern/python311-runtime:dev"; got != want {
+		t.Fatalf("image descriptor = %q, want deployment-owned template ref %q", got, want)
+	}
+}
+
 func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-b",
