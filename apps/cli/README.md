@@ -92,7 +92,7 @@ The probe creates an Environment from the built-in `python311` template, execute
 
 ## Local DNS Doctor
 
-`axern local doctor` uses the same `status`, `mode`, and stable check result shape as the platform doctor. It validates the resolver configuration actually materialized for an initialized stack and, while the stack is running, queries those resolvers directly from the Node container. These checks are read-only.
+`axern local doctor` uses the same `status`, `mode`, and stable check result shape as the platform doctor. On native Linux, initialization snapshots the first resolver file that contains usable non-loopback addresses, falling back from the systemd-resolved stub to `/run/systemd/resolve/resolv.conf`; Docker Desktop keeps Node-derived resolver discovery. While the stack is running, the doctor queries every effective resolver directly from the Node container. `axern local up` performs the same Node check before reporting ready. These checks are read-only.
 
 Use the explicit probe to verify the normal Environment and Run path in a real OCI sandbox:
 

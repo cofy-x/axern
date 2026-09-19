@@ -49,6 +49,51 @@ func TestDiscoverLocalDNSNameserversFallsBackPastStubResolver(t *testing.T) {
 	}
 }
 
+func TestDesiredLocalDNSNameserversMaterializesLinuxUplinks(t *testing.T) {
+	dir := t.TempDir()
+	stub := filepath.Join(dir, "stub-resolv.conf")
+	uplink := filepath.Join(dir, "uplink-resolv.conf")
+	if err := os.WriteFile(stub, []byte("nameserver 127.0.0.53\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(uplink, []byte("nameserver 10.20.30.40\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := desiredLocalDNSNameservers("linux", "", []string{stub, uplink})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"10.20.30.40"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("nameservers = %#v, want %#v", got, want)
+	}
+}
+
+func TestDesiredLocalDNSNameserversLeavesDockerDesktopDerivedMode(t *testing.T) {
+	got, err := desiredLocalDNSNameservers("darwin", "", []string{"unused"})
+	if err != nil || len(got) != 0 {
+		t.Fatalf("nameservers = (%#v, %v), want empty node-derived mode", got, err)
+	}
+}
+
+func TestDiscoverLocalDNSNameserversUsesFirstAuthoritativeFile(t *testing.T) {
+	dir := t.TempDir()
+	primary := filepath.Join(dir, "primary-resolv.conf")
+	fallback := filepath.Join(dir, "fallback-resolv.conf")
+	if err := os.WriteFile(primary, []byte("nameserver 192.0.2.53\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fallback, []byte("nameserver 198.51.100.53\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, err := discoverLocalDNSNameservers("", []string{primary, fallback})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"192.0.2.53"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("nameservers = %#v, want %#v", got, want)
+	}
+}
+
 func TestDiscoverLocalDNSNameserversRequiresReachableResolver(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "resolv.conf")
 	if err := os.WriteFile(path, []byte("nameserver 127.0.0.11\n"), 0o600); err != nil {

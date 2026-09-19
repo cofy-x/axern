@@ -19,7 +19,7 @@ Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Wo
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
 | `axern local up`               | Preflight, materialize, start, wait for health, and configure the `local` context                               |
 | `axern local image load IMAGE` | Stream a host Docker image into the local node; `--pull` fetches it first                                       |
-| `axern local status`           | Show versions, health endpoints, data path, context, and disk use                                               |
+| `axern local status`           | Show versions, health endpoints, data path, context, and allocated host disk use                                |
 | `axern local logs [component]` | Read aggregate or component logs; supports `--follow`, `--tail`, and `--since`                                  |
 | `axern local doctor`           | Perform read-only host, Docker, port, version, health, and Node DNS checks; `--probe` also verifies sandbox DNS |
 | `axern local down`             | Remove containers and network while preserving data                                                             |
@@ -68,7 +68,9 @@ axern local logs node --tail 200
 
 ## Workload DNS
 
-By default, axnoded derives non-loopback resolver IPs from the Node container's effective resolver configuration for OCI workloads. Docker's container-local loopback resolver is not copied into a nested sandbox; when Docker publishes external upstream metadata, axnoded uses those reachable addresses instead. `axern local doctor` validates the resolver configuration actually applied to an initialized stack (`runtime_dns_config`) and queries each effective resolver directly from the running Node container (`runtime_dns_node`). An empty materialized override means axnoded derives the resolver from the Node; it is not an invalid configuration. Both checks are read-only and use a 15-second timeout by default; change it with `--check-timeout`.
+On native Linux, `local up` snapshots the first resolver file that contains usable non-loopback addresses. It checks `/etc/resolv.conf` first and falls back to `/run/systemd/resolve/resolv.conf`, so a systemd-resolved loopback stub is never propagated into a nested sandbox. On Docker Desktop, axnoded derives the effective non-loopback resolver from the Node container because that VM-local configuration is authoritative. Docker's container-local loopback resolver is never copied into a sandbox.
+
+`axern local doctor` validates the resolver configuration actually applied to an initialized stack (`runtime_dns_config`) and queries each effective resolver directly from the running Node container (`runtime_dns_node`). `local up` performs the Node query before reporting ready; a missing or completely unreachable resolver set is a required failure, while a partially reachable set is reported as degraded. Both checks use a 15-second timeout by default; change it with `--check-timeout`.
 
 To verify the same DNS materialization through a real `runsc` OCI sandbox, run:
 
@@ -86,7 +88,7 @@ VPNs and managed networks sometimes require a resolver that is not visible in th
 AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up
 ```
 
-Values must be IP addresses reachable from Docker workloads. Loopback, unspecified, empty, and hostname values are rejected. After changing resolver settings for a running instance, use `axern local down` followed by `axern local up` to recreate the Node container while preserving data.
+Values must be IP addresses reachable from Docker workloads. Loopback, unspecified, empty, and hostname values are rejected. After changing resolver settings, rerun `axern local up`; it recreates the local services only when the desired resolver snapshot differs from the applied configuration.
 
 ## Version changes
 

@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/localbundle"
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"golang.org/x/term"
 )
 
 type Runner interface {
@@ -40,6 +42,11 @@ type PipelineRunner interface {
 // their first trustworthy snapshot can take longer than an ordinary service
 // health check on an uncached host.
 const DefaultReadinessTimeout = 10 * time.Minute
+
+const (
+	defaultLocalDNSProbeName    = "axern.cofy-x.space."
+	defaultLocalDNSProbeTimeout = 15 * time.Second
+)
 
 type ExecRunner struct{}
 
@@ -284,11 +291,18 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	}
 	if metadataErr == nil && options.Profile == existing.Profile {
 		if status, statusErr := m.Status(ctx); statusErr == nil && status.State == "running" && m.localNodeReady(ctx, &http.Client{Timeout: 3 * time.Second}) {
-			if err := m.writeContext(options.Use); err != nil {
-				return err
+			dnsCheck := m.probeNodeDNS(ctx, options.Profile, defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
+			if dnsCheck.Status == checkPass || dnsCheck.Status == checkWarn {
+				m.printLocalDNSWarning(dnsCheck)
+				if err := m.writeContext(options.Use); err != nil {
+					return err
+				}
+				m.printReady()
+				return nil
 			}
-			m.printReady()
-			return nil
+			if !m.localDNSConfigurationChanged() {
+				return localDNSReadinessError(dnsCheck)
+			}
 		}
 	}
 	if report := m.doctor(ctx, false, DoctorOptions{}, doctorDNSConfigDesired); report.Status == doctorFailed {
@@ -303,7 +317,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		}
 	}
 	fmt.Fprintln(m.Stderr, "Starting Axern local services...")
-	if err := m.composeRun(ctx, options.Profile, "pull", "postgres", "controld", "tunneld", "node", "gatewayd"); err != nil {
+	if err := m.pullPlatformImages(ctx, options.Profile); err != nil {
 		return err
 	}
 	if err := m.composeRun(ctx, options.Profile, "up", "-d", "postgres"); err != nil {
@@ -329,6 +343,11 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		m.printStartupDiagnostics(options.Profile)
 		return err
 	}
+	dnsCheck := m.probeNodeDNS(ctx, options.Profile, defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
+	if dnsCheck.Status == checkFail {
+		return localDNSReadinessError(dnsCheck)
+	}
+	m.printLocalDNSWarning(dnsCheck)
 	if err := m.writeContext(options.Use); err != nil {
 		return err
 	}
@@ -348,6 +367,61 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	}
 	m.printReady()
 	return nil
+}
+
+func (m *Manager) printLocalDNSWarning(check Check) {
+	if check.Status != checkWarn {
+		return
+	}
+	fmt.Fprintf(m.Stderr, "Warning: local runtime DNS is degraded (%s): %s", check.Code, check.Message)
+	if check.Remediation != "" {
+		fmt.Fprintf(m.Stderr, "; %s", check.Remediation)
+	}
+	fmt.Fprintln(m.Stderr)
+}
+
+func (m *Manager) localDNSConfigurationChanged() bool {
+	desired, desiredErr := localDNSNameservers()
+	applied, appliedErr := readMaterializedDNSNameservers(m.envPath())
+	return desiredErr != nil || appliedErr != nil || !slices.Equal(desired, applied)
+}
+
+func localDNSReadinessError(check Check) error {
+	if check.Remediation == "" {
+		return fmt.Errorf("local runtime DNS is not ready (%s): %s", check.Code, check.Message)
+	}
+	return fmt.Errorf("local runtime DNS is not ready (%s): %s; %s", check.Code, check.Message, check.Remediation)
+}
+
+func (m *Manager) pullPlatformImages(ctx context.Context, profile string) error {
+	services := []string{"postgres", "controld", "tunneld", "node", "gatewayd"}
+	args := composePullArgs(isTerminalWriter(m.Stderr), services)
+	started := time.Now()
+	fmt.Fprintln(m.Stderr, "Pulling Axern platform images...")
+	if err := m.composeRun(ctx, profile, args...); err != nil {
+		return fmt.Errorf("pull Axern platform images: %w", err)
+	}
+	elapsed := time.Since(started).Round(time.Second)
+	if elapsed < time.Second {
+		fmt.Fprintln(m.Stderr, "Axern platform images are ready (elapsed <1s).")
+	} else {
+		fmt.Fprintf(m.Stderr, "Axern platform images are ready (elapsed %s).\n", elapsed)
+	}
+	return nil
+}
+
+func composePullArgs(interactive bool, services []string) []string {
+	args := make([]string, 0, len(services)+3)
+	if !interactive {
+		args = append(args, "--progress", "quiet")
+	}
+	args = append(args, "pull")
+	return append(args, services...)
+}
+
+func isTerminalWriter(writer io.Writer) bool {
+	file, ok := writer.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 func (m *Manager) printStartupDiagnostics(profile string) {
@@ -541,7 +615,10 @@ func (m *Manager) Status(ctx context.Context) (Status, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return status, err
 	}
-	status.DiskBytes, _ = directorySize(m.Dir)
+	status.DiskAllocatedBytes, err = directoryAllocatedSize(m.Dir)
+	if err != nil {
+		return status, fmt.Errorf("inspect local disk usage: %w", err)
+	}
 	if cfg, err := config.Load(m.ConfigPath); err == nil {
 		status.CurrentContext = cfg.CurrentContext
 		status.ContextCurrent = cfg.CurrentContext == ContextName
@@ -1105,8 +1182,9 @@ func (m *Manager) metadataPath() string { return filepath.Join(m.Dir, "metadata.
 func (m *Manager) composePath() string  { return filepath.Join(m.Dir, "compose.yaml") }
 func (m *Manager) envPath() string      { return filepath.Join(m.Dir, "compose.env") }
 
-func directorySize(root string) (int64, error) {
+func directoryAllocatedSize(root string) (int64, error) {
 	var total int64
+	seen := map[allocatedFileIdentity]struct{}{}
 	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -1114,11 +1192,19 @@ func directorySize(root string) (int64, error) {
 			}
 			return err
 		}
-		if !info.IsDir() {
-			total += info.Size()
+		allocated, identity, identified := allocatedFileUsage(info)
+		if identified {
+			if _, ok := seen[identity]; ok {
+				return nil
+			}
+			seen[identity] = struct{}{}
 		}
+		total += allocated
 		return nil
 	})
+	if errors.Is(err, os.ErrNotExist) {
+		return 0, nil
+	}
 	return total, err
 }
 

@@ -167,9 +167,11 @@ func (m *Manager) probeNodeDNS(ctx context.Context, profile, queryName string, t
 	case result.Status == checkPass && result.Code == "runtime_dns_node_reachable" && result.SuccessfulResolverCount == result.EffectiveResolverCount && result.EffectiveResolverCount > 0:
 		return doctorCheck("runtime_dns_node", checkPass, "runtime_dns_node_reachable", "all effective resolvers answered from the Node container", "", started, details)
 	case result.Status == checkWarn && result.Code == "runtime_dns_node_partial" && result.SuccessfulResolverCount > 0 && result.SuccessfulResolverCount < result.EffectiveResolverCount:
-		return doctorCheck("runtime_dns_node", checkWarn, "runtime_dns_node_partial", "only part of the effective resolver set answered from the Node container", "remove or repair unreachable resolver overrides and recreate the local stack", started, details)
+		return doctorCheck("runtime_dns_node", checkWarn, "runtime_dns_node_partial", "only part of the effective resolver set answered from the Node container", "remove or repair unreachable resolver overrides and rerun `axern local up`", started, details)
 	case result.Status == checkFail && result.Code == "runtime_dns_node_unreachable" && result.SuccessfulResolverCount == 0 && result.EffectiveResolverCount > 0:
-		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "effective resolvers did not answer from the Node container", "repair node DNS or set AXERN_LOCAL_DNS_NAMESERVERS to reachable resolver IPs, then recreate the local stack", started, details)
+		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "effective resolvers did not answer from the Node container", "repair node DNS or set AXERN_LOCAL_DNS_NAMESERVERS to reachable resolver IPs, then rerun `axern local up`", started, details)
+	case result.Status == checkFail && result.Code == "runtime_dns_node_no_resolvers" && result.SuccessfulResolverCount == 0 && result.EffectiveResolverCount == 0:
+		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_no_resolvers", "the Node has no usable runtime DNS resolver", "set AXERN_LOCAL_DNS_NAMESERVERS to reachable resolver IPs and run `axern local up`", started, details)
 	default:
 		return doctorCheck("runtime_dns_node", checkFail, "runtime_dns_node_unreachable", "Node container DNS probe returned an inconsistent result", "upgrade or recreate the local stack", started, nil)
 	}

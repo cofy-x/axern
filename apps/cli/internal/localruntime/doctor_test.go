@@ -1,6 +1,7 @@
 package localruntime
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -70,6 +71,25 @@ func TestDoctorDNSNameserversDesiredIgnoresBrokenMaterializedConfiguration(t *te
 	}
 }
 
+func TestLocalDNSConfigurationChangedComparesDesiredAndAppliedSnapshots(t *testing.T) {
+	t.Setenv(localDNSNameserversEnv, "192.0.2.53")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "compose.env")
+	if err := os.WriteFile(path, []byte("AXNODED_DNS_NAMESERVERS=192.0.2.53\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	manager := &Manager{Dir: dir}
+	if manager.localDNSConfigurationChanged() {
+		t.Fatal("equal DNS snapshots reported as changed")
+	}
+	if err := os.WriteFile(path, []byte("AXNODED_DNS_NAMESERVERS=198.51.100.53\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if !manager.localDNSConfigurationChanged() {
+		t.Fatal("different DNS snapshots reported as equal")
+	}
+}
+
 func TestDoctorNodeIDUsesMaterializedConfiguration(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "compose.env"), []byte("AXNODED_CONTROL_PLANE_NODE_ID=node-compose-local\n"), 0o600); err != nil {
@@ -112,6 +132,25 @@ func TestProbeNodeDNSRejectsInconsistentResult(t *testing.T) {
 	check := manager.probeNodeDNS(context.Background(), "", "example.test.", time.Second)
 	if check.Status != checkFail || check.Code != "runtime_dns_node_unreachable" || check.Details != nil {
 		t.Fatalf("check = %#v", check)
+	}
+}
+
+func TestProbeNodeDNSReportsMissingResolverSet(t *testing.T) {
+	runner := staticOutputRunner{data: []byte(`{"status":"fail","code":"runtime_dns_node_no_resolvers","effective_resolver_count":0,"successful_resolver_count":0}`)}
+	manager := &Manager{Dir: t.TempDir(), Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
+	check := manager.probeNodeDNS(context.Background(), "", "example.test.", time.Second)
+	if check.Status != checkFail || check.Code != "runtime_dns_node_no_resolvers" || check.Details["effective_resolver_count"] != 0 {
+		t.Fatalf("check = %#v", check)
+	}
+}
+
+func TestPrintLocalDNSWarningOnlyReportsDegradedChecks(t *testing.T) {
+	var stderr bytes.Buffer
+	manager := &Manager{Stderr: &stderr}
+	manager.printLocalDNSWarning(Check{Status: checkPass, Code: "runtime_dns_node_reachable"})
+	manager.printLocalDNSWarning(Check{Status: checkWarn, Code: "runtime_dns_node_partial", Message: "partially reachable", Remediation: "repair resolver"})
+	if got, want := stderr.String(), "Warning: local runtime DNS is degraded (runtime_dns_node_partial): partially reachable; repair resolver\n"; got != want {
+		t.Fatalf("warning = %q, want %q", got, want)
 	}
 }
 

@@ -29,7 +29,7 @@ axern local doctor
 axern local logs gatewayd --follow --tail 100
 ```
 
-`local doctor` 检查主机、Docker、端口、版本和组件健康，并为每个失败项给出可执行的修复建议。常见原因：端口冲突（本地栈不会分配替代端口）、Docker 代理配置，以及主机 resolver 文件未列出的 VPN DNS——设置 `AXERN_LOCAL_DNS_NAMESERVERS` 后重建本地栈。端口表和恢复流程见 [`axern local` 参考](/zh-cn/guides/local/)。
+`local doctor` 检查主机、Docker、端口、版本和组件健康，并为每个失败项给出可执行的修复建议。常见原因：端口冲突（本地栈不会分配替代端口）、Docker 代理配置，以及主机 resolver 文件未列出的 VPN DNS——设置 `AXERN_LOCAL_DNS_NAMESERVERS` 后重新执行 `axern local up`。端口表和恢复流程见 [`axern local` 参考](/zh-cn/guides/local/)。
 
 ## 工作负载
 

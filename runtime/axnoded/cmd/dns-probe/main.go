@@ -62,7 +62,11 @@ func effectiveResolvers(configPath string) ([]string, error) {
 func runProbe(ctx context.Context, resolvers []string, queryName string, timeout time.Duration, lookup resolverLookup) result {
 	resolvers = parseResolvers(strings.Join(resolvers, ","))
 	value := result{Status: "fail", Code: "runtime_dns_node_unreachable", EffectiveResolverCount: int64(len(resolvers))}
-	if len(resolvers) == 0 || !validQueryName(queryName) || timeout <= 0 {
+	if len(resolvers) == 0 {
+		value.Code = "runtime_dns_node_no_resolvers"
+		return value
+	}
+	if !validQueryName(queryName) || timeout <= 0 {
 		return value
 	}
 	ctx, cancel := context.WithTimeout(ctx, timeout)
