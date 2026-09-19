@@ -117,7 +117,7 @@ func TestShutdownPreservesLiveAllocationForRestartRecovery(t *testing.T) {
 	s := newTestService(t, runtimeHandler)
 	const allocationID = "allocation-survives-restart"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
+	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, nil))
 	s.containerManager.StoreMetadata(allocationID, &runtimeapi.ContainerMetadata{})
 	markTestContainerRunning(t, s, allocationID)
 
@@ -132,7 +132,7 @@ func TestExpiredExecutionLeaseStopsRuntimeAndRetainsCleanupState(t *testing.T) {
 	const allocationID = "allocation-expired"
 	const digest = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	now := time.Now().UTC()
-	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, now.Add(time.Minute), nil, nil, nil))
+	require.NoError(t, s.allocations.StoreAllocationIntent(allocationID, "node-a", digest, now.Add(time.Minute), nil, nil, nil, nil))
 	s.containerManager.StoreMetadata(allocationID, &runtimeapi.ContainerMetadata{})
 	markTestContainerRunning(t, s, allocationID)
 	require.NoError(t, s.allocations.RenewExecutionLeases(nil, now))

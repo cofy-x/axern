@@ -60,6 +60,16 @@ axern run --file run.yaml
 
 Run 状态是持久的。Allocation 本地 stdout/stderr 与显式声明的文件或目录 tar 从开始清理起可读取 15 分钟。节点在删除 runtime 前先静止 Allocation 并原子发布 manifest。节点进程重启保留封存字节，但节点磁盘丢失不可恢复。声明输出限制为 16 个路径、单文件 64 MiB、单 tar 256 MiB、总计 256 MiB；缺失、拒绝、捕获失败和节点不可用均为显式状态。持久发布仍由调用方负责。
 
+## 复用成功准备后的 rootfs
+
+当后续 Run 必须从本次工作负载结束后的完整可写 rootfs 启动时，在有限 Run 上使用 `--snapshot-rootfs`：
+
+```bash
+axern run --snapshot-rootfs --environment <base-environment-id> -- /bin/sh -lc './compile.sh'
+```
+
+前台 CLI 会等待独立的 rootfs 封存完成，并输出新的 Environment ID。后台调用方可以使用 `axern run get <run-id>` 或 SDK wait helper 查询。结果是普通的不可变 Environment，而不是 Snapshot 资源；每个后续 Run 都获得独立的 copy-on-write Allocation。bind mount、image mount、Secret projection、内核文件系统、活动进程、socket、Terminal、SSH 和 Tunnel 状态均不包含在内。失败或取消的 Run 不会生成 Environment。
+
 ## 隔离与资源
 
 打包节点固定使用 `runsc` 作为隔离边界。资源 request/limit 与命名空间配额和准入共同生效；模型见[运行时与资源](/zh-cn/architecture/resources/)，查看准入拒绝见 [环境、命名空间与配额](/zh-cn/guides/environments/)。

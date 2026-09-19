@@ -10,6 +10,7 @@ import (
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -96,6 +97,8 @@ func (r *reconciler) reconcileClaimedAllocation(ctx context.Context, item alloca
 	timeout := allocationkernel.LifecycleOperationTimeout
 	if allocationkernel.ReconcileIntentForLifecycle(item.LifecycleState) == allocationkernel.ReconcileIntentEnsurePresent {
 		timeout = allocationkernel.CreateExecutionTimeout
+	} else if item.RootfsSnapshotRequested {
+		timeout = allocationkernel.RootfsSnapshotOperationTimeout
 	}
 	itemCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -180,13 +183,54 @@ func (r *reconciler) reconcileStart(ctx context.Context, item allocationkernel.R
 }
 
 func (r *reconciler) reconcileDeleteRetry(ctx context.Context, item allocationkernel.ReconcileItem) error {
-	err := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest())
+	if item.LifecycleState == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
+		if err := r.lifecycle.AcknowledgeAllocationRelease(ctx, item.NodeTarget, item.AllocationID, item.NodeID); err != nil {
+			actionNow := r.now().UTC()
+			updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, err.Error(), actionNow), item.ClaimOwner, actionNow)
+			return claimedUpdateError(updated, scheduleErr)
+		}
+		return r.store.CompleteAllocationReleaseAcknowledgement(ctx, item.AllocationID, item.ClaimOwner, r.now().UTC())
+	}
+	snapshot, err := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest(), item.RootfsSnapshotSealingRequest())
 	if err != nil {
 		actionNow := r.now().UTC()
+		if item.RootfsSnapshotRequested && (rootfsSnapshotFailureIsPermanent(err) || (rootfsSnapshotPublicationRetry(err) && allocationkernel.RootfsSnapshotRetryExhausted(item.ReconcileAttempts))) {
+			if markErr := r.store.MarkRootfsSnapshotFailed(ctx, item.AllocationID, item.ClaimOwner, rootfsSnapshotFailureMessage(err), actionNow); markErr != nil {
+				return markErr
+			}
+			if _, cleanupErr := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest(), nil); cleanupErr != nil {
+				updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, cleanupErr.Error(), actionNow), item.ClaimOwner, actionNow)
+				return claimedUpdateError(updated, scheduleErr)
+			}
+			return r.store.CompleteAllocationRelease(ctx, item.AllocationID, item.ClaimOwner, nil, actionNow)
+		}
 		updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, err.Error(), actionNow), item.ClaimOwner, actionNow)
 		return claimedUpdateError(updated, scheduleErr)
 	}
-	return r.store.CompleteAllocationRelease(ctx, item.AllocationID, item.ClaimOwner, r.now().UTC())
+	return r.store.CompleteAllocationRelease(ctx, item.AllocationID, item.ClaimOwner, snapshot, r.now().UTC())
+}
+
+func rootfsSnapshotFailureIsPermanent(err error) bool {
+	switch grpcstatus.Code(err) {
+	case codes.FailedPrecondition, codes.InvalidArgument, codes.ResourceExhausted, codes.Unimplemented:
+		return true
+	default:
+		return false
+	}
+}
+
+func rootfsSnapshotPublicationRetry(err error) bool {
+	return grpcstatus.Code(err) == codes.Aborted
+}
+
+func rootfsSnapshotFailureMessage(err error) string {
+	if grpcstatus.Code(err) == codes.ResourceExhausted {
+		return "rootfs snapshot exceeds the node resource limit"
+	}
+	if rootfsSnapshotFailureIsPermanent(err) {
+		return "rootfs snapshot sealing contract is unavailable"
+	}
+	return "rootfs snapshot publication failed after bounded retries"
 }
 
 func claimedUpdateError(updated bool, err error) error {

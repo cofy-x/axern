@@ -33,7 +33,7 @@ A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metad
 
 ### Environment
 
-An Environment describes immutable execution input resolved from a template or digest-pinned image plus normalized policy. Run admission freezes the normalized source and resolved input; execution and recovery never depend on the continued existence of the reusable Environment row. Writable files, replicas, rollout state, services, and persistent volumes are not Environment properties.
+An Environment describes immutable execution input resolved from a template or digest-pinned image plus normalized policy. Run admission freezes the normalized source and resolved input; execution and recovery never depend on the continued existence of the reusable Environment row. A successful Run may request final rootfs sealing; the content-addressed result is published as another ordinary Environment rather than a Snapshot resource. Writable files, replicas, rollout state, services, and persistent volumes are not Environment properties.
 
 ### Run
 
@@ -46,6 +46,8 @@ PLACED -> STARTING -> RUNNING
 ```
 
 Terminal state is irreversible. Axern does not replace a failed Allocation underneath a Run; another execution is a new Run and Allocation.
+
+Rootfs sealing is an optional Run finalization result independent from workload status. It begins only after a successful primary workload, preserves the Run's terminal result, and resolves to `ready` with a new Environment or `failed` with a stable diagnostic. It never turns a failed or cancelled Run into a reusable image.
 
 ### Secret
 
@@ -108,6 +110,8 @@ Process, file, archive, terminal, SSH, and Tunnel are public Allocation capabili
 Run result is durable metadata: terminal status, exit-code knowledge, diagnostic, message, and usage. Stdout, stderr, and writable files remain node-local unless the immutable Run specification declares bounded outputs.
 
 Declared output sealing is a cleanup barrier, not an Artifact service. The node publishes one immutable, read-only manifest and retains available bytes for a bounded period; node-disk loss remains explicit, and the caller owns durable publication. Limits and recovery semantics are defined by the [storage lifetime contract](../architecture/storage-architecture.md).
+
+Rootfs sealing is a separate cleanup barrier for explicitly requested successful Runs. It exports the stopped Allocation's writable rootfs layer and combines it with the digest-pinned base into a content-addressed OCI image. Bind mounts, image mounts, Secret projections, kernel filesystems, processes, sockets, terminals, SSH, and Tunnel state are excluded. Controld atomically publishes the resulting ordinary Environment and Run snapshot result before acknowledging the node receipt. Axern stores no second snapshot identity or mutable workspace; registry retention and physical blob garbage collection remain operator policy.
 
 ## Fact Ownership
 

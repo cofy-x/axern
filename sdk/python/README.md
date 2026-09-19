@@ -359,4 +359,23 @@ with open("result.json", "wb") as destination:
 
 Declared output is retained on the Node for 15 minutes after cleanup starts. It survives axnoded restart, but not Node-disk loss, and must be copied to caller-owned durable storage. Limits are 16 paths, 64 MiB per file, 256 MiB per tar archive, and 256 MiB total. Missing, unsafe, wrong-kind, oversized, capture-failed, and node-unavailable results are explicit manifest states. This is not a persistent workspace, Artifact service, or object store.
 
+## Reusable Rootfs Environment
+
+Use a finite Run when successful preparation should become the immutable input for later fresh Allocations:
+
+```python
+prepared = client.create_run(
+    environment_id=base_environment_id,
+    argv=["/bin/sh", "-lc", "./compile.sh"],
+    rootfs_snapshot=True,
+)
+snapshot = client.wait_rootfs_snapshot(prepared.id, timeout=600)
+fresh = client.create_run(
+    environment_id=snapshot.environment_id,
+    argv=["./test.sh"],
+)
+```
+
+The result is a normal Environment backed by a content-addressed OCI image, not a separate Snapshot object. Only writable rootfs changes are captured; bind and image mounts, Secret projections, kernel filesystems, active processes, sockets, and sessions are excluded. Failed or cancelled Runs produce no Environment. `Sandbox` does not expose this option because its close path cancels the long-lived Run.
+
 stdout/stderr use the same node-local retention lifecycle and have a combined 64 MiB readable limit. Python `exec()` collects at most 1 MiB per stream while continuing to drain the RPC and reports truncation; use `exec_stream()` or `process()` for larger output. `Sandbox.close()` requests Run cancellation and reports cleanup failures, but does not wait for the durable terminal state; call `wait_run()` explicitly when terminal confirmation matters.

@@ -150,6 +150,7 @@ CREATE TABLE runs (
 	exit_code INTEGER,
 	diagnostic_code TEXT NOT NULL DEFAULT 'WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED',
 	message TEXT NOT NULL DEFAULT '',
+	rootfs_snapshot_result JSONB NOT NULL DEFAULT '{}'::jsonb,
 	CHECK (status IN (
 		'RUN_STATUS_PLACED',
 		'RUN_STATUS_STARTING',
@@ -163,6 +164,17 @@ CREATE TABLE runs (
 	CHECK (jsonb_typeof(environment_spec) = 'object'),
 	CHECK (jsonb_typeof(resolved_environment_spec) = 'object'),
 	CHECK (jsonb_typeof(labels) = 'object'),
+	CHECK (jsonb_typeof(rootfs_snapshot_result) = 'object'),
+	CHECK (
+		((config ? 'rootfsSnapshot') AND rootfs_snapshot_result->>'status' IN (
+			'ROOTFS_SNAPSHOT_STATUS_PENDING',
+			'ROOTFS_SNAPSHOT_STATUS_READY',
+			'ROOTFS_SNAPSHOT_STATUS_FAILED'
+		)) OR
+		((NOT (config ? 'rootfsSnapshot')) AND rootfs_snapshot_result = '{}'::jsonb)
+	),
+	CHECK (rootfs_snapshot_result->>'status' IS DISTINCT FROM 'ROOTFS_SNAPSHOT_STATUS_READY' OR status = 'RUN_STATUS_SUCCEEDED'),
+	CHECK (rootfs_snapshot_result->>'status' IS DISTINCT FROM 'ROOTFS_SNAPSHOT_STATUS_FAILED' OR status IN ('RUN_STATUS_SUCCEEDED', 'RUN_STATUS_FAILED', 'RUN_STATUS_CANCELLED')),
 	CHECK (updated_at >= created_at),
 	CHECK (exit_code IS NULL OR status IN ('RUN_STATUS_SUCCEEDED', 'RUN_STATUS_FAILED'))
 );

@@ -36,12 +36,28 @@ func TestBridgeUsesSeparateLifecycleTimeouts(t *testing.T) {
 	}
 }
 
+func TestBridgeDoesNotRecapSnapshotStreamingWithOrdinaryCleanupTimeout(t *testing.T) {
+	client := &captureLifecycleClient{}
+	bridge := New(client, Config{OperationTimeout: time.Second})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	wantDeadline, _ := ctx.Deadline()
+
+	if _, err := bridge.DeleteAllocation(ctx, "node-a:24010", "alloc-a", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{BaseImageRef: "registry.example/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}); err != nil {
+		t.Fatalf("DeleteAllocation() error = %v", err)
+	}
+	if !client.deleteHasDeadline || !client.deleteDeadline.Equal(wantDeadline) {
+		t.Fatalf("snapshot RPC deadline = %v (present=%t), want parent deadline %v", client.deleteDeadline, client.deleteHasDeadline, wantDeadline)
+	}
+}
+
 func TestBuildCreateAllocationRequest(t *testing.T) {
 	run := &runv1.Run{
 		AllocationID: "alloc-a",
 		Config: &commonv1.ExecutionConfig{
-			Argv: []string{"/bin/sh"},
-			Env:  map[string]string{"RUN": "true"},
+			Argv:           []string{"/bin/sh"},
+			Env:            map[string]string{"RUN": "true"},
+			RootfsSnapshot: &commonv1.RootfsSnapshot{},
 			DeclaredOutputs: []*commonv1.DeclaredOutput{{
 				Path: "/workspace/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff",
 			}},
@@ -81,6 +97,26 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	}
 	if got := req.GetConfig().GetDeclaredOutputs(); len(got) != 1 || got[0].GetPath() != "/workspace/output.patch" || got[0].GetFormat() != commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE || got[0].GetMediaType() != "text/x-diff" {
 		t.Fatalf("declared outputs were not preserved: %#v", got)
+	}
+	if req.GetConfig().GetRootfsSnapshot() == nil {
+		t.Fatal("rootfs snapshot contract was not preserved")
+	}
+}
+
+func TestBuildCreateAllocationRequestBindsImageRepositoryToResolvedDigest(t *testing.T) {
+	env := &environmentv1.Environment{
+		ID: "env-derived",
+		Spec: &environmentv1.EnvironmentSpec{Image: &environmentv1.EnvironmentImageSource{
+			Ref: "host.docker.internal:5001/axern/rootfs-snapshots:allocation-source",
+		}},
+		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{
+			Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		}},
+	}
+	req := buildCreateAllocationRequestFromParams(createAllocationRequestParams{Environment: env})
+	want := "host.docker.internal:5001/axern/rootfs-snapshots@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	if got := req.GetConfig().GetImageDescriptor(); got != want {
+		t.Fatalf("image descriptor = %q, want %q", got, want)
 	}
 }
 
@@ -285,8 +321,16 @@ func TestFormatCreateAllocationErrorExplainsReadonlyRootfsTarget(t *testing.T) {
 
 func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 	bridge := New(&captureLifecycleClient{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
-	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil); err != nil {
+	if _, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil, nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v, want nil for node not found", err)
+	}
+}
+
+func TestDeleteAllocationFailsSnapshotWhenNodeRecoveryStateIsMissing(t *testing.T) {
+	bridge := New(&captureLifecycleClient{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
+	_, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{BaseImageRef: "registry.example/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("DeleteAllocation() code = %s, want FailedPrecondition", grpcstatus.Code(err))
 	}
 }
 
@@ -295,7 +339,7 @@ func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	bridge := New(client, Config{})
 	declared := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE}}
 	expiresAt := time.Now().Add(time.Hour)
-	if err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", &allocationkernel.OutputSealing{ExpiresAt: expiresAt, Outputs: declared}); err != nil {
+	if _, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", &allocationkernel.OutputSealing{ExpiresAt: expiresAt, Outputs: declared}, nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
 	}
 	if client.lastDelete.GetTimeoutSeconds() != 10 {
@@ -306,6 +350,35 @@ func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	}
 	if got := client.lastDelete.GetOutputSealing().GetOutputs(); len(got) != 1 || got[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("delete declared outputs = %#v", got)
+	}
+}
+
+func TestDeleteAllocationResolvesSnapshotCredentialAndReturnsImmutableResult(t *testing.T) {
+	client := &captureLifecycleClient{deleteResp: &privatenodev1.DeleteAllocationResponse{RootfsSnapshot: &privatenodev1.RootfsSnapshotSealingResult{
+		ImageRef: "registry.example/snapshots@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		ImageDescriptor: &environmentv1.OciImageDescriptor{
+			Digest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		},
+		PlatformOS: "linux", PlatformArch: "amd64",
+	}}}
+	bridge := New(client, Config{RegistryCredentials: staticRegistryCredentialResolver{value: `{"auths":{"registry.example":{}}}`}})
+
+	result, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{
+		BaseImageRef:         "registry.example/base@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		RegistryCredentialID: "secret-registry",
+	})
+	if err != nil {
+		t.Fatalf("DeleteAllocation() error = %v", err)
+	}
+	request := client.lastDelete.GetRootfsSnapshotSealing()
+	if request.GetBaseImageRef() != "registry.example/base@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Fatalf("snapshot base = %q", request.GetBaseImageRef())
+	}
+	if request.GetBaseRegistryCredential().GetDockerConfigJson() == "" {
+		t.Fatal("snapshot registry credential was not resolved")
+	}
+	if result == nil || result.ImageRef != client.deleteResp.GetRootfsSnapshot().GetImageRef() {
+		t.Fatalf("snapshot result = %#v", result)
 	}
 }
 
@@ -330,12 +403,20 @@ func (stubSecretResolver) ResolveDockerConfigJSON(context.Context, string) (stri
 	return "", false, nil
 }
 
+type staticRegistryCredentialResolver struct{ value string }
+
+func (r staticRegistryCredentialResolver) ResolveDockerConfigJSON(context.Context, string) (string, bool, error) {
+	return r.value, true, nil
+}
+
 type captureLifecycleClient struct {
-	lastCreate *privatenodev1.CreateAllocationRequest
-	lastDelete *privatenodev1.DeleteAllocationRequest
-	deleteResp *privatenodev1.DeleteAllocationResponse
-	deleteErr  error
-	statusErr  error
+	lastCreate        *privatenodev1.CreateAllocationRequest
+	lastDelete        *privatenodev1.DeleteAllocationRequest
+	deleteResp        *privatenodev1.DeleteAllocationResponse
+	deleteErr         error
+	statusErr         error
+	deleteDeadline    time.Time
+	deleteHasDeadline bool
 }
 
 func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, req *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error) {
@@ -345,8 +426,9 @@ func (c *captureLifecycleClient) CreateAllocation(_ context.Context, _ string, r
 	}, nil
 }
 
-func (c *captureLifecycleClient) DeleteAllocation(_ context.Context, _ string, req *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error) {
+func (c *captureLifecycleClient) DeleteAllocation(ctx context.Context, _ string, req *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error) {
 	c.lastDelete = proto.Clone(req).(*privatenodev1.DeleteAllocationRequest)
+	c.deleteDeadline, c.deleteHasDeadline = ctx.Deadline()
 	if c.deleteErr != nil {
 		return nil, c.deleteErr
 	}
@@ -354,6 +436,10 @@ func (c *captureLifecycleClient) DeleteAllocation(_ context.Context, _ string, r
 		return proto.Clone(c.deleteResp).(*privatenodev1.DeleteAllocationResponse), nil
 	}
 	return &privatenodev1.DeleteAllocationResponse{}, nil
+}
+
+func (c *captureLifecycleClient) AcknowledgeAllocationRelease(context.Context, string, *privatenodev1.AcknowledgeAllocationReleaseRequest) (*privatenodev1.AcknowledgeAllocationReleaseResponse, error) {
+	return &privatenodev1.AcknowledgeAllocationReleaseResponse{}, nil
 }
 
 func (c *captureLifecycleClient) GetAllocationLifecycle(context.Context, string, *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error) {

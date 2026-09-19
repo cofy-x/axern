@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -64,8 +66,53 @@ func startAPIOperation(request *http.Request, spanName, operation string, attrs 
 	return op, request.WithContext(ctx)
 }
 
+func rootfsSnapshotHTTPStatus(err error) int {
+	if errors.Is(err, errRootfsSnapshotLayerTooLarge) {
+		return http.StatusRequestEntityTooLarge
+	}
+	var requestErr *RootfsSnapshotRequestError
+	if errors.As(err, &requestErr) {
+		return http.StatusBadRequest
+	}
+	return http.StatusInternalServerError
+}
+
 func (w *HttpWorker) prepareHttp() *http.ServeMux {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/rootfs_snapshot", func(writer http.ResponseWriter, request *http.Request) {
+		if !requireMethod(writer, request, http.MethodPost, "rootfs_snapshot only supports post method") {
+			return
+		}
+		multipartReader, err := request.MultipartReader()
+		if err != nil {
+			writeText(writer, http.StatusBadRequest, "rootfs_snapshot requires multipart metadata and upper_layer parts")
+			return
+		}
+		metadataPart, err := multipartReader.NextPart()
+		if err != nil || metadataPart.FormName() != "metadata" {
+			writeText(writer, http.StatusBadRequest, "rootfs_snapshot metadata part is required first")
+			return
+		}
+		var snapshotRequest RootfsSnapshotRequest
+		metadata := io.LimitReader(metadataPart, 1<<20)
+		if err := json.NewDecoder(metadata).Decode(&snapshotRequest); err != nil {
+			writeText(writer, http.StatusBadRequest, "invalid rootfs_snapshot metadata")
+			return
+		}
+		upperPart, err := multipartReader.NextPart()
+		if err != nil || upperPart.FormName() != "upper_layer" {
+			writeText(writer, http.StatusBadRequest, "rootfs_snapshot upper_layer part is required second")
+			return
+		}
+		start := time.Now()
+		response, err := w.SnapshotRootfs(request.Context(), snapshotRequest, upperPart)
+		logAPICall("rootfs_snapshot", start, err)
+		if err != nil {
+			writeText(writer, rootfsSnapshotHTTPStatus(err), fmt.Sprintf("failed to snapshot rootfs: %s", err))
+			return
+		}
+		writeJSON(writer, http.StatusOK, response)
+	})
 	mux.HandleFunc("/nydus_mount", func(writer http.ResponseWriter, request *http.Request) {
 		if !requireMethod(writer, request, http.MethodPost, "nydus_mount only supports post method") {
 			return

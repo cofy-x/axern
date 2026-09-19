@@ -33,6 +33,18 @@ type RunJSON struct {
 	DiagnosticCode          string                       `json:"diagnostic_code,omitempty"`
 	Message                 string                       `json:"message,omitempty"`
 	CapabilityConditions    *CapabilityConditionSetJSON  `json:"capability_conditions,omitempty"`
+	RootfsSnapshot          *RootfsSnapshotResultJSON    `json:"rootfs_snapshot,omitempty"`
+}
+
+type RootfsSnapshotResultJSON struct {
+	Status          string `json:"status"`
+	EnvironmentID   string `json:"environment_id,omitempty"`
+	ImageRef        string `json:"image_ref,omitempty"`
+	Digest          string `json:"digest,omitempty"`
+	PlatformOS      string `json:"platform_os,omitempty"`
+	PlatformArch    string `json:"platform_arch,omitempty"`
+	PlatformVariant string `json:"platform_variant,omitempty"`
+	Message         string `json:"message,omitempty"`
 }
 
 func PrintRunListJSON(w io.Writer, resp *runv1.ListRunsResponse) error {
@@ -76,5 +88,13 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 		DiagnosticCode:          diagnosticCode,
 		Message:                 run.GetMessage(),
 		CapabilityConditions:    newCapabilityConditionSetJSON(run.GetCapabilityConditions()),
+		RootfsSnapshot:          newRootfsSnapshotResultJSON(run.GetRootfsSnapshot()),
 	}
+}
+
+func newRootfsSnapshotResultJSON(result *runv1.RootfsSnapshotResult) *RootfsSnapshotResultJSON {
+	if result == nil {
+		return nil
+	}
+	return &RootfsSnapshotResultJSON{Status: result.GetStatus().String(), EnvironmentID: result.GetEnvironmentID(), ImageRef: result.GetImageRef(), Digest: result.GetImageDescriptor().GetDigest(), PlatformOS: result.GetPlatformOS(), PlatformArch: result.GetPlatformArch(), PlatformVariant: result.GetPlatformVariant(), Message: result.GetMessage()}
 }

@@ -21,6 +21,7 @@ type RequirementInput struct {
 	RootfsWritable                  bool
 	EphemeralStorageLimitBytes      int64
 	EROFSBacking                    bool
+	RootfsSnapshot                  bool
 	ExtensionCapabilityRequests     []*capabilityv1.ExtensionCapabilityRequirement
 }
 
@@ -79,6 +80,9 @@ func deriveRequirements(input RequirementInput, deferNetworkBackend bool) ([]*ca
 	}
 	if input.EROFSBacking {
 		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_LOWER_EROFS))
+	}
+	if input.RootfsSnapshot {
+		keys = append(keys, PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT))
 	}
 	for _, requirement := range input.ExtensionCapabilityRequests {
 		capability := requirement.GetCapability()

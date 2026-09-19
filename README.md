@@ -69,7 +69,7 @@ For repository development, `make verify-changed` is the normal fast feedback en
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
 - **Evaluation and synthesis batches:** execute isolated work concurrently through Runs, with explicit inputs, outputs, and lifecycle evidence.
-- **SDK-driven execution:** use a released SDK to create Runs, operate their Allocations, seal bounded declared outputs, and recover by public resource identity.
+- **SDK-driven execution:** use a released SDK to create Runs, operate their Allocations, seal bounded declared outputs, publish a successful writable rootfs as a reusable Environment, and recover by public resource identity.
 
 ## Why Axern
 
@@ -93,7 +93,7 @@ flowchart LR
     Node --> Runtime["runsc sandboxes"]
 ```
 
-`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before their 15-minute expiry. This is not a persistent workspace or object store. See the [storage architecture](./docs/architecture/storage-architecture.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
+`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before their 15-minute expiry. A successful finite Run may separately publish its complete writable rootfs as a content-addressed OCI image and ordinary reusable Environment. Neither path creates a persistent workspace or generic object store. See the [storage architecture](./docs/architecture/storage-architecture.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
 
 Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md). Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
 

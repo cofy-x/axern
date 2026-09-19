@@ -99,6 +99,7 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		providers = append(providers, configCapabilityProvider(extensions))
 	}
 	providers = append(providers,
+		rootfsSnapshotCapabilityProvider(cfg),
 		networkCapabilityProvider(cfg, h.egressClient),
 		cgroupCapabilityProvider(cfg, cgroupRoot, bootID, bootErr),
 		filestoreCapabilityProvider(cfg, bootID, bootErr),
@@ -115,6 +116,20 @@ func (h *sandboxService) newObservedCapabilityManager(cgroupRoot string) (*nodec
 		return nil, fmt.Errorf("validate capability provider contract coverage: %w", err)
 	}
 	return nodecapabilitymanager.NewManager(providers...)
+}
+
+func rootfsSnapshotCapabilityProvider(cfg config.Config) nodecapabilitymanager.Provider {
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT)
+	return observedProvider{
+		provider: capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG,
+		expected: []*capabilityv1.CapabilityKey{key},
+		observe: func(context.Context, time.Time) ([]*capabilityv1.CapabilityObservation, error) {
+			if !cfg.PluginConfig.RuntimeConfig.ImageManagerEnabledValue() || strings.TrimSpace(cfg.PluginConfig.RuntimeConfig.RootfsSnapshotRepository) == "" {
+				return []*capabilityv1.CapabilityObservation{failedObservation(key, nil, capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DISABLED, "rootfs snapshot repository is not configured")}, nil
+			}
+			return []*capabilityv1.CapabilityObservation{availableObservation(key, nil)}, nil
+		},
+	}
 }
 
 func configCapabilityProvider(extensions []*capabilityv1.ExtensionCapability) nodecapabilitymanager.Provider {

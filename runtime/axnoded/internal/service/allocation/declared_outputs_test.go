@@ -43,7 +43,7 @@ func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *te
 	if err := fixture.controller.StoreAllocationIntent(
 		"allocation-output-contract", "node-a",
 		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		time.Now().Add(time.Minute), nil, nil, local,
+		time.Now().Add(time.Minute), nil, nil, local, nil,
 	); err != nil {
 		t.Fatal(err)
 	}
@@ -72,7 +72,7 @@ func TestCleanupDeclaredOutputsUsesAuthoritativeContractAndRejectsConflict(t *te
 	if err := fixture.controller.StoreAllocationIntent(
 		"allocation-zero-outputs", "node-a",
 		"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		time.Now().Add(time.Minute), nil, nil, nil,
+		time.Now().Add(time.Minute), nil, nil, nil, nil,
 	); err != nil {
 		t.Fatal(err)
 	}

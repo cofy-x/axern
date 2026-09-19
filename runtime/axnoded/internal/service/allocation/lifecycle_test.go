@@ -194,7 +194,7 @@ func TestDeleteStopsWorkloadBeforeSealingAndDeletesRuntimeAfterBarrier(t *testin
 	require.NoError(t, fixture.controller.StoreAllocationIntent(
 		allocationID, "node-a",
 		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-		time.Now().Add(time.Minute), nil, nil, []*commonv1.DeclaredOutput{declaration},
+		time.Now().Add(time.Minute), nil, nil, []*commonv1.DeclaredOutput{declaration}, nil,
 	))
 	writeContainerSpecFile(t, fixture.controller.config.RootDir, allocationID, nil)
 	require.NoError(t, fixture.manager.StoreMetadata(allocationID, &apipb.ContainerMetadata{}))

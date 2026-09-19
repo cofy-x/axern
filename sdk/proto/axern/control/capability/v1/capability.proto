@@ -27,6 +27,9 @@ enum PlatformCapability {
   // Workload-facing capabilities derived from the egressd self-test facts.
   PLATFORM_CAPABILITY_DNS_POLICY_ENFORCEMENT = 12;
   PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT = 13;
+  // The node can export a stopped runsc writable layer and publish an
+  // immutable OCI image to the configured platform snapshot repository.
+  PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT = 14;
 }
 
 message ExtensionCapability {

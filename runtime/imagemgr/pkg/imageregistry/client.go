@@ -138,6 +138,32 @@ func (c *Client) FetchImageDirectWithDockerConfigJSON(ctx context.Context, image
 	return c.fetchImage(ctx, normalized, c.useHTTPFor(normalized), keychain, c.getOrCreateTransport(registryRouteDirect, ""))
 }
 
+// WriteImageDirect publishes an immutable image through the platform registry
+// credentials. Snapshot publication deliberately bypasses pull mirrors and
+// forward proxies because those routes are not authoritative write targets.
+func (c *Client) WriteImageDirect(ctx context.Context, imageRef string, image v1.Image) error {
+	if c == nil || image == nil {
+		return fmt.Errorf("registry client and image are required")
+	}
+	normalized := NormalizeImageRef(imageRef)
+	opts := []name.Option{}
+	if c.useHTTPFor(normalized) {
+		opts = append(opts, name.Insecure)
+	}
+	ref, err := name.ParseReference(normalized, opts...)
+	if err != nil {
+		return fmt.Errorf("parse image reference %s: %w", normalized, err)
+	}
+	if err := remote.Write(ref, image,
+		remote.WithAuthFromKeychain(c.keychain),
+		remote.WithTransport(c.getOrCreateTransport(registryRouteDirect, "")),
+		remote.WithContext(ctx),
+	); err != nil {
+		return fmt.Errorf("publish image %s: %w", normalized, err)
+	}
+	return nil
+}
+
 func (c *Client) fetchImageWithFallback(ctx context.Context, imageRef, proxyURL string, keychain authn.Keychain) (v1.Image, error) {
 	if c.useHTTPFor(imageRef) {
 		return c.fetchImage(ctx, imageRef, true, keychain, c.getOrCreateTransport(registryRouteDirect, ""))

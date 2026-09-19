@@ -58,6 +58,7 @@ type CreateRunOptions struct {
 	LimitMemory             ResourceQuantity
 	LimitEphemeralStorage   ResourceQuantity
 	DeclaredOutputs         []DeclaredOutput
+	RootfsSnapshot          bool
 	Labels                  map[string]string
 }
 
@@ -88,6 +89,10 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 	if err != nil {
 		return nil, err
 	}
+	var rootfsSnapshot *commonv1.RootfsSnapshot
+	if options.RootfsSnapshot {
+		rootfsSnapshot = &commonv1.RootfsSnapshot{}
+	}
 	response, err := c.runs.CreateRun(ctx, &runv1.CreateRunRequest{
 		Namespace:     defaultString(options.Namespace, "default"),
 		EnvironmentID: options.EnvironmentID,
@@ -100,6 +105,7 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 			ImageMounts:                     executionImageMounts(options.ImageMounts),
 			Resources:                       resources,
 			DeclaredOutputs:                 declaredOutputProtos(options.DeclaredOutputs),
+			RootfsSnapshot:                  rootfsSnapshot,
 		},
 		Labels: cloneMap(options.Labels),
 	})
@@ -107,6 +113,46 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 		return nil, mapRPCError(err, "create run", "")
 	}
 	return response.GetRun(), nil
+}
+
+func (c *Client) WaitRootfsSnapshot(ctx context.Context, runID string) (*runv1.RootfsSnapshotResult, error) {
+	run, err := c.GetRun(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	result, done, err := rootfsSnapshotWaitResult(runID, run)
+	if done {
+		return result, err
+	}
+	watch, err := c.WatchRun(ctx, runID, run.GetVersion())
+	if err != nil {
+		return nil, err
+	}
+	for {
+		run, err = watch.Recv()
+		if err != nil {
+			return nil, err
+		}
+		result, done, err = rootfsSnapshotWaitResult(runID, run)
+		if done {
+			return result, err
+		}
+	}
+}
+
+func rootfsSnapshotWaitResult(runID string, run *runv1.Run) (*runv1.RootfsSnapshotResult, bool, error) {
+	result := run.GetRootfsSnapshot()
+	if result == nil {
+		return nil, true, fmt.Errorf("run %s did not request a rootfs snapshot", runID)
+	}
+	switch result.GetStatus() {
+	case runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_READY:
+		return result, true, nil
+	case runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_FAILED:
+		return nil, true, fmt.Errorf("run %s rootfs snapshot failed: %s", runID, result.GetMessage())
+	default:
+		return nil, false, nil
+	}
 }
 
 func declaredOutputProtos(outputs []DeclaredOutput) []*commonv1.DeclaredOutput {

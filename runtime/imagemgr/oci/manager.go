@@ -85,6 +85,15 @@ type imageLockEntry struct {
 	refs int
 }
 
+// Root returns imagemgr's private OCI state root for bounded staging owned by
+// the same process. It is never exposed across the Unix-socket API.
+func (m *Manager) Root() string {
+	if m == nil {
+		return ""
+	}
+	return m.root
+}
+
 // ContainerInfo stores mount-related information.
 type ContainerInfo struct {
 	MountID      string

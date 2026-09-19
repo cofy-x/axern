@@ -60,6 +60,16 @@ The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-
 
 Run status is durable. Allocation-local stdout/stderr and explicitly declared files or directory-as-tar outputs remain readable for 15 minutes after cleanup begins. The node quiesces the Allocation and atomically publishes the manifest before runtime deletion. Node-process restart preserves sealed bytes; node-disk loss does not. Declared-output limits are 16 paths, 64 MiB per file, 256 MiB per tar, and 256 MiB total. Missing, rejected, capture-failed, and node-unavailable states are explicit. Durable publication remains the caller's responsibility.
 
+## Reuse a successfully prepared rootfs
+
+Use `--snapshot-rootfs` on a finite Run when later Runs must start from its complete post-workload writable rootfs:
+
+```bash
+axern run --snapshot-rootfs --environment <base-environment-id> -- /bin/sh -lc './compile.sh'
+```
+
+The attached CLI waits for the separate snapshot finalization and prints the new Environment ID. A detached caller can inspect `axern run get <run-id>` or use the SDK wait helper. The result is a normal immutable Environment, not a Snapshot resource. Every later Run receives an independent copy-on-write Allocation. Bind and image mounts, Secret projections, kernel filesystems, active processes, sockets, Terminal, SSH, and Tunnel state are excluded. Failed or cancelled Runs produce no Environment.
+
 ## Isolation and resources
 
 Packaged nodes use `runsc` as the fixed isolation boundary. Resource requests and limits interact with namespace quota and admission; see [Runtime and Resources](/architecture/resources/) for the model and [Environments, Namespaces, and Quota](/guides/environments/) for inspecting admission rejections.

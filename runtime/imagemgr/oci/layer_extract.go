@@ -29,6 +29,19 @@ func (m *Manager) fetchImage(ctx context.Context, imageURL, dockerConfigJSON str
 	return m.fetchImageWithCacheKey(ctx, imageURL, dockerConfigJSON, "")
 }
 
+// ResolveImage returns the exact image content selected by imageURL. It uses a
+// retained node-local import when available and otherwise resolves through the
+// configured registry. Callers that derive new image content must share this
+// path with runtime mounts so local and registry-backed execution have the
+// same immutable base.
+func (m *Manager) ResolveImage(ctx context.Context, imageURL, dockerConfigJSON string) (v1.Image, error) {
+	_, cacheKey, _, err := m.ResolveImageCacheKey(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("resolve image cache key: %w", err)
+	}
+	return m.fetchImageWithCacheKey(ctx, imageURL, dockerConfigJSON, cacheKey)
+}
+
 func (m *Manager) fetchImageWithCacheKey(ctx context.Context, imageURL, dockerConfigJSON, cacheKey string) (v1.Image, error) {
 	if img, ok, err := m.importedImage(ctx, imageURL, cacheKey); err != nil {
 		return nil, err

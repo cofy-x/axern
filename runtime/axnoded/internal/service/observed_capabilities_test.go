@@ -43,6 +43,30 @@ func TestConfigCapabilityProviderPublishesOnlyExtensionFacts(t *testing.T) {
 	}
 }
 
+func TestRootfsSnapshotCapabilityRequiresImagemgrAndRepository(t *testing.T) {
+	disabled := false
+	for _, test := range []struct {
+		name      string
+		config    config.Config
+		available bool
+	}{
+		{name: "repository absent", config: config.DefaultConfig()},
+		{name: "imagemgr disabled", config: config.Config{PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{ImageManagerEnabled: &disabled, RootfsSnapshotRepository: "registry.example/snapshots"}}}},
+		{name: "configured", config: config.Config{PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{RootfsSnapshotRepository: "registry.example/snapshots"}}}, available: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			observations, err := rootfsSnapshotCapabilityProvider(test.config).Observe(context.Background(), time.Now().UTC())
+			if err != nil {
+				t.Fatal(err)
+			}
+			got := len(observations) == 1 && observations[0].GetState() == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE
+			if got != test.available {
+				t.Fatalf("available = %t, want %t: %#v", got, test.available, observations)
+			}
+		})
+	}
+}
+
 type observedNetworkManager struct{ health networkmanager.Health }
 
 func (m observedNetworkManager) ProbeHealth(string) (networkmanager.Health, error) {

@@ -116,6 +116,8 @@ spec:
               value: {{ .Values.node.runtime.idleRetentionTTL | quote }}
             - name: AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX
               value: {{ .Values.node.runtime.idleRetentionMax | quote }}
+            - name: AXNODED_ROOTFS_SNAPSHOT_REPOSITORY
+              value: {{ .Values.node.runtime.rootfsSnapshotRepository | quote }}
             - name: AXNODED_MEMORY_SYSTEM_RESERVE_BYTES
               value: {{ $memorySystemReserve | quote }}
             - name: AXNODED_CONTROL_PLANE_NODE_RESOURCE_SOURCE

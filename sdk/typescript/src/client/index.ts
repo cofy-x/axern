@@ -54,6 +54,7 @@ export interface CreateRunOptions {
   limitMemory?: ResourceQuantity;
   limitEphemeralStorage?: ResourceQuantity;
   declaredOutputs?: readonly DeclaredOutput[];
+  rootfsSnapshot?: boolean;
   labels?: Record<string, string>;
 }
 
@@ -76,6 +77,17 @@ export interface SealedOutput {
   reason: string;
   sealedAt?: Record<string, unknown>;
   expiresAt?: Record<string, unknown>;
+}
+
+export interface RootfsSnapshotResult {
+  status: number;
+  environment_id?: string;
+  image_ref?: string;
+  image_descriptor?: Record<string, unknown>;
+  platform_os?: string;
+  platform_arch?: string;
+  platform_variant?: string;
+  message?: string;
 }
 
 export interface ListOptions {
@@ -267,6 +279,7 @@ export class AxernClient {
               format: output.format === "file" ? 1 : 2,
               media_type: output.mediaType ?? "",
             })),
+            ...(options.rootfsSnapshot ? { rootfs_snapshot: {} } : {}),
             resources,
           },
           labels: options.labels ?? {},
@@ -318,6 +331,32 @@ export class AxernClient {
     }
     if (controller.signal.aborted) throw new SandboxTimeoutError(`run ${runId} wait timed out`);
     throw new SandboxStateError(`run ${runId} watch ended before a terminal state`);
+  }
+
+  async waitRootfsSnapshot(runId: string, timeoutMs?: number): Promise<RootfsSnapshotResult> {
+    const run = await this.getRun(runId);
+    const controller = new AbortController();
+    const timer = timeoutMs === undefined ? undefined : setTimeout(() => controller.abort(), timeoutMs);
+    const result = (current: Record<string, unknown>): RootfsSnapshotResult | undefined => {
+      const snapshot = current.rootfs_snapshot as RootfsSnapshotResult | undefined;
+      if (snapshot === undefined) throw new SandboxStateError(`run ${runId} did not request a rootfs snapshot`);
+      const status = Number(snapshot.status ?? 0);
+      if (status === 2) return snapshot;
+      if (status === 3) throw new SandboxStateError(`run ${runId} rootfs snapshot failed: ${String(snapshot.message ?? "")}`);
+      return undefined;
+    };
+    try {
+      const initial = result(run);
+      if (initial !== undefined) return initial;
+      for await (const updated of this.watchRun(runId, { afterVersion: Number(run.version ?? 0), signal: controller.signal })) {
+        const snapshot = result(updated);
+        if (snapshot !== undefined) return snapshot;
+      }
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
+    if (controller.signal.aborted) throw new SandboxTimeoutError(`run ${runId} rootfs snapshot wait timed out`);
+    throw new SandboxStateError(`run ${runId} watch ended before the rootfs snapshot was finalized`);
   }
 
   async cancelRun(runId: string): Promise<void> {

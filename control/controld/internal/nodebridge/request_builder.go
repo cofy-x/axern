@@ -7,6 +7,7 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	privatenodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
+	"github.com/cofy-x/axern/lib/go/imageref"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -45,7 +46,7 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 	out := &privatenodev1.ResolvedExecutionConfig{
 		EnvironmentID:                   params.Environment.GetID(),
 		ImageDigest:                     resolvedSpec.GetImageDescriptor().GetDigest(),
-		ImageDescriptor:                 imageDescriptorRef(resolvedSpec.GetImageDescriptor()),
+		ImageDescriptor:                 imageDescriptorRef(params.Environment),
 		Argv:                            resolveExecutionArgv(cfg.GetArgv()),
 		Cwd:                             resolveExecutionCwd(cfg.GetCwd()),
 		Env:                             mergeStringMaps(resolvedSpec.GetDefaultEnv(), cfg.GetEnv()),
@@ -60,6 +61,7 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		ImageMounts:                     cloneImageMounts(cfg.GetImageMounts()),
 		CapabilityRequirements:          cloneCapabilityRequirements(params.CapabilityRequirements),
 		DeclaredOutputs:                 cloneDeclaredOutputs(cfg.GetDeclaredOutputs()),
+		RootfsSnapshot:                  cloneRootfsSnapshot(cfg.GetRootfsSnapshot()),
 	}
 	if strings.TrimSpace(params.ResolvedSecrets.DockerConfigJSON) != "" {
 		out.RegistryCredential = &privatenodev1.RegistryCredential{DockerConfigJson: params.ResolvedSecrets.DockerConfigJSON}
@@ -76,6 +78,13 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		})
 	}
 	return out
+}
+
+func cloneRootfsSnapshot(in *commonv1.RootfsSnapshot) *commonv1.RootfsSnapshot {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*commonv1.RootfsSnapshot)
 }
 
 func cloneDeclaredOutputs(in []*commonv1.DeclaredOutput) []*commonv1.DeclaredOutput {
@@ -106,12 +115,26 @@ func configOrEmpty(config *commonv1.ExecutionConfig) *commonv1.ExecutionConfig {
 	return config
 }
 
-func imageDescriptorRef(desc *environmentv1.OciImageDescriptor) string {
+func imageDescriptorRef(environment *environmentv1.Environment) string {
+	desc := environment.GetResolvedSpec().GetImageDescriptor()
 	if desc == nil {
 		return ""
 	}
+	// Image-backed Environments retain the caller-visible repository in their
+	// immutable specification and the resolved content identity in the OCI
+	// descriptor. Bind those two facts here before crossing the node boundary;
+	// a bare digest has no registry/repository context and must never be guessed
+	// by the node.
+	if ref := strings.TrimSpace(environment.GetSpec().GetImage().GetRef()); ref != "" {
+		if immutable, err := imageref.WithDigest(ref, desc.GetDigest()); err == nil {
+			return immutable
+		}
+	}
 	for _, key := range []string{"org.opencontainers.image.ref.name", "io.axern.image.ref"} {
 		if ref := strings.TrimSpace(desc.GetAnnotations()[key]); ref != "" {
+			if immutable, err := imageref.WithDigest(ref, desc.GetDigest()); err == nil {
+				return immutable
+			}
 			return ref
 		}
 	}

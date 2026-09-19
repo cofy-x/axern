@@ -17,8 +17,19 @@ import (
 type LifecycleClient interface {
 	CreateAllocation(context.Context, string, *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error)
 	DeleteAllocation(context.Context, string, *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error)
+	AcknowledgeAllocationRelease(context.Context, string, *privatenodev1.AcknowledgeAllocationReleaseRequest) (*privatenodev1.AcknowledgeAllocationReleaseResponse, error)
 	GetAllocationLifecycle(context.Context, string, *privatenodev1.GetAllocationLifecycleRequest) (*privatenodev1.GetAllocationLifecycleResponse, error)
 	Close() error
+}
+
+func (c *GRPCClient) AcknowledgeAllocationRelease(ctx context.Context, target string, req *privatenodev1.AcknowledgeAllocationReleaseRequest) (*privatenodev1.AcknowledgeAllocationReleaseResponse, error) {
+	client, conn, err := c.clientConn(ctx, target, req.GetNodeID())
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.AcknowledgeAllocationRelease(ctx, req)
+	c.discardRecoverableConn(nodeEndpoint{target, req.GetNodeID()}, conn, err)
+	return resp, err
 }
 
 const idempotentRPCAttempts = 2

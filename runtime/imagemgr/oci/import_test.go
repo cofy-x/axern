@@ -191,6 +191,32 @@ func TestImportImageCanonicalizesDockerHubRef(t *testing.T) {
 	}
 }
 
+func TestResolveImageUsesImportedImmutableContent(t *testing.T) {
+	mgr := newTestManager(t)
+	defer mgr.store.close()
+
+	const imageRef = "example.local/snapshot-base:dev"
+	result, err := mgr.ImportImageArchive(t.Context(), imageRef, writeMountableDockerArchive(t, imageRef))
+	if err != nil {
+		t.Fatal(err)
+	}
+	immutable, err := ImmutableImageRef(result.ImageURL, result.ContentDigest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	image, err := mgr.ResolveImage(t.Context(), immutable, "")
+	if err != nil {
+		t.Fatalf("ResolveImage() error = %v", err)
+	}
+	digest, err := image.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if digest.String() != result.ContentDigest {
+		t.Fatalf("resolved digest = %q, want %q", digest, result.ContentDigest)
+	}
+}
+
 func TestResolveImportedImageCacheKeyRejectsMissingContent(t *testing.T) {
 	mgr := newTestManager(t)
 	defer mgr.store.close()

@@ -22,6 +22,13 @@ class RunStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     RUN_STATUS_SUCCEEDED: _ClassVar[RunStatus]
     RUN_STATUS_FAILED: _ClassVar[RunStatus]
     RUN_STATUS_CANCELLED: _ClassVar[RunStatus]
+
+class RootfsSnapshotStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    ROOTFS_SNAPSHOT_STATUS_UNSPECIFIED: _ClassVar[RootfsSnapshotStatus]
+    ROOTFS_SNAPSHOT_STATUS_PENDING: _ClassVar[RootfsSnapshotStatus]
+    ROOTFS_SNAPSHOT_STATUS_READY: _ClassVar[RootfsSnapshotStatus]
+    ROOTFS_SNAPSHOT_STATUS_FAILED: _ClassVar[RootfsSnapshotStatus]
 RUN_STATUS_UNSPECIFIED: RunStatus
 RUN_STATUS_PLACED: RunStatus
 RUN_STATUS_STARTING: RunStatus
@@ -29,9 +36,33 @@ RUN_STATUS_RUNNING: RunStatus
 RUN_STATUS_SUCCEEDED: RunStatus
 RUN_STATUS_FAILED: RunStatus
 RUN_STATUS_CANCELLED: RunStatus
+ROOTFS_SNAPSHOT_STATUS_UNSPECIFIED: RootfsSnapshotStatus
+ROOTFS_SNAPSHOT_STATUS_PENDING: RootfsSnapshotStatus
+ROOTFS_SNAPSHOT_STATUS_READY: RootfsSnapshotStatus
+ROOTFS_SNAPSHOT_STATUS_FAILED: RootfsSnapshotStatus
+
+class RootfsSnapshotResult(_message.Message):
+    __slots__ = ("status", "environment_id", "image_ref", "image_descriptor", "platform_os", "platform_arch", "platform_variant", "message")
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
+    IMAGE_REF_FIELD_NUMBER: _ClassVar[int]
+    IMAGE_DESCRIPTOR_FIELD_NUMBER: _ClassVar[int]
+    PLATFORM_OS_FIELD_NUMBER: _ClassVar[int]
+    PLATFORM_ARCH_FIELD_NUMBER: _ClassVar[int]
+    PLATFORM_VARIANT_FIELD_NUMBER: _ClassVar[int]
+    MESSAGE_FIELD_NUMBER: _ClassVar[int]
+    status: RootfsSnapshotStatus
+    environment_id: str
+    image_ref: str
+    image_descriptor: _environment_pb2.OciImageDescriptor
+    platform_os: str
+    platform_arch: str
+    platform_variant: str
+    message: str
+    def __init__(self, status: _Optional[_Union[RootfsSnapshotStatus, str]] = ..., environment_id: _Optional[str] = ..., image_ref: _Optional[str] = ..., image_descriptor: _Optional[_Union[_environment_pb2.OciImageDescriptor, _Mapping]] = ..., platform_os: _Optional[str] = ..., platform_arch: _Optional[str] = ..., platform_variant: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
 class Run(_message.Message):
-    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "message", "diagnostic_code", "capability_conditions", "environment_spec", "resolved_environment_spec", "output_expires_at")
+    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "message", "diagnostic_code", "capability_conditions", "environment_spec", "resolved_environment_spec", "output_expires_at", "rootfs_snapshot")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -56,6 +87,7 @@ class Run(_message.Message):
     ENVIRONMENT_SPEC_FIELD_NUMBER: _ClassVar[int]
     RESOLVED_ENVIRONMENT_SPEC_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
+    ROOTFS_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
     environment_id: str
@@ -73,7 +105,8 @@ class Run(_message.Message):
     environment_spec: _environment_pb2.EnvironmentSpec
     resolved_environment_spec: _environment_pb2.ResolvedEnvironmentSpec
     output_expires_at: _timestamp_pb2.Timestamp
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., environment_spec: _Optional[_Union[_environment_pb2.EnvironmentSpec, _Mapping]] = ..., resolved_environment_spec: _Optional[_Union[_environment_pb2.ResolvedEnvironmentSpec, _Mapping]] = ..., output_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ...) -> None: ...
+    rootfs_snapshot: RootfsSnapshotResult
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., environment_spec: _Optional[_Union[_environment_pb2.EnvironmentSpec, _Mapping]] = ..., resolved_environment_spec: _Optional[_Union[_environment_pb2.ResolvedEnvironmentSpec, _Mapping]] = ..., output_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., rootfs_snapshot: _Optional[_Union[RootfsSnapshotResult, _Mapping]] = ...) -> None: ...
 
 class RunListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")

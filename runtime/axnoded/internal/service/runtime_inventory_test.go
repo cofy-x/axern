@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,9 +43,7 @@ func (h inventoryTestHandler) DeleteContainer(_ context.Context, _ *runtimeapi.D
 
 func runtimeInventoryTestService(t *testing.T, handler contract.SandboxRuntime) *sandboxService {
 	t.Helper()
-	manager, err := container.NewManager(t.TempDir(), handler, make(chan bool, 1))
-	require.NoError(t, err)
-	return &sandboxService{containerManager: manager, runscHandler: handler}
+	return newTestService(t, handler)
 }
 
 func TestCollectRuntimeInventoryRequiresCompleteGeneration(t *testing.T) {
@@ -82,6 +81,23 @@ func TestRuntimeInventoryRetainsUnknownAndExcludesTerminalAfterRuntimeDelete(t *
 	require.NoError(t, service.cleanupTerminalRuntimeContainers(context.Background(), inventory))
 	assert.Equal(t, []string{"terminal"}, deleted)
 	assert.Equal(t, map[string]struct{}{"unknown": {}}, inventory.retained().allIDs())
+}
+
+func TestTerminalRuntimePendingRootfsSnapshotSurvivesNodeRestartCleanup(t *testing.T) {
+	runsc := runtimetest.NewFakeSandboxRuntime()
+	deleted := make([]string, 0)
+	handler := inventoryTestHandler{SandboxRuntime: runsc, deleted: &deleted}
+	service := runtimeInventoryTestService(t, handler)
+	const allocationID = "terminal-snapshot"
+	require.NoError(t, service.allocationController().StoreAllocationIntent(allocationID, "node-a",
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, &commonv1.RootfsSnapshot{}))
+	inventory := runtimeInventory{allocationID: {ID: allocationID, Status: contract.ContainerStatusExited}}
+
+	require.NoError(t, service.cleanupTerminalRuntimeContainers(context.Background(), inventory))
+	assert.Empty(t, deleted)
+	retained, err := inventory.retainedForRecovery(service.allocationController())
+	require.NoError(t, err)
+	assert.Equal(t, map[string]struct{}{allocationID: {}}, retained.allIDs())
 }
 
 func TestRecoverTerminalRuntimeCheckpointBeforeCleanup(t *testing.T) {
@@ -168,7 +184,7 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	controller := service.allocationController()
 	const allocationID = "interrupted-before-oci-create"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
+	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, &commonv1.RootfsSnapshot{}))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 

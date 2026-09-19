@@ -187,3 +187,12 @@ func TestScheduleDeleteRetryRequest(t *testing.T) {
 		t.Fatalf("immediate request = %#v, want fresh delete intent for alloc-a", immediate)
 	}
 }
+
+func TestRootfsSnapshotRetryExhausted(t *testing.T) {
+	if RootfsSnapshotRetryExhausted(RootfsSnapshotMaxAttempts - 2) {
+		t.Fatal("rootfs snapshot retry exhausted before final attempt")
+	}
+	if !RootfsSnapshotRetryExhausted(RootfsSnapshotMaxAttempts - 1) {
+		t.Fatal("rootfs snapshot retry did not exhaust at the configured bound")
+	}
+}

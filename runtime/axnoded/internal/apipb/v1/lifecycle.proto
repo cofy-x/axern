@@ -26,6 +26,7 @@ message StartRequest {
   repeated axern.control.capability.v1.ExtensionCapabilityRequirement extension_capability_requirements = 15;
   int64 execution_lease_ttl_seconds = 16;
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 17;
+  axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 18;
 }
 
 message RegistryCredential {
@@ -53,13 +54,21 @@ message OutputSealingRequest {
   repeated axern.control.common.v1.DeclaredOutput outputs = 2;
 }
 
+message RootfsSnapshotSealingRequest {
+  string base_image_ref = 1;
+  string base_registry_credential_json = 2;
+}
+
 message DeleteRequest {
   string id = 1;
   int64 timeout = 2;
   OutputSealingRequest output_sealing = 3;
+  RootfsSnapshotSealingRequest rootfs_snapshot_sealing = 4;
 }
 
-message DeleteResponse {}
+message DeleteResponse {
+  RootfsSnapshotSealingResult rootfs_snapshot = 1;
+}
 
 message KillRequest {
   string id = 1;

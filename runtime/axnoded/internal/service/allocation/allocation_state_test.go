@@ -34,7 +34,7 @@ func TestStoreAllocationIntentOwnsImmutableExecutionSpec(t *testing.T) {
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	resources := &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 64 << 20}, Limits: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
 	outputs := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE, MediaType: "text/x-diff"}}
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), resources, nil, outputs))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), resources, nil, outputs, nil))
 
 	resources.Requests.MemoryBytes = 1
 	outputs[0].Path = "/tmp/mutated"
@@ -53,7 +53,7 @@ func TestCapabilityReconcileIntentDoesNotLoseConcurrentOrPostRestartWork(t *test
 	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
 	const allocationID = "allocation-capability-reconcile"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, nil))
 
 	require.NoError(t, fixture.controller.MergeCapabilityReconcile(allocationID))
 	first := fixture.controller.CapabilityReconcileState(allocationID).GetPendingIntentSequence()
@@ -215,7 +215,7 @@ func TestRenewExecutionLeasesPreservesOtherAllocationsAndCannotReviveExpiredAuth
 	now := time.Now().UTC()
 	deadline := now.Add(10 * time.Second)
 	for _, id := range []string{"alloc-authorized", "alloc-omitted"} {
-		require.NoError(t, fixture.controller.StoreAllocationIntent(id, "node-a", digest, deadline, nil, nil, nil))
+		require.NoError(t, fixture.controller.StoreAllocationIntent(id, "node-a", digest, deadline, nil, nil, nil, nil))
 	}
 	receivedAt := now.Add(time.Second)
 	require.NoError(t, fixture.controller.RenewExecutionLeases(map[string]time.Duration{"alloc-authorized": 30 * time.Second}, receivedAt))
@@ -239,7 +239,7 @@ func TestTerminationIntentSurvivesNodeRestart(t *testing.T) {
 	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
 	const allocationID = "alloc-expired"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, nil))
 	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired"))
 	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_CLEANUP, "later cleanup"))
 
@@ -393,7 +393,7 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	mounter := &imageMountTestMounter{imagePaths: map[string]string{imageURL: filepath.Join(t.TempDir(), "rootfs")}}
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
-	if err := fixture.controller.StoreAllocationIntent(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil); err != nil {
+	if err := fixture.controller.StoreAllocationIntent(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
@@ -427,7 +427,7 @@ func TestReleaseAllocationStatePreservesRuntimeWhenDeletePersistenceFails(t *tes
 	fixture := newTestAllocationControllerWithStore(t,
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
-	if err := fixture.controller.StoreAllocationIntent("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil); err != nil {
+	if err := fixture.controller.StoreAllocationIntent("delete-failure", "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "delete-failure-runtime"))
@@ -468,7 +468,7 @@ func TestAllocationRecordsDeleteIndependently(t *testing.T) {
 		runtimetest.NewFakeSandboxRuntime(),
 		store)
 	for _, allocationID := range []string{"allocation-a", "allocation-b"} {
-		if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil); err != nil {
+		if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil); err != nil {
 			t.Fatal(err)
 		}
 		runtime := addTestRuntimeMappingRuntime(t, fixture.environmentCache, testResolvedEnvironment(t, "runtime-"+allocationID))
@@ -495,7 +495,7 @@ func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testin
 	fixture.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	fixture.controller.environmentCache = fixture.environmentCache
 	allocationID := "atomic-allocation-state"
-	if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil); err != nil {
+	if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{

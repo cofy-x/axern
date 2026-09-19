@@ -16,8 +16,9 @@ const DefaultCreateWaitTimeout = 5 * time.Minute
 type WaitTarget string
 
 const (
-	WaitTargetRunning  WaitTarget = "running"
-	WaitTargetTerminal WaitTarget = "terminal"
+	WaitTargetRunning        WaitTarget = "running"
+	WaitTargetTerminal       WaitTarget = "terminal"
+	WaitTargetRootfsSnapshot WaitTarget = "rootfs snapshot"
 )
 
 func ParseWaitTarget(value string, fallback WaitTarget) (WaitTarget, error) {
@@ -87,6 +88,26 @@ func (c Control) Wait(ctx context.Context, runID string, target WaitTarget, time
 
 func runWaitResult(runID string, target WaitTarget, run *runv1.Run) (bool, error) {
 	if run == nil {
+		return false, nil
+	}
+	if target == WaitTargetRootfsSnapshot {
+		result := run.GetRootfsSnapshot()
+		if result == nil {
+			return true, fmt.Errorf("run %s did not request a rootfs snapshot", runID)
+		}
+		switch result.GetStatus() {
+		case runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_READY:
+			return true, nil
+		case runv1.RootfsSnapshotStatus_ROOTFS_SNAPSHOT_STATUS_FAILED:
+			message := strings.TrimSpace(result.GetMessage())
+			if message == "" {
+				return true, fmt.Errorf("run %s rootfs snapshot failed", runID)
+			}
+			return true, fmt.Errorf("run %s rootfs snapshot failed: %s", runID, message)
+		}
+		if runFailed(run) {
+			return true, runWaitFailure(runID, run)
+		}
 		return false, nil
 	}
 	if runFailed(run) {

@@ -67,6 +67,7 @@ type createOptions struct {
 	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
 	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                                                []string
 	rootfsReadonly                                                                                                                                                                             bool
+	rootfsSnapshot                                                                                                                                                                             bool
 	detach                                                                                                                                                                                     bool
 	waitTimeout                                                                                                                                                                                time.Duration
 }
@@ -169,7 +170,21 @@ func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions
 	if exitErr := terminalWorkloadExitError(value); exitErr != nil {
 		return exitErr
 	}
-	return waitErr
+	if waitErr != nil {
+		return waitErr
+	}
+	if !options.rootfsSnapshot {
+		return nil
+	}
+	snapshotted, err := control.Wait(executionCtx, value.GetID(), apprun.WaitTargetRootfsSnapshot, options.waitTimeout, nil)
+	if snapshotted != nil {
+		value = snapshotted
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(cmd.ErrOrStderr(), "Snapshot Environment: %s\n", value.GetRootfsSnapshot().GetEnvironmentID())
+	return nil
 }
 
 func terminalWorkloadExitError(run *runv1.Run) error {
@@ -219,6 +234,7 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.StringVar(&o.templateVersion, "template-version", "", "environment template version")
 	f.StringVar(&o.credentialID, "registry-credential-id", "", "registry credential id")
 	f.BoolVar(&o.rootfsReadonly, "rootfs-readonly", false, "mount rootfs read-only")
+	f.BoolVar(&o.rootfsSnapshot, "snapshot-rootfs", false, "seal the successful writable rootfs as a new environment")
 	f.StringVar(&o.requestCPU, "request-cpu", "", "CPU request")
 	f.StringVar(&o.requestMemory, "request-memory", "", "total sandbox memory scheduling request")
 	f.StringVar(&o.requestEphemeralStorage, "request-ephemeral-storage", "", "node-local ephemeral storage request")
@@ -289,7 +305,11 @@ func executionConfig(o createOptions) (*commonv1.ExecutionConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, ImageMounts: imageMounts, Cwd: o.cwd, ExtensionCapabilityRequirements: extensions, Resources: resources}, nil
+	config := &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, ImageMounts: imageMounts, Cwd: o.cwd, ExtensionCapabilityRequirements: extensions, Resources: resources}
+	if o.rootfsSnapshot {
+		config.RootfsSnapshot = &commonv1.RootfsSnapshot{}
+	}
+	return config, nil
 }
 
 func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
@@ -319,7 +339,7 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
+var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func logsCommand(runtime command.Runtime) *cobra.Command {
 	var follow bool

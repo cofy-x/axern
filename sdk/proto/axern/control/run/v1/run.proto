@@ -19,6 +19,27 @@ enum RunStatus {
   RUN_STATUS_CANCELLED = 6;
 }
 
+enum RootfsSnapshotStatus {
+  ROOTFS_SNAPSHOT_STATUS_UNSPECIFIED = 0;
+  ROOTFS_SNAPSHOT_STATUS_PENDING = 1;
+  ROOTFS_SNAPSHOT_STATUS_READY = 2;
+  ROOTFS_SNAPSHOT_STATUS_FAILED = 3;
+}
+
+// RootfsSnapshotResult is the finalization result for a requested rootfs
+// snapshot. The Environment is the durable public identity; the OCI fields
+// are immutable integrity and platform metadata, not caller credentials.
+message RootfsSnapshotResult {
+  RootfsSnapshotStatus status = 1;
+  string environment_id = 2;
+  string image_ref = 3;
+  axern.control.environment.v1.OciImageDescriptor image_descriptor = 4;
+  string platform_os = 5;
+  string platform_arch = 6;
+  string platform_variant = 7;
+  string message = 8;
+}
+
 message Run {
   string id = 1;
   string namespace = 2;
@@ -42,6 +63,7 @@ message Run {
   axern.control.environment.v1.ResolvedEnvironmentSpec resolved_environment_spec = 16;
   // Node-local stdout/stderr availability deadline; node loss may make bytes unavailable earlier.
   google.protobuf.Timestamp output_expires_at = 17;
+  RootfsSnapshotResult rootfs_snapshot = 18;
 }
 
 message RunListFilter {
