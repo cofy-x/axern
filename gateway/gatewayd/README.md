@@ -103,10 +103,10 @@ Allocation access-grant recovery is request scoped and bounded. A node acknowled
 
 ```bash
 make local-compose-up
-make local-compose-server-base-smoke
+make local-compose-python-sdk-e2e
 ```
 
-The smoke creates a Run-backed Allocation and verifies allocation target resolution plus terminal behavior. Tunnel behavior is covered separately by `make local-compose-python-sdk-e2e`.
+The smoke creates a Run-backed Allocation from an explicit OCI image and verifies Allocation target resolution, process, terminal, SSH, and Tunnel behavior through the public SDK and CLI paths.
 
 ## Development Checks
 

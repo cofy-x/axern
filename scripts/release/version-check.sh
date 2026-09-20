@@ -83,10 +83,7 @@ for relative, literal in expected_literals.items():
         raise SystemExit(f"{relative} does not declare version {want}")
 
 values = (root / "deploy/helm/axern/values.yaml").read_text()
-for image in (
-    "controld", "tunneld", "gatewayd", "node-all-in-one", "python311-runtime",
-    "server-base-runtime", "coding-base-runtime", "desktop-base-runtime",
-):
+for image in ("controld", "tunneld", "gatewayd", "node-all-in-one"):
     expected = re.escape(f"ghcr.io/cofy-x/axern/{image}:v{want}")
     if image in {"controld", "tunneld", "gatewayd", "node-all-in-one"}:
         expected = re.escape(f"repository: ghcr.io/cofy-x/axern/{image}") + r"\s+" + re.escape(f"tag: v{want}")

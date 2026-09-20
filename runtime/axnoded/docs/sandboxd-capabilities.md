@@ -39,17 +39,14 @@ Optional capabilities are image/profile features. They are discoverable through 
 | `computer_use` | Desktop session and required display/input/screenshot tools are present. | Desktop status, screenshot, display, mouse, and keyboard APIs. |
 | VNC / noVNC    | Future desktop transport profile explicitly enables it.                 | Future authorized desktop transport APIs.                      |
 
-## Runtime Image Matrix
+## Workload Image Matrix
 
 The runtime image does not decide whether sandboxd is injected. Sandboxd is the default PID 1 control plane for OCI workloads. Images only affect optional provider availability.
 
-| Image / Profile     | Baseline Sandboxd | `computer_use`                                              | Notes                                                                                                       |
-| ------------------- | ----------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| generic OCI image   | yes               | unavailable unless the image supplies a display session     | Ordinary user images still get lifecycle, file, process, PTY, probes, and diagnostics.                     |
-| `python311`         | yes               | unavailable                                                 | Language runtime profile for code execution and file/process APIs.                                         |
-| `server-base`       | yes               | unavailable                                                 | Verified server runtime profile with SSH terminal semantics, nginx, supervisord, and sudo expectations.    |
-| `desktop-base`      | yes               | available                                                   | Verified desktop profile; browser automation, if needed, is caller-owned workload software.                |
-| custom desktop image | yes              | available when dependencies pass the provider probe         | Must satisfy the same Computer Use dependency contract as `desktop-base`.                                  |
+| Image / Profile     | Baseline Sandboxd | `computer_use`                                          | Notes                                                                                   |
+| ------------------- | ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| generic OCI image   | yes               | unavailable unless the image supplies a display session | Ordinary images still get lifecycle, file, process, PTY, probes, and diagnostics.       |
+| caller desktop image | yes              | available when dependencies pass the provider probe     | Must supply the display, screenshot, and input dependencies reported by the capability. |
 
 ## Provider Rules
 

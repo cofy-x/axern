@@ -54,7 +54,6 @@ erDiagram
 
 - `namespaces` is the durable scope and admission lock row. Its `deleted_at` is a security tombstone that prevents a deleted namespace name from being reused and confused with retained Run history or revoked authorization records; this is the only generic-resource-style soft deletion in the workload schema.
 - `namespace_resource_quotas` stores optional CPU, memory, and ephemeral-storage admission limits.
-- Built-in Environment templates are deployment configuration used only during resolution. They have no public API, product identity, or database table.
 - `environments.spec` stores normalized user intent and `resolved_spec` stores the immutable runtime input available for new admission. Environment deletion physically removes this row.
 - `namespace_quota_events` records durable admission decisions independently from operator audit events.
 

@@ -49,7 +49,7 @@ Ephemeral-storage values use the same byte units. The resource means node-local,
 Example:
 
 ```bash
-axern run --template python311 \
+axern run python:3.12-slim \
   --request-cpu 500m \
   --request-memory 512MiB \
   --limit-memory 1GiB \

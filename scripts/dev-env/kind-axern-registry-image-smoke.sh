@@ -14,11 +14,8 @@ require_cmd python3
 export KUBECONFIG="$(k8s_kubeconfig_file)"
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" k8s
 
-source_image="${LOCAL_REGISTRY_IMAGE_SMOKE_SOURCE_IMAGE:-${PYTHON311_RUNTIME_IMAGE}}"
-if ! docker image inspect "${source_image}" >/dev/null 2>&1; then
-  echo "missing smoke source image ${source_image}; run make local-images-build first" >&2
-  exit 1
-fi
+source_image="${LOCAL_REGISTRY_IMAGE_SMOKE_SOURCE_IMAGE:-${AXERN_TEST_PYTHON_IMAGE}}"
+ensure_host_image "${source_image}"
 
 push_output="$(IMAGE="${source_image}" bash "${AXERN_ROOT}/scripts/dev-env/registry-image-push.sh")"
 cluster_image="$(printf '%s\n' "${push_output}" | awk -F= '$1 == "cluster_image" {print $2}')"

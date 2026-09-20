@@ -37,7 +37,7 @@ func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.Reso
 	cfg = resolvedCfg
 
 	lm.environmentMu.RLock()
-	if environment, ok := lm.environments[fr.ID]; ok && preparedEnvironmentMatchesTemplate(environment, fr) && environment.RootFS.Config() == cfg {
+	if environment, ok := lm.environments[fr.ID]; ok && preparedEnvironmentMatchesResolvedSpec(environment, fr) && environment.RootFS.Config() == cfg {
 		lm.environmentMu.RUnlock()
 		logrus.Debugf("Prepared environment %v already exists!", fr.ID)
 		result.Environment = environment
@@ -61,7 +61,7 @@ func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.Reso
 
 	lm.environmentMu.Lock()
 	if environment, ok := lm.environments[fr.ID]; ok {
-		if preparedEnvironmentMatchesTemplate(environment, fr) && environment.RootFS.Config() == cfg {
+		if preparedEnvironmentMatchesResolvedSpec(environment, fr) && environment.RootFS.Config() == cfg {
 			lm.environmentMu.Unlock()
 			if _, err := rootfs.ReleaseActiveRef(); err != nil {
 				return result, err

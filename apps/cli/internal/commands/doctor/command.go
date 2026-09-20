@@ -13,16 +13,15 @@ import (
 )
 
 const (
-	defaultTemplateID = "python311"
-	degradedExitCode  = 1
-	invalidExitCode   = 2
-	failedExitCode    = 3
+	degradedExitCode = 1
+	invalidExitCode  = 2
+	failedExitCode   = 3
 )
 
 type options struct {
 	namespace    string
 	probe        bool
-	templateID   string
+	imageRef     string
 	checkTimeout time.Duration
 	probeTimeout time.Duration
 }
@@ -30,7 +29,6 @@ type options struct {
 func Command(runtime command.Runtime) *cobra.Command {
 	values := options{
 		namespace:    "default",
-		templateID:   defaultTemplateID,
 		checkTimeout: 15 * time.Second,
 		probeTimeout: 5 * time.Minute,
 	}
@@ -49,8 +47,8 @@ func Command(runtime command.Runtime) *cobra.Command {
 			var probe *appdoctor.ProbeOptions
 			if values.probe {
 				probe = &appdoctor.ProbeOptions{
-					TemplateID: strings.TrimSpace(values.templateID),
-					Timeout:    values.probeTimeout,
+					ImageRef: strings.TrimSpace(values.imageRef),
+					Timeout:  values.probeTimeout,
 				}
 			}
 			control := appdoctor.New(appdoctor.Options{
@@ -76,8 +74,8 @@ func Command(runtime command.Runtime) *cobra.Command {
 	}
 	flags := cmd.Flags()
 	flags.StringVar(&values.namespace, "namespace", values.namespace, "namespace to validate and use for the optional probe")
-	flags.BoolVar(&values.probe, "probe", false, "create a temporary Environment and execute a template-backed Run")
-	flags.StringVar(&values.templateID, "template-id", values.templateID, "environment template used by --probe")
+	flags.BoolVar(&values.probe, "probe", false, "create a temporary Environment and execute an image-backed Run")
+	flags.StringVar(&values.imageRef, "image", values.imageRef, "OCI image used by --probe")
 	flags.DurationVar(&values.checkTimeout, "check-timeout", values.checkTimeout, "timeout for each read-only API check")
 	flags.DurationVar(&values.probeTimeout, "probe-timeout", values.probeTimeout, "timeout for data-plane execution")
 	return cmd
@@ -93,13 +91,13 @@ func (o options) validate(cmd *cobra.Command) error {
 	if o.probeTimeout <= 0 {
 		return fmt.Errorf("--probe-timeout must be positive")
 	}
-	for _, name := range []string{"template-id", "probe-timeout"} {
+	for _, name := range []string{"image", "probe-timeout"} {
 		if cmd.Flags().Changed(name) && !o.probe {
 			return fmt.Errorf("--%s requires --probe", name)
 		}
 	}
-	if o.probe && strings.TrimSpace(o.templateID) == "" {
-		return fmt.Errorf("--template-id is required with --probe")
+	if o.probe && strings.TrimSpace(o.imageRef) == "" {
+		return fmt.Errorf("--image is required with --probe")
 	}
 	return nil
 }

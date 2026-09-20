@@ -31,10 +31,6 @@ declare -A internal=(
   [TUNNELD_IMAGE]=tunneld
   [GATEWAYD_IMAGE]=gatewayd
   [NODE_ALL_IN_ONE_IMAGE]=node-all-in-one
-  [PYTHON311_RUNTIME_IMAGE]=python311-runtime
-  [SERVER_BASE_RUNTIME_IMAGE]=server-base-runtime
-  [CODING_BASE_RUNTIME_IMAGE]=coding-base-runtime
-  [DESKTOP_BASE_RUNTIME_IMAGE]=desktop-base-runtime
 )
 for key in "${!internal[@]}"; do
   name="${internal[${key}]}"

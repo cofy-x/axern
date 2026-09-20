@@ -9,7 +9,7 @@ Sandbox 是 SDK 对隔离工作负载的可编程视图。Python、Go、TypeScri
 
 构造并启动一个 Sandbox 会编译为公开的控制面 API，而不是私有通道：
 
-1. 解析或创建一个 **Environment**（镜像、内置模板或已有环境 ID——严格三选一）。
+1. 解析或创建一个 **Environment**（OCI 镜像或已有 Environment ID，严格二选一）。
 2. 创建一个 detached **Run** 并等待 Allocation 启动。
 3. 通过节点数据面执行命令、传输文件和开启隧道。
 
@@ -17,7 +17,7 @@ Sandbox 是 SDK 对隔离工作负载的可编程视图。Python、Go、TypeScri
 
 ## Source 与连接
 
-每个 Sandbox 严格选择一个 source：便携的 OCI `image`、部署提供的 `template_id`，或用于继续已有工作的 `environment_id`。
+每个 Sandbox 严格选择一个 source：便携的 OCI `image`，或用于继续已有工作的 `environment_id`。
 
 连接是显式的。`AxernClient.from_env()` 读取 `AXERN_ENDPOINT` 和 `AXERN_TLS_*` 变量；`from_context()` 读取与 CLI 相同的版本化 Context schema。SDK 构造函数从不隐式检查用户目录。
 

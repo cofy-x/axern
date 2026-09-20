@@ -9,7 +9,7 @@ from pathlib import Path
 from axern_sdk import AxernClient, Sandbox, SandboxConnectionError, SandboxRpcError
 
 CONTROL_TARGET = os.environ.get("AXERN_ENDPOINT", "127.0.0.1:25000")
-TEMPLATE_ID = os.environ.get("AXERN_TEMPLATE_ID", "python311")
+IMAGE = os.environ.get("AXERN_IMAGE", "python:3.12-slim")
 
 
 def main() -> None:
@@ -18,7 +18,7 @@ def main() -> None:
     try:
         with Sandbox(
             client=client,
-            template_id=TEMPLATE_ID,
+            image=IMAGE,
             upstream=upstream,
         ) as sandbox:
             result = sandbox.exec("python -c \"print('hello from axern')\"", check=True, text=True)

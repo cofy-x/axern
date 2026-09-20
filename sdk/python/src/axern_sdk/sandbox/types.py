@@ -34,7 +34,7 @@ class SandboxMetadata:
     labels: dict[str, str]
 
 
-def _validate_source(*, image: str, template_id: str, environment_id: str) -> None:
-    sources = [bool(image), bool(template_id), bool(environment_id)]
+def _validate_source(*, image: str, environment_id: str) -> None:
+    sources = [bool(image), bool(environment_id)]
     if sum(sources) != 1:
-        raise SandboxValidationError("pass exactly one of image, template_id, or environment_id")
+        raise SandboxValidationError("pass exactly one of image or environment_id")

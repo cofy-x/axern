@@ -90,10 +90,7 @@ TUNNELD_RUNTIME_UID=${tunneld_runtime_uid}
 TUNNELD_RUNTIME_GID=${tunneld_runtime_gid}
 GATEWAYD_IMAGE=${GATEWAYD_IMAGE}
 NODE_ALL_IN_ONE_IMAGE=${NODE_ALL_IN_ONE_IMAGE}
-PYTHON311_RUNTIME_IMAGE=${PYTHON311_RUNTIME_IMAGE}
-SERVER_BASE_RUNTIME_IMAGE=${SERVER_BASE_RUNTIME_IMAGE}
-CODING_BASE_RUNTIME_IMAGE=${CODING_BASE_RUNTIME_IMAGE}
-DESKTOP_BASE_RUNTIME_IMAGE=${DESKTOP_BASE_RUNTIME_IMAGE}
+AXERN_TEST_PYTHON_IMAGE=${AXERN_TEST_PYTHON_IMAGE}
 OTEL_COLLECTOR_IMAGE=${OTEL_COLLECTOR_IMAGE}
 OTEL_LGTM_IMAGE=${OTEL_LGTM_IMAGE}
 AXERN_SECRETS_MASTER_KEY=${secrets_master_key}
@@ -180,6 +177,28 @@ ensure_host_image() {
   if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
     docker pull "${image_ref}" >/dev/null
   fi
+}
+
+compose_import_host_image() {
+  local image_ref="$1"
+  local import_timeout="${AXERN_IMAGE_IMPORT_TIMEOUT:-5m}"
+  local node_container="${COMPOSE_PROJECT_NAME}-node-1"
+  local image_id
+
+  if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
+    echo "host Docker image not found: ${image_ref}" >&2
+    return 1
+  fi
+  if ! docker ps --format '{{.Names}}' | grep -Fxq "${node_container}"; then
+    echo "compose node container is not running: ${node_container}" >&2
+    return 1
+  fi
+  image_id="$(docker image inspect "${image_ref}" --format '{{.Id}}')"
+  docker image save "${image_id}" | docker exec -i "${node_container}" axctl --timeout "${import_timeout}" image import \
+    --imagemgr-socket /run/imagemgr/imagemgr.sock \
+    --file - \
+    --ref "${image_ref}" \
+    --json
 }
 
 wait_for_node_summary() {
@@ -367,10 +386,7 @@ ensure_k8s_images_loaded() {
   load_image_to_cluster "${TUNNELD_IMAGE}"
   load_image_to_cluster "${GATEWAYD_IMAGE}"
   load_image_to_cluster "${NODE_ALL_IN_ONE_IMAGE}"
-  load_image_to_cluster "${PYTHON311_RUNTIME_IMAGE}"
-  load_image_to_cluster "${SERVER_BASE_RUNTIME_IMAGE}"
-	load_image_to_cluster "${CODING_BASE_RUNTIME_IMAGE}"
-	load_image_to_cluster "${DESKTOP_BASE_RUNTIME_IMAGE}"
+  load_image_to_cluster "${AXERN_TEST_PYTHON_IMAGE}"
   if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     ensure_host_image "${OTEL_COLLECTOR_IMAGE}"
     ensure_host_image "${OTEL_LGTM_IMAGE}"

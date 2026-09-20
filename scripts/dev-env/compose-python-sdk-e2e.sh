@@ -11,6 +11,7 @@ require_cmd uv
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
 local_smoke_init_axern_cmd compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
+resolved_image="${LOCAL_SMOKE_RESOLVED_IMAGE_REF:-$(local_smoke_prepare_compose_image)}"
 
 node_container="${COMPOSE_PROJECT_NAME}-node-1"
 if ! docker ps --format '{{.Names}}' | grep -qx "${node_container}"; then
@@ -23,6 +24,7 @@ uv run --package axern-sdk python "${AXERN_ROOT}/sdk/python/tests/e2e/sandbox_tu
   --tls-ca-cert "${AXERN_TLS_CA_CERT}" \
   --tls-cert "${AXERN_TLS_CERT}" \
   --tls-key "${AXERN_TLS_KEY}" \
+  --image-ref "${resolved_image}" \
   --node-container "${node_container}"
 
 echo "compose_python_sdk_e2e_ok=true"

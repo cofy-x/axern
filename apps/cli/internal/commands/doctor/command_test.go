@@ -15,7 +15,7 @@ func TestProbeSpecificFlagsRequireProbe(t *testing.T) {
 	options := &command.Options{Output: "table"}
 	runtime := command.Runtime{Options: options, Root: &cobra.Command{}}
 	cmd := Command(runtime)
-	cmd.SetArgs([]string{"--template-id", "python311"})
+	cmd.SetArgs([]string{"--image", "docker.io/library/python:3.12-slim"})
 
 	err := cmd.Execute()
 	var usage command.UsageError

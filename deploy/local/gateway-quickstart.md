@@ -41,7 +41,7 @@ axern run cancel <run-id>
 The automated Compose checks remain the source of truth for exact setup and acceptance behavior:
 
 ```bash
-make local-compose-server-base-smoke
+make local-compose-run-smoke
 make local-compose-python-sdk-e2e
 ```
 

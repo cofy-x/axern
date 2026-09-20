@@ -37,18 +37,18 @@ func Command(runtime command.Runtime) *cobra.Command {
 				}
 				return nil
 			}
-			if options.environmentID != "" || options.templateID != "" {
+			if options.environmentID != "" {
 				return nil
 			}
 			if len(args) == 0 {
-				return command.Usage(fmt.Errorf("image is required unless --template, --environment, or --file is used"))
+				return command.Usage(fmt.Errorf("image is required unless --environment or --file is used"))
 			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if options.file == "" {
 				switch {
-				case options.environmentID != "" || options.templateID != "":
+				case options.environmentID != "":
 					options.argv = append([]string(nil), args...)
 				default:
 					options.imageRef = args[0]
@@ -64,12 +64,12 @@ func Command(runtime command.Runtime) *cobra.Command {
 }
 
 type createOptions struct {
-	file, namespace, environmentID, templateID, templateVersion, imageRef, credentialID, cwd, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
-	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                                                []string
-	rootfsReadonly                                                                                                                                                                             bool
-	rootfsSnapshot                                                                                                                                                                             bool
-	detach                                                                                                                                                                                     bool
-	waitTimeout                                                                                                                                                                                time.Duration
+	file, namespace, environmentID, imageRef, credentialID, cwd, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
+	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                   []string
+	rootfsReadonly                                                                                                                                                bool
+	rootfsSnapshot                                                                                                                                                bool
+	detach                                                                                                                                                        bool
+	waitTimeout                                                                                                                                                   time.Duration
 }
 
 func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions) error {
@@ -230,8 +230,6 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.StringArrayVar(&o.extensionCapabilities, "extension-capability", nil, "exact-match extension <dns-domain>/<name>[=value]; may be repeated")
 	f.StringArrayVar(&o.labels, "label", nil, "label key=value; may be repeated")
 	f.StringVar(&o.environmentID, "environment", "", "existing environment id")
-	f.StringVar(&o.templateID, "template", "", "environment template id")
-	f.StringVar(&o.templateVersion, "template-version", "", "environment template version")
 	f.StringVar(&o.credentialID, "registry-credential-id", "", "registry credential id")
 	f.BoolVar(&o.rootfsReadonly, "rootfs-readonly", false, "mount rootfs read-only")
 	f.BoolVar(&o.rootfsSnapshot, "snapshot-rootfs", false, "seal the successful writable rootfs as a new environment")
@@ -260,14 +258,8 @@ func (o createOptions) params(cmd *cobra.Command) (apprun.CreateParams, error) {
 		execution, err := value.ExecutionConfig()
 		return apprun.CreateParams{Namespace: value.Metadata.Namespace, EnvironmentID: environmentID, Spec: environment, Config: execution, Labels: value.Metadata.Labels}, err
 	}
-	if o.templateVersion != "" && o.templateID == "" {
-		return apprun.CreateParams{}, fmt.Errorf("--template-version requires --template")
-	}
 	if o.environmentID != "" && (o.credentialID != "" || cmd.Flags().Changed("rootfs-readonly")) {
 		return apprun.CreateParams{}, fmt.Errorf("--registry-credential-id and --rootfs-readonly require an image")
-	}
-	if o.templateID != "" && (o.credentialID != "" || cmd.Flags().Changed("rootfs-readonly")) {
-		return apprun.CreateParams{}, fmt.Errorf("--registry-credential-id and --rootfs-readonly cannot be combined with --template")
 	}
 	execution, err := executionConfig(o)
 	if err != nil {
@@ -317,29 +309,20 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	if o.environmentID != "" {
 		selected++
 	}
-	if o.templateID != "" {
-		selected++
-	}
 	if o.imageRef != "" {
 		selected++
 	}
 	if selected != 1 {
-		return nil, fmt.Errorf("exactly one of environment, template, or image is required")
+		return nil, fmt.Errorf("exactly one of environment or image is required")
 	}
 	if o.environmentID != "" {
 		return nil, nil
 	}
-	value := &environmentv1.EnvironmentSpec{Namespace: o.namespace}
-	if o.templateID != "" {
-		value.TemplateID = o.templateID
-		value.TemplateVersion = o.templateVersion
-	} else {
-		value.Image = &environmentv1.EnvironmentImageSource{Ref: o.imageRef, RegistryCredentialID: o.credentialID, RootfsReadonly: o.rootfsReadonly}
-	}
+	value := &environmentv1.EnvironmentSpec{Namespace: o.namespace, Image: &environmentv1.EnvironmentImageSource{Ref: o.imageRef, RegistryCredentialID: o.credentialID, RootfsReadonly: o.rootfsReadonly}}
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "template", "template-version", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
+var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func logsCommand(runtime command.Runtime) *cobra.Command {
 	var follow bool

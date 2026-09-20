@@ -266,7 +266,7 @@ make kind-axern-nydus-smoke
 
 Default smoke behavior:
 
-- Build a local Nydus image from `axern/python311-runtime:dev`.
+- Build a local Nydus image from the explicit `NYDUS_SOURCE_IMAGE` workload fixture.
 - Push it to the repo-managed local registry.
 - Mount it through `imagemgr` and `imagefsd`.
 - Start an Axern sandbox from the resulting rootfs.

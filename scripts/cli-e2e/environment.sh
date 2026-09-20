@@ -84,8 +84,7 @@ setup_e2e_environment() {
     -node-id "${CONTROL_PLANE_NODE_ID}" \
     -enrollment-token-file "${cert_dir}/enrollment-token"
 
-  AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE="${PYTHON_RUNTIME_IMAGE_REF}" \
-    "${AXERN_ROOT}/bin/controld" \
+  "${AXERN_ROOT}/bin/controld" \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_ADDRESS##*:}" \
     -http-address "${CONTROLD_HTTP_ADDRESS}" \
     -tls-ca-cert "${cert_dir}/ca.crt" \

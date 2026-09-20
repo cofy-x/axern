@@ -245,7 +245,7 @@ func TestFindReusableEnvironmentRequiresResolvedImageGeneration(t *testing.T) {
 	drifted := proto.Clone(fr).(*api.ResolvedEnvironment)
 	drifted.Argv = []string{"/bin/bash"}
 	if got := lm.FindReusableEnvironment(drifted, requested); got != nil {
-		t.Fatal("expected static template drift to reject runtime reuse")
+		t.Fatal("expected resolved specification drift to reject runtime reuse")
 	}
 	requested.ImageUrl = "example.local/agent:next"
 	if got := lm.FindReusableEnvironment(fr, requested); got != nil {

@@ -14,20 +14,20 @@ func TestLoadRejectsUnknownFieldsAndMultipleDocuments(t *testing.T) {
 kind: Run
 metadata: {}
 spec:
-  source: {template: python311}
+  source: {image: example.test/runtime:latest}
   obsolete: true
 `,
 		"multiple.yaml": `api_version: axern/v1
 kind: Run
 metadata: {}
-spec: {source: {template: python311}}
+spec: {source: {image: example.test/runtime:latest}}
 ---
 api_version: axern/v1
 kind: Run
 metadata: {}
-spec: {source: {template: python311}}
+spec: {source: {image: example.test/runtime:latest}}
 `,
-		"multiple.json": `{"api_version":"axern/v1","kind":"Run","metadata":{},"spec":{"source":{"template":"python311"}}} {}`,
+		"multiple.json": `{"api_version":"axern/v1","kind":"Run","metadata":{},"spec":{"source":{"image":"example.test/runtime:latest"}}} {}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := Load(writeSpec(t, dir, name, content), KindRun)
@@ -46,8 +46,8 @@ kind: Run
 metadata: {}
 spec:
   source:
-    template: python311
     image: example.test/image:latest
+    environment: env-1
 `)
 	if _, err := Load(path, KindRun); err == nil || !strings.Contains(err.Error(), "exactly one") {
 		t.Fatalf("source conflict error = %v", err)
@@ -56,7 +56,7 @@ spec:
 api_version: axern/v1
 kind: Sandbox
 metadata: {}
-spec: {source: {template: python311}}
+spec: {source: {image: example.test/runtime:latest}}
 `)
 	if _, err := Load(path, KindRun); err == nil || !strings.Contains(err.Error(), `kind must be "Run"`) {
 		t.Fatalf("kind mismatch error = %v", err)
@@ -70,7 +70,7 @@ api_version: axern/v1
 kind: Run
 metadata: {}
 spec:
-  source: {template: python311, template_version: v2}
+  source: {image: example.test/runtime:v2}
   secret_env:
     - {name: TOKEN, secret_id: secret-a, key: token}
   secret_files:
@@ -84,8 +84,8 @@ spec:
 		t.Fatal(err)
 	}
 	_, environment := envelope.EnvironmentSpec()
-	if environment.GetTemplateVersion() != "v2" {
-		t.Fatalf("template version = %q", environment.GetTemplateVersion())
+	if got := environment.GetImage().GetRef(); got != "example.test/runtime:v2" {
+		t.Fatalf("image ref = %q", got)
 	}
 	config, err := envelope.ExecutionConfig()
 	if err != nil {
@@ -106,7 +106,7 @@ api_version: axern/v1
 kind: Run
 metadata: {}
 spec:
-  source: {template: python311, registry_credential_id: secret-a}
+  source: {environment: env-1, registry_credential_id: secret-a}
 `)
 	if _, err := Load(path, KindRun); err == nil || !strings.Contains(err.Error(), "require image") {
 		t.Fatalf("Load() error = %v", err)
@@ -120,8 +120,8 @@ api_version: axern/v1
 kind: Run
 metadata: {}
 spec:
-  source: {template: python311}
-	image_mounts: [{image: tools:latest, target: /srv/../data}]
+  source: {image: example.test/runtime:latest}
+  image_mounts: [{image: tools:latest, target: /srv/../data}]
 `)
 	if _, err := Load(path, KindRun); err == nil {
 		t.Fatal("Load() error = nil")

@@ -43,7 +43,6 @@ type sourceContract struct {
 }
 
 type sourceCase struct {
-	Template    string `json:"template"`
 	Image       string `json:"image"`
 	Environment string `json:"environment"`
 }
@@ -134,7 +133,6 @@ func TestSharedSandboxSourceContract(t *testing.T) {
 	check := func(item sourceCase) error {
 		_, err := NewSandbox(SandboxOptions{
 			Client:        client,
-			TemplateID:    item.Template,
 			Image:         item.Image,
 			EnvironmentID: item.Environment,
 		})

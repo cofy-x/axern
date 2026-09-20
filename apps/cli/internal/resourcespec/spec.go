@@ -54,8 +54,6 @@ type Spec struct {
 
 type Source struct {
 	Environment          string `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Template             string `json:"template,omitempty" yaml:"template,omitempty"`
-	TemplateVersion      string `json:"template_version,omitempty" yaml:"template_version,omitempty"`
 	Image                string `json:"image,omitempty" yaml:"image,omitempty"`
 	RegistryCredentialID string `json:"registry_credential_id,omitempty" yaml:"registry_credential_id,omitempty"`
 	RootFSReadonly       bool   `json:"rootfs_readonly,omitempty" yaml:"rootfs_readonly,omitempty"`
@@ -137,11 +135,8 @@ func (e *Envelope) Validate(expected Kind) error {
 	if e.Kind != expected {
 		return fmt.Errorf("kind must be %q", expected)
 	}
-	if countNonEmpty(e.Spec.Source.Environment, e.Spec.Source.Template, e.Spec.Source.Image) != 1 {
-		return fmt.Errorf("spec.source must select exactly one of environment, template, or image")
-	}
-	if e.Spec.Source.Template == "" && e.Spec.Source.TemplateVersion != "" {
-		return fmt.Errorf("spec.source.template_version requires template")
+	if countNonEmpty(e.Spec.Source.Environment, e.Spec.Source.Image) != 1 {
+		return fmt.Errorf("spec.source must select exactly one of environment or image")
 	}
 	if e.Spec.Source.Image == "" && (e.Spec.Source.RegistryCredentialID != "" || e.Spec.Source.RootFSReadonly) {
 		return fmt.Errorf("spec.source registry_credential_id and rootfs_readonly require image")
@@ -162,17 +157,12 @@ func (e Envelope) EnvironmentSpec() (string, *environmentv1.EnvironmentSpec) {
 	if e.Spec.Source.Environment != "" {
 		return e.Spec.Source.Environment, nil
 	}
-	spec := &environmentv1.EnvironmentSpec{Namespace: e.Metadata.Namespace}
-	if e.Spec.Source.Template != "" {
-		spec.TemplateID = e.Spec.Source.Template
-		spec.TemplateVersion = e.Spec.Source.TemplateVersion
-	} else {
-		spec.Image = &environmentv1.EnvironmentImageSource{
+	spec := &environmentv1.EnvironmentSpec{Namespace: e.Metadata.Namespace,
+		Image: &environmentv1.EnvironmentImageSource{
 			Ref:                  e.Spec.Source.Image,
 			RegistryCredentialID: e.Spec.Source.RegistryCredentialID,
 			RootfsReadonly:       e.Spec.Source.RootFSReadonly,
-		}
-	}
+		}}
 	return "", spec
 }
 

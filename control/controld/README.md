@@ -157,7 +157,6 @@ flowchart LR
   nodebridge["internal/nodebridge\nnode lifecycle bridge"]
   observability["internal/observability\nmetrics + spans"]
   ociimage["internal/ociimage\nOCI resolution"]
-  templates["internal/environmenttemplate\ndeployment template inputs"]
   node["axnoded / node APIs"]
   db[("Postgres")]
 
@@ -168,14 +167,12 @@ flowchart LR
   app --> nodebridge
   app --> observability
   app --> ociimage
-  app --> templates
 
   api --> application
   application --> kernel
   application --> placement
   application --> nodebridge
   application --> ociimage
-  application --> templates
 
   postgres --> kernel
   postgres --> db
@@ -192,7 +189,7 @@ flowchart LR
 - `internal/postgres/*` owns SQL-backed stores, row scanners, transaction helpers, migrations, Postgres-specific persistence details, and transactional resource admission.
 - `internal/placement` owns candidate filtering, eligibility evaluation, candidate-plan construction, and placement request shaping.
 - `internal/nodebridge` owns control-plane-to-node lifecycle request construction and RPC bridging.
-- `internal/observability`, `internal/ociimage`, and `internal/environmenttemplate` own metrics/span names, OCI descriptor resolution, and embedded environment templates.
+- `internal/observability` and `internal/ociimage` own metrics/span names and OCI descriptor resolution.
 - `internal/testutil/controldtest` owns focused test doubles and Postgres test harness helpers.
 
 Before changing package boundaries or feature placement rules, read [Agent Contract](AGENTS.md). `make -C control/controld check-architecture` enforces the main direction rules: API/application/kernel packages must not import Postgres adapters, Postgres adapters must not reintroduce alias bridges, and catch-all helper files should not return under `internal/postgres`.

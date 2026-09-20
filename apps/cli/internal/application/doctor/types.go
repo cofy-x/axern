@@ -66,7 +66,7 @@ type TLSConfig struct {
 }
 
 type ProbeOptions struct {
-	TemplateID  string
+	ImageRef    string
 	Timeout     time.Duration
 	CleanupWait time.Duration
 }

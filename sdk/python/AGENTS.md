@@ -8,7 +8,7 @@
 
 - Keep generated protobuf modules under `src/axern`, public SDK code under `src/axern_sdk`, private shared helpers under `axern_sdk._internal`, and tests under `tests`.
 - Keep exports intentional and do not hand-edit generated `*_pb2.py` or `*_pb2_grpc.py` files.
-- Model sources explicitly: Environment and Sandbox creation accepts exactly one of `template_id`, `image`, or `environment_id`.
+- Model sources explicitly: Environment creation requires an OCI `image`; Sandbox creation accepts exactly one of `image` or `environment_id`.
 - `Sandbox` is the SDK facade over an SDK-created Environment, Run, and current Allocation. Process, file, terminal, SSH, and Tunnel operations reject stale Allocation targets.
 - Finite session renewal and cleanup cannot hide the originating error or extend Allocation authority.
 

@@ -1,6 +1,6 @@
 ---
 title: Run
-description: 从镜像、模板或环境执行一次性隔离命令，产出持久记录和真实退出码。
+description: 从 OCI 镜像或已有 Environment 执行一次性隔离命令，产出持久记录和真实退出码。
 ---
 
 Run 是 Axern 的统一执行工作负载：在隔离 Sandbox 中执行命令、流式输出、传递命令的真实退出码，并在控制面留下持久记录。detached Run 同时承载 SDK Sandbox 和交互工具的 Allocation 生命周期。
@@ -50,9 +50,9 @@ spec:
 axern run --file run.yaml
 ```
 
-`spec.source` 在 `image`、`template`（可配 `template_version`）和 `environment`（已有环境 ID）中严格三选一。私有仓库通过 `registry_credential_id` 引用凭据；凭据只按 ID 引用，绝不写入 Spec。解析器会拒绝未知字段和冲突的 source。
+`spec.source` 在 `image` 和 `environment`（已有环境 ID）中严格二选一。私有仓库通过 `registry_credential_id` 引用凭据；凭据只按 ID 引用，绝不写入 Spec。解析器会拒绝未知字段和冲突的 source。
 
-等价的 flag 覆盖同一能力面：`--env`、`--secret-env`、`--secret-file`、`--image-mount`、`--cwd`、`--label`、`--template`、`--environment`，以及四个资源 flag（`--request-cpu`、`--request-memory`、`--limit-cpu`、`--limit-memory`）。`--file` 不能与定义类 flag 混用。
+等价的 flag 覆盖同一能力面：`--env`、`--secret-env`、`--secret-file`、`--image-mount`、`--cwd`、`--label`、`--environment`，以及四个资源 flag（`--request-cpu`、`--request-memory`、`--limit-cpu`、`--limit-memory`）。位置参数镜像和 `--environment` 互斥；`--file` 不能与定义类 flag 混用。
 
 ## 后台与长时间运行的 Run
 

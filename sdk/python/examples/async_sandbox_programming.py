@@ -10,12 +10,12 @@ from pathlib import Path
 from axern_sdk import AsyncAxernClient, AsyncSandbox
 
 CONTROL_TARGET = os.environ.get("AXERN_ENDPOINT", "127.0.0.1:25000")
-TEMPLATE_ID = os.environ.get("AXERN_TEMPLATE_ID", "python311")
+IMAGE = os.environ.get("AXERN_IMAGE", "python:3.12-slim")
 
 
 async def main() -> None:
     async with AsyncAxernClient(CONTROL_TARGET) as client:
-        async with AsyncSandbox(client=client, template_id=TEMPLATE_ID) as sandbox:
+        async with AsyncSandbox(client=client, image=IMAGE) as sandbox:
             result = await sandbox.exec("python -c \"print('hello async')\"", check=True, text=True)
             print(result.stdout, end="")
 

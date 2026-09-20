@@ -1,6 +1,4 @@
-FROM debian:bookworm-slim
-
-RUN useradd -r -u 65532 -g nogroup axern
+FROM scratch
 
 COPY deploy/images/tunneld/.build/tunneld /usr/local/bin/tunneld
 

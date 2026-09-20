@@ -15,7 +15,7 @@ axern run docker.io/library/python:3.12-slim -- \
 Resource intent has three layers: `request` becomes the immutable Allocation charge used by placement and admission, `limit` is the runtime hard cap enforced through node-local cgroups, and namespace `quota` is the admission ceiling. If a request is omitted, the control plane applies a default of `500m` CPU and `4GiB` memory. The invariant is `0 < request <= limit` when a matching limit is set. A bound Allocation keeps its charge through `RELEASING`; capacity returns only after cleanup reaches `RELEASED`.
 
 ```bash
-axern run --template python311 \
+axern run python:3.12-slim \
   --request-cpu 500m \
   --request-memory 512MiB \
   --limit-memory 1GiB \

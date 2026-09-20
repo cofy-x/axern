@@ -41,7 +41,7 @@ Registry defaults:
 Nydus smoke defaults are repo-managed and self-contained:
 
 - `make local-compose-nydus-smoke` and `make kind-axern-nydus-smoke` build a local Nydus image into the registry when it is missing.
-- The default source image is `axern/python311-runtime:dev`.
+- The default source image is the explicit `NYDUS_SOURCE_IMAGE` test fixture.
 - Set `NYDUS_TEST_IMAGE` only when intentionally validating a custom or production-built Nydus image.
 
 Useful status commands:
@@ -75,7 +75,7 @@ make local-compose-refresh-verify
 make kind-refresh-verify
 ```
 
-Refresh verification keeps the existing compose project or kind cluster, rebuilds local images, resets the environment database/state, reruns migrations, redeploys core services, reimports runtime template images, and runs the core smoke suites.
+Refresh verification keeps the existing compose project or kind cluster, rebuilds platform images, resets the environment database/state, reruns migrations, redeploys core services, imports explicit test workload images, and runs the core smoke suites.
 
 Use targeted refreshes when you only need one environment:
 
@@ -97,13 +97,11 @@ make local-truth-verify
 ```bash
 make local-compose-smoke
 make local-compose-run-smoke
-make local-compose-server-base-smoke
 make local-compose-quota-smoke
 make local-compose-computer-use-e2e
 
 make kind-smoke
 make kind-run-smoke
-make kind-server-base-smoke
 make kind-quota-smoke
 ```
 
@@ -131,8 +129,6 @@ Image-backed Run checks are intentionally separate because registry-first paths 
 ```bash
 make local-compose-registry-image-smoke
 make local-compose-image-mount-smoke
-make local-compose-claude-code-image-mount-smoke
-make local-compose-codex-image-mount-smoke
 make local-compose-nydus-smoke
 make kind-axern-registry-image-smoke
 make kind-axern-nydus-smoke
@@ -140,8 +136,6 @@ make kind-axern-nydus-smoke
 
 - `local-compose-registry-image-smoke` pushes a local runtime image into the repo-managed local registry and starts an Axern run from the registry ref through the compose node runtime path.
 - `local-compose-image-mount-smoke` pushes a task image and a tiny reusable image bundle into the repo-managed local registry, starts an Axern run with `--image-mount`, and verifies the mounted bundle is executable and read-only.
-- `local-compose-claude-code-image-mount-smoke` builds a Claude Code read-only bundle, mounts it into a coding-base task sandbox, runs `claude --version`, and verifies the mount is read-only without using provider credentials.
-- `local-compose-codex-image-mount-smoke` does the same for the Codex CLI bundle and validates the Node/npm launcher shape inside the task sandbox.
 - `kind-axern-registry-image-smoke` pushes a local runtime image into the repo-managed local registry and starts an Axern run from the registry ref.
 - `local-compose-nydus-smoke` and `kind-axern-nydus-smoke` validate Axern's own Nydus path with a repo-built local Nydus image by default: `registry source image -> nydus builder -> registry Nydus image -> imagemgr -> imagefsd -> axnoded -> sandbox`.
 - The Nydus smoke does not install or test the Kubernetes `nydus-snapshotter` path.
@@ -203,7 +197,7 @@ make registry-nydus-image-build
 
 Defaults and overrides:
 
-- `NYDUS_SOURCE_IMAGE=axern/python311-runtime:dev`
+- `NYDUS_SOURCE_IMAGE=python:3.12-slim`
 - `NYDUS_LOCAL_IMAGE=localhost:5001/axern/nydus-smoke:dev`
 - `NYDUS_IMAGE_REBUILD=1` forces conversion when the target already exists.
 - Explicit `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` values are propagated to the Nydus builder image build. Axern does not probe or select a host proxy.
@@ -216,14 +210,7 @@ NYDUS_TEST_IMAGE=<registry/ref:tag-or-digest> make local-compose-nydus-smoke
 NYDUS_TEST_IMAGE=<registry/ref:tag-or-digest> make kind-axern-nydus-smoke
 ```
 
-The local workflows use these repo-built runtime images:
-
-- `python311`: `axern/python311-runtime:dev`
-- `server-base`: `axern/server-base-runtime:dev`
-- `coding-base`: `axern/coding-base-runtime:dev`
-- `desktop-base`: `axern/desktop-base-runtime:dev`
-
-Bring-up and refresh flows rebuild these images and import them into the node-local `imagemgr` cache, relying on Docker cache to keep the common no-change path fast. Compose keeps that cache in a Docker-managed Linux volume so extracted OCI layer ownership stays faithful to the image metadata.
+Axern builds and publishes only platform images. Workload images are caller-owned explicit inputs. Targeted E2E checks may build narrowly scoped test fixtures and import them into the node-local `imagemgr` cache; those fixtures are neither preloaded nor release artifacts. Compose keeps the image cache in a Docker-managed Linux volume so extracted OCI layer ownership stays faithful to image metadata.
 
 ## Endpoints
 

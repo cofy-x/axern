@@ -47,9 +47,7 @@ message EnvironmentImageSource {
 
 message EnvironmentSpec {
   string namespace = 1;
-  string template_id = 2;
-  string template_version = 3;
-  EnvironmentImageSource image = 4;
+  EnvironmentImageSource image = 2;
 }
 
 message Environment {

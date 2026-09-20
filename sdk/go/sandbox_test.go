@@ -53,7 +53,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 
 	sandbox, err := NewSandbox(SandboxOptions{
 		Client:                client,
-		TemplateID:            "python311",
+		Image:                 "python:3.12-slim",
 		NetworkPolicy:         policy,
 		ReadyTimeout:          time.Second,
 		ExtensionCapabilities: []ExtensionCapability{{Name: "example.com/accelerator", Value: "v1"}},
@@ -279,7 +279,7 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 }
 
 func TestSandboxRequiresExactlyOneSource(t *testing.T) {
-	_, err := NewSandbox(SandboxOptions{Client: &Client{}, TemplateID: "python311", Image: "image"})
+	_, err := NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", EnvironmentID: "env-1"})
 	if err != ErrInvalidSource {
 		t.Fatalf("error = %v, want ErrInvalidSource", err)
 	}
@@ -311,7 +311,7 @@ func TestSandboxCloseClosesRunningProcesses(t *testing.T) {
 
 	sandbox, err := NewSandbox(SandboxOptions{
 		Client:       client,
-		TemplateID:   "python311",
+		Image:        "python:3.12-slim",
 		ReadyTimeout: time.Second,
 	})
 	if err != nil {
@@ -557,7 +557,7 @@ func startTestSandbox(t *testing.T, ctx context.Context, dialer func(context.Con
 	}
 	sandbox, err := NewSandbox(SandboxOptions{
 		Client:       client,
-		TemplateID:   "python311",
+		Image:        "python:3.12-slim",
 		ReadyTimeout: time.Second,
 	})
 	if err != nil {

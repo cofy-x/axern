@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 create_base_environment() {
-  env_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create -o json --template-id python311)"
+  env_create_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create -o json --image-ref "${PYTHON_RUNTIME_IMAGE_REF}")"
   environment_id="$(json_query "environment create" 'json.load(sys.stdin)["environment"]["id"]' "${env_create_output}")"
   [ -n "${environment_id}" ] || {
     echo "axern environment create did not return an environment id" >&2

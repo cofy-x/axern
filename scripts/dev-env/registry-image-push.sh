@@ -7,7 +7,7 @@ require_cmd docker
 
 image_ref="${IMAGE:-}"
 if [ -z "${image_ref}" ]; then
-  echo "IMAGE is required, for example: make registry-image-push IMAGE=axern/python311-runtime:dev" >&2
+  echo "IMAGE is required, for example: make registry-image-push IMAGE=myapp:dev" >&2
   exit 2
 fi
 if [[ "${image_ref}" == *@* ]]; then

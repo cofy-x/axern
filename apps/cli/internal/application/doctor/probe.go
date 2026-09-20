@@ -35,13 +35,13 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 
 	environment, err := session.Environment.CreateEnvironment(probeCtx, &environmentv1.CreateEnvironmentRequest{
 		Spec: &environmentv1.EnvironmentSpec{
-			Namespace:  c.options.Namespace,
-			TemplateID: options.TemplateID,
+			Namespace: c.options.Namespace,
+			Image:     &environmentv1.EnvironmentImageSource{Ref: strings.TrimSpace(options.ImageRef)},
 		},
 		Labels: map[string]string{"axern.doctor": "probe"},
 	})
 	if err != nil || strings.TrimSpace(environment.GetEnvironment().GetID()) == "" {
-		return failedCheck("data_plane", "probe_environment_create_failed", "probe environment could not be created", "check environment template availability, image access, namespace quota, and control-plane health", started)
+		return failedCheck("data_plane", "probe_environment_create_failed", "probe environment could not be created", "check image access, namespace quota, and control-plane health", started)
 	}
 	environmentID := environment.GetEnvironment().GetID()
 	runID := ""
@@ -54,7 +54,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 			Argv: []string{"python", "-c", "print('axern-doctor-ok')"},
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 50, MemoryBytes: 64 * 1024 * 1024},
-				// Doctor verifies template-backed data-plane reachability. Memory
+				// Doctor verifies image-backed data-plane reachability. Memory
 				// hard-limit conformance is a separate observed capability and node
 				// qualification contract, so this generic probe must remain valid on
 				// explicit disabled_dev nodes.
@@ -80,9 +80,9 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 		return failedCheck("data_plane", "probe_cleanup_failed", "probe resource cleanup did not complete", "inspect the probe-labeled Run and Environment resources", started)
 	}
 	if probeErr != nil {
-		return failedCheck("data_plane", "probe_run_failed", "data-plane probe did not complete successfully", "check node readiness, environment template availability, image access, and namespace quota", started)
+		return failedCheck("data_plane", "probe_run_failed", "data-plane probe did not complete successfully", "check node readiness, image access, and namespace quota", started)
 	}
-	return passedCheck("data_plane", "probe_succeeded", "template-backed Run completed and its temporary Environment was deleted", started)
+	return passedCheck("data_plane", "probe_succeeded", "image-backed Run completed and its temporary Environment was deleted", started)
 }
 
 func cleanupProbe(parent context.Context, session *Session, runID, environmentID string, timeout time.Duration) error {

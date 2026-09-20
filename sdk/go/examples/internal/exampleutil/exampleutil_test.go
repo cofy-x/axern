@@ -22,7 +22,7 @@ func TestConfigResolveUsesCurrentContext(t *testing.T) {
     }
   }
 }`)
-	cfg := &Config{ConfigPath: path, Endpoint: "127.0.0.1:25000", TemplateID: "python311"}
+	cfg := &Config{ConfigPath: path, Endpoint: "127.0.0.1:25000", Image: "python:3.12-slim"}
 	if err := cfg.applyContextDefaults(map[string]bool{}, func(string) string { return "" }); err != nil {
 		t.Fatalf("applyContextDefaults: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestConfigResolvePreservesExplicitAndEnvValues(t *testing.T) {
 		ConfigPath: path,
 		Endpoint:   "explicit-target",
 		TLSCACert:  "/env/ca.crt",
-		TemplateID: "python311",
+		Image:      "python:3.12-slim",
 	}
 	err := cfg.applyContextDefaults(map[string]bool{
 		"endpoint": true,

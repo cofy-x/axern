@@ -15,14 +15,7 @@ func RenderEnvironment(w io.Writer, env *environmentv1.Environment) {
 	fmt.Fprintf(w, "ID: %s\n", env.GetID())
 	fmt.Fprintf(w, "Namespace: %s\n", env.GetNamespace())
 	if spec := env.GetSpec(); spec != nil {
-		switch {
-		case strings.TrimSpace(spec.GetTemplateID()) != "":
-			fmt.Fprintln(w, "Source: template")
-			fmt.Fprintf(w, "Template ID: %s\n", spec.GetTemplateID())
-			if spec.GetTemplateVersion() != "" {
-				fmt.Fprintf(w, "Template Version: %s\n", spec.GetTemplateVersion())
-			}
-		case spec.GetImage() != nil && strings.TrimSpace(spec.GetImage().GetRef()) != "":
+		if spec.GetImage() != nil && strings.TrimSpace(spec.GetImage().GetRef()) != "" {
 			fmt.Fprintln(w, "Source: image")
 			fmt.Fprintf(w, "Image Ref: %s\n", spec.GetImage().GetRef())
 			if spec.GetImage().GetRegistryCredentialID() != "" {
@@ -63,12 +56,8 @@ func environmentSummary(env *environmentv1.Environment) (source, ref, digest str
 		return "", "", ""
 	}
 	spec := env.GetSpec()
-	switch {
-	case strings.TrimSpace(spec.GetTemplateID()) != "":
-		return "template", spec.GetTemplateID(), spec.GetTemplateVersion()
-	case spec.GetImage() != nil && strings.TrimSpace(spec.GetImage().GetRef()) != "":
+	if spec.GetImage() != nil && strings.TrimSpace(spec.GetImage().GetRef()) != "" {
 		return "image", spec.GetImage().GetRef(), env.GetResolvedSpec().GetImageDescriptor().GetDigest()
-	default:
-		return "unknown", "", ""
 	}
+	return "unknown", "", ""
 }

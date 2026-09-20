@@ -24,16 +24,6 @@ AXERN_K8S_RESET_POSTGRES="${AXERN_K8S_RESET_POSTGRES:-1}" \
   AXERN_LOCAL_RUNTIME_NODE="${AXERN_LOCAL_RUNTIME_NODE:-${K8S_CLUSTER_NAME}-worker}" \
   bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 
-if [ "${AXERN_KIND_REFRESH_IMPORT_RUNTIME_IMAGES:-1}" = "1" ] || [ "${AXERN_KIND_REFRESH_IMPORT_RUNTIME_IMAGES:-1}" = "true" ]; then
-  for image_ref in "${PYTHON311_RUNTIME_IMAGE}" "${SERVER_BASE_RUNTIME_IMAGE}" "${CODING_BASE_RUNTIME_IMAGE}" "${DESKTOP_BASE_RUNTIME_IMAGE}"; do
-    if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
-      echo "missing runtime image ${image_ref}; run make kind-up or make local-images-build once before kind-refresh" >&2
-      exit 1
-    fi
-    IMAGE="${image_ref}" bash "${AXERN_ROOT}/scripts/dev-env/kind-image-import.sh"
-  done
-fi
-
 echo "kind_refresh_ok=true"
 echo "kubeconfig=$(k8s_kubeconfig_file)"
 echo "axern_config=$(axern_config_file)"

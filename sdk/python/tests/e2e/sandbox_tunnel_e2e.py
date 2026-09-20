@@ -36,6 +36,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tls-ca-cert", required=True)
     parser.add_argument("--tls-cert", required=True)
     parser.add_argument("--tls-key", required=True)
+    parser.add_argument("--image-ref", required=True)
     parser.add_argument("--tls-server-name", default="")
     parser.add_argument("--node-container", required=True)
     return parser.parse_args()
@@ -64,7 +65,7 @@ def main() -> int:
         try:
             with Sandbox(
                 client=client,
-                template_id="python311",
+                image=args.image_ref,
                 argv=["python", "-c", "import time; time.sleep(600)"],
                 upstream=upstream,
                 ready_timeout_seconds=180,
@@ -226,7 +227,9 @@ with urllib.request.urlopen("http://{sandbox.bound_addr}/index.txt", timeout=5) 
                 f"run_id={run_id} session_id={session_id}"
             )
             phase = "low-level-loopback-service"
-            run_low_level_loopback_service_check(client, upstream, marker)
+            run_low_level_loopback_service_check(
+                client, args.image_ref, upstream, marker
+            )
             phase = "async-check"
             asyncio.run(run_async_sandbox_check(args))
             return 0
@@ -256,13 +259,14 @@ def _handler_for(root: Path):
 
 def run_low_level_loopback_service_check(
     client: AxernClient,
+    image_ref: str,
     upstream: str,
     marker: str,
 ) -> None:
     """Exercise a client readiness barrier using only public SDK APIs."""
 
     environment = client.create_environment(
-        template_id="python311",
+        image_ref=image_ref,
         labels={"axern.e2e": "loopback-service"},
     )
     run_id = ""
@@ -484,7 +488,7 @@ async def run_async_sandbox_check(args: argparse.Namespace) -> None:
         ) as client:
             async with AsyncSandbox(
                 client=client,
-                template_id="python311",
+                image=args.image_ref,
                 argv=["python", "-c", "import time; time.sleep(600)"],
                 ready_timeout_seconds=180,
             ) as sandbox:

@@ -177,7 +177,11 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	}
 	if _, err := db.Pool().Exec(ctx, `
 		UPDATE runs
-		SET config = '{"declaredOutputs":[{"path":"/tmp/output.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}]}'::jsonb
+		SET status = 'RUN_STATUS_SUCCEEDED',
+			config = '{"declaredOutputs":[{"path":"/tmp/output.patch","format":"DECLARED_OUTPUT_FORMAT_FILE","mediaType":"text/x-diff"}],"rootfsSnapshot":{}}'::jsonb,
+			environment_spec = '{"namespace":"default","image":{"ref":"docker.io/library/python:3.12-slim"}}'::jsonb,
+			resolved_environment_spec = '{"imageDescriptor":{"digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","annotations":{"org.opencontainers.image.ref.name":"image:local-import@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}'::jsonb,
+			rootfs_snapshot_result = '{"status":"ROOTFS_SNAPSHOT_STATUS_PENDING"}'::jsonb
 		WHERE run_id = $1
 	`, allocationID); err != nil {
 		t.Fatal(err)
@@ -201,6 +205,12 @@ func TestCapabilitySchemaKeepsRequirementsUnderAllocationOwnership(t *testing.T)
 	}
 	if outputItem == nil || len(outputItem.DeclaredOutputs) != 1 || outputItem.DeclaredOutputs[0].GetPath() != "/tmp/output.patch" {
 		t.Fatalf("claimed output-sealing contract = %#v", items)
+	}
+	if !outputItem.RootfsSnapshotRequested {
+		t.Fatal("claimed item did not preserve the pending rootfs snapshot intent")
+	}
+	if got, want := outputItem.BaseImageRef, "docker.io/library/python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; got != want {
+		t.Fatalf("rootfs snapshot base image = %q, want frozen Run source %q", got, want)
 	}
 	late := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.New(conditionAt.Add(time.Second)), Conditions: conflict.GetConditions()}
 	if err := replaceConditions(late, conditionAt.Add(time.Second)); err != nil {

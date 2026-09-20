@@ -32,7 +32,6 @@ export interface AxernClientOptions {
 
 export interface CreateEnvironmentOptions {
   namespace?: string;
-  templateId?: string;
   image?: string;
   registryCredentialId?: string;
   rootfsReadonly?: boolean;
@@ -195,20 +194,17 @@ export class AxernClient {
 
   async createEnvironment(options: CreateEnvironmentOptions): Promise<Record<string, unknown>> {
     const namespace = options.namespace ?? "default";
-    const sources = [options.templateId, options.image].filter((value) => value !== undefined && value !== "");
-    if (sources.length !== 1) {
-      throw new Error("exactly one of templateId or image is required");
+    if (options.image === undefined || options.image === "") {
+      throw new Error("image is required");
     }
-    const spec: Record<string, unknown> = { namespace };
-    if (options.templateId !== undefined && options.templateId !== "") {
-      spec.template_id = options.templateId;
-    } else {
-      spec.image = {
+    const spec: Record<string, unknown> = {
+      namespace,
+      image: {
         ref: required("image", options.image),
         registry_credential_id: options.registryCredentialId ?? "",
         rootfs_readonly: options.rootfsReadonly ?? false,
-      };
-    }
+      },
+    };
     try {
       const response = await unary<Record<string, unknown>, { environment: Record<string, unknown> }>(
         this.environmentControl,

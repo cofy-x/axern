@@ -45,7 +45,7 @@ func main() {
 
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:        client,
-		TemplateID:    "python311",
+		Image:         "python:3.12-slim",
 		RequestCPU:    "100m",
 		RequestMemory: "512MiB",
 		ReadyTimeout:  3 * time.Minute,

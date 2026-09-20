@@ -4,6 +4,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 
 require_cmd docker
+require_cmd python3
 
 image_ref="${IMAGE:-}"
 if [ -z "${image_ref}" ]; then
@@ -11,22 +12,30 @@ if [ -z "${image_ref}" ]; then
   exit 2
 fi
 
-if ! docker image inspect "${image_ref}" >/dev/null 2>&1; then
-  echo "host Docker image not found: ${image_ref}" >&2
-  exit 1
-fi
+echo "Streaming ${image_ref} into compose node" >&2
+result="$(compose_import_host_image "${image_ref}")"
+case "${AXERN_IMAGE_IMPORT_OUTPUT:-text}" in
+  json)
+    printf '%s\n' "${result}"
+    ;;
+  text)
+    python3 - "${result}" <<'PY'
+import json
+import sys
 
-node_container="${COMPOSE_PROJECT_NAME}-node-1"
-if ! docker ps --format '{{.Names}}' | grep -Fxq "${node_container}"; then
-  echo "compose node container is not running: ${node_container}" >&2
-  exit 1
-fi
-
-import_timeout="${AXERN_IMAGE_IMPORT_TIMEOUT:-5m}"
-image_id="$(docker image inspect "${image_ref}" --format '{{.Id}}')"
-
-echo "Streaming ${image_ref} into compose node"
-docker image save "${image_id}" | docker exec -i "${node_container}" axctl --timeout "${import_timeout}" image import \
-  --imagemgr-socket /run/imagemgr/imagemgr.sock \
-  --file - \
-  --ref "${image_ref}"
+result = json.loads(sys.argv[1])
+print(f"Imported {result['source_ref']} as {result['immutable_ref']}")
+print(
+    f"  content: {result['content_digest']}\n"
+    f"  archive: {result['archive_digest']}\n"
+    f"  platform: {result['platform']}\n"
+    f"  size: {result['size_bytes']} bytes\n"
+    f"  reused: {str(result['reused']).lower()}"
+)
+PY
+    ;;
+  *)
+    echo "AXERN_IMAGE_IMPORT_OUTPUT must be text or json" >&2
+    exit 2
+    ;;
+esac

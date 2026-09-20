@@ -2,7 +2,6 @@
 
 Repository-level utility scripts live here when they serve a real Axern build, release, or migration workflow.
 
-Template build and code generation scripts were intentionally removed from the platform skeleton.
 
 Scripts:
 

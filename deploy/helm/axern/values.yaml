@@ -189,12 +189,6 @@ postgres:
     size: 20Gi
     storageClassName: ""
 
-runtimeCatalog:
-  python311Image: ghcr.io/cofy-x/axern/python311-runtime:v0.10.0
-  serverBaseImage: ghcr.io/cofy-x/axern/server-base-runtime:v0.10.0
-  codingBaseImage: ghcr.io/cofy-x/axern/coding-base-runtime:v0.10.0
-  desktopBaseImage: ghcr.io/cofy-x/axern/desktop-base-runtime:v0.10.0
-
 controld:
   replicas: 1
   image:

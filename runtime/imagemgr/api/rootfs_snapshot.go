@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	pathpkg "path"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,10 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 )
 
-const maxRootfsSnapshotLayerBytes = int64(32 << 30)
+const (
+	maxRootfsSnapshotLayerBytes       = int64(32 << 30)
+	maxPendingRootfsSnapshotHardLinks = 1 << 16
+)
 
 var errRootfsSnapshotLayerTooLarge = errors.New("rootfs snapshot layer exceeds its maximum size")
 
@@ -170,10 +174,69 @@ func writeOCIRootfsSnapshotLayer(source io.Reader, destination io.Writer, maxByt
 	}
 	reader := tar.NewReader(source)
 	writer := tar.NewWriter(&boundedSnapshotWriter{destination: destination, remaining: maxBytes})
-	materialized := make(map[string]struct{})
+	type resolvedEntry uint8
+	const (
+		resolvedMaterialized resolvedEntry = iota + 1
+		resolvedWhiteout
+	)
+	resolved := make(map[string]resolvedEntry)
+	pendingLinks := make(map[string][]*tar.Header)
+	pendingLinkCount := 0
+	// gVisor may emit hard links before their targets. It also represents
+	// multiple deleted names for one tmpfs inode as a whiteout device followed
+	// by hard links to that device; every linked name is an OCI whiteout, not a
+	// hard link to materialize. Keep this resolution bounded because workload
+	// filesystem contents control the archive shape.
+	writeWhiteout := func(header *tar.Header, clean string) error {
+		whiteout := *header
+		whiteout.Name = pathpkg.Join(pathpkg.Dir(clean), ".wh."+pathpkg.Base(clean))
+		whiteout.Typeflag, whiteout.Mode, whiteout.Size = tar.TypeReg, 0600, 0
+		whiteout.Devmajor, whiteout.Devminor, whiteout.Linkname = 0, 0, ""
+		whiteout.PAXRecords = withoutOverlayOpaqueXattr(header.PAXRecords)
+		whiteout.Xattrs = withoutOverlayOpaqueXattr(header.Xattrs)
+		if err := writer.WriteHeader(&whiteout); err != nil {
+			return fmt.Errorf("write OCI whiteout for %q: %w", clean, err)
+		}
+		return nil
+	}
+	flushPendingLinks := func(target string) error {
+		queue := []string{target}
+		for len(queue) != 0 {
+			target = queue[0]
+			queue = queue[1:]
+			links := pendingLinks[target]
+			delete(pendingLinks, target)
+			pendingLinkCount -= len(links)
+			for _, link := range links {
+				kind := resolved[target]
+				if kind == resolvedWhiteout {
+					if err := writeWhiteout(link, link.Name); err != nil {
+						return err
+					}
+					resolved[link.Name] = resolvedWhiteout
+				} else {
+					if err := writer.WriteHeader(link); err != nil {
+						return fmt.Errorf("write OCI snapshot entry %q: %w", link.Name, err)
+					}
+					resolved[link.Name] = resolvedMaterialized
+				}
+				queue = append(queue, link.Name)
+			}
+		}
+		return nil
+	}
 	for {
 		header, err := reader.Next()
 		if err == io.EOF {
+			if len(pendingLinks) != 0 {
+				targets := make([]string, 0, len(pendingLinks))
+				for target := range pendingLinks {
+					targets = append(targets, target)
+				}
+				sort.Strings(targets)
+				link := pendingLinks[targets[0]][0]
+				return fmt.Errorf("snapshot upper layer hard link %q targets unavailable entry %q", link.Name, link.Linkname)
+			}
 			if err := writer.Close(); err != nil {
 				return fmt.Errorf("close OCI snapshot layer: %w", err)
 			}
@@ -193,14 +256,12 @@ func writeOCIRootfsSnapshotLayer(source io.Reader, destination io.Writer, maxByt
 			if clean == "." {
 				return fmt.Errorf("snapshot upper layer cannot whiteout its root")
 			}
-			whiteout := *header
-			whiteout.Name = pathpkg.Join(pathpkg.Dir(clean), ".wh."+pathpkg.Base(clean))
-			whiteout.Typeflag, whiteout.Mode, whiteout.Size = tar.TypeReg, 0600, 0
-			whiteout.Devmajor, whiteout.Devminor, whiteout.Linkname = 0, 0, ""
-			whiteout.PAXRecords = withoutOverlayOpaqueXattr(header.PAXRecords)
-			whiteout.Xattrs = withoutOverlayOpaqueXattr(header.Xattrs)
-			if err := writer.WriteHeader(&whiteout); err != nil {
-				return fmt.Errorf("write OCI whiteout for %q: %w", header.Name, err)
+			if err := writeWhiteout(header, clean); err != nil {
+				return err
+			}
+			resolved[clean] = resolvedWhiteout
+			if err := flushPendingLinks(clean); err != nil {
+				return err
 			}
 			continue
 		}
@@ -208,9 +269,6 @@ func writeOCIRootfsSnapshotLayer(source io.Reader, destination io.Writer, maxByt
 			target, targetErr := safeRootfsSnapshotPath(header.Linkname)
 			if targetErr != nil {
 				return fmt.Errorf("snapshot upper layer hard link %q: %w", header.Name, targetErr)
-			}
-			if _, ok := materialized[target]; !ok {
-				return fmt.Errorf("snapshot upper layer hard link %q targets unavailable entry %q", header.Name, header.Linkname)
 			}
 			header.Linkname = target
 		}
@@ -226,6 +284,27 @@ func writeOCIRootfsSnapshotLayer(source io.Reader, destination io.Writer, maxByt
 		default:
 			return fmt.Errorf("snapshot upper layer contains unsupported special file %q (type %d)", header.Name, header.Typeflag)
 		}
+		if header.Typeflag == tar.TypeLink {
+			if _, ok := resolved[header.Linkname]; !ok {
+				if pendingLinkCount >= maxPendingRootfsSnapshotHardLinks {
+					return fmt.Errorf("snapshot upper layer has more than %d unresolved hard links", maxPendingRootfsSnapshotHardLinks)
+				}
+				deferred := *header
+				pendingLinks[header.Linkname] = append(pendingLinks[header.Linkname], &deferred)
+				pendingLinkCount++
+				continue
+			}
+			if resolved[header.Linkname] == resolvedWhiteout {
+				if err := writeWhiteout(header, clean); err != nil {
+					return err
+				}
+				resolved[clean] = resolvedWhiteout
+				if err := flushPendingLinks(clean); err != nil {
+					return err
+				}
+				continue
+			}
+		}
 		if err := writer.WriteHeader(header); err != nil {
 			return fmt.Errorf("write OCI snapshot entry %q: %w", header.Name, err)
 		}
@@ -234,7 +313,10 @@ func writeOCIRootfsSnapshotLayer(source io.Reader, destination io.Writer, maxByt
 				return fmt.Errorf("write OCI snapshot content %q: %w", header.Name, err)
 			}
 		}
-		materialized[clean] = struct{}{}
+		resolved[clean] = resolvedMaterialized
+		if err := flushPendingLinks(clean); err != nil {
+			return err
+		}
 		if opaque {
 			marker := &tar.Header{
 				Name: pathpkg.Join(clean, ".wh..wh..opq"), Typeflag: tar.TypeReg,

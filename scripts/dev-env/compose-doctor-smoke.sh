@@ -8,6 +8,7 @@ trap 'end_env_lock compose' EXIT
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
 LOCAL_SMOKE_AXERN_TIMEOUT="${LOCAL_SMOKE_AXERN_TIMEOUT:-6m}"
 local_smoke_init_axern_cmd compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
+resolved_image="${LOCAL_SMOKE_RESOLVED_IMAGE_REF:-$(local_smoke_prepare_compose_image)}"
 namespace="compose-doctor-smoke-$(date +%s)-$$"
 
 cleanup() {
@@ -21,6 +22,7 @@ local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" namespace create "${namespace}" -
 if ! report="$(local_smoke_retry_json "${AXERN_SMOKE_CMD[@]}" doctor \
     --namespace "${namespace}" \
     --probe \
+    --image "${resolved_image}" \
     --probe-timeout 5m \
     --output json)"; then
   exit 1

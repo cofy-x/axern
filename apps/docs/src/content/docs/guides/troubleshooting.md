@@ -13,10 +13,10 @@ axern doctor --namespace default
 
 The platform doctor validates the selected context, mTLS certificate lifetime and key permissions, gateway connectivity, and namespace access without creating resources. Exit codes are stable for automation: `0` healthy, `1` degraded (warnings such as an expiring certificate), `2` invalid usage or connection configuration, `3` a required platform check failed.
 
-When reachability alone is not enough, run the live probe — it creates a temporary Environment from a built-in template, executes a small `runsc` Run, and cleans up:
+When reachability alone is not enough, run the live probe with an explicit OCI image. It creates a temporary Environment, executes a small `runsc` Run, and cleans up:
 
 ```bash
-axern doctor --namespace default --probe
+axern doctor --namespace default --probe --image python:3.12-slim
 ```
 
 Use `axern identity whoami` to confirm the Principal, certificate, and effective roles when a check reports authorization failures.

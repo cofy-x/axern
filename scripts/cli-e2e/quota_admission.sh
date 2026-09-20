@@ -36,7 +36,7 @@ verify_quota_admission() {
     exit 1
   fi
 
-  quota_env_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create -o json --namespace "${namespace}" --template-id python311)"
+  quota_env_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create -o json --namespace "${namespace}" --image-ref "${PYTHON_RUNTIME_IMAGE_REF}")"
   quota_environment_id="$(json_query "quota admission environment create" 'json.load(sys.stdin)["environment"]["id"]' "${quota_env_output}")"
   [ -n "${quota_environment_id}" ] || {
     echo "quota admission environment create did not return an environment id" >&2

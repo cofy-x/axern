@@ -20,6 +20,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/attribute"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -219,7 +220,7 @@ func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Contex
 
 func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs bool) capabilitycontract.RequirementInput {
 	resources := request.GetResources()
-	template := request.GetEnvironment()
+	resolved := request.GetEnvironment()
 	policySpec := request.GetNetwork()
 	policyMode := networkpolicy.Mode(policySpec)
 	return capabilitycontract.RequirementInput{
@@ -228,7 +229,7 @@ func (h *sandboxService) requirementInput(request *runtime.StartRequest, erofs b
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
 		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(policySpec),
 		MemoryLimitBytes:                resources.GetLimits().GetMemoryBytes(),
-		RootfsWritable:                  !template.GetRootfs().GetReadonly(),
+		RootfsWritable:                  !resolved.GetRootfs().GetReadonly(),
 		EphemeralStorageLimitBytes:      resources.GetLimits().GetEphemeralStorageBytes(),
 		EROFSBacking:                    erofs,
 		RootfsSnapshot:                  request.GetRootfsSnapshot() != nil,
@@ -255,7 +256,7 @@ func dependencyKeys(dependencies []*capabilityv1.CapabilityRequirement, excludeE
 
 func (h *sandboxService) verifyRequestCapabilityRequirements(request *runtime.StartRequest) error {
 	if request == nil || request.GetEnvironment() == nil || request.GetEnvironment().GetRootfs() == nil {
-		return fmt.Errorf("environment template and rootfs are required")
+		return fmt.Errorf("prepared environment and rootfs are required")
 	}
 	if strings.TrimSpace(request.GetAllocationID()) == "" {
 		return fmt.Errorf("allocation id is required")
@@ -392,6 +393,7 @@ func (h *sandboxService) delete(ctx context.Context, request *runtime.DeleteRequ
 		resp, err := controller.DeleteControlPlane(ctx, request, controlPlaneNodeID)
 		if err != nil {
 			op.SetErrorStatus("allocation delete failed")
+			logRootfsSnapshotSealingFailure(request.GetID(), err)
 			return resp, allocationDeleteGRPCError(err)
 		}
 		return resp, nil
@@ -399,9 +401,17 @@ func (h *sandboxService) delete(ctx context.Context, request *runtime.DeleteRequ
 	resp, err := controller.Delete(ctx, request)
 	if err != nil {
 		op.SetErrorStatus("allocation delete failed")
+		logRootfsSnapshotSealingFailure(request.GetID(), err)
 		return resp, allocationDeleteGRPCError(err)
 	}
 	return resp, nil
+}
+
+func logRootfsSnapshotSealingFailure(allocationID string, err error) {
+	if !allocation.IsRootfsSnapshotSealingError(err) {
+		return
+	}
+	logrus.WithError(err).WithField("allocation_id", strings.TrimSpace(allocationID)).Warn("rootfs snapshot sealing failed")
 }
 
 func allocationDeleteGRPCError(err error) error {

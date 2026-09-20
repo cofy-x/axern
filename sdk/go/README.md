@@ -3,7 +3,7 @@
 The Go SDK is the second language surface for Axern programmable sandboxes. It focuses on the programmable sandbox loop:
 
 - connect to the control plane
-- create an allocation-backed sandbox from a template, image, or environment
+- create an allocation-backed sandbox from an OCI image or existing environment
 - run a command
 - inspect sandbox metadata for logs and diagnostics
 - stream an attached process with stdin/stdout/stderr and lifecycle control
@@ -157,14 +157,14 @@ Runnable examples live under `sdk/go/examples`:
 - `computer-use`: inspect a desktop-capable sandbox and capture a screenshot
 - `programmable`: combine upload, process control, download, tunnel, and cleanup
 
-Each example defaults to the current Axern context from the local CLI config file. Use `--context` or `AXERN_CONTEXT` to select a named context, and `--config` or `AXERN_CONFIG` to select a config file. Explicit flags and env vars still take precedence, including `AXERN_ENDPOINT`, `AXERN_TLS_CA_CERT`, `AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_TEMPLATE_ID`, `AXERN_PROXY_MODE`, and `AXERN_TLS_SERVER_NAME`. Tunnel traffic reuses the gateway endpoint and TLS identity.
+Each example defaults to the current Axern context from the local CLI config file. Use `--context` or `AXERN_CONTEXT` to select a named context, and `--config` or `AXERN_CONFIG` to select a config file. Explicit flags and env vars still take precedence, including `AXERN_ENDPOINT`, `AXERN_TLS_CA_CERT`, `AXERN_TLS_CERT`, `AXERN_TLS_KEY`, `AXERN_IMAGE`, `AXERN_PROXY_MODE`, and `AXERN_TLS_SERVER_NAME`. Tunnel traffic reuses the gateway endpoint and TLS identity.
 
 ```bash
 go run ./sdk/go/examples/basic
 go run ./sdk/go/examples/process
 go run ./sdk/go/examples/files
 go run ./sdk/go/examples/tunnel
-go run ./sdk/go/examples/computer-use --template-id desktop-base
+go run ./sdk/go/examples/computer-use --image your-computer-use-image:tag
 go run ./sdk/go/examples/programmable
 ```
 

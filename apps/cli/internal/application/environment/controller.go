@@ -70,13 +70,13 @@ func (c Control) Delete(ctx context.Context, environmentID string) (*environment
 func (c Control) ResolveID(ctx context.Context, params ResolveParams) (string, error) {
 	environmentID := strings.TrimSpace(params.EnvironmentID)
 	if environmentID != "" && params.Spec != nil {
-		return "", fmt.Errorf("environment-id cannot be combined with template-id or image-ref")
+		return "", fmt.Errorf("environment-id cannot be combined with image-ref")
 	}
 	if environmentID != "" {
 		return environmentID, nil
 	}
 	if params.Spec == nil {
-		return "", fmt.Errorf("environment-id, template-id, or image-ref is required")
+		return "", fmt.Errorf("environment-id or image-ref is required")
 	}
 	resp, err := c.Create(ctx, CreateParams{Spec: params.Spec})
 	if err != nil {

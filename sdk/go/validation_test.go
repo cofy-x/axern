@@ -7,23 +7,23 @@ import (
 )
 
 func TestSandboxOptionValidation(t *testing.T) {
-	_, err := NewSandbox(SandboxOptions{TemplateID: "python311"})
+	_, err := NewSandbox(SandboxOptions{Image: "python:3.12-slim"})
 	if !IsValidation(err) {
 		t.Fatalf("NewSandbox without client error = %v, want validation", err)
 	}
-	_, err = NewSandbox(SandboxOptions{Client: &Client{}, TemplateID: "python311", ReadyTimeout: -time.Second})
+	_, err = NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", ReadyTimeout: -time.Second})
 	if !IsValidation(err) {
 		t.Fatalf("NewSandbox negative ready timeout error = %v, want validation", err)
 	}
-	_, err = NewSandbox(SandboxOptions{Client: &Client{}, TemplateID: "python311", RequestCPU: "-1"})
+	_, err = NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", RequestCPU: "-1"})
 	if !IsValidation(err) {
 		t.Fatalf("NewSandbox negative cpu error = %v, want validation", err)
 	}
-	_, err = NewSandbox(SandboxOptions{Client: &Client{}, TemplateID: "python311", ImageMounts: []ImageMount{{Image: "tool", Target: "/usr"}}})
+	_, err = NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", ImageMounts: []ImageMount{{Image: "tool", Target: "/usr"}}})
 	if !IsValidation(err) {
 		t.Fatalf("NewSandbox protected image mount target error = %v, want validation", err)
 	}
-	_, err = NewSandbox(SandboxOptions{Client: &Client{}, TemplateID: "python311", ImageMounts: []ImageMount{{Image: "tool", Target: "/usr/local/tool"}}})
+	_, err = NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", ImageMounts: []ImageMount{{Image: "tool", Target: "/usr/local/tool"}}})
 	if !IsValidation(err) {
 		t.Fatalf("NewSandbox nested protected image mount target error = %v, want validation", err)
 	}

@@ -45,7 +45,7 @@ func TestSandboxOpenTunnelLifecycle(t *testing.T) {
 
 	sandbox, err := NewSandbox(SandboxOptions{
 		Client:       client,
-		TemplateID:   "python311",
+		Image:        "python:3.12-slim",
 		ReadyTimeout: time.Second,
 	})
 	if err != nil {

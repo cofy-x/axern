@@ -9,10 +9,6 @@ declare -A lock_keys=(
   [tunneld]=TUNNELD_IMAGE
   [gatewayd]=GATEWAYD_IMAGE
   [node-all-in-one]=NODE_ALL_IN_ONE_IMAGE
-  [python311-runtime]=PYTHON311_RUNTIME_IMAGE
-  [server-base-runtime]=SERVER_BASE_RUNTIME_IMAGE
-  [coding-base-runtime]=CODING_BASE_RUNTIME_IMAGE
-  [desktop-base-runtime]=DESKTOP_BASE_RUNTIME_IMAGE
 )
 for image in "${!lock_keys[@]}"; do
   target="${AXERN_RELEASE_REGISTRY}/${image}:${tag}"

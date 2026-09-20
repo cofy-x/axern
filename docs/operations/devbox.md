@@ -166,33 +166,14 @@ A practical manual debug startup order is:
 
 `Axnoded: Debug daemon` registers `axern-dev-node` with the standalone `controld` at `127.0.0.1:24000` by default. Product CLI commands use `gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after the five debug services are running.
 
-Template-backed workloads need their runtime images imported into standalone `imagemgr`. This mirrors the compose/kind image load flow:
-
-```bash
-make dev-runtime-images-load
-```
-
-The default imports `python311`. Pass additional environment templates when needed:
-
-```bash
-make dev-runtime-images-load DEV_RUNTIME_IMAGES='python311 server-base coding-base desktop-base'
-```
-
-From the host, use:
-
-```bash
-make devbox-runtime-images-load
-```
-
 ## Gateway Run Smoke
 
-After the standalone stack is running and the `python311` runtime image is loaded, verify the public gateway, control plane, placement, node lifecycle, runsc sandbox, and output path with one foreground Run. Run this from a devbox shell or VS Code Remote-SSH terminal:
+After the standalone stack is running, load or publish an explicit workload image, then verify the public gateway, control plane, placement, node lifecycle, runsc sandbox, and output path with one foreground Run. Run this from a devbox shell or VS Code Remote-SSH terminal:
 
 ```bash
 make axern-dev-build
-make dev-runtime-images-load
 
-axern run --template python311 -- \
+axern run python:3.12-slim -- \
   python -c 'print("axern gateway run smoke")'
 ```
 

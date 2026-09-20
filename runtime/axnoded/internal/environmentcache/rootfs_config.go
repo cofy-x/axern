@@ -83,7 +83,7 @@ func rootfsConfigMessageFromRuntime(environment *PreparedEnvironment) *api.Rootf
 	return rootfsConfig
 }
 
-func preparedEnvironmentMatchesTemplate(environment *PreparedEnvironment, fr *api.ResolvedEnvironment) bool {
+func preparedEnvironmentMatchesResolvedSpec(environment *PreparedEnvironment, fr *api.ResolvedEnvironment) bool {
 	if environment == nil || fr == nil {
 		return environment == nil && fr == nil
 	}

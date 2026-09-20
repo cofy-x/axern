@@ -76,14 +76,12 @@ class ContractV1Test(unittest.TestCase):
         contract = load("sandbox_sources.json")
         for item in contract["valid"]:
             _validate_source(
-                template_id=item.get("template", ""),
                 image=item.get("image", ""),
                 environment_id=item.get("environment", ""),
             )
         for item in contract["invalid"]:
             with self.assertRaises(SandboxValidationError):
                 _validate_source(
-                    template_id=item.get("template", ""),
                     image=item.get("image", ""),
                     environment_id=item.get("environment", ""),
                 )

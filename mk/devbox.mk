@@ -2,12 +2,11 @@
 		node-dev-ensure-dlv axnoded-debug-server imagemgr-debug-server \
 		postgres-dev-up postgres-dev-down controld-dev-prepare controld-dev-run gatewayd-dev-run \
 		axern-dev axern-dev-build axctl-dev axctl-dev-build egressd-dev-run \
-		dev-runtime-images-build dev-runtime-images-load \
 		axnoded-dev-run imagemgr-dev-run imagefsd-dev-serve-chunk \
 		dev-stack-up dev-stack-status dev-stack-down dev-stack-restart dev-stack-logs dev-stack-reset \
 		devbox-image-build devbox-up devbox-status devbox-down devbox-shell \
 		devbox-stack-up devbox-stack-status devbox-stack-down devbox-stack-restart devbox-stack-logs devbox-stack-reset \
-		devbox-runtime-images-load devbox-axern devbox-axctl
+		devbox-axern devbox-axctl
 
 NODE_DEV_DIR := $(ROOTDIR)/.dev
 NODE_DEV_RUN_DIR := $(NODE_DEV_DIR)/run
@@ -21,7 +20,6 @@ AXERN_SECRETS_MASTER_KEY ?= local-only-master-key-32-bytes!!
 POSTGRES_DSN ?= postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable
 AXERN_DEV_CONTROL_TARGET ?= 127.0.0.1:24000
 AXCTL_DEV_ADDRESS ?= $(NODE_DEV_RUN_DIR)/axnoded.sock
-DEV_RUNTIME_IMAGES ?= python311
 
 define ensure_linux_workspace
 	@if [ "$$(uname -s)" != "Linux" ]; then \
@@ -158,14 +156,6 @@ axctl-dev: node-dev-prepare ## Run axctl against the standalone axnoded socket, 
 axctl-dev-build: ## Build axctl for standalone dev use
 	mkdir -p $(ROOTDIR)/bin
 	$(GO) -C $(ROOTDIR)/runtime/axnoded build -o $(ROOTDIR)/bin/axctl ./axctl
-
-dev-runtime-images-build: ## Build standalone runtime images, with DEV_RUNTIME_IMAGES='python311 ...'
-	$(call ensure_linux_workspace)
-	bash $(ROOTDIR)/scripts/devbox/runtime-images.sh build $(DEV_RUNTIME_IMAGES)
-
-dev-runtime-images-load: node-dev-prepare ## Import standalone runtime images into imagemgr, with DEV_RUNTIME_IMAGES='python311 ...'
-	$(call ensure_linux_workspace)
-	bash $(ROOTDIR)/scripts/devbox/runtime-images.sh load $(DEV_RUNTIME_IMAGES)
 
 axnoded-dev-run: node-dev-prepare ## Run axnoded in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)
@@ -327,12 +317,6 @@ devbox-stack-reset: ## Reset standalone Axern dev stack state inside the running
 		--project-dir $(ROOTDIR) \
 		--container-name $(DEVBOX_CONTAINER_NAME) \
 		-- make dev-stack-reset
-
-devbox-runtime-images-load: ## Import standalone runtime images inside the running devbox, with DEV_RUNTIME_IMAGES='python311 ...'
-	cd $(ROOTDIR) && $(DEVBOX) exec \
-		--project-dir $(ROOTDIR) \
-		--container-name $(DEVBOX_CONTAINER_NAME) \
-		-- make dev-runtime-images-load DEV_RUNTIME_IMAGES='$(DEV_RUNTIME_IMAGES)'
 
 devbox-axern: ## Run the product CLI inside the running devbox, with ARGS='<args>'
 	cd $(ROOTDIR) && $(DEVBOX) exec \

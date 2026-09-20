@@ -121,7 +121,7 @@ func (a *App) newAuthoritativeNodeProfile() nodeProfile {
 
 func (a *App) authoritativeProfile(selector *placement.Selector) apiProfile {
 	runs := apprun.NewAuthoritative(a.runStore, selector)
-	environments := appenvironment.NewAuthoritative(a.templates, a.imageResolver, a.secretDB, a.runStore)
+	environments := appenvironment.NewAuthoritative(a.imageResolver, a.secretDB, a.runStore)
 	profile := apiProfile{
 		admin:      appadmin.NewAllocationLifecycleControl(a.adminPG),
 		adminAudit: appadmin.NewAuditControl(a.adminPG),

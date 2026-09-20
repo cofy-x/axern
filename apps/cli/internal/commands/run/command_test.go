@@ -11,12 +11,12 @@ import (
 
 func TestRunIsForegroundRootAndCreateIsRemoved(t *testing.T) {
 	cmd := Command(command.Runtime{})
-	for _, name := range []string{"template", "environment", "file", "detach", "wait-timeout", "snapshot-rootfs"} {
+	for _, name := range []string{"environment", "file", "detach", "wait-timeout", "snapshot-rootfs"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("run flag --%s is missing", name)
 		}
 	}
-	for _, removed := range []string{"argv", "image-ref", "template-id", "environment-id", "wait", "wait-for"} {
+	for _, removed := range []string{"argv", "image-ref", "template", "template-version", "template-id", "environment-id", "wait", "wait-for"} {
 		if cmd.Flags().Lookup(removed) != nil {
 			t.Fatalf("removed run flag --%s is still registered", removed)
 		}
@@ -42,8 +42,6 @@ func TestRunRejectsSourceSpecificFlags(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"template version without template", []string{"--environment", "env-1", "--template-version", "v2"}, "--template-version requires --template"},
-		{"template registry credential", []string{"--template", "python311", "--registry-credential-id", "credential-1"}, "cannot be combined with --template"},
 		{"environment readonly rootfs", []string{"--environment", "env-1", "--rootfs-readonly"}, "require an image"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

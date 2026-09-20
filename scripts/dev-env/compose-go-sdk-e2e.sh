@@ -12,6 +12,7 @@ require_cmd "${go_bin}"
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
 local_smoke_init_axern_cmd compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
+resolved_image="${LOCAL_SMOKE_RESOLVED_IMAGE_REF:-$(local_smoke_prepare_compose_image)}"
 
 node_container="${COMPOSE_PROJECT_NAME}-node-1"
 if ! docker ps --format '{{.Names}}' | grep -qx "${node_container}"; then
@@ -23,6 +24,7 @@ fi
   --endpoint "${AXERN_ENDPOINT}" \
   --tls-ca-cert "${AXERN_TLS_CA_CERT}" \
   --tls-cert "${AXERN_TLS_CERT}" \
-  --tls-key "${AXERN_TLS_KEY}"
+  --tls-key "${AXERN_TLS_KEY}" \
+  --image-ref "${resolved_image}"
 
 echo "compose_go_sdk_e2e_ok=true"

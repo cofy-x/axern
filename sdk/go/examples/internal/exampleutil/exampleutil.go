@@ -20,7 +20,7 @@ type Config struct {
 	TLSCert       string
 	TLSKey        string
 	TLSServerName string
-	TemplateID    string
+	Image         string
 	ProxyMode     string
 	resolved      bool
 }
@@ -34,7 +34,7 @@ func Flags() *Config {
 		TLSCert:       os.Getenv("AXERN_TLS_CERT"),
 		TLSKey:        os.Getenv("AXERN_TLS_KEY"),
 		TLSServerName: os.Getenv("AXERN_TLS_SERVER_NAME"),
-		TemplateID:    env("AXERN_TEMPLATE_ID", "python311"),
+		Image:         env("AXERN_IMAGE", "python:3.12-slim"),
 		ProxyMode:     env("AXERN_PROXY_MODE", clientconfig.ProxyModeEnv),
 	}
 	flag.StringVar(&config.ConfigPath, "config", config.ConfigPath, "path to the local axern CLI config file")
@@ -44,7 +44,7 @@ func Flags() *Config {
 	flag.StringVar(&config.TLSCert, "tls-cert", config.TLSCert, "control plane TLS client certificate")
 	flag.StringVar(&config.TLSKey, "tls-key", config.TLSKey, "control plane TLS client key")
 	flag.StringVar(&config.TLSServerName, "tls-server-name", config.TLSServerName, "control plane TLS server name")
-	flag.StringVar(&config.TemplateID, "template-id", config.TemplateID, "sandbox template id")
+	flag.StringVar(&config.Image, "image", config.Image, "sandbox OCI image")
 	flag.StringVar(&config.ProxyMode, "proxy-mode", config.ProxyMode, "gRPC proxy mode: env or direct")
 	return config
 }
@@ -67,7 +67,7 @@ func StartSandbox(ctx context.Context, client *axern.Client, config *Config) (*a
 	}
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:       client,
-		TemplateID:   config.TemplateID,
+		Image:        config.Image,
 		ReadyTimeout: 3 * time.Minute,
 	})
 	if err != nil {

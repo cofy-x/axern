@@ -10,7 +10,7 @@ The common public contract is captured as versioned fixtures in `sdk/contracts/v
 
 | Capability | Python | Go | TypeScript |
 | --- | --- | --- | --- |
-| Sandbox source | `template_id`, `image`, or `environment_id` | `TemplateID`, `Image`, or `EnvironmentID` | `templateId`, `image`, or `environmentId` |
+| Sandbox source | `image` or `environment_id` | `Image` or `EnvironmentID` | `image` or `environmentId` |
 | Lifecycle | `Sandbox` context manager, `start()`, `close()` | `NewSandbox`, `Start(ctx)`, `Close(ctx)` | `new Sandbox(...).start()`, `close()` |
 | Async model | Sync and `AsyncSandbox` | `context.Context` | Promise APIs |
 | Exec | `exec()`, `exec_stream()` | `Exec(ctx, ...)` | `exec()` |

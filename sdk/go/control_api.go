@@ -34,7 +34,6 @@ type ListRunsOptions struct {
 // CreateEnvironmentOptions configures a control-plane environment.
 type CreateEnvironmentOptions struct {
 	Namespace            string
-	TemplateID           string
 	Image                string
 	RegistryCredentialID string
 	RootFSReadonly       bool
@@ -239,23 +238,18 @@ func runTerminal(run *runv1.Run) bool {
 	}
 }
 
-// CreateEnvironment creates an Axern environment from a template or image.
+// CreateEnvironment creates an Axern environment from an OCI image.
 func (c *Client) CreateEnvironment(ctx context.Context, options CreateEnvironmentOptions) (*environmentv1.Environment, error) {
 	namespace := defaultString(options.Namespace, "default")
-	sourceCount := countNonEmpty(options.TemplateID, options.Image)
-	if sourceCount != 1 {
+	if strings.TrimSpace(options.Image) == "" {
 		return nil, ErrInvalidSource
 	}
-	spec := &environmentv1.EnvironmentSpec{Namespace: namespace}
-	if options.TemplateID != "" {
-		spec.TemplateID = options.TemplateID
-	} else {
-		spec.Image = &environmentv1.EnvironmentImageSource{
+	spec := &environmentv1.EnvironmentSpec{Namespace: namespace,
+		Image: &environmentv1.EnvironmentImageSource{
 			Ref:                  options.Image,
 			RegistryCredentialID: options.RegistryCredentialID,
 			RootfsReadonly:       options.RootFSReadonly,
-		}
-	}
+		}}
 	response, err := c.environments.CreateEnvironment(ctx, &environmentv1.CreateEnvironmentRequest{
 		Spec:   spec,
 		Labels: cloneMap(options.Labels),

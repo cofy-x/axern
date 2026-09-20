@@ -15,7 +15,7 @@ axern run docker.io/library/python:3.12-slim -- \
 资源意图分三层：`request` 在准入后成为 Allocation 的不可变资源占用事实，供 placement 与 admission 使用；`limit` 是通过节点本地 cgroup 强制执行的运行时硬上限；命名空间 `quota` 是准入天花板。省略 request 时，控制面应用 `500m` CPU 和 `4GiB` 内存的默认值。设置了对应 limit 时，不变式为 `0 < request <= limit`。Allocation 从绑定开始持续占用资源，经过 `RELEASING` 仍不释放，只有清理完成并进入 `RELEASED` 后容量才会归还。
 
 ```bash
-axern run --template python311 \
+axern run python:3.12-slim \
   --request-cpu 500m \
   --request-memory 512MiB \
   --limit-memory 1GiB \

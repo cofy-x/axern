@@ -27,18 +27,14 @@ func ImageReferences(version string) map[string]string {
 	}
 	registry := "ghcr.io/cofy-x/axern/"
 	values := map[string]string{
-		"POSTGRES_IMAGE":             "postgres:16-alpine",
-		"REGISTRY_IMAGE":             "registry:2",
-		"CONTROLD_IMAGE":             registry + "controld:" + tag,
-		"TUNNELD_IMAGE":              registry + "tunneld:" + tag,
-		"GATEWAYD_IMAGE":             registry + "gatewayd:" + tag,
-		"NODE_ALL_IN_ONE_IMAGE":      registry + "node-all-in-one:" + tag,
-		"PYTHON311_RUNTIME_IMAGE":    registry + "python311-runtime:" + tag,
-		"SERVER_BASE_RUNTIME_IMAGE":  registry + "server-base-runtime:" + tag,
-		"CODING_BASE_RUNTIME_IMAGE":  registry + "coding-base-runtime:" + tag,
-		"DESKTOP_BASE_RUNTIME_IMAGE": registry + "desktop-base-runtime:" + tag,
-		"OTEL_COLLECTOR_IMAGE":       "otel/opentelemetry-collector:0.150.1",
-		"OTEL_LGTM_IMAGE":            "grafana/otel-lgtm:0.11.16",
+		"POSTGRES_IMAGE":        "postgres:16-alpine",
+		"REGISTRY_IMAGE":        "registry:2",
+		"CONTROLD_IMAGE":        registry + "controld:" + tag,
+		"TUNNELD_IMAGE":         registry + "tunneld:" + tag,
+		"GATEWAYD_IMAGE":        registry + "gatewayd:" + tag,
+		"NODE_ALL_IN_ONE_IMAGE": registry + "node-all-in-one:" + tag,
+		"OTEL_COLLECTOR_IMAGE":  "otel/opentelemetry-collector:0.150.1",
+		"OTEL_LGTM_IMAGE":       "grafana/otel-lgtm:0.11.16",
 	}
 	for _, entry := range strings.Split(imageLock, ";") {
 		key, value, ok := strings.Cut(entry, "=")

@@ -14,7 +14,7 @@ import (
 )
 
 func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1.ExecutionConfig) (*placementkernel.Request, error) {
-	template := env.GetResolvedSpec()
+	resolved := env.GetResolvedSpec()
 	requests := config.GetResources().GetRequests()
 	limits := config.GetResources().GetLimits()
 	normalizedNetwork, err := networkpolicy.Normalize(config.GetNetwork())
@@ -28,7 +28,7 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 		RequiresDNSPolicyEnforcement:    policyMode == networkpolicy.EnforcementDNSDeny,
 		RequiresStrictEgressEnforcement: policyMode == networkpolicy.EnforcementStrict && networkpolicy.StrictNeedsEgressd(normalizedNetwork),
 		MemoryLimitBytes:                limits.GetMemoryBytes(),
-		RootfsWritable:                  !template.GetRootfsReadonly(),
+		RootfsWritable:                  !resolved.GetRootfsReadonly(),
 		EphemeralStorageLimitBytes:      limits.GetEphemeralStorageBytes(),
 		RootfsSnapshot:                  config.GetRootfsSnapshot() != nil,
 		ExtensionCapabilityRequests:     config.GetExtensionCapabilityRequirements(),
@@ -37,11 +37,11 @@ func (p *Selector) buildRequest(env *environmentv1.Environment, config *commonv1
 		return nil, fmt.Errorf("derive placement capability requirements: %w", err)
 	}
 	return &placementkernel.Request{
-		RootfsKey:                      firstNonEmpty(env.GetID(), template.GetImageDescriptor().GetDigest()),
+		RootfsKey:                      firstNonEmpty(env.GetID(), resolved.GetImageDescriptor().GetDigest()),
 		RootfsType:                     controlnodev1.RootfsType_ROOTFS_TYPE_IMAGE,
 		MountType:                      controlnodev1.MountType_MOUNT_TYPE_OCI,
 		MemoryLimitBytes:               limits.GetMemoryBytes(),
-		RootfsWritable:                 !template.GetRootfsReadonly(),
+		RootfsWritable:                 !resolved.GetRootfsReadonly(),
 		EphemeralStorageLimitBytes:     limits.GetEphemeralStorageBytes(),
 		RequestedCpuMilli:              requests.GetCpuMilli(),
 		RequestedMemoryBytes:           requests.GetMemoryBytes(),

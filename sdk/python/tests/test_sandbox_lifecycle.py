@@ -104,12 +104,9 @@ class SandboxTest(unittest.TestCase):
         self.assertEqual(client.revoked[0][0], "tun-1")
         self.assertEqual(client.cancelled[0][0], "run-1")
         self.assertEqual(client.deleted_environments[0][0], "env-1")
-        self.assertNotIn("template_id", client.created_environment)
 
-    def test_requires_exactly_one_environment_source(self) -> None:
+    def test_requires_environment_source(self) -> None:
         client = _FakeClient()
-        with self.assertRaises(ValueError):
-            Sandbox(client=client, image="image", template_id="python311")
         with self.assertRaises(ValueError):
             Sandbox(client=client)
 
@@ -165,14 +162,7 @@ class SandboxTest(unittest.TestCase):
         )
         client.close()
 
-    def test_create_environment_rejects_image_with_explicit_template(self) -> None:
-        client = AxernClient.__new__(AxernClient)
-        with self.assertRaises(ValueError):
-            client.create_environment(
-                image_ref="docker.io/library/python:3.12-slim", template_id="python311"
-            )
-
-    def test_create_environment_requires_template_or_image(self) -> None:
+    def test_create_environment_requires_image(self) -> None:
         client = AxernClient.__new__(AxernClient)
         with self.assertRaises(ValueError):
             client.create_environment()

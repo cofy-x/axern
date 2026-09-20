@@ -29,14 +29,19 @@ func main() {
 	var tlsCert string
 	var tlsKey string
 	var tlsServerName string
+	var imageRef string
 	flag.StringVar(&endpoint, "endpoint", "", "gateway gRPC endpoint")
 	flag.StringVar(&tlsCACert, "tls-ca-cert", "", "control plane TLS CA certificate")
 	flag.StringVar(&tlsCert, "tls-cert", "", "control plane TLS client certificate")
 	flag.StringVar(&tlsKey, "tls-key", "", "control plane TLS client key")
 	flag.StringVar(&tlsServerName, "tls-server-name", "", "gateway TLS server name")
+	flag.StringVar(&imageRef, "image-ref", "", "immutable Allocation rootfs image reference")
 	flag.Parse()
 	if endpoint == "" {
 		failf("--endpoint is required")
+	}
+	if imageRef == "" {
+		failf("--image-ref is required")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
@@ -50,7 +55,7 @@ func main() {
 
 	sandbox, err := axern.NewSandbox(axern.SandboxOptions{
 		Client:       client,
-		TemplateID:   "python311",
+		Image:        imageRef,
 		Argv:         []string{"python", "-c", "import time; time.sleep(600)"},
 		ReadyTimeout: 180 * time.Second,
 	})

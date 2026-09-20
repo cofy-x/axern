@@ -175,7 +175,7 @@ func (f *fakeNodeLifecycleService) List(ctx context.Context, req *runtimev1.List
 func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	t.Parallel()
 
-	const imageRef = "axern/python311-runtime:dev"
+	const imageRef = "example/workload:dev"
 	fakeService := &fakeNodeLifecycleService{
 		admittedDependencies: []*capabilityv1.CapabilityRequirement{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
@@ -423,7 +423,7 @@ func TestNodeLifecycleGetAllocationLifecycleReturnsNotFoundWhenRuntimeAllocation
 	}
 }
 
-func TestAllocationEnvironmentIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
+func TestAllocationEnvironmentIDUsesOnlyResolvedExecutionSpec(t *testing.T) {
 	base := &nodelifecyclev1.CreateAllocationRequest{
 		Config: &nodelifecyclev1.ResolvedExecutionConfig{
 			EnvironmentID:   "env-a",
@@ -447,7 +447,7 @@ func TestAllocationEnvironmentIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 		t.Fatalf("allocationStartRequest(other) error = %v", err)
 	}
 	if baseStart.GetEnvironment().GetID() != otherStart.GetEnvironment().GetID() {
-		t.Fatal("request identity must not partition the environment template cache")
+		t.Fatal("request identity must not partition the prepared Environment cache")
 	}
 
 	other.GetConfig().Argv = []string{"/bin/other"}
@@ -456,11 +456,11 @@ func TestAllocationEnvironmentIDUsesOnlyStaticExecutionTemplate(t *testing.T) {
 		t.Fatalf("allocationStartRequest(other static config) error = %v", err)
 	}
 	if baseStart.GetEnvironment().GetID() == otherStart.GetEnvironment().GetID() {
-		t.Fatal("static execution config must partition the environment template cache")
+		t.Fatal("static execution config must partition the prepared Environment cache")
 	}
 }
 
-func TestStableResolvedEnvironmentIDFingerprintsStaticTemplate(t *testing.T) {
+func TestStableResolvedEnvironmentIDFingerprintsResolvedSpec(t *testing.T) {
 	base := &runtimev1.ResolvedEnvironment{
 		ID:   "ignored",
 		Argv: []string{"/bin/app"},
@@ -474,7 +474,7 @@ func TestStableResolvedEnvironmentIDFingerprintsStaticTemplate(t *testing.T) {
 	}
 	baseID := stableResolvedEnvironmentID(base)
 	if baseID == "" {
-		t.Fatal("stable environment template id must not be empty")
+		t.Fatal("stable prepared Environment id must not be empty")
 	}
 
 	reordered := proto.Clone(base).(*runtimev1.ResolvedEnvironment)
@@ -485,22 +485,22 @@ func TestStableResolvedEnvironmentIDFingerprintsStaticTemplate(t *testing.T) {
 	}
 
 	tests := map[string]func(*runtimev1.ResolvedEnvironment){
-		"command": func(template *runtimev1.ResolvedEnvironment) { template.Argv = []string{"/bin/other"} },
-		"cwd":     func(template *runtimev1.ResolvedEnvironment) { template.Cwd = "/app" },
-		"environment": func(template *runtimev1.ResolvedEnvironment) {
-			template.Env["A"] = "changed"
+		"command": func(environment *runtimev1.ResolvedEnvironment) { environment.Argv = []string{"/bin/other"} },
+		"cwd":     func(environment *runtimev1.ResolvedEnvironment) { environment.Cwd = "/app" },
+		"environment": func(environment *runtimev1.ResolvedEnvironment) {
+			environment.Env["A"] = "changed"
 		},
-		"rootfs": func(template *runtimev1.ResolvedEnvironment) {
-			template.Rootfs.Source = &runtimev1.RootfsConfig_ImageUrl{ImageUrl: "registry/app@sha256:def"}
+		"rootfs": func(environment *runtimev1.ResolvedEnvironment) {
+			environment.Rootfs.Source = &runtimev1.RootfsConfig_ImageUrl{ImageUrl: "registry/app@sha256:def"}
 		},
-		"rootfs readonly": func(template *runtimev1.ResolvedEnvironment) { template.Rootfs.Readonly = false },
+		"rootfs readonly": func(environment *runtimev1.ResolvedEnvironment) { environment.Rootfs.Readonly = false },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
 			candidate := proto.Clone(base).(*runtimev1.ResolvedEnvironment)
 			mutate(candidate)
 			if got := stableResolvedEnvironmentID(candidate); got == baseID {
-				t.Fatalf("static template change must alter fingerprint: %q", got)
+				t.Fatalf("resolved specification change must alter fingerprint: %q", got)
 			}
 		})
 	}

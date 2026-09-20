@@ -44,7 +44,6 @@ class AsyncSandbox(
         client: AsyncAxernClient,
         image: str = "",
         registry_credential_id: str = "",
-        template_id: str = "",
         environment_id: str = "",
         namespace: str = "default",
         argv: list[str] | None = None,
@@ -75,13 +74,10 @@ class AsyncSandbox(
         ] = AsyncAllocationClient,
         _renew_interval_seconds: float | None = None,
     ) -> None:
-        _validate_source(
-            image=image, template_id=template_id, environment_id=environment_id
-        )
+        _validate_source(image=image, environment_id=environment_id)
         self._client = client
         self._image = image
         self._registry_credential_id = registry_credential_id
-        self._template_id = template_id
         self._environment_id = environment_id
         self._namespace = namespace
         self._argv = list(argv or DEFAULT_SANDBOX_ARGV)
@@ -381,19 +377,12 @@ class AsyncSandbox(
     async def _resolve_environment(self) -> str:
         if self._environment_id:
             return self._environment_id
-        if self._image:
-            environment = await self._client.create_environment(
-                namespace=self._namespace,
-                image_ref=self._image,
-                registry_credential_id=self._registry_credential_id,
-                labels=self._labels,
-            )
-        else:
-            environment = await self._client.create_environment(
-                namespace=self._namespace,
-                template_id=self._template_id,
-                labels=self._labels,
-            )
+        environment = await self._client.create_environment(
+            namespace=self._namespace,
+            image_ref=self._image,
+            registry_credential_id=self._registry_credential_id,
+            labels=self._labels,
+        )
         self._created_environment = True
         self._created_environment_id = environment.id
         return environment.id

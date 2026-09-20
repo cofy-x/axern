@@ -42,7 +42,7 @@ func TestConcurrentAdmissionDoesNotOversellNodeResources(t *testing.T) {
 			envStore := NewStore(db)
 			t.Cleanup(envStore.Close)
 			env, err := envStore.CreateEnvironment(context.Background(), runkernel.CreateEnvironmentParams{
-				Spec: &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "admission-concurrency"},
+				Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 			}, now)
 			if err != nil {
 				t.Fatal(err)

@@ -17,7 +17,7 @@ AXNODED_SOCKET="${AXNODED_SOCKET:-/shared/run/axnoded.sock}"
 AXNODED_NETWORK_IP_RANGE="${AXNODED_NETWORK_IP_RANGE:-172.31.0.1/16}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-axern-cli-e2e}"
 CONTROL_PLANE_ENROLLMENT_TOKEN="${CONTROL_PLANE_ENROLLMENT_TOKEN:-node-axern-cli-e2e-credential-00000000}"
-PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
+PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-python:3.12-slim}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axern-cli-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axern-cli-e2e-net}"
 NODE_CONTAINER_NAME="${NODE_CONTAINER_NAME:-axern-cli-e2e-node}"
@@ -318,8 +318,8 @@ ensure_python_runtime_image_once() {
     echo "reusing runtime image ${PYTHON_RUNTIME_IMAGE_REF}" >&2
     return 0
   fi
-  echo "building runtime image ${PYTHON_RUNTIME_IMAGE_REF}" >&2
-  IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF}" bash "${AXERN_ROOT}/runtime/axnoded/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
+  echo "pulling test image ${PYTHON_RUNTIME_IMAGE_REF}" >&2
+  docker pull --platform "${VERIFY_DOCKER_PLATFORM}" "${PYTHON_RUNTIME_IMAGE_REF}" >/dev/null
 }
 
 import_python_runtime_image_once() {

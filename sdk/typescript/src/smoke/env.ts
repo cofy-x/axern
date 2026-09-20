@@ -27,12 +27,8 @@ export function loadLocalComposeEnv(): void {
   }
 }
 
-export function sandboxSource(): { image: string } | { templateId: string } {
-  const image = process.env.AXERN_TS_SMOKE_IMAGE;
-  if (image !== undefined && image !== "") {
-    return { image };
-  }
-  return { templateId: process.env.AXERN_TS_SMOKE_TEMPLATE_ID ?? "python311" };
+export function sandboxSource(): { image: string } {
+  return { image: process.env.AXERN_TS_SMOKE_IMAGE ?? "python:3.12-slim" };
 }
 
 function findUp(relativePath: string): string | undefined {

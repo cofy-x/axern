@@ -22,7 +22,7 @@ func TestCreateEnvironmentAlwaysCreatesOwnedResource(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)
 	params := runkernel.CreateEnvironmentParams{
-		Spec: &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311"},
+		Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 	}
 
 	first, err := store.CreateEnvironment(ctx, params, now)
@@ -57,7 +57,7 @@ func TestListEnvironmentsUsesStableKeysetAfterPhysicalDelete(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)
-	params := runkernel.CreateEnvironmentParams{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311"}, Labels: map[string]string{"suite": "pagination"}}
+	params := runkernel.CreateEnvironmentParams{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}}, Labels: map[string]string{"suite": "pagination"}}
 	first, err := store.CreateEnvironment(ctx, params, now)
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestDeleteEnvironmentIsPhysicalAndNotIdempotent(t *testing.T) {
 	store := NewStore(db)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 16, 8, 0, 0, 0, time.UTC)
-	env, err := store.CreateEnvironment(ctx, runkernel.CreateEnvironmentParams{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", TemplateID: "python311"}}, now)
+	env, err := store.CreateEnvironment(ctx, runkernel.CreateEnvironmentParams{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}}}, now)
 	if err != nil {
 		t.Fatal(err)
 	}

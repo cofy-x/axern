@@ -17,11 +17,11 @@ const runStatus = {
 } as const;
 
 export function validateSandboxOptions(options: SandboxOptions): void {
-  const sourceCount = [options.templateId, options.image, options.environmentId].filter(
+  const sourceCount = [options.image, options.environmentId].filter(
     (source) => source !== undefined && source !== "",
   ).length;
   if (sourceCount !== 1) {
-    throw new SandboxValidationError("exactly one of templateId, image, or environmentId is required");
+    throw new SandboxValidationError("exactly one of image or environmentId is required");
   }
 }
 
@@ -97,9 +97,6 @@ async function nextBeforeDeadline<T>(
 }
 
 function sandboxSource(options: SandboxOptions): SandboxMetadata["source"] {
-  if (options.templateId !== undefined && options.templateId !== "") {
-    return "template";
-  }
   if (options.image !== undefined && options.image !== "") {
     return "image";
   }

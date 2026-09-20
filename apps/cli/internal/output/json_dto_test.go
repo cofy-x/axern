@@ -19,7 +19,9 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 	err := PrintEnvironmentResponseJSON(&b, &environmentv1.Environment{
 		ID:        "env-1",
 		Namespace: "default",
-		Spec:      &environmentv1.EnvironmentSpec{TemplateID: "python311"},
+		Spec: &environmentv1.EnvironmentSpec{Image: &environmentv1.EnvironmentImageSource{
+			Ref: "docker.io/library/python:3.12-slim",
+		}},
 		CreatedAt: timestamppb.New(time.Date(
 			2026, time.April, 29, 12, 0, 0, 0, time.UTC,
 		)),
@@ -32,7 +34,9 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 		Environment struct {
 			CreatedAt string `json:"created_at"`
 			Spec      struct {
-				TemplateID string `json:"template_id"`
+				Image struct {
+					Ref string `json:"ref"`
+				} `json:"image"`
 			} `json:"spec"`
 			ResolvedSpec struct {
 				ImageDefaultArgv []string `json:"image_default_argv"`
@@ -42,7 +46,7 @@ func TestEnvironmentJSONUsesStableShape(t *testing.T) {
 	if err := json.Unmarshal([]byte(b.String()), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Environment.CreatedAt != "2026-04-29T12:00:00Z" || got.Environment.Spec.TemplateID != "python311" {
+	if got.Environment.CreatedAt != "2026-04-29T12:00:00Z" || got.Environment.Spec.Image.Ref != "docker.io/library/python:3.12-slim" {
 		t.Fatalf("environment JSON = %#v, want stable labels and timestamps", got.Environment)
 	}
 	if len(got.Environment.ResolvedSpec.ImageDefaultArgv) != 1 || got.Environment.ResolvedSpec.ImageDefaultArgv[0] != "python3" || strings.Contains(b.String(), "bootstrap_argv") {
@@ -56,7 +60,7 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	run := &runv1.Run{
 		ID:                      "run-1",
 		EnvironmentID:           "env-1",
-		EnvironmentSpec:         &environmentv1.EnvironmentSpec{TemplateID: "python311"},
+		EnvironmentSpec:         &environmentv1.EnvironmentSpec{Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/python:3.12-slim"}},
 		ResolvedEnvironmentSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{Digest: "sha256:frozen"}},
 		Status:                  runv1.RunStatus_RUN_STATUS_RUNNING,
 		Config: &commonv1.ExecutionConfig{
@@ -83,7 +87,7 @@ func TestRunJSONUsesStableShape(t *testing.T) {
 	if !strings.Contains(runJSON.String(), `"platform": "runsc_memory_hard_limit"`) || !strings.Contains(runJSON.String(), `"observed_at": "2026-04-29T12:00:00Z"`) {
 		t.Fatalf("run JSON omitted structured capability condition: %s", runJSON.String())
 	}
-	if !strings.Contains(runJSON.String(), `"template_id": "python311"`) || !strings.Contains(runJSON.String(), `"digest": "sha256:frozen"`) {
+	if !strings.Contains(runJSON.String(), `"ref": "docker.io/library/python:3.12-slim"`) || !strings.Contains(runJSON.String(), `"digest": "sha256:frozen"`) {
 		t.Fatalf("run JSON omitted frozen Environment input: %s", runJSON.String())
 	}
 

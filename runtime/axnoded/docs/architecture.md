@@ -39,7 +39,7 @@ Layer ownership:
 - `internal/runtime` owns the single runsc executor, bundle creation, runtime state, and host-side sandboxd clients. Its interface is a narrow execution/test boundary, not a plugin registry or Allocation-selectable backend.
 - `internal/sandboxd` is the sandbox-local daemon implementation.
 - `internal/environmentcache`, `internal/egress`, `internal/resources`, and `internal/container` own rootfs/image coordination, egress enforcement, cgroup/network resources, and persisted container state.
-- `internal/nodestate` owns the process-wide BoltDB handle and low-level record transactions. Allocation orchestration owns the schema and keeps environment template identity plus image/workspace ownership in one record per allocation.
+- `internal/nodestate` owns the process-wide BoltDB handle and low-level record transactions. Allocation orchestration owns the schema and keeps prepared Environment identity plus image/workspace ownership in one record per Allocation.
 - `internal/nodecapability` owns provider registration, atomic snapshots, recovery hysteresis, and the node-local admission view. The shared capability contract owns derivation and loss policy; providers do not write node summaries directly. Production startup verifies that every defined key has exactly one registered provider matching the definition owner.
 
 The cross-system capability contract is documented in [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md). It is distinct from sandboxd operation discovery described later in this document.
@@ -76,7 +76,7 @@ The deterministic crash matrix is:
 | terminal checkpoint (known or explicitly unavailable exit code) | `exited` or absent | seed/replay the terminal outbox, acknowledge controld, then clean up |
 | resource release persistence failed | runtime absent | retain/quarantine the durable lease and retry; do not return capacity to the pool |
 
-Inventory active IDs come from admitted `AllocationState` records plus their unacknowledged terminal outbox entries. Running IDs and locality are live joins against runtime state and the environment template already held by `AllocationState`; arbitrary internal containers and container labels cannot enter the control-plane Allocation inventory.
+Inventory active IDs come from admitted `AllocationState` records plus their unacknowledged terminal outbox entries. Running IDs and locality are live joins against runtime state and the prepared Environment already held by `AllocationState`; arbitrary internal containers and container labels cannot enter the control-plane Allocation inventory.
 
 Rootfs handling follows the three-boundary contract in [rootfs-storage.md](rootfs-storage.md): host target projection, runtime-specific guest writable storage, and cgroup memory enforcement are independent. The input lower rootfs is immutable across create, start, failure rollback, and delete.
 
@@ -123,7 +123,7 @@ Create invariants:
 - Writable rootfs and workspace directories are allocation-local. Their runtime ownership, storage charges, recovery, and cleanup remain node-owned; durable outputs are exported explicitly.
 - Rootfs/image resolution goes through `internal/environmentcache` and `imagemgr`.
 - Runtime cleanup inputs may be checkpointed in container metadata, but OCI annotations are never resource ownership or Allocation identity. Durable `AllocationState`, the cgroup ledger, and egressd records own their respective cleanup obligations.
-- Environment template identity and image/workspace ownership are committed in one allocation record. Durable deletion precedes releasing in-memory handles, so a failed state write cannot silently discard cleanup ownership.
+- Prepared Environment identity and image/workspace ownership are committed in one Allocation record. Durable deletion precedes releasing in-memory handles, so a failed state write cannot silently discard cleanup ownership.
 - Immutable requirements, the verified enforcement manifest, and the pending capability reconcile intent share the Allocation record. The intent sequence increments only when work is merged and prevents an in-flight worker from acknowledging over a concurrent transition; it is not capability evidence or an observation version. Per-Allocation mutation serialization prevents concurrent updates from reverting newer intent. Capability fail-stop termination has one durable node-local owner.
 - ExecutionLease expiry and capability enforcement loss may only record the first terminal diagnostic and fail-stop the supervised workload. Sandboxd remains the live OCI PID 1 and retains its private file/archive service, runtime metadata, and `AllocationState` until the control plane observes the terminal result and sends the final Delete with an optional output-sealing command. Only that Delete crosses the sealing barrier, terminates the OCI sandbox, and releases resources; a node-local fail-stop never performs full cleanup.
 - Reconcile acknowledgement failures retain pending work for retry. Event-triggered reconciliation plus the bounded sharded audit covers both `DEGRADE` and `FAIL_STOP`; each pass rebuilds one complete condition projection. There is no control-plane capability reconcile queue.

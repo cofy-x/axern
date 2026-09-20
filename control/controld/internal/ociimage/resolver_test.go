@@ -74,12 +74,12 @@ func TestUseHTTPForConfiguredInsecureRegistries(t *testing.T) {
 	}{
 		{
 			name:     "configured host docker registry",
-			imageRef: "host.docker.internal:5001/axern/python311-runtime:dev",
+			imageRef: "host.docker.internal:5001/example/workload:dev",
 			want:     true,
 		},
 		{
 			name:     "configured localhost registry with scheme",
-			imageRef: "http://localhost:5001/axern/python311-runtime:dev",
+			imageRef: "http://localhost:5001/example/workload:dev",
 			want:     true,
 		},
 		{
@@ -105,7 +105,7 @@ func TestUseHTTPForConfiguredInsecureRegistries(t *testing.T) {
 func TestUseHTTPForIgnoresImagemgrEnv(t *testing.T) {
 	t.Setenv("IMAGEMGR_INSECURE_REGISTRIES", "localhost:5001")
 
-	if useHTTPFor("localhost:5001/axern/python311-runtime:dev") {
+	if useHTTPFor("localhost:5001/example/workload:dev") {
 		t.Fatal("useHTTPFor(local registry) = true, want false without CONTROLD_INSECURE_REGISTRIES")
 	}
 }
@@ -117,8 +117,8 @@ func TestRegistryHost(t *testing.T) {
 	}{
 		{imageRef: "python:3.12-slim", want: name.DefaultRegistry},
 		{imageRef: "library/python:3.12-slim", want: name.DefaultRegistry},
-		{imageRef: "localhost:5001/axern/python311-runtime:dev", want: "localhost:5001"},
-		{imageRef: "https://host.docker.internal:5001/axern/python311-runtime:dev", want: "host.docker.internal:5001"},
+		{imageRef: "localhost:5001/example/workload:dev", want: "localhost:5001"},
+		{imageRef: "https://host.docker.internal:5001/example/workload:dev", want: "host.docker.internal:5001"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.imageRef, func(t *testing.T) {

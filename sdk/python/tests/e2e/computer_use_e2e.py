@@ -35,8 +35,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--tls-cert", required=True)
     parser.add_argument("--tls-key", required=True)
     parser.add_argument("--node-container", required=True)
-    parser.add_argument("--desktop-template-id", default="desktop-base")
-    parser.add_argument("--headless-template-id", default="server-base")
+    parser.add_argument("--computer-use-image", required=True)
+    parser.add_argument("--headless-image", required=True)
     return parser.parse_args()
 
 
@@ -55,7 +55,7 @@ def main() -> int:
     try:
         with Sandbox(
             client=client,
-            template_id=args.desktop_template_id,
+            image=args.computer_use_image,
             argv=SUPERVISORD_ARGV,
             ready_timeout_seconds=180,
         ) as sandbox:
@@ -177,8 +177,8 @@ def main() -> int:
         phase = "headless-start"
         with Sandbox(
             client=client,
-            template_id=args.headless_template_id,
-            argv=SUPERVISORD_ARGV,
+            image=args.headless_image,
+            argv=["python", "-c", "import time; time.sleep(300)"],
             ready_timeout_seconds=180,
         ) as sandbox:
             headless_service_id = sandbox.run_id

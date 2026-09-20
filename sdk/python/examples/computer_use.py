@@ -8,13 +8,15 @@ from pathlib import Path
 from axern_sdk import AxernClient, ComputerUseRegion, Sandbox
 
 CONTROL_TARGET = os.environ.get("AXERN_ENDPOINT", "127.0.0.1:25000")
-TEMPLATE_ID = os.environ.get("AXERN_TEMPLATE_ID", "desktop-base")
+IMAGE = os.environ.get("AXERN_IMAGE")
 
 
 def main() -> None:
     client = AxernClient(CONTROL_TARGET)
     try:
-        with Sandbox(client=client, template_id=TEMPLATE_ID) as sandbox:
+        if not IMAGE:
+            raise RuntimeError("AXERN_IMAGE must name a desktop-capable OCI image")
+        with Sandbox(client=client, image=IMAGE) as sandbox:
             status = sandbox.computer_use_status()
             print(f"computer_use available={status.available} display={status.display} backend={status.backend}")
             for dependency in status.dependencies:

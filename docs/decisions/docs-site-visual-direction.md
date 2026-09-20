@@ -14,7 +14,7 @@ The Axern documentation site presents the product first as open-source sandboxes
 - Represent the Agent Sandbox as a horizontal, nested execution chamber. Keep `runsc` attached to the outer isolation boundary while code and process activity remain inside the inner execution layer.
 - Use WebGL only as progressive enhancement. It must remain subtle, pause when hidden, respect reduced motion, and never carry essential information.
 - Keep English and Simplified Chinese pages on shared components and the same information hierarchy.
-- Prefer generic OCI images in introductory examples. Introduce templates only where their template reuse semantics matter.
+- Prefer generic OCI images in introductory examples and use existing Environment IDs when demonstrating immutable reuse.
 - Give every decorative mark a purpose. Avoid ornamental flow diagrams, competing arrows, unexplained symbols, mixed corner geometry, and visual effects that weaken code readability.
 
 The site remains static, accessible, responsive, and compatible with the Starlight documentation shell. Visual additions must not add a server runtime or become a second representation of Axern architecture.

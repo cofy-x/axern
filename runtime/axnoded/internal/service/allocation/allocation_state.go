@@ -71,9 +71,9 @@ func (h *Controller) AllocationIDs() []string {
 	return ids
 }
 
-// ResolvedEnvironmentID returns the template referenced by the admitted Allocation
-// record. It feeds rebuildable locality observations without consulting OCI
-// metadata or labels.
+// ResolvedEnvironmentID returns the immutable Environment identity referenced by
+// the admitted Allocation record. It feeds rebuildable locality observations
+// without consulting OCI metadata or labels.
 func (h *Controller) ResolvedEnvironmentID(allocationID string) string {
 	if h == nil {
 		return ""
@@ -757,7 +757,7 @@ func (h *Controller) rememberContainerRuntime(allocationID string, runtime *envi
 		return errors.New("allocation id is required")
 	}
 	if runtime == nil || runtime.ResolvedEnvironment() == nil {
-		return errors.New("allocation environment template is required")
+		return errors.New("allocation prepared environment is required")
 	}
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
@@ -932,7 +932,7 @@ func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*all
 		recoveryErr = errors.Join(recoveryErr, err)
 	}
 	if record.GetEnvironment() == nil {
-		recoveryErr = errors.Join(recoveryErr, errors.New("active allocation has no environment template"))
+		recoveryErr = errors.Join(recoveryErr, errors.New("active allocation has no prepared environment"))
 	} else {
 		rootfsConfig, err := environmentcache.RootfsConfigFromResolvedEnvironment(record.GetEnvironment())
 		if err != nil {

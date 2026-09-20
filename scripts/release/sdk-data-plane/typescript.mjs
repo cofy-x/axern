@@ -14,7 +14,7 @@ let sandbox;
 try {
   sandbox = await new Sandbox({
     client,
-    templateId: "python311",
+    image: "python:3.12-slim",
     requestCpu: "100m",
     requestMemory: "512MiB",
     labels: { "axern.release.acceptance": "typescript" },

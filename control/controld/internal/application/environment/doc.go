@@ -1,4 +1,3 @@
-// Package appenvironment coordinates environment use cases by resolving
-// template/image specs and delegating durable environment state to the run
-// store contract.
+// Package appenvironment coordinates Environment use cases by resolving OCI
+// image specifications and delegating durable state to the run store contract.
 package appenvironment
