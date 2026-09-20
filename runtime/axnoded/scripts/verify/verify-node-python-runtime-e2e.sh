@@ -46,7 +46,8 @@ CONTROLD_HTTP_PORT="$(reserve_unique_host_port "${CONTROLD_HTTP_HOST}" 0 "${CONT
 CONTROLD_HTTP_ADDRESS="${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}"
 NODE_GRPC_PORT="$(reserve_unique_host_port "${NODE_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}")"
 NODE_GRPC_ADDRESS="${NODE_GRPC_HOST}:${NODE_GRPC_PORT}"
-CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}")"
+GATEWAY_CONTROL_HOST_PORT="$(reserve_unique_host_port 127.0.0.1 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}")"
+CONTROLD_ENROLLMENT_PORT="$(reserve_unique_host_port "${CONTROLD_GRPC_HOST}" 0 "${CONTROLD_GRPC_PORT}" "${CONTROLD_HTTP_PORT}" "${NODE_GRPC_PORT}" "${GATEWAY_CONTROL_HOST_PORT}")"
 
 dump_logs() {
   echo "--- controld log ---" >&2
@@ -118,6 +119,10 @@ chmod 600 "${cert_dir}/enrollment-token"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" python --version >"${python_runtime_stdout}"
 grep -q '^Python 3\.12\.' "${python_runtime_stdout}"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" /bin/sh -lc 'python -m pip --version >/dev/null'
+# Publish the unmodified workload image through the fixture registry so the
+# control plane and node resolve the same content identity without external IO.
+prepare_oci_test_image_source "${PYTHON_RUNTIME_IMAGE_REF}"
+PYTHON_RUNTIME_IMAGE_REF="${PREPARED_OCI_TEST_IMAGE}"
 
 docker run --rm \
   --network "${POSTGRES_NETWORK_NAME}" \
@@ -147,11 +152,16 @@ docker run -d \
   --network "${POSTGRES_NETWORK_NAME}" \
   --network-alias controld \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
+  --add-host "host.docker.internal:host-gateway" \
   -p "${CONTROLD_GRPC_HOST}:${CONTROLD_GRPC_PORT}:${CONTROLD_GRPC_PORT}" \
   -p "${CONTROLD_HTTP_HOST}:${CONTROLD_HTTP_PORT}:${CONTROLD_HTTP_PORT}" \
   --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
   --volume "${cert_dir}/controld.pem:/shared/certs/controld.pem:ro" \
   --volume "${cert_dir}/private/signer.pem:/shared/certs/private/signer.pem:ro" \
+  -e "HTTP_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "HTTPS_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "NO_PROXY=${REGISTRY_NO_PROXY}" \
+  -e "CONTROLD_INSECURE_REGISTRIES=${OCI_TEST_INSECURE_REGISTRIES}" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_PORT}" \
@@ -183,6 +193,7 @@ docker run -d \
   --name "${GATEWAYD_CONTAINER_NAME}" \
   --network "${POSTGRES_NETWORK_NAME}" \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
+  -p "127.0.0.1:${GATEWAY_CONTROL_HOST_PORT}:${GATEWAY_CONTROL_PORT}" \
   --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
   --volume "${cert_dir}/gatewayd.pem:/shared/certs/gatewayd.pem:ro" \
   "${IMAGE_TAG}" \
@@ -223,6 +234,7 @@ docker run -d \
   -e "AXNODED_GRPC_ADDRESS=0.0.0.0:${NODE_GRPC_PORT}" \
   -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
   -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
+  -e "IMAGEMGR_INSECURE_REGISTRIES=${OCI_TEST_INSECURE_REGISTRIES}" \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
   -e "AXNODED_CONTROL_PLANE_TARGET=controld:${CONTROLD_GRPC_PORT}" \
   -e "AXNODED_CONTROL_PLANE_ENROLLMENT_TARGET=controld:${CONTROLD_ENROLLMENT_PORT}" \
@@ -260,8 +272,6 @@ if ! docker exec "${NODE_CONTAINER_NAME}" /bin/bash -lc "curl -fsS http://127.0.
   exit 1
 fi
 
-import_oci_image_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}"
-
 deadline=$((SECONDS + 60))
 while [ "${SECONDS}" -lt "${deadline}" ]; do
   nodes_body="$(curl -fsS "http://${CONTROLD_HTTP_ADDRESS}/nodesz" || true)"
@@ -278,21 +288,15 @@ if ! node_summary_fresh "${CONTROL_PLANE_NODE_ID}" "${nodes_body}"; then
   exit 1
 fi
 
-if ! docker run --rm \
-  --network "${POSTGRES_NETWORK_NAME}" \
-  --platform "${VERIFY_DOCKER_PLATFORM}" \
-  --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
-  --volume "${cert_dir}/client.crt:/shared/certs/client.crt:ro" \
-  --volume "${cert_dir}/client.key:/shared/certs/client.key:ro" \
-  --volume "${REPO_ROOT}/sdk/python/tests/e2e/python_runtime_e2e.py:/tmp/python_runtime_e2e.py:ro" \
-  -e AXERN_TLS_CA_CERT=/shared/certs/ca.crt \
-  -e AXERN_TLS_CERT=/shared/certs/client.crt \
-  -e AXERN_TLS_KEY=/shared/certs/client.key \
-  -e AXERN_TLS_SERVER_NAME=gatewayd \
-  -e AXERN_PROXY_MODE=direct \
-  "${PYTHON_RUNTIME_IMAGE_REF}" \
-  python /tmp/python_runtime_e2e.py \
-    --endpoint "${GATEWAYD_CONTAINER_NAME}:${GATEWAY_CONTROL_PORT}" \
+# The caller uses the public SDK from the source tree. The workload image must
+# remain a normal user image and must not carry Axern client dependencies.
+if ! AXERN_TLS_CA_CERT="${cert_dir}/ca.crt" \
+  AXERN_TLS_CERT="${cert_dir}/client.crt" \
+  AXERN_TLS_KEY="${cert_dir}/client.key" \
+  AXERN_TLS_SERVER_NAME=gatewayd \
+  AXERN_PROXY_MODE=direct \
+  uv run --package axern-sdk python "${REPO_ROOT}/sdk/python/tests/e2e/python_runtime_e2e.py" \
+    --endpoint "127.0.0.1:${GATEWAY_CONTROL_HOST_PORT}" \
     --image "${PYTHON_RUNTIME_IMAGE_REF}"; then
   dump_logs
   exit 1
