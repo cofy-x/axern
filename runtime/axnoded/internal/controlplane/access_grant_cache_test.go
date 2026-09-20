@@ -2,13 +2,41 @@ package controlplane
 
 import (
 	"context"
-	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
+	"errors"
 	"testing"
 	"time"
 
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+type deadlineCheckingNodeControlProvider struct{ sawDeadline bool }
+
+func (p *deadlineCheckingNodeControlProvider) Client(ctx context.Context) (nodev1.NodeControlClient, error) {
+	deadline, ok := ctx.Deadline()
+	p.sawDeadline = ok && time.Until(deadline) > 0 && time.Until(deadline) <= accessGrantWatchConnectTimeout
+	return nil, errors.New("dial unavailable")
+}
+
+func (*deadlineCheckingNodeControlProvider) Close() error { return nil }
+
+func TestAccessGrantWatcherBoundsConnectionEstablishment(t *testing.T) {
+	provider := &deadlineCheckingNodeControlProvider{}
+	watcher := NewAccessGrantWatcher(
+		WithAccessGrantWatcherTarget("controld:24000"),
+		WithAccessGrantWatcherNode("node-a"),
+		WithAccessGrantWatcherControl(provider),
+		WithAccessGrantWatcherCache(NewAccessGrantCache()),
+	)
+	if _, err := watcher.watchOnce(0); err == nil {
+		t.Fatal("watchOnce() error = nil, want dial failure")
+	}
+	if !provider.sawDeadline {
+		t.Fatal("watch connection establishment did not receive a bounded context")
+	}
+	watcher.Stop()
+}
 
 func TestAccessGrantCacheWaitValidateWakesForExactToken(t *testing.T) {
 	t.Parallel()

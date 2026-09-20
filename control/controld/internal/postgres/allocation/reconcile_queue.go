@@ -183,16 +183,24 @@ func decodeDeclaredOutputs(payload []byte, item *allocationkernel.ReconcileItem)
 	return nil
 }
 
-func RenewReconcileClaim(ctx context.Context, executor reconcileExecutor, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error) {
+func RenewReconcileClaim(ctx context.Context, executor reconcileExecutor, allocationID, owner string, intent allocationkernel.ReconcileIntent, now time.Time, claimTTL time.Duration) (bool, error) {
 	if claimTTL <= 0 {
 		return false, fmt.Errorf("reconcile claim TTL must be positive")
 	}
 	tag, err := executor.Exec(ctx, `
-		UPDATE allocation_reconcile_queue
+		UPDATE allocation_reconcile_queue q
 		SET claim_expires_at = $3, updated_at = $2
-		WHERE allocation_id = $1 AND claim_owner = $4
-		  AND claim_expires_at > $2
-	`, strings.TrimSpace(allocationID), now.UTC(), now.Add(claimTTL).UTC(), strings.TrimSpace(owner))
+		FROM allocations a
+		WHERE q.allocation_id = $1 AND q.claim_owner = $4
+		  AND q.claim_expires_at > $2 AND a.allocation_id = q.allocation_id
+		  AND (($5 = 1 AND a.lifecycle_state IN ($6, $7, $8))
+		    OR ($5 = 2 AND a.lifecycle_state IN ($9, $10)))
+	`, strings.TrimSpace(allocationID), now.UTC(), now.Add(claimTTL).UTC(), strings.TrimSpace(owner), intent,
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_STARTING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(),
+		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String())
 	if err != nil {
 		return false, fmt.Errorf("renew allocation reconcile claim: %w", err)
 	}
@@ -212,11 +220,11 @@ func ScheduleReconcile(ctx context.Context, executor reconcileExecutor, req allo
 		  AND (($6 = 1 AND a.lifecycle_state IN ($7, $8, $9))
 		    OR ($6 = 2 AND a.lifecycle_state IN ($10, $11)))
 		ON CONFLICT (allocation_id) DO UPDATE SET
-			next_run_at = EXCLUDED.next_run_at,
+			next_run_at = LEAST(allocation_reconcile_queue.next_run_at, EXCLUDED.next_run_at),
 			reconcile_attempts = CASE WHEN $3 THEN allocation_reconcile_queue.reconcile_attempts + 1 ELSE 0 END,
 			last_error = EXCLUDED.last_error,
-			claim_owner = '',
-			claim_expires_at = NULL,
+			claim_owner = CASE WHEN allocation_reconcile_queue.claim_expires_at > $5 THEN allocation_reconcile_queue.claim_owner ELSE '' END,
+			claim_expires_at = CASE WHEN allocation_reconcile_queue.claim_expires_at > $5 THEN allocation_reconcile_queue.claim_expires_at ELSE NULL END,
 			updated_at = $5
 	`, strings.TrimSpace(req.AllocationID), nextRunAt.UTC(), req.IncrementAttempts, strings.TrimSpace(req.LastReconcileError), now.UTC(), req.Intent,
 		commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_BOUND.String(),

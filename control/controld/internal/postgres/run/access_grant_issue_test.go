@@ -41,6 +41,10 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	retainedOutput, err := s.IssueAllocationAccessGrant(ctx, "alloc-output", output, time.Minute, now)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tx, err := db.Pool().Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +53,7 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	if _, err := tx.Exec(ctx, "UPDATE allocations SET lifecycle_state='ALLOCATION_LIFECYCLE_STATE_RELEASING' WHERE allocation_id='alloc-output'"); err != nil {
 		t.Fatal(err)
 	}
-	if err := pgallocation.RevokeAccessGrants(ctx, tx, "alloc-output"); err != nil {
+	if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, "alloc-output"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -59,8 +63,21 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(grants) != 2 || !grants[0].Revoked || !grants[1].Revoked || grants[0].Revision != grants[1].Revision {
-		t.Fatalf("revoke not atomic: %+v", grants)
+	if len(grants) != 3 {
+		t.Fatalf("grant changes = %+v", grants)
+	}
+	var revokedInteractive int
+	var outputStillReadable bool
+	for _, grant := range grants {
+		if grant.Purpose == interactive && grant.Revoked {
+			revokedInteractive++
+		}
+		if grant.GrantID == retainedOutput.GrantID && grant.Purpose == output && !grant.Revoked {
+			outputStillReadable = true
+		}
+	}
+	if revokedInteractive != 2 || !outputStillReadable {
+		t.Fatalf("termination access changes = %+v", grants)
 	}
 	if _, err := s.IssueAllocationAccessGrant(ctx, "alloc-output", interactive, time.Minute, now); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("terminal execution access: %v", err)

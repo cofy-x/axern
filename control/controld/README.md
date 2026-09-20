@@ -199,7 +199,7 @@ Before changing package boundaries or feature placement rules, read [Agent Contr
 
 ## Allocation Output And Access Grants
 
-The first Allocation cleanup transition freezes a 15-minute output expiry in PostgreSQL. EnsureAbsent delivers that same deadline to axnoded; release does not extend it. Terminal Run retention waits for output expiry. Gateway resolution issues an exact-purpose grant under the Allocation row lock: interactive grants require ACTIVE, while output-only grants can read an unexpired cleanup snapshot. Grant issue/revoke and a per-Node delivery cursor commit together. Revocation publishes all of an Allocation's tokens in one update; other Nodes do not contend on a global grant cursor. The node ignores stale revisions and cannot use output grants for interactive operations.
+The first Allocation cleanup transition freezes a 15-minute output expiry in PostgreSQL. EnsureAbsent delivers that same deadline to axnoded; release does not extend it. Terminal Run retention waits for output expiry. Gateway resolution issues an exact-purpose grant under the Allocation row lock: interactive grants require ACTIVE, while output-only grants can read an unexpired cleanup snapshot. Grant issue/revoke and a per-Node delivery cursor commit together. Allocation termination atomically revokes its interactive grants; output-only grants remain bounded by the immutable output deadline so a terminal transition racing with output attachment cannot invalidate retained-result delivery. Other Nodes do not contend on a global grant cursor. The node ignores stale revisions and cannot use output grants for interactive operations.
 
 ## Node Identity Ownership And Recovery
 

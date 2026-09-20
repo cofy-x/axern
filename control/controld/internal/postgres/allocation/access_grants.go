@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -24,14 +25,21 @@ func NextAccessGrantRevision(ctx context.Context, tx pgx.Tx, nodeID string) (int
 	return revision, nil
 }
 
-// RevokeAccessGrants publishes one atomic change set for the Allocation.
-// Callers hold its authoritative row lock before entering this operation.
-func RevokeAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) error {
+// RevokeInteractiveAccessGrants publishes one atomic change set for execution
+// access to the Allocation. Output grants deliberately survive termination:
+// immutable output remains readable until the Allocation's bounded retention
+// deadline, while the node rejects every executable operation once its
+// authoritative AllocationState is terminal.
+//
+// Callers hold the authoritative Allocation row lock before entering this
+// operation, which serializes it with grant issuance.
+func RevokeInteractiveAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) error {
+	purpose := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE.String()
 	var nodeID string
 	err := tx.QueryRow(ctx, `
 		SELECT node_id FROM allocation_access_grants
-		WHERE allocation_id = $1 AND NOT revoked LIMIT 1
-	`, allocationID).Scan(&nodeID)
+		WHERE allocation_id = $1 AND purpose = $2 AND NOT revoked LIMIT 1
+	`, allocationID, purpose).Scan(&nodeID)
 	if err == pgx.ErrNoRows {
 		return nil
 	}
@@ -44,10 +52,10 @@ func RevokeAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) err
 	}
 	_, err = tx.Exec(ctx, `
 		UPDATE allocation_access_grants SET revoked = TRUE, revision = $2
-		WHERE allocation_id = $1 AND NOT revoked
-	`, allocationID, revision)
+		WHERE allocation_id = $1 AND purpose = $3 AND NOT revoked
+	`, allocationID, revision, purpose)
 	if err != nil {
-		return fmt.Errorf("revoke allocation access grants: %w", err)
+		return fmt.Errorf("revoke interactive allocation access grants: %w", err)
 	}
 	return nil
 }

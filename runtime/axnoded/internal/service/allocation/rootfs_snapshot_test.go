@@ -70,14 +70,44 @@ func TestRootfsSnapshotReceiptMakesDeleteRetryIdempotent(t *testing.T) {
 	require.Error(t, fixture.controller.store.GetRecord(config.RootfsSnapshotReceiptBucket, allocationID, &receipt))
 }
 
+func TestRootfsSnapshotAcceptsEquivalentRepositoryAliases(t *testing.T) {
+	handler := &runtimeSpyHandler{name: "runsc"}
+	fixture := newTestAllocationController(t, handler)
+	fixture.controller.config.ControlPlaneNodeID = "node-a"
+	fixture.controller.rootfsSnapshots = &snapshotPublisher{}
+	const allocationID = "allocation-snapshot"
+	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a",
+		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", time.Now().Add(time.Minute),
+		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}))
+	fixture.controller.stateMu.Lock()
+	record := fixture.controller.allocationStates[allocationID].record
+	record.Environment = &apipb.ResolvedEnvironment{Rootfs: &apipb.RootfsConfig{
+		Type:   apipb.RootfsSrcType_IMAGE,
+		Source: &apipb.RootfsConfig_ImageUrl{ImageUrl: "index.docker.io/library/python@" + digest},
+	}}
+	fixture.controller.stateMu.Unlock()
+	require.NoError(t, fixture.controller.persistAllocationRecord(record))
+	storeTestContainer(t, fixture, allocationID, "runsc")
+	result, err := fixture.controller.sealRootfsSnapshot(context.Background(), allocationID, &apipb.RootfsSnapshotSealingRequest{
+		BaseImageRef: "python@" + digest,
+	})
+	if err != nil {
+		t.Fatalf("sealRootfsSnapshot() error = %v", err)
+	}
+	if result == nil {
+		t.Fatal("sealRootfsSnapshot() result is nil")
+	}
+}
+
 func TestRootfsSnapshotRejectsContractMismatch(t *testing.T) {
 	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
 	require.NoError(t, fixture.controller.StoreAllocationIntent("allocation-snapshot", "node-a",
 		"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", time.Now().Add(time.Minute),
 		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}))
 	fixture.controller.stateMu.Lock()
-	fixture.controller.allocationStates["allocation-snapshot"].record.Environment = &apipb.ResolvedEnvironment{Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_IMAGE, Source: &apipb.RootfsConfig_ImageUrl{ImageUrl: "registry.local/base:one"}}}
+	fixture.controller.allocationStates["allocation-snapshot"].record.Environment = &apipb.ResolvedEnvironment{Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_IMAGE, Source: &apipb.RootfsConfig_ImageUrl{ImageUrl: "registry.local/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}
 	fixture.controller.stateMu.Unlock()
-	_, err := fixture.controller.sealRootfsSnapshot(context.Background(), "allocation-snapshot", &apipb.RootfsSnapshotSealingRequest{BaseImageRef: "registry.local/base:two"})
+	_, err := fixture.controller.sealRootfsSnapshot(context.Background(), "allocation-snapshot", &apipb.RootfsSnapshotSealingRequest{BaseImageRef: "registry.local/base@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
 	require.Error(t, err)
 }

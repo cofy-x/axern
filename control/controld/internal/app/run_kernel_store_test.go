@@ -8,6 +8,7 @@ import (
 	"time"
 
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
+	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	"github.com/cofy-x/axern/control/controld/internal/testutil/controldtest"
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -285,11 +286,25 @@ func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) 
 	if len(second) != 0 {
 		t.Fatalf("worker-b claimed live worker-a work: %+v", second)
 	}
-	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-b", now, allocationkernel.ReconcileClaimTTL); err != nil || held {
+	if err := pgallocation.ScheduleReconcile(context.Background(), app.db.Pool(), allocationkernel.ScheduleReconcileRequest{
+		AllocationID: allocationID,
+		Intent:       allocationkernel.ReconcileIntentEnsurePresent,
+		NextRunAt:    now,
+	}, now); err != nil {
+		t.Fatalf("ScheduleReconcile(duplicate live intent) error = %v", err)
+	}
+	second, err = app.runStore.ClaimDueReconcileItems(context.Background(), "worker-b", 1, now, allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("ClaimDueReconcileItems(worker-b after duplicate schedule) error = %v", err)
+	}
+	if len(second) != 0 {
+		t.Fatalf("duplicate schedule displaced a live claim: %+v", second)
+	}
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-b", allocationkernel.ReconcileIntentEnsurePresent, now, allocationkernel.ReconcileClaimTTL); err != nil || held {
 		t.Fatalf("RenewReconcileClaim(wrong owner) = %v, %v", held, err)
 	}
 	afterExpiry := now.Add(allocationkernel.ReconcileClaimTTL + time.Nanosecond)
-	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-a", afterExpiry, allocationkernel.ReconcileClaimTTL); err != nil || held {
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "worker-a", allocationkernel.ReconcileIntentEnsurePresent, afterExpiry, allocationkernel.ReconcileClaimTTL); err != nil || held {
 		t.Fatalf("RenewReconcileClaim(expired owner) = %v, %v", held, err)
 	}
 	updated, err := app.runStore.ScheduleClaimedReconcile(context.Background(), allocationkernel.ScheduleReconcileRequest{
@@ -323,6 +338,48 @@ func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) 
 	}
 	if updated {
 		t.Fatal("stale worker mutated a reclaimed intent")
+	}
+}
+
+func TestPostgresAllocationIntentChangeFencesClaimBeforeCleanup(t *testing.T) {
+	app, _ := newPostgresTestService(t)
+	defer app.Close()
+	now := time.Date(2026, 5, 9, 16, 0, 0, 0, time.UTC)
+	app.now = func() time.Time { return now }
+	registerReadyNode(t, app, "node-a", now)
+	env := createDefaultEnvironment(t, app)
+	runResp, err := app.PublicV1Handler().CreateRun(context.Background(), &runv1.CreateRunRequest{
+		EnvironmentID: env.GetID(),
+		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
+	})
+	if err != nil {
+		t.Fatalf("CreateRun() error = %v", err)
+	}
+	allocationID := runResp.GetRun().GetAllocationID()
+	items, err := app.runStore.ClaimDueReconcileItems(context.Background(), "create-worker", 1, now, allocationkernel.ReconcileClaimTTL)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claim create intent = %+v, %v", items, err)
+	}
+	if _, err := app.PublicV1Handler().CancelRun(context.Background(), &runv1.CancelRunRequest{RunID: runResp.GetRun().GetID()}); err != nil {
+		t.Fatalf("CancelRun() error = %v", err)
+	}
+	if held, err := app.runStore.RenewReconcileClaim(context.Background(), allocationID, "create-worker", allocationkernel.ReconcileIntentEnsurePresent, now.Add(time.Second), allocationkernel.ReconcileClaimTTL); err != nil || held {
+		t.Fatalf("stale create claim renewal = %v, %v", held, err)
+	}
+	items, err = app.runStore.ClaimDueReconcileItems(context.Background(), "delete-worker", 1, now.Add(time.Second), allocationkernel.ReconcileClaimTTL)
+	if err != nil {
+		t.Fatalf("claim cleanup before fencing expiry: %v", err)
+	}
+	if len(items) != 0 {
+		t.Fatalf("cleanup overlapped the fenced create operation: %+v", items)
+	}
+	afterExpiry := now.Add(allocationkernel.ReconcileClaimTTL + time.Nanosecond)
+	items, err = app.runStore.ClaimDueReconcileItems(context.Background(), "delete-worker", 1, afterExpiry, allocationkernel.ReconcileClaimTTL)
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claim cleanup after fencing expiry = %+v, %v", items, err)
+	}
+	if got := allocationkernel.ReconcileIntentForLifecycle(items[0].LifecycleState); got != allocationkernel.ReconcileIntentEnsureAbsent {
+		t.Fatalf("claimed intent = %v, want ensure absent", got)
 	}
 }
 

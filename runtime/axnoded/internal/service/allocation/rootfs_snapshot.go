@@ -37,8 +37,20 @@ func IsRootfsSnapshotSealingError(err error) bool {
 	return errors.As(err, &target)
 }
 
-func rootfsSnapshotContractDigest(allocationID, baseImageRef string) string {
-	digest := sha256.Sum256([]byte(strings.TrimSpace(allocationID) + "\x00" + strings.TrimSpace(baseImageRef)))
+func immutableImageDigest(ref string) (string, error) {
+	_, digest, ok := strings.Cut(strings.TrimSpace(ref), "@")
+	algorithm, encoded, valid := strings.Cut(strings.TrimSpace(digest), ":")
+	if !ok || !valid || algorithm != "sha256" || len(encoded) != 64 {
+		return "", fmt.Errorf("immutable sha256 image reference is required: %w", errord.ErrInvalidArgument)
+	}
+	if _, err := hex.DecodeString(encoded); err != nil {
+		return "", fmt.Errorf("invalid image digest: %w", errord.ErrInvalidArgument)
+	}
+	return algorithm + ":" + strings.ToLower(encoded), nil
+}
+
+func rootfsSnapshotContractDigest(allocationID, baseImageDigest string) string {
+	digest := sha256.Sum256([]byte(strings.TrimSpace(allocationID) + "\x00" + strings.TrimSpace(baseImageDigest)))
 	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
@@ -48,7 +60,11 @@ func (h *Controller) sealRootfsSnapshot(ctx context.Context, allocationID string
 	if allocationID == "" || baseImageRef == "" {
 		return nil, fmt.Errorf("rootfs snapshot allocation and base image are required: %w", errord.ErrInvalidArgument)
 	}
-	contractDigest := rootfsSnapshotContractDigest(allocationID, baseImageRef)
+	baseImageDigest, err := immutableImageDigest(baseImageRef)
+	if err != nil {
+		return nil, err
+	}
+	contractDigest := rootfsSnapshotContractDigest(allocationID, baseImageDigest)
 	var receipt apipb.RootfsSnapshotReceipt
 	if err := h.store.GetRecord(config.RootfsSnapshotReceiptBucket, allocationID, &receipt); err == nil {
 		if receipt.GetAllocationID() != allocationID || receipt.GetContractDigest() != contractDigest || receipt.GetResult() == nil {
@@ -72,7 +88,8 @@ func (h *Controller) sealRootfsSnapshot(ctx context.Context, allocationID string
 	if record == nil || record.GetRootfsSnapshot() == nil {
 		return nil, fmt.Errorf("rootfs snapshot recovery contract is missing: %w", errord.ErrFailedPrecondition)
 	}
-	if localBase := strings.TrimSpace(record.GetEnvironment().GetRootfs().GetImageUrl()); localBase == "" || localBase != baseImageRef {
+	localBaseDigest, err := immutableImageDigest(record.GetEnvironment().GetRootfs().GetImageUrl())
+	if err != nil || localBaseDigest != baseImageDigest {
 		return nil, fmt.Errorf("rootfs snapshot base image conflicts with durable allocation contract: %w", errord.ErrFailedPrecondition)
 	}
 	if h.rootfsSnapshots == nil {
