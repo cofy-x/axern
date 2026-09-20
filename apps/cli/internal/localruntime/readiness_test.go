@@ -24,6 +24,19 @@ func TestLocalNodeReadinessPayloadRequiresDefaultWorkloadCapabilities(t *testing
 	}
 }
 
+func TestLocalNodeReadinessRejectsUnavailableRootfsSnapshot(t *testing.T) {
+	payload := readyLocalNodePayload(time.Now().Add(time.Minute))
+	observation := &payload.Nodes[0].Summary.CapabilitySnapshot.Observations[2]
+	observation.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+	observation.Reason = "rootfs snapshot repository is not configured"
+
+	ready, reason := evaluateLocalNodeReadiness(payload, LocalNodeID, localDefaultWorkloadCapabilities, time.Now())
+	want := "required local capability PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT is warming or unavailable: rootfs snapshot repository is not configured"
+	if ready || reason != want {
+		t.Fatalf("unavailable snapshot result = ready:%t reason:%q, want ready:false reason:%q", ready, reason, want)
+	}
+}
+
 func TestLocalNodeReadinessReportsUnavailableDependency(t *testing.T) {
 	payload := readyLocalNodePayload(time.Now().Add(time.Minute))
 	derived := &payload.Nodes[0].Summary.CapabilitySnapshot.Observations[1]
@@ -80,9 +93,10 @@ func TestLocalNodeReadinessPayloadRejectsIncompleteNodeState(t *testing.T) {
 }
 
 func TestLocalNodeReadinessPayloadDecodesDebugCapabilityKeys(t *testing.T) {
-	body := fmt.Sprintf(`{"nodes":[{"node_id":"node-local","fresh":true,"summary_fresh":true,"summary":{"sequence":1,"components":{"axnoded":{"ready":true},"imagemgr":{"reachable":true}},"pools":{"runtime_slots":{"capacity":16}},"capability_snapshot":{"observations":[{"key":{"Kind":{"Platform":%d}},"state":%d},{"key":{"Kind":{"Platform":%d}},"state":%d}]}}}]}`,
+	body := fmt.Sprintf(`{"nodes":[{"node_id":"node-local","fresh":true,"summary_fresh":true,"summary":{"sequence":1,"components":{"axnoded":{"ready":true},"imagemgr":{"reachable":true}},"pools":{"runtime_slots":{"capacity":16}},"capability_snapshot":{"observations":[{"key":{"Kind":{"Platform":%d}},"state":%d},{"key":{"Kind":{"Platform":%d}},"state":%d},{"key":{"Kind":{"Platform":%d}},"state":%d}]}}}]}`,
 		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
-		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT, capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE)
 	var payload localNodeReadinessPayload
 	if err := json.NewDecoder(strings.NewReader(body)).Decode(&payload); err != nil {
 		t.Fatal(err)

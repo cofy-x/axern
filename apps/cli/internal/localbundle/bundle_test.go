@@ -21,6 +21,9 @@ func TestEmbeddedBundleIsSelfContainedAndLoopbackOnly(t *testing.T) {
 	for _, contract := range []string{
 		"AXNODED_CGROUP_ENFORCEMENT: disabled_dev",
 		"AXNODED_MEMORY_SYSTEM_RESERVE_BYTES: \"0\"",
+		"AXNODED_ROOTFS_SNAPSHOT_REPOSITORY: registry:5000/axern/rootfs-snapshots",
+		"registry: {condition: service_healthy}",
+		"snapshot-registry-data:/var/lib/registry",
 	} {
 		if !bytes.Contains(Compose, []byte(contract)) {
 			t.Fatalf("local bundle is missing the local cgroup contract %q", contract)

@@ -159,6 +159,11 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 			if !bytes.Contains(envData, []byte(`AXNODED_DNS_NAMESERVERS="192.0.2.53"`)) {
 				t.Fatalf("compose env does not contain resolved workload DNS: %q", envData)
 			}
+			for _, contract := range []string{`REGISTRY_IMAGE="registry:2"`, `CONTROLD_INSECURE_REGISTRIES="registry:5000"`} {
+				if !bytes.Contains(envData, []byte(contract)) {
+					t.Fatalf("compose env does not contain %s: %q", contract, envData)
+				}
+			}
 			data, err := os.ReadFile(filepath.Join(dir, "secrets.json"))
 			if err != nil {
 				t.Fatal(err)
@@ -220,7 +225,7 @@ func TestStartupDiagnosticsIncludesBoundedCoreLogs(t *testing.T) {
 	if len(runner.calls) != 2 {
 		t.Fatalf("diagnostic calls = %d, want 2", len(runner.calls))
 	}
-	if got, want := runner.calls[1][len(runner.calls[1])-8:], []string{"logs", "--no-color", "--tail", "80", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
+	if got, want := runner.calls[1][len(runner.calls[1])-9:], []string{"logs", "--no-color", "--tail", "80", "registry", "controld", "tunneld", "node", "gatewayd"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("log diagnostics = %#v, want %#v", got, want)
 	}
 	if !bytes.Contains(stderr.Bytes(), []byte("Recent core service logs follow.")) {
@@ -238,7 +243,7 @@ func TestPlatformImagePullUsesBoundedProgressOutsideTerminal(t *testing.T) {
 	if len(runner.calls) != 1 {
 		t.Fatalf("pull calls = %d, want 1", len(runner.calls))
 	}
-	wantTail := []string{"--progress", "quiet", "pull", "postgres", "controld", "tunneld", "node", "gatewayd"}
+	wantTail := []string{"--progress", "quiet", "pull", "registry", "postgres", "controld", "tunneld", "node", "gatewayd"}
 	got := runner.calls[0]
 	if len(got) < len(wantTail) || !reflect.DeepEqual(got[len(got)-len(wantTail):], wantTail) {
 		t.Fatalf("pull command = %#v, want tail %#v", got, wantTail)
