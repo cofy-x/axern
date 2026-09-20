@@ -21,6 +21,7 @@ POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axnoded-python-runtime-e2e-net}"
 POSTGRES_DB="${POSTGRES_DB:-axern}"
 POSTGRES_USER="${POSTGRES_USER:-postgres}"
 POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
+LOCAL_REGISTRY_NAME="${LOCAL_REGISTRY_NAME:-axern-registry}"
 CONTROLD_POSTGRES_DSN="${CONTROLD_POSTGRES_DSN:-postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_CONTAINER_NAME}:5432/${POSTGRES_DB}?sslmode=disable}"
 
 VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-$(resolve_verify_docker_platform)}"
@@ -83,6 +84,7 @@ cleanup() {
   docker rm -f "${CONTROLD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
+  docker network disconnect -f "${POSTGRES_NETWORK_NAME}" "${LOCAL_REGISTRY_NAME}" >/dev/null 2>&1 || true
   docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
   rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${python_runtime_stdout}"
 }
@@ -93,6 +95,7 @@ docker rm -f "${CONTROLD_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
 docker rm -f "${POSTGRES_CONTAINER_NAME}" >/dev/null 2>&1 || true
+docker network disconnect -f "${POSTGRES_NETWORK_NAME}" "${LOCAL_REGISTRY_NAME}" >/dev/null 2>&1 || true
 docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
 
 docker network create "${POSTGRES_NETWORK_NAME}" >/dev/null
@@ -112,7 +115,9 @@ if ! wait_for_postgres; then
   exit 1
 fi
 
-docker pull --platform "${VERIFY_DOCKER_PLATFORM}" "${PYTHON_RUNTIME_IMAGE_REF}" >/dev/null
+if ! docker image inspect "${PYTHON_RUNTIME_IMAGE_REF}" >/dev/null 2>&1; then
+  docker pull --platform "${VERIFY_DOCKER_PLATFORM}" "${PYTHON_RUNTIME_IMAGE_REF}" >/dev/null
+fi
 bash "${REPO_ROOT}/scripts/dev-mtls-certs.sh" "${cert_dir}" >/dev/null
 printf '%s\n' "${CONTROL_PLANE_ENROLLMENT_TOKEN}" > "${cert_dir}/enrollment-token"
 chmod 600 "${cert_dir}/enrollment-token"
@@ -121,7 +126,7 @@ grep -q '^Python 3\.12\.' "${python_runtime_stdout}"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" /bin/sh -lc 'python -m pip --version >/dev/null'
 # Publish the unmodified workload image through the fixture registry so the
 # control plane and node resolve the same content identity without external IO.
-prepare_oci_test_image_source "${PYTHON_RUNTIME_IMAGE_REF}"
+prepare_oci_test_image_source "${PYTHON_RUNTIME_IMAGE_REF}" "${POSTGRES_NETWORK_NAME}"
 PYTHON_RUNTIME_IMAGE_REF="${PREPARED_OCI_TEST_IMAGE}"
 
 docker run --rm \

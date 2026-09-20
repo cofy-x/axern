@@ -34,6 +34,7 @@ python_runtime = pathlib.Path(sys.argv[2])
 python_runtime_text = python_runtime.read_text()
 for fragment in (
     '--network "${POSTGRES_NETWORK_NAME}"',
+    'prepare_oci_test_image_source "${PYTHON_RUNTIME_IMAGE_REF}" "${POSTGRES_NETWORK_NAME}"',
     'AXNODED_CONTROL_PLANE_TARGET=controld:${CONTROLD_GRPC_PORT}',
     'AXNODED_CONTROL_PLANE_NODE_TARGET=${NODE_CONTAINER_NAME}:${NODE_GRPC_PORT}',
 ):
@@ -41,6 +42,17 @@ for fragment in (
         raise SystemExit(f"{python_runtime.name} must use its shared Docker network: {fragment}")
 
 docker_common = pathlib.Path(sys.argv[3]).read_text()
+for fragment in (
+    'local runtime_network="${2:-}"',
+    'docker network connect "${runtime_network}" "${local_registry_name}"',
+    'registry_runtime_host="${local_registry_name}:5000"',
+    'registry_no_proxy_host="${local_registry_name}"',
+):
+    if fragment not in docker_common:
+        raise SystemExit(
+            "OCI fixture verification must support a shared runtime network: " + fragment
+        )
+
 for fragment in (
     'registry_runtime_host="${registry_ip}:5000"',
     'LOCAL_REGISTRY_CLUSTER_HOST="${registry_runtime_host}"',

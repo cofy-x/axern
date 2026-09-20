@@ -314,12 +314,17 @@ PY
   rm -f "${image_archive}"
 }
 
+# Publish a cached image through the repository-managed registry. Callers that
+# run multiple containers on one Docker network may pass that network as the
+# second argument; the returned reference then uses Docker DNS instead of
+# relying on cross-bridge routing to the registry's default-bridge address.
 prepare_oci_test_image_source() {
   local image_ref="$1"
+  local runtime_network="${2:-}"
   local source_mode="${OCI_TEST_IMAGE_SOURCE:-auto}"
   local local_registry_port="${OCI_TEST_LOCAL_REGISTRY_PORT:-5001}"
   local local_registry_name="${LOCAL_REGISTRY_NAME:-axern-registry}"
-  local image_id image_tag host_ref registry_ip runtime_ref
+  local image_id image_tag host_ref registry_ip registry_runtime_host registry_no_proxy_host runtime_ref
 
   PREPARED_OCI_TEST_IMAGE="${image_ref}"
   OCI_TEST_INSECURE_REGISTRIES="${IMAGEMGR_INSECURE_REGISTRIES:-}"
@@ -366,10 +371,27 @@ prepare_oci_test_image_source() {
     echo "local registry has no bridge address: ${local_registry_name}" >&2
     return 1
   fi
-  runtime_ref="${registry_ip}:5000/axern/oci-e2e:${image_tag}"
+
+  registry_runtime_host="${registry_ip}:5000"
+  registry_no_proxy_host="${registry_ip}"
+  if [ -n "${runtime_network}" ]; then
+    if ! docker network inspect "${runtime_network}" >/dev/null 2>&1; then
+      echo "OCI test runtime network does not exist: ${runtime_network}" >&2
+      return 1
+    fi
+    if ! docker inspect \
+      --format '{{range $name, $_ := .NetworkSettings.Networks}}{{println $name}}{{end}}' \
+      "${local_registry_name}" | grep -Fxq "${runtime_network}"; then
+      docker network connect "${runtime_network}" "${local_registry_name}"
+    fi
+    registry_runtime_host="${local_registry_name}:5000"
+    registry_no_proxy_host="${local_registry_name}"
+  fi
+
+  runtime_ref="${registry_runtime_host}/axern/oci-e2e:${image_tag}"
   case ",${REGISTRY_NO_PROXY}," in
-    *,"${registry_ip}",*) ;;
-    *) REGISTRY_NO_PROXY="${REGISTRY_NO_PROXY:+${REGISTRY_NO_PROXY},}${registry_ip}" ;;
+    *,"${registry_no_proxy_host}",*) ;;
+    *) REGISTRY_NO_PROXY="${REGISTRY_NO_PROXY:+${REGISTRY_NO_PROXY},}${registry_no_proxy_host}" ;;
   esac
 
   PREPARED_OCI_TEST_IMAGE="${runtime_ref}"
