@@ -30,7 +30,7 @@ if not any(item[0] in (socket.AF_INET, socket.AF_INET6) for item in results):
 
 type DNSProbeOptions struct {
 	QueryName   string
-	TemplateID  string
+	ImageRef    string
 	Timeout     time.Duration
 	CleanupWait time.Duration
 }
@@ -83,7 +83,7 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 
 	if probeCode == "" {
 		response, err := session.Environment.CreateEnvironment(probeCtx, &environmentv1.CreateEnvironmentRequest{
-			Spec:   &environmentv1.EnvironmentSpec{Namespace: namespace, TemplateID: strings.TrimSpace(options.TemplateID)},
+			Spec:   &environmentv1.EnvironmentSpec{Namespace: namespace, Image: &environmentv1.EnvironmentImageSource{Ref: strings.TrimSpace(options.ImageRef)}},
 			Labels: map[string]string{"axern.doctor": "local-dns"},
 		})
 		if err != nil || response == nil || strings.TrimSpace(response.GetEnvironment().GetID()) == "" {

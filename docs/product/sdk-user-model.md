@@ -19,7 +19,7 @@ from axern_sdk import AxernClient, Sandbox
 
 client = AxernClient.from_env()
 
-with Sandbox(client=client, template_id="python311") as sandbox:
+with Sandbox(client=client, image="python:3.12-slim") as sandbox:
     sandbox.write_text("/tmp/result.txt", "hello from axern\n")
     sandbox.download_file("/tmp/result.txt", "result.txt", overwrite=False)
 ```

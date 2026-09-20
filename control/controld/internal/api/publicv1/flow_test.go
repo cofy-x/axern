@@ -25,14 +25,14 @@ func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) 
 	public := app.PublicV1Handler()
 
 	first, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec:   &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec:   &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 		Labels: map[string]string{"team": "infra"},
 	})
 	if err != nil {
 		t.Fatalf("CreateEnvironment(first) error = %v", err)
 	}
 	second, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec:   &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec:   &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 		Labels: map[string]string{"team": "runtime"},
 	})
 	if err != nil {
@@ -42,7 +42,7 @@ func TestCreateEnvironmentCreatesOwnedResourcesFromNormalizedSpec(t *testing.T) 
 		t.Fatalf("independent creates shared environment ID %q", first.GetEnvironment().GetID())
 	}
 	if !proto.Equal(first.GetEnvironment().GetResolvedSpec(), second.GetEnvironment().GetResolvedSpec()) {
-		t.Fatal("equivalent template sources produced different resolved specifications")
+		t.Fatal("equivalent image sources produced different resolved specifications")
 	}
 }
 
@@ -50,7 +50,7 @@ func TestCreateRunRejectsRemovedEnvironment(t *testing.T) {
 	service := newTestService(t)
 	defer service.Close()
 	public := service.PublicV1Handler()
-	created, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"}})
+	created, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestCreateRunRejectsEnvironmentFromAnotherNamespace(t *testing.T) {
 	service := newTestService(t)
 	defer service.Close()
 	public := service.PublicV1Handler()
-	created, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "team-a"}})
+	created, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{Spec: &environmentv1.EnvironmentSpec{Namespace: "team-a", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,41 +111,17 @@ func TestCreateImageEnvironmentResolvesDigestForOwnedResources(t *testing.T) {
 	}
 }
 
-func TestCreateEnvironmentRejectsInvalidImageSourceCombinations(t *testing.T) {
+func TestCreateEnvironmentRequiresImage(t *testing.T) {
 	app := newTestService(t)
 	defer app.Close()
 	public := app.PublicV1Handler()
 
 	_, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{
-			Namespace:       "default",
-			TemplateID:      "python311",
-			TemplateVersion: "sha256:abc",
-			Image:           &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"},
-		},
-	})
-	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("mixed source code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
-	}
-
-	_, err = public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
 		Spec: &environmentv1.EnvironmentSpec{Namespace: "default"},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
 		t.Fatalf("missing source code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
 	}
-
-	_, err = public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{
-			Namespace:       "default",
-			TemplateVersion: "1",
-			Image:           &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"},
-		},
-	})
-	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("image template_version code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
-	}
-
 }
 
 func TestCreateImageEnvironmentMutableTagCreatesNewEnvironmentWhenDigestChanges(t *testing.T) {
@@ -195,7 +171,7 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 		t.Fatalf("ReportNode() error = %v", err)
 	}
 	envResp, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 	})
 	if err != nil {
 		t.Fatalf("CreateEnvironment() error = %v", err)
@@ -248,7 +224,7 @@ func TestRunAllowsImageDefaultArgv(t *testing.T) {
 	public := app.PublicV1Handler()
 
 	envResp, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 	})
 	if err != nil {
 		t.Fatalf("CreateEnvironment() error = %v", err)

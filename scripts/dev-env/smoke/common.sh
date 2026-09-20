@@ -26,7 +26,16 @@ local_smoke_init_axern_cmd() {
   local axern_bin
   axern_bin="$(local_smoke_axern_bin)"
   local axern_timeout="${LOCAL_SMOKE_AXERN_TIMEOUT:-20s}"
+  LOCAL_SMOKE_ENV_NAME="${env_name}"
   AXERN_SMOKE_CMD=("${axern_bin}" "--context" "${env_name}" "--endpoint" "${endpoint}" "--timeout" "${axern_timeout}")
+}
+
+local_smoke_prepare_compose_image() {
+  local image_ref="${1:-${AXERN_TEST_PYTHON_IMAGE}}"
+  local result
+  ensure_host_image "${image_ref}"
+  result="$(compose_import_host_image "${image_ref}")"
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["immutable_ref"])' <<<"${result}"
 }
 
 local_smoke_is_transient_grpc_error() {
@@ -190,13 +199,13 @@ local_smoke_json_once_or_recover_by_namespace() {
 
 local_smoke_create_environment() {
   local namespace="$1"
-  if [ -n "${LOCAL_SMOKE_RESOLVED_IMAGE_REF:-}" ]; then
-    local_smoke_json_once_or_recover_by_namespace environment environments environment "${namespace}" \
-      "${AXERN_SMOKE_CMD[@]}" environment create -o json --namespace "${namespace}" --image-ref "${LOCAL_SMOKE_RESOLVED_IMAGE_REF}"
-  else
-    local_smoke_json_once_or_recover_by_namespace environment environments environment "${namespace}" \
-      "${AXERN_SMOKE_CMD[@]}" environment create -o json --namespace "${namespace}" --template-id python311
+  local image_ref="${LOCAL_SMOKE_RESOLVED_IMAGE_REF:-}"
+  if [ -z "${image_ref}" ] && [ "${LOCAL_SMOKE_ENV_NAME:-}" = "compose" ]; then
+    image_ref="$(local_smoke_prepare_compose_image)"
   fi
+  image_ref="${image_ref:-${AXERN_TEST_PYTHON_IMAGE}}"
+  local_smoke_json_once_or_recover_by_namespace environment environments environment "${namespace}" \
+    "${AXERN_SMOKE_CMD[@]}" environment create -o json --namespace "${namespace}" --image-ref "${image_ref}"
 }
 
 local_smoke_create_secret() {

@@ -13,10 +13,10 @@ axern doctor --namespace default
 
 平台 doctor 校验所选 Context、mTLS 证书有效期与密钥权限、Gateway 连通性和命名空间访问，不创建任何资源。退出码稳定，可用于自动化：`0` 健康，`1` 降级（如证书即将到期等警告），`2` 用法或连接配置无效，`3` 必需的平台检查失败。
 
-仅可达性不够时，运行实时探测——它会从内置模板创建临时 Environment、执行一个小的 `runsc` Run，然后清理：
+仅可达性不够时，使用显式 OCI 镜像运行实时探测。它会创建临时 Environment、执行一个小的 `runsc` Run，然后清理：
 
 ```bash
-axern doctor --namespace default --probe
+axern doctor --namespace default --probe --image python:3.12-slim
 ```
 
 当检查报告授权失败时，用 `axern identity whoami` 确认 Principal、证书和生效角色。

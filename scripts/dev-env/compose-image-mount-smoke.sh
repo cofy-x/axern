@@ -11,11 +11,8 @@ require_cmd python3
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
 
-task_base_image="${LOCAL_IMAGE_MOUNT_SMOKE_TASK_BASE_IMAGE:-${PYTHON311_RUNTIME_IMAGE}}"
-if ! docker image inspect "${task_base_image}" >/dev/null 2>&1; then
-  echo "missing task smoke base image ${task_base_image}; run make local-images-build first" >&2
-  exit 1
-fi
+task_base_image="${LOCAL_IMAGE_MOUNT_SMOKE_TASK_BASE_IMAGE:-${AXERN_TEST_PYTHON_IMAGE}}"
+ensure_host_image "${task_base_image}"
 
 node_container="${COMPOSE_PROJECT_NAME}-node-1"
 if ! docker ps --format '{{.Names}}' | grep -Fxq "${node_container}"; then

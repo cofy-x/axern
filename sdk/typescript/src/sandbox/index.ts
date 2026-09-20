@@ -44,7 +44,6 @@ import { defaultSandboxArgv, sandboxLabels, sandboxMetadata, validateSandboxOpti
 
 export interface SandboxOptions {
   client: AxernClient;
-  templateId?: string;
   image?: string;
   environmentId?: string;
   namespace?: string;
@@ -77,7 +76,7 @@ export interface SandboxState {
 export interface SandboxMetadata extends SandboxState {
   namespace: string;
   labels: Record<string, string>;
-  source: "template" | "image" | "environment";
+  source: "image" | "environment";
   tunnel?: TunnelMetadata;
 }
 
@@ -120,7 +119,6 @@ export class Sandbox {
       if (environmentId === "") {
         const environment = await this.client.createEnvironment({
           namespace: this.options.namespace,
-          templateId: this.options.templateId,
           image: this.options.image,
           registryCredentialId: this.options.registryCredentialId,
           rootfsReadonly: this.options.rootfsReadonly,

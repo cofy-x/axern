@@ -5,66 +5,38 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/cofy-x/axern/control/controld/internal/environmenttemplate"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func TestResolveSpecTemplateSource(t *testing.T) {
-	templateStore := environmenttemplate.NewStore(nil)
-	spec, template, err := ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{
-		Namespace:  "default",
-		TemplateID: "python311",
-	}, templateStore, nil, nil)
-	if err != nil {
-		t.Fatalf("ResolveSpec(template) error = %v", err)
-	}
-	if spec.GetTemplateID() != "python311" || spec.GetTemplateVersion() == "" {
-		t.Fatalf("normalized template spec = %+v, want template id and resolved version", spec)
-	}
-	if spec.GetImage() != nil {
-		t.Fatalf("normalized template spec unexpectedly had image source: %+v", spec.GetImage())
-	}
-	if template == nil || template.GetImageDescriptor().GetDigest() == "" {
-		t.Fatalf("resolved template = %+v, want digest-pinned template", template)
-	}
-}
-
 func TestResolveSpecImageSource(t *testing.T) {
-	spec, template, err := ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{
+	spec, resolved, err := ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{
 		Namespace: "prod",
 		Image: &environmentv1.EnvironmentImageSource{
 			Ref:            "docker.io/library/nginx:1.27",
 			RootfsReadonly: true,
 		},
-	}, environmenttemplate.NewStore(nil), fakeImageResolver{}, nil)
+	}, fakeImageResolver{}, nil)
 	if err != nil {
 		t.Fatalf("ResolveSpec(image) error = %v", err)
-	}
-	if spec.GetTemplateID() != "" || spec.GetTemplateVersion() != "" {
-		t.Fatalf("normalized image spec unexpectedly had template fields: %+v", spec)
 	}
 	if spec.GetImage().GetRef() != "index.docker.io/library/nginx:1.27" {
 		t.Fatalf("normalized image ref = %q", spec.GetImage().GetRef())
 	}
-	if template.GetImageDescriptor().GetDigest() == "" {
+	if resolved.GetImageDescriptor().GetDigest() == "" {
 		t.Fatal("resolved image descriptor digest is empty")
 	}
-	if !template.GetRootfsReadonly() {
-		t.Fatalf("synthesized image template = %+v, want rootfs readonly propagated", template)
+	if !resolved.GetRootfsReadonly() {
+		t.Fatalf("resolved image specification = %+v, want rootfs readonly propagated", resolved)
 	}
 }
 
-func TestResolveSpecRejectsInvalidImageCombinations(t *testing.T) {
-	_, _, err := ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{
-		TemplateID: "python311",
-		Image:      &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"},
-	}, environmenttemplate.NewStore(nil), fakeImageResolver{}, nil)
+func TestResolveSpecRequiresImage(t *testing.T) {
+	_, _, err := ResolveSpec(context.Background(), &environmentv1.EnvironmentSpec{}, fakeImageResolver{}, nil)
 	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("mixed source code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
+		t.Fatalf("missing image code = %v, want %v", grpcstatus.Code(err), codes.InvalidArgument)
 	}
-
 }
 
 type fakeImageResolver struct{}

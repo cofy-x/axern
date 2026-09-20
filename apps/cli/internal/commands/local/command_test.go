@@ -23,7 +23,7 @@ func TestLocalLifecycleSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"probe", "dns-query-name", "check-timeout", "probe-timeout", "template-id"} {
+	for _, name := range []string{"probe", "dns-query-name", "check-timeout", "probe-timeout", "image"} {
 		if doctor.Flags().Lookup(name) == nil {
 			t.Fatalf("local doctor flag --%s is missing", name)
 		}

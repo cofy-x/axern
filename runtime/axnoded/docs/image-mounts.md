@@ -54,7 +54,7 @@ target=<target>
 options=["rbind","ro"]
 ```
 
-Stable runtime IDs include image, target, and the internal read-only invariant so different mount sets do not reuse the wrong environment template.
+Stable runtime IDs include image, target, and the internal read-only invariant so different mount sets do not reuse the wrong prepared Environment.
 
 ## SDK Consumer Use
 

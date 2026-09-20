@@ -82,7 +82,7 @@ fixtures = (
 )
 for fixture in fixtures:
     text = fixture.read_text()
-    for value in ("run-id", "python311", "release-ok", "AXERN_SDK_ACCEPTANCE_HANDSHAKE_DIR"):
+    for value in ("run-id", "python:3.12-slim", "release-ok", "AXERN_SDK_ACCEPTANCE_HANDSHAKE_DIR"):
         if value not in text:
             raise SystemExit(f"{fixture.relative_to(root)} is missing acceptance behavior: {value}")
     if "100m" not in text or "512MiB" not in text:

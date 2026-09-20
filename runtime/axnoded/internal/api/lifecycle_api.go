@@ -349,7 +349,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	if err != nil {
 		return nil, err
 	}
-	environmentTemplate := &runtimev1.ResolvedEnvironment{
+	preparedEnvironment := &runtimev1.ResolvedEnvironment{
 		Argv:   append([]string(nil), spec.GetArgv()...),
 		Cwd:    cwd,
 		Env:    cloneStringMap(spec.GetEnv()),
@@ -359,12 +359,12 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 			spec.GetExecutionProfile(),
 		),
 	}
-	environmentTemplate.ID = stableResolvedEnvironmentID(environmentTemplate)
-	if environmentTemplate.ID == "" {
-		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
+	preparedEnvironment.ID = stableResolvedEnvironmentID(preparedEnvironment)
+	if preparedEnvironment.ID == "" {
+		return nil, grpcstatus.Error(codes.Internal, "build stable prepared environment id")
 	}
 	return &runtimev1.StartRequest{
-		Environment:            environmentTemplate,
+		Environment:            preparedEnvironment,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		AllocationID:           req.GetAllocationID(),
 		Network:                cloneNetworkSpec(spec.GetNetwork()),
@@ -399,7 +399,7 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 		return nil, err
 	}
 
-	environmentTemplate := &runtimev1.ResolvedEnvironment{
+	preparedEnvironment := &runtimev1.ResolvedEnvironment{
 		Argv:   append([]string(nil), spec.GetArgv()...),
 		Cwd:    cwd,
 		Env:    cloneStringMap(spec.GetEnv()),
@@ -409,12 +409,12 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 			spec.GetExecutionProfile(),
 		),
 	}
-	environmentTemplate.ID = stableResolvedEnvironmentID(environmentTemplate)
-	if environmentTemplate.ID == "" {
-		return nil, grpcstatus.Error(codes.Internal, "build stable environment template id")
+	preparedEnvironment.ID = stableResolvedEnvironmentID(preparedEnvironment)
+	if preparedEnvironment.ID == "" {
+		return nil, grpcstatus.Error(codes.Internal, "build stable prepared environment id")
 	}
 	return &runtimev1.StartRequest{
-		Environment:            environmentTemplate,
+		Environment:            preparedEnvironment,
 		Resources:              toRuntimeLifecycleResources(spec.GetResources()),
 		AllocationID:           containerID,
 		Network:                cloneNetworkSpec(spec.GetNetwork()),
@@ -505,13 +505,13 @@ func allocationLifecycleStateFromContainerState(state runtimev1.ContainerState) 
 	}
 }
 
-func stableResolvedEnvironmentID(template *runtimev1.ResolvedEnvironment) string {
-	if template == nil {
+func stableResolvedEnvironmentID(environment *runtimev1.ResolvedEnvironment) string {
+	if environment == nil {
 		return ""
 	}
-	staticTemplate := proto.Clone(template).(*runtimev1.ResolvedEnvironment)
-	staticTemplate.ID = ""
-	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(staticTemplate)
+	staticEnvironment := proto.Clone(environment).(*runtimev1.ResolvedEnvironment)
+	staticEnvironment.ID = ""
+	data, err := proto.MarshalOptions{Deterministic: true}.Marshal(staticEnvironment)
 	if err != nil {
 		return ""
 	}

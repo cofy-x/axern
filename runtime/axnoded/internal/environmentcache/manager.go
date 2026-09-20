@@ -35,8 +35,8 @@ func (lm *EnvironmentCache) GetPreparedEnvironment(id string) *PreparedEnvironme
 	return lm.environments[id]
 }
 
-// FindReusableEnvironment returns the current runtime only when its static
-// template and already-resolved immutable rootfs generation match.
+// FindReusableEnvironment returns the current runtime only when its resolved
+// specification and immutable rootfs generation match.
 func (lm *EnvironmentCache) FindReusableEnvironment(fr *api.ResolvedEnvironment, cfg RootfsConfig) *PreparedEnvironment {
 	if fr == nil {
 		return nil
@@ -45,7 +45,7 @@ func (lm *EnvironmentCache) FindReusableEnvironment(fr *api.ResolvedEnvironment,
 	lm.environmentMu.RLock()
 	defer lm.environmentMu.RUnlock()
 	environment := lm.environments[fr.GetID()]
-	if !preparedEnvironmentMatchesTemplate(environment, fr) || environment.RootFS == nil {
+	if !preparedEnvironmentMatchesResolvedSpec(environment, fr) || environment.RootFS == nil {
 		return nil
 	}
 	if !rootfsConfigMatchesRequest(environment.RootFS.Config(), cfg) {

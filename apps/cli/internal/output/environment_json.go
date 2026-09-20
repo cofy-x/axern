@@ -25,10 +25,8 @@ type EnvironmentJSON struct {
 }
 
 type EnvironmentSpecJSON struct {
-	Namespace       string                      `json:"namespace,omitempty"`
-	TemplateID      string                      `json:"template_id,omitempty"`
-	TemplateVersion string                      `json:"template_version,omitempty"`
-	Image           *EnvironmentImageSourceJSON `json:"image,omitempty"`
+	Namespace string                      `json:"namespace,omitempty"`
+	Image     *EnvironmentImageSourceJSON `json:"image,omitempty"`
 }
 
 type EnvironmentImageSourceJSON struct {
@@ -71,10 +69,8 @@ func newEnvironmentSpecJSON(spec *environmentv1.EnvironmentSpec) *EnvironmentSpe
 		return nil
 	}
 	return &EnvironmentSpecJSON{
-		Namespace:       spec.GetNamespace(),
-		TemplateID:      spec.GetTemplateID(),
-		TemplateVersion: spec.GetTemplateVersion(),
-		Image:           newEnvironmentImageSourceJSON(spec.GetImage()),
+		Namespace: spec.GetNamespace(),
+		Image:     newEnvironmentImageSourceJSON(spec.GetImage()),
 	}
 }
 

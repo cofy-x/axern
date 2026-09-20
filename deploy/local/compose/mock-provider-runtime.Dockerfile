@@ -1,4 +1,4 @@
-ARG PYTHON_RUNTIME_IMAGE=axern/python311-runtime:dev
+ARG PYTHON_RUNTIME_IMAGE=python:3.12-slim
 FROM ${PYTHON_RUNTIME_IMAGE}
 
 USER root

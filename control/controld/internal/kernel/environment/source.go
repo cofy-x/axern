@@ -4,15 +4,10 @@ import (
 	"context"
 	"strings"
 
-	privateenvironmentv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/environment/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
-
-type TemplateReader interface {
-	Get(id, version string) (*privateenvironmentv1.EnvironmentTemplate, bool)
-}
 
 type ImageResolver interface {
 	Resolve(ctx context.Context, imageRef string, opts ResolveOptions) (*ResolvedImage, error)
@@ -31,53 +26,20 @@ type RegistryCredentialResolver interface {
 	ResolveDockerConfigJSON(ctx context.Context, id string) (string, bool, error)
 }
 
-func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, templates TemplateReader, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
+func ResolveSpec(ctx context.Context, spec *environmentv1.EnvironmentSpec, images ImageResolver, credentials RegistryCredentialResolver) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	if spec == nil {
 		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "spec is required")
 	}
-	templateID := strings.TrimSpace(spec.GetTemplateID())
 	imageRef := strings.TrimSpace(spec.GetImage().GetRef())
-	switch {
-	case templateID != "" && imageRef != "":
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "exactly one of template_id or image.ref must be set")
-	case templateID == "" && imageRef == "":
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "one of template_id or image.ref is required")
-	}
-	if templateID != "" {
-		return resolveTemplateSpec(templates, spec)
+	if imageRef == "" {
+		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.ref is required")
 	}
 	return resolveImageSpec(ctx, images, credentials, spec)
-}
-
-func resolveTemplateSpec(templates TemplateReader, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
-	templateID := strings.TrimSpace(spec.GetTemplateID())
-	if strings.TrimSpace(spec.GetImage().GetRegistryCredentialID()) != "" {
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.registry_credential_id is only valid with image.ref")
-	}
-	if spec.GetImage().GetRootfsReadonly() {
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "image.rootfs_readonly is only valid with image.ref")
-	}
-	template, ok := templates.Get(templateID, spec.GetTemplateVersion())
-	if !ok {
-		return nil, nil, grpcstatus.Errorf(codes.NotFound, "environment template %q not found", templateID)
-	}
-	if strings.TrimSpace(template.GetResolvedSpec().GetImageDescriptor().GetDigest()) == "" {
-		return nil, nil, grpcstatus.Errorf(codes.FailedPrecondition, "environment template %q is not digest pinned", templateID)
-	}
-	normalized := &environmentv1.EnvironmentSpec{
-		Namespace:       NormalizeNamespace(spec.GetNamespace()),
-		TemplateID:      templateID,
-		TemplateVersion: template.GetVersion(),
-	}
-	return normalized, template.GetResolvedSpec(), nil
 }
 
 func resolveImageSpec(ctx context.Context, images ImageResolver, credentials RegistryCredentialResolver, spec *environmentv1.EnvironmentSpec) (*environmentv1.EnvironmentSpec, *environmentv1.ResolvedEnvironmentSpec, error) {
 	if images == nil {
 		return nil, nil, grpcstatus.Error(codes.FailedPrecondition, "image resolution is not configured")
-	}
-	if strings.TrimSpace(spec.GetTemplateVersion()) != "" {
-		return nil, nil, grpcstatus.Error(codes.InvalidArgument, "template_version is only valid with template_id")
 	}
 	registryCredentialID := strings.TrimSpace(spec.GetImage().GetRegistryCredentialID())
 	opts := ResolveOptions{}

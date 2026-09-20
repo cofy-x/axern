@@ -95,7 +95,7 @@ For sandboxd-specific work, start with `make verify-sandboxd-release-readiness` 
 
 ## Operations
 
-Runtime image contracts live in [Runtime Images](docker/runtimes/README.md). Docker, Kubernetes benchmark, demo, and tooling wrappers live in [Runtime Scripts](scripts/README.md).
+Docker, Kubernetes benchmark, runtime verification, and tooling wrappers live in [Runtime Scripts](scripts/README.md). Axern publishes node platform images; workload OCI images are caller-owned inputs.
 
 `axctl` is the node-local operator CLI shipped with `axnoded`; use `axern` for product workflows. Common local inspection starts with:
 

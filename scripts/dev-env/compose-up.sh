@@ -26,14 +26,6 @@ write_compose_env
 compose_project_up
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
-if [ "${AXERN_SKIP_COMPOSE_RUNTIME_IMAGE_IMPORTS:-0}" = "1" ] || [ "${AXERN_SKIP_COMPOSE_RUNTIME_IMAGE_IMPORTS:-0}" = "true" ]; then
-  echo "compose_runtime_image_imports_skipped=true"
-else
-  IMAGE="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-  IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-	IMAGE="${CODING_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-	IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" bash "${AXERN_ROOT}/scripts/dev-env/compose-image-import.sh"
-fi
 
 echo "compose_up_ok=true"
 echo "cli_env=$(cli_env_file compose)"

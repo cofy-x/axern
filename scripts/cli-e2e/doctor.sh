@@ -8,7 +8,7 @@ verify_doctor() {
   if ! report="$("${AXERN_BIN}" --config "${cli_config_file}" doctor \
       --namespace "${namespace}" \
       --probe \
-      --template-id python311 \
+      --image "${PYTHON_RUNTIME_IMAGE_REF}" \
       --probe-timeout 5m \
       --output json)"; then
     echo "doctor probe failed:" >&2

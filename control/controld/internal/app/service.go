@@ -15,7 +15,6 @@ import (
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
-	"github.com/cofy-x/axern/control/controld/internal/environmenttemplate"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
@@ -32,7 +31,6 @@ import (
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
-	privateenvironmentv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/environment/v1"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/credentials"
@@ -52,7 +50,6 @@ type Config struct {
 	LifecycleContext         context.Context
 	HeartbeatFreshnessWindow time.Duration
 	SummaryFreshnessWindow   time.Duration
-	EnvironmentTemplates     []*privateenvironmentv1.EnvironmentTemplate
 	PostgresDSN              string
 	PostgresMaxConnections   int32
 	SecretsMasterKey         string
@@ -69,7 +66,6 @@ type Config struct {
 type App struct {
 	registry                 *nodekernel.Registry
 	placement                *placement.Engine
-	templates                *environmenttemplate.Store
 	nodeStore                nodekernel.Store
 	nodeLifecycle            nodebridge.LifecycleClient
 	nodeBridge               *nodebridge.Bridge
@@ -145,7 +141,6 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 			SummaryFreshnessWindow:   cfg.SummaryFreshnessWindow,
 			ResourcePolicy:           cfg.ResourcePolicy,
 		}),
-		templates:                environmenttemplate.NewStore(cfg.EnvironmentTemplates),
 		heartbeatFreshnessWindow: cfg.HeartbeatFreshnessWindow,
 		summaryFreshnessWindow:   cfg.SummaryFreshnessWindow,
 		reconcileInterval:        cfg.ReconcileInterval,

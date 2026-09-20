@@ -69,10 +69,13 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	}
 	env := &environmentv1.Environment{
 		ID: "env-a",
+		Spec: &environmentv1.EnvironmentSpec{Image: &environmentv1.EnvironmentImageSource{
+			Ref: "docker.io/library/python",
+		}},
 		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			ImageDescriptor: &environmentv1.OciImageDescriptor{
-				Digest:      "sha256:abc",
-				Annotations: map[string]string{"org.opencontainers.image.ref.name": "docker.io/library/python@sha256:abc"},
+				Digest:      "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				Annotations: map[string]string{"org.opencontainers.image.ref.name": "docker.io/library/python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
 			},
 			DefaultEnv: map[string]string{"BASE": "true"},
 		},
@@ -89,7 +92,7 @@ func TestBuildCreateAllocationRequest(t *testing.T) {
 	if req.GetConfig().GetEnvironmentID() != "env-a" {
 		t.Fatalf("environment id = %q", req.GetConfig().GetEnvironmentID())
 	}
-	if req.GetConfig().GetImageDescriptor() != "docker.io/library/python@sha256:abc" {
+	if req.GetConfig().GetImageDescriptor() != "docker.io/library/python@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		t.Fatalf("image descriptor = %q", req.GetConfig().GetImageDescriptor())
 	}
 	if req.GetConfig().GetEnv()["BASE"] != "true" || req.GetConfig().GetEnv()["RUN"] != "true" {
@@ -117,26 +120,6 @@ func TestBuildCreateAllocationRequestBindsImageRepositoryToResolvedDigest(t *tes
 	want := "host.docker.internal:5001/axern/rootfs-snapshots@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	if got := req.GetConfig().GetImageDescriptor(); got != want {
 		t.Fatalf("image descriptor = %q, want %q", got, want)
-	}
-}
-
-func TestBuildCreateAllocationRequestPreservesTemplateRuntimeReference(t *testing.T) {
-	env := &environmentv1.Environment{
-		ID: "env-template",
-		Spec: &environmentv1.EnvironmentSpec{
-			TemplateID:      "python311",
-			TemplateVersion: "3.11.0",
-		},
-		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{ImageDescriptor: &environmentv1.OciImageDescriptor{
-			Digest: "sha256:0000000000000000000000000000000000000000000000000000000000000311",
-			Annotations: map[string]string{
-				"org.opencontainers.image.ref.name": "axern/python311-runtime:dev",
-			},
-		}},
-	}
-	req := buildCreateAllocationRequestFromParams(createAllocationRequestParams{Environment: env})
-	if got, want := req.GetConfig().GetImageDescriptor(), "axern/python311-runtime:dev"; got != want {
-		t.Fatalf("image descriptor = %q, want deployment-owned template ref %q", got, want)
 	}
 }
 
@@ -177,7 +160,7 @@ func TestBuildResolvedExecutionConfigAppliesRuntimeDefaults(t *testing.T) {
 		t.Fatal("rootfs_readonly = false, want true")
 	}
 	if len(cfg.GetMounts()) != 1 || cfg.GetMounts()[0].GetTarget() != "/mnt/data" {
-		t.Fatalf("mounts = %#v, want template mount propagated", cfg.GetMounts())
+		t.Fatalf("mounts = %#v, want resolved Environment mount propagated", cfg.GetMounts())
 	}
 	if cfg.GetExecutionProfile().GetBaseline().GetNoFileLimit() != 2097152 {
 		t.Fatalf("execution profile nofile = %d, want 2097152", cfg.GetExecutionProfile().GetBaseline().GetNoFileLimit())
@@ -287,10 +270,13 @@ func TestBuildResolvedExecutionConfigIncludesImageMounts(t *testing.T) {
 func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	env := &environmentv1.Environment{
 		ID: "env-image",
+		Spec: &environmentv1.EnvironmentSpec{Image: &environmentv1.EnvironmentImageSource{
+			Ref: "index.docker.io/library/nginx:1.27",
+		}},
 		ResolvedSpec: &environmentv1.ResolvedEnvironmentSpec{
 			RootfsReadonly: true,
 			ImageDescriptor: &environmentv1.OciImageDescriptor{
-				Digest:      "sha256:image",
+				Digest:      "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 				Annotations: map[string]string{"org.opencontainers.image.ref.name": "index.docker.io/library/nginx:1.27"},
 			},
 		},
@@ -305,11 +291,11 @@ func TestBuildResolvedExecutionConfigForImageBackedEnvironment(t *testing.T) {
 	if cfg.GetEnvironmentID() != "env-image" {
 		t.Fatalf("environment id = %q, want env-image", cfg.GetEnvironmentID())
 	}
-	if cfg.GetImageDigest() != "sha256:image" {
-		t.Fatalf("image digest = %q, want sha256:image", cfg.GetImageDigest())
+	if cfg.GetImageDigest() != "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Fatalf("image digest = %q, want immutable digest", cfg.GetImageDigest())
 	}
-	if cfg.GetImageDescriptor() != "index.docker.io/library/nginx:1.27" {
-		t.Fatalf("image descriptor = %q, want index.docker.io/library/nginx:1.27", cfg.GetImageDescriptor())
+	if cfg.GetImageDescriptor() != "index.docker.io/library/nginx@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Fatalf("image descriptor = %q, want immutable image reference", cfg.GetImageDescriptor())
 	}
 	if !cfg.GetRootfsReadonly() {
 		t.Fatal("rootfs_readonly = false, want true")

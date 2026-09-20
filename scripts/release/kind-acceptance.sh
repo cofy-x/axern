@@ -115,10 +115,6 @@ if [ -n "${image_tag_suffix}" ]; then
     --set-string "tunneld.image.tag=${candidate_tag}"
     --set-string "node.image.tag=${candidate_tag}"
     --set-string "gatewayd.image.tag=${candidate_tag}"
-    --set-string "runtimeCatalog.python311Image=${AXERN_RELEASE_REGISTRY}/python311-runtime:${candidate_tag}"
-    --set-string "runtimeCatalog.serverBaseImage=${AXERN_RELEASE_REGISTRY}/server-base-runtime:${candidate_tag}"
-    --set-string "runtimeCatalog.codingBaseImage=${AXERN_RELEASE_REGISTRY}/coding-base-runtime:${candidate_tag}"
-    --set-string "runtimeCatalog.desktopBaseImage=${AXERN_RELEASE_REGISTRY}/desktop-base-runtime:${candidate_tag}"
   )
 fi
 if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then
@@ -281,7 +277,7 @@ metadata:
   namespace: default
 spec:
   source:
-    template: python311
+    image: python:3.12-slim
   command:
     argv: [python, -c, "print('axern-release-ok')"]
   resources:
@@ -292,7 +288,7 @@ YAML
 "${cli}" --config "${config}" --timeout 15m run --wait-timeout 15m --file "${state_dir}/run.yaml"
 
 if [ "$#" -gt 0 ]; then
-  sdk_acceptance_image="${AXERN_RELEASE_REGISTRY}/python311-runtime:${tag}${image_tag_suffix:+-${image_tag_suffix}}"
+  sdk_acceptance_image="python:3.12-slim"
   AXERN_SDK_ACCEPTANCE_CONFIG="${config}" \
     AXERN_SDK_ACCEPTANCE_CONTEXT=release \
     AXERN_SDK_ACCEPTANCE_CLI="${cli}" \

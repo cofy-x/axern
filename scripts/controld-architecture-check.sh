@@ -26,7 +26,7 @@ check_empty \
 
 check_empty \
 	"kernel production code must not import outer layers or adapters" \
-	"rg -n '\"github\\.com/cofy-x/axern/control/controld/internal/(api|application|app|postgres|nodebridge|placement|ociimage|environmenttemplate|observability)(/|\")' control/controld/internal/kernel -g '*.go' -g '!*_test.go' || true"
+	"rg -n '\"github\\.com/cofy-x/axern/control/controld/internal/(api|application|app|postgres|nodebridge|placement|ociimage|observability)(/|\")' control/controld/internal/kernel -g '*.go' -g '!*_test.go' || true"
 
 check_empty \
 	"postgres production code must not import api/app/nodebridge/placement" \
@@ -34,7 +34,7 @@ check_empty \
 
 check_empty \
 	"non-adapter production code must not import internal/postgres" \
-	"rg -n '\"github\\.com/cofy-x/axern/control/controld/internal/postgres' control/controld/internal/api control/controld/internal/application control/controld/internal/kernel control/controld/internal/nodebridge control/controld/internal/placement control/controld/internal/observability control/controld/internal/ociimage control/controld/internal/environmenttemplate -g '*.go' -g '!*_test.go' || true"
+	"rg -n '\"github\\.com/cofy-x/axern/control/controld/internal/postgres' control/controld/internal/api control/controld/internal/application control/controld/internal/kernel control/controld/internal/nodebridge control/controld/internal/placement control/controld/internal/observability control/controld/internal/ociimage -g '*.go' -g '!*_test.go' || true"
 
 check_empty \
 	"pgx must stay inside postgres adapters" \

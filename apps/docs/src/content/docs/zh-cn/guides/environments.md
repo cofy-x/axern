@@ -3,19 +3,18 @@ title: 环境、命名空间与配额
 description: 复用不可变环境，按命名空间组织工作负载，并查看配额与准入信号。
 ---
 
-Environment 是不可变、可复用的执行源：解析好的内置模板或 OCI 镜像引用，Run 和 Sandbox 可以共享它而不必重复解析镜像。命名空间组织资源，配额限制各命名空间可准入的用量。
+Environment 是不可变、可复用的执行源：解析好的 OCI 镜像引用，Run 和 Sandbox 可以共享它而不必重复解析镜像。命名空间组织资源，配额限制各命名空间可准入的用量。
 
 ## 创建和复用 Environment
 
 ```bash
-axern environment create --template-id python311
 axern environment create --image-ref docker.io/library/python:3.12-slim
 axern environment list
 axern environment get <environment-id>
 axern environment delete <environment-id>
 ```
 
-环境严格二选一 source：部署提供的 `--template-id`（可配 `--template-version`），或 `--image-ref`。模板只是解析输入，不是可独立查询的资源。私有仓库使用按 ID 引用的已存凭据：
+环境必须提供一个明确的 `--image-ref`。私有仓库使用按 ID 引用的已存凭据：
 
 ```bash
 axern environment create \
@@ -23,7 +22,7 @@ axern environment create \
   --registry-credential-id <secret-id>
 ```
 
-环境是不可变的——镜像或模板变更意味着创建新环境。Run 准入时会把规范化 source 与已解析运行时输入冻结到 Run。删除可复用 Environment 会将其从后续查询和准入中物理移除，但不会改变或破坏已经准入的 Run。
+环境是不可变的——镜像变更意味着创建新环境。Run 准入时会把规范化 source 与已解析运行时输入冻结到 Run。删除可复用 Environment 会将其从后续查询和准入中物理移除，但不会改变或破坏已经准入的 Run。
 
 把环境 ID 传给任意工作负载，避免重复解析 source：
 

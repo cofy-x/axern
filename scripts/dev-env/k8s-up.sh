@@ -107,10 +107,6 @@ kubectl patch --local -f "${DEPLOY_ROOT}/k8s/node-all-in-one.yaml" --type=json \
 kubectl apply -f "${DEPLOY_ROOT}/k8s/gatewayd.yaml"
 
 kubectl -n "${K8S_NAMESPACE}" set env deployment/controld \
-	AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE="${PYTHON311_RUNTIME_IMAGE}" \
-	AXERN_RUNTIME_TEMPLATE_SERVER_BASE_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" \
-	AXERN_RUNTIME_TEMPLATE_CODING_BASE_IMAGE="${CODING_BASE_RUNTIME_IMAGE}" \
-	AXERN_RUNTIME_TEMPLATE_DESKTOP_BASE_IMAGE="${DESKTOP_BASE_RUNTIME_IMAGE}" \
 	CONTROLD_TUNNEL_RELAYS="default,127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT},tunneld.${K8S_NAMESPACE}.svc.cluster.local:24100,1,false" >/dev/null
 
 if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then

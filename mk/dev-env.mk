@@ -1,8 +1,8 @@
 .PHONY: quickstart quickstart-source axern-config-init \
 		local-images-build local-node-images-build nydus-builder-image registry-nydus-image-build \
 		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-nydus-smoke \
-		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-run-smoke local-compose-server-base-smoke local-compose-quota-smoke local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e \
-		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-run-smoke kind-server-base-smoke kind-quota-smoke kube-env-kind \
+		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-run-smoke local-compose-rootfs-snapshot-smoke local-compose-quota-smoke local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e \
+		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-run-smoke kind-quota-smoke kube-env-kind \
 		local-refresh-verify local-truth-verify \
 		sdk-go-examples-smoke
 
@@ -73,8 +73,8 @@ local-compose-dns-doctor-smoke: ## Verify product local doctor config, Node, and
 local-compose-run-smoke: ## Run the local Docker Compose run truth-path smoke
 	bash $(ROOTDIR)/scripts/dev-env/compose-run-smoke.sh
 
-local-compose-server-base-smoke: ## Run the local Docker Compose server-base default-entrypoint smoke
-	bash $(ROOTDIR)/scripts/dev-env/compose-server-base-smoke.sh
+local-compose-rootfs-snapshot-smoke: ## Verify runsc rootfs sealing and derived Environment reuse in Compose
+	bash $(ROOTDIR)/scripts/dev-env/compose-rootfs-snapshot-smoke.sh
 
 local-compose-quota-smoke: ## Run the local Docker Compose quota admission smoke
 	bash $(ROOTDIR)/scripts/dev-env/compose-quota-smoke.sh
@@ -82,7 +82,7 @@ local-compose-quota-smoke: ## Run the local Docker Compose quota admission smoke
 local-compose-python-sdk-e2e: ## Verify the Python SDK Sandbox tunnel flow in compose
 	bash $(ROOTDIR)/scripts/dev-env/compose-python-sdk-e2e.sh
 
-local-compose-computer-use-e2e: ## Verify desktop-base sandboxd desktop APIs in compose
+local-compose-computer-use-e2e: ## Verify sandboxd Computer Use APIs with a test-only desktop fixture
 	bash $(ROOTDIR)/scripts/dev-env/compose-computer-use-e2e.sh
 
 local-compose-go-sdk-e2e: ## Verify the Go SDK programmable Sandbox flow in compose
@@ -135,9 +135,6 @@ kind-smoke: ## Run the repo-managed kind truth-environment smoke contract
 
 kind-run-smoke: ## Run the repo-managed kind run truth-path smoke
 	bash $(ROOTDIR)/scripts/dev-env/kind-run-smoke.sh
-
-kind-server-base-smoke: ## Run the repo-managed kind server-base default-entrypoint smoke
-	bash $(ROOTDIR)/scripts/dev-env/kind-server-base-smoke.sh
 
 kind-quota-smoke: ## Run the repo-managed kind quota admission smoke
 	bash $(ROOTDIR)/scripts/dev-env/kind-quota-smoke.sh

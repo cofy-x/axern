@@ -90,16 +90,12 @@ class EnvironmentImageSource(_message.Message):
     def __init__(self, ref: _Optional[str] = ..., rootfs_readonly: _Optional[bool] = ..., registry_credential_id: _Optional[str] = ...) -> None: ...
 
 class EnvironmentSpec(_message.Message):
-    __slots__ = ("namespace", "template_id", "template_version", "image")
+    __slots__ = ("namespace", "image")
     NAMESPACE_FIELD_NUMBER: _ClassVar[int]
-    TEMPLATE_ID_FIELD_NUMBER: _ClassVar[int]
-    TEMPLATE_VERSION_FIELD_NUMBER: _ClassVar[int]
     IMAGE_FIELD_NUMBER: _ClassVar[int]
     namespace: str
-    template_id: str
-    template_version: str
     image: EnvironmentImageSource
-    def __init__(self, namespace: _Optional[str] = ..., template_id: _Optional[str] = ..., template_version: _Optional[str] = ..., image: _Optional[_Union[EnvironmentImageSource, _Mapping]] = ...) -> None: ...
+    def __init__(self, namespace: _Optional[str] = ..., image: _Optional[_Union[EnvironmentImageSource, _Mapping]] = ...) -> None: ...
 
 class Environment(_message.Message):
     __slots__ = ("id", "namespace", "spec", "resolved_spec", "labels", "created_at")

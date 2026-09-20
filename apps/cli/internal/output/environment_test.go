@@ -45,13 +45,6 @@ func TestRenderEnvironmentTable(t *testing.T) {
 	var b strings.Builder
 	RenderEnvironmentTable(&b, []*environmentv1.Environment{
 		{
-			ID: "env-template",
-			Spec: &environmentv1.EnvironmentSpec{
-				TemplateID:      "python311",
-				TemplateVersion: "sha256:template",
-			},
-		},
-		{
 			ID: "env-image",
 			Spec: &environmentv1.EnvironmentSpec{
 				Image: &environmentv1.EnvironmentImageSource{
@@ -62,7 +55,7 @@ func TestRenderEnvironmentTable(t *testing.T) {
 		},
 	})
 	out := b.String()
-	for _, want := range []string{"env-template", "template", "python311", "env-image", "image", "index.docker.io/library/nginx:1.27"} {
+	for _, want := range []string{"env-image", "image", "index.docker.io/library/nginx:1.27"} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("output %q does not contain %q", out, want)
 		}

@@ -13,7 +13,7 @@ verify_namespace_quota() {
   "${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" namespace list -o json >"${cli_object_output}"
   grep -q "\"namespace\": \"e2e-team\"" "${cli_object_output}"
 
-  environment_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create --namespace e2e-team --template-id python311 -o json)"
+  environment_output="$("${AXERN_BIN}" --endpoint "${GATEWAY_CONTROL_ADDRESS}" environment create --namespace e2e-team --image-ref "${PYTHON_RUNTIME_IMAGE_REF}" -o json)"
   environment_id="$(json_query "environment create" 'json.load(sys.stdin)["environment"]["id"]' "${environment_output}")"
   [ -n "${environment_id}" ] || {
     echo "axern environment create did not return an environment id" >&2

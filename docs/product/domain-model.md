@@ -33,7 +33,7 @@ A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metad
 
 ### Environment
 
-An Environment describes immutable execution input resolved from a template or digest-pinned image plus normalized policy. Run admission freezes the normalized source and resolved input; execution and recovery never depend on the continued existence of the reusable Environment row. A successful Run may request final rootfs sealing; the content-addressed result is published as another ordinary Environment rather than a Snapshot resource. Writable files, replicas, rollout state, services, and persistent volumes are not Environment properties.
+An Environment describes immutable execution input resolved from an OCI image plus normalized policy. Run admission freezes the normalized source and resolved input; execution and recovery never depend on the continued existence of the reusable Environment row. A successful Run may request final rootfs sealing; the content-addressed result is published as another ordinary Environment rather than a Snapshot resource. Writable files, replicas, rollout state, services, and persistent volumes are not Environment properties.
 
 ### Run
 

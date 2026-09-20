@@ -6,14 +6,12 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib.sh"
 mode="${1:-}"
 service_smoke="false"
 run_smoke="false"
-server_base_smoke="false"
 quota_admission_smoke="false"
 
 for arg in "$@"; do
   case "${arg}" in
     --smoke) service_smoke="true" ;;
     --run-smoke) run_smoke="true" ;;
-    --server-base-smoke) server_base_smoke="true" ;;
     --quota-admission-smoke) quota_admission_smoke="true" ;;
     compose|k8s) ;;
     *) echo "unknown argument: ${arg}" >&2; exit 1 ;;
@@ -23,7 +21,6 @@ done
 should_check_consistency() {
   [ "${service_smoke}" = "true" ] ||
     [ "${run_smoke}" = "true" ] ||
-    [ "${server_base_smoke}" = "true" ] ||
     [ "${quota_admission_smoke}" = "true" ]
 }
 
@@ -46,7 +43,6 @@ case "${mode}" in
     fi
     [ "${service_smoke}" = "true" ] && run_local_run_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
     [ "${run_smoke}" = "true" ] && run_local_run_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
-    [ "${server_base_smoke}" = "true" ] && run_local_server_base_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose" "127.0.0.1:${COMPOSE_GATEWAY_HTTP_PORT}"
     [ "${quota_admission_smoke}" = "true" ] && run_local_quota_admission_smoke compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}" "compose"
     should_check_consistency && local_smoke_assert_consistency_ok compose "127.0.0.1:${COMPOSE_GATEWAY_CONTROL_PORT}"
     ;;
@@ -76,12 +72,11 @@ case "${mode}" in
     fi
     [ "${service_smoke}" = "true" ] && run_local_run_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
     [ "${run_smoke}" = "true" ] && run_local_run_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
-    [ "${server_base_smoke}" = "true" ] && run_local_server_base_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_HTTP_PORT}"
     [ "${quota_admission_smoke}" = "true" ] && run_local_quota_admission_smoke "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}" "${K8S_ENV_NAME}"
     should_check_consistency && local_smoke_assert_consistency_ok "${K8S_ENV_NAME}" "127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT}"
     ;;
   *)
-    echo "usage: $0 <compose|k8s> [--smoke] [--run-smoke] [--server-base-smoke] [--quota-admission-smoke]" >&2
+    echo "usage: $0 <compose|k8s> [--smoke] [--run-smoke] [--quota-admission-smoke]" >&2
     exit 1
     ;;
 esac

@@ -18,6 +18,7 @@ cleanup() {
 trap cleanup EXIT
 
 bash "${AXERN_ROOT}/scripts/dev-env/wait-ready.sh" compose
+resolved_image="${LOCAL_SMOKE_RESOLVED_IMAGE_REF:-$(local_smoke_prepare_compose_image)}"
 
 query_name="fixture.axern.test."
 configured_nameservers="$(awk -F= '$1 == "AXNODED_DNS_NAMESERVERS" { print $2; exit }' "$(compose_env_file)")"
@@ -100,7 +101,7 @@ if ! "${local_doctor_cmd[@]}" local doctor --dns-query-name "${query_name}" --ou
   echo "read-only local DNS doctor did not exit successfully" >&2
   exit 1
 fi
-if ! "${local_doctor_cmd[@]}" local doctor --probe --dns-query-name "${query_name}" --probe-timeout 5m --output json >"${probe_report_file}"; then
+if ! "${local_doctor_cmd[@]}" local doctor --probe --image "${resolved_image}" --dns-query-name "${query_name}" --probe-timeout 5m --output json >"${probe_report_file}"; then
   python3 -m json.tool <"${probe_report_file}" >&2 || true
   echo "sandbox local DNS doctor did not exit successfully" >&2
   exit 1

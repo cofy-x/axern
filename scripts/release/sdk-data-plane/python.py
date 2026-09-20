@@ -37,7 +37,7 @@ def main() -> None:
     environment = None
     try:
         environment = client.create_environment(
-            template_id="python311",
+            image_ref="python:3.12-slim",
             labels={"axern.release.acceptance": "python"},
         )
         declared_outputs = [

@@ -30,7 +30,7 @@ import { NetworkPolicy, cidrRule, portRange } from "../src/network-policy.js";
 
 interface QuantityCase { input: string; value: number }
 interface ErrorCase { code: string; number: number; class: string; retryable: boolean }
-interface SourceCase { template?: string; image?: string; environment?: string }
+interface SourceCase { image?: string; environment?: string }
 interface ContextCase { name: string; context: Record<string, unknown> }
 
 type TunnelContract = "tunnel" extends keyof SandboxOptions ? true : never;
@@ -81,7 +81,6 @@ test("shared error contract", () => {
 test("shared sandbox source contract", () => {
   const contract = load<{ valid: SourceCase[]; invalid: SourceCase[] }>("sandbox_sources.json");
   const options = (item: SourceCase) => ({
-    templateId: item.template,
     image: item.image,
     environmentId: item.environment,
   });

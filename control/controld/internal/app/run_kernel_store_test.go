@@ -23,14 +23,14 @@ func TestPostgresRunKernelEnvironmentLabelsDoNotChangeSpecIdentity(t *testing.T)
 	public := app.PublicV1Handler()
 
 	first, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec:   &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec:   &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 		Labels: map[string]string{"team": "infra"},
 	})
 	if err != nil {
 		t.Fatalf("CreateEnvironment(first) error = %v", err)
 	}
 	second, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec:   &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec:   &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 		Labels: map[string]string{"team": "runtime"},
 	})
 	if err != nil {

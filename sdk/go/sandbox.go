@@ -15,7 +15,6 @@ var defaultSandboxArgv = []string{"/bin/sh", "-lc", "sleep infinity"}
 // SandboxOptions describes the allocation-backed sandbox to create or attach to.
 type SandboxOptions struct {
 	Client                  *Client
-	TemplateID              string
 	Image                   string
 	EnvironmentID           string
 	Namespace               string
@@ -82,7 +81,6 @@ func (s *Sandbox) Start(ctx context.Context) error {
 	if environmentID == "" {
 		environment, err := s.client.CreateEnvironment(ctx, CreateEnvironmentOptions{
 			Namespace:            s.options.Namespace,
-			TemplateID:           s.options.TemplateID,
 			Image:                s.options.Image,
 			RegistryCredentialID: s.options.RegistryCredentialID,
 			RootFSReadonly:       s.options.RootFSReadonly,
@@ -313,7 +311,7 @@ func validateSandboxOptions(options SandboxOptions) error {
 	if options.Client == nil {
 		return requiredError("client")
 	}
-	sourceCount := countNonEmpty(options.TemplateID, options.Image, options.EnvironmentID)
+	sourceCount := countNonEmpty(options.Image, options.EnvironmentID)
 	if sourceCount != 1 {
 		return ErrInvalidSource
 	}

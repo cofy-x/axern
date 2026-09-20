@@ -31,9 +31,6 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-node-warm-pool-e2e \
 	axnoded-verify-node-oci-e2e \
 	axnoded-verify-node-nydus-e2e \
-	axnoded-build-python311-runtime-image \
-	axnoded-build-server-base-runtime-image \
-	axnoded-build-coding-base-runtime-image \
 	axnoded-verify-docker-runsc \
 	axnoded-verify-docker-runsc-ebpf \
 	axnoded-verify-docker-runsc-debug \
@@ -129,15 +126,6 @@ axnoded-verify-node-oci-e2e: ## Run the axnoded node all-in-one OCI end-to-end v
 
 axnoded-verify-node-nydus-e2e: ## Run the axnoded node all-in-one Nydus end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-nydus-e2e)
-
-axnoded-build-python311-runtime-image: ## Build the official axnoded Python 3.11 runtime image
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-python311-runtime-image)
-
-axnoded-build-server-base-runtime-image: ## Build the official axnoded server-base runtime image
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-server-base-runtime-image)
-
-axnoded-build-coding-base-runtime-image: ## Build the official axnoded coding-base runtime image
-	@$(call run_subsystem_make,$(AXNODED_DIR),build-coding-base-runtime-image)
 
 axnoded-verify-docker-runsc: ## Run axnoded privileged Docker verification against runsc
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc)

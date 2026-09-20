@@ -43,7 +43,6 @@ client = AxernClient(
 Create a sandbox from exactly one source:
 
 - `image="docker.io/library/python:3.12-slim"` for an OCI image.
-- `template_id="python311"` for a deployment-provided template input.
 - `environment_id="..."` for an existing environment.
 
 ```python
@@ -273,7 +272,7 @@ Async APIs mirror the synchronous shape:
 from axern_sdk import AsyncAxernClient, AsyncSandbox
 
 async with AsyncAxernClient("127.0.0.1:25000") as client:
-    async with AsyncSandbox(client=client, template_id="python311") as sandbox:
+    async with AsyncSandbox(client=client, image="python:3.12-slim") as sandbox:
         result = await sandbox.exec("python -c \"print('hello async')\"", text=True, check=True)
         print(result.stdout)
 

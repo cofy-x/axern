@@ -60,8 +60,8 @@ make agent-doc-check
 | `runsc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
 | `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | Computer Use when the image supports it | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
 | `runsc` | OCI/Nydus rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
-| `runsc` | `server-base` | SSH terminal semantics, sudo/nosuid expectations, probes, HTTP workload smoke | none | `make local-compose-server-base-smoke` |
-| `runsc` | `desktop-base` | normal sandbox lifecycle plus desktop session readiness | Computer Use | `make local-compose-computer-use-e2e` |
+| `runsc` | explicit workload image | SSH and terminal semantics, probes, and normal sandbox lifecycle | none | `make local-compose-python-sdk-e2e` |
+| `runsc` | test-only desktop fixture | normal sandbox lifecycle plus desktop session readiness | Computer Use | `make local-compose-computer-use-e2e` |
 
 `make verify-sandboxd-provider-smoke` is the fast direct daemon/provider contract gate. `make verify-sandboxd-provider-e2e` is the broad focused sandboxd gate: it runs the direct provider contract, daemon E2E, optional desktop provider E2E, and OCI injection E2E. `make verify-sandboxd-packaging` is the fast release gate for sandboxd binary presence and image path consistency. `make verify-sandboxd-release-readiness` is the default pre-release gate for sandboxd changes: run it before heavier Docker or compose validation when the change touches daemon APIs, provider discovery, packaging, or SDK capability models.
 
@@ -102,7 +102,7 @@ Runtime recovery tests must preserve the lifecycle evidence boundary: a missing 
 | CLI and allocation lifecycle         | `make verify-node-cli-e2e`                                                                                        |
 | inventory and startup observability  | `make verify-node-inventory-e2e`, `make verify-node-startup-metrics-e2e`, `make verify-node-startup-matrix-smoke` |
 | bundle and allocation create/start gate | `make verify-node-bundle-template-e2e`, `make verify-node-cli-e2e`                                             |
-| runtime profiles                     | `make verify-node-python-runtime-e2e`, `make build-python311-runtime-image`                                       |
+| explicit workload image              | `make verify-node-python-runtime-e2e`                                                                              |
 | retention/locality/warm pool         | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e`               |
 | rootfs modes                         | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e`                                                          |
 

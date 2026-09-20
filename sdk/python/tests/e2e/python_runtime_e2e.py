@@ -14,7 +14,7 @@ from axern.control.run.v1 import run_pb2
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--endpoint", required=True, help="controld gRPC address")
-    parser.add_argument("--environment-id", default="python311", help="deployment environment template id")
+    parser.add_argument("--image", default="python:3.12-slim", help="workload OCI image")
     return parser.parse_args()
 
 
@@ -29,7 +29,7 @@ def main() -> int:
     }
     client = AxernClient(args.endpoint, **tls)
     try:
-        environment = client.create_environment(template_id=args.environment_id)
+        environment = client.create_environment(image_ref=args.image)
         if not environment.id:
             raise SystemExit("create_environment returned empty id")
 

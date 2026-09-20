@@ -101,7 +101,7 @@ func TestDiagnoseProbeCompletesAndDeletesEnvironment(t *testing.T) {
 	runs := &fakeRunClient{}
 	control := New(Options{
 		Namespace: "default", TLS: writeTLSFixture(t, now, 90*24*time.Hour), Now: func() time.Time { return now },
-		Probe: &ProbeOptions{TemplateID: "python311", Timeout: time.Second},
+		Probe: &ProbeOptions{ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second},
 		Open:  successfulOpener(environments, runs),
 	})
 
@@ -116,7 +116,7 @@ func TestDiagnoseProbeCompletesAndDeletesEnvironment(t *testing.T) {
 	if environments.createCalls != 1 || environments.deleteCalls != 1 || runs.createCalls != 1 {
 		t.Fatalf("probe calls: environments=%+v runs=%+v", environments, runs)
 	}
-	if environments.createRequest.GetSpec().GetTemplateID() != "python311" || environments.createRequest.GetSpec().GetImage() != nil {
+	if got := environments.createRequest.GetSpec().GetImage().GetRef(); got != "docker.io/library/python:3.12-slim" {
 		t.Fatalf("probe environment request = %#v", environments.createRequest)
 	}
 	if runs.createRequest.GetEnvironmentID() != "env-probe" {
@@ -134,7 +134,7 @@ func TestDiagnoseProbeFailureStillCancelsRunAndDeletesEnvironment(t *testing.T) 
 	runs := &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_RUNNING}
 	control := New(Options{
 		Namespace: "default", TLS: writeTLSFixture(t, now, 90*24*time.Hour), Now: func() time.Time { return now },
-		Probe: &ProbeOptions{TemplateID: "python311", Timeout: time.Millisecond},
+		Probe: &ProbeOptions{ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Millisecond},
 		Open:  successfulOpener(environments, runs),
 	})
 
@@ -154,7 +154,7 @@ func TestDNSProbeUsesSecretEnvAndCleansResources(t *testing.T) {
 	environment := &fakeEnvironmentClient{}
 	runs := &fakeRunClient{}
 	check := DNSProbe(context.Background(), &Session{Namespace: namespace, Secret: secret, Environment: environment, Run: runs}, DNSProbeOptions{
-		QueryName: "private.corp.example.", TemplateID: "python311", Timeout: time.Second,
+		QueryName: "private.corp.example.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second,
 	})
 	if check.Status != CheckPass || check.Code != "runtime_dns_sandbox_resolved" {
 		t.Fatalf("DNSProbe() = %#v", check)
@@ -180,7 +180,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: namespace, Secret: &fakeSecretClient{createErr: errors.New("create secret")},
 			Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_probe_failed" || namespace.deleteCalls != 1 {
 			t.Fatalf("DNSProbe() = %#v, namespace deletes = %d", check, namespace.deleteCalls)
 		}
@@ -191,7 +191,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 				check := DNSProbe(context.Background(), &Session{
 					Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
 					Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCode: testExitCode(exitCode)},
-				}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
+				}, DNSProbeOptions{QueryName: "example.test.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second})
 				if check.Code != "runtime_dns_sandbox_query_failed" {
 					t.Fatalf("DNSProbe() = %#v", check)
 				}
@@ -202,7 +202,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{},
 			Run: &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_FAILED, exitCode: testExitCode(2)},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_probe_failed" {
 			t.Fatalf("DNSProbe() = %#v", check)
 		}
@@ -211,7 +211,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		runs := &fakeRunClient{runStatus: runv1.RunStatus_RUN_STATUS_RUNNING}
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{}, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{}, Run: runs,
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Millisecond})
+		}, DNSProbeOptions{QueryName: "example.test.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Millisecond})
 		if check.Code != "runtime_dns_sandbox_probe_failed" || runs.cancelCalls != 1 {
 			t.Fatalf("DNSProbe() = %#v, run cancels = %d", check, runs.cancelCalls)
 		}
@@ -220,7 +220,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: &fakeNamespaceClient{deleteErr: errors.New("delete namespace")}, Secret: &fakeSecretClient{},
 			Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_cleanup_failed" {
 			t.Fatalf("DNSProbe() = %#v", check)
 		}
@@ -229,7 +229,7 @@ func TestDNSProbeClassifiesQueryAndCleanupFailures(t *testing.T) {
 		namespace := &fakeNamespaceClient{deleteErrors: []error{grpcstatus.Error(codes.FailedPrecondition, "namespace has resource-owning allocations")}}
 		check := DNSProbe(context.Background(), &Session{
 			Namespace: namespace, Secret: &fakeSecretClient{}, Environment: &fakeEnvironmentClient{}, Run: &fakeRunClient{},
-		}, DNSProbeOptions{QueryName: "example.test.", TemplateID: "python311", Timeout: time.Second})
+		}, DNSProbeOptions{QueryName: "example.test.", ImageRef: "docker.io/library/python:3.12-slim", Timeout: time.Second})
 		if check.Code != "runtime_dns_sandbox_resolved" || namespace.deleteCalls != 2 {
 			t.Fatalf("DNSProbe() = %#v, namespace deletes = %d", check, namespace.deleteCalls)
 		}

@@ -1,6 +1,6 @@
 ---
 title: Runs
-description: Execute one-shot isolated commands from an image, template, or environment with durable records and real exit codes.
+description: Execute one-shot isolated commands from an image or environment with durable records and real exit codes.
 ---
 
 A Run is Axern's one-shot workload: it executes a command inside an isolated sandbox, streams output, propagates the command's exit code, and leaves a durable control-plane record. Detached Runs also provide the allocation lifecycle used by SDK Sandboxes and interactive tools.
@@ -50,9 +50,9 @@ spec:
 axern run --file run.yaml
 ```
 
-`spec.source` selects exactly one of `image`, `template` (with optional `template_version`), or `environment` (an existing environment ID). Private registries use `registry_credential_id`; credentials are referenced by ID and never embedded in the spec. The parser rejects unknown fields and conflicting sources.
+`spec.source` selects exactly one of `image` or `environment` (an existing environment ID). Private registries use `registry_credential_id`; credentials are referenced by ID and never embedded in the spec. The parser rejects unknown fields and conflicting sources.
 
-The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-file`, `--image-mount`, `--cwd`, `--label`, `--template`, `--environment`, and the four resource flags (`--request-cpu`, `--request-memory`, `--limit-cpu`, `--limit-memory`). `--file` cannot be combined with definition flags.
+The equivalent flags cover the same surface: `--env`, `--secret-env`, `--secret-file`, `--image-mount`, `--cwd`, `--label`, `--environment`, and the four resource flags (`--request-cpu`, `--request-memory`, `--limit-cpu`, `--limit-memory`). The positional image and `--environment` are mutually exclusive; `--file` cannot be combined with definition flags.
 
 ## Detached and long-running Runs
 

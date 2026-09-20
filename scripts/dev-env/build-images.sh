@@ -16,16 +16,12 @@ trap 'end_named_lock "images-build"' EXIT
 
 image_scope="${AXERN_LOCAL_IMAGE_SCOPE:-all}"
 build_node_runtime_base=false
-build_runtime_core=false
-build_full_environment_catalog=false
 build_control_stack=false
 build_tunneld=false
 build_node_image=false
 case "${image_scope}" in
   all)
     build_node_runtime_base=true
-    build_runtime_core=true
-    build_full_environment_catalog=true
     build_control_stack=true
     build_tunneld=true
     build_node_image=true
@@ -70,24 +66,6 @@ if [ "${build_node_runtime_base}" = "true" ]; then
   build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
   push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   report_image_build_phase "node-runtime-base" "${phase_started_at}"
-fi
-
-if [ "${build_runtime_core}" = "true" ]; then
-  phase_started_at="$(date +%s)"
-  IMAGE_REF="${PYTHON311_RUNTIME_IMAGE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
-  push_image_after_build "${PYTHON311_RUNTIME_IMAGE}"
-  IMAGE_REF="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-server-base-runtime-image.sh" >/dev/null
-  push_image_after_build "${SERVER_BASE_RUNTIME_IMAGE}"
-  IMAGE_REF="${CODING_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-coding-base-runtime-image.sh" >/dev/null
-  push_image_after_build "${CODING_BASE_RUNTIME_IMAGE}"
-  report_image_build_phase "runtime-core" "${phase_started_at}"
-fi
-
-if [ "${build_full_environment_catalog}" = "true" ]; then
-  phase_started_at="$(date +%s)"
-  IMAGE_REF="${DESKTOP_BASE_RUNTIME_IMAGE}" SERVER_BASE_RUNTIME_IMAGE="${SERVER_BASE_RUNTIME_IMAGE}" APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE}" bash "${AXERN_DEV_ENV_ROOT}/runtime/axnoded/scripts/runtime/build-desktop-base-runtime-image.sh" >/dev/null
-  push_image_after_build "${DESKTOP_BASE_RUNTIME_IMAGE}"
-  report_image_build_phase "environment-templates" "${phase_started_at}"
 fi
 
 if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
@@ -181,16 +159,6 @@ if [ "${build_node_image}" = "true" ]; then
   report_image_build_phase "node-image" "${phase_started_at}"
 fi
 
-if [ "${build_runtime_core}" = "true" ]; then
-  docker image inspect \
-	  "${PYTHON311_RUNTIME_IMAGE}" \
-	  "${SERVER_BASE_RUNTIME_IMAGE}" \
-	  "${CODING_BASE_RUNTIME_IMAGE}" >/dev/null
-fi
-if [ "${build_full_environment_catalog}" = "true" ]; then
-  docker image inspect \
-    "${DESKTOP_BASE_RUNTIME_IMAGE}" >/dev/null
-fi
 if [ "${build_tunneld}" = "true" ]; then
   docker image inspect "${TUNNELD_IMAGE}" >/dev/null
 fi
@@ -205,7 +173,3 @@ echo "tunneld_image=${TUNNELD_IMAGE}"
 echo "gatewayd_image=${GATEWAYD_IMAGE}"
 echo "node_runtime_base_image=${NODE_RUNTIME_BASE_IMAGE_TAG}"
 echo "node_all_in_one_image=${NODE_ALL_IN_ONE_IMAGE}"
-echo "python311_runtime_image=${PYTHON311_RUNTIME_IMAGE}"
-echo "server_base_runtime_image=${SERVER_BASE_RUNTIME_IMAGE}"
-echo "coding_base_runtime_image=${CODING_BASE_RUNTIME_IMAGE}"
-echo "desktop_base_runtime_image=${DESKTOP_BASE_RUNTIME_IMAGE}"

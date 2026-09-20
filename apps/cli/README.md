@@ -88,7 +88,7 @@ Use `--probe` when a real data-plane check is required:
 axern doctor --namespace default --probe
 ```
 
-The probe creates an Environment from the built-in `python311` template, executes a small Run, and deletes the temporary Environment. The Run remains as normal control-plane history. Use `--template-id` and `--probe-timeout` only with `--probe`.
+The probe creates an Environment from the explicit OCI image passed with `--image`, executes a small Run, and deletes the temporary Environment. The Run remains as normal control-plane history. Use `--image` and `--probe-timeout` only with `--probe`.
 
 ## Local DNS Doctor
 
@@ -102,7 +102,7 @@ axern local doctor --probe
 
 The default query is `axern.cofy-x.space.`. Use `--dns-query-name` for a managed or private domain. The override is stored in a temporary Secret and is not included in Run arguments, doctor JSON details, or probe output. The probe creates a temporary Namespace, Secret, Environment, and Run. Cleanup cancels an active Run, then deletes the Environment, Secret, and Namespace even after failure or cancellation; the terminal Run remains as normal control-plane history. The probe always uses the product-owned `local` context, regardless of the currently selected context.
 
-Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution defaults to five minutes (`--probe-timeout`). `--template-id` defaults to `python311`; both sandbox-only options require `--probe`.
+Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution defaults to five minutes (`--probe-timeout`). The probe requires an explicit `--image`; both sandbox-only options require `--probe`.
 
 ## Resource Spec
 
@@ -116,13 +116,13 @@ metadata:
   labels: {}
 spec:
   source:
-    template: python311
+    image: docker.io/library/python:3.12-slim
   command:
     argv: [python, -c, "print('ok')"]
   resources: {}
 ```
 
-`spec.source` selects exactly one environment, template, or image. Unknown fields, conflicting sources, invalid quantities, invalid probes, and a kind that does not match the command are rejected.
+`spec.source` selects exactly one existing environment or OCI image. Unknown fields, conflicting sources, invalid quantities, invalid probes, and a kind that does not match the command are rejected.
 
 When `--file` is used, resource-definition flags cannot be mixed with the spec. Context, output, detach, and timeout flags remain operational overrides.
 

@@ -63,10 +63,6 @@ HOST_TEST_PACKAGES ?= ./cmd/axern-sandboxd/... ./config ./internal/environmentca
 	verify-node-warm-pool-e2e \
 	verify-node-oci-e2e \
 	verify-node-nydus-e2e \
-	build-python311-runtime-image \
-	build-server-base-runtime-image \
-	build-coding-base-runtime-image \
-	build-desktop-base-runtime-image \
 	verify-bpfnetctl-e2e \
 	benchmark-docker-runsc-iptables benchmark-docker-runsc-ebpf benchmark-docker-runsc-compare benchmark-startup-matrix \
 	profile-docker-runsc-egress-udp-iptables profile-docker-runsc-egress-udp-ebpf \
@@ -259,18 +255,6 @@ verify-node-oci-e2e: ## run privileged node all-in-one OCI end-to-end verificati
 
 verify-node-nydus-e2e: ## run privileged node all-in-one Nydus end-to-end verification
 	@bash ./scripts/verify/verify-node-nydus-e2e.sh
-
-build-python311-runtime-image: ## build the official Python 3.11 runtime image
-	@bash ./scripts/runtime/build-python311-runtime-image.sh
-
-build-server-base-runtime-image: ## build the official server-base runtime image
-	@bash ./scripts/runtime/build-server-base-runtime-image.sh
-
-build-coding-base-runtime-image: ## build the official multi-language coding workspace runtime image
-	@bash ./scripts/runtime/build-coding-base-runtime-image.sh
-
-build-desktop-base-runtime-image: ## build the optional desktop computer-use runtime image
-	@bash ./scripts/runtime/build-desktop-base-runtime-image.sh
 
 verify-docker-runsc: verify-kernel-truth ## run privileged Docker verification against runsc
 	@RUNTIME_BINARY=/usr/local/bin/runsc bash ./scripts/verify/verify-docker.sh

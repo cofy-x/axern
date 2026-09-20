@@ -39,6 +39,6 @@ Secret、配额、命名空间、SSH 和 admin 授权目前以 CLI 为产品界�
 - Go：`go get github.com/cofy-x/axern/sdk/go@<version>`，来自 [Go module index](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go)
 - TypeScript：`pnpm add @cofy-x/axern-sdk@<version>`，来自 [npm](https://www.npmjs.com/package/@cofy-x/axern-sdk)
 
-每个 Sandbox 严格选择一个 source：便携默认用 OCI 镜像，命名可复用环境可用部署提供的内置模板，继续已有工作用环境 ID。模板只是 Environment 解析输入，不是第二套公开生命周期。生命周期和数据面操作都走 Axern 公开 API；SDK 不会为平台行为增加 SSH 或 shell 旁路。
+每个 Sandbox 严格选择一个 source：用 OCI 镜像创建新 Environment，或用 Environment ID 从已有不可变 Environment 继续执行。生命周期和数据面操作都走 Axern 公开 API；SDK 不会为平台行为增加 SSH 或 shell 旁路。
 
 Axern 的 CLI、Helm Chart、运行时镜像和三个 SDK 以同一仓库版本发布。Python 和 TypeScript 使用公开包仓库；Go 使用带版本的 `sdk/go` module。1.0 前的 Axern Release 应视为一个整体，提交包管理器 lockfile 或解析后的 `go.mod` 版本以保证可复现构建。

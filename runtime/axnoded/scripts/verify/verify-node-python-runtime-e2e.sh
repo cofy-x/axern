@@ -15,7 +15,7 @@ GATEWAY_CONTROL_PORT="${GATEWAY_CONTROL_PORT:-25000}"
 GATEWAY_HTTP_PORT="${GATEWAY_HTTP_PORT:-25080}"
 CONTROL_PLANE_NODE_ID="${CONTROL_PLANE_NODE_ID:-node-python-runtime-e2e}"
 CONTROL_PLANE_ENROLLMENT_TOKEN="${CONTROL_PLANE_ENROLLMENT_TOKEN:-node-python-runtime-e2e-credential-00000000}"
-PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-axern/python311-runtime:dev}"
+PYTHON_RUNTIME_IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF:-python:3.12-slim}"
 POSTGRES_CONTAINER_NAME="${POSTGRES_CONTAINER_NAME:-axnoded-python-runtime-e2e-postgres}"
 POSTGRES_NETWORK_NAME="${POSTGRES_NETWORK_NAME:-axnoded-python-runtime-e2e-net}"
 POSTGRES_DB="${POSTGRES_DB:-axern}"
@@ -29,7 +29,7 @@ export VERIFY_DOCKER_PLATFORM
 shared_run_dir="$(mktemp -d)"
 cert_dir="$(mktemp -d)"
 controld_log="$(mktemp)"
-python311_stdout="$(mktemp)"
+python_runtime_stdout="$(mktemp)"
 CONTROLD_CONTAINER_NAME="${CONTROLD_CONTAINER_NAME:-axnoded-python-runtime-e2e-controld}"
 GATEWAYD_CONTAINER_NAME="${GATEWAYD_CONTAINER_NAME:-axnoded-python-runtime-e2e-gatewayd}"
 
@@ -83,7 +83,7 @@ cleanup() {
   docker rm -f "${GATEWAYD_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker rm -f "${NODE_CONTAINER_NAME}" >/dev/null 2>&1 || true
   docker network rm "${POSTGRES_NETWORK_NAME}" >/dev/null 2>&1 || true
-  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${python311_stdout}"
+  rm -rf "${shared_run_dir}" "${cert_dir}" "${controld_log}" "${python_runtime_stdout}"
 }
 trap cleanup EXIT
 
@@ -111,12 +111,12 @@ if ! wait_for_postgres; then
   exit 1
 fi
 
-IMAGE_REF="${PYTHON_RUNTIME_IMAGE_REF}" bash "${ROOT_DIR}/scripts/runtime/build-python311-runtime-image.sh" >/dev/null
+docker pull --platform "${VERIFY_DOCKER_PLATFORM}" "${PYTHON_RUNTIME_IMAGE_REF}" >/dev/null
 bash "${REPO_ROOT}/scripts/dev-mtls-certs.sh" "${cert_dir}" >/dev/null
 printf '%s\n' "${CONTROL_PLANE_ENROLLMENT_TOKEN}" > "${cert_dir}/enrollment-token"
 chmod 600 "${cert_dir}/enrollment-token"
-docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" python --version >"${python311_stdout}"
-grep -q '^Python 3\.11\.' "${python311_stdout}"
+docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" python --version >"${python_runtime_stdout}"
+grep -q '^Python 3\.12\.' "${python_runtime_stdout}"
 docker run --rm "${PYTHON_RUNTIME_IMAGE_REF}" /bin/sh -lc 'python -m pip --version >/dev/null'
 
 docker run --rm \
@@ -152,7 +152,6 @@ docker run -d \
   --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
   --volume "${cert_dir}/controld.pem:/shared/certs/controld.pem:ro" \
   --volume "${cert_dir}/private/signer.pem:/shared/certs/private/signer.pem:ro" \
-  -e "AXERN_RUNTIME_TEMPLATE_PYTHON311_IMAGE=${PYTHON_RUNTIME_IMAGE_REF}" \
   "${IMAGE_TAG}" \
   /usr/local/bin/controld \
     -grpc-address "0.0.0.0:${CONTROLD_GRPC_PORT}" \
@@ -294,7 +293,7 @@ if ! docker run --rm \
   "${PYTHON_RUNTIME_IMAGE_REF}" \
   python /tmp/python_runtime_e2e.py \
     --endpoint "${GATEWAYD_CONTAINER_NAME}:${GATEWAY_CONTROL_PORT}" \
-    --environment-id python311; then
+    --image "${PYTHON_RUNTIME_IMAGE_REF}"; then
   dump_logs
   exit 1
 fi

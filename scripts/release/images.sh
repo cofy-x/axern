@@ -21,10 +21,6 @@ axern_export_release_images() {
   export TUNNELD_IMAGE="${AXERN_RELEASE_REGISTRY}/tunneld:${tag}"
   export GATEWAYD_IMAGE="${AXERN_RELEASE_REGISTRY}/gatewayd:${tag}"
   export NODE_ALL_IN_ONE_IMAGE="${AXERN_RELEASE_REGISTRY}/node-all-in-one:${tag}"
-  export PYTHON311_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/python311-runtime:${tag}"
-  export SERVER_BASE_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/server-base-runtime:${tag}"
-  export CODING_BASE_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/coding-base-runtime:${tag}"
-  export DESKTOP_BASE_RUNTIME_IMAGE="${AXERN_RELEASE_REGISTRY}/desktop-base-runtime:${tag}"
 }
 
 axern_release_images() {
@@ -32,9 +28,5 @@ axern_release_images() {
     "${CONTROLD_IMAGE}" \
     "${TUNNELD_IMAGE}" \
     "${GATEWAYD_IMAGE}" \
-    "${NODE_ALL_IN_ONE_IMAGE}" \
-    "${PYTHON311_RUNTIME_IMAGE}" \
-    "${SERVER_BASE_RUNTIME_IMAGE}" \
-    "${CODING_BASE_RUNTIME_IMAGE}" \
-    "${DESKTOP_BASE_RUNTIME_IMAGE}"
+    "${NODE_ALL_IN_ONE_IMAGE}"
 }

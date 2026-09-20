@@ -58,12 +58,17 @@ cd "${ROOT_DIR}"
 log "refreshing local compose environment"
 run_with_retry 2 make local-compose-refresh
 
+log "importing the explicit compose smoke image"
+LOCAL_SMOKE_RESOLVED_IMAGE_REF="$(local_smoke_prepare_compose_image)"
+export LOCAL_SMOKE_RESOLVED_IMAGE_REF
+printf 'compose_smoke_image=%s\n' "${LOCAL_SMOKE_RESOLVED_IMAGE_REF}"
+
 log "running compose smoke suite"
 run_with_retry 2 make local-compose-smoke
 run_with_retry 2 make local-compose-doctor-smoke
 run_with_retry 2 make local-compose-dns-doctor-smoke
 run_with_retry 2 make local-compose-run-smoke
-run_with_retry 2 make local-compose-server-base-smoke
+run_with_retry 2 make local-compose-rootfs-snapshot-smoke
 run_with_retry 2 make local-compose-quota-smoke
 run_with_retry 2 make local-compose-python-sdk-e2e
 run_with_retry 2 make local-compose-go-sdk-e2e

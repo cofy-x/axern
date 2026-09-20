@@ -3,19 +3,18 @@ title: Environments, Namespaces, and Quota
 description: Reuse immutable environments, organize workloads by namespace, and inspect quota and admission signals.
 ---
 
-An Environment is an immutable, reusable execution source: a resolved built-in template or OCI image reference that Runs and Sandboxes can share without re-resolving the image. Namespaces group resources, and quota bounds what each namespace may admit.
+An Environment is an immutable, reusable execution source: a resolved OCI image reference that Runs and Sandboxes can share without re-resolving the image. Namespaces group resources, and quota bounds what each namespace may admit.
 
 ## Create and reuse an Environment
 
 ```bash
-axern environment create --template-id python311
 axern environment create --image-ref docker.io/library/python:3.12-slim
 axern environment list
 axern environment get <environment-id>
 axern environment delete <environment-id>
 ```
 
-An environment selects exactly one source: a deployment-provided `--template-id` (with optional `--template-version`), or `--image-ref`. Templates are resolution inputs rather than independently queryable resources. Private registries use a stored credential, referenced by ID:
+An environment requires one explicit `--image-ref`. Private registries use a stored credential, referenced by ID:
 
 ```bash
 axern environment create \
@@ -23,7 +22,7 @@ axern environment create \
   --registry-credential-id <secret-id>
 ```
 
-Environments are immutable — a changed image or template means a new environment. Run admission freezes the normalized source and resolved runtime input on the Run. Deleting the reusable Environment physically removes it from future lookup and admission, but does not change or break an already admitted Run.
+Environments are immutable — a changed image means a new environment. Run admission freezes the normalized source and resolved runtime input on the Run. Deleting the reusable Environment physically removes it from future lookup and admission, but does not change or break an already admitted Run.
 
 Pass the environment ID to any workload instead of resolving the source again:
 

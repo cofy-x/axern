@@ -94,6 +94,24 @@ func TestWriteOCIRootfsSnapshotLayerConvertsGVisorWhiteout(t *testing.T) {
 	assert.Equal(t, 34, headers[2].Gid)
 }
 
+func TestWriteOCIRootfsSnapshotLayerConvertsHardLinksToGVisorWhiteout(t *testing.T) {
+	headers := normalizeSnapshotTar(t, snapshotTar(t,
+		&tar.Header{Name: "./cache/deleted", Typeflag: tar.TypeChar, Devmajor: 0, Devminor: 0},
+		&tar.Header{Name: "./cache/also-deleted", Typeflag: tar.TypeLink, Linkname: "./cache/deleted"},
+		&tar.Header{Name: "./cache/forward-link", Typeflag: tar.TypeLink, Linkname: "./cache/forward-target"},
+		&tar.Header{Name: "./cache/forward-target", Typeflag: tar.TypeChar, Devmajor: 0, Devminor: 0},
+	))
+	require.Len(t, headers, 4)
+	assert.Equal(t, "cache/.wh.deleted", headers[0].Name)
+	assert.Equal(t, "cache/.wh.also-deleted", headers[1].Name)
+	assert.Equal(t, "cache/.wh.forward-target", headers[2].Name)
+	assert.Equal(t, "cache/.wh.forward-link", headers[3].Name)
+	for _, header := range headers {
+		assert.Equal(t, byte(tar.TypeReg), header.Typeflag)
+		assert.Empty(t, header.Linkname)
+	}
+}
+
 func TestWriteOCIRootfsSnapshotLayerConvertsOpaqueDirectory(t *testing.T) {
 	headers := normalizeSnapshotTar(t, snapshotTar(t,
 		&tar.Header{Name: "./", Typeflag: tar.TypeDir, Mode: 0755},
@@ -128,6 +146,28 @@ func TestWriteOCIRootfsSnapshotLayerPreservesFileContentAndMetadata(t *testing.T
 	content, err := io.ReadAll(reader)
 	require.NoError(t, err)
 	assert.Equal(t, []byte("xxxx"), content)
+}
+
+func TestWriteOCIRootfsSnapshotLayerOrdersForwardHardLinksAfterTheirTargets(t *testing.T) {
+	headers := normalizeSnapshotTar(t, snapshotTar(t,
+		&tar.Header{Name: "./cache/link-a", Typeflag: tar.TypeLink, Linkname: "./cache/link-b"},
+		&tar.Header{Name: "./cache/link-b", Typeflag: tar.TypeLink, Linkname: "./cache/content"},
+		&tar.Header{Name: "./cache/content", Typeflag: tar.TypeReg, Mode: 0644, Size: 4},
+	))
+	require.Len(t, headers, 3)
+	assert.Equal(t, "cache/content", headers[0].Name)
+	assert.Equal(t, "cache/link-b", headers[1].Name)
+	assert.Equal(t, "cache/content", headers[1].Linkname)
+	assert.Equal(t, "cache/link-a", headers[2].Name)
+	assert.Equal(t, "cache/link-b", headers[2].Linkname)
+}
+
+func TestWriteOCIRootfsSnapshotLayerRejectsUnresolvedHardLinks(t *testing.T) {
+	var normalized bytes.Buffer
+	err := writeOCIRootfsSnapshotLayer(bytes.NewReader(snapshotTar(t,
+		&tar.Header{Name: "./cache/link", Typeflag: tar.TypeLink, Linkname: "./cache/missing"},
+	)), &normalized, 1<<20)
+	require.ErrorContains(t, err, `hard link "cache/link" targets unavailable entry "cache/missing"`)
 }
 
 func TestWriteOCIRootfsSnapshotLayerEnforcesOutputLimit(t *testing.T) {

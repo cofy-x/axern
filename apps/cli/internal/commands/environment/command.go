@@ -19,21 +19,14 @@ func Command(runtime command.Runtime) *cobra.Command {
 }
 
 func createCommand(runtime command.Runtime) *cobra.Command {
-	var namespace, templateID, templateVersion, imageRef, credentialID string
+	var namespace, imageRef, credentialID string
 	var labels []string
 	var readonly bool
 	cmd := &cobra.Command{Use: "create", Short: "Create an environment", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		var spec *environmentv1.EnvironmentSpec
-		switch {
-		case imageRef != "" && templateID != "":
-			return command.Usage(fmt.Errorf("template-id cannot be combined with image-ref"))
-		case imageRef != "":
-			spec = &environmentv1.EnvironmentSpec{Namespace: namespace, Image: &environmentv1.EnvironmentImageSource{Ref: imageRef, RegistryCredentialID: credentialID, RootfsReadonly: readonly}}
-		case templateID != "":
-			spec = &environmentv1.EnvironmentSpec{Namespace: namespace, TemplateID: templateID, TemplateVersion: templateVersion}
-		default:
-			return command.Usage(fmt.Errorf("template-id or image-ref is required"))
+		if imageRef == "" {
+			return command.Usage(fmt.Errorf("image-ref is required"))
 		}
+		spec := &environmentv1.EnvironmentSpec{Namespace: namespace, Image: &environmentv1.EnvironmentImageSource{Ref: imageRef, RegistryCredentialID: credentialID, RootfsReadonly: readonly}}
 		if err := runtime.PinLocalEnvironmentImage(spec); err != nil {
 			return command.Usage(err)
 		}
@@ -50,8 +43,6 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 	}}
 	f := cmd.Flags()
 	f.StringVar(&namespace, "namespace", "default", "namespace")
-	f.StringVar(&templateID, "template-id", "", "environment template id")
-	f.StringVar(&templateVersion, "template-version", "", "environment template version")
 	f.StringVar(&imageRef, "image-ref", "", "OCI image reference")
 	f.StringVar(&credentialID, "registry-credential-id", "", "registry credential secret id")
 	f.BoolVar(&readonly, "rootfs-readonly", false, "mount rootfs read-only")

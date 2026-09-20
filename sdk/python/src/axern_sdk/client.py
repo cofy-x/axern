@@ -261,9 +261,7 @@ class AxernClient:
     def create_environment(
         self,
         *,
-        template_id: str = "",
         namespace: str = "default",
-        template_version: str = "",
         image_ref: str = "",
         registry_credential_id: str = "",
         rootfs_readonly: bool = False,
@@ -272,8 +270,6 @@ class AxernClient:
     ) -> environment_pb2.Environment:
         spec = environment_spec(
             namespace=namespace,
-            template_id=template_id,
-            template_version=template_version,
             image_ref=image_ref,
             registry_credential_id=registry_credential_id,
             rootfs_readonly=rootfs_readonly,

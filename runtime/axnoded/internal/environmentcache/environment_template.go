@@ -69,7 +69,7 @@ func (environment *PreparedEnvironment) ResolvedEnvironment() *api.ResolvedEnvir
 }
 
 func (environment *PreparedEnvironment) MatchesResolvedEnvironment(fr *api.ResolvedEnvironment) bool {
-	return preparedEnvironmentMatchesTemplate(environment, fr)
+	return preparedEnvironmentMatchesResolvedSpec(environment, fr)
 }
 
 func cloneOciExecutionProfile(in *environmentv1.OciExecutionProfile) *environmentv1.OciExecutionProfile {

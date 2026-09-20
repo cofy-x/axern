@@ -84,7 +84,7 @@ const sandbox = await new Sandbox({
 
 ## Configuration
 
-`Sandbox` requires exactly one source: `templateId`, `image`, or `environmentId`.
+`Sandbox` requires exactly one source: `image` or `environmentId`.
 
 Common options:
 
@@ -125,7 +125,7 @@ pnpm --filter @cofy-x/axern-sdk run smoke:local
 pnpm --filter @cofy-x/axern-sdk run smoke:tunnel
 ```
 
-The smoke loads `deploy/local/state/compose/axern.env` when present. It uses the `python311` template by default; set `AXERN_TS_SMOKE_IMAGE` to verify an image source instead.
+The smoke loads `deploy/local/state/compose/axern.env` when present and requires `AXERN_TS_SMOKE_IMAGE` to name the workload OCI image.
 
 Check package contents with:
 

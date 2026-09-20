@@ -56,7 +56,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 				COALESCE(r.config->'declaredOutputs', '[]'::jsonb) AS declared_outputs,
 				((r.config ? 'rootfsSnapshot') AND r.status = 'RUN_STATUS_SUCCEEDED'
 				 AND COALESCE(r.rootfs_snapshot_result->>'status', '') = 'ROOTFS_SNAPSHOT_STATUS_PENDING') AS rootfs_snapshot_requested,
-				COALESCE(r.resolved_environment_spec#>>'{imageDescriptor,annotations,org.opencontainers.image.ref.name}', r.environment_spec#>>'{image,ref}', '') AS base_image_ref,
+				COALESCE(r.environment_spec#>>'{image,ref}', '') AS base_image_ref,
 				COALESCE(r.resolved_environment_spec#>>'{imageDescriptor,digest}', '') AS base_image_digest,
 				COALESCE(r.environment_spec#>>'{image,registryCredentialId}', '') AS registry_credential_id,
 				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.claim_expires_at, '-infinity'::timestamptz)) AS eligible_at, a.output_expires_at,
@@ -104,9 +104,11 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 			return nil, err
 		}
 		if item.RootfsSnapshotRequested {
-			if immutableRef, digestErr := imageref.WithDigest(item.BaseImageRef, baseImageDigest); digestErr == nil {
-				item.BaseImageRef = immutableRef
+			immutableRef, digestErr := rootfsSnapshotBaseImageRef(item.BaseImageRef, baseImageDigest)
+			if digestErr != nil {
+				return nil, fmt.Errorf("build rootfs snapshot contract for allocation %s: %w", item.AllocationID, digestErr)
 			}
+			item.BaseImageRef = immutableRef
 		}
 		item.LifecycleState = allocationkernel.ParseLifecycleState(lifecycleState)
 		if err := decodeCapabilityRequirements(dependenciesJSON, &item); err != nil {
@@ -118,6 +120,13 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+// rootfsSnapshotBaseImageRef binds the caller-visible repository frozen in the
+// Run specification to the resolved digest frozen at admission. OCI descriptor
+// annotations are diagnostic metadata and must never become execution identity.
+func rootfsSnapshotBaseImageRef(sourceRef, resolvedDigest string) (string, error) {
+	return imageref.WithDigest(sourceRef, resolvedDigest)
 }
 
 func RequireReconcileClaim(ctx context.Context, queryer reconcileClaimQueryer, allocationID, owner string, intent allocationkernel.ReconcileIntent, now time.Time) error {

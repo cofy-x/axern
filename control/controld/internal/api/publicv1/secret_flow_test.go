@@ -192,7 +192,7 @@ func TestRequiredRunSecretReferenceEndsWithRunLifecycle(t *testing.T) {
 		t.Fatalf("CreateSecret(optional) error = %v", err)
 	}
 	envResp, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{TemplateID: "python311", Namespace: "default"},
+		Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},
 	})
 	if err != nil {
 		t.Fatalf("CreateEnvironment() error = %v", err)
