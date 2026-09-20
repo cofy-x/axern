@@ -83,7 +83,7 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 				}); err != nil {
 					return err
 				}
-				if err := pgallocation.RevokeAccessGrants(ctx, tx, alloc.allocationID); err != nil {
+				if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, alloc.allocationID); err != nil {
 					return err
 				}
 				if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{
@@ -94,6 +94,19 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 					return err
 				}
 			}
+			// A batch may contain a replay of the same Allocation observation.
+			// Keep the locked projection current so later entries are evaluated
+			// against the transition already staged by this transaction instead of
+			// scheduling the same lifecycle side effects twice.
+			alloc.lifecycleState = persistedState
+			alloc.runStatus = runStatus
+			alloc.exitCode = nil
+			if obs.ExitCode != nil {
+				exitCode := obs.GetExitCode()
+				alloc.exitCode = &exitCode
+			}
+			alloc.diagnosticCode = diagnosticCode
+			alloc.message = message
 		}
 		return nil
 	})

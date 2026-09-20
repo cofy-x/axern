@@ -380,7 +380,7 @@ func (f *fakeReconcileStore) ClaimDueReconcileItems(_ context.Context, owner str
 	return items, nil
 }
 
-func (f *fakeReconcileStore) RenewReconcileClaim(context.Context, string, string, time.Time, time.Duration) (bool, error) {
+func (f *fakeReconcileStore) RenewReconcileClaim(context.Context, string, string, allocationkernel.ReconcileIntent, time.Time, time.Duration) (bool, error) {
 	f.renewCalls++
 	return f.renewHeld, nil
 }

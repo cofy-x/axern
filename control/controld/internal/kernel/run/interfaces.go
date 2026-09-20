@@ -2,12 +2,12 @@ package runkernel
 
 import (
 	"context"
-	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"time"
 
 	accessgrantkernel "github.com/cofy-x/axern/control/controld/internal/kernel/accessgrant"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -81,7 +81,7 @@ type ReconcileStore interface {
 	MarkRootfsSnapshotFailed(ctx context.Context, allocationID, claimOwner, message string, now time.Time) error
 	MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error)
 	ClaimDueReconcileItems(ctx context.Context, owner string, limit int, now time.Time, claimTTL time.Duration) ([]allocationkernel.ReconcileItem, error)
-	RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error)
+	RenewReconcileClaim(ctx context.Context, allocationID, owner string, intent allocationkernel.ReconcileIntent, now time.Time, claimTTL time.Duration) (bool, error)
 	ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error)
 	WaitReconcileWork(ctx context.Context) error
 }

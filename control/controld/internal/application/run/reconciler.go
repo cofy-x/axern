@@ -130,7 +130,7 @@ func (r *reconciler) renewClaim(ctx context.Context, cancelOperation context.Can
 			return
 		case <-ticker.C:
 			renewCtx, cancel := context.WithTimeout(ctx, r.claimRenewal)
-			held, err := r.store.RenewReconcileClaim(renewCtx, item.AllocationID, item.ClaimOwner, r.now().UTC(), r.claimTTL)
+			held, err := r.store.RenewReconcileClaim(renewCtx, item.AllocationID, item.ClaimOwner, allocationkernel.ReconcileIntentForLifecycle(item.LifecycleState), r.now().UTC(), r.claimTTL)
 			cancel()
 			if err != nil {
 				cancelOperation()

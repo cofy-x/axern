@@ -112,8 +112,9 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 				return err
 			}
 		}
-		// Termination already revoked execution access. Output-only grants issued
-		// since then remain valid until their bounded retention deadline.
+		// Termination already revoked execution access. Output-only grants remain
+		// valid until their bounded retention deadline, including grants that were
+		// issued immediately before the terminal transaction acquired its lock.
 		if keepForAcknowledgement {
 			tag, err := tx.Exec(ctx, `UPDATE allocation_reconcile_queue SET claim_owner='', claim_expires_at=NULL, next_run_at=$3, updated_at=$3 WHERE allocation_id=$1 AND claim_owner=$2`, allocationID, strings.TrimSpace(claimOwner), now.UTC())
 			if err != nil {
@@ -254,8 +255,8 @@ func (s *Store) ClaimDueReconcileItems(ctx context.Context, owner string, limit 
 	return pgallocation.ClaimDueReconcileItems(ctx, s.db.Pool(), owner, limit, now, claimTTL)
 }
 
-func (s *Store) RenewReconcileClaim(ctx context.Context, allocationID, owner string, now time.Time, claimTTL time.Duration) (bool, error) {
-	return pgallocation.RenewReconcileClaim(ctx, s.db.Pool(), allocationID, owner, now, claimTTL)
+func (s *Store) RenewReconcileClaim(ctx context.Context, allocationID, owner string, intent allocationkernel.ReconcileIntent, now time.Time, claimTTL time.Duration) (bool, error) {
+	return pgallocation.RenewReconcileClaim(ctx, s.db.Pool(), allocationID, owner, intent, now, claimTTL)
 }
 
 func (s *Store) ScheduleClaimedReconcile(ctx context.Context, req allocationkernel.ScheduleReconcileRequest, owner string, now time.Time) (bool, error) {

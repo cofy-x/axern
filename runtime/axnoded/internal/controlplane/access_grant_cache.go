@@ -15,7 +15,15 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const accessGrantWatchReconnectDelay = time.Second
+const (
+	accessGrantWatchReconnectDelay = time.Second
+	// A watch stream is intentionally long-lived, but establishing it must be
+	// bounded. Nodes commonly start before their one-time admission commits; an
+	// unbounded initial dial can remain trapped in transport backoff after the
+	// identity becomes available while heartbeat reporting has already made the
+	// Node schedulable.
+	accessGrantWatchConnectTimeout = 3 * time.Second
+)
 
 type AccessGrantCache struct {
 	mu      sync.RWMutex
@@ -224,7 +232,9 @@ func (w *AccessGrantWatcher) Stop() {
 }
 
 func (w *AccessGrantWatcher) watchOnce(afterRevision int64) (int64, error) {
-	client, err := w.control.Client(w.ctx)
+	connectCtx, cancel := context.WithTimeout(w.ctx, accessGrantWatchConnectTimeout)
+	client, err := w.control.Client(connectCtx)
+	cancel()
 	if err != nil {
 		return afterRevision, err
 	}
