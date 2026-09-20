@@ -35,6 +35,7 @@ type Status struct {
 	Profile            string         `json:"profile,omitempty"`
 	DataPath           string         `json:"data_path"`
 	DiskAllocatedBytes int64          `json:"disk_allocated_bytes"`
+	DiskUsagePartial   bool           `json:"disk_usage_partial,omitempty"`
 	GatewayHTTPURL     string         `json:"gateway_http_url"`
 	GatewayTarget      string         `json:"gateway_target"`
 	Ports              map[string]int `json:"ports"`

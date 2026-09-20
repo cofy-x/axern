@@ -46,6 +46,7 @@ for key in "${!internal[@]}"; do
 done
 
 lock_image POSTGRES_IMAGE postgres:16-alpine
+lock_image REGISTRY_IMAGE registry:2
 lock_image OTEL_COLLECTOR_IMAGE otel/opentelemetry-collector:0.150.1
 lock_image OTEL_LGTM_IMAGE grafana/otel-lgtm:0.11.16
 LC_ALL=C sort -o "${output}" "${output}"

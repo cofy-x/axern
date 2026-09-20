@@ -394,7 +394,7 @@ func localDNSReadinessError(check Check) error {
 }
 
 func (m *Manager) pullPlatformImages(ctx context.Context, profile string) error {
-	services := []string{"postgres", "controld", "tunneld", "node", "gatewayd"}
+	services := []string{"registry", "postgres", "controld", "tunneld", "node", "gatewayd"}
 	args := composePullArgs(isTerminalWriter(m.Stderr), services)
 	started := time.Now()
 	fmt.Fprintln(m.Stderr, "Pulling Axern platform images...")
@@ -428,7 +428,7 @@ func (m *Manager) printStartupDiagnostics(profile string) {
 	fmt.Fprintln(m.Stderr, "Axern did not become ready; recent service status follows.")
 	_ = m.composeRun(context.Background(), profile, "ps")
 	fmt.Fprintln(m.Stderr, "Recent core service logs follow.")
-	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "controld", "tunneld", "node", "gatewayd")
+	_ = m.composeRun(context.Background(), profile, "logs", "--no-color", "--tail", "80", "registry", "controld", "tunneld", "node", "gatewayd")
 }
 
 func (m *Manager) printReady() {
@@ -615,7 +615,7 @@ func (m *Manager) Status(ctx context.Context) (Status, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return status, err
 	}
-	status.DiskAllocatedBytes, err = directoryAllocatedSize(m.Dir)
+	status.DiskAllocatedBytes, status.DiskUsagePartial, err = directoryAllocatedSize(m.Dir)
 	if err != nil {
 		return status, fmt.Errorf("inspect local disk usage: %w", err)
 	}
@@ -891,7 +891,7 @@ func (m *Manager) writeEnv(profile string) error {
 		return err
 	}
 	images := localbundle.ImageReferences(m.Version)
-	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,registry,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
 	httpProxy := containerProxy(os.Getenv("HTTP_PROXY"))
 	httpsProxy := containerProxy(os.Getenv("HTTPS_PROXY"))
 	otelEnabled, otelEndpoint := "false", ""
@@ -899,11 +899,11 @@ func (m *Manager) writeEnv(profile string) error {
 		otelEnabled, otelEndpoint = "true", "http://otel-collector:4317"
 	}
 	values := map[string]string{
-		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
+		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "REGISTRY_IMAGE": images["REGISTRY_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
 		"CONTROLD_IMAGE": images["CONTROLD_IMAGE"], "TUNNELD_IMAGE": images["TUNNELD_IMAGE"], "GATEWAYD_IMAGE": images["GATEWAYD_IMAGE"], "NODE_ALL_IN_ONE_IMAGE": images["NODE_ALL_IN_ONE_IMAGE"],
 		"PYTHON311_RUNTIME_IMAGE": images["PYTHON311_RUNTIME_IMAGE"], "SERVER_BASE_RUNTIME_IMAGE": images["SERVER_BASE_RUNTIME_IMAGE"], "CODING_BASE_RUNTIME_IMAGE": images["CODING_BASE_RUNTIME_IMAGE"], "DESKTOP_BASE_RUNTIME_IMAGE": images["DESKTOP_BASE_RUNTIME_IMAGE"],
 		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"],
-		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
+		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "registry:5000", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
 		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
 		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),
 		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
@@ -1026,6 +1026,7 @@ func (m *Manager) localNodeReadiness(ctx context.Context, client *http.Client) (
 var localDefaultWorkloadCapabilities = []capabilityv1.PlatformCapability{
 	capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
 	capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT,
+	capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_ROOTFS_SNAPSHOT,
 }
 
 type localNodeReadinessPayload struct {
@@ -1182,12 +1183,24 @@ func (m *Manager) metadataPath() string { return filepath.Join(m.Dir, "metadata.
 func (m *Manager) composePath() string  { return filepath.Join(m.Dir, "compose.yaml") }
 func (m *Manager) envPath() string      { return filepath.Join(m.Dir, "compose.env") }
 
-func directoryAllocatedSize(root string) (int64, error) {
+func directoryAllocatedSize(root string) (int64, bool, error) {
 	var total int64
+	var partial bool
 	seen := map[allocatedFileIdentity]struct{}{}
 	err := filepath.Walk(root, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			// Runtime state is intentionally owned by root inside the privileged
+			// node container. Disk usage is a diagnostic projection and must not
+			// make `local status` unavailable when that state cannot be traversed
+			// by the host user.
+			if errors.Is(err, os.ErrPermission) {
+				partial = true
+				if info != nil && info.IsDir() {
+					return filepath.SkipDir
+				}
 				return nil
 			}
 			return err
@@ -1203,9 +1216,9 @@ func directoryAllocatedSize(root string) (int64, error) {
 		return nil
 	})
 	if errors.Is(err, os.ErrNotExist) {
-		return 0, nil
+		return 0, false, nil
 	}
-	return total, err
+	return total, partial, err
 }
 
 func availableDisk(path string) (int64, error) {

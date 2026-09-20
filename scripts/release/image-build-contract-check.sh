@@ -183,13 +183,14 @@ for contract in (
     "imagetools inspect",
     "sha256sum",
     "POSTGRES_IMAGE",
+    "REGISTRY_IMAGE",
     "OTEL_LGTM_IMAGE",
 ):
     if contract not in lock_builder:
         raise SystemExit(f"local image digest lock contract is missing: {contract}")
 
 cli_builder = (root / "scripts/release/build-cli.sh").read_text()
-for contract in ("AXERN_LOCAL_IMAGE_LOCK_FILE", "localbundle.imageLock", "images.lock"):
+for contract in ("AXERN_LOCAL_IMAGE_LOCK_FILE", "localbundle.imageLock", "images.lock", "REGISTRY_IMAGE"):
     if contract not in cli_builder:
         raise SystemExit(f"CLI release image lock injection is missing: {contract}")
 PY

@@ -1,7 +1,20 @@
 volumes:
   node-imagemgr-state:
+  snapshot-registry-data:
 
 services:
+  registry:
+    image: ${REGISTRY_IMAGE}
+    restart: unless-stopped
+    environment:
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes: ["snapshot-registry-data:/var/lib/registry"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:5000/v2/"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+
   postgres:
     image: ${POSTGRES_IMAGE}
     environment:
@@ -128,7 +141,9 @@ services:
     image: ${NODE_ALL_IN_ONE_IMAGE}
     privileged: true
     restart: unless-stopped
-    depends_on: [controld]
+    depends_on:
+      controld: {condition: service_started}
+      registry: {condition: service_healthy}
     extra_hosts: ["host.docker.internal:host-gateway"]
     environment:
       AXNODED_SOCKET: /shared/run/axnoded.sock
@@ -159,6 +174,7 @@ services:
       https_proxy: ${CONTAINER_HTTPS_PROXY}
       no_proxy: ${CONTAINER_NO_PROXY}
       IMAGEMGR_INSECURE_REGISTRIES: ${CONTROLD_INSECURE_REGISTRIES}
+      AXNODED_ROOTFS_SNAPSHOT_REPOSITORY: registry:5000/axern/rootfs-snapshots
       AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
       OTEL_EXPORTER_OTLP_INSECURE: "true"
