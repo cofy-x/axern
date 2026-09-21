@@ -193,7 +193,7 @@ controld:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/controld
-    tag: v0.11.0
+    tag: v0.11.1
     digest: ""
     pullPolicy: ""
   heartbeatFreshnessWindow: 15s
@@ -210,14 +210,14 @@ tunneld:
   drain: false
   image:
     repository: ghcr.io/cofy-x/axern/tunneld
-    tag: v0.11.0
+    tag: v0.11.1
     digest: ""
     pullPolicy: ""
 
 node:
   image:
     repository: ghcr.io/cofy-x/axern/node-all-in-one
-    tag: v0.11.0
+    tag: v0.11.1
     digest: ""
     pullPolicy: ""
   privileged: true
@@ -280,7 +280,7 @@ gatewayd:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/gatewayd
-    tag: v0.11.0
+    tag: v0.11.1
     digest: ""
     pullPolicy: ""
   controlEdge:
