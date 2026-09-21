@@ -17,6 +17,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cofy-x/axern/apps/cli/internal/localbundle"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -29,6 +30,23 @@ func TestDataDirHonorsAxernHome(t *testing.T) {
 	}
 	if want := filepath.Join(root, "local"); got != want {
 		t.Fatalf("DataDir() = %q, want %q", got, want)
+	}
+}
+
+func TestLocalBundleLimitsExternalRegistryNetworkToRegistryConsumers(t *testing.T) {
+	compose := string(localbundle.Compose)
+	for _, contract := range []string{
+		"name: axern-local-registry",
+		"controld:",
+		"node:",
+		"networks: [default, registry-access]",
+	} {
+		if !strings.Contains(compose, contract) {
+			t.Fatalf("embedded Compose is missing %q", contract)
+		}
+	}
+	if got := strings.Count(compose, "networks: [default, registry-access]"); got != 2 {
+		t.Fatalf("registry network consumer count = %d, want 2", got)
 	}
 }
 
@@ -149,7 +167,7 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := manager.writeEnv(""); err != nil {
+			if err := manager.writeEnv("", []string{"forge-seed-registry:5000"}); err != nil {
 				t.Fatal(err)
 			}
 			envData, err := os.ReadFile(filepath.Join(dir, "compose.env"))
@@ -159,7 +177,7 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 			if !bytes.Contains(envData, []byte(`AXNODED_DNS_NAMESERVERS="192.0.2.53"`)) {
 				t.Fatalf("compose env does not contain resolved workload DNS: %q", envData)
 			}
-			for _, contract := range []string{`REGISTRY_IMAGE="registry:2"`, `CONTROLD_INSECURE_REGISTRIES="registry:5000"`} {
+			for _, contract := range []string{`REGISTRY_IMAGE="registry:2"`, `CONTROLD_INSECURE_REGISTRIES="registry:5000,forge-seed-registry:5000"`, `CONTAINER_NO_PROXY="localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,registry,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,forge-seed-registry"`} {
 				if !bytes.Contains(envData, []byte(contract)) {
 					t.Fatalf("compose env does not contain %s: %q", contract, envData)
 				}

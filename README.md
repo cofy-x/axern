@@ -57,6 +57,8 @@ axern local down
 
 The local environment uses generated development credentials and loopback listeners. Do not reuse them in a shared or production deployment.
 
+Trusted machine-local HTTP registries can be authorized with repeatable `axern local up --insecure-registry host[:port]` flags. The registry must be reachable from both local control and node containers under that exact hostname; container-only registries can join the `axern-local-registry` Docker network reported by `axern local status`. See the [CLI contract](./apps/cli/README.md#local-external-http-registries). HTTPS remains the default, and this local-only setting is not part of an Environment specification.
+
 Source development is a separate contributor path. It builds the current checkout into local `:dev` images and exercises the same public contract:
 
 ```bash

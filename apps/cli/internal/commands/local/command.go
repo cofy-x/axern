@@ -61,6 +61,10 @@ func upCommand(runtime command.Runtime, version string) *cobra.Command {
 		if options.ReadinessTimeout <= 0 {
 			return command.Usage(fmt.Errorf("--wait-timeout must be positive"))
 		}
+		options.SetInsecureRegistries = cmd.Flags().Changed("insecure-registry")
+		if options.SetInsecureRegistries && options.ClearInsecureRegistries {
+			return command.Usage(fmt.Errorf("--insecure-registry and --clear-insecure-registries cannot be used together"))
+		}
 		service, err := manager(runtime, version, cmd)
 		if err != nil {
 			return err
@@ -76,6 +80,8 @@ func upCommand(runtime command.Runtime, version string) *cobra.Command {
 	cmd.Flags().StringVar(&options.Profile, "profile", "", "profile: default or observability; omitted preserves the current profile")
 	cmd.Flags().BoolVar(&options.Use, "use", false, "select the local context even when another context is active")
 	cmd.Flags().DurationVar(&options.ReadinessTimeout, "wait-timeout", options.ReadinessTimeout, "wait for fresh local capability certification; bounded by --timeout")
+	cmd.Flags().StringArrayVar(&options.ExternalInsecureRegistries, "insecure-registry", nil, "allow an external HTTP registry host[:port]; repeat to replace the configured external allowlist")
+	cmd.Flags().BoolVar(&options.ClearInsecureRegistries, "clear-insecure-registries", false, "remove all configured external HTTP registry hosts")
 	return cmd
 }
 
@@ -102,6 +108,12 @@ func statusCommand(runtime command.Runtime, version string) *cobra.Command {
 		}
 		fmt.Fprintf(cmd.OutOrStdout(), "HTTP:       %s\nData:       %s\nDisk:       %s %s\n", value.GatewayHTTPURL, value.DataPath, formatBytes(value.DiskAllocatedBytes), diskLabel)
 		fmt.Fprintf(cmd.OutOrStdout(), "Gateway:    grpc=%d http=%d ssh=%d\n", value.Ports["gateway_grpc"], value.Ports["gateway_http"], value.Ports["gateway_ssh"])
+		fmt.Fprintf(cmd.OutOrStdout(), "Registry network: %s\n", value.RegistryNetwork)
+		registries := "none"
+		if len(value.ExternalInsecureRegistries) != 0 {
+			registries = strings.Join(value.ExternalInsecureRegistries, ", ")
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "HTTP registries: %s\n", registries)
 		if value.CurrentContext != "" {
 			fmt.Fprintf(cmd.OutOrStdout(), "Context:    %s\n", value.CurrentContext)
 		}

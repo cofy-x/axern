@@ -286,13 +286,20 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if metadataErr == nil && options.Profile == "" {
 		options.Profile = existing.Profile
 	}
+	externalRegistries, err := resolveExternalRegistryPolicy(existing.ExternalInsecureRegistries, metadataErr == nil, options)
+	if err != nil {
+		return err
+	}
 	if options.Profile == "default" {
 		options.Profile = ""
 	}
-	if metadataErr == nil && options.Profile == existing.Profile {
+	registryPolicyChanged := metadataErr == nil && !slices.Equal(externalRegistries, existing.ExternalInsecureRegistries)
+	if metadataErr == nil && options.Profile == existing.Profile && !registryPolicyChanged {
 		if status, statusErr := m.Status(ctx); statusErr == nil && status.State == "running" && m.localNodeReady(ctx, &http.Client{Timeout: 3 * time.Second}) {
 			dnsCheck := m.probeNodeDNS(ctx, options.Profile, defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
-			if dnsCheck.Status == checkPass || dnsCheck.Status == checkWarn {
+			networkExists, networkErr := m.inspectRegistryNetwork(ctx)
+			registryConfigurationChanged := m.localRegistryConfigurationChanged(externalRegistries) || networkErr != nil || !networkExists
+			if (dnsCheck.Status == checkPass || dnsCheck.Status == checkWarn) && !registryConfigurationChanged {
 				m.printLocalDNSWarning(dnsCheck)
 				if err := m.writeContext(options.Use); err != nil {
 					return err
@@ -300,7 +307,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 				m.printReady()
 				return nil
 			}
-			if !m.localDNSConfigurationChanged() {
+			if localDNSBlocksReconfiguration(dnsCheck, m.localDNSConfigurationChanged()) {
 				return localDNSReadinessError(dnsCheck)
 			}
 		}
@@ -308,7 +315,10 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if report := m.doctor(ctx, false, DoctorOptions{}, doctorDNSConfigDesired); report.Status == doctorFailed {
 		return fmt.Errorf("local prerequisites are not ready; run `axern local doctor`")
 	}
-	if err := m.materialize(options.Profile); err != nil {
+	if err := m.ensureRegistryNetwork(ctx); err != nil {
+		return err
+	}
+	if err := m.materialize(options.Profile, externalRegistries); err != nil {
 		return err
 	}
 	if metadataErr == nil && existing.Profile == "observability" && options.Profile == "" {
@@ -355,7 +365,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if metadataErr == nil && existing.ComposeProject != "" {
 		composeProject = existing.ComposeProject
 	}
-	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, Profile: options.Profile, UpdatedAt: time.Now().UTC()}
+	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, Profile: options.Profile, ExternalInsecureRegistries: externalRegistries, UpdatedAt: time.Now().UTC()}
 	if metadataErr == nil {
 		metadata.CreatedAt = existing.CreatedAt
 	}
@@ -386,6 +396,15 @@ func (m *Manager) localDNSConfigurationChanged() bool {
 	return desiredErr != nil || appliedErr != nil || !slices.Equal(desired, applied)
 }
 
+func (m *Manager) localRegistryConfigurationChanged(externalRegistries []string) bool {
+	applied, err := readMaterializedInsecureRegistries(m.envPath())
+	return err != nil || !slices.Equal(externalRegistries, applied)
+}
+
+func localDNSBlocksReconfiguration(check Check, configurationChanged bool) bool {
+	return check.Status == checkFail && !configurationChanged
+}
+
 func localDNSReadinessError(check Check) error {
 	if check.Remediation == "" {
 		return fmt.Errorf("local runtime DNS is not ready (%s): %s", check.Code, check.Message)
@@ -408,6 +427,45 @@ func (m *Manager) pullPlatformImages(ctx context.Context, profile string) error 
 		fmt.Fprintf(m.Stderr, "Axern platform images are ready (elapsed %s).\n", elapsed)
 	}
 	return nil
+}
+
+func (m *Manager) ensureRegistryNetwork(ctx context.Context) error {
+	exists, err := m.inspectRegistryNetwork(ctx)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return nil
+	}
+	if err := m.Runner.Run(ctx, io.Discard, m.Stderr, "docker", "network", "create", "--driver", "bridge", "--label", "io.axern.local.registry=true", RegistryNetworkName); err != nil {
+		if exists, inspectErr := m.inspectRegistryNetwork(ctx); inspectErr == nil && exists {
+			return nil
+		}
+		return fmt.Errorf("create local registry network %q: %w", RegistryNetworkName, err)
+	}
+	return nil
+}
+
+func (m *Manager) inspectRegistryNetwork(ctx context.Context) (bool, error) {
+	data, err := m.Runner.Output(ctx, "docker", "network", "ls", "--filter", "name=^"+RegistryNetworkName+"$", "--format", "{{.Name}}")
+	if err != nil {
+		return false, fmt.Errorf("list local registry networks: %w", err)
+	}
+	names := strings.Fields(string(data))
+	if len(names) == 0 {
+		return false, nil
+	}
+	if len(names) != 1 || names[0] != RegistryNetworkName {
+		return true, fmt.Errorf("local registry network lookup returned an unexpected result")
+	}
+	data, err = m.Runner.Output(ctx, "docker", "network", "inspect", "--format", `{{.Driver}}|{{.Scope}}|{{index .Labels "io.axern.local.registry"}}`, RegistryNetworkName)
+	if err != nil {
+		return true, fmt.Errorf("inspect local registry network %q: %w", RegistryNetworkName, err)
+	}
+	if strings.TrimSpace(string(data)) != "bridge|local|true" {
+		return true, fmt.Errorf("local registry network %q must be an Axern-managed local bridge network", RegistryNetworkName)
+	}
+	return true, nil
 }
 
 func composePullArgs(interactive bool, services []string) []string {
@@ -607,10 +665,11 @@ func (m *Manager) Logs(ctx context.Context, options LogOptions) error {
 }
 
 func (m *Manager) Status(ctx context.Context) (Status, error) {
-	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432}}
+	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), RegistryNetwork: RegistryNetworkName, Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432}}
 	metadata, err := loadMetadata(m.metadataPath())
 	if err == nil {
 		status.StackVersion, status.Profile = metadata.Version, metadata.Profile
+		status.ExternalInsecureRegistries = append([]string(nil), metadata.ExternalInsecureRegistries...)
 		status.State = "stopped"
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return status, err
@@ -764,6 +823,25 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 	} else {
 		add("stack_version", true, "stack_version_compatible", "stack_version_incompatible", "local stack version is compatible", "")
 	}
+	if metadataErr == nil && inspectRuntime {
+		registries, registryErr := normalizeExternalInsecureRegistries(metadata.ExternalInsecureRegistries)
+		materialized, materializedErr := readMaterializedInsecureRegistries(m.envPath())
+		registryPolicyOK := registryErr == nil && materializedErr == nil && slices.Equal(registries, materialized)
+		message := fmt.Sprintf("%d external insecure registry hosts are configured", len(registries))
+		if !registryPolicyOK {
+			message = "persisted and materialized insecure registry policies do not match"
+		}
+		add("registry_policy", registryPolicyOK, "registry_policy_consistent", "registry_policy_inconsistent", message, "run `axern local up` with the intended registry policy")
+		if dockerErr == nil {
+			networkExists, networkErr := m.inspectRegistryNetwork(ctx)
+			networkOK := networkErr == nil && networkExists
+			networkMessage := "the local registry network is an available local bridge"
+			if !networkOK {
+				networkMessage = "the local registry network is missing or conflicts with the required local bridge"
+			}
+			add("registry_network", networkOK, "registry_network_available", "registry_network_unavailable", networkMessage, "remove the conflicting network if necessary, then run `axern local up` to recreate the local registry network")
+		}
+	}
 	stackRunning := false
 	profile := ""
 	if metadataErr == nil {
@@ -836,7 +914,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 	return report
 }
 
-func (m *Manager) materialize(profile string) error {
+func (m *Manager) materialize(profile string, externalRegistries []string) error {
 	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
@@ -854,10 +932,10 @@ func (m *Manager) materialize(profile string) error {
 	if err := writeAtomic(filepath.Join(m.Dir, "otel-collector.yaml"), localbundle.CollectorConfig, 0o644); err != nil {
 		return err
 	}
-	return m.writeEnv(profile)
+	return m.writeEnv(profile, externalRegistries)
 }
 
-func (m *Manager) writeEnv(profile string) error {
+func (m *Manager) writeEnv(profile string, externalRegistries []string) error {
 	dnsNameservers, err := localDNSNameservers()
 	if err != nil {
 		return fmt.Errorf("configure local workload DNS: %w", err)
@@ -891,7 +969,9 @@ func (m *Manager) writeEnv(profile string) error {
 		return err
 	}
 	images := localbundle.ImageReferences(m.Version)
-	noProxy := "localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,registry,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+	noProxyValues := []string{"localhost", "127.0.0.1", "::1", "host.docker.internal", "controld", "gatewayd", "tunneld", "node", "postgres", "registry", ".svc", ".cluster.local", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}
+	noProxyValues = append(noProxyValues, registryNoProxyHosts(externalRegistries)...)
+	noProxy := strings.Join(noProxyValues, ",")
 	httpProxy := containerProxy(os.Getenv("HTTP_PROXY"))
 	httpsProxy := containerProxy(os.Getenv("HTTPS_PROXY"))
 	otelEnabled, otelEndpoint := "false", ""
@@ -902,7 +982,7 @@ func (m *Manager) writeEnv(profile string) error {
 		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "REGISTRY_IMAGE": images["REGISTRY_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
 		"CONTROLD_IMAGE": images["CONTROLD_IMAGE"], "TUNNELD_IMAGE": images["TUNNELD_IMAGE"], "GATEWAYD_IMAGE": images["GATEWAYD_IMAGE"], "NODE_ALL_IN_ONE_IMAGE": images["NODE_ALL_IN_ONE_IMAGE"],
 		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"],
-		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": "registry:5000", "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
+		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "REGISTRY_PROXY_URL": firstNonEmpty(httpsProxy, httpProxy), "CONTROLD_INSECURE_REGISTRIES": effectiveInsecureRegistries(externalRegistries), "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
 		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
 		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),
 		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",

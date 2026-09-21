@@ -59,6 +59,8 @@ axern local down
 
 本地环境使用生成的开发凭据和回环监听地址，不要在共享或生产部署中复用它们。
 
+可信的本机 HTTP registry 可以通过重复的 `axern local up --insecure-registry host[:port]` 参数显式授权。control 和 node 容器必须都能通过这个完全一致的 hostname 访问 registry；仅容器可见的 registry 可以接入 `axern local status` 报告的 `axern-local-registry` Docker 网络。详见 [CLI 契约](./apps/cli/README.md#local-external-http-registries)。HTTPS 仍是默认策略，而且这个仅限本地环境的设置不属于 Environment specification。
+
 源码开发是独立的贡献者路径。它把当前检出构建为本地 `:dev` 镜像，并验证相同的公共契约：
 
 ```bash

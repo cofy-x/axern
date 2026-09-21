@@ -39,6 +39,11 @@ func TestLocalLifecycleSurface(t *testing.T) {
 	if waitTimeout.DefValue != applocal.DefaultReadinessTimeout.String() {
 		t.Fatalf("--wait-timeout default = %q, want %q", waitTimeout.DefValue, applocal.DefaultReadinessTimeout)
 	}
+	for _, name := range []string{"insecure-registry", "clear-insecure-registries"} {
+		if up.Flags().Lookup(name) == nil {
+			t.Fatalf("local up flag --%s is missing", name)
+		}
+	}
 }
 
 func TestLocalUpRejectsNonPositiveReadinessTimeout(t *testing.T) {
