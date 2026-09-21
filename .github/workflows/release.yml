@@ -364,16 +364,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Log Helm in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
-      - name: Verify immutable release names are unused
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash scripts/release/preflight.sh
-      - name: Publish multi-architecture image manifests
+      - name: Publish or verify multi-architecture image manifests
         env:
           AXERN_LOCAL_IMAGE_LOCK_FILE: ${{ github.workspace }}/dist/local-image-lock/images.lock
         run: bash scripts/release/publish-image-manifests.sh
-      - name: Publish Helm OCI chart
-        run: helm push "dist/release/axern-$(cat VERSION).tgz" oci://ghcr.io/cofy-x/charts
+      - name: Publish or verify Helm OCI chart
+        run: bash scripts/release/publish-helm-chart.sh
       - name: Attest release artifacts
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
@@ -381,14 +377,7 @@ jobs:
       - name: Publish GitHub source release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          release_notes="docs/releases/${GITHUB_REF_NAME}.md"
-          release_args=(--verify-tag --fail-on-no-commits --generate-notes --title "Axern ${GITHUB_REF_NAME}")
-          if [[ -f "${release_notes}" ]]; then
-            release_args+=(--notes "$(tail -n +3 "${release_notes}")")
-          fi
-          gh release create "${GITHUB_REF_NAME}" dist/release/* \
-            "${release_args[@]}"
+        run: bash scripts/release/publish-github-release.sh
 
   sdk-publication-readiness:
     if: github.ref_type == 'tag'

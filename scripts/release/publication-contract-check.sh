@@ -4,6 +4,7 @@ set -euo pipefail
 AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 "${AXERN_ROOT}/scripts/release/sdk_publication_readiness_test.py"
 python3 "${AXERN_ROOT}/scripts/release/homebrew_formula_reconcile_test.py"
+bash "${AXERN_ROOT}/scripts/release/publication-recovery-test.sh"
 
 python3 - "${AXERN_ROOT}" <<'PY'
 import ast
@@ -28,12 +29,17 @@ for contract in (
     "timeout-minutes: 35",
     "sdk_publication_readiness.py",
     "needs: [sdk-publication-readiness]",
+    "bash scripts/release/publish-image-manifests.sh",
+    "bash scripts/release/publish-helm-chart.sh",
+    "bash scripts/release/publish-github-release.sh",
 ):
     if contract not in release:
         raise SystemExit(f"release workflow is missing publication readiness contract: {contract}")
 for obsolete in ("\n  homebrew:\n", "HOMEBREW_TAP_TOKEN", "HOMEBREW_TAP_ENABLED"):
     if obsolete in release:
         raise SystemExit(f"release workflow retains coupled Homebrew publication: {obsolete.strip()}")
+if "scripts/release/preflight.sh" in release or 'run: helm push "dist/release/' in release:
+    raise SystemExit("release workflow retains non-resumable publication steps")
 
 for contract in (
     "workflow_run:",
