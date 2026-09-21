@@ -202,6 +202,11 @@ func loadMetadata(path string) (Metadata, error) {
 	if err := json.Unmarshal(data, &value); err != nil {
 		return Metadata{}, fmt.Errorf("parse local metadata: %w", err)
 	}
+	registries, err := normalizeExternalInsecureRegistries(value.ExternalInsecureRegistries)
+	if err != nil {
+		return Metadata{}, fmt.Errorf("parse local metadata registry policy: %w", err)
+	}
+	value.ExternalInsecureRegistries = registries
 	return value, nil
 }
 

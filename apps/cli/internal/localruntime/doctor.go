@@ -91,6 +91,18 @@ func readMaterializedDNSNameservers(path string) ([]string, error) {
 	return discoverLocalDNSNameservers(value, nil)
 }
 
+func readMaterializedInsecureRegistries(path string) ([]string, error) {
+	value, err := readMaterializedEnvValue(path, "CONTROLD_INSECURE_REGISTRIES")
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.Split(value, ",")
+	if len(parts) == 0 || parts[0] != internalRegistryHost {
+		return nil, fmt.Errorf("materialized local configuration is missing the internal registry policy")
+	}
+	return normalizeExternalInsecureRegistries(parts[1:])
+}
+
 func readMaterializedEnvValue(path, target string) (string, error) {
 	file, err := os.Open(path)
 	if err != nil {

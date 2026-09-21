@@ -104,6 +104,26 @@ The default query is `axern.cofy-x.space.`. Use `--dns-query-name` for a managed
 
 Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution defaults to five minutes (`--probe-timeout`). The probe requires an explicit `--image`; both sandbox-only options require `--probe`.
 
+## Local external HTTP registries
+
+The local runtime uses HTTPS for workload registries by default. A trusted development registry that only serves plain HTTP must be authorized explicitly by exact host and optional port:
+
+```bash
+axern local up --insecure-registry forge-seed-registry:5000
+```
+
+Repeat `--insecure-registry` to replace the complete external allowlist. Omitting the flag preserves the current policy; remove it explicitly with `axern local up --clear-insecure-registries`. Schemes, paths, credentials, wildcards, queries, fragments, commas, and more than 16 external hosts are rejected. A single-label Docker DNS alias requires an explicit port so OCI reference parsing cannot mistake it for a Docker Hub namespace. The built-in `registry:5000` remains platform-managed and cannot be configured as an external host.
+
+Transport authorization does not create network reachability. Both `controld` and `node` must reach the registry through the exact configured hostname. For a container-only registry, the CLI creates the external Docker network `axern-local-registry` and attaches only those two consumers; the registry owner can attach its container with the hostname used by the immutable image reference. For example:
+
+```bash
+axern local up
+docker network connect --alias forge-seed-registry axern-local-registry forge-seed-loop-registry
+axern local up --insecure-registry forge-seed-registry:5000
+```
+
+`axern local status` reports the registry network and normalized external hosts. `axern local doctor` fails when persisted policy, generated configuration, or the registry network is missing or inconsistent. Attaching a registry to this network grants that trusted development container network reachability to the local control and node containers; this contract is for machine-local development, not shared or production deployment.
+
 ## Resource Spec
 
 Run creation accepts a strict YAML or JSON envelope:

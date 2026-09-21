@@ -90,6 +90,26 @@ func TestLocalDNSConfigurationChangedComparesDesiredAndAppliedSnapshots(t *testi
 	}
 }
 
+func TestLocalDNSFastPathDoesNotBlockUnrelatedReconfiguration(t *testing.T) {
+	for _, test := range []struct {
+		name                 string
+		check                Check
+		configurationChanged bool
+		want                 bool
+	}{
+		{name: "healthy DNS permits registry update", check: Check{Status: checkPass}},
+		{name: "degraded DNS permits registry update", check: Check{Status: checkWarn}},
+		{name: "failed unchanged DNS blocks update", check: Check{Status: checkFail}, want: true},
+		{name: "failed changed DNS is rematerialized", check: Check{Status: checkFail}, configurationChanged: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := localDNSBlocksReconfiguration(test.check, test.configurationChanged); got != test.want {
+				t.Fatalf("localDNSBlocksReconfiguration() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
+
 func TestDoctorNodeIDUsesMaterializedConfiguration(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "compose.env"), []byte("AXNODED_CONTROL_PLANE_NODE_ID=node-compose-local\n"), 0o600); err != nil {

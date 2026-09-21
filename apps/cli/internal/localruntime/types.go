@@ -6,20 +6,22 @@ import (
 )
 
 const (
-	ProjectName        = "axern-local"
-	ContextName        = "local"
-	LocalNodeID        = "node-local"
-	GatewayControlPort = 25000
-	GatewayHTTPPort    = 25080
-	GatewaySSHPort     = 25022
+	ProjectName         = "axern-local"
+	RegistryNetworkName = "axern-local-registry"
+	ContextName         = "local"
+	LocalNodeID         = "node-local"
+	GatewayControlPort  = 25000
+	GatewayHTTPPort     = 25080
+	GatewaySSHPort      = 25022
 )
 
 type Metadata struct {
-	Version        string    `json:"version"`
-	ComposeProject string    `json:"compose_project"`
-	Profile        string    `json:"profile,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	Version                    string    `json:"version"`
+	ComposeProject             string    `json:"compose_project"`
+	Profile                    string    `json:"profile,omitempty"`
+	ExternalInsecureRegistries []string  `json:"external_insecure_registries,omitempty"`
+	CreatedAt                  time.Time `json:"created_at"`
+	UpdatedAt                  time.Time `json:"updated_at"`
 }
 
 type Component struct {
@@ -29,19 +31,21 @@ type Component struct {
 }
 
 type Status struct {
-	State              string         `json:"state"`
-	CLIVersion         string         `json:"cli_version"`
-	StackVersion       string         `json:"stack_version,omitempty"`
-	Profile            string         `json:"profile,omitempty"`
-	DataPath           string         `json:"data_path"`
-	DiskAllocatedBytes int64          `json:"disk_allocated_bytes"`
-	DiskUsagePartial   bool           `json:"disk_usage_partial,omitempty"`
-	GatewayHTTPURL     string         `json:"gateway_http_url"`
-	GatewayTarget      string         `json:"gateway_target"`
-	Ports              map[string]int `json:"ports"`
-	CurrentContext     string         `json:"current_context,omitempty"`
-	ContextCurrent     bool           `json:"context_current"`
-	Components         []Component    `json:"components,omitempty"`
+	State                      string         `json:"state"`
+	CLIVersion                 string         `json:"cli_version"`
+	StackVersion               string         `json:"stack_version,omitempty"`
+	Profile                    string         `json:"profile,omitempty"`
+	DataPath                   string         `json:"data_path"`
+	DiskAllocatedBytes         int64          `json:"disk_allocated_bytes"`
+	DiskUsagePartial           bool           `json:"disk_usage_partial,omitempty"`
+	GatewayHTTPURL             string         `json:"gateway_http_url"`
+	GatewayTarget              string         `json:"gateway_target"`
+	Ports                      map[string]int `json:"ports"`
+	CurrentContext             string         `json:"current_context,omitempty"`
+	ContextCurrent             bool           `json:"context_current"`
+	RegistryNetwork            string         `json:"registry_network"`
+	ExternalInsecureRegistries []string       `json:"external_insecure_registries,omitempty"`
+	Components                 []Component    `json:"components,omitempty"`
 }
 
 type Check struct {
@@ -68,9 +72,12 @@ type DoctorOptions struct {
 }
 
 type UpOptions struct {
-	Profile          string
-	Use              bool
-	ReadinessTimeout time.Duration
+	Profile                    string
+	Use                        bool
+	ReadinessTimeout           time.Duration
+	ExternalInsecureRegistries []string
+	SetInsecureRegistries      bool
+	ClearInsecureRegistries    bool
 }
 
 type LogOptions struct {

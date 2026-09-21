@@ -99,7 +99,7 @@ for value in ("run get", '${language}.run-id', "run_sdk python", "run_sdk typesc
         raise SystemExit(f"SDK data-plane harness is missing CLI handshake contract: {value}")
 
 local_smoke = (root / "scripts/release/local-release-smoke.sh").read_text()
-for value in ('print("hello from axern")', 'print("hello from stderr"', "run_status", '"${run_status}" -ne 7', "--request-cpu 100m --request-memory 512MiB"):
+for value in ('print("hello from axern")', 'print("hello from stderr"', "run_status", '"${run_status}" -ne 7', "--request-cpu 100m --request-memory 512MiB", "--insecure-registry forge-seed-registry:5000", "axern-local-registry", "hello from external registry", "registry_policy_consistent", "registry_network_available"):
     if value not in local_smoke:
         raise SystemExit(f"local release smoke is missing foreground Run behavior: {value}")
 
