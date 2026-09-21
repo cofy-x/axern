@@ -62,6 +62,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-network-policy-qualification ./cmd/verify-network-policy-qualification && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-smoke ./cmd/verify-smoke && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/verify-sandboxd-oci ./cmd/verify-sandboxd-oci && \
+    gcc -O2 -static -Wall -Wextra -Werror -o /out/setsid-shared-sighand-probe ./cmd/verify-sandboxd-oci/testdata/setsid_shared_sighand.c && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
     cd /workspace/runtime/egressd && \
@@ -178,6 +179,8 @@ COPY runtime/axnoded/scripts/qualification/ /workspace/scripts/qualification/
 COPY --from=axnoded-verify-builder /out/verify-smoke /usr/local/bin/verify-smoke
 COPY --from=axnoded-verify-builder /out/verify-sandboxd-oci /usr/local/bin/verify-sandboxd-oci
 COPY --from=axnoded-verify-builder /out/axern-sandboxd /usr/local/libexec/axnoded/axern-sandboxd
+COPY --from=axnoded-verify-builder /out/setsid-shared-sighand-probe /opt/sample-rootfs/bin/setsid-shared-sighand-probe
+COPY --from=axnoded-verify-builder /out/setsid-shared-sighand-probe /opt/axern/runtime-selftest/rootfs/bin/setsid-shared-sighand-probe
 COPY --from=axnoded-verify-builder /out/bpfnetctl /usr/local/bin/bpfnetctl
 COPY --from=controld-builder /out/controld /usr/local/bin/controld
 COPY --from=controld-builder /out/controld-migrate /usr/local/bin/controld-migrate

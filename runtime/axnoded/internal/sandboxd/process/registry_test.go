@@ -3,7 +3,9 @@ package process
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"runtime"
@@ -445,10 +447,34 @@ func TestRegistryShutdownHonorsCanceledContext(t *testing.T) {
 	defer waiter.Stop()
 	registry := NewRegistry(waiter, nil, "")
 
-	status, err := registry.Start(StartRequest{Args: []string{"/bin/sh", "-c", "trap '' TERM; sleep 30"}})
+	readyDir, err := os.MkdirTemp("", "axern-process-ready-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(readyDir) })
+	socketPath := filepath.Join(readyDir, "ready.sock")
+	listener, err := net.Listen("unix", socketPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if unixListener, ok := listener.(*net.UnixListener); ok {
+		if err := unixListener.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	status, err := registry.Start(StartRequest{
+		Args: []string{os.Args[0], "-test.run=TestRegistryShutdownIgnoresTERMHelper"},
+		Env:  []string{"AXERN_SHUTDOWN_HELPER=1", "AXERN_SHUTDOWN_READY_SOCKET=" + socketPath},
+	})
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	ready, err := listener.Accept()
+	if err != nil {
+		t.Fatalf("wait for helper readiness: %v", err)
+	}
+	_ = ready.Close()
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if err := registry.Shutdown(ctx, time.Second); !errors.Is(err, context.Canceled) {
@@ -463,6 +489,23 @@ func TestRegistryShutdownHonorsCanceledContext(t *testing.T) {
 	if status.State != ProcessStateExited {
 		t.Fatalf("status = %#v, want exited after forced cleanup", status)
 	}
+}
+
+func TestRegistryShutdownIgnoresTERMHelper(t *testing.T) {
+	if os.Getenv("AXERN_SHUTDOWN_HELPER") != "1" {
+		return
+	}
+	term, ok := proc.SignalByName("TERM")
+	if !ok {
+		os.Exit(2)
+	}
+	signal.Ignore(term)
+	ready, dialErr := net.Dial("unix", os.Getenv("AXERN_SHUTDOWN_READY_SOCKET"))
+	if dialErr != nil {
+		os.Exit(3)
+	}
+	_ = ready.Close()
+	select {}
 }
 
 func TestRegistryRejectsNegativeTimeout(t *testing.T) {

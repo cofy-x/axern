@@ -69,7 +69,7 @@ func (r *RunscServiceHandler) VerifyAllocationCapability(ctx context.Context, de
 		if manifest.GetRunscOverlayArg() != expectedOverlay {
 			return contract.LostCapability(fmt.Errorf("runsc immutable overlay argument changed"))
 		}
-		if err := verifyRuntimeProcessIdentity(state.Pid, r.common.Binary()); err != nil {
+		if err := hostlinux.VerifyProcessExecutable(state.Pid, hostlinux.RunscSentryBinary(r.common.Binary())); err != nil {
 			return classifyCapabilityVerificationError(err)
 		}
 		expectedBackingDirectory := filepath.Join(r.filestoreDir, "runsc")
@@ -99,21 +99,6 @@ func verifyDurableEnforcementManifest(durable, runtime *apipb.AllocationEnforcem
 	}
 	if runtime == nil || !proto.Equal(durable, runtime) {
 		return fmt.Errorf("runtime enforcement manifest differs from durable allocation manifest")
-	}
-	return nil
-}
-
-func verifyRuntimeProcessIdentity(pid int, binary string) error {
-	process, err := os.Stat(fmt.Sprintf("/proc/%d/exe", pid))
-	if err != nil {
-		return fmt.Errorf("stat runtime process identity: %w", err)
-	}
-	expected, err := os.Stat(binary)
-	if err != nil {
-		return fmt.Errorf("stat configured runtime binary: %w", err)
-	}
-	if !os.SameFile(process, expected) {
-		return fmt.Errorf("runtime process executable identity changed")
 	}
 	return nil
 }

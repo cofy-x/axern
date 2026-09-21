@@ -41,6 +41,7 @@ type runCase struct {
 	expectOutputSeal bool
 	expectedOutput   string
 	signalAfter      time.Duration
+	signalName       string
 }
 
 func main() {
@@ -109,12 +110,34 @@ func run(cfg config) error {
 			expectReady: true,
 		},
 		{
+			name:        "setsid-shared-sighand",
+			argv:        []string{"/bin/setsid-shared-sighand-probe"},
+			expected:    0,
+			expectOut:   []string{"setsid-shared-sighand-ok"},
+			expectReady: true,
+		},
+		{
+			name:        "inherited-output-descendant",
+			argv:        []string{"/bin/sh", "-c", "(sleep 300) & exit 0"},
+			expected:    0,
+			expectReady: true,
+		},
+		{
 			name:             "signal",
 			argv:             []string{"/bin/sh", "-c", "while true; do sleep 1; done"},
 			expected:         143,
 			expectReady:      true,
 			expectProcessAPI: true,
 			signalAfter:      2 * time.Second,
+			signalName:       "TERM",
+		},
+		{
+			name:        "interrupt",
+			argv:        []string{"/bin/sh", "-c", "while true; do sleep 1; done"},
+			expected:    130,
+			expectReady: true,
+			signalAfter: 2 * time.Second,
+			signalName:  "INT",
 		},
 	}
 	if cfg.shellCommand != "" {
@@ -269,7 +292,11 @@ func runOne(workDir string, cfg config, tc runCase) error {
 	client := runtimesandboxd.NewClient(runtimeoci.SandboxdBundleSocketPath(bundlePath))
 	if tc.signalAfter > 0 {
 		time.Sleep(tc.signalAfter)
-		if err := client.SignalWorkload(ctx, "TERM"); err != nil {
+		signalName := tc.signalName
+		if signalName == "" {
+			signalName = "TERM"
+		}
+		if err := client.SignalWorkload(ctx, signalName); err != nil {
 			return caseFailure(fmt.Errorf("signal workload: %w", err))
 		}
 	}

@@ -150,9 +150,13 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary 
 	if err := VerifyPIDInCgroup(cgroupPath, sentryPID); err != nil {
 		return err
 	}
-	expectedBinary, err := os.Stat(runtimeBinary)
+	expectedRunsc, err := os.Stat(runtimeBinary)
 	if err != nil {
 		return fmt.Errorf("stat configured runsc binary: %w", err)
+	}
+	expectedSentry, err := os.Stat(RunscSentryBinary(runtimeBinary))
+	if err != nil {
+		return fmt.Errorf("stat configured gVisor sentry binary: %w", err)
 	}
 	pids, err := cgroupPIDs(cgroupPath)
 	if err != nil {
@@ -174,6 +178,10 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary 
 		if err != nil {
 			return fmt.Errorf("stat runsc process %d executable: %w", pid, err)
 		}
+		expectedBinary := expectedRunsc
+		if isSentry {
+			expectedBinary = expectedSentry
+		}
 		if !os.SameFile(actualBinary, expectedBinary) {
 			return fmt.Errorf("runsc process %d executable identity differs from configured runtime", pid)
 		}
@@ -186,6 +194,23 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary 
 	}
 	if !sentryFound || !goferFound {
 		return fmt.Errorf("runsc cgroup %s attribution incomplete: sentry=%t gofer=%t pids=%d", cgroupPath, sentryFound, goferFound, len(pids))
+	}
+	return nil
+}
+
+// VerifyProcessExecutable proves that pid still executes the configured file.
+// Comparing inode identity avoids trusting process names or command lines.
+func VerifyProcessExecutable(pid int, expectedBinary string) error {
+	process, err := os.Stat(fmt.Sprintf("/proc/%d/exe", pid))
+	if err != nil {
+		return fmt.Errorf("stat runtime process identity: %w", err)
+	}
+	expected, err := os.Stat(expectedBinary)
+	if err != nil {
+		return fmt.Errorf("stat configured runtime binary: %w", err)
+	}
+	if !os.SameFile(process, expected) {
+		return fmt.Errorf("runtime process executable identity changed")
 	}
 	return nil
 }

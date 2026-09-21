@@ -46,6 +46,9 @@ func VerifyCgroupPIDs(string, int, int) error { return fmt.Errorf("cgroup enforc
 func VerifyRunscCgroupProcesses(string, int, string) error {
 	return fmt.Errorf("cgroup enforcement requires Linux")
 }
+func VerifyProcessExecutable(int, string) error {
+	return fmt.Errorf("process executable verification requires Linux")
+}
 func ReadCgroupMemoryBreakdown(string) (map[string]int64, error) {
 	return nil, fmt.Errorf("cgroup memory statistics require Linux")
 }

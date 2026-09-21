@@ -30,19 +30,20 @@ func (r *Registry) Shutdown(ctx context.Context, grace time.Duration) error {
 	if waitManagedProcesses(ctx, active, grace) {
 		return ctx.Err()
 	}
+	callerErr := ctx.Err()
 	remaining := r.activeProcesses()
 	for _, managed := range remaining {
 		if err := managed.kill(); err != nil {
-			return err
+			return errors.Join(callerErr, err)
 		}
 	}
-	if waitManagedProcesses(ctx, remaining, time.Second) {
-		return ctx.Err()
+	// Registry owns the child processes even after its caller stops waiting.
+	// Complete a bounded local SIGKILL/reap phase before returning the caller's
+	// cancellation so an abandoned request cannot leak an Allocation process.
+	if waitManagedProcesses(context.Background(), remaining, time.Second) {
+		return callerErr
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	return errors.New("sandboxd process shutdown timed out")
+	return errors.Join(callerErr, errors.New("sandboxd process shutdown timed out"))
 }
 
 func (r *Registry) activeProcesses() []*managedProcess {
