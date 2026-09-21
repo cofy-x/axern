@@ -50,6 +50,8 @@ verify_sha512() {
 if [ "${RUNSC_CACHE_REFRESH}" != "true" ] && \
    [ -x "${runsc_path}" ] && \
    [ -x "${cache_dir}/gvisor-bin/checkpointgofer" ] && \
+   [ -x "${cache_dir}/gvisor-bin/gvisor_sentry" ] && \
+   [ -x "${cache_dir}/gvisor-bin/runsc-fd-parking" ] && \
    [ "$(cat "${release_path}" 2>/dev/null || true)" = "${AXERN_GVISOR_RELEASE}" ] && \
    [ "$(cat "${archive_digest_path}" 2>/dev/null || true)" = "${RUNSC_ARCHIVE_SHA512}" ] && \
    LC_ALL=C grep -aFq "${AXERN_GVISOR_TAG}" "${runsc_path}"; then
@@ -76,6 +78,12 @@ cp -a "${tmpdir}/extracted/." "${cache_dir}/"
 printf '%s\n' "${AXERN_GVISOR_RELEASE}" > "${release_path}"
 printf '%s\n' "${RUNSC_ARCHIVE_SHA512}" > "${archive_digest_path}"
 chmod 0755 "${runsc_path}" "${cache_dir}/containerd-shim-runsc-v1" "${cache_dir}"/gvisor-bin/*
+for component in checkpointgofer gvisor_sentry runsc-fd-parking; do
+  if [ ! -x "${cache_dir}/gvisor-bin/${component}" ]; then
+    echo "cached gVisor release is missing required component: ${component}" >&2
+    exit 1
+  fi
+done
 LC_ALL=C grep -aFq "${AXERN_GVISOR_TAG}" "${runsc_path}" || {
   echo "cached runsc does not identify the locked gVisor release ${AXERN_GVISOR_TAG}" >&2
   exit 1

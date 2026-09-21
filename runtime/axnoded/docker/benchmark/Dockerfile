@@ -151,7 +151,9 @@ RUN set -eux; \
     fi; \
     install -m 0755 /tmp/gvisor/runsc /usr/local/bin/runsc; \
     if [ -f /tmp/gvisor/containerd-shim-runsc-v1 ]; then install -m 0755 /tmp/gvisor/containerd-shim-runsc-v1 /usr/local/bin/containerd-shim-runsc-v1; fi; \
-    if [ -d /tmp/gvisor/gvisor-bin ]; then mkdir -p /usr/local/bin/gvisor-bin && cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; fi; \
+    for COMPONENT in checkpointgofer gvisor_sentry runsc-fd-parking; do test -x "/tmp/gvisor/gvisor-bin/$COMPONENT"; done; \
+    mkdir -p /usr/local/bin/gvisor-bin; \
+    cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; \
     /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 
