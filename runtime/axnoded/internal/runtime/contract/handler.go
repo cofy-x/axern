@@ -90,6 +90,9 @@ func InconclusiveCapability(err error) CapabilityVerification {
 }
 
 type SandboxRuntime interface {
+	// ConfigurationDigest identifies the loaded execution policy used by probes
+	// and workloads. Configuration changes require a new handler.
+	ConfigurationDigest() (string, error)
 	AllocationEnforcementManifestProvider
 	HostRequirements() HostRequirements
 	Version(context.Context) (*apipb.RuntimeVersion, error)

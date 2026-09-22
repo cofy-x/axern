@@ -74,6 +74,8 @@ type bundleLoaderStub struct {
 	lastExecutionProfile *runtimeoci.ExecutionProfile
 }
 
+func (*bundleLoaderStub) ConfigurationDigest() (string, error) { return "test-loader", nil }
+
 func (l *bundleLoaderStub) PrepareBundleTemplate(runtimeoci.TemplateOptions) (*runtimeoci.BundleTemplate, error) {
 	return &runtimeoci.BundleTemplate{}, nil
 }
@@ -131,7 +133,7 @@ func TestPrepareBundlePrefersRuntimeCgroupPath(t *testing.T) {
 		Command: []string{"/bin/sh"},
 		Mounts:  []*apipb.Mount{{Type: "bind", Source: rootDir, Target: "/", Options: []string{"ro"}}},
 	}
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(rootDir, "containers"))
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}

@@ -2,6 +2,9 @@ package runtime
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"sync"
 	"time"
 
@@ -41,6 +44,19 @@ type runscState struct {
 var (
 	runscForceStopTimeout = 5 * time.Second
 )
+
+func (r *RunscServiceHandler) ConfigurationDigest() (string, error) {
+	loaderDigest, err := r.common.Loader().ConfigurationDigest()
+	if err != nil {
+		return "", err
+	}
+	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.allowSUID, r.ephemeralStorageDefaultLimitBytes})
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(payload)
+	return "sha256:" + hex.EncodeToString(digest[:]), nil
+}
 
 func (r *RunscServiceHandler) FileService() contract.FileService {
 	return r.services.file

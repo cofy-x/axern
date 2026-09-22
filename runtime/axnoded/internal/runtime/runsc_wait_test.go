@@ -41,7 +41,7 @@ func (c *workloadClientStub) WaitWorkload(context.Context) (wire.WorkloadExitRes
 func newRunscWorkloadTestHandler(t *testing.T, client *workloadClientStub) *RunscServiceHandler {
 	t.Helper()
 	rootDir := t.TempDir()
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(rootDir, "containers"))
 	require.NoError(t, err)
 	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestRunscHandlerRejectsWorkloadResultWithoutExitTimestamp(t *testing.T) {
 
 func TestRunscHandlerExitStatePersisterIgnoresTransientExitWhileStateStillRunning(t *testing.T) {
 	rootDir := t.TempDir()
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(rootDir, "containers"))
 	require.NoError(t, err)
 	handler, err := NewRunscServiceHandler(config.Config{RootDir: rootDir}, config.RuntimeInstanceConfig{Binary: "/usr/local/bin/runsc"}, loader)
 	require.NoError(t, err)

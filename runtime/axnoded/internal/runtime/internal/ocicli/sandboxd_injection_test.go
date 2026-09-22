@@ -55,6 +55,8 @@ type sandboxdInjectionLoaderStub struct {
 	lastOptions runtimeoci.LoadOptions
 }
 
+func (*sandboxdInjectionLoaderStub) ConfigurationDigest() (string, error) { return "test-loader", nil }
+
 func (l *sandboxdInjectionLoaderStub) PrepareBundleTemplate(runtimeoci.TemplateOptions) (*runtimeoci.BundleTemplate, error) {
 	return &runtimeoci.BundleTemplate{}, nil
 }

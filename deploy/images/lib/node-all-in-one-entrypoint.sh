@@ -106,8 +106,6 @@ ensure_bpf_fs() {
 ensure_bpf_fs
 
 /usr/local/bin/axern-ensure-loop-devices 8
-# Regenerate the platform projection on every boot, including existing installs.
-/usr/local/bin/axnoded base-spec /etc/axnoded/runsc-config.json
 
 case "${AXNODED_CGROUP_ENFORCEMENT}" in
   required)
@@ -217,7 +215,6 @@ options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
-base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runsc.options]
 allow_suid = true

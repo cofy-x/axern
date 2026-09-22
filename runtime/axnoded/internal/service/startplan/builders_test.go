@@ -28,11 +28,7 @@ func TestTerminalEnvironmentPrecedenceAcrossStartAndTemplate(t *testing.T) {
 			if level == "run" {
 				request.Env["TERM"] = "run"
 			}
-			base := filepath.Join(root, "base.json")
-			if err := oci.WriteBaseSpec(base); err != nil {
-				t.Fatal(err)
-			}
-			loader, err := oci.NewBundleLoader(base, filepath.Join(root, "bundles"))
+			loader, err := oci.NewBundleLoader(filepath.Join(root, "bundles"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -45,6 +41,7 @@ func TestTerminalEnvironmentPrecedenceAcrossStartAndTemplate(t *testing.T) {
 				create := &apipb.CreateContainerRequest{Command: []string{"/bin/true"}, Rootfs: &apipb.Rootfs{RootDir: root}, Envs: BuildStartEnv(lrt, request)}
 				opts := oci.LoadOptions{ContainerID: "allocation", Request: create}
 				if cached {
+					opts.ContainerID = "allocation-template"
 					create.Envs = BuildDynamicStartEnv(request)
 					_, s, err := loader.MaterializeBundle(template, opts)
 					if err != nil {

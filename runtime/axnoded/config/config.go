@@ -122,9 +122,8 @@ type RuntimeConfig struct {
 }
 
 type RuntimeInstanceConfig struct {
-	Binary   string         `toml:"binary" json:"binary"`
-	BaseSpec string         `toml:"base_spec" json:"baseSpec"`
-	Options  RuntimeOptions `toml:"options" json:"options"`
+	Binary  string         `toml:"binary" json:"binary"`
+	Options RuntimeOptions `toml:"options" json:"options"`
 }
 
 type RuntimeOptions struct {
@@ -536,8 +535,7 @@ func DefaultConfig() Config {
 			},
 			RuntimeConfig: RuntimeConfig{
 				Runsc: RuntimeInstanceConfig{
-					Binary:   DefaultRunscBinary,
-					BaseSpec: "/etc/axnoded/runsc-config.json",
+					Binary: DefaultRunscBinary,
 					Options: RuntimeOptions{
 						AllowSUID: boolPtr(true),
 					},

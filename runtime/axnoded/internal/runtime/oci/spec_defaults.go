@@ -2,12 +2,6 @@ package oci
 
 import spec "github.com/opencontainers/runtime-spec/specs-go"
 
-// WriteBaseSpec writes the platform-owned starting point for node workloads.
-// Deployment and verification must not use runtime-generated example specs.
-func WriteBaseSpec(path string) error {
-	return WriteSpecAtomic(path, defaultBundleSpec())
-}
-
 var defaultLinuxCapabilities = []string{
 	"CAP_CHOWN",
 	"CAP_DAC_OVERRIDE",

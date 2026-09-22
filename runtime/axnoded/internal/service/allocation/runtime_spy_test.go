@@ -15,6 +15,8 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
+func (*runtimeSpyHandler) ConfigurationDigest() (string, error) { return "test-runtime", nil }
+
 type runtimeSpyHandler struct {
 	name               string
 	requirements       contract.HostRequirements

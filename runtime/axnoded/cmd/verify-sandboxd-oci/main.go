@@ -18,7 +18,6 @@ import (
 
 type config struct {
 	runtimeBinary  string
-	baseSpec       string
 	rootfs         string
 	sandboxdBinary string
 	workDir        string
@@ -57,7 +56,6 @@ func main() {
 func parseFlags() config {
 	cfg := config{}
 	flag.StringVar(&cfg.runtimeBinary, "runtime-binary", "", "OCI runtime binary path")
-	flag.StringVar(&cfg.baseSpec, "base-spec", "", "node-generated OCI base spec path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "rootfs path")
 	flag.StringVar(&cfg.sandboxdBinary, "sandboxd-binary", "/usr/local/libexec/axnoded/axern-sandboxd", "host axern-sandboxd binary path")
 	flag.StringVar(&cfg.workDir, "work-dir", "", "temporary work directory")
@@ -201,7 +199,7 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 	}
 
-	loader, err := runtimeoci.NewBundleLoader(cfg.baseSpec, filepath.Join(caseDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(caseDir, "containers"))
 	if err != nil {
 		return err
 	}

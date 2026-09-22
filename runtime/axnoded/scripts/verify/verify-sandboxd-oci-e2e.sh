@@ -11,6 +11,14 @@ ensure_verify_image
 
 run_verify_container \
   /bin/bash -lc \
-  'set -e; runtime_binary="$(command -v runsc)"; /usr/local/bin/axnoded base-spec /tmp/node-base.json; /usr/local/bin/verify-sandboxd-oci -base-spec /tmp/node-base.json -runtime-binary "${runtime_binary}" -rootfs /opt/sample-rootfs -sandboxd-binary /usr/local/libexec/axnoded/axern-sandboxd; /usr/local/bin/axnoded base-spec /tmp/node-base.json; /usr/local/bin/verify-sandboxd-oci -base-spec /tmp/node-base.json -use-template -runtime-binary "${runtime_binary}" -rootfs /opt/sample-rootfs -sandboxd-binary /usr/local/libexec/axnoded/axern-sandboxd'
+  'set -e
+   runtime_binary="$(command -v runsc)"
+   for mode in direct template; do
+     args=()
+     if [ "${mode}" = template ]; then args+=(-use-template); fi
+     /usr/local/bin/verify-sandboxd-oci "${args[@]}" \
+       -runtime-binary "${runtime_binary}" -rootfs /opt/sample-rootfs \
+       -sandboxd-binary /usr/local/libexec/axnoded/axern-sandboxd
+   done'
 
 echo "verify_sandboxd_oci_e2e_ok=true"

@@ -77,7 +77,6 @@ cgroup_enforcement = "required"
 
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
-base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runsc.options]
 allow_suid = true

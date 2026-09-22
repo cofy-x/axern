@@ -2,10 +2,9 @@ package oci
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
+	"slices"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -16,6 +15,7 @@ import (
 )
 
 type Loader interface {
+	ConfigurationDigest() (string, error)
 	PrepareBundleTemplate(options TemplateOptions) (*BundleTemplate, error)
 	MaterializeBundle(template *BundleTemplate, options LoadOptions) (string, *spec.Spec, error)
 	Generate(options LoadOptions) (string, *spec.Spec, error)
@@ -86,7 +86,7 @@ func WithRuntimeDNSConfig(dns RuntimeDNSConfig) BundleLoaderOption {
 }
 
 // NewBundleLoader creates a loader that materializes OCI bundle specs under bundleDir.
-func NewBundleLoader(baseFile, bundleDir string, options ...BundleLoaderOption) (*BundleLoader, error) {
+func NewBundleLoader(bundleDir string, options ...BundleLoaderOption) (*BundleLoader, error) {
 	loaderConfig := defaultBundleLoaderConfig()
 	for _, option := range options {
 		if option != nil {
@@ -95,16 +95,13 @@ func NewBundleLoader(baseFile, bundleDir string, options ...BundleLoaderOption) 
 	}
 
 	bs := defaultBundleSpec()
-	if baseFile != "" {
-		bst, err := LoadSpec(baseFile)
-		if err != nil {
-			return nil, fmt.Errorf("load configured OCI base spec %q: %w", baseFile, err)
-		}
-		bs = bst
-	}
-	// Base files describe platform defaults, before image and caller environment
-	// is merged. A runtime's sample terminal environment is not workload intent.
-	applyBaseEnvironment(bs)
+	// The handler owns its startup policy, including caller-owned option slices.
+	loaderConfig.profile.Baseline.Capabilities = slices.Clone(loaderConfig.profile.Baseline.Capabilities)
+	dns := &loaderConfig.runtimeFiles.DNS
+	dns.Nameservers = slices.Clone(dns.Nameservers)
+	dns.SearchDomains = slices.Clone(dns.SearchDomains)
+	dns.Options = slices.Clone(dns.Options)
+	dns.HostResolvConfPaths = slices.Clone(dns.HostResolvConfPaths)
 
 	if _, err := os.Stat(bundleDir); os.IsNotExist(err) {
 		if err = os.MkdirAll(bundleDir, 0755); err != nil {
@@ -117,20 +114,6 @@ func NewBundleLoader(baseFile, bundleDir string, options ...BundleLoaderOption) 
 		specBuilder:     newSpecBuilder(loaderConfig.profile),
 		runtimeFiles:    loaderConfig.runtimeFiles.withDefaults(),
 	}, nil
-}
-
-func applyBaseEnvironment(s *spec.Spec) {
-	if s.Process == nil {
-		return
-	}
-	s.Process.Terminal = false
-	env := s.Process.Env[:0]
-	for _, value := range s.Process.Env {
-		if value != "TERM" && !strings.HasPrefix(value, "TERM=") {
-			env = append(env, value)
-		}
-	}
-	s.Process.Env = env
 }
 
 func (r *BundleLoader) PrepareBundleTemplate(options TemplateOptions) (*BundleTemplate, error) {
