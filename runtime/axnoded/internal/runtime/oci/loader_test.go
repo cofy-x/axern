@@ -703,6 +703,9 @@ func TestDefaultBundleSpecUsesGenericRuntimeDefaults(t *testing.T) {
 	if !hasEnvValue(spec.Process.Env, "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin") {
 		t.Fatalf("default PATH missing generic runtime value: %v", spec.Process.Env)
 	}
+	if hasEnv(spec.Process.Env, "TERM") {
+		t.Fatalf("non-terminal workload env unexpectedly contains TERM: %v", spec.Process.Env)
+	}
 	if !hasMount(spec.Mounts, "/dev/pts") {
 		t.Fatalf("default mounts missing /dev/pts for tty exec support: %v", spec.Mounts)
 	}

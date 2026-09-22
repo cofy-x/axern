@@ -144,7 +144,7 @@ Process execution uses one identity model:
 - present `user`: resolve `/etc/passwd` and `/etc/group`, apply uid/gid/groups, and set HOME, USER, LOGNAME, and SHELL defaults.
 - request env applies after daemon base env and resolved user env.
 - omitted cwd with a resolved user home uses that home when the base cwd is root-like; explicit cwd always wins.
-- PTY and non-PTY processes share identity, cwd, env, wait, and signal rules.
+- PTY and non-PTY processes share identity, cwd, env, wait, and signal rules. A non-PTY workload does not receive a synthetic `TERM`; callers may provide one explicitly, while Terminal and SSH sessions set `TERM` together with their PTY contract.
 
 ## Security Contract
 

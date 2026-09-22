@@ -29,7 +29,6 @@ func defaultBundleSpec() *spec.Spec {
 			},
 			Env: []string{
 				"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-				"TERM=xterm",
 			},
 			Cwd: "/",
 			Capabilities: &spec.LinuxCapabilities{
