@@ -18,6 +18,7 @@ import (
 
 type config struct {
 	runtimeBinary  string
+	baseSpec       string
 	rootfs         string
 	sandboxdBinary string
 	workDir        string
@@ -56,6 +57,7 @@ func main() {
 func parseFlags() config {
 	cfg := config{}
 	flag.StringVar(&cfg.runtimeBinary, "runtime-binary", "", "OCI runtime binary path")
+	flag.StringVar(&cfg.baseSpec, "base-spec", "", "node-generated OCI base spec path")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "rootfs path")
 	flag.StringVar(&cfg.sandboxdBinary, "sandboxd-binary", "/usr/local/libexec/axnoded/axern-sandboxd", "host axern-sandboxd binary path")
 	flag.StringVar(&cfg.workDir, "work-dir", "", "temporary work directory")
@@ -97,6 +99,14 @@ func run(cfg config) error {
 			argv:        []string{"/bin/sh", "-c", "if [ \"${TERM+x}\" = x ]; then exit 41; fi; printf 'nonterminal-environment-ok\\n'"},
 			expected:    0,
 			expectOut:   []string{"nonterminal-environment-ok"},
+			expectReady: true,
+		},
+		{
+			name:        "explicit-terminal-environment",
+			argv:        []string{"/bin/sh", "-c", "test \"$TERM\" = caller-term && printf 'explicit-terminal-environment-ok\\n'"},
+			env:         []*apipb.KeyValue{{Key: "TERM", Value: "image-term"}, {Key: "TERM", Value: "caller-term"}},
+			expected:    0,
+			expectOut:   []string{"explicit-terminal-environment-ok"},
 			expectReady: true,
 		},
 		{
@@ -191,7 +201,7 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 	}
 
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(caseDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(cfg.baseSpec, filepath.Join(caseDir, "containers"))
 	if err != nil {
 		return err
 	}

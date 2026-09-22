@@ -1,13 +1,80 @@
 package startplan
 
 import (
+	"path/filepath"
 	"reflect"
 	"testing"
 	"unsafe"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 )
+
+func TestTerminalEnvironmentPrecedenceAcrossStartAndTemplate(t *testing.T) {
+	for _, level := range []string{"image", "environment", "run"} {
+		t.Run(level, func(t *testing.T) {
+			root := t.TempDir()
+			rf := &environmentcache.RootFS{}
+			setRootFSPath(t, rf, root)
+			field := reflect.ValueOf(rf).Elem().FieldByName("env")
+			reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf([]string{"TERM=image"}))
+			lrt := &environmentcache.PreparedEnvironment{RootFS: rf}
+			request := &apipb.StartRequest{Environment: &apipb.ResolvedEnvironment{}, Env: map[string]string{}}
+			if level != "image" {
+				lrt.Env = map[string]string{"TERM": "environment"}
+				request.Environment.Env = lrt.Env
+			}
+			if level == "run" {
+				request.Env["TERM"] = "run"
+			}
+			base := filepath.Join(root, "base.json")
+			if err := oci.WriteBaseSpec(base); err != nil {
+				t.Fatal(err)
+			}
+			loader, err := oci.NewBundleLoader(base, filepath.Join(root, "bundles"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			static := &apipb.CreateContainerRequest{Command: []string{"/bin/true"}, Envs: BuildStaticRuntimeEnv(lrt)}
+			template, err := loader.PrepareBundleTemplate(oci.TemplateOptions{Request: static})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, cached := range []bool{false, true} {
+				create := &apipb.CreateContainerRequest{Command: []string{"/bin/true"}, Rootfs: &apipb.Rootfs{RootDir: root}, Envs: BuildStartEnv(lrt, request)}
+				opts := oci.LoadOptions{ContainerID: "allocation", Request: create}
+				if cached {
+					create.Envs = BuildDynamicStartEnv(request)
+					_, s, err := loader.MaterializeBundle(template, opts)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !containsEnv(s.Process.Env, "TERM="+level) {
+						t.Fatalf("template env: %v", s.Process.Env)
+					}
+				} else {
+					_, s, err := loader.Generate(opts)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !containsEnv(s.Process.Env, "TERM="+level) {
+						t.Fatalf("direct env: %v", s.Process.Env)
+					}
+				}
+			}
+		})
+	}
+}
+
+func containsEnv(env []string, want string) bool {
+	for _, v := range env {
+		if v == want {
+			return true
+		}
+	}
+	return false
+}
 
 func TestBuildContainerRootfsPreservesPreparedEnvironmentSettings(t *testing.T) {
 	rootfsDir := t.TempDir()

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -101,6 +102,9 @@ func NewBundleLoader(baseFile, bundleDir string, options ...BundleLoaderOption) 
 		}
 		bs = bst
 	}
+	// Base files describe platform defaults, before image and caller environment
+	// is merged. A runtime's sample terminal environment is not workload intent.
+	applyBaseEnvironment(bs)
 
 	if _, err := os.Stat(bundleDir); os.IsNotExist(err) {
 		if err = os.MkdirAll(bundleDir, 0755); err != nil {
@@ -113,6 +117,20 @@ func NewBundleLoader(baseFile, bundleDir string, options ...BundleLoaderOption) 
 		specBuilder:     newSpecBuilder(loaderConfig.profile),
 		runtimeFiles:    loaderConfig.runtimeFiles.withDefaults(),
 	}, nil
+}
+
+func applyBaseEnvironment(s *spec.Spec) {
+	if s.Process == nil {
+		return
+	}
+	s.Process.Terminal = false
+	env := s.Process.Env[:0]
+	for _, value := range s.Process.Env {
+		if value != "TERM" && !strings.HasPrefix(value, "TERM=") {
+			env = append(env, value)
+		}
+	}
+	s.Process.Env = env
 }
 
 func (r *BundleLoader) PrepareBundleTemplate(options TemplateOptions) (*BundleTemplate, error) {

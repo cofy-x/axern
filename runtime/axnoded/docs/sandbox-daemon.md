@@ -144,7 +144,7 @@ Process execution uses one identity model:
 - present `user`: resolve `/etc/passwd` and `/etc/group`, apply uid/gid/groups, and set HOME, USER, LOGNAME, and SHELL defaults.
 - request env applies after daemon base env and resolved user env.
 - omitted cwd with a resolved user home uses that home when the base cwd is root-like; explicit cwd always wins.
-- PTY and non-PTY processes share identity, cwd, env, wait, and signal rules. A non-PTY workload does not receive a synthetic `TERM`; callers may provide one explicitly, while Terminal and SSH sessions set `TERM` together with their PTY contract.
+- PTY and non-PTY processes share identity, cwd, env, wait, and signal rules. The OCI package owns the platform base spec, emitted by `axnoded base-spec OUTPUT`; the production entrypoint regenerates this projection atomically on every boot. The loader enforces non-terminal base semantics before preparing any template or merging image and request environment, including when loading an existing configured file. Base-spec `TERM` is not workload intent; image, Environment, and Run values override in that order and remain intact. Terminal and SSH sessions set `TERM` together with their PTY contract. Prepared templates are process-local and rebuilt after node restart; already running Allocations retain their accepted environment.
 
 ## Security Contract
 
