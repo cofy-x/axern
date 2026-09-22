@@ -25,9 +25,11 @@ egressd-test: ## Run egressd tests
 egressd-verify: ## Run egressd tests, race checks, and vet
 	@$(call run_subsystem_make,$(EGRESSD_DIR),verify)
 
-network-policy-fuzz-smoke: ## Run bounded fuzz smoke for policy normalization and trusted egress parsers
-	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizeDomain$$' -fuzztime=3s -parallel=1 .
-	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizePolicy$$' -fuzztime=3s -parallel=1 .
+# A smoke budget counts inputs; the test timeout is a separate failure bound.
+# Duration-based fuzz termination can report a false deadline failure (Go #75804).
+network-policy-fuzz-smoke: ## Run count-bounded fuzz smoke for policy normalization and trusted egress parsers
+	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizeDomain$$' -fuzztime=100000x -timeout=2m -parallel=1 .
+	@$(GO) -C lib/go/networkpolicy test -run='^$$' -fuzz='^FuzzNormalizePolicy$$' -fuzztime=100000x -timeout=2m -parallel=1 .
 	@$(call run_subsystem_make,$(EGRESSD_DIR),fuzz-smoke)
 
 network-policy-qualification-contract: ## Validate network-policy qualification schemas and relative budgets

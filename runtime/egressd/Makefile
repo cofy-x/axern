@@ -16,11 +16,12 @@ verify: ## Run egressd tests, race checks, and vet
 	$(GO) test -race ./...
 	$(GO) vet ./...
 
-fuzz-smoke: ## Run bounded fuzz smoke for trusted policy parsers
-	$(GO) test -run='^$$' -fuzz='^FuzzInspectMessage$$' -fuzztime=3s -parallel=1 ./internal/dnsforward
-	$(GO) test -run='^$$' -fuzz='^FuzzStrictDNSAuthorizations$$' -fuzztime=3s -parallel=1 ./internal/enforcement
-	$(GO) test -run='^$$' -fuzz='^FuzzReadHTTPRequest$$' -fuzztime=3s -parallel=1 ./internal/l7inspect
-	$(GO) test -run='^$$' -fuzz='^FuzzParseClientHello$$' -fuzztime=3s -parallel=1 ./internal/l7inspect
+# Match the root policy smoke: count completed inputs, fail on a hard timeout.
+fuzz-smoke: ## Run count-bounded fuzz smoke for trusted policy parsers
+	$(GO) test -run='^$$' -fuzz='^FuzzInspectMessage$$' -fuzztime=100000x -timeout=2m -parallel=1 ./internal/dnsforward
+	$(GO) test -run='^$$' -fuzz='^FuzzStrictDNSAuthorizations$$' -fuzztime=100000x -timeout=2m -parallel=1 ./internal/enforcement
+	$(GO) test -run='^$$' -fuzz='^FuzzReadHTTPRequest$$' -fuzztime=100000x -timeout=2m -parallel=1 ./internal/l7inspect
+	$(GO) test -run='^$$' -fuzz='^FuzzParseClientHello$$' -fuzztime=100000x -timeout=2m -parallel=1 ./internal/l7inspect
 
 qualification-contract: ## Validate the machine-readable qualification and relative-budget contract
 	$(GO) test ./internal/qualification ./cmd/egressd-qualify
