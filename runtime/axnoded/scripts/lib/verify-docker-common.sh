@@ -286,7 +286,7 @@ raise SystemExit(1)
 import_oci_image_to_node() {
   local image_ref="$1"
   local node_container_name="$2"
-  local encoded_ref image_archive
+  local encoded_ref image_archive import_response
 
   image_archive="$(mktemp)"
 
@@ -301,17 +301,18 @@ import urllib.parse
 print(urllib.parse.quote(sys.argv[1], safe=""))
 PY
 )"
-  if ! docker exec -i "${node_container_name}" curl \
+  if ! import_response="$(docker exec -i "${node_container_name}" curl \
     -fsS \
     --unix-socket /run/imagemgr/imagemgr.sock \
     -H "Content-Type: application/x-tar" \
     --data-binary @- \
     "http://unix/oci_import?ref=${encoded_ref}" \
-    <"${image_archive}" >/dev/null; then
+    <"${image_archive}")"; then
     rm -f "${image_archive}"
     return 1
   fi
   rm -f "${image_archive}"
+  python3 -c 'import json,sys; print(json.load(sys.stdin)["immutable_ref"])' <<<"${import_response}"
 }
 
 # Publish a cached image through the repository-managed registry. Callers that
