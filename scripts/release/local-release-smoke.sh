@@ -18,7 +18,7 @@ cleanup() {
 
 diagnostics() {
   echo "local release smoke failed; collecting diagnostics" >&2
-  for output in run.stdout run.stderr snapshot.stdout snapshot.stderr branch-a.stdout branch-a.stderr branch-b.stdout branch-b.stderr exit.stdout exit.stderr external-push.log external-tag-environment.json external-environment.json external-doctor.json external-run.stdout external-run.stderr; do
+  for output in run.stdout run.stderr snapshot.stdout snapshot.stderr branch-a.stdout branch-a.stderr branch-b.stdout branch-b.stderr exit.stdout exit.stderr dns-doctor.json external-push.log external-tag-environment.json external-environment.json external-doctor.json external-run.stdout external-run.stderr; do
     if [[ -s "${smoke_root}/${output}" ]]; then
       echo "--- ${output} ---" >&2
       sed -n '1,240p' "${smoke_root}/${output}" >&2
@@ -58,6 +58,25 @@ common=(--config "${config}" --timeout 10m)
 "${cli}" "${common[@]}" local up --use
 "${cli}" "${common[@]}" local status --output json | grep -q '"state": "running"'
 "${cli}" "${common[@]}" local image load python:3.12-slim --pull
+"${cli}" "${common[@]}" local doctor --probe --image python:3.12-slim --output json >"${smoke_root}/dns-doctor.json"
+python3 - "${smoke_root}/dns-doctor.json" <<'PY'
+import json
+import sys
+
+report = json.load(open(sys.argv[1], encoding="utf-8"))
+if report.get("status") != "healthy" or report.get("mode") != "probe":
+    raise SystemExit("source-free DNS probe was not healthy")
+checks = {check["name"]: check for check in report["checks"]}
+expected = {
+    "runtime_dns_config": "runtime_dns_config_valid",
+    "runtime_dns_node": "runtime_dns_node_reachable",
+    "runtime_dns_sandbox": "runtime_dns_sandbox_resolved",
+}
+for name, code in expected.items():
+    check = checks.get(name, {})
+    if check.get("status") != "pass" or check.get("code") != code:
+        raise SystemExit(f"source-free DNS probe failed: {name}")
+PY
 
 internal_registry_container="$(docker ps \
   --filter label=com.docker.compose.project=axern-local \
