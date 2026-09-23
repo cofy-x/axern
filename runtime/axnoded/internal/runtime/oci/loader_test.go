@@ -32,6 +32,58 @@ func newTestBundleLoader(t *testing.T, baseFile, bundleDir string, options ...Bu
 	return loader, nil
 }
 
+func TestDirectAndTemplateBundlesPreservePrivateNetworkNamespace(t *testing.T) {
+	loader, err := newTestBundleLoader(t, "", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &apipb.CreateContainerRequest{
+		Command: []string{"/bin/true"},
+		Rootfs:  &apipb.Rootfs{RootDir: t.TempDir()},
+	}
+	template, err := loader.PrepareBundleTemplate(TemplateOptions{Request: request})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name      string
+		namespace string
+	}{
+		{name: "isolated"},
+		{name: "connected", namespace: "/run/netns/connected"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			for _, materialized := range []bool{false, true} {
+				options := LoadOptions{ContainerID: test.name, Request: request, NetworkNamespacePath: test.namespace}
+				if materialized {
+					options.ContainerID += "-template"
+				}
+				var generated *spec.Spec
+				if materialized {
+					_, generated, err = loader.MaterializeBundle(template, options)
+				} else {
+					_, generated, err = loader.Generate(options)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				found := false
+				for _, namespace := range generated.Linux.Namespaces {
+					if namespace.Type == spec.NetworkNamespace {
+						found = true
+						if namespace.Path != test.namespace {
+							t.Fatalf("network namespace path = %q, want %q", namespace.Path, test.namespace)
+						}
+					}
+				}
+				if !found {
+					t.Fatal("OCI network namespace is absent")
+				}
+			}
+		})
+	}
+}
+
 func TestCombineEnvs(t *testing.T) {
 	tests := []struct {
 		name    string

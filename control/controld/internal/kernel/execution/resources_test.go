@@ -7,6 +7,7 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestNormalizeConfigDefaultsUnsetResources(t *testing.T) {
@@ -72,6 +73,30 @@ func TestNormalizeConfigCanonicalizesNetworkPolicy(t *testing.T) {
 	}})
 	if got := cfg.GetNetwork().GetEgressPolicy().GetDnsDeny().GetDeniedDomains(); len(got) != 1 || got[0] != "example.com" {
 		t.Fatalf("normalized domains = %v", got)
+	}
+}
+
+func TestDenyAllSurvivesRunConfigStorageRoundTrip(t *testing.T) {
+	config := NormalizeConfig(&commonv1.ExecutionConfig{Network: &commonv1.NetworkSpec{
+		EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}},
+	}})
+	if config.GetNetwork().GetMode() != commonv1.NetworkMode_NETWORK_MODE_ISOLATED || config.GetNetwork().GetEgressPolicy() != nil {
+		t.Fatalf("deny-all normalized to %#v, want isolated mode without parallel egress policy", config.GetNetwork())
+	}
+	payload, err := protojson.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var read commonv1.ExecutionConfig
+	if err := protojson.Unmarshal(payload, &read); err != nil {
+		t.Fatal(err)
+	}
+	if read.GetNetwork().GetMode() != commonv1.NetworkMode_NETWORK_MODE_ISOLATED {
+		t.Fatalf("stored Run read lost deny-all: %s", payload)
+	}
+	defaultConfig := NormalizeConfig(&commonv1.ExecutionConfig{})
+	if defaultConfig.GetNetwork().GetMode() == commonv1.NetworkMode_NETWORK_MODE_ISOLATED {
+		t.Fatal("omitted policy unexpectedly became isolated")
 	}
 }
 

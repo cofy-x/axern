@@ -10,7 +10,7 @@ CIDR rules name an IPv4 or IPv6 prefix, TCP or UDP, and one or more inclusive po
 
 `dns_deny` is a DNS-only convenience policy. Matching conventional UDP/TCP DNS queries, including a matching name in a CNAME chain, receive `REFUSED`. Other traffic is unchanged. In particular, direct IP, DoH, DoT, cached addresses, and application-owned resolvers are outside this policy. Product surfaces must not describe it as strict egress enforcement.
 
-Omitting egress policy leaves networking unrestricted. Host networking conflicts with every policy and is rejected at API creation. Isolated networking canonicalizes to strict deny-all, which has the same enforcement requirement as an explicit strict policy with no allow rules.
+Omitting egress policy leaves networking unrestricted. Host networking conflicts with every policy and is rejected at API creation. A strict policy with no allow rules canonicalizes to isolated networking: the Allocation receives a fresh OCI network namespace without a host interface, gateway, or route. This blocks direct-IP traffic as well as DNS and HTTP/HTTPS; an isolated Allocation also has no reachable sandbox port for Tunnel access. The absence of a connected interface is checked before runtime activation. It does not depend on egressd's source-IP firewall rules.
 
 ## Canonical rules
 
@@ -20,7 +20,7 @@ CIDRs are masked to their canonical prefix. Protocol is explicit, and every port
 
 ## Admission and rollout boundary
 
-The shared node-capability definition registry derives `DNS_POLICY_ENFORCEMENT` for `dns_deny` and `STRICT_EGRESS_ENFORCEMENT` for a strict policy that requires egressd. Both capabilities use `FAIL_STOP`. Controld includes the derived key in placement and durable admission evidence. Axnoded must independently derive the same requirement before side effects and verify it again before the user process starts.
+The shared node-capability definition registry derives `DNS_POLICY_ENFORCEMENT` for `dns_deny` and `STRICT_EGRESS_ENFORCEMENT` for a strict policy with allow rules that requires egressd. Both capabilities use `FAIL_STOP`. Controld includes the derived key in placement and durable admission evidence. Axnoded must independently derive the same requirement before side effects and verify it again before the user process starts. Isolated deny-all instead relies on the runtime's private, unconnected OCI network namespace and does not request an egressd capability or policy record.
 
 Nodes without egressd publish the corresponding self-test facts as `UNAVAILABLE/DISABLED`; policy workloads therefore remain unschedulable rather than running without enforcement. Changes to this contract deploy matching control-plane and node binaries together.
 

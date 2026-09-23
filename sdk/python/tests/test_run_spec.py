@@ -12,6 +12,7 @@ from axern_sdk import (
     AsyncSandbox,
     AxernClient,
     ImageMount,
+    NetworkPolicy,
     Sandbox,
     SecretEnvVar,
     SecretFile,
@@ -39,6 +40,22 @@ class _AsyncRunStub:
 
 
 class RunSpecTest(unittest.TestCase):
+    def test_deny_all_and_omitted_policy_have_distinct_wire_contracts(self) -> None:
+        client = AxernClient.__new__(AxernClient)
+        stub = _RunStub()
+        cast(Any, client).runs = stub
+
+        client.create_run(environment_id="env-1", network_policy=NetworkPolicy.deny_all())
+        assert stub.request is not None
+        policy = stub.request.config.network.egress_policy
+        self.assertEqual(policy.WhichOneof("policy"), "strict")
+        self.assertEqual(len(policy.strict.allowed_domains), 0)
+        self.assertEqual(len(policy.strict.allowed_cidrs), 0)
+
+        client.create_run(environment_id="env-1")
+        assert stub.request is not None
+        self.assertFalse(stub.request.config.HasField("network"))
+
     def test_sync_create_run_builds_projection_contract(self) -> None:
         client = AxernClient.__new__(AxernClient)
         stub = _RunStub()
@@ -166,6 +183,20 @@ class RunSpecTest(unittest.TestCase):
 
 
 class AsyncRunSpecTest(unittest.IsolatedAsyncioTestCase):
+    async def test_async_deny_all_preserves_empty_strict_policy(self) -> None:
+        client = AsyncAxernClient.__new__(AsyncAxernClient)
+        stub = _AsyncRunStub()
+        raw_client = cast(Any, client)
+        raw_client._channel = object()
+        raw_client._loop = None
+        raw_client._runs = stub
+        raw_client._environments = object()
+        raw_client._tunnels = object()
+
+        await client.create_run(environment_id="env-1", network_policy=NetworkPolicy.deny_all())
+        assert stub.request is not None
+        self.assertEqual(stub.request.config.network.egress_policy.WhichOneof("policy"), "strict")
+
     async def test_async_create_run_builds_projection_contract(self) -> None:
         client = AsyncAxernClient.__new__(AsyncAxernClient)
         stub = _AsyncRunStub()
