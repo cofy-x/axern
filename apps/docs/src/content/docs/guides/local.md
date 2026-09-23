@@ -75,12 +75,14 @@ On native Linux, `local up` snapshots the first resolver file that contains usab
 To verify the same DNS materialization through a real `runsc` OCI sandbox, run:
 
 ```bash
-axern local doctor --probe
+axern local doctor --probe --image python:3.12-slim
 ```
 
 The sandbox check (`runtime_dns_sandbox`) uses the public Namespace, Secret, Environment, and Run APIs. Cleanup cancels an active Run, then deletes the Environment, Secret, and Namespace in dependency order after success, failure, timeout, or cancellation. The terminal Run remains as normal control-plane history. The default query is the project-controlled absolute name `axern.cofy-x.space.`. Managed-network users can select a private name with `--dns-query-name`; the value is injected through the temporary Secret and is not returned in doctor JSON details or Run arguments.
 
 The probe always connects to the product-owned `local` context and ignores a currently selected remote context. Explicit remote endpoint or TLS overrides are rejected. Sandbox execution defaults to five minutes; adjust it with `--probe-timeout`. An explicit `--image` is required; sandbox-only options require `--probe`. A cleanup failure is a required failure and should be remediated by inspecting probe-labeled local resources before retrying.
+
+The image must be available to the local stack; use `axern local image load python:3.12-slim --pull` first if needed. The source-free release gate runs this probe on native Linux amd64 and arm64. That result does not qualify Docker Desktop, VPN or split-DNS behavior on another host. Validate those environments with the same probe and a name served by the intended resolver.
 
 VPNs and managed networks sometimes require a resolver that is not visible in the Node container's effective configuration. Set an explicit comma-separated list before starting or recreating the local stack:
 
