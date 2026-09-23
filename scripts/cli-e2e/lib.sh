@@ -323,5 +323,8 @@ ensure_python_runtime_image_once() {
 }
 
 import_python_runtime_image_once() {
-  import_oci_image_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}"
+  # The imported archive contains one platform manifest, which need not have
+  # the upstream multi-platform tag digest. Run against the exact imported
+  # content so this test never depends on a later registry fetch.
+  PYTHON_RUNTIME_IMAGE_REF="$(import_oci_image_to_node "${PYTHON_RUNTIME_IMAGE_REF}" "${NODE_CONTAINER_NAME}")"
 }

@@ -64,12 +64,17 @@ for contract in (
     'Content-Type: application/x-tar',
     "--data-binary @-",
     'http://unix/oci_import?ref=${encoded_ref}',
+    'json.load(sys.stdin)["immutable_ref"]',
 ):
     if contract not in image_import:
         raise SystemExit(f"verify OCI image import is missing the streaming API contract: {contract}")
 for obsolete in ("archive_path", "docker cp", "Content-Type: application/json"):
     if obsolete in image_import:
         raise SystemExit(f"verify OCI image import retains the obsolete file API contract: {obsolete}")
+
+cli_e2e = (root / "scripts/cli-e2e/lib.sh").read_text()
+if 'PYTHON_RUNTIME_IMAGE_REF="$(import_oci_image_to_node' not in cli_e2e:
+    raise SystemExit("CLI E2E must execute the immutable image returned by node import")
 
 node_runtime_dockerfile = (root / "deploy/images/lib/node-runtime-base.Dockerfile").read_text()
 for contract in (
