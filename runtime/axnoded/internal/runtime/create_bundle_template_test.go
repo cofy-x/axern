@@ -89,6 +89,8 @@ type trackingBundleLoader struct {
 	lastLoadExecutionProfile     *runtimeoci.ExecutionProfile
 }
 
+func (*trackingBundleLoader) ConfigurationDigest() (string, error) { return "test-loader", nil }
+
 func (l *trackingBundleLoader) PrepareBundleTemplate(options runtimeoci.TemplateOptions) (*runtimeoci.BundleTemplate, error) {
 	l.prepareCalls++
 	l.lastTemplateExecutionProfile = options.ExecutionProfile

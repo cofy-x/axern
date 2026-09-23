@@ -17,7 +17,7 @@ import (
 func TestRunscPrepareContainerUsesCreate(t *testing.T) {
 	rootDir := t.TempDir()
 	writeFakeSandboxdBinary(t, rootDir)
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(rootDir, "containers"))
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -51,7 +51,7 @@ func TestRunscPrepareContainerUsesCreate(t *testing.T) {
 
 func TestRunscStartPreparedContainerUsesStart(t *testing.T) {
 	rootDir := t.TempDir()
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(rootDir, "containers"))
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}

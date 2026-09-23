@@ -12,9 +12,63 @@ import (
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
+
+type loadedConformanceRuntime struct {
+	*runtimetest.FakeSandboxRuntime
+	loader *oci.BundleLoader
+}
+
+func (h *loadedConformanceRuntime) ConfigurationDigest() (string, error) {
+	return h.loader.ConfigurationDigest()
+}
+
+func TestRuntimeConformanceUsesLoadedPolicyNotFiles(t *testing.T) {
+	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
+	root := t.TempDir()
+	loader, err := oci.NewBundleLoader(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler := &loadedConformanceRuntime{runtimetest.NewFakeSandboxRuntime(), loader}
+	calls := 0
+	p := runtimeConformanceCapabilityProvider(cfg, handler, runtimeConformanceKindMemory, testCapabilityBootID, func(context.Context, runtimeConformanceKind) error { calls++; return nil })
+	before, _, configBefore, err := p.runtimeIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	actual, err := handler.ConfigurationDigest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if configBefore != actual {
+		t.Fatal("conformance did not identify actual handler")
+	}
+	if _, err := p.Observe(t.Context(), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "runsc-config.json"), []byte(`{"process":{"env":["TERM=xterm"]}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	allow := false
+	p.cfg.PluginConfig.RuntimeConfig.Runsc.Options.AllowSUID = &allow
+	after, _, _, err := p.runtimeIdentity()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before != after {
+		t.Fatal("unloaded config was used to identify existing handler")
+	}
+	if _, err := p.Observe(t.Context(), time.Now().Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatal("unloaded configuration triggered destructive recertification")
+	}
+}
 
 func TestRuntimeConformanceDefersMissingAdmissionCapacityWithoutLatchingFailure(t *testing.T) {
 	cfg := runtimeConformanceTestConfig(t, config.CgroupEnforcementRequired)
@@ -236,15 +290,14 @@ func runtimeConformanceTestConfig(t *testing.T, cgroupMode string) config.Config
 	t.Helper()
 	directory := t.TempDir()
 	binary := filepath.Join(directory, "runtime")
-	baseSpec := filepath.Join(directory, "config.json")
-	for path, payload := range map[string]string{binary: "runtime", baseSpec: "{}"} {
+	for path, payload := range map[string]string{binary: "runtime"} {
 		if err := os.WriteFile(path, []byte(payload), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
 	return config.Config{PluginConfig: config.PluginConfig{RuntimeConfig: config.RuntimeConfig{
 		CgroupEnforcement: cgroupMode,
-		Runsc:             config.RuntimeInstanceConfig{Binary: binary, BaseSpec: baseSpec},
+		Runsc:             config.RuntimeInstanceConfig{Binary: binary},
 	}}}
 }
 

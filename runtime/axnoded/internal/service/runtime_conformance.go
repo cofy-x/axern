@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -257,21 +256,10 @@ func (p *runtimeConformanceProvider) runtimeIdentity() (identity, binaryDigest, 
 	if err != nil {
 		return "", "", "", fmt.Errorf("digest runtime binary: %w", err)
 	}
-	baseSpecDigest, err := p.digestCache.Digest(runtimeCfg.BaseSpec)
+	configDigest, err = p.handler.ConfigurationDigest()
 	if err != nil {
-		return "", "", "", fmt.Errorf("digest runtime base spec: %w", err)
+		return "", "", "", fmt.Errorf("identify loaded runtime configuration: %w", err)
 	}
-	mode, err := p.cfg.PluginConfig.RuntimeConfig.CgroupEnforcementMode()
-	if err != nil {
-		return "", "", "", err
-	}
-	options, err := json.Marshal(runtimeCfg.Options)
-	if err != nil {
-		return "", "", "", fmt.Errorf("marshal runtime options: %w", err)
-	}
-	configPayload := strings.Join([]string{baseSpecDigest, string(options), mode}, "\x00")
-	digest := sha256.Sum256([]byte(configPayload))
-	configDigest = "sha256:" + hex.EncodeToString(digest[:])
 	return binaryDigest + ":" + configDigest, binaryDigest, configDigest, nil
 }
 

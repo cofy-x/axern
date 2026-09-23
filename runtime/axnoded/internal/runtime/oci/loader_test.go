@@ -17,17 +17,19 @@ import (
 
 func newTestBundleLoader(t *testing.T, baseFile, bundleDir string, options ...BundleLoaderOption) (*BundleLoader, error) {
 	t.Helper()
-	loader, err := NewBundleLoader(baseFile, bundleDir, options...)
+	loader, err := NewBundleLoader(bundleDir, options...)
 	if err != nil {
 		return nil, err
 	}
-	return loader, nil
-}
-
-func TestNewBundleLoaderRejectsMissingConfiguredBaseSpec(t *testing.T) {
-	if _, err := NewBundleLoader(filepath.Join(t.TempDir(), "missing.json"), t.TempDir()); err == nil {
-		t.Fatal("NewBundleLoader accepted a missing configured base spec")
+	// Synthetic input is only used to exercise the builder's baseline policy;
+	// production loaders do not accept external OCI specs.
+	if baseFile != "" {
+		loader.baseSpec, err = LoadSpec(baseFile)
+		if err != nil {
+			return nil, err
+		}
 	}
+	return loader, nil
 }
 
 func TestCombineEnvs(t *testing.T) {
@@ -111,34 +113,28 @@ func TestGenerateRejectsMissingProcessArgs(t *testing.T) {
 	}
 }
 
-func TestGeneratePreservesCustomBaseProcessArgsWhenCommandEmpty(t *testing.T) {
-	baseFile := filepath.Join(t.TempDir(), "config.json")
-	base := defaultBundleSpec()
-	base.Process.Args = []string{"/image-entrypoint", "serve"}
-	data, err := json.Marshal(base)
-	if err != nil {
-		t.Fatalf("marshal base spec: %v", err)
-	}
-	if err := os.WriteFile(baseFile, data, 0644); err != nil {
-		t.Fatalf("write base spec: %v", err)
-	}
-	loader, err := newTestBundleLoader(t, baseFile, t.TempDir())
+func TestMaterializePreservesPreparedCommand(t *testing.T) {
+	loader, err := NewBundleLoader(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
+	template, err := loader.PrepareBundleTemplate(TemplateOptions{Request: &apipb.CreateContainerRequest{Command: []string{"/image-entrypoint", "serve"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	_, generated, err := loader.Generate(LoadOptions{
-		ContainerID: "test-custom-base-command",
+	_, generated, err := loader.MaterializeBundle(template, LoadOptions{
+		ContainerID: "test-prepared-command",
 		Request: &apipb.CreateContainerRequest{
 			Rootfs: &apipb.Rootfs{RootDir: t.TempDir()},
 			Cwd:    "/app",
 		},
 	})
 	if err != nil {
-		t.Fatalf("Generate() error = %v", err)
+		t.Fatalf("MaterializeBundle() error = %v", err)
 	}
 	if !reflect.DeepEqual(generated.Process.Args, []string{"/image-entrypoint", "serve"}) {
-		t.Fatalf("process args = %#v, want custom base image/default args", generated.Process.Args)
+		t.Fatalf("process args = %#v, want prepared command", generated.Process.Args)
 	}
 	if got := generated.Process.Cwd; got != "/app" {
 		t.Fatalf("cwd = %q, want /app", got)
@@ -702,6 +698,9 @@ func TestDefaultBundleSpecUsesGenericRuntimeDefaults(t *testing.T) {
 	}
 	if !hasEnvValue(spec.Process.Env, "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin") {
 		t.Fatalf("default PATH missing generic runtime value: %v", spec.Process.Env)
+	}
+	if hasEnv(spec.Process.Env, "TERM") {
+		t.Fatalf("non-terminal workload env unexpectedly contains TERM: %v", spec.Process.Env)
 	}
 	if !hasMount(spec.Mounts, "/dev/pts") {
 		t.Fatalf("default mounts missing /dev/pts for tty exec support: %v", spec.Mounts)

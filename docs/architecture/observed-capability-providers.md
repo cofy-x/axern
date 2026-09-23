@@ -33,7 +33,7 @@ Observations contain state, provider, sample/expiry times, reason, and typed hos
 
 - boot identity for boot-scoped kernel facts;
 - boot plus mount identity for mount-scoped facts;
-- boot, runsc binary digest, and runsc configuration digest for runtime facts.
+- boot, runsc binary digest, and the actual handler's immutable loaded configuration digest for runtime facts. Configuration files are not reread to identify an existing handler; changing startup options requires a node restart.
 
 Configuration and contract-derived facts carry no synthetic evidence. Digests identify inspected runtime content; they are not domain identity or ordering. Derived capability availability is evaluated recursively from the capability definitions and the current base observations. It is not frozen into a dependency proof.
 

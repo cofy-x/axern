@@ -18,7 +18,7 @@ import (
 )
 
 func newVerifySandboxRuntimeWithRoot(cfg config, rootDir string) (contract.SandboxRuntime, error) {
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(rootDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(rootDir, "containers"))
 	if err != nil {
 		return nil, err
 	}

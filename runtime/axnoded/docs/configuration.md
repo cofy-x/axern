@@ -138,12 +138,11 @@ Use explicit DNS values on production nodes that require VPC, cluster, or corpor
 
 The default, sample, packaged, and devbox configurations use gVisor (`runsc`) as the single execution implementation. Runtime selection is not part of the product or node-local protocol contract, and axnoded does not maintain a backend registry.
 
-`[plugin.runtime.runsc]` declares the process-owned OCI execution implementation. It is the source for the runsc binary, base spec, and options. Configuration decoding rejects unknown keys and never ignores misspelled settings. Axnoded must load runsc before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial execution stack.
+`[plugin.runtime.runsc]` declares the runsc binary and startup options. Axern's OCI package owns the workload base policy; there is no external base-spec file or runtime sample generation. Configuration decoding rejects unknown keys and never ignores misspelled settings. Configuration changes require a node restart: conformance identifies the policy loaded by the handler, never a subsequently edited configuration file. Axnoded must load runsc before persistent container inventory is reconciled or the node can become ready. A transient runtime-state or filestore conflict is retried until startup is canceled; axnoded never starts with a partial execution stack.
 
 | Key                            | Meaning                                              |
 | ------------------------------ | ---------------------------------------------------- |
 | `binary`                       | Runtime binary path, such as `/usr/local/bin/runsc`. |
-| `base_spec`                    | Base OCI spec used by axnoded when building bundles. |
 | `[plugin.runtime.runsc.options]` | runsc-specific options.                              |
 
 There is no per-runtime cgroup fallback. In `required` mode cgroup controller writes, limit readback, and runtime host-PID attribution are fail-closed. For `runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so setuid tools inside Axern-maintained images, such as `sudo`, can elevate privileges within the sandbox.
@@ -165,7 +164,7 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 
 | Problem Shape                     | Likely Config Area                                       | Useful Checks                                                                  |
 | --------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| axnoded will not start            | top-level paths, runtime binaries, base specs, filestore | axnoded startup logs, path permissions, `runsc --version`.                     |
+| axnoded will not start            | top-level paths, runtime binaries, filestore | axnoded startup logs, path permissions, `runsc --version`.                     |
 | node never appears in `controld`  | control plane                                            | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs.       |
 | image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
 | sandbox has no egress             | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |

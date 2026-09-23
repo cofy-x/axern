@@ -23,6 +23,10 @@ type FakeSandboxRuntime struct {
 	Requirements contract.HostRequirements
 }
 
+func (f *FakeSandboxRuntime) ConfigurationDigest() (string, error) {
+	return "sha256:fake-runtime-configuration", nil
+}
+
 func (f *FakeSandboxRuntime) HostRequirements() contract.HostRequirements {
 	return f.Requirements
 }

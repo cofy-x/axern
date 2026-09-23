@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/external-network-probe.sh"
-. "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
 RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"
@@ -64,7 +63,6 @@ cat >> /tmp/axnoded-config.toml <<EOF
 
 [plugin.runtime.runsc]
 binary = "${RUNTIME_BINARY}"
-base_spec = "/etc/axnoded/runsc-config.json"
 EOF
 
 mkdir -p \
@@ -78,7 +76,6 @@ mkdir -p \
 # Axnoded loads every configured runtime before readiness. Materialize the
 # explicit fail-closed base spec for both built-in handlers, not only the
 # runtime selected by this verification profile.
-ensure_node_runtime_base_spec "/usr/local/bin/runsc" "/etc/axnoded/runsc-config.json"
 
 AXNODED_PID=""
 rootfs_staging_dir=""

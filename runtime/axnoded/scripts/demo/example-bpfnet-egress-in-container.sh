@@ -4,7 +4,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "${ROOT_DIR}"
 . "${ROOT_DIR}/scripts/lib/external-network-probe.sh"
-. "${ROOT_DIR}/scripts/lib/node-runtime-services.sh"
 
 RUNTIME_BINARY="${RUNTIME_BINARY:-/usr/local/bin/runsc}"
 SOCKET_ADDRESS="${SOCKET_ADDRESS:-/run/axnoded/axnoded.sock}"

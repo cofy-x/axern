@@ -93,6 +93,21 @@ func run(cfg config) error {
 
 	cases := []runCase{
 		{
+			name:        "nonterminal-environment",
+			argv:        []string{"/bin/sh", "-c", "if [ \"${TERM+x}\" = x ]; then exit 41; fi; printf 'nonterminal-environment-ok\\n'"},
+			expected:    0,
+			expectOut:   []string{"nonterminal-environment-ok"},
+			expectReady: true,
+		},
+		{
+			name:        "explicit-terminal-environment",
+			argv:        []string{"/bin/sh", "-c", "test \"$TERM\" = caller-term && printf 'explicit-terminal-environment-ok\\n'"},
+			env:         []*apipb.KeyValue{{Key: "TERM", Value: "image-term"}, {Key: "TERM", Value: "caller-term"}},
+			expected:    0,
+			expectOut:   []string{"explicit-terminal-environment-ok"},
+			expectReady: true,
+		},
+		{
 			name:             "exit7",
 			argv:             []string{"/bin/sh", "-c", "printf 'pid1=%s env=%s cwd=%s\\n' \"$(cat /proc/1/comm)\" \"$AXERN_SANDBOXD_E2E\" \"$(pwd)\"; printf output > /tmp/axern-output-sealing-file; sleep 1; exit 7"},
 			env:              []*apipb.KeyValue{{Key: "AXERN_SANDBOXD_E2E", Value: "ok"}},
@@ -184,7 +199,7 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		}
 	}
 
-	loader, err := runtimeoci.NewBundleLoader("", filepath.Join(caseDir, "containers"))
+	loader, err := runtimeoci.NewBundleLoader(filepath.Join(caseDir, "containers"))
 	if err != nil {
 		return err
 	}

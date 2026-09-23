@@ -71,7 +71,7 @@ func TestPrepareEnvironment_DriftedIdleEnvironmentReplaced(t *testing.T) {
 		t.Fatalf("PrepareEnvironment(first) failed: %v", err)
 	}
 
-	loader, err := runtimeoci.NewBundleLoader("", t.TempDir())
+	loader, err := runtimeoci.NewBundleLoader(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}
@@ -291,7 +291,7 @@ func TestList(t *testing.T) {
 
 func TestPreparedEnvironmentLoadOrPrepareBundleTemplateReusesPreparedTemplate(t *testing.T) {
 	environment := &PreparedEnvironment{}
-	loader, err := runtimeoci.NewBundleLoader("", t.TempDir())
+	loader, err := runtimeoci.NewBundleLoader(t.TempDir())
 	if err != nil {
 		t.Fatalf("NewBundleLoader() error = %v", err)
 	}

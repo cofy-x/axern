@@ -144,7 +144,7 @@ Process execution uses one identity model:
 - present `user`: resolve `/etc/passwd` and `/etc/group`, apply uid/gid/groups, and set HOME, USER, LOGNAME, and SHELL defaults.
 - request env applies after daemon base env and resolved user env.
 - omitted cwd with a resolved user home uses that home when the base cwd is root-like; explicit cwd always wins.
-- PTY and non-PTY processes share identity, cwd, env, wait, and signal rules.
+- PTY and non-PTY processes share identity, cwd, env, wait, and signal rules. The OCI package owns the platform base policy, constructed directly in memory by the same loader for deployment and verification. No external base-spec file is generated or loaded. Non-terminal workloads receive no synthetic `TERM`; image, Environment, and Run values override in that order and remain intact. Terminal and SSH sessions set `TERM` together with their PTY contract. Prepared templates are process-local and rebuilt after node restart; already running Allocations retain their accepted environment. Conformance uses the actual handler's loaded policy digest, not the identity of a file reread during observation.
 
 ## Security Contract
 

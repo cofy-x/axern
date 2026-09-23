@@ -35,7 +35,6 @@ func NewRunscHandler(cfg config.Config) (contract.SandboxRuntime, error) {
 func newRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstanceConfig) (contract.SandboxRuntime, error) {
 	containerRoot := filepath.Join(cfg.RootDir, "containers")
 	loader, err := runtimeoci.NewBundleLoader(
-		runtimeCfg.BaseSpec,
 		containerRoot,
 		runtimeoci.WithRuntimeDNSConfig(bundleflow.DNSConfigFromRuntimeConfig(cfg.RuntimeConfig.DNS)),
 	)

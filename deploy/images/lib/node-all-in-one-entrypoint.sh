@@ -93,29 +93,6 @@ mkdir -p \
   /etc/axnoded \
   /tmp/runsc
 
-ensure_runtime_base_spec() {
-  local runtime_bin="$1"
-  local output_path="$2"
-
-  if [ -f "${output_path}" ] || [ ! -x "${runtime_bin}" ]; then
-    return 0
-  fi
-
-  local tmpdir
-  tmpdir="$(mktemp -d)"
-  (
-    cd "${tmpdir}"
-    "${runtime_bin}" spec >/dev/null 2>&1
-    # Axern's lifecycle is non-interactive. Runtime-generated specs default to
-    # a terminal in some runtimes, which is incompatible with sandboxd and
-    # would make the effective base spec depend on the runtime implementation.
-    jq '.process.terminal = false' config.json >"${output_path}.tmp"
-    chmod 0644 "${output_path}.tmp"
-    mv "${output_path}.tmp" "${output_path}"
-  )
-  rm -rf "${tmpdir}"
-}
-
 ensure_bpf_fs() {
   if [ "${NAT_BACKEND}" != "ebpf" ]; then
     return 0
@@ -129,7 +106,6 @@ ensure_bpf_fs() {
 ensure_bpf_fs
 
 /usr/local/bin/axern-ensure-loop-devices 8
-ensure_runtime_base_spec /usr/local/bin/runsc /etc/axnoded/runsc-config.json
 
 case "${AXNODED_CGROUP_ENFORCEMENT}" in
   required)
@@ -239,7 +215,6 @@ options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
-base_spec = "/etc/axnoded/runsc-config.json"
 
 [plugin.runtime.runsc.options]
 allow_suid = true

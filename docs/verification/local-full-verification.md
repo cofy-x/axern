@@ -28,6 +28,8 @@ Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its
 
 Concurrency unit tests must prove overlap, ordering, and limits through explicit synchronization rather than total elapsed-time thresholds. Wall-clock deadlines may bound a stuck test, but shared-runner speed is not a correctness assertion. Release all test barriers and join workers before closing their stores or removing temporary directories.
 
+`make network-policy-fuzz-smoke` runs all six policy, DNS, HTTP and TLS fuzz targets with an execution budget of 100,000 inputs per target, one worker and a separate two-minute hard test timeout. The input budget defines smoke completion; the timeout detects hangs and must fail the gate. Corpus seeds, discovered crashers and property assertions remain active. Execution counts do not imply identical coverage across hosts or replace longer fuzz campaigns. Do not suppress deadline errors or retry a failing target until it passes.
+
 ## Tier 2: affected Linux and local integration
 
 Use the Linux devbox or a narrow privileged Docker verification only for an affected runtime boundary:
