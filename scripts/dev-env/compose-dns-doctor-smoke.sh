@@ -96,31 +96,52 @@ local_doctor_cmd=(env \
 
 read_report_file="${verify_root}/read-report.json"
 probe_report_file="${verify_root}/probe-report.json"
-if ! "${local_doctor_cmd[@]}" local doctor --dns-query-name "${query_name}" --output json >"${read_report_file}"; then
-  python3 -m json.tool <"${read_report_file}" >&2 || true
-  echo "read-only local DNS doctor did not exit successfully" >&2
-  exit 1
+if "${local_doctor_cmd[@]}" local doctor --dns-query-name "${query_name}" --output json >"${read_report_file}"; then
+  read_exit=0
+else
+  read_exit=$?
 fi
-if ! "${local_doctor_cmd[@]}" local doctor --probe --image "${resolved_image}" --dns-query-name "${query_name}" --probe-timeout 5m --output json >"${probe_report_file}"; then
-  python3 -m json.tool <"${probe_report_file}" >&2 || true
-  echo "sandbox local DNS doctor did not exit successfully" >&2
-  exit 1
+if "${local_doctor_cmd[@]}" local doctor --probe --image "${resolved_image}" --dns-query-name "${query_name}" --probe-timeout 5m --output json >"${probe_report_file}"; then
+  probe_exit=0
+else
+  probe_exit=$?
 fi
 
-python3 - "${read_report_file}" "${probe_report_file}" "${query_name}" "${configured_nameservers}" <<'PY'
+python3 - "${read_report_file}" "${read_exit}" "${probe_report_file}" "${probe_exit}" "${query_name}" "${configured_nameservers}" <<'PY'
 import json
 import pathlib
 import sys
 
 read_report = json.loads(pathlib.Path(sys.argv[1]).read_text())
-probe_report = json.loads(pathlib.Path(sys.argv[2]).read_text())
-query_name = sys.argv[3]
-resolvers = [item.strip() for item in sys.argv[4].split(",") if item.strip()]
+read_exit = int(sys.argv[2])
+probe_report = json.loads(pathlib.Path(sys.argv[3]).read_text())
+probe_exit = int(sys.argv[4])
+query_name = sys.argv[5]
+resolvers = [item.strip() for item in sys.argv[6].split(",") if item.strip()]
 
-def check(report, mode, sandbox_status, sandbox_code):
-    if report.get("status") != "healthy" or report.get("mode") != mode:
+# Source Compose has its own registry policy and does not own the CLI-managed
+# axern-local-registry bridge. Only those two unrelated managed-local checks
+# may fail; the actual Node and sandbox DNS checks must still pass.
+allowed_registry_failures = {
+    "registry_policy": "registry_policy_inconsistent",
+    "registry_network": "registry_network_unavailable",
+}
+
+def check(report, exit_code, mode, sandbox_status, sandbox_code):
+    if report.get("mode") != mode:
         raise SystemExit(f"unexpected local doctor report status: {report}")
     checks = {item.get("name"): item for item in report.get("checks", [])}
+    registry_failed = False
+    for name, item in checks.items():
+        status = item.get("status")
+        if name in allowed_registry_failures and status == "fail" and item.get("code") == allowed_registry_failures[name]:
+            registry_failed = True
+        elif status not in ("pass", "skip"):
+            raise SystemExit(f"unexpected local doctor failure: {item}")
+    expected_status = "failed" if registry_failed else "healthy"
+    expected_exit = 3 if registry_failed else 0
+    if report.get("status") != expected_status or exit_code != expected_exit:
+        raise SystemExit(f"unexpected local doctor status/exit: {report.get('status')}/{exit_code}")
     expected = {
         "runtime_dns_config": ("pass", "runtime_dns_config_valid"),
         "runtime_dns_node": ("pass", "runtime_dns_node_reachable"),
@@ -135,11 +156,19 @@ def check(report, mode, sandbox_status, sandbox_code):
         if sensitive and sensitive in serialized:
             raise SystemExit("local doctor JSON exposed DNS verification input")
 
-check(read_report, "read_only", "skip", "runtime_dns_sandbox_skipped")
-check(probe_report, "probe", "pass", "runtime_dns_sandbox_resolved")
+check(read_report, read_exit, "read_only", "skip", "runtime_dns_sandbox_skipped")
+check(probe_report, probe_exit, "probe", "pass", "runtime_dns_sandbox_resolved")
 PY
 
-table_output="$("${local_doctor_cmd[@]}" local doctor --dns-query-name "${query_name}")"
+if table_output="$("${local_doctor_cmd[@]}" local doctor --dns-query-name "${query_name}")"; then
+  table_exit=0
+else
+  table_exit=$?
+fi
+if [ "${table_exit}" -ne "${read_exit}" ]; then
+  echo "local doctor table and JSON exits differ: ${table_exit} != ${read_exit}" >&2
+  exit 1
+fi
 for required in CODE LATENCY runtime_dns_config_valid runtime_dns_node_reachable; do
   if ! grep -Fq "${required}" <<<"${table_output}"; then
     echo "local doctor table is missing ${required}" >&2
