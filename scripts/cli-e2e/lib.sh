@@ -295,7 +295,9 @@ wait_for_postgres() {
   local deadline
   deadline=$((SECONDS + 60))
   while [ "${SECONDS}" -lt "${deadline}" ]; do
-    if docker exec "${POSTGRES_CONTAINER_NAME}" pg_isready -U "${POSTGRES_USER}" >/dev/null 2>&1 &&
+    # TCP readiness excludes the image's socket-only bootstrap server. The
+    # database query then uses local socket auth without exposing a password.
+    if docker exec "${POSTGRES_CONTAINER_NAME}" pg_isready -h 127.0.0.1 -U "${POSTGRES_USER}" >/dev/null 2>&1 &&
       docker exec "${POSTGRES_CONTAINER_NAME}" psql -U "${POSTGRES_USER}" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='${POSTGRES_DB}'" 2>/dev/null | grep -qx '1'; then
       return 0
     fi

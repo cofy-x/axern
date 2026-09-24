@@ -35,7 +35,9 @@ fi
 
 ready=false
 for _ in $(seq 1 120); do
-  if docker exec "${container_name}" pg_isready -U postgres -d axern >/dev/null 2>&1; then
+  # The image's bootstrap server accepts Unix sockets before it shuts down and
+  # starts the final TCP server. Tests connect through the published TCP port.
+  if docker exec "${container_name}" pg_isready -h 127.0.0.1 -U postgres -d axern >/dev/null 2>&1; then
     ready=true
     break
   fi
