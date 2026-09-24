@@ -1,5 +1,5 @@
 package observability
 
 func Version() string {
-	return "0.11.3"
+	return "0.11.4"
 }
