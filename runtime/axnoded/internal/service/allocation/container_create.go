@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cofy-x/axern/lib/go/networkpolicy"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
@@ -45,7 +46,7 @@ func (h *Controller) createAllocation(
 		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
 
-	options, err := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, phaseRecorder)
+	options, err := h.createHandlerOptions(traceID.String(), spanID.String(), lrt, templateRequest, resource, startRequest.GetNetwork(), phaseRecorder)
 	if err != nil {
 		return response, "", errors.Join(err, errRuntimeCleanupPending)
 	}
@@ -155,24 +156,21 @@ func (h *Controller) syncCreatedContainerStatus(ctx context.Context, containerID
 }
 
 func (h *Controller) prepareContainerCreate(ctx context.Context, traceID string, request *apipb.CreateContainerRequest, resourceSpec *commonv1.ResourceSpec) (contract.SandboxRuntime, container.OccupiedResource, error) {
-	return h.prepareContainerResources(ctx, traceID, request.GetID(), request.GetEnvs(), resourceSpec)
+	return h.prepareContainerResources(ctx, traceID, request.GetID(), request.GetEnvs(), resourceSpec, nil)
 }
 
 // prepareContainerResources is the node-local admission boundary. Allocation
 // starts call it before secrets, image mounts, rootfs preparation, or
 // runtime artifacts so a rejected memory commitment has no external side
 // effects to roll back.
-func (h *Controller) prepareContainerResources(ctx context.Context, traceID, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec) (contract.SandboxRuntime, container.OccupiedResource, error) {
+func (h *Controller) prepareContainerResources(ctx context.Context, traceID, containerID string, envs []*apipb.KeyValue, resourceSpec *commonv1.ResourceSpec, network *commonv1.NetworkSpec) (contract.SandboxRuntime, container.OccupiedResource, error) {
 	var empty container.OccupiedResource
 	if h == nil || h.runscHandler == nil {
 		return nil, empty, fmt.Errorf("runsc handler unavailable")
 	}
 	handler := h.runscHandler
 
-	resourceNames := handler.HostRequirements().Resources
-	if resourceNames == nil {
-		resourceNames = []resourcemanager.ResourceName{}
-	}
+	resourceNames := allocationHostResources(handler.HostRequirements().Resources, network)
 
 	ownerKind := cgroupLeaseOwnerKind(ctx)
 	memoryRequest := resourceSpec.GetRequests().GetMemoryBytes()
@@ -192,6 +190,19 @@ func (h *Controller) prepareContainerResources(ctx context.Context, traceID, con
 	}
 
 	return handler, resource, nil
+}
+
+func allocationHostResources(required []resourcemanager.ResourceName, network *commonv1.NetworkSpec) []resourcemanager.ResourceName {
+	resources := make([]resourcemanager.ResourceName, 0, len(required))
+	for _, name := range required {
+		// An isolated Run must receive a new OCI network namespace with no
+		// host veth, gateway or route. The base runsc spec creates that namespace.
+		if name == resourcemanager.InterfaceResourceName && networkpolicy.IsStrictDenyAll(network) {
+			continue
+		}
+		resources = append(resources, name)
+	}
+	return resources
 }
 
 func cgroupLeaseOwnerKind(ctx context.Context) apipb.CgroupLeaseOwnerKind {
@@ -226,8 +237,14 @@ func (h *Controller) createHandlerOptions(
 	lrt *environmentcache.PreparedEnvironment,
 	templateRequest *apipb.CreateContainerRequest,
 	resource container.OccupiedResource,
+	network *commonv1.NetworkSpec,
 	phaseRecorder contract.StartupPhaseRecorder,
 ) (contract.HandlerOptions, error) {
+	if networkpolicy.IsStrictDenyAll(network) {
+		if _, connected := resource.Resources[resourcemanager.InterfaceResourceName]; connected {
+			return contract.HandlerOptions{}, fmt.Errorf("isolated allocation %s has a connected network binding", resource.ID)
+		}
+	}
 	var templateSource *runtimeoci.TemplateOptions
 	if templateRequest != nil {
 		templateSource = &runtimeoci.TemplateOptions{Request: templateRequest}

@@ -250,6 +250,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		request.GetAllocationID(),
 		nil,
 		request.GetResources(),
+		request.GetNetwork(),
 	)
 	if recorder != nil {
 		recorder.RecordStartupPhase(contract.StartupPhaseResourceAllocate, time.Since(resourceAllocateStart))
