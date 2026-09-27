@@ -38,3 +38,32 @@ func TestIsolatedRunRejectsAccidentalNetworkBinding(t *testing.T) {
 		t.Fatalf("connected isolated allocation was not rejected: %v", err)
 	}
 }
+
+func TestIsolatedRunSelectsLoopbackOnlyRuntimeNetwork(t *testing.T) {
+	controller := &Controller{}
+	resource := container.OccupiedResource{
+		ID: "alloc-isolated",
+		Resources: map[resources.ResourceName]string{
+			resources.CgroupResourceName: "/sys/fs/cgroup/alloc-isolated",
+		},
+	}
+	for _, network := range []*commonv1.NetworkSpec{
+		{Mode: commonv1.NetworkMode_NETWORK_MODE_ISOLATED},
+		{EgressPolicy: &commonv1.NetworkEgressPolicy{Policy: &commonv1.NetworkEgressPolicy_Strict{Strict: &commonv1.StrictEgressPolicy{}}}},
+	} {
+		options, err := controller.createHandlerOptions("", "", nil, nil, resource, network, nil)
+		if err != nil {
+			t.Fatalf("createHandlerOptions(%v) error = %v", network, err)
+		}
+		if options.NetworkMode != commonv1.NetworkMode_NETWORK_MODE_ISOLATED || options.NetworkNamespacePath != "" {
+			t.Fatalf("isolated runtime options = mode %s, namespace %q", options.NetworkMode, options.NetworkNamespacePath)
+		}
+	}
+	connected, err := controller.createHandlerOptions("", "", nil, nil, resource, nil, nil)
+	if err != nil {
+		t.Fatalf("createHandlerOptions(default) error = %v", err)
+	}
+	if connected.NetworkMode == commonv1.NetworkMode_NETWORK_MODE_ISOLATED {
+		t.Fatal("default network accidentally selected runsc loopback-only mode")
+	}
+}

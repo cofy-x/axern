@@ -6,6 +6,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
 type HandlerOptions struct {
@@ -29,6 +30,7 @@ type HandlerOptions struct {
 	BundleTemplateSource  *runtimeoci.TemplateOptions
 
 	NetworkNamespacePath string
+	NetworkMode          commonv1.NetworkMode
 	SandboxIP            string
 	ExecutionProfile     *runtimeoci.ExecutionProfile
 }

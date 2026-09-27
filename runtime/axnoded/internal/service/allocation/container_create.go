@@ -262,6 +262,12 @@ func (h *Controller) createHandlerOptions(
 		networkNamespacePath = netDevice.NetNSPath
 		sandboxIP = netDevice.Ip.String()
 	}
+	networkMode := network.GetMode()
+	if networkpolicy.IsStrictDenyAll(network) {
+		// The control-plane canonical form is ISOLATED. Keep the same runtime
+		// choice if a local request still carries an equivalent strict policy.
+		networkMode = commonv1.NetworkMode_NETWORK_MODE_ISOLATED
+	}
 
 	return contract.HandlerOptions{
 		TraceID:               traceID,
@@ -274,6 +280,7 @@ func (h *Controller) createHandlerOptions(
 		BundleTemplateCarrier: lrt,
 		BundleTemplateSource:  templateSource,
 		NetworkNamespacePath:  networkNamespacePath,
+		NetworkMode:           networkMode,
 		SandboxIP:             sandboxIP,
 		ExecutionProfile:      executionProfileFromPreparedEnvironment(lrt),
 	}, nil

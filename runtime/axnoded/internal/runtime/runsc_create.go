@@ -55,7 +55,7 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 		return nil, err
 	}
 
-	if err := r.createPreparedContainer(ctx, metaData.Stdout, metaData.Stderr, bundlePath, options.ContainerID, overlayArgs); err != nil {
+	if err := r.createPreparedContainer(ctx, metaData.Stdout, metaData.Stderr, bundlePath, options.ContainerID, overlayArgs, options); err != nil {
 		r.cleanupContainer(context.Background(), options.TraceID, options.ContainerID, fmt.Sprintf("create prepared container failed: %v", err))
 		return nil, err
 	}
