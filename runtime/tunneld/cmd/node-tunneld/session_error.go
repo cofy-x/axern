@@ -32,6 +32,20 @@ func statusForSessionError(err error) tunnelcontrolv1.TunnelSessionStatus {
 	return tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED
 }
 
+// sessionReportReason is the only error text sent to controld. Causes may
+// contain internal relay targets, certificate paths, or runtime diagnostics;
+// those belong in the node log, not the public TunnelSession.
+func sessionReportReason(err error) string {
+	var sessionErr sessionStatusError
+	if errors.As(err, &sessionErr) && sessionErr.reason != "" {
+		return sessionErr.reason
+	}
+	if statusForSessionError(err) == tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED {
+		return "tunnel data plane temporarily unavailable"
+	}
+	return "tunnel session setup failed"
+}
+
 func degradedSessionError(err error) error {
 	if err == nil {
 		return nil

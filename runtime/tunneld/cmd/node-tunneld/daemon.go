@@ -146,11 +146,12 @@ func (d *daemon) runSession(ctx context.Context, session *tunnelcontrolv1.Tunnel
 			return
 		}
 		status := statusForSessionError(err)
+		fmt.Fprintf(os.Stderr, "node-tunneld: session failure session=%s status=%s error_type=%T\n", session.GetSessionID(), status.String(), err)
 		_, reportErr := d.node.ReportTunnelSessionStatus(ctx, &nodev1.ReportTunnelSessionStatusRequest{
 			NodeID:    d.nodeID,
 			SessionID: session.GetSessionID(),
 			Status:    status,
-			Reason:    err.Error(),
+			Reason:    sessionReportReason(err),
 		})
 		if terminalControlError(reportErr) {
 			return
