@@ -30,7 +30,8 @@ func TestRegistryStartWaitCapturesOutput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
-	if status.ID == "" || status.State != ProcessStateRunning {
+	// A short-lived child can exit and be reaped before Start returns.
+	if status.ID == "" || status.PID <= 0 || (status.State != ProcessStateRunning && status.State != ProcessStateExited) {
 		t.Fatalf("status = %#v", status)
 	}
 	status, ok, err := registry.Wait(context.Background(), status.ID)
@@ -38,6 +39,35 @@ func TestRegistryStartWaitCapturesOutput(t *testing.T) {
 		t.Fatalf("Wait() status = %#v, ok = %v, err = %v", status, ok, err)
 	}
 	if status.ExitCode == nil || *status.ExitCode != 0 || strings.TrimSpace(status.Stdout) != "ok" {
+		t.Fatalf("wait status = %#v", status)
+	}
+}
+
+func TestRegistryStartPublishesRunningProcess(t *testing.T) {
+	waiter := proc.NewWaiter(context.Background())
+	defer waiter.Stop()
+	registry := NewRegistry(waiter, nil, "")
+
+	status, err := registry.Start(StartRequest{
+		Args:      []string{"/bin/sh", "-c", "read line"},
+		OpenStdin: true,
+	})
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if status.ID == "" || status.PID <= 0 || status.State != ProcessStateRunning {
+		t.Fatalf("status = %#v", status)
+	}
+	if _, ok, err := registry.CloseStdin(status.ID); err != nil || !ok {
+		t.Fatalf("CloseStdin() ok = %v, err = %v", ok, err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	status, ok, err := registry.Wait(ctx, status.ID)
+	if err != nil || !ok {
+		t.Fatalf("Wait() status = %#v, ok = %v, err = %v", status, ok, err)
+	}
+	if status.State != ProcessStateExited || status.ExitCode == nil || *status.ExitCode != 1 {
 		t.Fatalf("wait status = %#v", status)
 	}
 }
