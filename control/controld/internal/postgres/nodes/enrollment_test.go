@@ -43,7 +43,12 @@ func TestEnrollmentTransactionReplayExpiryAndRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	// Enroll checks PostgreSQL's clock_timestamp(), so seed the fixture from
+	// that same clock. The host and test container clocks need not agree.
+	var now time.Time
+	if err := db.Pool().QueryRow(ctx, "SELECT clock_timestamp()").Scan(&now); err != nil {
+		t.Fatal(err)
+	}
 	token := "random-test-enrollment-token-00000001"
 	if _, err := db.Pool().Exec(ctx, "INSERT INTO nodes(node_id,node_target,enrollment_token_hash,admitted_at,lifecycle_status) VALUES('enrollment-node','',$1,$2,'active')", hashEnrollmentToken(token), now); err != nil {
 		t.Fatal(err)
