@@ -10,8 +10,10 @@ import (
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
+	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -100,6 +102,14 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 				return fmt.Errorf("mark allocation releasing: %w", err)
 			}
 			if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, run.GetAllocationID()); err != nil {
+				return err
+			}
+			if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{
+				AllocationIDs: []string{run.GetAllocationID()},
+				Reason:        "run cancelled",
+				ReasonCode:    tunnelv1.TunnelSessionEventReasonCode_TUNNEL_SESSION_EVENT_REASON_CODE_ALLOCATION_ENDED,
+				Now:           now,
+			}); err != nil {
 				return err
 			}
 			if err := deleteRunSecretReferences(ctx, tx, run.GetID()); err != nil {
