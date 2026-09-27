@@ -61,7 +61,7 @@ from axern_sdk.sandbox import (
 )
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
 
-__version__ = "0.11.4"
+__version__ = "0.12.0"
 
 __all__ = [
     "AxernError",

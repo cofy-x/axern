@@ -89,7 +89,19 @@ for fixture in fixtures:
         raise SystemExit(f"{fixture.relative_to(root)} must declare bounded release-smoke resources")
 
 python_fixture = fixtures[0].read_text()
-for value in ("DeclaredOutput", "ImageMount", "assert_read_only_image_mount", "get_sealed_output_manifest", "download_sealed_output", "sealed_output=true"):
+for value in (
+    "DeclaredOutput",
+    "ImageMount",
+    "assert_read_only_image_mount",
+    "get_sealed_output_manifest",
+    "download_sealed_output",
+    "sealed_output=true",
+    "assert_isolated_public_tunnel",
+    "NetworkPolicy.deny_all()",
+    "NETWORK_MODE_ISOLATED",
+    "remote_port=8765",
+    "isolated_tunnel=true",
+):
     if value not in python_fixture:
         raise SystemExit(f"Python SDK acceptance is missing public SDK output contract: {value}")
 

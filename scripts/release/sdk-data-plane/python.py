@@ -10,12 +10,14 @@ from pathlib import Path
 
 import axern_sdk
 from axern.control.common.v1 import common_pb2
+from axern.control.run.v1 import run_pb2
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk import (
     AxernClient,
     DeclaredOutput,
     DeclaredOutputFormat,
     ImageMount,
+    NetworkPolicy,
     Sandbox,
     SandboxError,
     TunnelConnector,
@@ -61,6 +63,7 @@ def main() -> None:
             declared_outputs=declared_outputs,
             labels={"axern.release.acceptance": "python"},
         ) as sandbox:
+            first_allocation_id = sandbox.allocation_id
             assert_declared_outputs(client, sandbox.run_id, declared_outputs)
             assert_read_only_image_mount(client, sandbox)
             assert_public_tunnel(client, sandbox, marker)
@@ -173,11 +176,15 @@ def main() -> None:
         )
         if downloaded.getvalue() != b"complete":
             raise RuntimeError("second independent Run returned an invalid output")
+        isolated_run_id = assert_isolated_public_tunnel(
+            client, environment.id, first_allocation_id, marker
+        )
         handshake.joinpath("python.run-id").write_text(second_run_id, encoding="utf-8")
         wait_verified(handshake / "python.verified")
         print(
             f"sdk_data_plane=python first_run_id={run_id} "
-            f"second_run_id={second_run_id} sealed_output=true ok=true"
+            f"second_run_id={second_run_id} isolated_run_id={isolated_run_id} "
+            "sealed_output=true isolated_tunnel=true ok=true"
         )
     finally:
         if environment is not None:
@@ -280,16 +287,179 @@ def assert_public_tunnel(client: AxernClient, sandbox: Sandbox, marker: str) -> 
         server_thread.join()
 
 
+def assert_isolated_public_tunnel(
+    client: AxernClient, environment_id: str, first_allocation_id: str, marker: str
+) -> str:
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:
+            body = marker.encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *_args) -> None:
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    run_id = ""
+    try:
+        with Sandbox(
+            client=client,
+            environment_id=environment_id,
+            network_policy=NetworkPolicy.deny_all(),
+            request_cpu="100m",
+            request_memory="512MiB",
+            labels={"axern.release.acceptance": "python-isolated-tunnel"},
+        ) as sandbox:
+            run_id = sandbox.run_id
+            if sandbox.allocation_id == first_allocation_id:
+                raise RuntimeError("isolated Run reused the first Allocation")
+            run = client.get_run(run_id, timeout=10)
+            if run.config.network.mode != common_pb2.NETWORK_MODE_ISOLATED:
+                raise RuntimeError("deny-all Run was not persisted as isolated")
+
+            session_id = ""
+            connector: TunnelConnector | None = None
+            try:
+                response = client.create_tunnel_session(
+                    allocation_id=sandbox.allocation_id,
+                    remote_port=8765,
+                    ttl_seconds=120,
+                    wait_ready=True,
+                    ready_timeout_seconds=45,
+                )
+                session_id = response.session.session_id
+                if (
+                    response.session.remote_port != 8765
+                    or response.session.bound_addr != "127.0.0.1:8765"
+                ):
+                    raise RuntimeError("isolated Tunnel bound the wrong sandbox port")
+                connector = TunnelConnector(
+                    client=client,
+                    session=response.session,
+                    client_token=response.client_token,
+                    local_target=f"127.0.0.1:{server.server_port}",
+                )
+                connector.start()
+                wait_tunnel_event(
+                    client, session_id, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_PAIRED
+                )
+                result = sandbox.exec(
+                    [
+                        "python",
+                        "-c",
+                        "import urllib.request\n"
+                        "opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))\n"
+                        "with opener.open('http://127.0.0.1:8765/', timeout=5) as response:\n"
+                        "    print(response.status, response.read().decode())\n",
+                    ],
+                    timeout_seconds=15,
+                    check=True,
+                    text=True,
+                )
+                if result.stdout.strip() != f"200 {marker}":
+                    raise RuntimeError(
+                        "isolated Tunnel did not return the expected HTTP response"
+                    )
+                revoked = client.revoke_tunnel_session(
+                    session_id, reason="isolated release acceptance complete"
+                )
+                if revoked.status != tunnel_pb2.TUNNEL_SESSION_STATUS_REVOKED:
+                    raise RuntimeError("isolated Tunnel revoke did not become terminal")
+                if not connector.wait_closed(25):
+                    raise RuntimeError(
+                        "isolated Tunnel connector did not close after revoke"
+                    )
+                revoked_probe = sandbox.exec(
+                    [
+                        "python",
+                        "-c",
+                        "import errno, socket, sys, time\n"
+                        "deadline = time.monotonic() + 15\n"
+                        "while time.monotonic() < deadline:\n"
+                        "    try:\n"
+                        "        with socket.create_connection(('127.0.0.1', 8765), timeout=2):\n"
+                        "            pass\n"
+                        "    except OSError as error:\n"
+                        "        if error.errno in {errno.ECONNREFUSED, errno.ECONNRESET}:\n"
+                        "            print('revoked')\n"
+                        "            sys.exit(0)\n"
+                        "    time.sleep(0.2)\n"
+                        "sys.exit(1)\n",
+                    ],
+                    timeout_seconds=25,
+                    check=True,
+                    text=True,
+                )
+                if revoked_probe.stdout.strip() != "revoked":
+                    raise RuntimeError(
+                        "revoked isolated Tunnel still accepted a connection"
+                    )
+                if client.get_run(run_id).status != run_pb2.RUN_STATUS_RUNNING:
+                    raise RuntimeError(
+                        "Tunnel revoke unexpectedly terminated the isolated Run"
+                    )
+                if (
+                    sandbox.exec(["true"], timeout_seconds=10, check=True).exit_code
+                    != 0
+                ):
+                    raise RuntimeError(
+                        "isolated Allocation stopped after Tunnel revoke"
+                    )
+            finally:
+                cleanup_errors: list[Exception] = []
+                if session_id:
+                    try:
+                        client.revoke_tunnel_session(
+                            session_id, reason="isolated release cleanup"
+                        )
+                    except Exception as error:
+                        cleanup_errors.append(error)
+                if connector is not None:
+                    try:
+                        connector.stop()
+                        if not connector.wait_closed(5):
+                            raise RuntimeError("isolated Tunnel connector did not stop")
+                    except Exception as error:
+                        cleanup_errors.append(error)
+                if cleanup_errors:
+                    raise ExceptionGroup(
+                        "isolated Tunnel cleanup failed", cleanup_errors
+                    )
+        terminal = client.wait_run(run_id, timeout=60)
+        if terminal.status != run_pb2.RUN_STATUS_CANCELLED:
+            raise RuntimeError(
+                "isolated Run did not become cancelled after Sandbox cleanup"
+            )
+        return run_id
+    finally:
+        server.shutdown()
+        server.server_close()
+        server_thread.join()
+
+
 def wait_tunnel_client(client: AxernClient, session_id: str) -> None:
+    wait_tunnel_event(
+        client, session_id, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED
+    )
+
+
+def wait_tunnel_event(client: AxernClient, session_id: str, event_type: int) -> None:
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         if any(
-            event.event_type == tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_CLIENT_CONNECTED
+            event.event_type == event_type
             for event in client.list_tunnel_events(session_id, limit=50)
         ):
             return
         time.sleep(0.1)
-    raise RuntimeError("public TunnelConnector did not connect")
+    raise RuntimeError(
+        "public TunnelConnector did not report "
+        f"{tunnel_pb2.TunnelSessionEventType.Name(event_type)}"
+    )
 
 
 def assert_declared_outputs(
