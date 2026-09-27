@@ -9,6 +9,7 @@ import (
 
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -85,6 +86,52 @@ func TestProxyUnknownServiceForwardsUnaryControlRPC(t *testing.T) {
 	}
 	if got := trailer.Get("x-proxy-trailer"); len(got) != 0 {
 		t.Fatalf("internal trailer leaked through proxy: %v", got)
+	}
+}
+
+func TestProxyUnknownServicePreservesPublicSetupReason(t *testing.T) {
+	backendServer := grpc.NewServer(grpc.ForceServerCodec(rawCodec{}))
+	backendServer.RegisterService(&grpc.ServiceDesc{
+		ServiceName: "test.Control",
+		HandlerType: (*testControlService)(nil),
+		Methods:     []grpc.MethodDesc{{MethodName: "Setup", Handler: setupFailureHandler}},
+	}, struct{}{})
+	backendAddr := serveGRPC(t, backendServer)
+	backendConn, err := grpc.NewClient(backendAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(rawCodec{})),
+	)
+	if err != nil {
+		t.Fatalf("dial backend: %v", err)
+	}
+	defer backendConn.Close()
+
+	proxyServer := grpc.NewServer(
+		grpc.ForceServerCodec(rawCodec{}),
+		grpc.UnknownServiceHandler(proxyUnknownServiceForServicesWithIdentity(backendConn, map[string]struct{}{"test.Control": {}}, testClientIdentity)),
+	)
+	proxyAddr := serveGRPC(t, proxyServer)
+	proxyConn, err := grpc.NewClient(proxyAddr,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.ForceCodec(rawCodec{})),
+	)
+	if err != nil {
+		t.Fatalf("dial proxy: %v", err)
+	}
+	defer proxyConn.Close()
+
+	var out rawMessage
+	err = proxyConn.Invoke(context.Background(), "/test.Control/Setup", rawMessage("request"), &out)
+	status, ok := grpcstatus.FromError(err)
+	if !ok || status.Code() != codes.FailedPrecondition {
+		t.Fatalf("public setup status = %v, want FailedPrecondition", err)
+	}
+	if len(status.Details()) != 1 {
+		t.Fatalf("public setup details = %v, want one ErrorInfo", status.Details())
+	}
+	info, ok := status.Details()[0].(*errdetails.ErrorInfo)
+	if !ok || info.GetDomain() != "axern.control.tunnel" || info.GetReason() != "TUNNEL_SESSION_FAILED" || len(info.GetMetadata()) != 0 {
+		t.Fatalf("public setup detail = %v, want redacted tunnel reason", status.Details()[0])
 	}
 }
 
@@ -251,6 +298,22 @@ func echoUnaryHandler(_ any, ctx context.Context, dec func(any) error, _ grpc.Un
 	}
 	grpc.SetTrailer(ctx, metadata.Pairs("x-proxy-trailer", "done"))
 	return rawMessage("echo:" + string(in) + ":" + first(md.Get("x-proxy-test")) + ":" + first(md.Get(clientCertificateFingerprintMetadata))), nil
+}
+
+func setupFailureHandler(_ any, _ context.Context, dec func(any) error, _ grpc.UnaryServerInterceptor) (any, error) {
+	var in rawMessage
+	if err := dec(&in); err != nil {
+		return nil, err
+	}
+	status := grpcstatus.New(codes.FailedPrecondition, "tunnel session setup failed")
+	withDetails, err := status.WithDetails(&errdetails.ErrorInfo{
+		Domain: "axern.control.tunnel",
+		Reason: "TUNNEL_SESSION_FAILED",
+	})
+	if err != nil {
+		return nil, err
+	}
+	return nil, withDetails.Err()
 }
 
 func echoServerStreamHandler(_ any, stream grpc.ServerStream) error {
