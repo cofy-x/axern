@@ -118,8 +118,27 @@ func TestRelayBindingIsPrivateAndRecoverable(t *testing.T) {
 	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "test revoke", now.Add(time.Second)); err != nil {
 		t.Fatalf("Revoke() error = %v", err)
 	}
-	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Second)); grpcstatus.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("ResolveRelayTarget(terminal) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.FailedPrecondition, err)
+	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Second)); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ResolveRelayTarget(revoked) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.PermissionDenied, err)
+	}
+}
+
+func TestResolveRelayTargetRejectsExpiredSessionAsPermissionDenied(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-expired-relay", now)
+
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-expired-relay",
+		TTL:          time.Minute,
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Minute)); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ResolveRelayTarget(expired) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.PermissionDenied, err)
 	}
 }
 

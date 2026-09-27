@@ -25,7 +25,7 @@ func (s *Store) ResolveRelayTarget(ctx context.Context, sessionID string, now ti
 		return "", err
 	}
 	if terminal(session.GetStatus()) {
-		return "", grpcstatus.Error(codes.FailedPrecondition, "tunnel session is terminal")
+		return "", grpcstatus.Error(codes.PermissionDenied, "tunnel session is not active")
 	}
 	if strings.TrimSpace(internal.nodeEdgeTarget) == "" {
 		return "", grpcstatus.Error(codes.Unavailable, "tunnel relay target is not ready")

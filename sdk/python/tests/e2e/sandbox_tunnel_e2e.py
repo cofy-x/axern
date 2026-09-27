@@ -377,7 +377,8 @@ while not root.joinpath('finish').exists():
         client.revoke_tunnel_session(session_id, reason="service access complete")
         if not connector.wait_closed(25):
             raise RuntimeError(
-                "tunnel connector did not close within the revocation bound"
+                "tunnel connector did not close within the revocation bound "
+                f"run_id={run_id} session_id={session_id}"
             )
         run_after_revoke = client.get_run(run_id)
         if run_after_revoke.status != run_pb2.RUN_STATUS_RUNNING:
@@ -638,7 +639,8 @@ def run_isolated_tunnel_check(
         client.revoke_tunnel_session(session_id, reason="isolated tunnel test complete")
         if not connector.wait_closed(25):
             raise RuntimeError(
-                "isolated Tunnel connector did not close after revocation"
+                "isolated Tunnel connector did not close after revocation "
+                f"run_id={run_id} session_id={session_id}"
             )
         session = client.get_tunnel_session(session_id)
         if session.status != tunnel_pb2.TUNNEL_SESSION_STATUS_REVOKED:
