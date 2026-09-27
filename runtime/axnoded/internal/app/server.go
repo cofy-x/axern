@@ -12,8 +12,8 @@ import (
 	"time"
 
 	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
-	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
 	nodeoperatorv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/operator/v1"
+	nodetunnelv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/tunnel/v1"
 	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -55,8 +55,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	var conformanceLis net.Listener
 	var conformanceGRPCServer *grpc.Server
 	var conformanceHealthServer *grpc_health.Server
-	var networkLis net.Listener
-	var networkGRPCServer *grpc.Server
+	var tunnelLis net.Listener
+	var tunnelGRPCServer *grpc.Server
 	nodeID := cfg.PluginConfig.ControlPlaneNodeID
 	controlPlaneConfig := cfg.PluginConfig
 	accessGrantCache := controlplane.NewAccessGrantCache()
@@ -114,18 +114,18 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		healthpb.RegisterHealthServer(conformanceGRPCServer, conformanceHealthServer)
 	}
 
-	if strings.TrimSpace(opts.networkSocketPath) != "" {
-		networkLis, err = listenUnix(opts.networkSocketPath, 0o600)
+	if strings.TrimSpace(opts.tunnelSocketPath) != "" {
+		tunnelLis, err = listenUnix(opts.tunnelSocketPath, 0o600)
 		if err != nil {
-			return fmt.Errorf("listen Allocation network grpc %s: %w", opts.networkSocketPath, err)
+			return fmt.Errorf("listen Allocation tunnel grpc %s: %w", opts.tunnelSocketPath, err)
 		}
-		defer networkLis.Close()
-		networkOptions := []grpc.ServerOption{grpc.UnaryInterceptor(trace.InjectTraceInterceptor)}
+		defer tunnelLis.Close()
+		tunnelOptions := []grpc.ServerOption{grpc.UnaryInterceptor(trace.InjectTraceInterceptor)}
 		if handler := obs.GRPCServerStatsHandler(); handler != nil {
-			networkOptions = append(networkOptions, grpc.StatsHandler(handler))
+			tunnelOptions = append(tunnelOptions, grpc.StatsHandler(handler))
 		}
-		networkGRPCServer = grpc.NewServer(networkOptions...)
-		nodenetworkv1.RegisterAllocationNetworkServer(networkGRPCServer, api.NewAllocationNetworkServer(svc))
+		tunnelGRPCServer = grpc.NewServer(tunnelOptions...)
+		nodetunnelv1.RegisterAllocationTunnelServer(tunnelGRPCServer, api.NewAllocationTunnelServer(svc))
 	}
 
 	if strings.TrimSpace(opts.grpcAddress) != "" {
@@ -179,10 +179,10 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			conformanceErrCh <- conformanceGRPCServer.Serve(conformanceLis)
 		}()
 	}
-	networkErrCh := make(chan error, 1)
-	if networkGRPCServer != nil {
+	tunnelErrCh := make(chan error, 1)
+	if tunnelGRPCServer != nil {
 		go func() {
-			networkErrCh <- networkGRPCServer.Serve(networkLis)
+			tunnelErrCh <- tunnelGRPCServer.Serve(tunnelLis)
 		}()
 	}
 
@@ -209,9 +209,9 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		if err != nil {
 			runErr = fmt.Errorf("conformance grpc server exited: %w", err)
 		}
-	case err := <-networkErrCh:
+	case err := <-tunnelErrCh:
 		if err != nil {
-			runErr = fmt.Errorf("Allocation network grpc server exited: %w", err)
+			runErr = fmt.Errorf("Allocation tunnel grpc server exited: %w", err)
 		}
 	case err := <-grpcErrCh:
 		if err != nil {
@@ -245,8 +245,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		if nodeGRPCServer != nil {
 			nodeGRPCServer.GracefulStop()
 		}
-		if networkGRPCServer != nil {
-			networkGRPCServer.GracefulStop()
+		if tunnelGRPCServer != nil {
+			tunnelGRPCServer.GracefulStop()
 		}
 		close(stopped)
 	}()
@@ -262,8 +262,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		if nodeGRPCServer != nil {
 			nodeGRPCServer.Stop()
 		}
-		if networkGRPCServer != nil {
-			networkGRPCServer.Stop()
+		if tunnelGRPCServer != nil {
+			tunnelGRPCServer.Stop()
 		}
 	}
 

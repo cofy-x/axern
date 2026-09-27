@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
+import ipaddress
+import json
 import os
+import subprocess
 import sys
 import threading
 import time
@@ -16,14 +20,16 @@ from tempfile import TemporaryDirectory
 os.environ.setdefault("GRPC_VERBOSITY", "ERROR")
 os.environ.setdefault("GLOG_minloglevel", "2")
 
-from axern.control.tunnel.v1 import tunnel_pb2
+from axern.control.common.v1 import common_pb2
 from axern.control.run.v1 import run_pb2
+from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk import (
     AsyncAxernClient,
     AsyncSandbox,
     AxernClient,
     DeclaredOutput,
     DeclaredOutputFormat,
+    NetworkPolicy,
     Sandbox,
     SandboxError,
     TunnelConnector,
@@ -48,6 +54,9 @@ def main() -> int:
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
         (root / "index.txt").write_text(marker + "\n")
+        large_payload = bytes(range(256)) * 8192 + b"tunnel-end"
+        (root / "large.bin").write_bytes(large_payload)
+        large_payload_sha256 = hashlib.sha256(large_payload).hexdigest()
         server = ThreadingHTTPServer(("127.0.0.1", 0), _handler_for(root))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
@@ -70,6 +79,33 @@ def main() -> int:
                 upstream=upstream,
                 ready_timeout_seconds=180,
             ) as sandbox:
+                phase = "sync-egress-control"
+                bridge_ip = node_bridge_address(args.node_container)
+                if (
+                    client.get_run(sandbox.run_id).config.network.mode
+                    == common_pb2.NETWORK_MODE_ISOLATED
+                ):
+                    raise RuntimeError(
+                        "control Sandbox unexpectedly used isolated network"
+                    )
+                egress_control = sandbox.exec(
+                    [
+                        "python",
+                        "-c",
+                        "import sys,urllib.request\n"
+                        "opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))\n"
+                        "with opener.open(sys.argv[1],timeout=5) as response:\n"
+                        "    print(response.status)\n",
+                        f"http://{bridge_ip}:23001/readyz",
+                    ],
+                    timeout_seconds=10,
+                    check=True,
+                    text=True,
+                )
+                if egress_control.stdout.strip() != "200":
+                    raise RuntimeError(
+                        "control Sandbox could not reach node bridge HTTP service"
+                    )
                 phase = "sync-file-api"
                 if not sandbox.read_file("/etc/hostname").strip():
                     raise SystemExit("sandbox read_file returned an empty hostname")
@@ -230,6 +266,10 @@ with urllib.request.urlopen("http://{sandbox.bound_addr}/index.txt", timeout=5) 
             run_low_level_loopback_service_check(
                 client, args.image_ref, upstream, marker
             )
+            phase = "isolated-tunnel"
+            run_isolated_tunnel_check(
+                client, args, upstream, marker, bridge_ip, large_payload_sha256
+            )
             phase = "async-check"
             asyncio.run(run_async_sandbox_check(args))
             return 0
@@ -389,6 +429,275 @@ while not root.joinpath('finish').exists():
         client.delete_environment(environment.id)
 
 
+ISOLATED_TUNNEL_PROBE = """
+import errno
+import hashlib
+import json
+import socket
+import ssl
+import sys
+import urllib.error
+import urllib.request
+
+bridge_ip, tunnel_port, marker, expected_hash = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+blocked_errnos = {errno.ENETUNREACH, errno.EHOSTUNREACH, errno.ETIMEDOUT, errno.EACCES, errno.EPERM}
+opener = urllib.request.build_opener(
+    urllib.request.ProxyHandler({}),
+    urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+)
+
+def network_blocked(error):
+    if isinstance(error, urllib.error.URLError):
+        error = error.reason
+    return isinstance(error, socket.gaierror) or isinstance(error, TimeoutError) or (
+        isinstance(error, OSError) and error.errno in blocked_errnos
+    )
+
+def blocked_https(url):
+    try:
+        with opener.open(url, timeout=4) as response:
+            response.read(1)
+    except OSError as error:
+        return network_blocked(error)
+    return False
+
+def blocked_tcp(host, port):
+    try:
+        with socket.create_connection((host, port), timeout=4):
+            return False
+    except OSError as error:
+        return network_blocked(error)
+
+with opener.open(f'http://127.0.0.1:{tunnel_port}/index.txt', timeout=10) as response:
+    tunnel_body = response.read().decode().strip()
+with opener.open(f'http://127.0.0.1:{tunnel_port}/large.bin', timeout=30) as response:
+    large_hash = hashlib.sha256(response.read()).hexdigest()
+
+try:
+    socket.getaddrinfo('example.com', 443, type=socket.SOCK_STREAM)
+    dns_blocked = False
+except socket.gaierror:
+    dns_blocked = True
+
+print(json.dumps({
+    'tunnel_ok': tunnel_body == marker,
+    'large_response_intact': large_hash == expected_hash,
+    'dns_blocked': dns_blocked,
+    'external_https_blocked': blocked_https('https://example.com/'),
+    'bridge_https_blocked': blocked_https(f'https://{bridge_ip}:23001/readyz'),
+    'direct_ip_blocked': blocked_tcp(bridge_ip, 23001),
+}, sort_keys=True))
+"""
+
+
+def node_bridge_address(node_container: str) -> str:
+    result = subprocess.run(
+        [
+            "docker",
+            "exec",
+            node_container,
+            "ip",
+            "-4",
+            "-o",
+            "addr",
+            "show",
+            "dev",
+            "sandbox0",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    fields = result.stdout.split()
+    if len(fields) < 4 or fields[2] != "inet":
+        raise RuntimeError("node sandbox bridge has no IPv4 address")
+    address = str(ipaddress.IPv4Interface(fields[3]).ip)
+    ready = subprocess.run(
+        [
+            "docker",
+            "exec",
+            node_container,
+            "curl",
+            "--noproxy",
+            "*",
+            "--silent",
+            "--show-error",
+            "--fail",
+            "--max-time",
+            "3",
+            f"http://{address}:23001/readyz",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if ready.returncode != 0:
+        raise RuntimeError(
+            "node sandbox bridge HTTP target is not reachable for egress probe"
+        )
+    return address
+
+
+def run_isolated_tunnel_check(
+    client: AxernClient,
+    args: argparse.Namespace,
+    upstream: str,
+    marker: str,
+    bridge_ip: str,
+    large_payload_sha256: str,
+) -> None:
+    """Keep deny-all egress while the declared loopback Tunnel is live."""
+
+    environment = client.create_environment(
+        image_ref=args.image_ref,
+        labels={"axern.e2e": "isolated-tunnel"},
+    )
+    run_id = ""
+    session_id = ""
+    connector: TunnelConnector | None = None
+    try:
+        run = client.create_run(
+            environment_id=environment.id,
+            argv=[
+                "python",
+                "-c",
+                "import time\n"
+                "from pathlib import Path\n"
+                "while not Path('/tmp/isolated-finish').exists():\n"
+                "    time.sleep(0.05)\n"
+                "Path('/tmp/isolated-output.txt').write_text('isolated-output-ok\\n')\n",
+            ],
+            network_policy=NetworkPolicy.deny_all(),
+            declared_outputs=[
+                DeclaredOutput(
+                    "/tmp/isolated-output.txt",
+                    DeclaredOutputFormat.FILE,
+                    "text/plain",
+                )
+            ],
+            labels={"axern.e2e": "isolated-tunnel"},
+        )
+        run_id = run.id
+        run = wait_for_allocation(client, run_id)
+        if run.config.network.mode != common_pb2.NETWORK_MODE_ISOLATED:
+            raise RuntimeError("deny-all Run was not persisted as isolated")
+        allocation = client.allocation(run.allocation_id)
+        tunnel = client.create_tunnel_session(
+            allocation_id=run.allocation_id,
+            remote_port=8765,
+            ttl_seconds=300,
+            wait_ready=True,
+            ready_timeout_seconds=45,
+        )
+        session_id = tunnel.session.session_id
+        if (
+            tunnel.session.remote_port != 8765
+            or tunnel.session.bound_addr != "127.0.0.1:8765"
+        ):
+            raise RuntimeError(
+                "Tunnel did not bind the requested sandbox loopback port"
+            )
+        connector = TunnelConnector(
+            client=client,
+            session=tunnel.session,
+            client_token=tunnel.client_token,
+            local_target=upstream,
+        )
+        connector.start()
+        wait_for_tunnel_event(
+            client, session_id, tunnel_pb2.TUNNEL_SESSION_EVENT_TYPE_PAIRED
+        )
+        result = allocation.exec(
+            [
+                "python",
+                "-c",
+                ISOLATED_TUNNEL_PROBE,
+                bridge_ip,
+                "8765",
+                marker,
+                large_payload_sha256,
+            ],
+            timeout_seconds=60,
+            check=True,
+        )
+        observed = json.loads(result.stdout_text())
+        expected = {
+            "tunnel_ok",
+            "large_response_intact",
+            "dns_blocked",
+            "external_https_blocked",
+            "bridge_https_blocked",
+            "direct_ip_blocked",
+        }
+        if set(observed) != expected or not all(
+            value is True for value in observed.values()
+        ):
+            raise RuntimeError(f"isolated Tunnel or egress probe failed: {observed}")
+
+        client.revoke_tunnel_session(session_id, reason="isolated tunnel test complete")
+        if not connector.wait_closed(25):
+            raise RuntimeError(
+                "isolated Tunnel connector did not close after revocation"
+            )
+        session = client.get_tunnel_session(session_id)
+        if session.status != tunnel_pb2.TUNNEL_SESSION_STATUS_REVOKED:
+            raise RuntimeError("isolated Tunnel was not revoked")
+        if client.get_run(run_id).status != run_pb2.RUN_STATUS_RUNNING:
+            raise RuntimeError("Tunnel revocation ended the isolated Run")
+        revoked = allocation.exec(
+            [
+                "python",
+                "-c",
+                "import errno,socket,sys,time\n"
+                "deadline=time.monotonic()+15\n"
+                "while time.monotonic()<deadline:\n"
+                "    try:\n"
+                "        with socket.create_connection(('127.0.0.1',8765),timeout=2): pass\n"
+                "    except OSError as error:\n"
+                "        if error.errno in {errno.ECONNREFUSED,errno.ECONNRESET}:\n"
+                "            print('revoked'); sys.exit(0)\n"
+                "    time.sleep(0.2)\n"
+                "sys.exit(1)\n",
+            ],
+            timeout_seconds=25,
+            check=True,
+            text=True,
+        )
+        if revoked.stdout.strip() != "revoked":
+            raise RuntimeError("revoked Tunnel still accepted a sandbox request")
+        allocation.write_file("/tmp/isolated-finish", b"finish\n")
+        terminal = client.wait_run(run_id, timeout=60)
+        if terminal.status != run_pb2.RUN_STATUS_SUCCEEDED:
+            raise RuntimeError("isolated Run did not finish cleanly")
+        if download_only_output(client, run_id) != b"isolated-output-ok\n":
+            raise RuntimeError("isolated Run declared output was not sealed")
+        print(
+            f"python_sdk_isolated_tunnel_e2e_ok=true run_id={run_id} session_id={session_id}"
+        )
+        run_id = ""
+        session_id = ""
+    except BaseException as exc:
+        log_e2e_failure(
+            args, phase="isolated-tunnel", run_id=run_id, session_id=session_id, exc=exc
+        )
+        raise
+    finally:
+        if connector is not None:
+            connector.stop()
+        if session_id:
+            try:
+                client.revoke_tunnel_session(session_id, reason="isolated test cleanup")
+            except Exception:
+                pass
+        if run_id:
+            try:
+                client.cancel_run(run_id)
+            except Exception:
+                pass
+        client.delete_environment(environment.id)
+
+
 def wait_for_allocation(client: AxernClient, run_id: str):
     for run in client.watch_run(run_id, timeout=180):
         if run.status == run_pb2.RUN_STATUS_RUNNING and run.allocation_id:
@@ -413,6 +722,20 @@ def wait_for_tunnel_client(client: AxernClient, session_id: str) -> None:
             return
         time.sleep(0.1)
     raise RuntimeError("Tunnel client did not connect")
+
+
+def wait_for_tunnel_event(
+    client: AxernClient, session_id: str, event_type: int
+) -> None:
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        events = client.list_tunnel_events(session_id, limit=50)
+        if any(event.event_type == event_type for event in events):
+            return
+        time.sleep(0.1)
+    raise RuntimeError(
+        f"Tunnel did not report {tunnel_pb2.TunnelSessionEventType.Name(event_type)}"
+    )
 
 
 def wait_for_file(allocation, path: str) -> None:

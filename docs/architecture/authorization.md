@@ -26,7 +26,7 @@ The node-local operator API is a privileged administrative boundary, not an unau
 
 Operator `Exec`, `ExecStream`, and `Wait` target an already admitted Allocation and reuse its normal process/runtime implementation. They do not advance Allocation desired state. Destructive node-local recovery is an explicitly named break-glass authority with terminal reporting, diagnostic, and idempotent cleanup obligations; routine cancellation and deletion remain control-plane operations.
 
-Node-local daemons use purpose-specific machine interfaces. In particular, a tunnel component that only resolves an Allocation network namespace must not share a socket or principal whose ambient authority also permits exec, termination, cleanup, or broad diagnostics. Socket separation, service registration, ownership, and deployment identities must preserve that least-privilege boundary.
+Node-local daemons use purpose-specific machine interfaces. In particular, `node-tunneld` may only validate that an exact control-plane-bound Allocation has a live lease and matching runtime identity. It cannot gain NodeOperator exec, termination, cleanup, or broad diagnostic authority through its machine socket. The relay token stays on the node; the sandbox-local tunnel agent receives only a declared loopback port and exchanges bounded frames over `runsc exec` stdio. Socket separation, service registration, ownership, and deployment identities preserve that least-privilege boundary.
 
 Runtime conformance uses a third, explicitly configured root-only Unix socket. It can create and inspect only unbound local Allocations and fails closed when an Allocation ID belongs to a control-plane admission record. Production does not enable this socket.
 

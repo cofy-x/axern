@@ -10,7 +10,7 @@ For local compose and kind commands, see [Local Troubleshooting](../../deploy/lo
 | --- | --- | --- |
 | `controld` | process stdout/stderr | node observation ingest, heartbeat freshness, placement rejections, allocation dispatch, Run/Allocation state, gateway and tunnel target resolution |
 | `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
-| `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, Allocation netns lookup, machine-only network socket access, relay connection failures |
+| `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, Allocation authority validation, machine-only tunnel socket access, relay connection failures |
 | `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
 | `egressd` | process stdout/stderr | policy prepare/delete fencing, persistent recovery, orphan reconciliation, enforcement health |
 | `imagefsd mount daemon` | `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` | Nydus image read path, backend fetches, cache/chunk behavior, FUSE mount daemon internals |
@@ -27,7 +27,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 | ----------------------------------- | ------------------------------------------------------------ |
 | `/var/lib/axnoded/node-config.toml`     | generated axnoded config used by node-all-in-one deployments |
 | `/shared/run/axnoded.sock`          | root-only axnoded operator socket used by `axctl`            |
-| `/shared/run/axnoded-network.sock`  | machine-only Allocation network socket for `node-tunneld`    |
+| `/shared/run/axnoded-tunnel.sock`   | machine-only Allocation tunnel socket for `node-tunneld`     |
 | `/run/imagemgr/imagemgr.sock`       | axnoded-to-imagemgr image rootfs API socket                  |
 | `/run/egressd/egressd.sock`         | axnoded-to-egressd policy lifecycle API socket               |
 | `/var/lib/axnoded`                  | axnoded runtime state, store, rootfs, filestore              |
@@ -66,12 +66,12 @@ The generated config is root-only and does not contain bootstrap tokens. Keep th
 | Component      | Owns                                                                                                                 |
 | -------------- | -------------------------------------------------------------------------------------------------------------------- |
 | `controld`     | node observation, placement, allocation dispatch, gateway/tunnel resolution                                          |
-| `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, root-only operator and separate machine network sockets |
+| `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, root-only operator and separate machine tunnel socket |
 | `egressd`      | node-local egress policy persistence, recovery, reconciliation, and host enforcement                                 |
 | `imagemgr`     | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle                                 |
 | `imagefsd`     | read-only image data, cache, chunk DB, mount daemon internals                                                        |
 | `gatewayd`     | Allocation-bound process, file, archive, terminal, SSH, Tunnel, and sandbox forwarding after target resolution       |
 | `tunneld`      | relay-side tunnel session pairing                                                                                    |
-| `node-tunneld` | node-local tunnel agent launch and allocation netns lookup                                                           |
+| `node-tunneld` | node-local tunnel agent launch and exact Allocation validation                                                       |
 
 For architecture context, see [Runtime Architecture](../architecture/runtime-architecture.md) and [Runtime Stack](../../.x/runtime-stack.md).

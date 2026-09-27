@@ -11,7 +11,7 @@ import (
 	"time"
 
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
-	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
+	nodetunnelv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/tunnel/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -20,7 +20,7 @@ import (
 type daemon struct {
 	nodeID  string
 	node    nodev1.NodeControlClient
-	network nodenetworkv1.AllocationNetworkClient
+	tunnel  nodetunnelv1.AllocationTunnelClient
 	runsc   runscConfig
 	relay   relayConfig
 	mu      sync.Mutex

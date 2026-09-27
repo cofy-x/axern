@@ -21,7 +21,7 @@ Sandbox interface pools may be IPv4 or IPv6. Bpfnet is IPv4-only: selecting `ebp
 - `axern.node.sandbox.v1.NodeSandbox`: gateway-forwarded process, terminal, file/archive, readiness, and Computer Use operations for one explicit Allocation. The routable node listener accepts this service only from the verified `gatewayd` mTLS identity. Public messages never carry access credentials; axnoded accepts an AllocationAccessGrant only from private incoming gRPC metadata and rejects missing or ambiguous values. Streaming operations acknowledge a validated grant before consuming request data or producing sandbox output.
 - `axern.private.node.lifecycle.v1.NodeLifecycle`: repo-internal control-plane-to-node allocation create, delete, and status, accepted on the routable listener only from the verified `controld` mTLS identity.
 - `axern.private.node.operator.v1.NodeOperator`: root-only local operator inspection, Allocation-scoped exec/wait, and audited break-glass workflows for `axctl`.
-- `axern.private.node.network.v1.AllocationNetwork`: narrow machine-only Allocation network resolution for `node-tunneld`, registered on a separate Unix socket.
+- `axern.private.node.tunnel.v1.AllocationTunnel`: narrow machine-only validation of exact live Allocation tunnel authority for `node-tunneld`, registered on a separate Unix socket.
 - `axern.private.control.node.v1.NodeControl`: ordered atomic node reports with explicit finite execution-lease grants, coalesced Allocation lifecycle batches, and allocation-access-grant replication with `controld`.
 
 The reporter uses an explicitly admitted Node identity and a fresh process identity for observation ordering. An administrator admits the Node ID with a one-time enrollment token. The node generates its private key locally, registers its CSR on the dedicated enrollment listener, and automatically renews its 24-hour certificate. Normal reports and watches authenticate the exact Node URI, never the enrollment token. Revocation and retirement irreversibly reject reports, renewal, status batches, and watches; only retirement confirms that control-plane cleanup obligations are clear. Replacement requires a new Node ID.
@@ -59,7 +59,7 @@ Example daemon invocation:
 ./output/axnoded \
   -config ./docs/sample_conf.toml \
   -socket /run/axnoded/axnoded.sock \
-  -network-socket /run/axnoded/network.sock \
+  -tunnel-socket /run/axnoded/tunnel.sock \
   -http-address 127.0.0.1:23001
 ```
 
@@ -135,10 +135,10 @@ Axnoded OTEL metrics include the stable `axern.node_id` datapoint attribute so m
 Default local endpoints:
 
 - root-only operator Unix socket: `/run/axnoded/axnoded.sock`
-- machine-only Allocation network Unix socket: `/run/axnoded/network.sock`
+- machine-only Allocation tunnel Unix socket: `/run/axnoded/tunnel.sock`
 - optional root-only local conformance Unix socket: disabled in production; verification images use `/run/axnoded/conformance.sock`
 - repo-local dev socket: `.dev/run/axnoded.sock`
-- repo-local machine socket: `.dev/run/axnoded-network.sock`
+- repo-local machine socket: `.dev/run/axnoded-tunnel.sock`
 - HTTP operator surface: `127.0.0.1:23001`
 
 The routable listener loads the node-owned `identity/node.pem` bundle under the configured root and `control_plane_tls_ca_cert`. Verified URI roles enforce the service matrix: gatewayd may call NodeSandbox and controld may call NodeLifecycle. Callers verify the exact Allocation-bound Node ID, not a shared DNS name.
@@ -149,7 +149,7 @@ Local lifecycle conformance is never registered on the operator socket or the ro
 
 `NodeOperator` remains root-only and Unix-socket-only. Its `Exec`, `ExecStream`, and `Wait` methods operate on the exact Allocation identity and cannot advance Allocation lifecycle. Destructive incident recovery is limited to reason-bearing `ForceTerminateAllocation` and `ForceCleanupAllocation`; normal cancellation and cleanup remain control-plane operations.
 
-`AllocationNetwork` is registered on the separate machine socket and exposes only `ResolveAllocationNetwork` to node-local platform daemons such as `node-tunneld`. It cannot exec, inspect, terminate, or clean an Allocation.
+`AllocationTunnel` is registered on the separate machine socket and exposes only `ValidateAllocationTunnel` to `node-tunneld`. It validates the exact control-plane binding, live execution lease, and runtime identity without requiring a connected sandbox interface. It cannot exec, inspect, terminate, or clean an Allocation.
 
 Image-backed rootfs flows depend on the node-local `imagemgr` socket:
 

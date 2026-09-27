@@ -327,12 +327,22 @@ func TestReportTunnelSessionStatusRequiresNodeAuth(t *testing.T) {
 	if !tunnels.reportCalled || tunnels.nodeID != "node-a" || tunnels.sessionID != "tun-1" {
 		t.Fatalf("report call = called:%t node:%q session:%q", tunnels.reportCalled, tunnels.nodeID, tunnels.sessionID)
 	}
+	tunnels.returnedStatus = tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED
+	_, err = server.ReportTunnelSessionStatus(context.Background(), &controlnodev1.ReportTunnelSessionStatusRequest{
+		NodeID:    "node-a",
+		SessionID: "tun-1",
+		Status:    tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING,
+	})
+	if grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("late tunnel readiness after revoke = %v, want FailedPrecondition", err)
+	}
 }
 
 type fakeTunnelControl struct {
-	reportCalled bool
-	nodeID       string
-	sessionID    string
+	reportCalled   bool
+	nodeID         string
+	sessionID      string
+	returnedStatus tunnelv1.TunnelSessionStatus
 }
 
 type fakeAllocationControl struct {
@@ -383,5 +393,8 @@ func (f *fakeTunnelControl) ReportStatus(ctx context.Context, nodeID, sessionID 
 	f.reportCalled = true
 	f.nodeID = nodeID
 	f.sessionID = sessionID
+	if f.returnedStatus != tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_UNSPECIFIED {
+		status = f.returnedStatus
+	}
 	return &tunnelv1.TunnelSession{SessionID: sessionID, Status: status}, nil
 }

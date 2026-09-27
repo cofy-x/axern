@@ -97,8 +97,8 @@ type NodeOperatorService interface {
 	ForceCleanupAllocation(context.Context, string, string, int64) error
 }
 
-type AllocationNetworkService interface {
-	ResolveAllocationNetwork(string) (*SandboxNetwork, error)
+type AllocationTunnelService interface {
+	ValidateAllocationTunnel(string) error
 }
 
 type NodeLifecycleService interface {
@@ -119,7 +119,7 @@ type NodeService interface {
 	SandboxService
 	NodeOperatorService
 	NodeLifecycleService
-	AllocationNetworkService
+	AllocationTunnelService
 }
 
 type NetworkPolicyMode string
