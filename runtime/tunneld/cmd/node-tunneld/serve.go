@@ -12,6 +12,11 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
+const (
+	allocationValidationFailureReason = "allocation tunnel authorization failed"
+	allocationValidationRetryReason   = "allocation tunnel authorization temporarily unavailable"
+)
+
 func (d *daemon) serveSession(ctx context.Context, session *tunnelcontrolv1.TunnelSession, token, nodeEdgeTarget string) error {
 	if err := d.validateAllocationTunnel(ctx, session.GetAllocationID()); err != nil {
 		return err
@@ -24,14 +29,17 @@ func (d *daemon) validateAllocationTunnel(ctx context.Context, allocationID stri
 	validated, err := d.tunnel.ValidateAllocationTunnel(checkCtx, &nodetunnelv1.ValidateAllocationTunnelRequest{AllocationID: allocationID})
 	cancel()
 	if err != nil {
-		switch grpcstatus.Code(err) {
-		case codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted:
-			return degradedSessionError(err)
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-		return err
+		switch grpcstatus.Code(err) {
+		case codes.Unavailable, codes.DeadlineExceeded, codes.ResourceExhausted, codes.Canceled:
+			return sessionStatusError{status: tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED, err: err, reason: allocationValidationRetryReason}
+		}
+		return failedSessionError(err, allocationValidationFailureReason)
 	}
 	if validated == nil || validated.GetAllocationID() != allocationID {
-		return fmt.Errorf("node tunnel authorization returned a different Allocation identity")
+		return failedSessionError(fmt.Errorf("node tunnel authorization returned a different Allocation identity"), allocationValidationFailureReason)
 	}
 	return nil
 }

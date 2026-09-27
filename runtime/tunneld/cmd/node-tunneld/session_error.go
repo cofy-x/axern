@@ -9,9 +9,14 @@ import (
 type sessionStatusError struct {
 	status tunnelcontrolv1.TunnelSessionStatus
 	err    error
+	// reason is the safe diagnostic persisted in the public TunnelSession.
+	reason string
 }
 
 func (e sessionStatusError) Error() string {
+	if e.reason != "" {
+		return e.reason
+	}
 	return e.err.Error()
 }
 
@@ -32,4 +37,11 @@ func degradedSessionError(err error) error {
 		return nil
 	}
 	return sessionStatusError{status: tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED, err: err}
+}
+
+func failedSessionError(err error, reason string) error {
+	if err == nil {
+		return nil
+	}
+	return sessionStatusError{status: tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED, err: err, reason: reason}
 }

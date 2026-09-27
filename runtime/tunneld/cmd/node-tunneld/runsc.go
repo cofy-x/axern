@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -9,6 +10,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
@@ -22,6 +24,13 @@ import (
 )
 
 const agentReadyMessage = stdioframe.ReadyLine
+
+const (
+	agentStartupFailureReason = "sandbox tunnel agent failed before readiness"
+	agentStartupRetryReason   = "sandbox tunnel agent temporarily unavailable"
+)
+
+var errInvalidAgentReady = errors.New("runsc tunnel agent returned an invalid ready message")
 
 type runscAgent struct {
 	stdin   io.WriteCloser
@@ -109,7 +118,7 @@ func (d *daemon) serveRunscSession(ctx context.Context, session *tunnelcontrolv1
 	// terminal or expired Allocation is not started from a stale watch item.
 	agent, err := d.startValidatedRunscAgent(bridgeCtx, session.GetAllocationID(), session.GetRemotePort())
 	if err != nil {
-		return degradedSessionError(err)
+		return err
 	}
 	defer agent.stop()
 	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(session.GetRemotePort())))
@@ -135,6 +144,21 @@ func (d *daemon) startValidatedRunscAgent(ctx context.Context, allocationID stri
 		return nil, err
 	}
 	return d.startRunscAgent(ctx, allocationID, port)
+}
+
+func agentProcessError(err error) error {
+	if errors.Is(err, os.ErrNotExist) || errors.Is(err, os.ErrPermission) || errors.Is(err, exec.ErrDot) || errors.Is(err, syscall.ENOEXEC) {
+		return failedSessionError(err, agentStartupFailureReason)
+	}
+	return agentRetryError(err)
+}
+
+func agentRetryError(err error) error {
+	return sessionStatusError{status: tunnelcontrolv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED, err: err, reason: agentStartupRetryReason}
+}
+
+func agentFailureError(err error) error {
+	return failedSessionError(err, agentStartupFailureReason)
 }
 
 func bridgeAgentAndRelay(ctx context.Context, agent *runscAgent, stream tunnelv1.TunnelRelay_ConnectPeerClient) error {
@@ -190,7 +214,7 @@ func bridgeAgentAndRelay(ctx context.Context, agent *runscAgent, stream tunnelv1
 func (d *daemon) startRunscAgent(ctx context.Context, allocationID string, port int32) (*runscAgent, error) {
 	file, err := os.Open(d.runsc.agentBinary)
 	if err != nil {
-		return nil, err
+		return nil, agentProcessError(err)
 	}
 	defer file.Close()
 	args := []string{"--root", d.runsc.root}
@@ -203,13 +227,13 @@ func (d *daemon) startRunscAgent(ctx context.Context, allocationID string, port 
 	cmd.Stderr = os.Stderr
 	stdinReader, stdinWriter, err := os.Pipe()
 	if err != nil {
-		return nil, err
+		return nil, agentRetryError(err)
 	}
 	stdoutReader, stdoutWriter, err := os.Pipe()
 	if err != nil {
 		_ = stdinReader.Close()
 		_ = stdinWriter.Close()
-		return nil, err
+		return nil, agentRetryError(err)
 	}
 	// Own both pipe ends explicitly. StdoutPipe/StdinPipe must not be used with
 	// a concurrent cmd.Wait: Wait is allowed to close those pipes before the
@@ -221,7 +245,7 @@ func (d *daemon) startRunscAgent(ctx context.Context, allocationID string, port 
 		_ = stdinWriter.Close()
 		_ = stdoutReader.Close()
 		_ = stdoutWriter.Close()
-		return nil, err
+		return nil, agentProcessError(err)
 	}
 	_ = stdinReader.Close()
 	_ = stdoutWriter.Close()
@@ -236,7 +260,7 @@ func (d *daemon) startRunscAgent(ctx context.Context, allocationID string, port 
 			return
 		}
 		if string(buf) != agentReadyMessage {
-			ready <- fmt.Errorf("runsc tunnel agent returned an invalid ready message")
+			ready <- errInvalidAgentReady
 			return
 		}
 		ready <- nil
@@ -247,18 +271,27 @@ func (d *daemon) startRunscAgent(ctx context.Context, allocationID string, port 
 	case err := <-ready:
 		if err != nil {
 			agent.stop()
-			return nil, err
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, errInvalidAgentReady) {
+				return nil, agentFailureError(err)
+			}
+			return nil, agentRetryError(err)
 		}
 		return agent, nil
 	case err := <-wait:
 		agent.stop()
-		if err == nil {
-			return nil, fmt.Errorf("runsc tunnel agent exited before ready")
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
-		return nil, err
+		if err == nil {
+			return nil, agentFailureError(fmt.Errorf("runsc tunnel agent exited before ready"))
+		}
+		return nil, agentFailureError(err)
 	case <-timer.C:
 		agent.stop()
-		return nil, fmt.Errorf("runsc tunnel agent did not become ready")
+		return nil, agentRetryError(fmt.Errorf("runsc tunnel agent did not become ready"))
 	case <-ctx.Done():
 		agent.stop()
 		return nil, ctx.Err()
