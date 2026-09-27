@@ -23,17 +23,25 @@ func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdou
 }
 
 func (r *RunscServiceHandler) preparedContainerCreateArgs(options contract.HandlerOptions, overlayArgs []string, pidFilePath, bundlePath, containerID string) ([]string, error) {
+	args, err := r.preparedContainerLifecycleArgs(options, containerID)
+	if err != nil {
+		return nil, err
+	}
+	args = append(args, overlayArgs...)
+	return append(args, "create", "--pid-file", pidFilePath, "--bundle", bundlePath, containerID), nil
+}
+
+func (r *RunscServiceHandler) preparedContainerLifecycleArgs(options contract.HandlerOptions, containerID string, commandArgs ...string) ([]string, error) {
 	args := r.lifecycleArgs()
 	if options.NetworkMode == commonv1.NetworkMode_NETWORK_MODE_ISOLATED {
 		if options.NetworkNamespacePath != "" {
 			return nil, fmt.Errorf("isolated allocation %s has a connected network namespace", containerID)
 		}
-		// runsc's none mode supplies only sandbox-local loopback. An empty OCI
-		// namespace under its default sandbox mode has no address to bind.
+		// Both create and start consume runsc's network mode. start configures
+		// netstack, so it must use the same loopback-only mode as create.
 		args = append(args, "--network=none")
 	}
-	args = append(args, overlayArgs...)
-	return append(args, "create", "--pid-file", pidFilePath, "--bundle", bundlePath, containerID), nil
+	return append(args, commandArgs...), nil
 }
 
 func (r *RunscServiceHandler) waitForPreparedContainerStart(ctx context.Context, containerID string) error {

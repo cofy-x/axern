@@ -69,7 +69,11 @@ func (r *RunscServiceHandler) StartPreparedContainer(ctx context.Context, prepar
 		prepared,
 		options,
 		func(ctx context.Context, containerID string) error {
-			_, err := r.runLifecycle(ctx, "start", containerID)
+			args, err := r.preparedContainerLifecycleArgs(options, containerID, "start", containerID)
+			if err != nil {
+				return err
+			}
+			_, err = r.common.Run(ctx, args...)
 			return err
 		},
 		r.startExitStatePersister,

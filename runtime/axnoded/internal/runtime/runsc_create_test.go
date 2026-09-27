@@ -8,22 +8,25 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
-func TestRunscCreateUsesLoopbackOnlyForIsolatedAllocation(t *testing.T) {
+func TestRunscCreateAndStartUseSameNetworkMode(t *testing.T) {
 	handler := &RunscServiceHandler{ignoreCgroups: true}
 	for _, test := range []struct {
-		name    string
-		options contract.HandlerOptions
-		want    []string
+		name       string
+		options    contract.HandlerOptions
+		wantCreate []string
+		wantStart  []string
 	}{
 		{
-			name:    "isolated",
-			options: contract.HandlerOptions{NetworkMode: commonv1.NetworkMode_NETWORK_MODE_ISOLATED},
-			want:    []string{"--ignore-cgroups", "--network=none", "--overlay2=root:dir=/filestore/runsc,size=1024", "create", "--pid-file", "/pid", "--bundle", "/bundle", "alloc-test"},
+			name:       "isolated",
+			options:    contract.HandlerOptions{NetworkMode: commonv1.NetworkMode_NETWORK_MODE_ISOLATED},
+			wantCreate: []string{"--ignore-cgroups", "--network=none", "--overlay2=root:dir=/filestore/runsc,size=1024", "create", "--pid-file", "/pid", "--bundle", "/bundle", "alloc-test"},
+			wantStart:  []string{"--ignore-cgroups", "--network=none", "start", "alloc-test"},
 		},
 		{
-			name:    "connected",
-			options: contract.HandlerOptions{NetworkMode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT, NetworkNamespacePath: "/run/netns/alloc-test"},
-			want:    []string{"--ignore-cgroups", "--overlay2=root:dir=/filestore/runsc,size=1024", "create", "--pid-file", "/pid", "--bundle", "/bundle", "alloc-test"},
+			name:       "connected",
+			options:    contract.HandlerOptions{NetworkMode: commonv1.NetworkMode_NETWORK_MODE_DEFAULT, NetworkNamespacePath: "/run/netns/alloc-test"},
+			wantCreate: []string{"--ignore-cgroups", "--overlay2=root:dir=/filestore/runsc,size=1024", "create", "--pid-file", "/pid", "--bundle", "/bundle", "alloc-test"},
+			wantStart:  []string{"--ignore-cgroups", "start", "alloc-test"},
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -31,16 +34,27 @@ func TestRunscCreateUsesLoopbackOnlyForIsolatedAllocation(t *testing.T) {
 			if err != nil {
 				t.Fatalf("preparedContainerCreateArgs() error = %v", err)
 			}
-			if !reflect.DeepEqual(got, test.want) {
-				t.Fatalf("args = %#v, want %#v", got, test.want)
+			if !reflect.DeepEqual(got, test.wantCreate) {
+				t.Fatalf("create args = %#v, want %#v", got, test.wantCreate)
+			}
+			got, err = handler.preparedContainerLifecycleArgs(test.options, "alloc-test", "start", "alloc-test")
+			if err != nil {
+				t.Fatalf("preparedContainerLifecycleArgs(start) error = %v", err)
+			}
+			if !reflect.DeepEqual(got, test.wantStart) {
+				t.Fatalf("start args = %#v, want %#v", got, test.wantStart)
 			}
 		})
 	}
-	if _, err := handler.preparedContainerCreateArgs(contract.HandlerOptions{
+	conflicting := contract.HandlerOptions{
 		NetworkMode:          commonv1.NetworkMode_NETWORK_MODE_ISOLATED,
 		NetworkNamespacePath: "/run/netns/alloc-test",
-	}, nil, "/pid", "/bundle", "alloc-test"); err == nil {
-		t.Fatal("isolated allocation with connected namespace was accepted")
+	}
+	if _, err := handler.preparedContainerCreateArgs(conflicting, nil, "/pid", "/bundle", "alloc-test"); err == nil {
+		t.Fatal("create accepted isolated allocation with connected namespace")
+	}
+	if _, err := handler.preparedContainerLifecycleArgs(conflicting, "alloc-test", "start", "alloc-test"); err == nil {
+		t.Fatal("start accepted isolated allocation with connected namespace")
 	}
 }
 
