@@ -19,7 +19,7 @@ func (s *Server) CreateTunnelSession(ctx context.Context, req *tunnelv1.CreateTu
 	var opErr error
 	defer func() { op.End(opErr) }()
 	if s.deps.Tunnels == nil {
-		opErr = grpcstatus.Error(codes.FailedPrecondition, "tunnel control is not configured")
+		opErr = tunnelkernel.SetupError(codes.FailedPrecondition, tunnelkernel.SetupControlUnavailable, "tunnel control is not configured")
 		return nil, opErr
 	}
 	var ttl time.Duration
@@ -66,7 +66,8 @@ func (s *Server) revokeTunnelAfterReadyWaitFailure(sessionID string, cause error
 }
 
 func (s *Server) waitTunnelReady(ctx context.Context, sessionID string, timeout time.Duration) (*tunnelv1.TunnelSession, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	parentCtx := ctx
+	ctx, cancel := context.WithTimeout(parentCtx, timeout)
 	defer cancel()
 	ticker := time.NewTicker(200 * time.Millisecond)
 	defer ticker.Stop()
@@ -79,13 +80,27 @@ func (s *Server) waitTunnelReady(ctx context.Context, sessionID string, timeout 
 			return session, nil
 		}
 		if terminalTunnelStatus(session.GetStatus()) {
-			return nil, grpcstatus.Errorf(codes.FailedPrecondition, "tunnel session became terminal while waiting for ready: %s %s", session.GetStatus().String(), session.GetReason())
+			return nil, tunnelkernel.SetupError(codes.FailedPrecondition, terminalTunnelSetupReason(session.GetStatus()), fmt.Sprintf("tunnel session became terminal while waiting for ready: %s %s", session.GetStatus().String(), session.GetReason()))
 		}
 		select {
 		case <-ctx.Done():
-			return nil, grpcstatus.Error(codes.DeadlineExceeded, fmt.Sprintf("tunnel session did not become ready within %s", timeout))
+			if err := parentCtx.Err(); err != nil {
+				return nil, grpcstatus.FromContextError(err).Err()
+			}
+			return nil, tunnelkernel.SetupError(codes.DeadlineExceeded, tunnelkernel.SetupReadyTimeout, fmt.Sprintf("tunnel session did not become ready within %s", timeout))
 		case <-ticker.C:
 		}
+	}
+}
+
+func terminalTunnelSetupReason(status tunnelv1.TunnelSessionStatus) tunnelkernel.SetupErrorReason {
+	switch status {
+	case tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED:
+		return tunnelkernel.SetupSessionRevoked
+	case tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_EXPIRED:
+		return tunnelkernel.SetupSessionExpired
+	default:
+		return tunnelkernel.SetupSessionFailed
 	}
 }
 
