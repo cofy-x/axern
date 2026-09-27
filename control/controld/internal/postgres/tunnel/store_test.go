@@ -13,6 +13,7 @@ import (
 	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 )
@@ -27,6 +28,52 @@ func newTestStore(t *testing.T, db *postgres.DB) *Store {
 	}}))
 	t.Cleanup(store.Close)
 	return store
+}
+
+func assertTunnelCreateReason(t *testing.T, err error, reason tunnelkernel.SetupErrorReason) {
+	t.Helper()
+	st, ok := grpcstatus.FromError(err)
+	if !ok || st.Code() != codes.FailedPrecondition {
+		t.Fatalf("Create() error = %v, want FailedPrecondition", err)
+	}
+	if len(st.Details()) != 1 {
+		t.Fatalf("Create() details = %v, want one ErrorInfo", st.Details())
+	}
+	info, ok := st.Details()[0].(*errdetails.ErrorInfo)
+	if !ok || info.GetDomain() != tunnelkernel.SetupErrorDomain || info.GetReason() != string(reason) {
+		t.Fatalf("Create() detail = %v, want %s/%s", st.Details()[0], tunnelkernel.SetupErrorDomain, reason)
+	}
+	if len(info.GetMetadata()) != 0 {
+		t.Fatalf("Create() metadata = %v, want none", info.GetMetadata())
+	}
+}
+
+func TestCreateWithoutStoreHasPublicReason(t *testing.T) {
+	var store *Store
+	_, err := store.Create(context.Background(), tunnelkernel.CreateParams{AllocationID: "alloc-1"})
+	assertTunnelCreateReason(t, err, tunnelkernel.SetupControlUnavailable)
+}
+
+func TestCreateInactiveAllocationHasPublicReason(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-inactive", now)
+	if _, err := db.Pool().Exec(context.Background(), "UPDATE allocations SET lifecycle_state='ALLOCATION_LIFECYCLE_STATE_RELEASING' WHERE allocation_id='alloc-inactive'"); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{AllocationID: "alloc-inactive", Now: now})
+	assertTunnelCreateReason(t, err, tunnelkernel.SetupAllocationInactive)
+}
+
+func TestCreateWithoutRelayHasPublicReason(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := NewStore(db)
+	t.Cleanup(store.Close)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-no-relay", now)
+	_, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{AllocationID: "alloc-no-relay", Now: now})
+	assertTunnelCreateReason(t, err, tunnelkernel.SetupRelayUnavailable)
 }
 
 func TestCreateAllocatesRemotePort(t *testing.T) {
@@ -118,8 +165,27 @@ func TestRelayBindingIsPrivateAndRecoverable(t *testing.T) {
 	if _, err := store.Revoke(context.Background(), result.Session.GetSessionID(), "test revoke", now.Add(time.Second)); err != nil {
 		t.Fatalf("Revoke() error = %v", err)
 	}
-	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Second)); grpcstatus.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("ResolveRelayTarget(terminal) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.FailedPrecondition, err)
+	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Second)); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ResolveRelayTarget(revoked) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.PermissionDenied, err)
+	}
+}
+
+func TestResolveRelayTargetRejectsExpiredSessionAsPermissionDenied(t *testing.T) {
+	db := newTunnelTestDB(t)
+	store := newTestStore(t, db)
+	now := time.Date(2026, 5, 1, 10, 0, 0, 0, time.UTC)
+	insertTunnelTestAllocation(t, db, "alloc-expired-relay", now)
+
+	result, err := store.Create(tunnelTestContext(), tunnelkernel.CreateParams{
+		AllocationID: "alloc-expired-relay",
+		TTL:          time.Minute,
+		Now:          now,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := store.ResolveRelayTarget(context.Background(), result.Session.GetSessionID(), now.Add(time.Minute)); grpcstatus.Code(err) != codes.PermissionDenied {
+		t.Fatalf("ResolveRelayTarget(expired) code = %s, want %s (err=%v)", grpcstatus.Code(err), codes.PermissionDenied, err)
 	}
 }
 

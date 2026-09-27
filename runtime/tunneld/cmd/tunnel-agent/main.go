@@ -17,10 +17,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cofy-x/axern/lib/go/grpcclient"
-	"github.com/cofy-x/axern/runtime/tunneld/internal/relaytls"
-	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	"github.com/cofy-x/axern/runtime/tunneld/internal/stdioframe"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/tunnel/v1"
+)
+
+const (
+	maxAgentStreams  = 128
+	connWriteTimeout = 5 * time.Second
 )
 
 func main() {
@@ -31,92 +34,87 @@ func main() {
 }
 
 func run() error {
-	var (
-		sessionID       string
-		token           string
-		edgeTarget      string
-		listenHost      string
-		listenPort      int
-		relayCACert     string
-		relayCAPEM      string
-		relayServerName string
-	)
-	flag.StringVar(&sessionID, "session-id", "", "tunnel session id")
-	flag.StringVar(&token, "token", "", "node peer token")
-	flag.StringVar(&edgeTarget, "edge-target", "", "tunneld relay target")
-	flag.StringVar(&listenHost, "listen-host", "127.0.0.1", "address to listen on inside the sandbox")
+	var listenPort int
 	flag.IntVar(&listenPort, "listen-port", 0, "port to listen on inside the sandbox")
-	flag.StringVar(&relayCACert, "relay-tls-ca-cert", "", "CA certificate used to verify the tunnel relay")
-	flag.StringVar(&relayCAPEM, "relay-tls-ca-pem", "", "CA certificate PEM content used to verify the tunnel relay")
-	flag.StringVar(&relayServerName, "relay-server-name", "", "server name used to verify the tunnel relay certificate")
 	flag.Parse()
-	if sessionID == "" || token == "" || edgeTarget == "" || listenPort <= 0 || listenPort > 65535 {
-		return fmt.Errorf("session-id, token, edge-target, and listen-port are required")
+	if listenPort <= 0 || listenPort > 65535 {
+		return fmt.Errorf("listen-port must be between 1 and 65535")
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	dialOpts, err := relaytls.DialOptions(relaytls.ClientConfig{CACert: relayCACert, CAPEM: relayCAPEM, ServerName: relayServerName})
-	if err != nil {
-		return err
-	}
-	conn, err := grpcclient.NewReadyClient(ctx, edgeTarget, dialOpts...)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-	stream, err := tunnelv1.NewTunnelRelayClient(conn).ConnectPeer(ctx)
-	if err != nil {
-		return err
-	}
-	if err := stream.Send(&tunnelv1.TunnelFrame{Payload: &tunnelv1.TunnelFrame_PeerOpen{PeerOpen: &tunnelv1.PeerOpen{
-		SessionID: sessionID,
-		PeerKind:  tunnelcontrolv1.TunnelPeerKind_TUNNEL_PEER_KIND_NODE,
-		Token:     token,
-	}}}); err != nil {
-		return err
-	}
+	return serve(ctx, listenPort, os.Stdin, os.Stdout)
+}
 
-	addr := net.JoinHostPort(listenHost, strconv.Itoa(listenPort))
+func serve(ctx context.Context, listenPort int, input io.ReadCloser, output io.WriteCloser) error {
+	addr := net.JoinHostPort("127.0.0.1", strconv.Itoa(listenPort))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
 	}
-	defer ln.Close()
-	fmt.Fprintln(os.Stdout, "ready")
+	return serveListener(ctx, ln, input, output)
+}
 
-	peer := &agentPeer{stream: stream, listener: ln, conns: make(map[uint64]net.Conn)}
+func serveListener(ctx context.Context, ln net.Listener, input io.ReadCloser, output io.WriteCloser) error {
+	defer ln.Close()
+	n, err := io.WriteString(output, stdioframe.ReadyLine)
+	if err != nil {
+		return err
+	}
+	if n != len(stdioframe.ReadyLine) {
+		return io.ErrShortWrite
+	}
+
+	peer := &agentPeer{stream: stdioframe.New(input, output), listener: ln, conns: make(map[uint64]net.Conn)}
 	peer.nextID.Store(initialStreamCounter())
-	return peer.run(ctx)
+	return peer.run(ctx, input, output)
+}
+
+type frameStream interface {
+	Send(*tunnelv1.TunnelFrame) error
+	Recv() (*tunnelv1.TunnelFrame, error)
 }
 
 type agentPeer struct {
-	stream   tunnelv1.TunnelRelay_ConnectPeerClient
+	stream   frameStream
 	listener net.Listener
-	writeMu  sync.Mutex
 	nextID   atomic.Uint64
 	mu       sync.Mutex
 	conns    map[uint64]net.Conn
+	copyWG   sync.WaitGroup
 }
 
-func (p *agentPeer) run(ctx context.Context) error {
-	defer p.closeAll()
+func (p *agentPeer) run(ctx context.Context, input, output io.Closer) error {
 	errCh := make(chan error, 2)
+	var acceptWG, recvWG sync.WaitGroup
+	acceptWG.Add(1)
 	go func() {
-		<-ctx.Done()
-		_ = p.listener.Close()
+		defer acceptWG.Done()
+		errCh <- p.acceptLoop()
 	}()
-	go func() { errCh <- p.acceptLoop() }()
-	go func() { errCh <- p.recvLoop() }()
+	recvWG.Add(1)
+	go func() {
+		defer recvWG.Done()
+		errCh <- p.recvLoop()
+	}()
+	var err error
+	cancelled := false
 	select {
 	case <-ctx.Done():
-		return nil
-	case err := <-errCh:
-		if errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
-			return nil
-		}
-		return err
+		cancelled = true
+	case err = <-errCh:
 	}
+	_ = p.listener.Close()
+	_ = input.Close()
+	_ = output.Close()
+	acceptWG.Wait()
+	p.closeAll()
+	recvWG.Wait()
+	p.copyWG.Wait()
+	if cancelled || errors.Is(err, net.ErrClosed) || errors.Is(err, io.EOF) {
+		return nil
+	}
+	return err
 }
 
 func (p *agentPeer) acceptLoop() error {
@@ -127,13 +125,22 @@ func (p *agentPeer) acceptLoop() error {
 		}
 		streamID := p.nextID.Add(1)
 		p.mu.Lock()
+		if len(p.conns) >= maxAgentStreams {
+			p.mu.Unlock()
+			_ = conn.Close()
+			continue
+		}
 		p.conns[streamID] = conn
 		p.mu.Unlock()
 		if err := p.send(&tunnelv1.TunnelFrame{Payload: &tunnelv1.TunnelFrame_StreamOpen{StreamOpen: &tunnelv1.StreamOpen{StreamID: streamID}}}); err != nil {
 			p.closeConnFor(streamID, conn)
 			return err
 		}
-		go p.copyConnToRelay(streamID, conn)
+		p.copyWG.Add(1)
+		go func() {
+			defer p.copyWG.Done()
+			p.copyConnToRelay(streamID, conn)
+		}()
 	}
 }
 
@@ -145,7 +152,9 @@ func (p *agentPeer) recvLoop() error {
 		}
 		switch payload := frame.GetPayload().(type) {
 		case *tunnelv1.TunnelFrame_Ping:
-			_ = p.send(&tunnelv1.TunnelFrame{Payload: &tunnelv1.TunnelFrame_Pong{Pong: &tunnelv1.Pong{ID: payload.Ping.GetID()}}})
+			if err := p.send(&tunnelv1.TunnelFrame{Payload: &tunnelv1.TunnelFrame_Pong{Pong: &tunnelv1.Pong{ID: payload.Ping.GetID()}}}); err != nil {
+				return err
+			}
 		case *tunnelv1.TunnelFrame_Pong:
 			continue
 		case *tunnelv1.TunnelFrame_StreamData:
@@ -153,12 +162,33 @@ func (p *agentPeer) recvLoop() error {
 			conn := p.conns[payload.StreamData.GetStreamID()]
 			p.mu.Unlock()
 			if conn != nil && len(payload.StreamData.GetData()) > 0 {
-				_, _ = conn.Write(payload.StreamData.GetData())
+				if err := writeConn(conn, payload.StreamData.GetData()); err != nil {
+					p.closeConnFor(payload.StreamData.GetStreamID(), conn)
+				}
 			}
 		case *tunnelv1.TunnelFrame_StreamClose:
 			p.closeConn(payload.StreamClose.GetStreamID())
 		}
 	}
+}
+
+func writeConn(conn net.Conn, data []byte) error {
+	// Bound a single frame's total write time, including repeated short
+	// writes. A non-reading sandbox process must not hold its stream forever.
+	if err := conn.SetWriteDeadline(time.Now().Add(connWriteTimeout)); err != nil {
+		return err
+	}
+	for len(data) > 0 {
+		n, err := conn.Write(data)
+		if err != nil {
+			return err
+		}
+		if n <= 0 {
+			return io.ErrShortWrite
+		}
+		data = data[n:]
+	}
+	return nil
 }
 
 func (p *agentPeer) copyConnToRelay(streamID uint64, conn net.Conn) {
@@ -211,8 +241,6 @@ func (p *agentPeer) closeAll() {
 }
 
 func (p *agentPeer) send(frame *tunnelv1.TunnelFrame) error {
-	p.writeMu.Lock()
-	defer p.writeMu.Unlock()
 	return p.stream.Send(frame)
 }
 

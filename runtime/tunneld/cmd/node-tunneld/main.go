@@ -9,7 +9,7 @@ import (
 	"syscall"
 
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
-	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
+	nodetunnelv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/tunnel/v1"
 	"github.com/cofy-x/axern/lib/go/grpcclient"
 	"github.com/cofy-x/axern/lib/go/grpcclient/workloadtls"
 	"google.golang.org/grpc"
@@ -26,7 +26,7 @@ func run() error {
 	var (
 		nodeID        string
 		controlTarget string
-		networkSocket string
+		tunnelSocket  string
 		caCert        string
 		cert          string
 		cluster       string
@@ -38,7 +38,7 @@ func run() error {
 	)
 	flag.StringVar(&nodeID, "node-id", os.Getenv("AXERN_NODE_ID"), "node id")
 	flag.StringVar(&controlTarget, "control-target", "127.0.0.1:24000", "controld gRPC target")
-	flag.StringVar(&networkSocket, "network-socket", "/run/axnoded/network.sock", "local axnoded Allocation network Unix socket")
+	flag.StringVar(&tunnelSocket, "tunnel-socket", "/run/axnoded/tunnel.sock", "local axnoded Allocation tunnel authorization Unix socket")
 	flag.StringVar(&caCert, "tls-ca-cert", ".dev/certs/ca.crt", "controld CA certificate")
 	flag.StringVar(&cert, "identity-bundle", "/var/lib/axnoded/root/identity/node.pem", "axnoded-owned Node certificate and key bundle (read-only)")
 	flag.StringVar(&cluster, "workload-cluster", os.Getenv("AXERN_WORKLOAD_CLUSTER"), "workload URI trust domain")
@@ -61,15 +61,15 @@ func run() error {
 		return err
 	}
 	defer controlConn.Close()
-	networkConn, err := dialUnix(ctx, networkSocket)
+	tunnelConn, err := dialUnix(ctx, tunnelSocket)
 	if err != nil {
 		return err
 	}
-	defer networkConn.Close()
+	defer tunnelConn.Close()
 	d := &daemon{
 		nodeID:  nodeID,
 		node:    nodev1.NewNodeControlClient(controlConn),
-		network: nodenetworkv1.NewAllocationNetworkClient(networkConn),
+		tunnel:  nodetunnelv1.NewAllocationTunnelClient(tunnelConn),
 		running: make(map[string]context.CancelFunc),
 		runsc: runscConfig{
 			binary:        runscBinary,

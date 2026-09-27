@@ -294,7 +294,7 @@ stop_runtime_services() {
   stop_matching_processes "127.0.0.1:24100"
   stop_matching_processes "127.0.0.1:25080"
   stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
-  stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-network.sock"
+  stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-tunnel.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
@@ -302,7 +302,7 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd"
   rm -f \
     "${RUN_DIR}/axnoded.sock" \
-    "${RUN_DIR}/axnoded-network.sock" \
+    "${RUN_DIR}/axnoded-tunnel.sock" \
     "${RUN_DIR}/egressd.sock" \
     "${RUN_DIR}/imagemgr.sock" \
     "${RUN_DIR}/imagefsd-chunk.sock"
@@ -412,21 +412,21 @@ start_axnoded() {
     -config '${DEV_DIR}/axnoded/config.toml' \
     -enrollment-token-file '${DEV_DIR}/enrollment-token' \
     -socket '${RUN_DIR}/axnoded.sock' \
-    -network-socket '${RUN_DIR}/axnoded-network.sock' \
+    -tunnel-socket '${RUN_DIR}/axnoded-tunnel.sock' \
     -grpc-address 127.0.0.1:23000 \
     -http-address 127.0.0.1:23001 \
     -log-level debug \
     -log-file '${LOG_DIR}/axnoded-inner.log'"
   wait_tcp 127.0.0.1 23000 axnoded
   wait_unix_socket "${RUN_DIR}/axnoded.sock" axnoded
-  wait_unix_socket "${RUN_DIR}/axnoded-network.sock" axnoded-network
+  wait_unix_socket "${RUN_DIR}/axnoded-tunnel.sock" axnoded-tunnel
 }
 
 start_node_tunneld() {
   start_service node-tunneld "exec '${ROOT_DIR}/scripts/devbox/sudo-go.sh' -C '${ROOT_DIR}/runtime/tunneld' run ./cmd/node-tunneld \
     -node-id '${AXERN_DEV_CONTROL_PLANE_NODE_ID}' \
     -control-target 127.0.0.1:24000 \
-    -network-socket '${RUN_DIR}/axnoded-network.sock' \
+    -tunnel-socket '${RUN_DIR}/axnoded-tunnel.sock' \
     -tls-ca-cert '${DEV_DIR}/certs/ca.crt' \
     -identity-bundle '${DEV_DIR}/axnoded/root/identity/node.pem' \
     -workload-cluster axern.local \
@@ -504,7 +504,7 @@ stop_service_deep() {
     axnoded)
       stop_matching_processes "${ROOT_DIR}/runtime/axnoded.*cmd/axnoded"
       stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded.sock"
-      stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-network.sock"
+      stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-tunnel.sock"
       ;;
     node-tunneld)
       stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/node-tunneld"

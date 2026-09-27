@@ -23,7 +23,7 @@ type options struct {
 	configPath            string
 	socketPath            string
 	conformanceSocketPath string
-	networkSocketPath     string
+	tunnelSocketPath      string
 	grpcAddress           string
 	httpAddress           string
 	logLevel              string
@@ -82,7 +82,7 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.configPath, "config", "", "path to axnoded TOML config")
 	flagSet.StringVar(&opts.socketPath, "socket", config.DefaultSocketAddress, "axnoded gRPC unix socket")
 	flagSet.StringVar(&opts.conformanceSocketPath, "conformance-socket", "", "test-only local Allocation conformance Unix socket; disabled when empty")
-	flagSet.StringVar(&opts.networkSocketPath, "network-socket", config.DefaultNetworkSocketAddress, "axnoded machine-only Allocation network Unix socket")
+	flagSet.StringVar(&opts.tunnelSocketPath, "tunnel-socket", config.DefaultTunnelSocketAddress, "axnoded machine-only Allocation tunnel Unix socket")
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", "", "axnoded node gRPC TCP listen address")
 	flagSet.StringVar(&opts.httpAddress, "http-address", config.DefaultHttpAddress, "axnoded HTTP listen address")
 	flagSet.StringVar(&opts.logLevel, "log-level", "info", "log level: debug|info|warn|error")

@@ -4,6 +4,8 @@ import inspect
 import threading
 import unittest
 
+import grpc
+
 from axern.control.tunnel.v1 import tunnel_pb2 as control_tunnel_pb2
 from axern.tunnel.v1 import tunnel_pb2
 from axern_sdk import AxernClient, ConnectorConfig, TunnelConnector
@@ -15,6 +17,11 @@ from axern_sdk.tunnel.streams import _ConnectorState
 class _Client:
     def _gateway_transport(self) -> _GatewayTransport:
         return _GatewayTransport(insecure=True)
+
+
+class _PermissionDenied(grpc.RpcError):
+    def code(self) -> grpc.StatusCode:
+        return grpc.StatusCode.PERMISSION_DENIED
 
 
 class TunnelConnectorContractTest(unittest.TestCase):
@@ -63,6 +70,26 @@ class TunnelConnectorContractTest(unittest.TestCase):
         self.assertIsNotNone(state._heartbeat)
         assert state._heartbeat is not None
         self.assertFalse(state._heartbeat.is_alive())
+
+    def test_terminal_relay_resolution_stops_connector_retries(self) -> None:
+        connector = TunnelConnector(
+            client=_Client(),  # type: ignore[arg-type]
+            session=control_tunnel_pb2.TunnelSession(
+                session_id="tun-revoked",
+                client_edge_target="127.0.0.1:25000",
+            ),
+            client_token="client-token",
+            local_target="127.0.0.1:8080",
+        )
+
+        def rejected() -> None:
+            raise _PermissionDenied()
+
+        connector._run_once = rejected  # type: ignore[method-assign]
+        connector.run()
+        self.assertTrue(connector.wait_closed(0))
+        self.assertTrue(connector._stop.is_set())
+        self.assertIsInstance(connector.error, _PermissionDenied)
 
     def test_real_client_satisfies_public_connector_contract(self) -> None:
         self.assertTrue(callable(getattr(AxernClient, "_gateway_transport", None)))

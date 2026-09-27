@@ -5,9 +5,9 @@
 Components:
 
 - `tunneld`: internal relay process that accepts gateway-forwarded client peers and node peers, validates them through `controld`, pairs peers by tunnel session, and forwards raw TCP stream frames.
-- `node-tunneld`: node-local process shipped in `node-all-in-one`. It watches tunnel sessions from `controld`, resolves Allocation network namespaces through the narrow machine-only `AllocationNetwork` Unix socket, binds `127.0.0.1:<remote_port>` inside the Allocation netns, and forwards accepted TCP connections through `tunneld`. It has no ambient NodeOperator exec or break-glass authority.
+- `node-tunneld`: node-local process shipped in `node-all-in-one`. It watches tunnel sessions from `controld`, validates the exact live Allocation through the narrow machine-only `AllocationTunnel` Unix socket, owns the authenticated relay connection, and starts a sandbox-local agent using `runsc exec`. The agent binds only `127.0.0.1:<remote_port>` and exchanges bounded frames over inherited stdio. It receives no relay token or outbound network permission. `node-tunneld` has no ambient NodeOperator exec or break-glass authority.
 
-The tunnel layer is intentionally runtime-neutral. It does not know about Claude, OpenAI, Anthropic, HTTP headers, or WebSocket application semantics. Scenario-specific adapters can run outside this layer and use the tunnel as a plain TCP path.
+The tunnel layer carries raw TCP and does not interpret application protocols. A TunnelSession can operate on an isolated deny-all Allocation because its bridge is node-owned and does not require a sandbox egress route. That TunnelSession exposes only its declared allocation-local loopback port; no general host or Internet path is introduced.
 
 ## Build And Test
 
@@ -78,8 +78,8 @@ Use `tunneld -peer-revalidate-interval <duration>` to control connected-peer rev
 Session state is owned by `controld`:
 
 - `pending`: session was created and is waiting for node bind/peer readiness.
-- `running`: node has bound the allocation-local loopback port.
-- `degraded`: data plane is temporarily unavailable but retryable.
+- `running`: the node relay peer is authenticated and the sandbox-local agent has bound the allocation-local loopback port.
+- `degraded`: a temporary node validation, agent startup, relay, or established bridge failure; the node retries while authority remains valid.
 - `revoked`: user/control-plane terminated the session.
 - `expired`: TTL elapsed.
-- `failed`: non-retryable setup failure such as invalid allocation netns or unrecoverable bind failure.
+- `failed`: a permanent validation failure, invalid local agent executable, or agent exit before readiness. The node reports a stable, non-sensitive setup reason, and `CreateTunnelSession(wait_ready=true)` returns the terminal failure instead of waiting for its timeout.

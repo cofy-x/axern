@@ -5,7 +5,7 @@ IMAGEMGR_SOCKET="${IMAGEMGR_SOCKET:-/run/imagemgr/imagemgr.sock}"
 EGRESSD_SOCKET="${EGRESSD_SOCKET:-/run/egressd/egressd.sock}"
 AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-}"
-AXNODED_NETWORK_SOCKET="${AXNODED_NETWORK_SOCKET:-/run/axnoded/network.sock}"
+AXNODED_TUNNEL_SOCKET="${AXNODED_TUNNEL_SOCKET:-/run/axnoded/tunnel.sock}"
 AXNODED_GRPC_ADDRESS="${AXNODED_GRPC_ADDRESS:-}"
 AXNODED_HTTP_ADDRESS="${AXNODED_HTTP_ADDRESS:-0.0.0.0:23001}"
 AXNODED_FILESTORE_DIR="${AXNODED_FILESTORE_DIR:-/var/lib/axnoded/filestore}"
@@ -81,7 +81,7 @@ mkdir -p \
   "$(dirname "${IMAGEMGR_SOCKET}")" \
   "$(dirname "${EGRESSD_SOCKET}")" \
   "$(dirname "${AXNODED_SOCKET}")" \
-  "$(dirname "${AXNODED_NETWORK_SOCKET}")" \
+  "$(dirname "${AXNODED_TUNNEL_SOCKET}")" \
   "$(dirname "${IMAGEFSD_CHUNK_SERVER_SOCK}")" \
   "${AXNODED_ROOT}/root" \
   "${AXNODED_ROOT}/store" \
@@ -367,7 +367,7 @@ axnoded_args=(
   -config "${AXNODED_CONFIG}"
   -enrollment-token-file "${AXNODED_ENROLLMENT_TOKEN_FILE}"
   -socket "${AXNODED_SOCKET}"
-  -network-socket "${AXNODED_NETWORK_SOCKET}"
+  -tunnel-socket "${AXNODED_TUNNEL_SOCKET}"
   -http-address "${AXNODED_HTTP_ADDRESS}"
   -log-level debug
   -log-file "${AXNODED_LOG}"
@@ -390,7 +390,7 @@ for _ in $(seq 1 40); do
       node_tunneld_args=(
         -node-id "${AXNODED_CONTROL_PLANE_NODE_ID}" \
         -control-target "${AXNODED_CONTROL_PLANE_TARGET}" \
-        -network-socket "${AXNODED_NETWORK_SOCKET}" \
+        -tunnel-socket "${AXNODED_TUNNEL_SOCKET}" \
         -tls-ca-cert "${AXNODED_CONTROL_PLANE_TLS_CA_CERT}" \
         -identity-bundle "${AXNODED_ROOT}/root/identity/node.pem" \
         -workload-cluster "${AXERN_WORKLOAD_CLUSTER}" \

@@ -18,7 +18,7 @@ import (
 
 func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*tunnelkernel.CreateResult, error) {
 	if s == nil || s.db == nil || s.db.Pool() == nil {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel store is not configured")
+		return nil, tunnelkernel.SetupError(codes.FailedPrecondition, tunnelkernel.SetupControlUnavailable, "tunnel store is not configured")
 	}
 	allocationID := strings.TrimSpace(params.AllocationID)
 	if allocationID == "" {
@@ -45,7 +45,7 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 		return nil, err
 	}
 	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String() {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
+		return nil, tunnelkernel.SetupError(codes.FailedPrecondition, tunnelkernel.SetupAllocationInactive, "allocation is not active")
 	}
 	actor, ok := accesskernel.ActorFromContext(ctx)
 	if !ok || strings.TrimSpace(actor.Principal.ID) == "" {
@@ -78,7 +78,7 @@ func (s *Store) Create(ctx context.Context, params tunnelkernel.CreateParams) (*
 	}
 	relay, err := s.selectRelay(sessionID)
 	if err != nil {
-		return nil, grpcstatus.Error(codes.FailedPrecondition, err.Error())
+		return nil, tunnelkernel.SetupError(codes.FailedPrecondition, tunnelkernel.SetupRelayUnavailable, err.Error())
 	}
 	revision, err := nextRevision(ctx, tx)
 	if err != nil {

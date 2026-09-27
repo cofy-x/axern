@@ -15,6 +15,7 @@ import (
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"go.opentelemetry.io/otel/attribute"
 	otelcodes "go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc/codes"
@@ -351,8 +352,18 @@ func (s *Server) ReportTunnelSessionStatus(ctx context.Context, req *controlnode
 	if err := s.deps.NodeStore.RequireActive(ctx, nodeID); err != nil {
 		return nil, err
 	}
-	if _, err := s.deps.Tunnels.ReportStatus(ctx, nodeID, req.GetSessionID(), req.GetStatus(), req.GetReason(), req.GetBoundAddr(), s.deps.Now()); err != nil {
+	session, err := s.deps.Tunnels.ReportStatus(ctx, nodeID, req.GetSessionID(), req.GetStatus(), req.GetReason(), req.GetBoundAddr(), s.deps.Now())
+	if err != nil {
 		return nil, err
+	}
+	if session == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel session status is unavailable")
+	}
+	switch session.GetStatus() {
+	case tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_REVOKED,
+		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_EXPIRED,
+		tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_FAILED:
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "tunnel session is terminal")
 	}
 	return &controlnodev1.ReportTunnelSessionStatusResponse{}, nil
 }

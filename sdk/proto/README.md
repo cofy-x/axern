@@ -17,7 +17,7 @@ Layout:
 - `axern/tunnel/v1`: tunnel relay data-plane peer stream API
 - `axern/private/node/lifecycle/v1`: repo-internal control-plane-to-node allocation lifecycle API
 - `axern/private/node/operator/v1`: repo-internal root-only node operator API for Allocation inspection, debug execution, wait, and audited break-glass recovery
-- `axern/private/node/network/v1`: repo-internal machine-only Allocation network resolver used by `node-tunneld`
+- `axern/private/node/tunnel/v1`: repo-internal machine-only Allocation tunnel validation used by `node-tunneld`
 
 Commands:
 

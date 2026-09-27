@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package axern.private.node.tunnel.v1;
+
+option go_package = "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/tunnel/v1;nodetunnelv1";
+
+message ValidateAllocationTunnelRequest {
+  string allocation_id = 1;
+}
+
+message ValidateAllocationTunnelResponse {
+  string allocation_id = 1;
+}
+
+// AllocationTunnel validates a live, control-plane-bound Allocation for the
+// node-local tunnel daemon. It shares no socket with NodeOperator.
+service AllocationTunnel {
+  rpc ValidateAllocationTunnel(ValidateAllocationTunnelRequest) returns (ValidateAllocationTunnelResponse) {}
+}

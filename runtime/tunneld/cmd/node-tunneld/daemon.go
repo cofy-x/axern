@@ -11,7 +11,7 @@ import (
 	"time"
 
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
-	nodenetworkv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/network/v1"
+	nodetunnelv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/tunnel/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -20,7 +20,7 @@ import (
 type daemon struct {
 	nodeID  string
 	node    nodev1.NodeControlClient
-	network nodenetworkv1.AllocationNetworkClient
+	tunnel  nodetunnelv1.AllocationTunnelClient
 	runsc   runscConfig
 	relay   relayConfig
 	mu      sync.Mutex
@@ -146,11 +146,12 @@ func (d *daemon) runSession(ctx context.Context, session *tunnelcontrolv1.Tunnel
 			return
 		}
 		status := statusForSessionError(err)
+		fmt.Fprintf(os.Stderr, "node-tunneld: session failure session=%s status=%s error_type=%T\n", session.GetSessionID(), status.String(), err)
 		_, reportErr := d.node.ReportTunnelSessionStatus(ctx, &nodev1.ReportTunnelSessionStatusRequest{
 			NodeID:    d.nodeID,
 			SessionID: session.GetSessionID(),
 			Status:    status,
-			Reason:    err.Error(),
+			Reason:    sessionReportReason(err),
 		})
 		if terminalControlError(reportErr) {
 			return

@@ -48,8 +48,8 @@ spec:
                   fieldPath: status.podIP
             - name: AXNODED_SOCKET
               value: /shared/run/axnoded.sock
-            - name: AXNODED_NETWORK_SOCKET
-              value: /shared/run/axnoded-network.sock
+            - name: AXNODED_TUNNEL_SOCKET
+              value: /shared/run/axnoded-tunnel.sock
             - name: IMAGEMGR_SOCKET
               value: /run/imagemgr/imagemgr.sock
             - name: EGRESSD_SOCKET

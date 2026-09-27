@@ -107,18 +107,19 @@ func (h *Controller) ValidateOperatorInspection(allocationID string) error {
 	return h.ValidateOperatorRecovery(allocationID)
 }
 
-// ValidateAllocationNetworkResolution is stricter than operator inspection:
-// node-tunneld may resolve only a control-plane-bound, currently executable
-// Allocation. Local conformance sessions can never acquire tunnel authority.
-func (h *Controller) ValidateAllocationNetworkResolution(allocationID string, now time.Time) error {
+// ValidateAllocationTunnel is stricter than operator inspection: node-tunneld
+// may target only a control-plane-bound, currently executable Allocation.
+// Local conformance sessions can never acquire tunnel authority.
+func (h *Controller) ValidateAllocationTunnel(allocationID, nodeID string, now time.Time) error {
 	if err := h.ValidateOperatorExecution(allocationID, now); err != nil {
 		return err
 	}
+	nodeID = strings.TrimSpace(nodeID)
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record == nil || strings.TrimSpace(state.record.GetNodeID()) == "" {
-		return fmt.Errorf("allocation %q is not control-plane-bound: %w", allocationID, errord.ErrFailedPrecondition)
+	if nodeID == "" || state == nil || state.record == nil || state.record.GetNodeID() != nodeID {
+		return fmt.Errorf("allocation %q is not bound to this node: %w", allocationID, errord.ErrFailedPrecondition)
 	}
 	return nil
 }

@@ -20,6 +20,20 @@ axern tunnel open \
 
 The command prints the allocation-local bind address. A process inside the allocation can connect to that loopback address and reach the local target. Keep the command running while the workload needs the target; Ctrl-C revokes the session.
 
+For the setup outcomes below, `CreateTunnelSession` returns its usual gRPC status plus a `google.rpc.ErrorInfo` detail in the `axern.control.tunnel` domain. Callers should use `ErrorInfo.reason` for decisions and treat the status message as operator text. The detail contains no token, payload, or session metadata.
+
+| Reason | Meaning | gRPC status |
+| --- | --- | --- |
+| `TUNNEL_CONTROL_UNAVAILABLE` | Tunnel control or its store is not configured. | `FailedPrecondition` |
+| `ALLOCATION_INACTIVE` | The requested Allocation is no longer active. | `FailedPrecondition` |
+| `TUNNEL_RELAY_UNAVAILABLE` | No usable relay is configured. | `FailedPrecondition` |
+| `TUNNEL_SESSION_FAILED` | The node reported permanent setup failure while waiting for readiness. | `FailedPrecondition` |
+| `TUNNEL_SESSION_REVOKED` | The session was revoked while waiting for readiness. | `FailedPrecondition` |
+| `TUNNEL_SESSION_EXPIRED` | The session expired while waiting for readiness. | `FailedPrecondition` |
+| `TUNNEL_READY_TIMEOUT` | The session did not become ready by the requested deadline. | `DeadlineExceeded` |
+
+`TUNNEL_SESSION_FAILED` identifies the terminal failure category; the node's safe human-readable reason may provide more context but is not a stable reason code. A failed `wait_ready=true` call does not return the created session or client token. Invalid arguments, missing resources, authorization failures, and unexpected infrastructure errors retain their usual gRPC status handling.
+
 Inspect or diagnose sessions without exposing their tokens:
 
 ```bash

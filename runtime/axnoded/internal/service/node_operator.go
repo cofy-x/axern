@@ -102,12 +102,9 @@ func (h *sandboxService) recordBreakGlassTermination(allocationID string, code c
 	return h.allocationController().MarkTerminationIntent(allocationID, code, reason)
 }
 
-func (h *sandboxService) ResolveAllocationNetwork(allocationID string) (*SandboxNetwork, error) {
-	if err := h.allocationController().ValidateAllocationNetworkResolution(allocationID, time.Now().UTC()); err != nil {
-		return nil, err
+func (h *sandboxService) ValidateAllocationTunnel(allocationID string) error {
+	if err := h.allocationController().ValidateAllocationTunnel(allocationID, h.config.PluginConfig.ControlPlaneNodeID, time.Now().UTC()); err != nil {
+		return err
 	}
-	if err := h.ValidateOperatorExecution(allocationID); err != nil {
-		return nil, err
-	}
-	return h.NetworkForSandbox(strings.TrimSpace(allocationID))
+	return h.ValidateOperatorExecution(allocationID)
 }
