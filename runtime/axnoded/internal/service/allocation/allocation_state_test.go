@@ -54,6 +54,7 @@ func TestCapabilityReconcileIntentDoesNotLoseConcurrentOrPostRestartWork(t *test
 	const allocationID = "allocation-capability-reconcile"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreVerifiedEnforcementManifest(allocationID, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + allocationID, CreatedAtUnixNano: time.Now().UnixNano()}, nil, time.Now()))
 
 	require.NoError(t, fixture.controller.MergeCapabilityReconcile(allocationID))
 	first := fixture.controller.CapabilityReconcileState(allocationID).GetPendingIntentSequence()

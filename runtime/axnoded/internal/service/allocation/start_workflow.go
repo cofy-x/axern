@@ -177,6 +177,9 @@ func startSuccessResponse(containerID string) *runtime.StartResponse {
 }
 
 func (h *Controller) existingActiveStartResponse(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
+	if err := h.ValidateActivation(request.GetAllocationID()); err != nil {
+		return nil, true, err
+	}
 	containerID := request.GetAllocationID()
 	containerID = strings.TrimSpace(containerID)
 	if containerID == "" || h == nil || h.containers() == nil {
@@ -203,6 +206,9 @@ func (h *Controller) startAllocation(ctx context.Context, request *runtime.Start
 }
 
 func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (response *runtime.StartResponse, returnErr error) {
+	if err := h.ValidateActivation(request.GetAllocationID()); err != nil {
+		return nil, err
+	}
 	if resp, ok, err := h.existingActiveStartResponse(ctx, request); ok {
 		return resp, err
 	}

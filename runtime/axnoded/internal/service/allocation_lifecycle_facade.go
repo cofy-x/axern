@@ -59,6 +59,9 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 	leaseExpiresAt := time.Now().Add(leaseTTL).UTC()
 	unlockLifecycle := controller.LockAllocationLifecycle(request.GetAllocationID())
 	defer unlockLifecycle()
+	if err := controller.ValidateActivation(request.GetAllocationID()); err != nil {
+		return nil, errord.ToGRPC(err)
+	}
 	if controller.VerifiedEnforcementManifest(request.GetAllocationID()) != nil {
 		if controller.AllocationRequestDigest(request.GetAllocationID()) != requestDigest {
 			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))

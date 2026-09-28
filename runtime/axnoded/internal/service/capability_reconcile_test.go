@@ -109,6 +109,7 @@ func TestCapabilityFailStopRetainsStateForAuthoritativeCleanup(t *testing.T) {
 	const allocationID = "allocation-capability-fail-stop"
 	const digest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	require.NoError(t, service.allocations.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(allocationID, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + allocationID, CreatedAtUnixNano: time.Now().UnixNano()}, nil, time.Now()))
 	service.containerManager.StoreMetadata(allocationID, &apipb.ContainerMetadata{})
 	markTestContainerRunning(t, service, allocationID)
 	require.NoError(t, service.allocations.BeginCapabilityTermination(allocationID, errors.New("runtime enforcement unavailable")))
@@ -122,7 +123,7 @@ func TestCapabilityFailStopRetainsStateForAuthoritativeCleanup(t *testing.T) {
 	require.Nil(t, service.allocations.CapabilityReconcileState(allocationID))
 	code, message := service.allocations.TerminationIntent(allocationID)
 	require.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST, code)
-	require.Equal(t, "allocation capability enforcement was lost", message)
+	require.Equal(t, "allocation capability enforcement was lost: runtime enforcement unavailable", message)
 }
 
 func TestPeriodicCapabilityAuditCoversOperationalAndFailStopDependencies(t *testing.T) {

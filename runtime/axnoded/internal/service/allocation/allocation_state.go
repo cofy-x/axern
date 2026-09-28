@@ -14,6 +14,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimecontract "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -156,6 +157,9 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 		desired = cloneAllocationRecord(current.record)
 	}
 	h.stateMu.RUnlock()
+	if err := rejectTerminatedActivation(desired); err != nil {
+		return err
+	}
 	if currentDigest := desired.GetAllocationRequestDigest(); currentDigest != "" && currentDigest != requestDigest {
 		return fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
@@ -269,6 +273,12 @@ func (h *Controller) ExpiredExecutionLeaseAllocationIDs(now time.Time) []string 
 // control-plane owned, while this record survives a node crash between deciding
 // to fail closed and observing the runtime exit.
 func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
+	unlock := h.LockAllocationLifecycle(allocationID)
+	defer unlock()
+	return h.MarkTerminationIntentWithLifecycleHeld(allocationID, diagnosticCode, message)
+}
+
+func (h *Controller) MarkTerminationIntentWithLifecycleHeld(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		return errors.New("allocation id and termination diagnostic code are required")
@@ -283,6 +293,27 @@ func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode c
 	}
 	desired := cloneAllocationRecord(state.record)
 	h.stateMu.RUnlock()
+	return h.markTerminationIntentLocked(desired, diagnosticCode, message)
+}
+
+// MarkExpiredExecutionLeaseWithLifecycleHeld rechecks the selected lease and
+// records termination in one record mutation. A renewal received while the
+// watchdog waited behind Start cannot be overwritten by its old expiry list.
+func (h *Controller) MarkExpiredExecutionLeaseWithLifecycleHeld(allocationID string, now time.Time) (bool, error) {
+	unlock := h.recordMutationLocks.Lock(allocationID)
+	defer unlock()
+	h.stateMu.RLock()
+	state := h.allocationStates[allocationID]
+	if state == nil || state.record.GetNodeID() == "" || state.record.GetExecutionLeaseExpiresAtUnixNano() > now.UnixNano() {
+		h.stateMu.RUnlock()
+		return false, nil
+	}
+	desired := cloneAllocationRecord(state.record)
+	h.stateMu.RUnlock()
+	return true, h.markTerminationIntentLocked(desired, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "allocation execution lease expired")
+}
+
+func (h *Controller) markTerminationIntentLocked(desired *apipb.AllocationState, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
 	if desired.GetTerminationDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		return nil
 	}
@@ -292,7 +323,7 @@ func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode c
 		return fmt.Errorf("persist allocation termination intent: %w", err)
 	}
 	h.stateMu.Lock()
-	if current := h.allocationStates[allocationID]; current != nil {
+	if current := h.allocationStates[desired.GetAllocationID()]; current != nil {
 		current.record = desired
 	}
 	h.stateMu.Unlock()
@@ -307,6 +338,29 @@ func (h *Controller) TerminationIntent(allocationID string) (commonv1.WorkloadDi
 		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, ""
 	}
 	return state.record.GetTerminationDiagnosticCode(), state.record.GetTerminationMessage()
+}
+
+func rejectTerminatedActivation(record *apipb.AllocationState) error {
+	if record.GetTerminationDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
+		return fmt.Errorf("allocation %q has a durable termination intent: %w", record.GetAllocationID(), errord.ErrFailedPrecondition)
+	}
+	return nil
+}
+
+// ValidateActivation rejects a terminated execution without erasing its first
+// cause. Callers own the lifecycle lane; no retry may revive this Allocation.
+func (h *Controller) ValidateActivation(allocationID string) error {
+	h.stateMu.RLock()
+	defer h.stateMu.RUnlock()
+	if state := h.allocationStates[strings.TrimSpace(allocationID)]; state != nil {
+		if err := rejectTerminatedActivation(state.record); err != nil {
+			return err
+		}
+		if state.record.GetNodeID() != "" && state.record.GetExecutionLeaseExpiresAtUnixNano() <= time.Now().UnixNano() {
+			return fmt.Errorf("allocation %q execution lease expired before activation: %w", allocationID, errord.ErrFailedPrecondition)
+		}
+	}
+	return nil
 }
 
 // ResourceSpec returns the immutable scheduler and enforcement inputs for an
@@ -336,7 +390,7 @@ func (h *Controller) CapabilityRequirementManifests() map[string][]*capabilityv1
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	for allocationID, state := range h.allocationStates {
-		if state != nil && len(state.record.GetCapabilityRequirements()) > 0 {
+		if state != nil && state.record.GetEnforcementManifest() != nil && len(state.record.GetCapabilityRequirements()) > 0 {
 			result[allocationID] = cloneCapabilityRequirements(state.record.GetCapabilityRequirements())
 		}
 	}
@@ -402,6 +456,12 @@ func (h *Controller) MergeCapabilityReconcile(allocationID string) error {
 	}
 	desired := cloneAllocationRecord(current.record)
 	h.stateMu.RUnlock()
+	// Preparation is checked synchronously by the pre-activation gate. A
+	// create intent is not a live enforcement subject, and persisting audit
+	// work on it would violate the recovery contract on a preactivation crash.
+	if desired.GetEnforcementManifest() == nil {
+		return nil
+	}
 	reconcile := desired.GetCapabilityReconcile()
 	if reconcile == nil {
 		reconcile = &apipb.AllocationCapabilityReconcileState{}
@@ -474,11 +534,19 @@ func (h *Controller) AckCapabilityReconcile(allocationID string, processedSequen
 	return nil
 }
 
-// BeginCapabilityTermination durably transfers cleanup ownership to the
-// allocation capability reconciler before the caller returns an enforcement
-// failure. It is idempotent and aggregates repeated safety failures so
-// concurrent capability loss never starts competing Delete workflows.
+// BeginCapabilityTermination durably records workload fail-stop ownership
+// before the caller returns an enforcement failure. It aggregates repeated
+// safety failures; resource cleanup still belongs to the control-plane Delete.
 func (h *Controller) BeginCapabilityTermination(allocationID string, cause error) error {
+	unlock := h.LockAllocationLifecycle(allocationID)
+	defer unlock()
+	return h.BeginCapabilityTerminationWithLifecycleHeld(allocationID, cause)
+}
+
+// BeginCapabilityTerminationWithLifecycleHeld is used by the start gates and
+// reconciler inside their existing lifecycle lane. cause must be a safe
+// capability/reason diagnosis, never a raw verifier error with destinations.
+func (h *Controller) BeginCapabilityTerminationWithLifecycleHeld(allocationID string, cause error) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || cause == nil {
 		return errors.New("allocation id and capability termination cause are required")
@@ -493,6 +561,9 @@ func (h *Controller) BeginCapabilityTermination(allocationID string, cause error
 	}
 	desired := cloneAllocationRecord(current.record)
 	h.stateMu.RUnlock()
+	if desired.GetEnforcementManifest() == nil {
+		return fmt.Errorf("allocation %q has not crossed launch verification: %w", allocationID, errord.ErrFailedPrecondition)
+	}
 	reconcile := desired.GetCapabilityReconcile()
 	if reconcile == nil {
 		reconcile = &apipb.AllocationCapabilityReconcileState{}
@@ -508,7 +579,7 @@ func (h *Controller) BeginCapabilityTermination(allocationID string, cause error
 	desired.CapabilityReconcile = reconcile
 	if desired.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		desired.TerminationDiagnosticCode = commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST
-		desired.TerminationMessage = "allocation capability enforcement was lost"
+		desired.TerminationMessage = capabilitycontract.BoundedReason("allocation capability enforcement was lost: " + cause.Error())
 	}
 	if err := h.persistAllocationRecord(desired); err != nil {
 		return fmt.Errorf("persist capability termination ownership: %w", err)
@@ -537,6 +608,9 @@ func (h *Controller) StoreVerifiedEnforcementManifest(allocationID string, manif
 	}
 	desired := cloneAllocationRecord(current.record)
 	h.stateMu.RUnlock()
+	if err := rejectTerminatedActivation(desired); err != nil {
+		return err
+	}
 	verifiedManifest, err := verifiedEnforcementManifest(
 		manifest,
 		verified,

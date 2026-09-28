@@ -76,6 +76,9 @@ func (h *Controller) createAllocation(
 	if err := h.preActivationCapabilityGate(ctx, startRequest, allocationRuntime, resource.ID); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("verify allocation before activation: %w", err))
 	}
+	if err := h.ValidateActivation(resource.ID); err != nil {
+		return response, "", cleanupPrepared(err)
+	}
 
 	metaData, err := allocationRuntime.StartPreparedContainer(ctx, prepared, options)
 	if err != nil {
