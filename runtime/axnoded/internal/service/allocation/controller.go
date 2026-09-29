@@ -2,6 +2,7 @@ package allocation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -128,6 +129,12 @@ func (c *Controller) LockAllocationLifecycle(allocationID string) func() {
 	return c.allocationLifecycleLocks.Lock(allocationID)
 }
 
+// LockAllocationLifecycleContext joins the same lifecycle lane, but lets
+// detached workers leave on shutdown even while Start is preparing an image.
+func (c *Controller) LockAllocationLifecycleContext(ctx context.Context, allocationID string) (func(), error) {
+	return c.allocationLifecycleLocks.LockContext(ctx, allocationID)
+}
+
 // StartWithLifecycleHeld enters the runtime start workflow while the caller
 // owns LockAllocationLifecycle for this allocation. It exists so the service
 // facade can include its capability gates in the same critical section as the
@@ -178,9 +185,33 @@ func (c *Controller) FailStopWorkload(ctx context.Context, allocationID string) 
 	if strings.TrimSpace(allocationID) == "" {
 		return errord.ErrInvalidArgument
 	}
-	unlockLifecycle := c.allocationLifecycleLocks.Lock(allocationID)
+	unlockLifecycle, err := c.LockAllocationLifecycleContext(ctx, allocationID)
+	if err != nil {
+		return err
+	}
 	defer unlockLifecycle()
+	return c.FailStopWorkloadWithLifecycleHeld(ctx, allocationID)
+}
+
+// FailStopWorkloadWithLifecycleHeld keeps absence/exit checks and the stop in
+// the caller's lifecycle lane. Missing metadata during Start is not proof that
+// a workload has stopped.
+func (c *Controller) FailStopWorkloadWithLifecycleHeld(ctx context.Context, allocationID string) error {
 	target, handler, err := c.runtimeHandlerForContainer(allocationID)
+	if errors.Is(err, errord.ErrNotFound) && c.runscHandler != nil {
+		inventory, inventoryErr := c.runscHandler.ListContainers(ctx, contract.HandlerOptions{})
+		if inventoryErr != nil {
+			return inventoryErr
+		}
+		for _, runtime := range inventory {
+			if runtime != nil && runtime.ID == allocationID {
+				// A surviving runtime with missing metadata cannot be acknowledged
+				// as stopped. Retain its durable intent for recovery.
+				return fmt.Errorf("allocation runtime exists without container metadata: %w", errord.ErrFailedPrecondition)
+			}
+		}
+		return nil
+	}
 	if err != nil {
 		return err
 	}
