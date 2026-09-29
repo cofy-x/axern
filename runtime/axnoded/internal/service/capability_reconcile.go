@@ -256,16 +256,30 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 			}
 			continue
 		}
-		if current := h.allocationController().CapabilityReconcileState(allocationID); current != nil && current.GetTerminating() {
-			continue
-		}
-		if err := h.allocationController().AckCapabilityReconcile(allocationID, intentSequence, false, nil); err != nil {
+		if err := h.ackCapabilityEvaluation(ctx, allocationID, intentSequence); err != nil {
 			logrus.WithError(err).WithField("allocation_id", allocationID).Error("ack capability reconcile work")
 			if !waitCapabilityReconcileRetry(ctx) {
 				return
 			}
 		}
 	}
+}
+
+// ackCapabilityEvaluation serializes a completed audit with independently
+// requested termination. A lifecycle query may commit fail-stop after this
+// worker's verification returned; an old healthy evaluation cannot clear that
+// work. Only failStopAllocation acknowledges confirmed workload termination.
+func (h *sandboxService) ackCapabilityEvaluation(ctx context.Context, allocationID string, intentSequence int64) error {
+	controller := h.allocationController()
+	unlock, err := controller.LockAllocationLifecycleContext(ctx, allocationID)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	if current := controller.CapabilityReconcileState(allocationID); current != nil && current.GetTerminating() {
+		return nil
+	}
+	return controller.AckCapabilityReconcile(allocationID, intentSequence, false, nil)
 }
 
 func waitCapabilityReconcileRetry(ctx context.Context) bool {

@@ -174,6 +174,117 @@ func TestCapabilityFailStopCannotAcknowledgeBehindActivationFence(t *testing.T) 
 	require.True(t, service.allocations.HasAllocation(id))
 }
 
+type capabilityAckWaitContext struct {
+	context.Context
+	waiting chan struct{}
+	once    sync.Once
+}
+
+func (c *capabilityAckWaitContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.waiting) })
+	return c.Context.Done()
+}
+
+func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) {
+	handler := &runtimeSpyHandler{name: "runsc"}
+	service := newTestService(t, handler)
+	service.capabilityReconcileCtx = t.Context()
+	const id = "allocation-evaluation-ack-termination-fence"
+	now := time.Now().UTC()
+	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)
+	requirements := []*capabilityv1.CapabilityRequirement{{Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP}}
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, requirements, nil, nil))
+	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, []*capabilityv1.CapabilityKey{key}, now))
+	require.NoError(t, service.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{}))
+	markTestContainerRunning(t, service, id)
+	require.NoError(t, service.allocations.MergeCapabilityReconcile(id))
+	sequence := service.allocations.CapabilityReconcileState(id).GetPendingIntentSequence()
+
+	unlock := service.allocations.LockAllocationLifecycle(id)
+	var unlockOnce sync.Once
+	release := func() { unlockOnce.Do(unlock) }
+	ctx, cancel := context.WithCancel(t.Context())
+	queued := &capabilityAckWaitContext{Context: ctx, waiting: make(chan struct{})}
+	ack := make(chan error, 1)
+	ackFinished := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		release()
+		<-ackFinished
+	})
+	go func() {
+		defer close(ackFinished)
+		ack <- service.ackCapabilityEvaluation(queued, id, sequence)
+	}()
+	// The old healthy audit's acknowledgement has entered its lane wait. An
+	// independent lifecycle query commits enforcement loss before that wait is
+	// released; the ordering is explicit, not inferred from a sleep.
+	select {
+	case <-queued.waiting:
+	case err := <-ack:
+		t.Fatalf("evaluation acknowledgement bypassed the lifecycle lane: %v", err)
+	case <-t.Context().Done():
+		t.Fatal("test cancelled before evaluation acknowledgement queued")
+	}
+	require.NoError(t, service.allocations.BeginCapabilityTerminationWithLifecycleHeld(id, errors.New("independent lifecycle query detected enforcement loss")))
+	termination := service.allocations.CapabilityReconcileState(id)
+	require.True(t, termination.GetTerminating())
+	release()
+	require.NoError(t, <-ack)
+	require.Equal(t, termination, service.allocations.CapabilityReconcileState(id), "old evaluation erased independently committed fail-stop work")
+
+	// Consume the surviving intent through the real worker. It must stop only
+	// the supervised workload and retain the authoritative final Delete barrier.
+	service.startCapabilityReconcileWorker(id)
+	service.capabilityReconcileWG.Wait()
+	require.Equal(t, 1, handler.stopCalls)
+	require.Zero(t, handler.deleteCalls)
+	require.True(t, service.allocations.HasAllocation(id))
+	_, err := service.containerManager.Get(id)
+	require.NoError(t, err, "fail-stop deleted runtime metadata before output sealing")
+	require.Nil(t, service.allocations.CapabilityReconcileState(id))
+	code, diagnosis := service.allocations.TerminationIntent(id)
+	require.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST, code)
+	require.Contains(t, diagnosis, "independent lifecycle query detected enforcement loss")
+}
+
+func TestCapabilityEvaluationAckCancellationPreservesIntent(t *testing.T) {
+	handler := &runtimeSpyHandler{name: "runsc"}
+	service := newTestService(t, handler)
+	const id = "allocation-cancel-evaluation-ack"
+	now := time.Now().UTC()
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, nil, now))
+	require.NoError(t, service.allocations.MergeCapabilityReconcile(id))
+	pending := service.allocations.CapabilityReconcileState(id)
+	unlock := service.allocations.LockAllocationLifecycle(id)
+	ctx, cancel := context.WithCancel(t.Context())
+	queued := &capabilityAckWaitContext{Context: ctx, waiting: make(chan struct{})}
+	ack := make(chan error, 1)
+	ackFinished := make(chan struct{})
+	t.Cleanup(func() {
+		cancel()
+		unlock()
+		<-ackFinished
+	})
+	go func() {
+		defer close(ackFinished)
+		ack <- service.ackCapabilityEvaluation(queued, id, pending.GetPendingIntentSequence())
+	}()
+	select {
+	case <-queued.waiting:
+	case err := <-ack:
+		t.Fatalf("evaluation acknowledgement bypassed the lifecycle lane: %v", err)
+	case <-t.Context().Done():
+		t.Fatal("test cancelled before evaluation acknowledgement queued")
+	}
+	cancel()
+	require.ErrorIs(t, <-ack, context.Canceled, "worker shutdown must leave the still-owned lifecycle lane")
+	require.Equal(t, pending, service.allocations.CapabilityReconcileState(id), "cancelled evaluation acknowledged durable retry work")
+	require.Zero(t, handler.stopCalls)
+	require.Zero(t, handler.deleteCalls)
+}
+
 type capabilityFailStopInventoryRuntime struct {
 	*runtimeSpyHandler
 	inventory      []*contract.UnionContainerState
