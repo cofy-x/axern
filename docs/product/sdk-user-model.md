@@ -2,6 +2,8 @@
 
 This document defines the stable user-facing boundary shared by Axern SDKs and examples. Object identity, persistence, and ownership follow the [Stable Domain Model](domain-model.md).
 
+The [single-host direction](../decisions/single-host-agent-serving.md) plans persistent Workspace and reconnectable work. The APIs and retention guarantees below describe current behavior; there is no Workspace API or transparent process-resume guarantee yet.
+
 ## Principles
 
 - Keep the first runnable example short.

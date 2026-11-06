@@ -2,6 +2,8 @@
 
 Object identity and ownership follow the [Stable Domain Model](../product/domain-model.md). This document describes the current component and traffic boundaries that implement it.
 
+The target deployment is Linux single-host serving, with macOS clients and VM-backed local development. Planned service consolidation is defined in [Single-Host Agent Serving](../decisions/single-host-agent-serving.md); the separate services and traffic paths below remain the current implementation.
+
 Axern separates durable product intent from node-local execution:
 
 - `controld` and PostgreSQL own Environments, Runs, Allocations with their resource charges, allocation access grants, TunnelSessions, placement, authorization, and durable lifecycle state. Axnoded persists the locally received execution-lease deadline with its Allocation recovery record.
@@ -60,13 +62,8 @@ Reconsider this decision when a reproducible supported-platform Run fails on a r
 
 ## Runtime Backend Boundary
 
-The public and control-plane model is backend-neutral today: Environment, Run, Allocation, resource charge, ExecutionLease, AllocationAccessGrant, SSH, TunnelSession, and Gateway routing carry only Allocation identity and typed execution requirements. Runsc container names, bundles, OCI state, and recovery checkpoints stay under `runtime/axnoded`.
+gVisor (`runsc`) is the sole sandbox runtime for both the current implementation and the long-term product direction. Missing required runsc, isolation, or platform capability evidence fails closed; there is no runtime fallback or planned second backend. The rationale is recorded in [Single-Host Agent Serving](../decisions/single-host-agent-serving.md).
 
-Axnoded is not yet ready to add Firecracker as a second implementation without node-local work. The concrete blockers are intentionally local:
+Environment, Run, Allocation, resource charge, ExecutionLease, AllocationAccessGrant, SSH, TunnelSession, and Gateway routing carry Allocation identity and typed execution requirements. Runsc container names, bundles, OCI state, and recovery checkpoints stay under `runtime/axnoded`. Keeping those handles private preserves ownership boundaries without creating a runtime selection API.
 
-- lifecycle wiring stores one `runscHandler` and several recovery paths call it directly;
-- create planning, rootfs overlay enforcement, capability conformance, process/file transport, and sandboxd session establishment assume OCI/runsc artifacts;
-- node recovery inventory and terminal checkpoint recovery enumerate runsc containers directly;
-- cgroup and ephemeral-storage enforcement manifests contain runsc-specific verification details.
-
-Those blockers do not justify a second control-plane lifecycle, speculative backend fields, or an in-process runtime registry. If Firecracker is qualified later, it should ship as a separate node implementation and node pool that satisfies the existing Allocation lifecycle, process/file/session, recovery, and capability-evidence contracts. Backend-specific handles remain private to that implementation; the Allocation ID remains the only execution identity, and placement selects a node from immutable execution requirements rather than a user-visible backend name.
+Axnoded uses one runsc executor for creation, recovery, process and file transport, cleanup, and enforcement evidence. Its internal interfaces are execution and test boundaries; they do not define a plugin registry or an Allocation-selectable backend. The Allocation ID remains the only execution identity.

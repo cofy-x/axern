@@ -118,27 +118,27 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
 <section class="ax-hero">
   <HeroBackdrop />
   <div class="ax-hero__copy">
-    <p class="ax-kicker">{zh ? '面向智能体的执行基础设施' : 'AGENTIC EXECUTION INFRASTRUCTURE'}</p>
+    <p class="ax-kicker">{zh ? '你的 Agent 系统执行层' : 'THE EXECUTION LAYER FOR YOUR AGENT SYSTEM'}</p>
     <h1
       class="ax-display"
-      aria-label={zh ? '为 AI 智能体打造的开源沙箱' : 'Open-source sandboxes for AI agents'}
+      aria-label={zh ? '面向 AI 智能体的自托管执行平台' : 'Self-hosted execution for AI agents'}
     >
       {zh ? (
         <>
-          <span aria-hidden="true">为 AI 智能体打造的</span>
-          <span class="ax-display__accent" aria-hidden="true">开源沙箱</span>
+          <span aria-hidden="true">AI 智能体的</span>
+          <span class="ax-display__accent" aria-hidden="true">自托管执行平台</span>
         </>
       ) : (
         <>
-          <span aria-hidden="true">Open-source sandboxes</span>
+          <span aria-hidden="true">Self-hosted execution</span>
           <span class="ax-display__accent" aria-hidden="true">for AI agents</span>
         </>
       )}
     </h1>
     <p class="ax-lede">
       {zh
-        ? '用 runsc 隔离智能体生成代码——单一生产运行时，统一的资源与生命周期模型。'
-        : 'Isolate agent-generated code with runsc. One production runtime, one resource and lifecycle model.'}
+        ? '基于 gVisor 的自托管执行平台，向简单的单机 serving 演进。Agent 规划与协作由你的应用负责。'
+        : 'A self-hosted execution platform with gVisor isolation, moving toward simple single-host serving. Agent planning and collaboration stay in your application.'}
     </p>
     <div class="ax-actions">
       <a class="ax-button ax-button--primary" href={`${base}/getting-started/`}>
@@ -229,7 +229,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
   <div class="ax-section__heading">
     <p class="ax-eyebrow">{zh ? '从这里开始' : 'START HERE'}</p>
     <h2 id="ax-paths-heading">{zh ? '按你的目标进入文档' : 'Find your path through the docs'}</h2>
-    <p>{zh ? '一个平台覆盖隔离执行、并发数据合成与可复现评测——从符合你目标的路径开始。' : 'One platform for isolated execution, concurrent data synthesis, and reproducible evaluation—start from the path that matches your goal.'}</p>
+    <p>{zh ? '从当前可运行的本地开发栈和 SDK 开始，了解单机服务与持久工作空间的后续方向。' : 'Start with the working local development stack and SDKs, then explore the planned single-host service and persistent workspaces.'}</p>
   </div>
   <div class="ax-workload-grid ax-workload-grid--paths not-content">
     <article>
@@ -238,7 +238,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         <span class="ax-workload-index">01 / 04</span>
       </div>
       <h3>{zh ? '运行你的第一个沙箱' : 'Run your first sandbox'}</h3>
-      <p>{zh ? '安装一个 CLI，无需源码即可拉起完整本地栈并执行隔离代码。' : 'Install one CLI, start the complete local stack without source code, and execute isolated code.'}</p>
+      <p>{zh ? '安装 CLI，通过 Docker Compose 启动本地开发栈并执行隔离代码。' : 'Install the CLI, start the local development stack with Docker Compose, and execute isolated code.'}</p>
       <a href={`${base}/getting-started/`}>{zh ? '进入快速开始' : 'Start the quickstart'}</a>
     </article>
     <article>
@@ -252,12 +252,12 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     </article>
     <article>
       <div class="ax-workload-meta">
-        <span class="ax-workload-tag">[ SELF-HOST ]</span>
+        <span class="ax-workload-tag">[ DIRECTION ]</span>
         <span class="ax-workload-index">03 / 04</span>
       </div>
-      <h3>{zh ? '部署到 Kubernetes' : 'Deploy on Kubernetes'}</h3>
-      <p>{zh ? '用 Helm Chart 在你自己的集群上安装控制面、Gateway 与节点运行时。' : 'Install the control plane, gateway, and node runtime on your own cluster with the Helm chart.'}</p>
-      <a href={`${base}/getting-started/kubernetes/`}>{zh ? '使用 Helm 部署' : 'Deploy with Helm'}</a>
+      <h3>{zh ? '计划中的单机服务' : 'Planned single-host serving'}</h3>
+      <p>{zh ? '面向个人 Agent 系统，规划更简单的 Linux 部署、长期沙箱服务与持久 Workspace。' : 'Simpler Linux deployment, long-running sandbox services, and persistent Workspaces for personal agent systems are planned.'}</p>
+      <a href="https://github.com/cofy-x/axern/blob/main/docs/decisions/single-host-agent-serving.md">{zh ? '阅读方向决策' : 'Read the direction decision'}</a>
     </article>
     <article>
       <div class="ax-workload-meta">
@@ -265,7 +265,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         <span class="ax-workload-index">04 / 04</span>
       </div>
       <h3>{zh ? '交付声明输出' : 'Deliver declared outputs'}</h3>
-      <p>{zh ? '在 Run 中声明有限输出，在 runtime 清理前封存并通过 SDK 校验下载。' : 'Declare bounded Run outputs, seal them before runtime cleanup, and download them with SDK verification.'}</p>
+      <p>{zh ? '在 Run 中声明有限输出，在 runtime 清理前封存，并在输出截止时间前下载保存：清理开始后 15 分钟即过期。' : 'Declare bounded Run outputs, seal them before runtime cleanup, and download them before the output deadline: 15 minutes after cleanup begins.'}</p>
       <a href={`${base}/guides/run/`}>{zh ? '查看 Run 合同' : 'Read the Run contract'}</a>
     </article>
   </div>
@@ -274,13 +274,13 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
 <section class="ax-section ax-open-source" aria-labelledby="ax-open-heading">
   <div>
     <p class="ax-eyebrow">{zh ? '开放构建，明确边界' : 'BUILT IN THE OPEN'}</p>
-    <h2 id="ax-open-heading">{zh ? '拥有执行层，而不是依赖黑盒' : 'Own the execution layer, not a black box'}</h2>
+    <h2 id="ax-open-heading">{zh ? '掌握你的 Agent 执行层' : 'Own your agent execution layer'}</h2>
   </div>
   <div class="ax-open-source__copy">
-    <p>{zh ? 'Axern 将控制面、Gateway、节点运行时、CLI、Helm Chart 与 SDK 放在同一 Apache-2.0 仓库中。你可以在本地完整运行它、检查每一层契约，并为需要的能力做贡献。' : 'Axern keeps the control plane, gateway, node runtime, CLI, Helm chart, and SDKs in one Apache-2.0 repository. Run the complete stack locally, inspect every contract, and contribute where your workload needs it.'}</p>
+    <p>{zh ? 'Axern 的控制面、Gateway、节点运行时、CLI 与 SDK 在同一 Apache-2.0 仓库中。你可以运行现有本地开发栈、检查执行契约，并参与以单机为先的产品演进。' : 'Axern keeps its control plane, gateway, node runtime, CLI, and SDKs in one Apache-2.0 repository. Run the existing local development stack, inspect its execution contracts, and contribute to the single-host-first direction.'}</p>
     <div class="ax-actions">
       <a class="ax-button ax-button--primary" href="https://github.com/cofy-x/axern">{zh ? '浏览 GitHub 仓库' : 'Explore the repository'}</a>
-      <a class="ax-button" href="https://github.com/cofy-x/axern/blob/main/CONTRIBUTING.md">{zh ? '参与贡献' : 'Contribute'}</a>
+      <a class="ax-button" href="https://github.com/cofy-x/axern/blob/main/docs/product/product-direction.md">{zh ? '产品方向' : 'Product direction'}</a>
     </div>
   </div>
 </section>
@@ -290,7 +290,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <span class="ax-maturity__badge">PRE-1.0</span>
     <strong>{zh ? '当前适合评估与贡献' : 'Ready for evaluation and contribution'}</strong>
   </div>
-  <p>{zh ? '用于不可信多租户工作负载前，请评估认证、TLS、运行时隔离、镜像信任、网络策略、配额和产物保留策略。' : 'Before running untrusted multi-tenant workloads, evaluate authentication, TLS, runtime isolation, image trust, network policy, quotas, and artifact retention.'}</p>
+  <p>{zh ? '专门的单机 serving 部署和持久 Workspace 尚未实现。当前本地路径是 Compose 开发栈，可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。' : 'Dedicated single-host serving and persistent Workspaces are not implemented yet. The local path is a Compose development stack; writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins.'}</p>
 </aside>
 
 <script>

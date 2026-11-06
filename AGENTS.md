@@ -2,10 +2,10 @@
 
 ## Platform Boundaries
 
-- Axern is an open-source environment execution platform for agent evaluation, training, and executable data synthesis.
+- Axern is a self-hosted execution platform for AI agents. Prioritize Linux single-host serving and continued agent work; macOS is a client and Linux-VM development host. See the [Product Direction](docs/product/product-direction.md) and [Single-Host Architecture Decision](docs/decisions/single-host-agent-serving.md) for target scope versus implemented capabilities.
 - The durable execution model is `Environment -> Run -> Allocation`. `Sandbox` is an SDK facade over that chain; terminal, process, file, SSH, and Tunnel capabilities bind to an explicit, never-reused Allocation ID.
-- Caller workflows remain outside the Run and Allocation state machine.
-- Runsc is the supported production sandbox backend. Missing required isolation or platform capability must fail closed.
+- Caller workflows, agent planning, memory, messages, approvals, and semantic retries remain outside Axern. The planned persistent Workspace is a separate data identity, not another execution lifecycle; current writable data remains Allocation-local until the coordinated contract is implemented.
+- gVisor/runsc is the sole long-term sandbox backend. Do not introduce another runtime, runtime registry, or fallback. Missing required isolation or platform capability must fail closed.
 - PostgreSQL is the only authoritative central state backend. Internal schema changes must update the owning model atomically; do not preserve obsolete internal tables, protobuf gaps, aliases, dual reads, or dual writes unless a published compatibility contract explicitly requires them.
 - Keep root deployment contracts cloud-neutral; provider credentials, account setup, and regional orchestration belong outside this repository.
 

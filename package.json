@@ -2,7 +2,7 @@
   "name": "@cofy-x/axern",
   "version": "0.12.1",
   "private": true,
-  "description": "Open-source agentic infrastructure for running AI agents in isolated, stateful sandboxes",
+  "description": "Self-hosted execution platform for AI agents, powered by gVisor",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {

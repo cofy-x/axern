@@ -4,7 +4,7 @@ This document defines Axern's stable product identities, lifecycle ownership, an
 
 ## Platform Boundary
 
-Axern provides secure, rebuildable, high-concurrency environment execution for agent evaluation, training, and data synthesis. Caller workflows remain outside the Run and Allocation state machine.
+Axern is a self-hosted execution platform for AI agents with gVisor isolation. Caller workflows remain outside the Run and Allocation state machine. This document describes implemented public identities; the [Product Direction](product-direction.md) and [Single-Host Architecture Decision](../decisions/single-host-agent-serving.md) define the target for Linux standalone serving and a planned persistent Workspace, neither of which adds an API through documentation alone.
 
 The only durable execution chain is:
 
@@ -132,7 +132,8 @@ Run and Allocation never double-own a fact: Run owns immutable execution intent 
 | --- | --- |
 | Service, Replica, Route, Rollout | External PaaS or application |
 | Function, Invoke, worker dispatch | Caller queue or workflow system |
-| Persistent Workspace or Volume provisioning | External storage or workspace layer |
+| Persistent Workspace | Not currently implemented; a narrow host-local data resource is planned in the [single-host decision](../decisions/single-host-agent-serving.md) |
+| General or distributed Volume provisioning | External storage layer |
 | Dashboard, IDE, cluster, region, cloud account, image build | Composed product or deployment infrastructure |
 
 ## Invariants
