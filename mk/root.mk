@@ -1,7 +1,7 @@
 .PHONY: bootstrap bootstrap-tools \
 		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
 		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
-		hermetic-dns-contract-check cli-e2e-environment-contract \
+		hermetic-dns-contract-check cli-e2e-environment-contract native-runtime-build native-runtime-check native-runtime-verify \
 		grafana-assets-check \
 		build-go test-go lint-go fmt-go \
 		build-rust test-rust lint-rust fmt-rust \
@@ -92,6 +92,7 @@ open-source-check: ## Audit the public source tree, credentials, metadata, and d
 
 release-check: ## Verify release versions and package contracts
 	$(MAKE) verification-plan-contract
+	$(MAKE) native-runtime-check
 	bash $(ROOTDIR)/scripts/release/version-check.sh
 	bash $(ROOTDIR)/scripts/release/helm-platform-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/homebrew-formula-check.sh
@@ -124,6 +125,17 @@ release-build: release-check ## Build CLI archives and the Helm package
 	bash $(ROOTDIR)/scripts/release/package-helm.sh
 	bash $(ROOTDIR)/scripts/release/build-sbom.sh
 	bash $(ROOTDIR)/scripts/release/finalize-artifacts.sh
+
+native-runtime-build: ## Build a candidate Linux payload; requires clean source and GVISOR_ARCHIVE
+	@test -n "$(GVISOR_ARCHIVE)" || (echo "set GVISOR_ARCHIVE to the pinned gvisor.tar.bz2" >&2; exit 1)
+	python3 $(ROOTDIR)/scripts/release/native_runtime.py build --gvisor-archive "$(GVISOR_ARCHIVE)"
+
+native-runtime-check: ## Test native payload integrity and packaging boundaries without running services
+	python3 $(ROOTDIR)/scripts/release/native_runtime_test.py
+
+native-runtime-verify: ## Verify RUNTIME_ARCHIVE against the trusted RUNTIME_SHA256 without extracting
+	@test -n "$(RUNTIME_ARCHIVE)" -a -n "$(RUNTIME_SHA256)" || (echo "set RUNTIME_ARCHIVE and RUNTIME_SHA256" >&2; exit 1)
+	python3 $(ROOTDIR)/scripts/release/native_runtime.py verify "$(RUNTIME_ARCHIVE)" --sha256 "$(RUNTIME_SHA256)"
 
 build-go: ## Build the root Go binaries
 	mkdir -p bin
