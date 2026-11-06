@@ -64,7 +64,9 @@ func TestCgroupPIDDomainKernelTruth(t *testing.T) {
 		siblingFD, err := os.Open(siblingDir)
 		require.NoError(t, err)
 		defer siblingFD.Close()
-		before, err := readInt64KeyValueFile(filepath.Join(leafDir, "pids.events"))
+		parentBefore, err := readInt64KeyValueFile(filepath.Join(parentDir, "pids.events"))
+		require.NoError(t, err)
+		leafBefore, err := readInt64KeyValueFile(filepath.Join(leafDir, "pids.events"))
 		require.NoError(t, err)
 		for _, fd := range []*os.File{leafFD, leafFD, siblingFD, siblingFD} {
 			cmd := exec.Command("sleep", "600")
@@ -90,11 +92,16 @@ func TestCgroupPIDDomainKernelTruth(t *testing.T) {
 			_ = cmd.Wait()
 		}
 		require.ErrorIs(t, err, syscall.EAGAIN, "fork must fail when the parent host-task ceiling is reached")
-		// The event is reported on the forking task's leaf even when an
-		// ancestor supplied the exhausted ceiling.
-		after, err := readInt64KeyValueFile(filepath.Join(leafDir, "pids.events"))
+		// Legacy/local event accounting reports the fork failure on the leaf;
+		// hierarchical accounting reports the exhausted parent's limit. Accept
+		// either location without weakening the aggregate or EAGAIN evidence.
+		parentAfter, err := readInt64KeyValueFile(filepath.Join(parentDir, "pids.events"))
 		require.NoError(t, err)
-		require.Greater(t, after["max"], before["max"])
+		leafAfter, err := readInt64KeyValueFile(filepath.Join(leafDir, "pids.events"))
+		require.NoError(t, err)
+		require.True(t, parentAfter["max"] > parentBefore["max"] || leafAfter["max"] > leafBefore["max"],
+			"fork rejection must increment parent or leaf pids.events max: parent before=%d after=%d, leaf before=%d after=%d",
+			parentBefore["max"], parentAfter["max"], leafBefore["max"], leafAfter["max"])
 	})
 
 	t.Run("threads consume the same task ceiling", func(t *testing.T) {
