@@ -16,6 +16,9 @@ import (
 )
 
 func (w *HttpWorker) MountNydus(ctx context.Context, req *NydusMountRequest) (*MountInfo, error) {
+	if err := w.requireNydusManager(); err != nil {
+		return nil, err
+	}
 	if err := validateLeaseID(req.LeaseID); err != nil {
 		return nil, err
 	}
@@ -76,6 +79,9 @@ func attachNydusImmutableMount(info *MountInfo, req *NydusMountRequest) error {
 }
 
 func (w *HttpWorker) ensureNydusMounted(ctx context.Context, req *NydusMountRequest) (*MountInfo, error) {
+	if err := w.requireNydusManager(); err != nil {
+		return nil, err
+	}
 	// Generate daemon ID
 	id := generateNydusID(req.ImageURL)
 
@@ -200,6 +206,9 @@ func (w *HttpWorker) ensureNydusMounted(ctx context.Context, req *NydusMountRequ
 }
 
 func (w *HttpWorker) UnmountNydus(ctx context.Context, req *NydusUmountRequest) (*MountInfo, error) {
+	if err := w.requireNydusManager(); err != nil {
+		return nil, err
+	}
 	err := w.releaseLease(req.LeaseID, func(record *mountstore.Record) error {
 		return w.unmountNydusResource(ctx, record.NydusImageURL)
 	})
@@ -210,6 +219,9 @@ func (w *HttpWorker) UnmountNydus(ctx context.Context, req *NydusUmountRequest) 
 }
 
 func (w *HttpWorker) unmountNydusResource(ctx context.Context, imageURL string) error {
+	if err := w.requireNydusManager(); err != nil {
+		return err
+	}
 	// Generate daemon ID
 	id := generateNydusID(imageURL)
 
@@ -267,6 +279,9 @@ type nydusMountAttempt struct {
 // tryMountNydus attempts to mount an image as Nydus format.
 // Returns mount point on success, or error if image is not Nydus or mount fails.
 func (w *HttpWorker) tryMountNydus(ctx context.Context, imageURL, dockerConfigJSON string) (nydusMountAttempt, error) {
+	if w.disableNydus {
+		return nydusMountAttempt{}, ErrNydusDisabled
+	}
 	isNydus := false
 	switch cached := w.nydusCache.lookup(imageURL); cached {
 	case nydusCacheOCI:

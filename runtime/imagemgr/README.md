@@ -35,13 +35,14 @@ The API surface is:
 
 `GET /inventory` includes:
 
+- `imagefsd_enabled`: whether Nydus/imagefsd is enabled for this process
 - `mounted_images`: OCI/Nydus mount records
 - `imported_images`: node-local Docker archive refs available to `/oci_mount`
 - `daemons`: live daemon summary plus source identity fields used for locality
 - `chunkdb`: retained top-level ChunkDB aggregate summary
 - `locality`: rootfs-identity entries for OCI and Nydus mounts
 
-`/oci_mount` first tries Nydus routing when a registry client is configured. If Nydus is not detected, it falls back to the local OCI extract-plus-overlay path. If the requested image ref has been imported through `/oci_import`, the OCI fallback path uses that node-local archive instead of fetching from a registry.
+With Nydus enabled, `/oci_mount` first tries Nydus routing when a registry client is configured. If Nydus is not detected, it uses the local OCI extract-plus-overlay path. If the requested image ref has been imported through `/oci_import`, the OCI path uses that node-local archive instead of fetching from a registry. OCI-only mode skips Nydus routing and suffix probes; Nydus images are rejected by the OCI path instead of exposing their bootstrap files as a workload rootfs.
 
 For private-image flows, `/oci_mount` also accepts optional request-scoped Docker config JSON. Inline request auth overrides static auth-file entries for that mount request only, which keeps private registry credentials allocation-scoped instead of node-global.
 
@@ -58,13 +59,29 @@ For private-image flows, `/oci_mount` also accepts optional request-scoped Docke
 - `docs/architecture.md`: mount routing and implementation ownership map
 - `docs/TRACING.md`: tracing and stage-timing notes
 
-## Required Startup Inputs
+## Startup Modes
 
-Manager initialization requires all of the following inputs, even if only one mount flow is exercised in a given environment:
+`-enable_nydus=true` is the default and preserves existing deployment behavior. Nydus manager initialization requires these inputs:
 
 - `-imagefsd_bin`
 - `-nydus_template`
 - `-registry_auths_path`
+
+`-enable_nydus=false` selects OCI-only operation. It does not instantiate the imagefsd manager, read the Nydus template, restore Nydus daemons, start their GC, or execute imagefsd for inventory. Public OCI pulls and local Docker archive imports need no imagefsd binary, Nydus template or static authentication file. Private OCI pulls can still use `-registry_auths_path` or request-scoped Docker config JSON. Registry mirrors remain configurable through `-registry_mirror_url`.
+
+Before starting OCI recovery, this mode checks existing mount authority and daemon metadata without rewriting them. Nydus resources (including pending releases), retained daemon metadata, and unsupported or corrupt authority cause startup to fail. Release Nydus mounts and clean up retained daemons through the enabled mode before stopping the process and switching; never delete state files to force a switch. Ordinary OCI leases retain their normal recovery behavior.
+
+Direct Nydus mount/unmount and daemon cleanup requests fail explicitly in OCI-only mode. Inventory continues to report OCI mounts, imports and locality, with `imagefsd_enabled=false`; axnoded reports imagefsd as disabled. This is a component configuration option for the single-host work, not a Linux installer or a change to Compose/Helm defaults.
+
+Both modes require `-node_id`. For OCI-only operation, run from this module with a fresh, owned directory:
+
+```bash
+go run ./cmd/imagemgr \
+  -node_id node-local \
+  -root /tmp/imagemgr-oci \
+  -http_sock /tmp/imagemgr-oci.sock \
+  -enable_nydus=false
+```
 
 Common optional flags:
 
@@ -95,6 +112,7 @@ The generated Nydus registry backend keeps registry metadata, authentication, an
 
 ```bash
 go run ./cmd/imagemgr \
+  -node_id node-local \
   -debug \
   -root /tmp/imagemgr \
   -imagefsd_bin /usr/local/bin/imagefsd \
@@ -164,6 +182,8 @@ The descriptor is the only image-representation hand-off to runtime rootfs proje
 When a daemon needs to be removed explicitly, `POST /cleanup_daemon` accepts a JSON body with `daemon_id`.
 
 Persisted mount or daemon records with unsupported source types are rejected at startup and require explicit operator resolution; imagemgr never reinterprets or deletes those records automatically. Imagemgr owns only execution rootfs content and mounts; durable object storage is outside its lifecycle.
+
+Normal daemon shutdown preserves OCI mounts and their recovery records. Closing the OCI manager is not a lease release; unmounting remains owned by explicit final-lease cleanup. Restart reconciles those records with actual kernel mount state. This does not promise that mounts or workload processes survive a host reboot.
 
 ## Development And Validation
 

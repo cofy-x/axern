@@ -31,7 +31,9 @@ func generateNydusID(imageURL string) string {
 
 // HttpWorkerConfig holds the configuration for creating an HttpWorker.
 type HttpWorkerConfig struct {
-	LifecycleContext   context.Context
+	LifecycleContext context.Context
+	// DisableNydus explicitly selects OCI-only serving; the zero value preserves Nydus support.
+	DisableNydus       bool
 	Manager            imagefsd.Manager
 	OCIManager         *oci.Manager
 	NydusClient        *nydus.RegistryClient
@@ -44,6 +46,11 @@ type HttpWorkerConfig struct {
 
 func NewHttpWorker(cfg *HttpWorkerConfig) (*HttpWorker, error) {
 	if cfg.MountStore != nil {
+		if cfg.DisableNydus {
+			if err := cfg.MountStore.ValidateOCIOnly(); err != nil {
+				return nil, fmt.Errorf("cannot start with Nydus disabled: %w", err)
+			}
+		}
 		records, err := cfg.MountStore.List()
 		if err != nil {
 			return nil, fmt.Errorf("read persisted mount records: %w", err)
@@ -72,6 +79,7 @@ func NewHttpWorker(cfg *HttpWorkerConfig) (*HttpWorker, error) {
 	}
 	w := &HttpWorker{
 		lifecycleCtx:       lifecycleCtx,
+		disableNydus:       cfg.DisableNydus,
 		mgr:                cfg.Manager,
 		ociMgr:             cfg.OCIManager,
 		nydusClient:        cfg.NydusClient,
@@ -113,6 +121,7 @@ func prepareRootfsSnapshotStaging(ociRoot string) (string, error) {
 
 type HttpWorker struct {
 	lifecycleCtx       context.Context
+	disableNydus       bool
 	mgr                imagefsd.Manager
 	ociMgr             *oci.Manager
 	nydusClient        *nydus.RegistryClient

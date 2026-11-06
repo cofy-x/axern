@@ -35,6 +35,7 @@ func Run(args []string) error {
 	imagefsdBinPath := flags.String("imagefsd_bin", "/usr/local/bin/imagefsd",
 		"imagefsd binary path.")
 	nydusTemplate := flags.String("nydus_template", "", "Path to the Nydus backend configuration template file.")
+	enableNydus := flags.Bool("enable_nydus", true, "Enable Nydus routing and imagefsd; disable for OCI-only serving.")
 	debug := flags.Bool("debug", false, "Output debug info or not.")
 	httpSockPath := flags.String("http_sock", api.DefaultHttpSockPath, "Http api socket path")
 	nydusSuffix := flags.String("nydus_suffix", "", "Tag suffix to try when detecting Nydus images (e.g., '-nydus')")
@@ -71,6 +72,15 @@ func Run(args []string) error {
 	}
 	if *nydusDecodedCacheBytes < 0 {
 		return fmt.Errorf("nydus_decoded_cache_bytes must not be negative")
+	}
+	if !*enableNydus {
+		// Inspect retained authority before either backend starts recovery or GC.
+		if err := mountstore.ValidateOCIOnlyFile(filepath.Join(*rootWorkDir, "resource_leases.db")); err != nil {
+			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
+		}
+		if err := imagefsd.ValidateDisabled(*rootWorkDir); err != nil {
+			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
+		}
 	}
 
 	logLevel := logrus.InfoLevel
@@ -120,47 +130,64 @@ func Run(args []string) error {
 	if err != nil {
 		return fmt.Errorf("initialize registry client: %w", err)
 	}
-	nydusClient := nydus.NewRegistryClientFromShared(sharedRegistryClient)
-	logrus.Info("Registry and Nydus clients initialized successfully")
 
-	// Create manager with the Nydus config template
-	mgr, err := imagefsd.NewManager(&imagefsd.ManagerConfig{
-		Context:                   ctx,
-		NodeID:                    *nodeID,
-		Root:                      *rootWorkDir,
-		NydusCfgPath:              *nydusTemplate,
-		BinPath:                   *imagefsdBinPath,
-		NydusClient:               nydusClient,
-		RegistryAuthsPath:         *registryAuthsPath,
-		CgroupMemoryLimit:         cgroupMemoryLimit,
-		NydusReadaheadWorkers:     *nydusReadaheadWorkers,
-		NydusReadaheadWindowBytes: *nydusReadaheadWindowBytes,
-		NydusDecodedCacheBytes:    *nydusDecodedCacheBytes,
-	})
-	if err != nil {
-		return fmt.Errorf("create imagefsd manager: %w", err)
-	}
-
-	// initialize OCI manager (local layer extraction + overlay mount)
-	ociMgr, err := oci.NewManager(*rootWorkDir, *nydusTemplate, sharedRegistryClient)
-	if err != nil {
-		return fmt.Errorf("create oci manager: %w", err)
-	}
-	defer ociMgr.Close()
-	registryProxyURL, err := registryProxyURLFromTemplate(*nydusTemplate)
-	if err != nil {
-		return err
-	}
-
+	// Keep the authority store locked throughout backend recovery and serving.
+	// Revalidate after acquiring its lock so another process cannot introduce
+	// Nydus authority between the read-only preflight and recovery.
 	dbPath := filepath.Join(*rootWorkDir, "resource_leases.db")
 	mountStore, err := mountstore.Open(dbPath)
 	if err != nil {
 		return fmt.Errorf("open mount store: %w", err)
 	}
 	defer mountStore.Close()
+	if !*enableNydus {
+		if err := mountStore.ValidateOCIOnly(); err != nil {
+			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
+		}
+		if err := imagefsd.ValidateDisabled(*rootWorkDir); err != nil {
+			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
+		}
+	}
+
+	var mgr imagefsd.Manager
+	var nydusClient *nydus.RegistryClient
+	ociTemplate := ""
+	registryProxyURL := ""
+	if *enableNydus {
+		nydusClient = nydus.NewRegistryClientFromShared(sharedRegistryClient)
+		mgr, err = imagefsd.NewManager(&imagefsd.ManagerConfig{
+			Context:                   ctx,
+			NodeID:                    *nodeID,
+			Root:                      *rootWorkDir,
+			NydusCfgPath:              *nydusTemplate,
+			BinPath:                   *imagefsdBinPath,
+			NydusClient:               nydusClient,
+			RegistryAuthsPath:         *registryAuthsPath,
+			CgroupMemoryLimit:         cgroupMemoryLimit,
+			NydusReadaheadWorkers:     *nydusReadaheadWorkers,
+			NydusReadaheadWindowBytes: *nydusReadaheadWindowBytes,
+			NydusDecodedCacheBytes:    *nydusDecodedCacheBytes,
+		})
+		if err != nil {
+			return fmt.Errorf("create imagefsd manager: %w", err)
+		}
+		ociTemplate = *nydusTemplate
+		registryProxyURL, err = registryProxyURLFromTemplate(*nydusTemplate)
+		if err != nil {
+			return err
+		}
+	}
+
+	// initialize OCI manager (local layer extraction + overlay mount)
+	ociMgr, err := oci.NewManager(*rootWorkDir, ociTemplate, sharedRegistryClient)
+	if err != nil {
+		return fmt.Errorf("create oci manager: %w", err)
+	}
+	defer ociMgr.Close()
 
 	worker, err := api.NewHttpWorker(&api.HttpWorkerConfig{
 		LifecycleContext:   ctx,
+		DisableNydus:       !*enableNydus,
 		Manager:            mgr,
 		OCIManager:         ociMgr,
 		NydusClient:        nydusClient,

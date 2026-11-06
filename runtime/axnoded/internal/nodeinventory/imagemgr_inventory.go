@@ -47,6 +47,12 @@ func (s *AxnodedSource) collectImagemgrInventory(now time.Time, snapshot *NodeIn
 	snapshot.Heat.MountedImageURLs = mountedURLs
 	snapshot.Heat.MountedRootfsCount = len(inventory.MountedImages)
 
+	if inventory.ImagefsdEnabled != nil && !*inventory.ImagefsdEnabled {
+		snapshot.Sources["imagefsd"] = SourceStatus{Status: StatusDisabled}
+		snapshot.Components.Imagefsd = ImagefsdComponentInventory{Status: StatusDisabled}
+		return
+	}
+
 	for _, daemon := range inventory.Daemons {
 		if daemon.SourceType == "nydus" {
 			snapshot.Heat.NydusDaemonCount++

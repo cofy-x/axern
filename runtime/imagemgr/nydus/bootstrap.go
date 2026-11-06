@@ -3,6 +3,7 @@ package nydus
 import (
 	"archive/tar"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"os"
@@ -26,6 +27,10 @@ const (
 
 	// Bootstrap file name in layer tar
 	BootstrapFileNameInLayer = "image/image.boot"
+
+	// BootstrapHeaderSize covers the RAFS v5 header and the RAFS v6 superblock
+	// at byte 1024. Format recognition never needs to read the complete bootstrap.
+	BootstrapHeaderSize = 1024 + 128
 )
 
 type bootstrapExtractionTimings struct {
@@ -49,36 +54,40 @@ func IsNydusImage(img v1.Image) (bool, error) {
 		return false, fmt.Errorf("failed to get manifest: %w", err)
 	}
 
-	layers := manifest.Layers
-	if len(layers) == 0 {
-		return false, nil
-	}
-
 	// Nydus conversion tools can mark the image through layer media types,
 	// layer annotations, or manifest annotations depending on output schema.
-	for _, layer := range layers {
-		if string(layer.MediaType) == MediaTypeNydusBlob {
-			return true, nil
-		}
-		if layer.Annotations != nil {
-			if _, ok := layer.Annotations[LayerAnnotationNydusBootstrap]; ok {
-				return true, nil
-			}
-			if _, ok := layer.Annotations[LayerAnnotationNydusBlob]; ok {
-				return true, nil
-			}
-		}
-	}
-	if manifest.Annotations != nil {
-		if _, ok := manifest.Annotations[LayerAnnotationNydusBootstrap]; ok {
-			return true, nil
-		}
-		if _, ok := manifest.Annotations[LayerAnnotationNydusBlob]; ok {
+	for _, layer := range manifest.Layers {
+		if IsNydusDescriptor(layer) {
 			return true, nil
 		}
 	}
+	return hasNydusAnnotations(manifest.Annotations), nil
+}
 
-	return false, nil
+// IsNydusDescriptor recognizes image-format markers on a layer descriptor,
+// including descriptors retained by Docker archives in LayerSources.
+func IsNydusDescriptor(descriptor v1.Descriptor) bool {
+	return string(descriptor.MediaType) == MediaTypeNydusBlob || hasNydusAnnotations(descriptor.Annotations)
+}
+
+func hasNydusAnnotations(annotations map[string]string) bool {
+	_, bootstrap := annotations[LayerAnnotationNydusBootstrap]
+	_, blob := annotations[LayerAnnotationNydusBlob]
+	return bootstrap || blob
+}
+
+// IsNydusBootstrap recognizes RAFS headers when an archive has lost its image
+// annotations. This identifies the format, not filesystem validity: damaged
+// Nydus content must not become an ordinary OCI rootfs. RAFS v6 shares EROFS's
+// magic, so its RAFS compatibility bit is required to distinguish ordinary EROFS.
+// Reference: nydus/rafs/src/metadata/layout/{v5,v6}.rs.
+func IsNydusBootstrap(header []byte) bool {
+	if len(header) >= 8 && binary.LittleEndian.Uint32(header[0:4]) == 0x52414653 &&
+		binary.LittleEndian.Uint32(header[4:8]) == 0x500 {
+		return true
+	}
+	return len(header) >= 1036 && binary.LittleEndian.Uint32(header[1024:1028]) == 0xe0f5e1e2 &&
+		binary.LittleEndian.Uint32(header[1032:1036])&0x40000000 != 0
 }
 
 // ExtractBootstrap extracts the Nydus bootstrap from the image

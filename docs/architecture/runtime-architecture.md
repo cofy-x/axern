@@ -12,6 +12,8 @@ Axern separates durable product intent from node-local execution:
 - `imagemgr`, `imagefsd`, `egressd`, `bpfnet`, and `tunneld` own narrow image, network, or relay responsibilities below the Run lifecycle.
 - SDK `Sandbox` objects compose the durable `Environment -> Run -> Allocation` chain without creating another lifecycle.
 
+Imagemgr can run in explicit [OCI-only mode](../../runtime/imagemgr/README.md#startup-modes) without starting imagefsd or loading Nydus configuration. Existing deployment defaults retain Nydus support. This option preserves the image-manager API and lease ownership; it does not combine services or implement the planned standalone installer.
+
 ## External And Internal Flows
 
 Public clients send Allocation identities to `gatewayd`, never node targets or private access tokens. Gatewayd forwards control RPCs to `controld`; for process, file, archive, terminal, and SSH operations it resolves the target and AllocationAccessGrant bound to that exact Allocation ID before forwarding to `axnoded`. The public request remains credential-free; gatewayd overwrites private access metadata on every backend attempt, and axnoded accepts exactly one non-empty value. Internal lifecycle and status paths remain direct.
