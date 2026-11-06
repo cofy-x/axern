@@ -1,6 +1,6 @@
 # Axnoded
 
-`axnoded` is Axern's node-local sandbox execution agent. It runs on a selected node and owns sandbox creation, OCI bundle generation, runtime lifecycle, resource coordination, node-local operator inspection, gateway-forwarded execution after `controld` placement, and request-scoped image-backed process.
+`axnoded` is Axern's Linux node-local sandbox execution agent. It runs on a selected node and owns sandbox creation, OCI bundle generation, runtime lifecycle, resource coordination, node-local operator inspection, gateway-forwarded execution after `controld` placement, and request-scoped image-backed process. macOS local development runs this Linux execution stack inside a VM.
 
 `controld` is the product-facing control plane. `axnoded` is the node authority for executing an admitted allocation.
 
@@ -30,9 +30,9 @@ Node lifecycle requests carry resolved secret env vars, resolved secret files, r
 
 ## Architecture
 
-Requests enter through `internal/api`, move through `internal/service`, then coordinate rootfs resolution, resources, persisted container state, the process-owned runsc executor, and sandbox-local `axern-sandboxd` operations. One axnoded process owns exactly one execution backend; Allocation requests and node-local metadata contain no runtime selector.
+Requests enter through `internal/api`, move through `internal/service`, then coordinate rootfs resolution, resources, persisted container state, the process-owned runsc executor, and sandbox-local `axern-sandboxd` operations. One axnoded process owns one runsc executor; Allocation requests and node-local metadata contain no runtime selector.
 
-Firecracker is not a dormant plugin in this process. If it is qualified later, it will be a separate node implementation and node pool with its own guest image, networking, snapshot, agent, recovery, and capability evidence contracts. Placement selects a node whose isolation capabilities satisfy the immutable Allocation requirements; users do not select a backend name.
+gVisor (`runsc`) is the sole sandbox runtime for the long-term product direction, with no fallback or planned second backend. Missing required runtime or enforcement evidence fails closed. Planned Linux single-host packaging changes are defined in [Single-Host Agent Serving](../../docs/decisions/single-host-agent-serving.md); this document describes the current node implementation.
 
 One process-owned BoltDB under the configured store directory persists node-local resource snapshots and one atomic runtime/image ownership record per allocation. The database is opened once during service construction and closed only after resource writers stop during shutdown.
 

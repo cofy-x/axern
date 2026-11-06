@@ -1,6 +1,8 @@
 # Storage Architecture
 
-Axern separates durable control state from Allocation-local writable files. Persistent workspace and output-storage orchestration is not part of the execution core.
+The current implementation separates durable control state from Allocation-local writable files. It does not yet provide a persistent Workspace resource or durable output-storage service.
+
+Persistent Workspace support is planned in [Single-Host Agent Serving](../decisions/single-host-agent-serving.md). The ownership, retention, and cleanup rules below describe current behavior; a writable sandbox directory or published rootfs result does not provide that planned Workspace contract.
 
 ## Data Ownership And Lifetime
 

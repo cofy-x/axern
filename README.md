@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — sandbox execution for AI agents: Environment → Run → Allocation → runsc sandbox">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — self-hosted execution for AI agents: Environment → Run → Allocation → runsc sandbox">
 </p>
 
 <p align="center">
@@ -14,9 +14,11 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-Axern is an open-source environment execution platform for agent evaluation, training, and data synthesis. It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback. The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and allocation-scoped access.
+Axern is an open-source, self-hosted execution platform for AI agents. It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback. The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and allocation-scoped access.
 
-> **Project status:** Axern is pre-1.0 and under active development. It is suitable for evaluation and contribution, but operators should review the security and production boundaries before deploying multi-tenant workloads.
+The product direction is **single-host-first infrastructure for personal agent systems**: simpler Linux deployment, long-running sandbox services, and persistent Workspaces that multiple agents can use through explicit access and ownership. Agent planning, collaboration, and workflows remain in caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
+
+> **Project status:** Axern is pre-1.0 and under active development. The dedicated single-host serving deployment and persistent Workspace resource are planned, not implemented. Today's local path is a Docker Compose development stack; writable storage is Allocation-local, and sealed outputs expire after 15 minutes. Review the current deployment and storage boundaries before use.
 
 The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade over that chain, not a second execution lifecycle.
 
@@ -26,7 +28,7 @@ The durable chain is **Environment → Run → Allocation → runsc sandbox**. S
 
 ## Quickstart
 
-The supported local path runs the complete stack with Docker Compose. It needs only the `axern` CLI and Docker Compose v2 — no source checkout, Make, Helm, or language toolchains.
+The supported local development path runs the complete stack with Docker Compose on Linux or through Docker Desktop's Linux VM on macOS. It needs only the `axern` CLI and Docker Compose v2 — no source checkout, Make, Helm, or language toolchains. gVisor execution runs on Linux in both cases.
 
 ```bash
 brew install cofy-x/tap/axern
@@ -70,16 +72,16 @@ For repository development, `make verify-changed` is the normal fast feedback en
 ## What You Can Build
 
 - **Agent sandboxes:** execute agent-generated code behind a runsc isolation boundary while retaining process, file, terminal, and output APIs.
-- **Evaluation and synthesis batches:** execute isolated work concurrently through Runs, with explicit inputs, outputs, and lifecycle evidence.
+- **Concurrent agent tasks:** execute coding, research, evaluation, or data processing work through independent Runs, with explicit inputs, outputs, and lifecycle evidence.
 - **SDK-driven execution:** use a released SDK to create Runs, operate their Allocations, seal bounded declared outputs, publish a successful writable rootfs as a reusable Environment, and recover by public resource identity.
 
 ## Why Axern
 
-- **Sandbox as the primitive:** evaluation, training, data synthesis, coding workspaces, and agent tasks compose the same Run execution model.
+- **Execution for your agent system:** compose isolated agent tasks through the same Run execution model while keeping planning, memory, and collaboration in your application.
 - **Durable control plane:** PostgreSQL-backed intent, placement, leases, allocation-scoped status, health, and cleanup state remain authoritative across process or node restarts.
 - **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
 - **Real data-plane access:** process streams, files, archives, SSH-compatible terminals, and reverse TCP tunnels are explicit allocation capabilities.
-- **Local-to-cluster continuity:** Docker Compose, kind, and the cloud-neutral Helm chart exercise the same component boundaries.
+- **A focused direction:** prioritize simpler single-host deployment and persistent working data; existing Compose, kind, and Helm deployment contracts remain documented while that work is implemented.
 
 ## Architecture
 

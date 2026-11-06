@@ -14,6 +14,12 @@ The source Compose workflow owns the `axern-source` Docker Compose project. The 
 
 For gateway, terminal, and SSH examples, see [Gateway Quickstart](gateway-quickstart.md).
 
+## Deployment Scope
+
+Linux single-host serving is the product's deployment direction; macOS supports clients and local development with the Linux runtime inside a VM. The current `axern local up` and source Compose workflows run multiple services, including PostgreSQL. They remain development environments rather than the planned serving package described in [Single-Host Agent Serving](../../docs/decisions/single-host-agent-serving.md).
+
+Both Compose workflows use machine-local development identities and loopback public listeners. Their node configuration sets `AXNODED_CGROUP_ENFORCEMENT=disabled_dev`, so successful local execution does not qualify production CPU and memory enforcement. Keep runtime isolation, resource qualification, and deployment readiness distinct; use the [verification tiers](../../docs/verification/local-full-verification.md) for the applicable Linux checks.
+
 ## Start
 
 ```bash

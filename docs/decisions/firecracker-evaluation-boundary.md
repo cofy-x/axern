@@ -1,5 +1,7 @@
 # Firecracker Evaluation Boundary
 
+> Superseded by [Single-Host Agent Serving](single-host-agent-serving.md). Axern now chooses gVisor/runsc as its sole long-term backend; the conditional second-runtime evaluation below is retained as a superseded decision, not an active implementation path.
+
 ## Decision
 
 gVisor `runsc` remains Axern's only supported production sandbox backend. Firecracker is not a per-Run selector, fallback, public capability, or reason to introduce a generic runtime registry.
