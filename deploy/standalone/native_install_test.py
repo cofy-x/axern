@@ -16,6 +16,7 @@ import native_install as installer
 
 SETTINGS = {
     'node_id': 'node-native-test', 'memory_budget_bytes': 4 * 1024**3,
+    'service_memory_budget_bytes': 1024**3,
     'memory_reserve_bytes': 1024**3, 'storage_reserve_bytes': 1024**3,
     'sandbox_cidr': '172.30.0.1/24', 'dns_nameservers': ['10.0.2.3'], 'max_instances': 8,
 }
@@ -26,6 +27,7 @@ class InstallerTest(unittest.TestCase):
         for key, value in (
             ('node_id', 'node\nExecStart=/bin/false'), ('node_id', '../other'),
             ('memory_budget_bytes', 1024**3), ('memory_reserve_bytes', 512 * 1024**2),
+            ('service_memory_budget_bytes', 3 * 1024**3),
             ('storage_reserve_bytes', True), ('max_instances', 65),
             ('sandbox_cidr', '127.0.0.1/24'), ('sandbox_cidr', '172.30.0.0/24'),
             ('sandbox_cidr', '172.30.0.1/30'), ('dns_nameservers', ['127.0.0.53']),
@@ -60,6 +62,9 @@ class InstallerTest(unittest.TestCase):
         self.assertNotIn('enrollment-token', gateway)
         self.assertNotIn('EnvironmentFile=', gateway)
         self.assertIn('Delegate=yes', units[installer.unit_name('axnoded')])
+        self.assertIn('MemoryMax=3221225472', units[installer.unit_name('axnoded')])
+        self.assertIn('Slice=axern-services.slice', gateway)
+        self.assertIn('MemoryMax=1073741824', units['axern-services.slice'])
         self.assertIn('"--listen-address" "127.0.0.1"', units[installer.unit_name('imagefsd')])
 
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd parser is unavailable')

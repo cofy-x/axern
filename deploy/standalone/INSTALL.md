@@ -27,12 +27,13 @@ sudo python3 native_runtime.py stage /absolute/path/to/runtime.tar.gz \
   --destination /opt/axern/releases/TRUSTED_ARCHIVE_SHA256
 ```
 
-Create a JSON configuration with all fields below. These values illustrate the configuration format; choose the memory reserve using host qualification, and replace the network range and resolver with reachable, non-conflicting values for the host. The reserve must cover the 512 MiB runtime-conformance ceiling plus measured daemon headroom. The memory budget caps the complete Axern systemd slice, including PostgreSQL and helpers.
+Create a JSON configuration with all fields below. These values illustrate the configuration format; qualify the budgets on the host, and replace the network range and resolver with reachable, non-conflicting values. The total memory budget caps the complete Axern slice with swap disabled. Supporting services share `service_memory_budget_bytes`; axnoded receives the remaining budget as its explicit delegated cgroup limit. Its `memory_reserve_bytes` covers the 512 MiB runtime-conformance ceiling plus node daemon headroom. The example leaves 2 GiB for admitted sandbox memory after both reservations, within a 4 GiB total installation budget.
 
 ```json
 {
   "node_id": "node-personal-01",
   "memory_budget_bytes": 4294967296,
+  "service_memory_budget_bytes": 1073741824,
   "memory_reserve_bytes": 1073741824,
   "storage_reserve_bytes": 1073741824,
   "sandbox_cidr": "172.30.0.1/24",
@@ -46,7 +47,7 @@ sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_ins
   install --config /absolute/path/to/native.json
 ```
 
-Installation owns `/etc/axern`, `/var/lib/axern`, its runtime paths below `/opt/axern`, the `axern-native-*` service units, `axern.slice` and dedicated `axern-*` service accounts. Existing unrelated configuration, data, accounts and units cause installation to fail. An interrupted installation can resume with the same payload and configuration; conflicting files fail explicitly rather than being overwritten. A different payload or configuration is rejected because this candidate has no supported upgrade contract.
+Installation owns `/etc/axern`, `/var/lib/axern`, its runtime paths below `/opt/axern`, the `axern-native-*` service units, `axern.slice`, `axern-services.slice` and dedicated `axern-*` service accounts. Existing unrelated configuration, data, accounts and units cause installation to fail. An interrupted installation can resume with the same payload and configuration; conflicting files fail explicitly rather than being overwritten. A different payload or configuration is rejected because this candidate has no supported upgrade contract.
 
 The installer generates private PostgreSQL, encryption and enrollment secrets; initializes deployment PKI using the existing workload authority implementation; and prepares the full locked gVisor runtime and capability fixtures. The control service receives the signer, while gateway and relay receive only their own workload identities. Public services run under separate unprivileged accounts. Node execution, image mounting, egress enforcement and the node tunnel connector retain their required host privileges. Secret values are not placed in systemd command lines.
 
@@ -70,7 +71,9 @@ The generated `/etc/axern/client.env` points the CLI at the authenticated gatewa
 ```bash
 source /etc/axern/client.env
 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern admin node list
-/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern run IMAGE_REFERENCE -- /bin/sh -c 'printf "native sandbox ready\n"'
+/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern run \
+  --request-memory 256Mi --limit-memory 256Mi \
+  IMAGE_REFERENCE -- /bin/sh -c 'printf "native sandbox ready\n"'
 ```
 
 Renew service certificates explicitly using `native_install.py renew-services`. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.

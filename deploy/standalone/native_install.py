@@ -33,7 +33,7 @@ TARGET = 'axern-native.target'
 SERVICES = ('postgres', 'bootstrap', 'controld', 'retention', 'tunneld', 'imagefsd', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd')
 USERS = ('postgres', 'control', 'retention', 'tunnel', 'imagefsd', 'gateway')
 PORTS = (25432, 24000, 24001, 24002, 24100, 24010, 23001, 25000, 25080, 9876)
-SETTINGS = {'node_id', 'memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'sandbox_cidr', 'dns_nameservers', 'max_instances'}
+SETTINGS = {'node_id', 'memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'sandbox_cidr', 'dns_nameservers', 'max_instances'}
 
 
 class InstallError(ValueError):
@@ -65,11 +65,11 @@ def validate_settings(value: dict) -> dict:
         raise InstallError('configuration must contain exactly the documented settings')
     if not isinstance(value['node_id'], str) or not re.fullmatch(r'[a-z][a-z0-9-]{2,62}', value['node_id']):
         raise InstallError('invalid explicit node_id')
-    for name in ('memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'max_instances'):
+    for name in ('memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'max_instances'):
         if type(value[name]) is not int or value[name] <= 0:
             raise InstallError(f'{name} must be a positive integer')
-    if value['memory_reserve_bytes'] <= 512 * 1024**2 or value['memory_budget_bytes'] <= value['memory_reserve_bytes'] + 512 * 1024**2:
-        raise InstallError('memory budget must cover the explicit reserve and workload capacity; reserve must exceed the 512 MiB conformance ceiling')
+    if value['memory_reserve_bytes'] <= 512 * 1024**2 or value['memory_budget_bytes'] - value['service_memory_budget_bytes'] <= value['memory_reserve_bytes'] + 512 * 1024**2:
+        raise InstallError('memory budget must cover supporting services, node reserve and workload capacity; node reserve must exceed the 512 MiB conformance ceiling')
     if not 1 <= value['max_instances'] <= 64:
         raise InstallError('max_instances must be in [1, 64]')
     if not isinstance(value['sandbox_cidr'], str):
@@ -194,7 +194,8 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
     units = {}
     for name, (user, dependencies, args) in definitions.items():
         after = ' '.join(unit_name(item) for item in dependencies)
-        lines = ['[Unit]', f'Description=Axern native {name}', f'PartOf={TARGET}', 'After=network.target ' + after, 'Wants=' + after, f'RequiresMountsFor={DATA}', '[Service]', 'Type=oneshot' if name == 'bootstrap' else 'Type=simple', 'Slice=axern.slice', 'UMask=0077', f'RuntimeDirectory=axern-native-{name}', 'RuntimeDirectoryMode=0750', 'TimeoutStartSec=180', 'TimeoutStopSec=120', 'ExecStart=' + command(args)]
+        service_slice = 'axern.slice' if name == 'axnoded' else 'axern-services.slice'
+        lines = ['[Unit]', f'Description=Axern native {name}', f'PartOf={TARGET}', 'After=network.target ' + after, 'Wants=' + after, f'RequiresMountsFor={DATA}', '[Service]', 'Type=oneshot' if name == 'bootstrap' else 'Type=simple', f'Slice={service_slice}', 'UMask=0077', f'RuntimeDirectory=axern-native-{name}', 'RuntimeDirectoryMode=0750', 'TimeoutStartSec=180', 'TimeoutStopSec=120', 'ExecStart=' + command(args)]
         lines += ['ExecStartPre=' + command(helper + ['internal-verify'])]
         if user:
             lines += [f'User=axern-{user}', f'Group=axern-{user}', 'NoNewPrivileges=yes', 'ProtectHome=yes', 'PrivateTmp=yes']
@@ -210,9 +211,11 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
             lines += ['ExecStartPost=' + command(helper + ['internal-ready', name])]
         if name == 'axnoded':
             lines += ['Delegate=yes', 'KillMode=mixed', f'Environment=AXERN_SANDBOXD_BINARY={root}/libexec/axnoded/axern-sandboxd', f'Environment=AXERN_EROFS_FIXTURE={DATA}/fixtures/minimal.erofs']
+            lines += [f'MemoryMax={settings["memory_budget_bytes"] - settings["service_memory_budget_bytes"]}']
         units[unit_name(name)] = '\n'.join(lines) + '\n'
     units[TARGET] = '[Unit]\nDescription=Axern native candidate\nWants=' + ' '.join(unit_name(name) for name in SERVICES) + '\nAfter=' + ' '.join(unit_name(name) for name in SERVICES) + '\n[Install]\nWantedBy=multi-user.target\n'
-    units['axern.slice'] = f'[Unit]\nDescription=Axern native memory budget\n[Slice]\nMemoryMax={settings["memory_budget_bytes"]}\n'
+    units['axern.slice'] = f'[Unit]\nDescription=Axern native memory budget\n[Slice]\nMemoryMax={settings["memory_budget_bytes"]}\nMemorySwapMax=0\n'
+    units['axern-services.slice'] = f'[Unit]\nDescription=Axern native supporting services\n[Slice]\nMemoryMax={settings["service_memory_budget_bytes"]}\n'
     return units
 
 
@@ -378,12 +381,12 @@ def install(settings: dict) -> None:
             if directory.exists() and (directory.is_symlink() or any(
                     entry.name != 'lost+found' or directory != DATA for entry in directory.iterdir())):
                 raise InstallError(f'refusing to adopt existing data/configuration: {directory}')
-        for name in (*[unit_name(service) for service in SERVICES], TARGET, 'axern.slice'):
+        for name in (*[unit_name(service) for service in SERVICES], TARGET, 'axern.slice', 'axern-services.slice'):
             if (UNITS / name).exists() or (UNITS / name).is_symlink():
                 raise InstallError(f'existing service unit is not owned by this installation: {name}')
             loaded = subprocess.run(['systemctl', 'show', '--property=LoadState,FragmentPath,ActiveState,Transient,DropInPaths', name], capture_output=True, text=True)
             properties = dict(line.split('=', 1) for line in loaded.stdout.splitlines() if '=' in line)
-            implicit_slice = (name == 'axern.slice' and properties.get('LoadState') == 'loaded'
+            implicit_slice = (name in ('axern.slice', 'axern-services.slice') and properties.get('LoadState') == 'loaded'
                               and properties.get('ActiveState') == 'inactive' and properties.get('Transient') == 'no'
                               and properties.get('FragmentPath') == '' and properties.get('DropInPaths') == '')
             if properties.get('LoadState') != 'not-found' and not implicit_slice:
