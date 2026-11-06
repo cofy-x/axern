@@ -13,7 +13,7 @@ flowchart TB
     Worker --> Store["internal/mountstore"]
     Worker --> OCI["oci.Manager"]
     Worker --> Nydus["nydus.RegistryClient"]
-    Worker --> IFSMgr["imagefsd.Manager"]
+    Worker --> IFSMgr["imagefsd.Manager (when Nydus enabled)"]
 
     IFSMgr --> IFSD["imagefsd daemon process"]
     IFSD --> NydusFuse["Nydus RAFS FUSE mount"]
@@ -49,7 +49,7 @@ sequenceDiagram
         API->>OCI: MountImageWithContextAndAuthKey(cache_key)
         API->>Store: Record OCI mount
     else no imported archive
-        alt registry client configured and no inline Docker auth
+        alt Nydus enabled, registry client configured and no inline Docker auth
             API->>Nydus: Detect bootstrap image
             alt Nydus image detected
                 API->>IFSD: Create and mount Nydus daemon
@@ -69,11 +69,14 @@ sequenceDiagram
 Important routing rules:
 
 - Imported images skip Nydus detection and use the local OCI cache.
+- OCI-only mode (`-enable_nydus=false`) skips suffix probes and Nydus routing. The OCI owner rejects Nydus formats after fetching the actual image and before publishing imported content, including requests with inline authentication. A detection failure is not permission to extract Nydus bootstrap data as an OCI rootfs.
 - Request-scoped Docker config JSON applies only to the OCI pull path.
 - If an image is detected as Nydus but the Nydus mount fails, the API returns that error instead of silently falling back to OCI.
 - `POST /oci_umount` releases one durable lease. The final lease routes resource cleanup through `oci.Manager` or `imagefsd.Manager`; failed cleanup remains durable for reconciliation.
 
 ## Persistence And Ownership
+
+OCI-only startup inspects persisted mount authority and daemon metadata before constructing backend managers. It rejects Nydus resources, retained daemon metadata and unrecognized or corrupt authority without starting recovery or cleanup. It does not migrate or discard these records. The enabled mode remains responsible for releasing its Nydus resources before an operator switches modes. Ordinary OCI resources and pending releases continue through the existing recovery path.
 
 `internal/mountstore` is the sole authority for client-visible resource identity, ownership, and leases. Its `resource_leases.db` decides whether a resource may be retained or unmounted. OCI and Nydus implementations cannot create ownership by discovering backend state.
 
@@ -83,14 +86,19 @@ OCI and Nydus resources share the mountstore lease contract. Their resource impl
 
 Background release scans provide candidates, not release authority. Under the mount lock, the worker reloads the lease and checks that it is still releasing before cleanup. A retained or reacquired lease invalidates an older scan. A releasing lease sharing a resource with another consumer is removed without unmounting that consumer's resource.
 
+OCI manager shutdown stops its workers and closes metadata; it does not unmount resources or decrement their layer/chain references. Process lifecycle is not release authority. The next process recovers projections against actual kernel mounts, while final-lease release remains the normal cleanup path. A host reboot can lose mounts and processes and is not equivalent to restarting the daemon in the same mount namespace.
+
 ## Inventory And Cleanup
 
 `GET /inventory` is the read-only node image summary. It combines:
 
+- explicit `imagefsd_enabled` process configuration
 - authoritative resources and leases from `internal/mountstore`
 - imported and mounted OCI state from `oci.Manager`
 - live daemon state from `imagefsd.Manager`
 - retained ChunkDB and locality summaries from `imagefsd`
+
+When Nydus is disabled, inventory reports OCI state without executing imagefsd or probing its ChunkDB. Axnoded maps `imagefsd_enabled=false` to a disabled component while retaining imagemgr readiness and OCI locality. An absent field from an older imagemgr preserves the existing consumer behavior. Nydus mount/unmount and daemon cleanup reject requests explicitly; an absent manager is never evidence that a Nydus resource was successfully released.
 
 `POST /cleanup_daemon` removes a specific `imagefsd` daemon by daemon ID. Prefer normal unmount endpoints for mounted rootfs cleanup because they also release the owning mount records and route through the correct package owner.
 

@@ -71,13 +71,16 @@ type ImageLocalityEntry struct {
 }
 
 type ImageManagerInventory struct {
-	MountedImages  []MountedImageDetail  `json:"mounted_images"`
-	ImportedImages []ImportedImageDetail `json:"imported_images,omitempty"`
-	Locality       []ImageLocalityEntry  `json:"locality"`
-	Daemons        []DaemonInfo          `json:"daemons"`
-	ChunkDB        *ChunkDBStats         `json:"chunkdb,omitempty"`
-	ChunkDBError   string                `json:"chunkdb_error,omitempty"`
-	LocalityError  string                `json:"locality_error,omitempty"`
+	// Nil preserves the inventory contract of imagemgr versions that predate
+	// explicit OCI-only operation. False means imagefsd is intentionally absent.
+	ImagefsdEnabled *bool                 `json:"imagefsd_enabled,omitempty"`
+	MountedImages   []MountedImageDetail  `json:"mounted_images"`
+	ImportedImages  []ImportedImageDetail `json:"imported_images,omitempty"`
+	Locality        []ImageLocalityEntry  `json:"locality"`
+	Daemons         []DaemonInfo          `json:"daemons"`
+	ChunkDB         *ChunkDBStats         `json:"chunkdb,omitempty"`
+	ChunkDBError    string                `json:"chunkdb_error,omitempty"`
+	LocalityError   string                `json:"locality_error,omitempty"`
 }
 
 type ImageManagerClient struct {

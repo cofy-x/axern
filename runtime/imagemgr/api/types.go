@@ -70,13 +70,14 @@ type ImageLocalityEntry struct {
 }
 
 type InventoryResponse struct {
-	MountedImages  []MountedImageDetail   `json:"mounted_images"`
-	ImportedImages []ImportedImageDetail  `json:"imported_images,omitempty"`
-	Locality       []ImageLocalityEntry   `json:"locality"`
-	Daemons        []imagefsd.DaemonInfo  `json:"daemons"`
-	ChunkDB        *imagefsd.ChunkDBStats `json:"chunkdb,omitempty"`
-	ChunkDBError   string                 `json:"chunkdb_error,omitempty"`
-	LocalityError  string                 `json:"locality_error,omitempty"`
+	ImagefsdEnabled bool                   `json:"imagefsd_enabled"`
+	MountedImages   []MountedImageDetail   `json:"mounted_images"`
+	ImportedImages  []ImportedImageDetail  `json:"imported_images,omitempty"`
+	Locality        []ImageLocalityEntry   `json:"locality"`
+	Daemons         []imagefsd.DaemonInfo  `json:"daemons"`
+	ChunkDB         *imagefsd.ChunkDBStats `json:"chunkdb,omitempty"`
+	ChunkDBError    string                 `json:"chunkdb_error,omitempty"`
+	LocalityError   string                 `json:"locality_error,omitempty"`
 }
 
 type ReconcileMountLeasesRequest struct {

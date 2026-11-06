@@ -283,7 +283,9 @@ func (m *Manager) ListMountedDetails() ([]OciMountState, error) {
 	return details, nil
 }
 
-// Close stops background workers and releases resources.
+// Close stops background workers and closes backend metadata. A process stop
+// does not release mount ownership: only the API's durable lease authority may
+// request unmounting. Keep the mounts and recovery records for the next process.
 func (m *Manager) Close() error {
 	m.layerPoolMu.Lock()
 	m.stopOnce.Do(func() {
@@ -291,23 +293,6 @@ func (m *Manager) Close() error {
 	})
 	m.layerPoolWG.Wait()
 	m.layerPoolMu.Unlock()
-
-	m.mutex.Lock()
-	mounts := make(map[string]string, len(m.containers))
-	for cacheKey, info := range m.containers {
-		imageURL := cacheKey
-		if info != nil && info.ImageURL != "" {
-			imageURL = info.ImageURL
-		}
-		mounts[cacheKey] = imageURL
-	}
-	m.mutex.Unlock()
-
-	for cacheKey, imageURL := range mounts {
-		if err := m.UnmountImageWithContextAndKey(context.Background(), imageURL, cacheKey); err != nil {
-			logrus.Warnf("failed to unmount image %s (%s) during shutdown: %v", imageURL, cacheKey, err)
-		}
-	}
 
 	return m.store.close()
 }
