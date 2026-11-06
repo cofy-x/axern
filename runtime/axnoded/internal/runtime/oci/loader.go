@@ -2,6 +2,7 @@ package oci
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -27,8 +28,9 @@ type TemplateCarrier interface {
 }
 
 type BundleTemplate struct {
-	spec    *spec.Spec
-	profile ExecutionProfile
+	spec                *spec.Spec
+	profile             ExecutionProfile
+	configurationDigest string
 }
 
 type TemplateOptions struct {
@@ -93,6 +95,9 @@ func NewBundleLoader(bundleDir string, options ...BundleLoaderOption) (*BundleLo
 			option(&loaderConfig)
 		}
 	}
+	if err := loaderConfig.profile.validate(); err != nil {
+		return nil, err
+	}
 
 	bs := defaultBundleSpec()
 	// The handler owns its startup policy, including caller-owned option slices.
@@ -122,12 +127,19 @@ func (r *BundleLoader) PrepareBundleTemplate(options TemplateOptions) (*BundleTe
 		return nil, errord.ErrInvalidArgument
 	}
 
-	profile := r.effectiveProfile(options.ExecutionProfile)
+	profile, err := r.effectiveProfile(options.ExecutionProfile)
+	if err != nil {
+		return nil, err
+	}
 	ociSpec, err := r.specBuilder.withProfile(profile).build(r.baseSpec, buildOptions{request: options.Request})
 	if err != nil {
 		return nil, err
 	}
-	return &BundleTemplate{spec: ociSpec, profile: profile}, nil
+	digest, err := r.ConfigurationDigest()
+	if err != nil {
+		return nil, err
+	}
+	return &BundleTemplate{spec: ociSpec, profile: profile, configurationDigest: digest}, nil
 }
 
 func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadOptions) (string, *spec.Spec, error) {
@@ -140,9 +152,25 @@ func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadO
 		return "", nil, errord.ErrInvalidArgument
 	}
 
-	profile := r.effectiveProfile(options.ExecutionProfile)
-	if options.ExecutionProfile == nil {
-		profile = template.profile.withDefaults()
+	profileOverride := options.ExecutionProfile
+	if profileOverride == nil {
+		profileOverride = &template.profile
+	}
+	profile, err := r.effectiveProfile(profileOverride)
+	if err != nil {
+		return "", nil, err
+	}
+	if r.specBuilder.profile.GuestTaskLimit != 0 || template.profile.GuestTaskLimit != 0 || profile.GuestTaskLimit != 0 {
+		digest, err := r.ConfigurationDigest()
+		if err != nil {
+			return "", nil, err
+		}
+		if digest != template.configurationDigest || !profile.equal(template.profile) {
+			return "", nil, fmt.Errorf("bundle template execution policy does not match the loader and requested profile")
+		}
+	}
+	if profile.GuestTaskLimit != 0 && options.SandboxdInjection == nil {
+		return "", nil, fmt.Errorf("task limits require sandboxd injection")
 	}
 	ociSpec, err := r.specBuilder.withProfile(profile).build(template.spec, buildOptions{
 		request:              options.Request,
@@ -162,7 +190,7 @@ func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadO
 	if err := materializeRuntimeEtcFiles(bundleDir, ociSpec, r.runtimeFiles, options.SandboxIP); err != nil {
 		return "", ociSpec, err
 	}
-	if err := materializeSandboxdInjection(bundleDir, ociSpec, options.SandboxdInjection); err != nil {
+	if err := materializeSandboxdInjection(bundleDir, ociSpec, options.SandboxdInjection, profile.GuestTaskLimit); err != nil {
 		return "", ociSpec, err
 	}
 	ociFile := filepath.Join(bundleDir, config.ContainerSpecFile)
@@ -179,11 +207,19 @@ func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadO
 	return bundleDir, ociSpec, atomicWriteFile(ociFile, buf, 0644)
 }
 
-func (r *BundleLoader) effectiveProfile(profile *ExecutionProfile) ExecutionProfile {
-	if profile == nil {
-		return r.specBuilder.profile
+func (r *BundleLoader) effectiveProfile(profile *ExecutionProfile) (ExecutionProfile, error) {
+	loaderProfile := r.specBuilder.profile
+	effective := loaderProfile
+	if profile != nil {
+		effective = profile.withDefaults()
 	}
-	return profile.withDefaults()
+	if err := effective.validate(); err != nil {
+		return ExecutionProfile{}, err
+	}
+	if loaderProfile.GuestTaskLimit != 0 && (effective.GuestTaskLimit != loaderProfile.GuestTaskLimit || effective.HostTaskLimit != loaderProfile.HostTaskLimit) {
+		return ExecutionProfile{}, fmt.Errorf("execution profile cannot override the loader task limits")
+	}
+	return effective, nil
 }
 
 func (r *BundleLoader) Generate(options LoadOptions) (string, *spec.Spec, error) {

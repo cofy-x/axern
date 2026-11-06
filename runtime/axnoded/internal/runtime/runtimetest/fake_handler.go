@@ -27,6 +27,10 @@ func (f *FakeSandboxRuntime) ConfigurationDigest() (string, error) {
 	return "sha256:fake-runtime-configuration", nil
 }
 
+func (f *FakeSandboxRuntime) VerifyAllocationTaskLimits(context.Context, string, *apipb.AllocationEnforcementManifest) error {
+	return nil
+}
+
 func (f *FakeSandboxRuntime) HostRequirements() contract.HostRequirements {
 	return f.Requirements
 }

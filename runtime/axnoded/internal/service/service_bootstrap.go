@@ -300,6 +300,9 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
+	if err := h.verifyRecoveredTaskLimits(context.Background(), durableInventory); err != nil {
+		return err
+	}
 	if err := h.recoverTerminalRuntimeCheckpoints(context.Background(), durableInventory); err != nil {
 		return err
 	}
@@ -339,6 +342,30 @@ func (h *sandboxService) restorePersistentState() error {
 	}
 	if err := h.containerManager.ReconcileResourceClaims(); err != nil {
 		return fmt.Errorf("reconcile persisted resource claims: %w", err)
+	}
+	return nil
+}
+
+// verifyRecoveredTaskLimits runs before restoring image leases or advertising
+// capacity. It audits recorded limits; recovery never repairs live controls.
+func (h *sandboxService) verifyRecoveredTaskLimits(ctx context.Context, inventory runtimeInventory) error {
+	ids := make([]string, 0, len(inventory))
+	for id := range inventory {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		state := inventory[id]
+		if state != nil && state.Status == contract.ContainerStatusExited {
+			continue
+		}
+		manifest := h.allocationController().EnforcementManifest(id)
+		if state == nil || (state.Status != contract.ContainerStatusRunning && (h.config.RuntimeConfig.GuestTaskLimit > 0 || manifest.GetGuestTaskLimit() > 0)) {
+			return fmt.Errorf("cannot verify task enforcement for allocation %s with uncertain runtime state", id)
+		}
+		if err := h.runscHandler.VerifyAllocationTaskLimits(ctx, id, manifest); err != nil {
+			return fmt.Errorf("verify recovered allocation %s task limits: %w", id, err)
+		}
 	}
 	return nil
 }

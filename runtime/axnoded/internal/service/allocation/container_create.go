@@ -79,6 +79,7 @@ func (h *Controller) createAllocation(
 	if err := h.ValidateActivation(resource.ID); err != nil {
 		return response, "", cleanupPrepared(err)
 	}
+	options.EnforcementManifest = h.EnforcementManifest(resource.ID)
 
 	metaData, err := allocationRuntime.StartPreparedContainer(ctx, prepared, options)
 	if err != nil {

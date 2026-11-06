@@ -58,6 +58,9 @@ func (c Config) Validate() error {
 	if err := c.ValidateNodeIdentity(); err != nil {
 		return err
 	}
+	if err := c.RuntimeConfig.ValidateTaskLimits(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.PluginConfig.RuntimeConfig.RootfsSnapshotRepository) != "" && !c.PluginConfig.RuntimeConfig.ImageManagerEnabledValue() {
 		return fmt.Errorf("rootfs_snapshot_repository requires image_manager_enabled")
 	}
@@ -71,6 +74,11 @@ type RuntimeConfig struct {
 	// CgroupEnforcement is "required" in production. "disabled_dev" is an
 	// explicit development mode and rejects hard memory limits.
 	CgroupEnforcement string `toml:"cgroup_enforcement" json:"cgroupEnforcement"`
+
+	// Task limits are node-owned per-Allocation ceilings. Both zero preserves
+	// profiles without this policy; otherwise both boundaries are required.
+	GuestTaskLimit int64 `toml:"guest_task_limit" json:"guestTaskLimit"`
+	HostTaskLimit  int64 `toml:"host_task_limit" json:"hostTaskLimit"`
 
 	// ImageLibDir is the file to store image lib. Read image line by line.
 	ImageLibDir string `toml:"image_lib_dir" json:"imageLibDir"`
@@ -145,6 +153,23 @@ func (c RuntimeConfig) CgroupEnforcementMode() (string, error) {
 		return "", fmt.Errorf("unsupported cgroup_enforcement %q", mode)
 	}
 	return mode, nil
+}
+
+func (c RuntimeConfig) ValidateTaskLimits() error {
+	if c.GuestTaskLimit == 0 && c.HostTaskLimit == 0 {
+		return nil
+	}
+	if c.GuestTaskLimit < 64 || c.GuestTaskLimit > 65536 || c.HostTaskLimit < 64 || c.HostTaskLimit > 65536 {
+		return fmt.Errorf("guest_task_limit and host_task_limit must both be zero or both be between 64 and 65536")
+	}
+	mode, err := c.CgroupEnforcementMode()
+	if err != nil {
+		return err
+	}
+	if mode != CgroupEnforcementRequired {
+		return fmt.Errorf("task limits require cgroup_enforcement = required")
+	}
+	return nil
 }
 
 func (o RuntimeOptions) AllowSUIDEnabled(defaultValue bool) bool {

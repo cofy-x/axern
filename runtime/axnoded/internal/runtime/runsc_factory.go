@@ -45,6 +45,9 @@ func newRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 }
 
 func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstanceConfig, loader runtimeoci.Loader) (*RunscServiceHandler, error) {
+	if err := cfg.RuntimeConfig.ValidateTaskLimits(); err != nil {
+		return nil, err
+	}
 	cgroupMode, err := cfg.RuntimeConfig.CgroupEnforcementMode()
 	if err != nil {
 		return nil, err
@@ -79,6 +82,8 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 		common:                            common,
 		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
 		allowSUID:                         runtimeCfg.Options.AllowSUIDEnabled(true),
+		guestTaskLimit:                    cfg.RuntimeConfig.GuestTaskLimit,
+		hostTaskLimit:                     cfg.RuntimeConfig.HostTaskLimit,
 		filestoreDir:                      filestoreDir,
 		ephemeralStorageDefaultLimitBytes: cfg.RuntimeConfig.EphemeralStorageDefaultLimitBytes,
 		writableCapacity:                  writableCapacity,

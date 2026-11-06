@@ -24,6 +24,21 @@ func ValidateEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, 
 	if manifest.GetMemoryLimitBytes() < 0 || manifest.GetEphemeralStorageLimitBytes() < 0 {
 		return fmt.Errorf("allocation enforcement manifest limits cannot be negative")
 	}
+	guest, host := manifest.GetGuestTaskLimit(), manifest.GetHostTaskLimit()
+	if guest != 0 || host != 0 {
+		if guest < 64 || guest > 65536 || host < 64 || host > 65536 {
+			return fmt.Errorf("allocation task limits must both be zero or both be between 64 and 65536")
+		}
+		parent, leaf := manifest.GetCgroupPath(), manifest.GetRuntimeCgroupPath()
+		for _, value := range []string{parent, leaf} {
+			if !filepath.IsAbs(value) || value == string(filepath.Separator) || filepath.Clean(value) != value || strings.TrimSpace(value) != value || len(value) > 1024 {
+				return fmt.Errorf("task enforcement manifest requires clean bounded cgroup paths")
+			}
+		}
+		if filepath.Dir(leaf) != parent {
+			return fmt.Errorf("task enforcement manifest requires a direct-child workload cgroup")
+		}
+	}
 	if manifest.GetMemoryLimitBytes() > 0 {
 		for name, value := range map[string]string{
 			"cgroup_path": manifest.GetCgroupPath(), "runtime_cgroup_path": manifest.GetRuntimeCgroupPath(),

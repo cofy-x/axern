@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	spec "github.com/opencontainers/runtime-spec/specs-go"
@@ -44,7 +45,7 @@ type sandboxdEntrypointMetadata struct {
 	Terminal bool      `json:"terminal,omitempty"`
 }
 
-func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options *SandboxdInjectionOptions) error {
+func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options *SandboxdInjectionOptions, guestTaskLimit int64) error {
 	if options == nil {
 		return nil
 	}
@@ -105,6 +106,9 @@ func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options 
 		SandboxdGuestBinaryPath,
 		"--socket", SandboxdGuestSocketPath,
 		"--entrypoint-json", SandboxdGuestEntrypointPath,
+	}
+	if guestTaskLimit != 0 {
+		ociSpec.Process.Args = append(ociSpec.Process.Args, "--guest-task-limit", strconv.FormatInt(guestTaskLimit, 10))
 	}
 	ociSpec.Process.Cwd = "/"
 	ociSpec.Process.Env = sandboxdDaemonEnv(ociSpec.Process.Env)

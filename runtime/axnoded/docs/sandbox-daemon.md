@@ -67,6 +67,12 @@ Bundle-local daemon state lives under `bundle/axern/sandboxd` and is mounted in 
 
 Packaged nodes install the static daemon binary at `/usr/local/libexec/axnoded/axern-sandboxd`. Verification can override it with `AXERN_SANDBOXD_BINARY`.
 
+When the node's task limits are enabled, its trusted execution profile adds `--guest-task-limit N` to the daemon arguments independently of the original user entrypoint. The guest limit is between 64 and 65536 tasks and includes sandboxd, its threads, and every user process and thread in the Allocation. The separately configured host task limit covers the runsc sandbox's host cgroup; it is not a substitute for guest task enforcement. The zero-valued development profile preserves the existing startup behavior.
+
+The enabled profile adds a private cgroup namespace and a read-only cgroup2 mount at `/sys/fs/cgroup`, without adding guest capabilities. After `runsc start` creates the guest cgroup, axnoded configures and reads back `cgroup.max.depth=0`, `cgroup.max.descendants=0`, and `pids.max=N` through runsc's host control interface. Child cgroups are deliberately not delegated: this prevents guest namespace changes from exposing a writable ancestor that could relax the task ceiling.
+
+Before creating the reaper, process registry, Unix listener, or workload supervisor, sandboxd verifies that it is PID 1, its unified cgroup membership is `0::/`, and the expected cgroup2 mount is read-only with `nsdelegate` enabled and no nested mounts obscuring its controls. It waits at most 30 seconds for the exact three control values, then requires a positive `pids.current` no greater than the limit and zero existing descendant cgroups. Missing or still-unlimited controls remain unready until the deadline; malformed controls, unexpected finite values, inconsistent membership, and read failures fail startup. The daemon never writes these controls or accepts a release flag from guest storage or an API. User execution starts only after this read-only check succeeds.
+
 ## Entrypoint Contract
 
 Entrypoint metadata is strict structured JSON:
@@ -115,6 +121,8 @@ Final OCI cleanup shuts down daemon-owned child processes: sandboxd closes open 
 On Linux, one waiter owns child creation/registration, group signaling, `wait4`, and OS handle release under the same short critical section. Registration cannot race reaping, and an already-reaped command cannot signal a reused PID. Unregistered adopted children are reaped without caching a result by PID. Process groups are not containment: a descendant can leave its original group; runsc Allocation teardown remains the final sandbox-wide cleanup boundary. Non-Linux tooling signals the direct OS process handle and does not claim the Linux PID 1 group guarantee.
 
 Registry shutdown closes Start admission before collecting active processes. Signal, timeout, and shutdown share the waiter authority; retained exit records (up to 256) confer no signal authority. Up to 64 processes can be active. Output capture is bounded to 1 MiB per stream; each output subscription has a 256-event queue and each process admits at most 64 subscriptions. A lagging subscription receives an explicit overflow error and closes, rather than blocking process completion. After child exit, output draining has a one-second grace before local pipe/PTY closure. Closing stdin can interrupt a blocked writer without waiting for its write lock. A canceled Wait only cancels that wait; explicit background processes remain Allocation-owned, while interactive session owners perform graceful termination and bounded escalation when closing their sessions.
+
+The registry's 64 active-process limit is API bookkeeping, not a sandbox task boundary. Enabled guest cgroup limits also cover threads, grandchildren, processes created directly by user code, UID changes, and later process requests; exhausted task capacity can therefore reject a request before the registry's own limit is reached.
 
 Use `make -C runtime/axnoded test-process-race` on Linux to check the waiter, registry, private process HTTP API, and runtime client. The existing Go CI job runs this focused race gate in addition to the full node unit suite.
 

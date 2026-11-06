@@ -5,9 +5,25 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 )
+
+func TestParseConfigGuestTaskLimit(t *testing.T) {
+	for _, limit := range []int64{-1, 1, 63, 0, 64, 65536, 65537} {
+		t.Run(strconv.FormatInt(limit, 10), func(t *testing.T) {
+			cfg, err := ParseConfig([]string{"--guest-task-limit", strconv.FormatInt(limit, 10)}, &bytes.Buffer{})
+			valid := limit == 0 || (limit >= 64 && limit <= 65536)
+			if (err == nil) != valid {
+				t.Fatalf("ParseConfig() error = %v, valid = %v", err, valid)
+			}
+			if valid && cfg.GuestTaskLimit != limit {
+				t.Fatalf("guest task limit = %d, want %d", cfg.GuestTaskLimit, limit)
+			}
+		})
+	}
+}
 
 func TestParseConfigUsesTrailingArgsAsEntrypoint(t *testing.T) {
 	cfg, err := ParseConfig([]string{

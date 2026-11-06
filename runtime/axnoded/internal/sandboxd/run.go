@@ -57,6 +57,13 @@ func (r *Runner) Run(ctx context.Context) (int, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// The node installs guest controls only after runsc start creates the guest
+	// cgroup. Do not create a listener or start any user process before the
+	// read-only kernel evidence proves that the requested ceiling is active.
+	if err := waitForGuestTaskLimit(ctx, r.cfg.GuestTaskLimit); err != nil {
+		return 1, err
+	}
+
 	// Caller cancellation starts shutdown; the reaper must remain alive until
 	// the supervisor and process registry have finished their cleanup.
 	r.waiter = proc.NewWaiter(context.WithoutCancel(ctx))

@@ -61,6 +61,10 @@ idle_environment_retention_max = 8
 # Set to false for local-rootfs-only setups that do not run imagemgr.
 # image_manager_enabled = false
 cgroup_enforcement = "required"
+# Enable both together to bound guest processes/threads and host runtime tasks.
+# Native serving uses 256 guest tasks and 1024 host tasks per Allocation.
+guest_task_limit = 0
+host_task_limit = 0
 # Production filestore example:
 # filestore_mode = "existing"
 # filestore_dir = "/var/lib/axnoded-filestore"

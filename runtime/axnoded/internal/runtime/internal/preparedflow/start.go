@@ -16,6 +16,7 @@ func Start(
 	start func(context.Context, string) error,
 	startExitStatePersister func(string) error,
 	waitForStart func(context.Context, string) error,
+	prepareBeforeSandboxReady func(context.Context) error,
 	waitForSandboxReady func(context.Context, string, *apipb.ContainerMetadata) error,
 	verifyRuntime func(context.Context) error,
 ) (*apipb.ContainerMetadata, error) {
@@ -45,6 +46,15 @@ func Start(
 		return prepared.Metadata, err
 	}
 	options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeWaitStart, time.Since(waitStart))
+	if prepareBeforeSandboxReady != nil {
+		prepareStart := time.Now()
+		if err := prepareBeforeSandboxReady(ctx); err != nil {
+			options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeEnforcement, time.Since(prepareStart))
+			options.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Since(launchStart))
+			return prepared.Metadata, err
+		}
+		options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, contract.StartupStepRuntimeEnforcement, time.Since(prepareStart))
+	}
 	if waitForSandboxReady != nil {
 		readyStart := time.Now()
 		if err := waitForSandboxReady(ctx, prepared.BundlePath, prepared.Metadata); err != nil {

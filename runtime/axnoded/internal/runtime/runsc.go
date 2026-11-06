@@ -23,6 +23,8 @@ type RunscServiceHandler struct {
 	common                            *ocihost.Common
 	ignoreCgroups                     bool
 	allowSUID                         bool
+	guestTaskLimit                    int64
+	hostTaskLimit                     int64
 	filestoreDir                      string
 	ephemeralStorageDefaultLimitBytes int64
 	writableCapacity                  *writableCapacityManager
@@ -50,7 +52,7 @@ func (r *RunscServiceHandler) ConfigurationDigest() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.allowSUID, r.ephemeralStorageDefaultLimitBytes})
+	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.allowSUID, r.ephemeralStorageDefaultLimitBytes, r.guestTaskLimit, r.hostTaskLimit})
 	if err != nil {
 		return "", err
 	}

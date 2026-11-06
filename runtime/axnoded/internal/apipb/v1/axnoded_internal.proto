@@ -168,6 +168,11 @@ message AllocationEnforcementManifest {
   uint64 initial_memory_event_oom = 19;
   uint64 initial_memory_event_oom_kill = 20;
   uint64 initial_memory_event_oom_group_kill = 21;
+  // Node-owned per-Allocation ceilings. Both zero means this Allocation was
+  // created without task enforcement; a positive pair is immutable across
+  // node configuration changes and is verified again before live recovery.
+  int64 guest_task_limit = 22;
+  int64 host_task_limit = 23;
 }
 
 message TerminalResize {

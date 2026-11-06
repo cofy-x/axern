@@ -26,7 +26,7 @@ func TestMaterializeSandboxdInjectionRewritesProcessAndWritesEntrypoint(t *testi
 		Annotations: map[string]string{"existing": "true"},
 	}
 
-	err := materializeSandboxdInjection(bundleDir, ociSpec, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	err := materializeSandboxdInjection(bundleDir, ociSpec, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
@@ -80,7 +80,7 @@ func TestMaterializeSandboxdInjectionRewritesProcessAndWritesEntrypoint(t *testi
 func TestMaterializeSandboxdInjectionFailsWhenBinaryMissing(t *testing.T) {
 	err := materializeSandboxdInjection(t.TempDir(), &spec.Spec{
 		Process: &spec.Process{Args: []string{"/bin/true"}},
-	}, &SandboxdInjectionOptions{HostBinaryPath: filepath.Join(t.TempDir(), "missing")})
+	}, &SandboxdInjectionOptions{HostBinaryPath: filepath.Join(t.TempDir(), "missing")}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want missing binary error")
 	}
@@ -97,7 +97,7 @@ func TestMaterializeSandboxdInjectionRejectsNonRootProcessUser(t *testing.T) {
 			Args: []string{"/bin/true"},
 			User: spec.User{UID: 1000, GID: 1000},
 		},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want non-root user error")
 	}
@@ -114,7 +114,7 @@ func TestMaterializeSandboxdInjectionRejectsAdditionalGids(t *testing.T) {
 			Args: []string{"/bin/true"},
 			User: spec.User{AdditionalGids: []uint32{1000}},
 		},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want additional gids error")
 	}
@@ -131,7 +131,7 @@ func TestMaterializeSandboxdInjectionRejectsUsername(t *testing.T) {
 			Args: []string{"/bin/true"},
 			User: spec.User{Username: "app"},
 		},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want username error")
 	}
@@ -148,7 +148,7 @@ func TestMaterializeSandboxdInjectionRejectsTerminalProcess(t *testing.T) {
 			Args:     []string{"/bin/true"},
 			Terminal: true,
 		},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want terminal process error")
 	}
@@ -165,7 +165,7 @@ func TestMaterializeSandboxdInjectionRejectsMountDestinationConflict(t *testing.
 		Mounts: []spec.Mount{
 			{Destination: sandboxdRuntimeDir, Type: "tmpfs", Source: "tmpfs"},
 		},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want mount conflict error")
 	}
@@ -187,7 +187,7 @@ func TestMaterializeSandboxdInjectionAllowsWorkloadRuntimeStateMounts(t *testing
 		},
 		Root: &spec.Root{Path: rootfsDir},
 	}
-	err := materializeSandboxdInjection(bundleDir, ociSpec, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	err := materializeSandboxdInjection(bundleDir, ociSpec, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
@@ -204,7 +204,7 @@ func TestMaterializeSandboxdInjectionDoesNotCreateMissingEnvironmentMountpoint(t
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
 		Process: &spec.Process{Args: []string{"/bin/true"}},
 		Root:    &spec.Root{Path: rootfsDir},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
@@ -227,7 +227,7 @@ func TestMaterializeSandboxdInjectionDefersEnvironmentMountpointTypeValidation(t
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
 		Process: &spec.Process{Args: []string{"/bin/true"}},
 		Root:    &spec.Root{Path: rootfsDir},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
@@ -247,7 +247,7 @@ func TestMaterializeSandboxdInjectionUsesExistingReadonlyEnvironmentMountpoint(t
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
 		Process: &spec.Process{Args: []string{"/bin/true"}},
 		Root:    &spec.Root{Path: rootfsDir, Readonly: true},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
@@ -264,7 +264,7 @@ func TestMaterializeSandboxdInjectionDefersReadonlyMissingMountpointToProjection
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
 		Process: &spec.Process{Args: []string{"/bin/true"}},
 		Root:    &spec.Root{Path: rootfsDir, Readonly: true},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
@@ -281,7 +281,7 @@ func TestMaterializeSandboxdInjectionRejectsNestedMountDestinationConflict(t *te
 		Mounts: []spec.Mount{
 			{Destination: "/mnt/workload", Type: "bind", Source: "/tmp/workload"},
 		},
-	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary})
+	}, &SandboxdInjectionOptions{HostBinaryPath: hostBinary}, 0)
 	if err == nil {
 		t.Fatal("materializeSandboxdInjection() error = nil, want nested mount conflict error")
 	}
@@ -289,7 +289,7 @@ func TestMaterializeSandboxdInjectionRejectsNestedMountDestinationConflict(t *te
 
 func TestMaterializeSandboxdInjectionNoopsWhenDisabled(t *testing.T) {
 	ociSpec := &spec.Spec{Process: &spec.Process{Args: []string{"/bin/true"}}}
-	if err := materializeSandboxdInjection(t.TempDir(), ociSpec, nil); err != nil {
+	if err := materializeSandboxdInjection(t.TempDir(), ociSpec, nil, 0); err != nil {
 		t.Fatalf("materializeSandboxdInjection() error = %v", err)
 	}
 	if !reflect.DeepEqual(ociSpec.Process.Args, []string{"/bin/true"}) {

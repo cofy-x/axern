@@ -21,6 +21,7 @@ type Config struct {
 	SocketPath      string
 	EntrypointJSON  string
 	ShutdownTimeout time.Duration
+	GuestTaskLimit  int64
 	Entrypoint      workload.Entrypoint
 }
 
@@ -34,10 +35,14 @@ func ParseConfig(args []string, stderr io.Writer) (Config, error) {
 	flags.StringVar(&cfg.SocketPath, "socket", DefaultSocketPath, "Unix socket path for the sandbox daemon API")
 	flags.StringVar(&cfg.EntrypointJSON, "entrypoint-json", "", "path to structured entrypoint metadata")
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", DefaultShutdownTimeout, "graceful shutdown timeout")
+	flags.Int64Var(&cfg.GuestTaskLimit, "guest-task-limit", 0, "required guest task ceiling; zero preserves the development compatibility profile")
 	if err := flags.Parse(args); err != nil {
 		return Config{}, err
 	}
 	trailingArgs := flags.Args()
+	if err := validateGuestTaskLimit(cfg.GuestTaskLimit); err != nil {
+		return Config{}, err
+	}
 	if cfg.ShutdownTimeout <= 0 {
 		return Config{}, fmt.Errorf("shutdown-timeout must be positive")
 	}
