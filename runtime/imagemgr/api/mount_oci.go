@@ -122,7 +122,7 @@ func (w *HttpWorker) mountNewOCI(ctx context.Context, req *OCIMountRequest, impo
 		return response, record, err
 	}
 
-	if w.nydusClient != nil {
+	if !w.disableNydus && w.nydusClient != nil {
 		// Try original URL
 		if attempt, err := w.tryMountNydus(ctx, req.ImageURL, req.DockerConfigJSON); err == nil {
 			return rawNydusOCIMountResponse(attempt), newNydusMountRecord(req, req.ImageURL, attempt.mountPoint), nil
@@ -257,6 +257,9 @@ func (w *HttpWorker) unmountResource(ctx context.Context, record *mountstore.Rec
 }
 
 func (w *HttpWorker) CleanupDaemon(req *CleanupDaemonRequest) error {
+	if err := w.requireNydusManager(); err != nil {
+		return err
+	}
 	if req.DaemonID == "" {
 		return fmt.Errorf("daemon_id is required")
 	}
@@ -306,6 +309,12 @@ func formatImagePlatform(osName, arch, variant string) string {
 }
 
 func (w *HttpWorker) ListDaemons() ([]imagefsd.DaemonInfo, error) {
+	if w.disableNydus {
+		return []imagefsd.DaemonInfo{}, nil
+	}
+	if err := w.requireNydusManager(); err != nil {
+		return nil, err
+	}
 	return w.mgr.ListDaemons(), nil
 }
 
@@ -317,8 +326,8 @@ func (w *HttpWorker) ListMountedOCIImages() ([]string, error) {
 		}
 		imageURLs := make([]string, 0, len(records))
 		for _, record := range records {
-			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
-				return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
+			if err := w.validateMountType(&record); err != nil {
+				return nil, err
 			}
 			imageURLs = append(imageURLs, record.ImageURL)
 		}
@@ -338,8 +347,8 @@ func (w *HttpWorker) ListMountedOCIDetails() ([]MountedImageDetail, error) {
 		}
 		mounts := make([]MountedImageDetail, 0, len(records))
 		for _, record := range records {
-			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
-				return nil, fmt.Errorf("unsupported persisted mount type %q", record.MountType)
+			if err := w.validateMountType(&record); err != nil {
+				return nil, err
 			}
 			leaseCount, err := w.mountStore.LeaseCount(record.CacheKey)
 			if err != nil {
@@ -390,8 +399,9 @@ func (w *HttpWorker) Inventory() (*InventoryResponse, error) {
 	}
 
 	resp := &InventoryResponse{
-		MountedImages: mounts,
-		Daemons:       daemons,
+		ImagefsdEnabled: !w.disableNydus,
+		MountedImages:   mounts,
+		Daemons:         daemons,
 	}
 	if w.ociMgr != nil {
 		imports, err := w.ociMgr.ListImportedImages()
@@ -409,6 +419,9 @@ func (w *HttpWorker) Inventory() (*InventoryResponse, error) {
 		}
 	}
 	resp.Locality, resp.LocalityError = w.buildLocalityEntries(mounts, daemons)
+	if w.disableNydus {
+		return resp, nil
+	}
 	chunkDB, err := w.mgr.ChunkDBStats()
 	if err != nil {
 		resp.ChunkDBError = err.Error()

@@ -2,6 +2,7 @@ package oci
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -79,6 +80,9 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 
 	stageStart = time.Now()
 	if info := m.getContainer(cacheKey); info != nil {
+		if err := validateExtractedLayerFormat(info.MountPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
 		if info.ImageConfig == nil {
 			info.ImageConfig = m.resolveImageConfig(ctx, imageURL, dockerConfigJSON)
 		}
@@ -89,6 +93,9 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 
 	// Reuse mounted state restored from BoltDB after restart.
 	if rec, err := m.store.getMount(cacheKey); err == nil && rec != nil {
+		if err := validateExtractedLayerFormat(rec.MountPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
 		if rec.ImageConfig == nil {
 			rec.ImageConfig = m.resolveImageConfig(ctx, imageURL, dockerConfigJSON)
 			if rec.ImageConfig != nil {
@@ -125,6 +132,10 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 		return nil, err
 	}
 	timing.Stage("fetch_image", time.Since(stageStart))
+	if err := validateOCIImage(img); err != nil {
+		timing.RecordError(err)
+		return nil, err
+	}
 
 	var imageConfig *ImageConfig
 	if cfg, cfgErr := img.ConfigFile(); cfgErr == nil && cfg != nil {

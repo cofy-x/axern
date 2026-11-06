@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/name"
 	v1 "github.com/google/go-containerregistry/pkg/v1"
-	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/sirupsen/logrus"
 )
 
@@ -79,16 +78,9 @@ func (m *Manager) ImportImage(ctx context.Context, sourceRef string, archive io.
 	}
 	archiveDigest := "sha256:" + hex.EncodeToString(hasher.Sum(nil))
 
-	manifest, err := tarball.LoadManifest(func() (io.ReadCloser, error) { return os.Open(tmpPath) })
+	img, err := loadOCIArchiveImage(tmpPath)
 	if err != nil {
-		return nil, fmt.Errorf("invalid Docker archive: %w", err)
-	}
-	if len(manifest) != 1 {
-		return nil, fmt.Errorf("Docker archive must contain exactly one image, found %d", len(manifest))
-	}
-	img, err := tarball.ImageFromPath(tmpPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("load Docker archive image: %w", err)
+		return nil, err
 	}
 	layers, err := img.Layers()
 	if err != nil {
@@ -96,6 +88,12 @@ func (m *Manager) ImportImage(ctx context.Context, sourceRef string, archive io.
 	}
 	if len(layers) == 0 {
 		return nil, fmt.Errorf("imported image has no layers")
+	}
+	// Docker archives may discard every Nydus annotation. Its bootstrap is in
+	// the final layer; inspect that layer before publishing the archive or ref.
+	// Mount extraction checks every layer, including retained imports and caches.
+	if err := validateImportBootstrapLayer(ctx, layers[len(layers)-1]); err != nil {
+		return nil, err
 	}
 	digest, err := img.Digest()
 	if err != nil {
@@ -288,7 +286,7 @@ func (m *Manager) importedImage(ctx context.Context, imageURL, cacheKey string) 
 		return nil, true, ctx.Err()
 	default:
 	}
-	img, err := tarball.ImageFromPath(content.ArchivePath, nil)
+	img, err := loadOCIArchiveImage(content.ArchivePath)
 	if err != nil {
 		return nil, true, fmt.Errorf("load imported content %s: %w", content.ContentDigest, err)
 	}

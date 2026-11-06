@@ -195,6 +195,9 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 	}
 
 	if rec != nil && rec.Path != "" && pathExists(rec.Path) {
+		if err := validateExtractedLayerFormat(rec.Path); err != nil {
+			return nil, err
+		}
 		rec, err = m.store.incrementLayerRef(digestStr, m.now().Unix())
 		if err != nil {
 			return nil, fmt.Errorf("failed to reserve layer metadata %s: %w", digestStr, err)
@@ -205,6 +208,9 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 
 	// Recovery for crash window: extracted layer exists but metadata was not persisted.
 	if pathExists(layerPath) {
+		if err := validateExtractedLayerFormat(layerPath); err != nil {
+			return nil, err
+		}
 		size, err := dirSizeBytes(layerPath)
 		if err != nil {
 			return nil, fmt.Errorf("failed to stat recovered layer path %s: %w", layerPath, err)
@@ -246,6 +252,9 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 	if err != nil {
 		logrus.Warnf("OCI layer extract failed: digest=%s tmp_dir=%s cost=%s err=%v", digestStr, tmpDir, time.Since(start), err)
 		return nil, fmt.Errorf("failed to extract layer %s: %w", digestStr, err)
+	}
+	if err := validateExtractedLayerFormat(tmpDir); err != nil {
+		return nil, err
 	}
 
 	if err := os.MkdirAll(layerRoot, 0755); err != nil {
