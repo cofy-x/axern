@@ -14,6 +14,7 @@ import pathlib
 import platform
 import re
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -372,13 +373,20 @@ def stage_bundle(path: pathlib.Path, expected_sha256: str, destination: pathlib.
         raise BundleError(f"refusing to replace destination: {destination}")
     if not destination.parent.is_dir():
         raise BundleError("destination parent must already exist")
-    if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_TOTAL_SIZE:
-        raise BundleError("staging requires a bounded regular archive file")
     with tempfile.TemporaryDirectory(prefix=".axern-stage-", dir=destination.parent) as temporary:
         private = pathlib.Path(temporary)
         snapshot = private / "archive.tar.gz"
-        with path.open("rb") as source, snapshot.open("xb") as target:
-            shutil.copyfileobj(source, target)
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as source, snapshot.open("xb") as target:
+            info = os.fstat(source.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_size > MAX_TOTAL_SIZE:
+                raise BundleError("staging requires a bounded regular archive file")
+            remaining = MAX_TOTAL_SIZE
+            while chunk := source.read(min(1024 * 1024, remaining + 1)):
+                if len(chunk) > remaining:
+                    raise BundleError("archive grew beyond the staging size limit")
+                target.write(chunk)
+                remaining -= len(chunk)
         manifest = verify_bundle(snapshot, expected_sha256)
         payload = private / "payload"
         payload.mkdir(mode=0o755)

@@ -246,6 +246,28 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assertEqual((destination / 'LICENSE').read_bytes(), (self.stage / 'LICENSE').read_bytes())
 
     @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
+    def test_stage_bounds_a_download_that_grows_after_open(self) -> None:
+        checksum = self.package()
+        original_size = self.archive.stat().st_size
+        fstat = runtime.os.fstat
+        def grow_after_stat(descriptor):
+            info = fstat(descriptor)
+            with self.archive.open('ab') as output:
+                output.write(b'changed during staging')
+            return info
+        with mock.patch.object(runtime, 'MAX_TOTAL_SIZE', original_size), mock.patch.object(runtime.os, 'fstat', side_effect=grow_after_stat):
+            with self.assertRaisesRegex(runtime.BundleError, 'grew beyond'):
+                runtime.stage_bundle(self.archive, checksum, self.root / 'installed')
+        self.assertFalse((self.root / 'installed').exists())
+        self.assertFalse(list(self.root.glob('.axern-stage-*')))
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
+    def test_stage_rejects_fifo_without_waiting_for_a_writer(self) -> None:
+        runtime.os.mkfifo(self.archive)
+        with self.assertRaisesRegex(runtime.BundleError, 'regular archive'):
+            runtime.stage_bundle(self.archive, '0' * 64, self.root / 'installed')
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
     def test_concurrent_staging_has_exactly_one_publisher(self) -> None:
         checksum = self.package()
         destination = self.root / 'installed'
