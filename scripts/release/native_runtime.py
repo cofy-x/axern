@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import gzip
 import hashlib
 import io
@@ -20,7 +21,7 @@ import tarfile
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SCHEMA = "axern.native-runtime.v1"
+SCHEMA = "axern.native-runtime.v2"
 MANIFEST = "manifest.json"
 MAX_FILE_SIZE = 1024 * 1024 * 1024
 MAX_TOTAL_SIZE = 4 * MAX_FILE_SIZE
@@ -33,6 +34,7 @@ GO_BINARIES = {
     "bin/controld-migrate": "./control/controld/cmd/migrate",
     "bin/controld-access-bootstrap": "./control/controld/cmd/access-bootstrap",
     "bin/controld-retention": "./control/controld/cmd/retention",
+    "bin/controld-workload-pki": "./control/controld/cmd/workload-pki",
     "bin/gatewayd": "./gateway/gatewayd",
     "bin/axnoded": "./runtime/axnoded/cmd/axnoded",
     "bin/axctl": "./runtime/axnoded/axctl",
@@ -49,6 +51,8 @@ GO_BINARIES = {
     "share/axern/runtime-selftest/memory-hog": "./runtime/axnoded/cmd/memory-hog",
 }
 SOURCE_FILES = {
+    "libexec/axern/native_install.py": "deploy/standalone/native_install.py",
+    "libexec/axern/native_runtime.py": "scripts/release/native_runtime.py",
     "LICENSE": "LICENSE",
     "NOTICE": "NOTICE",
     "share/axern/gvisor.lock": "runtime/axnoded/gvisor.lock",
@@ -62,20 +66,17 @@ PAYLOAD_PATHS = EXECUTABLES | set(SOURCE_FILES) | {
 }
 REQUIREMENTS = {
     "profile": "ubuntu-24.04-candidate",
-    "qualification": "packaging-only; not a supported serving installation",
+    "qualification": "experimental native installation; platform acceptance is revision-specific",
     "external_packages": [
         "postgresql-16", "ca-certificates", "libc6", "libgcc-s1", "libssl3t64",
         "busybox-static", "erofs-utils", "fuse3", "iproute2", "iptables",
-        "nftables", "kmod", "util-linux", "e2fsprogs", "xfsprogs",
+        "nftables", "kmod", "util-linux", "e2fsprogs", "xfsprogs", "python3", "curl",
     ],
     "host_capabilities": ["systemd", "cgroup-v2-delegation", "runsc-systrap", "mount-and-network-enforcement"],
     "installer_work": [
-        "service users, supervision, owned paths and configuration",
-        "database initialization, migrations and identity bootstrap",
-        "install the verified full gVisor archive without flattening gvisor-bin",
-        "assemble the capability rootfs with host busybox-static and the bundled memory-hog",
-        "generate the EROFS capability fixture from the bundled erofs-root",
-        "qualify resource enforcement, recovery, dependencies and licenses before distribution",
+        "qualify resource enforcement and recovery on each supported host profile",
+        "qualify dependencies, licenses and provenance before publication",
+        "implement supported upgrades and coordinated backup/restore before durable serving promotion",
     ],
 }
 
@@ -355,6 +356,57 @@ def build(root: pathlib.Path, output_dir: pathlib.Path, gvisor_archive: pathlib.
     return output, checksum
 
 
+def stage_bundle(path: pathlib.Path, expected_sha256: str, destination: pathlib.Path) -> dict:
+    """Materialize a verified private snapshot into a new Linux directory only."""
+    if platform.system() != "Linux":
+        raise BundleError("staging requires Linux")
+    destination = destination.absolute()
+    for parent in (destination, *destination.parents):
+        if parent.is_symlink():
+            raise BundleError("staging paths must not contain symlinks")
+        if parent.exists():
+            info = parent.stat()
+            if info.st_uid not in (0, os.geteuid()) or (info.st_mode & 0o022 and not info.st_mode & 0o1000):
+                raise BundleError("staging parents must not be writable or owned by another user")
+    if destination.exists():
+        raise BundleError(f"refusing to replace destination: {destination}")
+    if not destination.parent.is_dir():
+        raise BundleError("destination parent must already exist")
+    if not path.is_file() or path.is_symlink() or path.stat().st_size > MAX_TOTAL_SIZE:
+        raise BundleError("staging requires a bounded regular archive file")
+    with tempfile.TemporaryDirectory(prefix=".axern-stage-", dir=destination.parent) as temporary:
+        private = pathlib.Path(temporary)
+        snapshot = private / "archive.tar.gz"
+        with path.open("rb") as source, snapshot.open("xb") as target:
+            shutil.copyfileobj(source, target)
+        manifest = verify_bundle(snapshot, expected_sha256)
+        payload = private / "payload"
+        payload.mkdir(mode=0o755)
+        with tarfile.open(snapshot, "r|gz") as archive:
+            for member in archive:
+                # All entries were validated in the private snapshot. Do not use extractall.
+                target = payload / member.name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with archive.extractfile(member) as source, target.open("xb") as output:
+                    shutil.copyfileobj(source, output)
+                    output.flush()
+                    os.fsync(output.fileno())
+                target.chmod(member.mode)
+        (payload / "stage-receipt.json").write_bytes(json_bytes({"archive_sha256": expected_sha256}))
+        (payload / "stage-receipt.json").chmod(0o644)
+        for directory in (payload, *[entry for entry in payload.rglob('*') if entry.is_dir()]):
+            directory.chmod(0o755)
+        # Linux renameat2 makes publication atomic without replacing even an empty directory.
+        libc = ctypes.CDLL(None, use_errno=True)
+        rename = libc.renameat2
+        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+        rename.restype = ctypes.c_int
+        if rename(-100, os.fsencode(payload), -100, os.fsencode(destination), 1) != 0:
+            error = ctypes.get_errno()
+            raise OSError(error, os.strerror(error), str(destination))
+    return manifest
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -364,11 +416,18 @@ def main() -> None:
     verifier = commands.add_parser("verify", help="verify without extracting or executing the payload")
     verifier.add_argument("archive", type=pathlib.Path)
     verifier.add_argument("--sha256", required=True, help="expected digest from a trusted build receipt/release")
+    stager = commands.add_parser("stage", help="verify and materialize into a new directory; does not install services")
+    stager.add_argument("archive", type=pathlib.Path)
+    stager.add_argument("--sha256", required=True)
+    stager.add_argument("--destination", type=pathlib.Path, required=True)
     args = parser.parse_args()
     try:
         if args.command == "build":
             output, checksum = build(ROOT, args.output_dir.resolve(), args.gvisor_archive.absolute())
             print(json.dumps({"archive": str(output), "sha256": checksum}))
+        elif args.command == "stage":
+            manifest = stage_bundle(args.archive, args.sha256, args.destination)
+            print(json.dumps({"status": "staged", "destination": str(args.destination), "source_revision": manifest["source_revision"]}))
         else:
             manifest = verify_bundle(args.archive, args.sha256)
             print(json.dumps({"status": "verified", "version": manifest["version"],

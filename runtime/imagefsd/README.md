@@ -22,6 +22,7 @@
   - `ChunkDB`: global content-addressed chunk storage
   - `IndexDB`: per-image offset-to-checksum metadata
 - `serve-chunk` exposes a local `ChunkDB` over both TCP and a Unix socket, and can cooperate with peers plus an optional Redis-backed chunk ownership index.
+- `serve-chunk --listen-address 127.0.0.1` confines its TCP listener to loopback for native single-host installations. The default remains `0.0.0.0` for existing deployment contracts; `--listen-port` and the Unix socket are independent settings.
 - `gc-chunk`, `stats-chunk`, and `stats-locality` operate on node-local chunk state.
 
 ## Important Behavior And Constraints

@@ -5,7 +5,7 @@ Repository-level utility scripts live here when they serve a real Axern build, r
 
 Scripts:
 
-- `release/native_runtime.py` Builds an opt-in native Linux payload from clean committed source and verifies its inventory, executable architecture, gVisor lock and file checksums without installing or starting services. See the [native payload runbook](../deploy/standalone/README.md) for build prerequisites and qualification boundaries.
+- `release/native_runtime.py` Builds an opt-in native Linux payload from clean committed source, verifies its inventory, executable architecture, gVisor lock and file checksums, and atomically stages a verified payload into a new directory. Staging does not start services. See the [native payload runbook](../deploy/standalone/README.md) for build prerequisites and support boundaries.
 - `release/native_runtime_test.py` Exercises payload corruption, architecture mismatch, unsafe archive entries, source identity and output preservation. It runs through `make native-runtime-check` and `make release-check`.
 - `cli-e2e/axern-cli-e2e.sh` Runs product CLI E2E against an isolated control plane and verification node. Startup waits for certified runsc memory and writable-storage capabilities before importing the runtime image; a fresh heartbeat alone does not establish capability readiness, and image import must not compete with destructive certification for the node reserve.
 - `devbox/devbox.sh` Builds, starts, stops, inspects, and enters the repo-local Linux devbox container.

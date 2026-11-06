@@ -2,10 +2,11 @@
 
 Cloud-neutral packaging and deployment assets owned by Axern live here.
 
-The product direction prioritizes Linux single-host serving with gVisor (`runsc`), while macOS supports clients and VM-backed local development. [Single-Host Agent Serving](../docs/decisions/single-host-agent-serving.md) defines the planned deployment simplification. The assets below retain their current roles: local Compose and kind are development and verification environments, and Helm is the existing Kubernetes deployment surface. A dedicated Linux serving package remains planned.
+The product direction prioritizes Linux single-host serving with gVisor (`runsc`), while macOS supports clients and VM-backed local development. [Single-Host Agent Serving](../docs/decisions/single-host-agent-serving.md) defines the deployment direction. [Native Linux deployment](standalone/README.md) provides candidate runtime packaging and experimental systemd installation. Compose and kind are development and verification environments; Helm is the Kubernetes deployment surface. The native candidate is not a qualified durable serving profile.
 
 Local surface:
 
+- `deploy/standalone/` for native runtime packaging and systemd installation
 - `deploy/local/compose/` for the Docker Compose truth environment
 - `deploy/local/kind/` for the repo-managed kind cluster definition
 - `deploy/local/k8s/` for the shared Kubernetes manifests used by the repo-managed kind environment

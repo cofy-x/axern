@@ -34,7 +34,7 @@ pub(super) fn run_serve_chunk(
     }
     init_logging(log_level, &opts.log_file)?;
     let runtime = PeerRuntime::new_with_worker_threads(opts.tokio_worker_threads)?;
-    let listen_addr: std::net::SocketAddr = format!("0.0.0.0:{}", opts.listen_port).parse()?;
+    let listen_addr = std::net::SocketAddr::new(opts.listen_address, opts.listen_port);
     let advertise_addr: std::net::SocketAddr = if opts.advertise_addr.is_empty() {
         format!("127.0.0.1:{}", opts.listen_port).parse()?
     } else {

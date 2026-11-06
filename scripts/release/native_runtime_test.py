@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import copy
+import concurrent.futures
 import io
 import json
 import pathlib
@@ -13,6 +14,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import native_runtime as runtime
@@ -209,6 +211,53 @@ class NativeRuntimeTest(unittest.TestCase):
         (source / "untracked").write_text("pending input")
         with self.assertRaises(runtime.BundleError):
             runtime.source_identity(source)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
+    def test_stage_preserves_payload_modes_and_refuses_existing_destination(self) -> None:
+        checksum = self.package()
+        destination = self.root / 'installed'
+        runtime.stage_bundle(self.archive, checksum, destination)
+        self.assertEqual((destination / 'bin/axern').read_bytes(), (self.stage / 'bin/axern').read_bytes())
+        self.assertEqual((destination / 'bin/axern').stat().st_mode & 0o777, 0o755)
+        self.assertEqual(json.loads((destination / 'stage-receipt.json').read_text())['archive_sha256'], checksum)
+        with self.assertRaises(runtime.BundleError):
+            runtime.stage_bundle(self.archive, checksum, destination)
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
+    def test_stage_verifies_before_publishing(self) -> None:
+        self.package()
+        destination = self.root / 'installed'
+        with self.assertRaises(runtime.BundleError):
+            runtime.stage_bundle(self.archive, '0' * 64, destination)
+        self.assertFalse(destination.exists())
+        self.assertFalse(list(self.root.glob('.axern-stage-*')))
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
+    def test_stage_uses_verified_snapshot_when_download_changes(self) -> None:
+        checksum = self.package()
+        verify = runtime.verify_bundle
+        def replace_download(path, expected):
+            manifest = verify(path, expected)
+            self.archive.write_bytes(b'changed after verification')
+            return manifest
+        destination = self.root / 'installed'
+        with mock.patch.object(runtime, 'verify_bundle', side_effect=replace_download):
+            runtime.stage_bundle(self.archive, checksum, destination)
+        self.assertEqual((destination / 'LICENSE').read_bytes(), (self.stage / 'LICENSE').read_bytes())
+
+    @unittest.skipUnless(sys.platform == 'linux', 'native staging uses Linux renameat2')
+    def test_concurrent_staging_has_exactly_one_publisher(self) -> None:
+        checksum = self.package()
+        destination = self.root / 'installed'
+        def attempt():
+            try:
+                runtime.stage_bundle(self.archive, checksum, destination)
+                return True
+            except (runtime.BundleError, FileExistsError):
+                return False
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            self.assertEqual(sum(executor.map(lambda _: attempt(), range(2))), 1)
+        self.assertEqual((destination / 'bin/axern').read_bytes(), (self.stage / 'bin/axern').read_bytes())
 
 
 if __name__ == "__main__":
