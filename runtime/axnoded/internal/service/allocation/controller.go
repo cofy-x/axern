@@ -218,6 +218,17 @@ func (c *Controller) FailStopWorkloadWithLifecycleHeld(ctx context.Context, allo
 	if target.Status != nil && target.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED {
 		return nil
 	}
+	inventory, err := handler.ListContainers(ctx, contract.HandlerOptions{})
+	if err != nil {
+		return fmt.Errorf("inspect runtime before workload fail-stop: %w", err)
+	}
+	for _, state := range inventory {
+		if state != nil && state.ID == allocationID && state.Status == contract.ContainerStatusPaused {
+			// Paused sandboxd cannot service guest RPCs. Terminate through the
+			// host runtime, retaining artifacts for Wait and ordered cleanup.
+			return handler.KillSandbox(ctx, contract.HandlerOptions{ContainerID: allocationID, EnforcementManifest: c.EnforcementManifest(allocationID)})
+		}
+	}
 	_, err = handler.StopWorkload(ctx, contract.HandlerOptions{ContainerID: allocationID})
 	return err
 }

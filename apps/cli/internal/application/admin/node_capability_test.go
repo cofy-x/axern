@@ -114,13 +114,76 @@ func TestNodeCapabilityCheckBindsEveryRequiredHostIdentityToBoot(t *testing.T) {
 
 func TestNodeCapabilityCheckRejectsInvalidRequirements(t *testing.T) {
 	for _, platforms := range [][]string{nil, {"UNKNOWN"}, {"UNSPECIFIED"}, {"NETWORK_BRIDGE", "NETWORK_BRIDGE"}, {"RUNSC_MEMORY_ENFORCEMENT_SELF_TEST"}} {
-		if _, err := NewNodeCapabilityCheck(platforms, capabilityCheckBootID); err == nil {
+		if _, err := NewNodeCapabilityCheck(platforms, capabilityCheckBootID, ""); err == nil {
 			t.Fatalf("accepted invalid platform requirements %v", platforms)
 		}
 	}
 	for _, bootID := range []string{"", "current", strings.ToUpper(previousCapabilityBootID)} {
-		if _, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE"}, bootID); err == nil {
+		if _, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE"}, bootID, ""); err == nil {
 			t.Fatalf("accepted invalid boot ID %q", bootID)
+		}
+	}
+}
+
+func TestNodeCapabilityCheckRejectsPreRestartSnapshotFromSameBoot(t *testing.T) {
+	now := time.Date(2026, 11, 6, 1, 0, 2, 0, time.UTC)
+	check, nodes, snapshot := capabilityCheckFixture(t, now.Add(-2*time.Second))
+	if result := check.evaluate(nodes, snapshot, "node-test", now); !result.Ready {
+		t.Fatalf("same-boot evidence should remain valid without a restart fence: %+v", result)
+	}
+	fenced, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE"}, capabilityCheckBootID, now.Add(-time.Second).Format(time.RFC3339Nano))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result := fenced.evaluate(nodes, snapshot, "node-test", now); result.Ready || !strings.Contains(result.Reason, "snapshot was collected before") {
+		t.Fatalf("previous-process snapshot passed restart fence: %+v", result)
+	}
+}
+
+func TestNodeCapabilityCheckRequiresEveryDependencyAfterFence(t *testing.T) {
+	now := time.Date(2026, 11, 6, 1, 0, 2, 987654321, time.UTC)
+	lower := now.Add(-time.Second)
+	for _, platform := range []capabilityv1.PlatformCapability{
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST,
+		capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_EPHEMERAL_ENFORCEMENT_SELF_TEST,
+	} {
+		for _, observedAt := range []time.Time{lower.Add(-time.Nanosecond), lower} {
+			t.Run(platform.String()+"/"+observedAt.Format(time.RFC3339Nano), func(t *testing.T) {
+				check, nodes, snapshot := capabilityCheckFixture(t, now)
+				fenced, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE", "RUNSC_MEMORY_HARD_LIMIT", "RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT"}, capabilityCheckBootID, lower.Format(time.RFC3339Nano))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result := fenced.evaluate(nodes, snapshot, "node-test", now); !result.Ready {
+					t.Fatalf("post-restart observations rejected: %+v", result)
+				}
+				observation := checkObservation(snapshot, platform)
+				observation.ObservedAt = timestamppb.New(observedAt)
+				if observation.ValidUntil != nil {
+					observation.ValidUntil = timestamppb.New(observation.ValidUntil.AsTime().Add(observedAt.Sub(now)))
+				}
+				if result := check.evaluate(nodes, snapshot, "node-test", now); !result.Ready {
+					t.Fatalf("fixture must still meet ordinary admission freshness: %+v", result)
+				}
+				result := fenced.evaluate(nodes, snapshot, "node-test", now)
+				if result.Ready || !strings.Contains(result.Reason, platform.String()) || !strings.Contains(result.Reason, "was not observed after") {
+					t.Fatalf("old dependency accepted behind a newly published capability: %+v", result)
+				}
+			})
+		}
+	}
+}
+
+func TestNodeCapabilityCheckValidatesObservationLowerBound(t *testing.T) {
+	for _, value := range []string{"yesterday", "2026-11-06", "2026-11-06T12:00:00", "2026-13-06T12:00:00Z", " "} {
+		if _, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE"}, capabilityCheckBootID, value); err == nil || !strings.Contains(err.Error(), "--observed-after") {
+			t.Fatalf("accepted invalid lower bound %q: %v", value, err)
+		}
+	}
+	for _, value := range []string{"", "2026-11-06T12:00:00Z", "2026-11-06T20:00:00.123456789+08:00"} {
+		if _, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE"}, capabilityCheckBootID, value); err != nil {
+			t.Fatalf("valid lower bound %q: %v", value, err)
 		}
 	}
 }
@@ -169,7 +232,7 @@ func TestNodeCapabilityCheckPreservesAPIErrors(t *testing.T) {
 
 func capabilityCheckFixture(t *testing.T, now time.Time) (NodeCapabilityCheck, []*adminv1.AdminNode, *capabilityv1.CapabilitySnapshot) {
 	t.Helper()
-	check, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE", "DNS_POLICY_ENFORCEMENT", "STRICT_EGRESS_ENFORCEMENT", "RUNSC_MEMORY_HARD_LIMIT", "RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT"}, capabilityCheckBootID)
+	check, err := NewNodeCapabilityCheck([]string{"NETWORK_BRIDGE", "DNS_POLICY_ENFORCEMENT", "STRICT_EGRESS_ENFORCEMENT", "RUNSC_MEMORY_HARD_LIMIT", "RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT"}, capabilityCheckBootID, "")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,8 +14,8 @@ func (r *RunscServiceHandler) waitWithOCI(ctx context.Context, containerID strin
 }
 
 func (r *RunscServiceHandler) acceptWaitExit(ctx context.Context, containerID string, exit contract.Exit) (bool, error) {
-	if state, stateErr := r.state(ctx, containerID); stateErr == nil && state.Status == string(contract.ContainerStatusRunning) {
-		logrus.Debugf("runsc wait returned status %d for %s while state still reports running; ignoring transient wait result", exit.Status, containerID)
+	if state, stateErr := r.state(ctx, containerID); stateErr == nil && (state.Status == string(contract.ContainerStatusRunning) || state.Status == string(contract.ContainerStatusPaused)) {
+		logrus.Debugf("runsc wait returned status %d for %s while state still reports %s; ignoring transient wait result", exit.Status, containerID, state.Status)
 		return false, nil
 	}
 	return true, r.persistExitState(containerID, exit)

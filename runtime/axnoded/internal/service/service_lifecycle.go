@@ -10,12 +10,13 @@ import (
 )
 
 func (h *sandboxService) Ready() bool {
-	return h.ready.Load()
+	return h.ready.Load() && h.recoveryComplete.Load()
 }
 
 func (h *sandboxService) Run(ctx context.Context) error {
 	logrus.Infof("sandbox service run at %s", h.config.RootDir)
 	h.ready.Store(false)
+	h.recoveryComplete.Store(false)
 	if h.capabilityReconcileCancel != nil {
 		h.capabilityReconcileCancel()
 	}
@@ -26,10 +27,18 @@ func (h *sandboxService) Run(ctx context.Context) error {
 	if err := h.startOutputRetention(ctx); err != nil {
 		return err
 	}
+	h.startExecutionLeaseWatchdog(ctx)
+	if err := h.resumeRecoveredSandboxes(ctx); err != nil {
+		// Retry pause for earlier activations. An ambiguous RPC leaves its
+		// fence, so native supervision must fail-stop the process domain.
+		// Keep the watchdog until Shutdown or process termination.
+		pauseErr := h.pauseLiveSandboxes(ctx)
+		return errors.Join(fmt.Errorf("resume recovered allocations: %w", err), pauseErr)
+	}
+	h.recoveryComplete.Store(true)
 	h.inventoryCollector.Start()
 	h.startNodeIdentity(ctx)
 	h.controlPlaneReports.Start()
-	h.startExecutionLeaseWatchdog(ctx)
 	h.startCapabilityRefresh(ctx)
 	h.startPeriodicCapabilityAudit()
 	h.environmentCache.Start()
@@ -47,6 +56,12 @@ func (h *sandboxService) Shutdown(ctx context.Context) error {
 func (h *sandboxService) shutdown(ctx context.Context) error {
 	logrus.Info("sandbox service shutting down")
 	h.ready.Store(false)
+	h.recoveryComplete.Store(false)
+	if err := h.pauseLiveSandboxes(ctx); err != nil {
+		// Keep enforcement and state writers alive until the native process
+		// supervisor completes its fail-closed stop hook.
+		return fmt.Errorf("pause allocations before node shutdown: %w", err)
+	}
 	if h.nodeIdentityCancel != nil {
 		h.nodeIdentityCancel()
 	}
@@ -64,7 +79,7 @@ func (h *sandboxService) shutdown(ctx context.Context) error {
 		h.capabilityReconcileCancel()
 	}
 	h.capabilityReconcileWG.Wait()
-	// Service shutdown is not an Allocation lifecycle transition. Preserve live
+	// Service shutdown is not an Allocation lifecycle transition. Preserve paused
 	// runsc sandboxes and their durable resource bindings so the next axnoded
 	// process can recover them. Only an explicit control-plane DeleteAllocation
 	// or an expired execution authorization may tear them down.

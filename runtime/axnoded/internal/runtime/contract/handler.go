@@ -102,6 +102,14 @@ type SandboxRuntime interface {
 	DeleteContainer(context.Context, *apipb.DeleteContainerRequest, HandlerOptions) (*apipb.DeleteContainerResponse, error)
 	KillContainer(context.Context, *apipb.SignalContainerRequest, HandlerOptions) (*apipb.SignalContainerResponse, error)
 	StopWorkload(context.Context, HandlerOptions) (Exit, error)
+	// Recovery controls operate through the host runtime even while sandboxd
+	// is paused. KillSandbox confirms kernel termination without deleting runtime
+	// artifacts; Wait/checkpoint and authoritative cleanup still follow.
+	PauseContainer(context.Context, HandlerOptions) error
+	ResumeContainer(context.Context, HandlerOptions) error
+	KillSandbox(context.Context, HandlerOptions) error
+	// VerifySandboxStopped reads kernel evidence against admitted ownership.
+	VerifySandboxStopped(context.Context, HandlerOptions) (bool, error)
 	ListContainers(context.Context, HandlerOptions) ([]*UnionContainerState, error)
 	ContainerSpec(context.Context, HandlerOptions) (*spec.Spec, error)
 	ExecContainer(context.Context, *apipb.ExecContainerRequest, HandlerOptions) (*apipb.ExecContainerResponse, error)

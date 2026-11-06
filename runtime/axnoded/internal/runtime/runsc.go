@@ -22,6 +22,7 @@ var _ contract.RootfsSnapshotter = &RunscServiceHandler{}
 type RunscServiceHandler struct {
 	common                            *ocihost.Common
 	ignoreCgroups                     bool
+	nativeRecovery                    bool
 	allowSUID                         bool
 	guestTaskLimit                    int64
 	hostTaskLimit                     int64
@@ -33,6 +34,7 @@ type RunscServiceHandler struct {
 	releaseFilestore                  func()
 	shutdownOnce                      sync.Once
 	waitLocks                         sync.Map
+	recoveryTransitionMu              sync.Mutex
 	waitForSandboxReady               sandboxd.ReadyWaiter
 	newWorkloadClient                 func(string) sandboxdWorkloadClient
 	services                          runtimeServices
@@ -52,7 +54,7 @@ func (r *RunscServiceHandler) ConfigurationDigest() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.allowSUID, r.ephemeralStorageDefaultLimitBytes, r.guestTaskLimit, r.hostTaskLimit})
+	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.nativeRecovery, r.allowSUID, r.ephemeralStorageDefaultLimitBytes, r.guestTaskLimit, r.hostTaskLimit})
 	if err != nil {
 		return "", err
 	}

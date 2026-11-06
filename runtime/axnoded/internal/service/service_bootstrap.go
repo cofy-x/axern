@@ -28,6 +28,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxcontrol"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxtarget"
+	spec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 )
@@ -39,7 +40,9 @@ type sandboxService struct {
 	config       config.Config
 	runscHandler contract.SandboxRuntime
 
-	containerManager *container.Manager
+	containerManager    *container.Manager
+	networkRecovery     networkRecoveryVerifier
+	conformanceRecovery conformanceRecoveryVerifier
 
 	store nodeStateStore
 
@@ -75,10 +78,20 @@ type sandboxService struct {
 	outputRetentionCancel context.CancelFunc
 	outputRetentionWG     sync.WaitGroup
 
-	ready atomic.Bool
+	ready            atomic.Bool
+	recoveryComplete atomic.Bool
 
 	shutdownOnce sync.Once
 	shutdownErr  error
+}
+
+type conformanceRecoveryVerifier interface {
+	VerifyRuntimeConformanceBinding(string, *runtimeapi.AllocationEnforcementManifest) error
+}
+
+type networkRecoveryVerifier interface {
+	AllocationResource(string) (string, bool)
+	VerifyRecoveredNetworkBindings(map[string]int) error
 }
 
 type nodeStateStore interface {
@@ -300,6 +313,12 @@ func (h *sandboxService) restorePersistentState() error {
 	if err != nil {
 		return err
 	}
+	if err := h.stopUnauthorizedRecoveredSandboxes(context.Background(), durableInventory); err != nil {
+		return err
+	}
+	if err := h.verifyRecoveredNetworkBindings(durableInventory); err != nil {
+		return err
+	}
 	if err := h.verifyRecoveredTaskLimits(context.Background(), durableInventory); err != nil {
 		return err
 	}
@@ -346,6 +365,55 @@ func (h *sandboxService) restorePersistentState() error {
 	return nil
 }
 
+// verifyRecoveredNetworkBindings audits only live durable ownership. gVisor owns
+// guest L3 state after start, so recovery verifies kernel identities without
+// restoring addresses, routes, or link state in an assigned network namespace.
+func (h *sandboxService) verifyRecoveredNetworkBindings(inventory runtimeInventory) error {
+	if h.networkRecovery == nil {
+		if h.config.InterfaceCacheSize > 0 {
+			return fmt.Errorf("required network recovery verifier is unavailable")
+		}
+		return nil
+	}
+	live := make(map[string]int)
+	for id, state := range inventory {
+		if state == nil || state.Status == contract.ContainerStatusUnknown {
+			return fmt.Errorf("cannot verify network binding for allocation %s with uncertain runtime state", id)
+		}
+		if state.Status == contract.ContainerStatusRunning || state.Status == contract.ContainerStatusPaused {
+			if state.InitProcessPid <= 0 {
+				return fmt.Errorf("cannot verify network binding for allocation %s without a Sentry PID", id)
+			}
+			projection, err := h.runscHandler.ContainerSpec(context.Background(), contract.HandlerOptions{ContainerID: id})
+			if err != nil {
+				return fmt.Errorf("read recovered allocation %s network projection: %w", id, err)
+			}
+			if projection == nil || projection.Linux == nil {
+				return fmt.Errorf("allocation %s network projection is unavailable", id)
+			}
+			networkNamespaces := 0
+			for _, namespace := range projection.Linux.Namespaces {
+				if namespace.Type == spec.NetworkNamespace {
+					networkNamespaces++
+				}
+				if namespace.Type == spec.NetworkNamespace && namespace.Path != "" {
+					if _, owned := h.networkRecovery.AllocationResource(id); !owned {
+						return fmt.Errorf("allocation %s has a connected network projection without a durable lease", id)
+					}
+				}
+			}
+			if networkNamespaces != 1 {
+				return fmt.Errorf("allocation %s must project exactly one private network namespace", id)
+			}
+			live[id] = state.InitProcessPid
+		}
+	}
+	if err := h.networkRecovery.VerifyRecoveredNetworkBindings(live); err != nil {
+		return fmt.Errorf("verify recovered network bindings: %w", err)
+	}
+	return nil
+}
+
 // verifyRecoveredTaskLimits runs before restoring image leases or advertising
 // capacity. It audits recorded limits; recovery never repairs live controls.
 func (h *sandboxService) verifyRecoveredTaskLimits(ctx context.Context, inventory runtimeInventory) error {
@@ -360,7 +428,7 @@ func (h *sandboxService) verifyRecoveredTaskLimits(ctx context.Context, inventor
 			continue
 		}
 		manifest := h.allocationController().EnforcementManifest(id)
-		if state == nil || (state.Status != contract.ContainerStatusRunning && (h.config.RuntimeConfig.GuestTaskLimit > 0 || manifest.GetGuestTaskLimit() > 0)) {
+		if state == nil || (state.Status != contract.ContainerStatusRunning && state.Status != contract.ContainerStatusPaused && (h.config.RuntimeConfig.GuestTaskLimit > 0 || manifest.GetGuestTaskLimit() > 0)) {
 			return fmt.Errorf("cannot verify task enforcement for allocation %s with uncertain runtime state", id)
 		}
 		if err := h.runscHandler.VerifyAllocationTaskLimits(ctx, id, manifest); err != nil {
@@ -445,7 +513,12 @@ func (h *sandboxService) cleanupDiscardOnRestartContainers(ctx context.Context, 
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
-		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{ID: id, Timeout: 0}, contract.HandlerOptions{ContainerID: id, ForceDelete: true}); err != nil && !allocation.IsDeleteNotFound(err) {
+		options, err := h.runtimeCleanupOptions(ctx, id)
+		if err != nil {
+			return err
+		}
+		options.ForceDelete = true
+		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{ID: id, Timeout: 0}, options); err != nil && !allocation.IsDeleteNotFound(err) {
 			return fmt.Errorf("delete discard-on-restart runsc container %s: %w", id, err)
 		}
 	}
@@ -465,7 +538,7 @@ func (h *sandboxService) collectRuntimeInventory(ctx context.Context) (runtimeIn
 			return nil, fmt.Errorf("runsc returned an invalid container inventory entry")
 		}
 		switch state.Status {
-		case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
+		case contract.ContainerStatusCreated, contract.ContainerStatusRunning, contract.ContainerStatusPaused, contract.ContainerStatusExited, contract.ContainerStatusUnknown:
 		default:
 			return nil, fmt.Errorf("runsc container %s returned invalid status %q", state.ID, state.Status)
 		}
@@ -500,7 +573,7 @@ func (h *sandboxService) recoverTerminalRuntimeCheckpoints(ctx context.Context, 
 		if item.Status.Get().State() == runtimeapi.ContainerState_CONTAINER_EXITED {
 			continue
 		}
-		exit, err := h.runscHandler.Wait(ctx, contract.HandlerOptions{ContainerID: id})
+		exit, err := h.runscHandler.Wait(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: h.allocationController().EnforcementManifest(id)})
 		if err != nil && !contract.IsExitStatusUnavailable(err) {
 			return fmt.Errorf("recover runtime exit for %s: %w", id, err)
 		}
@@ -536,10 +609,12 @@ func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, i
 		if pending {
 			continue
 		}
-		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, contract.HandlerOptions{
-			ContainerID: id,
-			ForceDelete: true,
-		}); err != nil {
+		options, err := h.runtimeCleanupOptions(ctx, id)
+		if err != nil {
+			return err
+		}
+		options.ForceDelete = true
+		if _, err := h.runscHandler.DeleteContainer(ctx, &runtimeapi.DeleteContainerRequest{Timeout: 0}, options); err != nil {
 			return fmt.Errorf("delete terminal runsc container %s before persistent-state reconciliation: %w", id, err)
 		}
 	}

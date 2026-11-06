@@ -61,6 +61,8 @@ func (c *Common) Binary() string {
 	return c.binary
 }
 
+func (c *Common) RuntimeRoot() string { return c.runtimeRoot }
+
 func (c *Common) ContainerRoot() string {
 	return c.containerRoot
 }

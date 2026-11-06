@@ -60,6 +60,18 @@ func (f *FakeSandboxRuntime) StopWorkload(ctx context.Context, options contract.
 	return contract.Exit{Timestamp: time.Now().UTC(), Status: 137}, getErrorFromContext(ctx)
 }
 
+func (f *FakeSandboxRuntime) PauseContainer(ctx context.Context, _ contract.HandlerOptions) error {
+	return getErrorFromContext(ctx)
+}
+
+func (f *FakeSandboxRuntime) ResumeContainer(ctx context.Context, _ contract.HandlerOptions) error {
+	return getErrorFromContext(ctx)
+}
+
+func (f *FakeSandboxRuntime) KillSandbox(ctx context.Context, _ contract.HandlerOptions) error {
+	return getErrorFromContext(ctx)
+}
+
 func (f *FakeSandboxRuntime) ListContainers(ctx context.Context, options contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
 	return []*contract.UnionContainerState{}, getErrorFromContext(ctx)
 }
@@ -170,3 +182,7 @@ func getErrorFromContext(ctx context.Context) error {
 }
 
 var _ contract.SandboxRuntime = &FakeSandboxRuntime{}
+
+func (*FakeSandboxRuntime) VerifySandboxStopped(context.Context, contract.HandlerOptions) (bool, error) {
+	return false, nil
+}

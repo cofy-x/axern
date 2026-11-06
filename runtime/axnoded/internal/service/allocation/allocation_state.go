@@ -232,7 +232,7 @@ func (h *Controller) RenewExecutionLeases(ttls map[string]time.Duration, receive
 		desired := cloneAllocationRecord(state.record)
 		h.stateMu.RUnlock()
 		currentDeadline := desired.GetExecutionLeaseExpiresAtUnixNano()
-		if currentDeadline <= receivedAt.UnixNano() || expiresAt <= currentDeadline {
+		if desired.GetTerminationDiagnosticCode() != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED || currentDeadline <= receivedAt.UnixNano() || expiresAt <= currentDeadline {
 			unlock()
 			continue
 		}
@@ -331,13 +331,24 @@ func (h *Controller) markTerminationIntentLocked(desired *apipb.AllocationState,
 }
 
 func (h *Controller) TerminationIntent(allocationID string) (commonv1.WorkloadDiagnosticCode, string) {
+	allocationID = strings.TrimSpace(allocationID)
 	h.stateMu.RLock()
-	defer h.stateMu.RUnlock()
-	state := h.allocationStates[strings.TrimSpace(allocationID)]
-	if state == nil || state.record == nil {
-		return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, ""
+	state := h.allocationStates[allocationID]
+	if state != nil && state.record != nil {
+		code, message := state.record.GetTerminationDiagnosticCode(), state.record.GetTerminationMessage()
+		h.stateMu.RUnlock()
+		return code, message
 	}
-	return state.record.GetTerminationDiagnosticCode(), state.record.GetTerminationMessage()
+	h.stateMu.RUnlock()
+	// Startup may checkpoint an expired paused runtime before restoring image
+	// ownership. Its first cause is already durable in the same AllocationState.
+	if allocationID != "" && h.store != nil {
+		var record apipb.AllocationState
+		if err := h.store.GetRecord(config.AllocationStateBucket, allocationID, &record); err == nil && record.GetAllocationID() == allocationID {
+			return record.GetTerminationDiagnosticCode(), record.GetTerminationMessage()
+		}
+	}
+	return commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, ""
 }
 
 func rejectTerminatedActivation(record *apipb.AllocationState) error {

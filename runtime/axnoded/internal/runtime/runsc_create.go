@@ -79,6 +79,9 @@ func (r *RunscServiceHandler) StartPreparedContainer(ctx context.Context, prepar
 					return err
 				}
 			}
+			if r.nativeRecovery {
+				return r.startWithTransitionFence(ctx, containerID, args)
+			}
 			_, err = r.common.Run(ctx, args...)
 			return err
 		},

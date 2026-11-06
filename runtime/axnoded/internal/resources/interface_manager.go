@@ -55,6 +55,8 @@ type InterfaceManager struct {
 	validateDeviceFunc              func(*NetResource) error
 	validateDeviceConfigurationFunc func(*NetResource) error
 	deleteNeighborFunc              func(net.IP) error
+	recoveryLinkLookupFunc          func(string) (netlink.Link, error)
+	recoveryNamespaceFunc           func(string, int) (netlink.Link, int, error)
 }
 
 func (m *InterfaceManager) ensureLeaseIndexLocked() {
@@ -244,4 +246,4 @@ func (m *InterfaceManager) validateInterfaceConfiguration(dev *NetResource) erro
 	return m.validateDeviceConfiguration(dev)
 }
 
-var _ Manager = &InterfaceManager{}
+var _ NetworkManager = &InterfaceManager{}

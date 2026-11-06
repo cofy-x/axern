@@ -85,6 +85,7 @@ func newTestServiceWithPreparedEnvironmentManager(t *testing.T, runscHandler con
 			s.ready.Store(ready)
 		}
 	}()
+	s.recoveryComplete.Store(true)
 	s.ready.Store(true)
 	return s
 }

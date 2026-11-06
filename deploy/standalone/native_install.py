@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import datetime
 import fcntl
 import grp
 import ipaddress
@@ -19,6 +20,7 @@ import shutil
 import socket
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -38,6 +40,8 @@ GUEST_TASK_LIMIT = 256
 HOST_TASK_LIMIT = 1024
 NODE_TASK_RESERVE = 512
 SERVICE_TASK_BUDGET = 1024
+NODE_CGROUP = pathlib.Path('/sys/fs/cgroup/axern.slice/axern-native-axnoded.service')
+PAUSE_TIMEOUT = 15
 
 
 class InstallError(ValueError):
@@ -49,19 +53,20 @@ def run(*args: str, **kwargs) -> subprocess.CompletedProcess:
 
 
 def read_json(path: pathlib.Path) -> dict:
-    def unique_object(pairs):
-        result = {}
-        for key, value in pairs:
-            if key in result:
-                raise InstallError(f'duplicate JSON field: {key}')
-            result[key] = value
-        return result
-
     with path.open() as stream:
         value = json.load(stream, object_pairs_hook=unique_object)
     if not isinstance(value, dict):
         raise InstallError(f'expected JSON object: {path}')
     return value
+
+
+def unique_object(pairs) -> dict:
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise InstallError(f'duplicate JSON field: {key}')
+        result[key] = value
+    return result
 
 
 def validate_settings(value: dict) -> dict:
@@ -151,7 +156,7 @@ def unit_name(service: str) -> str:
 def data_identity() -> dict:
     if DATA.is_symlink() or not DATA.is_dir():
         raise InstallError('owned data directory is missing or replaced')
-    uuid = subprocess.check_output(['findmnt', '-no', 'UUID', '--mountpoint', str(DATA)], text=True).strip()
+    uuid = subprocess.check_output(['findmnt', '-no', 'UUID', '--mountpoint', str(DATA)], text=True, timeout=5).strip()
     if not uuid:
         raise InstallError('data filesystem must have a stable UUID')
     return {'filesystem_uuid': uuid, 'directory_inode': DATA.stat().st_ino}
@@ -164,6 +169,215 @@ def verify_installed(check_data: bool = True) -> dict:
     if check_data and data_identity() != identity['data_identity']:
         raise InstallError('data filesystem/directory identity changed; restore or remount the owned data before starting')
     return identity
+
+
+def node_cgroup_populated(group: pathlib.Path | None = None) -> bool:
+    # This literal systemd-owned path is independent of runtime state and labels.
+    group = NODE_CGROUP if group is None else group
+    try:
+        values = unique_object(line.split() for line in (group / 'cgroup.events').read_text().splitlines())
+    except FileNotFoundError:
+        if not group.exists():
+            return False
+        raise
+    if values.get('populated') not in ('0', '1'):
+        raise InstallError('cannot verify node cgroup population')
+    return values['populated'] == '1'
+
+
+def require_node_control_subgroup() -> None:
+    expected = '0::/axern.slice/axern-native-axnoded.service/.control'
+    if pathlib.Path('/proc/self/cgroup').read_text().strip() != expected or NODE_CGROUP.resolve() != NODE_CGROUP:
+        raise InstallError('pause hook is outside its delegated systemd control subgroup')
+
+
+def stop_node_subgroup(name: str, deadline: float) -> None:
+    group = NODE_CGROUP / name
+    if node_cgroup_populated(group):
+        (group / 'cgroup.kill').write_text('1')
+    while node_cgroup_populated(group):
+        if time.monotonic() >= deadline:
+            raise InstallError('node command subgroup did not stop before the pause deadline')
+        time.sleep(0.05)
+
+
+def stop_node_commands(deadline: float) -> None:
+    # Delegated systemd control commands live outside the main daemon's subgroup.
+    # Reap its surviving runsc start/exec clients before taking the inventory.
+    require_node_control_subgroup()
+    stop_node_subgroup('internal', deadline)
+
+
+def transition_path() -> pathlib.Path:
+    return DATA / 'axnoded/root/runtime-transition'
+
+
+def sync_transition_directory() -> None:
+    descriptor = os.open(transition_path().parent, os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def transition_exists() -> bool:
+    path = transition_path()
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o600:
+        raise InstallError('untrusted runtime transition marker')
+    return True
+
+
+def begin_runtime_transition() -> None:
+    descriptor = os.open(transition_path(), os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, 'wb') as output:
+        output.write(b'native pause in progress\n')
+        output.flush()
+        os.fsync(output.fileno())
+    sync_transition_directory()
+
+
+def clear_runtime_transition() -> None:
+    if transition_exists():
+        transition_path().unlink()
+        sync_transition_directory()
+
+
+def prepare_node_runtimes() -> None:
+    # An interrupted Pause/Resume RPC can leave runsc's saved status stale.
+    # Only kernel proof that every workload has ended permits clearing this
+    # operational marker; Allocation records are never repaired or removed here.
+    try:
+        verify_installed()
+        if not transition_exists():
+            return
+        native_runtime_paths()
+        require_node_control_subgroup()
+        deadline = time.monotonic() + PAUSE_TIMEOUT
+        stop_node_subgroup('internal', deadline)
+        stop_node_subgroup('sandbox', deadline)
+        # Check the remaining domain after ending command processes, so an old
+        # start cannot create another populated subgroup behind the inventory.
+        if (NODE_CGROUP / 'cgroup.procs').read_text().strip():
+            raise InstallError('unexpected processes in the delegated node root')
+        for group in NODE_CGROUP.iterdir():
+            if group.is_dir() and group.name not in ('.control', 'internal', 'sandbox') and node_cgroup_populated(group):
+                raise InstallError('unexpected populated subgroup in the node unit')
+        clear_runtime_transition()
+    except (InstallError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        print(f'native-install: recovery preparation failed; stopping node unit: {error}', file=sys.stderr, flush=True)
+        kill_node_runtimes()
+        raise
+
+
+def kill_node_runtimes() -> None:
+    # In ExecStopPost this also kills the hook itself. The full-installation stop
+    # caller runs outside the node unit and can verify that no tasks remain.
+    try:
+        result = subprocess.run(['systemctl', 'kill', '--kill-whom=all', '--signal=SIGKILL', unit_name('axnoded')],
+                                capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        result = None
+    if (result is None or result.returncode != 0) and node_cgroup_populated():
+        # systemctl may reject an inactive unit which still contains tasks.
+        # Never fall back to process IDs or a path supplied by a runtime record.
+        if NODE_CGROUP.resolve() != NODE_CGROUP:
+            raise InstallError('node cgroup path was replaced')
+        (NODE_CGROUP / 'cgroup.kill').write_text('1')
+    deadline = time.monotonic() + 5
+    while node_cgroup_populated():
+        if time.monotonic() >= deadline:
+            raise InstallError('node cgroup still contains tasks after forced stop')
+        time.sleep(0.05)
+
+
+def runtime_state(value) -> dict:
+    if not isinstance(value, dict):
+        raise InstallError('invalid runsc state object')
+    identifier = value.get('id')
+    if not isinstance(identifier, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}', identifier):
+        raise InstallError('invalid runsc container identity')
+    if value.get('status') not in ('created', 'running', 'paused', 'stopped'):
+        raise InstallError('unknown runsc container status')
+    return value
+
+
+def native_runtime_paths() -> tuple[pathlib.Path, pathlib.Path]:
+    binary, runtime_root = OPT / 'gvisor/runsc', DATA / 'axnoded/root/runsc'
+    for path in (binary, runtime_root):
+        for parent in (path, *path.parents):
+            info = parent.lstat()
+            if stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise InstallError(f'untrusted native runtime path: {parent}')
+    if not binary.is_file() or not runtime_root.is_dir():
+        raise InstallError('native runtime paths are unavailable')
+    return binary, runtime_root
+
+
+def pause_node_runtimes() -> None:
+    # SERVICE_RESULT is diagnostic only: both normal stop and failed startup
+    # must suspend user execution before any subsequent node recovery attempt.
+    deadline = time.monotonic() + PAUSE_TIMEOUT
+    try:
+        stop_node_commands(deadline)
+        verify_installed()
+        binary, runtime_root = native_runtime_paths()
+        if transition_exists():
+            raise InstallError('runtime transition was interrupted; stopping node workloads')
+
+        def invoke(*args):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise InstallError('runtime pause deadline exceeded')
+            return run(str(binary), '--root=' + str(runtime_root), *args,
+                       capture_output=True, text=True, timeout=remaining).stdout
+
+        # runsc's JSON list silently skips unloadable states. The quiet list
+        # enumerates every ID without loading it, so an incomplete view fails.
+        identifiers = invoke('list', '--quiet').splitlines()
+        states = json.loads(invoke('list', '--format=json'), object_pairs_hook=unique_object)
+        if states is None:  # Pinned runsc encodes an empty slice as null.
+            states = []
+        if not isinstance(states, list):
+            raise InstallError('invalid runsc container inventory')
+        states = [runtime_state(value) for value in states]
+        listed = [value['id'] for value in states]
+        if len(set(identifiers)) != len(identifiers) or len(set(listed)) != len(listed) or set(identifiers) != set(listed):
+            raise InstallError('incomplete or ambiguous runsc container inventory')
+        for state in states:
+            if state['status'] != 'running':
+                continue
+            identifier = state['id']
+            begin_runtime_transition()
+            invoke('pause', identifier)
+            observed = runtime_state(json.loads(invoke('state', identifier), object_pairs_hook=unique_object))
+            if observed['id'] != identifier or observed['status'] != 'paused':
+                raise InstallError('runsc did not confirm the paused container')
+            clear_runtime_transition()
+    except (InstallError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        print(f'native-install: runtime suspension failed; stopping node unit: {error}', file=sys.stderr, flush=True)
+        kill_node_runtimes()
+        raise
+
+
+def stop_native() -> None:
+    try:
+        run('systemctl', 'stop', TARGET)
+    finally:
+        kill_node_runtimes()
+        # Stop must still work when the data mount is unavailable. Clear a
+        # stale marker only on the verified installation, never a replacement
+        # mount; otherwise the next guarded start handles it after restoration.
+        try:
+            verify_installed()
+            native_runtime_paths()
+        except (InstallError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
+            pass
+        else:
+            clear_runtime_transition()
 
 
 def command(args: list[str]) -> str:
@@ -214,7 +428,8 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
         if name in ('imagemgr', 'egressd', 'axnoded'):
             lines += ['ExecStartPost=' + command(helper + ['internal-ready', name])]
         if name == 'axnoded':
-            lines += ['Delegate=yes', 'KillMode=mixed', f'Environment=AXERN_SANDBOXD_BINARY={root}/libexec/axnoded/axern-sandboxd', f'Environment=AXERN_EROFS_FIXTURE={DATA}/fixtures/minimal.erofs']
+            lines += ['Delegate=yes', 'DelegateSubgroup=internal', 'ExitType=main', 'KillMode=process', 'ExecStopPost=' + command(helper + ['internal-pause-runtimes']), f'Environment=AXERN_SANDBOXD_BINARY={root}/libexec/axnoded/axern-sandboxd', f'Environment=AXERN_EROFS_FIXTURE={DATA}/fixtures/minimal.erofs']
+            lines += ['ExecStartPre=' + command(helper + ['internal-prepare-runtimes'])]
             lines += [f'MemoryMax={settings["memory_budget_bytes"] - settings["service_memory_budget_bytes"]}', f'TasksMax={node_task_budget}']
         units[unit_name(name)] = '\n'.join(lines) + '\n'
     units[TARGET] = '[Unit]\nDescription=Axern native candidate\nWants=' + ' '.join(unit_name(name) for name in SERVICES) + '\nAfter=' + ' '.join(unit_name(name) for name in SERVICES) + '\n[Install]\nWantedBy=multi-user.target\n'
@@ -248,6 +463,7 @@ image_lib_dir = "{DATA}/axnoded/rootfs"
 image_manager_socket = "/run/axern-native-imagemgr/imagemgr.sock"
 egress_manager_socket = "/run/axern-native-egressd/egressd.sock"
 cgroup_enforcement = "required"
+native_recovery = true
 guest_task_limit = {GUEST_TASK_LIMIT}
 host_task_limit = {HOST_TASK_LIMIT}
 filestore_mode = "existing"
@@ -488,6 +704,12 @@ def wait_ready(service: str) -> None:
         raise InstallError('select a service with an API readiness probe')
     deadline = time.monotonic() + 150
     while time.monotonic() < deadline:
+        # systemd can keep ExecStartPost running after the main process exits.
+        # End this phase promptly so ExecStopPost can suspend/fail-stop runtimes.
+        main = run('systemctl', 'show', '--property=MainPID', '--value', unit_name(service),
+                   capture_output=True, text=True, timeout=2).stdout.strip()
+        if not re.fullmatch(r'[0-9]+', main) or int(main) <= 0:
+            raise InstallError(f'{service} main process exited before readiness; inspect journalctl -u {unit_name(service)}')
         try:
             result = subprocess.run(checks[service], timeout=3, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if result.returncode == 0:
@@ -519,6 +741,28 @@ def readiness_environment() -> dict[str, str]:
             'AXERN_TLS_KEY': key or str(ETC / 'private/pki/client.key'), 'AXERN_TLS_SERVER_NAME': 'localhost'}
 
 
+def node_daemon_generation() -> tuple[str, str]:
+    response = run('systemctl', 'show', '--timestamp=us+utc', '--property=MainPID',
+                   '--property=ExecMainStartTimestamp', '--property=InvocationID', unit_name('axnoded'),
+                   capture_output=True, text=True, timeout=2, env={**os.environ, 'LC_ALL': 'C'})
+    properties = {}
+    for line in response.stdout.splitlines():
+        key, separator, value = line.partition('=')
+        if not separator or key in properties:
+            raise InstallError('cannot verify current node daemon generation')
+        properties[key] = value
+    pid = properties.get('MainPID', '')
+    invocation = properties.get('InvocationID', '')
+    if not re.fullmatch(r'[0-9]+', pid) or int(pid) <= 0 or not re.fullmatch(r'[0-9a-f]{32}', invocation):
+        raise InstallError('node daemon is not running with a verifiable generation')
+    try:
+        started = datetime.datetime.strptime(properties.get('ExecMainStartTimestamp', ''),
+                                             '%a %Y-%m-%d %H:%M:%S.%f UTC').replace(tzinfo=datetime.timezone.utc)
+    except ValueError as error:
+        raise InstallError('cannot verify current node daemon start time') from error
+    return invocation, started.isoformat(timespec='microseconds').replace('+00:00', 'Z')
+
+
 def wait_serving(node_id: str, environment: dict[str, str]) -> None:
     boot_id = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     args = [str(ROOT / 'bin/axern'), 'admin', 'node', 'capability', 'check', node_id,
@@ -529,8 +773,10 @@ def wait_serving(node_id: str, environment: dict[str, str]) -> None:
     deadline = time.monotonic() + 150
     reason = 'node has not published fresh admission/enforcement evidence'
     while time.monotonic() < deadline:
+        generation = node_daemon_generation()
         try:
-            response = subprocess.run(args, env=environment, capture_output=True, text=True, timeout=5)
+            response = subprocess.run([*args, '--observed-after', generation[1]], env=environment,
+                                      capture_output=True, text=True, timeout=5)
             try:
                 report = json.loads(response.stdout)
             except ValueError:
@@ -541,7 +787,9 @@ def wait_serving(node_id: str, environment: dict[str, str]) -> None:
             if response.returncode == 2:
                 raise InstallError(f'cannot verify serving readiness: {reason}')
             if response.returncode == 0 and report.get('ready') is True:
-                return
+                if node_daemon_generation() == generation:
+                    return
+                reason = 'node daemon restarted while checking capability evidence'
         except subprocess.TimeoutExpired:
             reason = 'capability API request timed out'
         time.sleep(0.5)
@@ -550,7 +798,7 @@ def wait_serving(node_id: str, environment: dict[str, str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('install', 'start', 'stop', 'status', 'renew-services', 'internal-bootstrap', 'internal-ready', 'internal-verify'))
+    parser.add_argument('command', choices=('install', 'start', 'stop', 'status', 'renew-services', 'internal-bootstrap', 'internal-ready', 'internal-verify', 'internal-pause-runtimes', 'internal-prepare-runtimes'))
     parser.add_argument('service', nargs='?', choices=SERVICES)
     parser.add_argument('--config', type=pathlib.Path)
     args = parser.parse_args()
@@ -564,6 +812,12 @@ def main() -> None:
         if os.geteuid() != 0:
             raise InstallError('installation and lifecycle operations require root')
         os.umask(0o077)
+        if args.command == 'internal-pause-runtimes':
+            pause_node_runtimes()
+            return
+        if args.command == 'internal-prepare-runtimes':
+            prepare_node_runtimes()
+            return
         if args.command == 'internal-bootstrap':
             database_bootstrap()
             return
@@ -589,7 +843,7 @@ def main() -> None:
                 require_active_services()
                 print('native services started; run a real sandbox to qualify serving')
             elif args.command == 'stop':
-                run('systemctl', 'stop', TARGET)
+                stop_native()
                 print('native services stopped; configuration and data retained')
             elif args.command == 'renew-services':
                 sync_identity(renew=True)

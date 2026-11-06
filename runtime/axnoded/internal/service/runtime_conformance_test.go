@@ -263,7 +263,7 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 	if config.RuntimeConformanceMemoryMaxBytes <= runtimeConformanceMemoryLimit {
 		t.Fatalf("aggregate conformance ceiling %d must exceed workload limit %d", config.RuntimeConformanceMemoryMaxBytes, runtimeConformanceMemoryLimit)
 	}
-	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", "/rootfs", runtimeConformanceKindMemory)
+	memory, err := runtimeConformanceStartRequest("memory-allocation", "memory-runtime", "/rootfs", runtimeConformanceKindMemory, false)
 	if err != nil {
 		t.Fatalf("memory request error = %v", err)
 	}
@@ -274,7 +274,7 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 		t.Fatalf("memory limits = %+v", memory.GetResources().GetLimits())
 	}
 
-	ephemeral, err := runtimeConformanceStartRequest("storage-allocation", "storage-runtime", "/rootfs", runtimeConformanceKindEphemeral)
+	ephemeral, err := runtimeConformanceStartRequest("storage-allocation", "storage-runtime", "/rootfs", runtimeConformanceKindEphemeral, false)
 	if err != nil {
 		t.Fatalf("ephemeral request error = %v", err)
 	}
@@ -283,6 +283,20 @@ func TestRuntimeConformanceStartRequestsIsolateEnforcementBoundaries(t *testing.
 	}
 	if ephemeral.GetResources().GetLimits().GetMemoryBytes() != 0 || ephemeral.GetResources().GetLimits().GetEphemeralStorageBytes() != runtimeConformanceStorage {
 		t.Fatalf("ephemeral limits = %+v", ephemeral.GetResources().GetLimits())
+	}
+}
+
+func TestNativeStorageConformanceKeepsRecoverableMemoryDomainWithinReserve(t *testing.T) {
+	request, err := runtimeConformanceStartRequest("probe", "environment", "/rootfs", runtimeConformanceKindEphemeral, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if request.GetResources().GetRequests().GetMemoryBytes() != config.RuntimeConformanceMemoryLimitBytes ||
+		request.GetResources().GetLimits().GetMemoryBytes() != config.RuntimeConformanceMemoryLimitBytes {
+		t.Fatal("native conformance must bind a complete memory domain within the existing certification reserve")
+	}
+	if request.GetResources().GetLimits().GetEphemeralStorageBytes() != runtimeConformanceStorage {
+		t.Fatal("native recovery must preserve the independently checked storage quota")
 	}
 }
 

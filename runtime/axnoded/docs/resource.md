@@ -28,7 +28,8 @@ Startup loads the typed ledgers before advertising capacity and reconciles them 
 
 - Duplicate or conflicting ownership fails closed.
 - A missing assigned host interface remains owned and its IP remains unavailable until complete runtime recovery proves the Allocation absent.
-- An unreadable or inconsistent assigned interface fails startup; it is never silently rebuilt as idle capacity.
+- Assigned interfaces are not raised, rebuilt, or checked against idle-pool IP and route configuration while loading the ledger. After complete runtime classification, an unreadable or inconsistent live binding fails startup; it is never silently rebuilt as idle capacity.
+- An unassigned interface with invalid preparation also fails startup without repair: absent ownership may indicate a lost lease for a live netstack, rather than idle capacity.
 - Retiring cgroups retain their memory commitment until the exact fenced cgroup is empty and removal succeeds.
 - An assigned cgroup never becomes idle during recovery.
 - OCI metadata cannot create, transfer, or release resource ownership.
@@ -81,6 +82,10 @@ Capability evidence and loss policy are defined by [Observed Capability Provider
 ## Network Boundary
 
 The interface manager owns the bridge, host veth pool, sandbox IP pool, and netns binding. Cached interfaces are validated before use. Recycle clears the bridge neighbor entry before returning capacity, and allocation clears it again before reuse; neighbor cleanup failure is observable but does not transfer ownership.
+
+Runsc transfers the prepared namespace's IP addresses into its private netstack during OCI start. A running or paused sandbox therefore does not need to retain those addresses or the corresponding routes on Linux `eth0`. Live recovery audits the durable Allocation-to-lease binding, host veth kind and bridge membership, the peer indices and peer namespace identity, and equality of the named namespace with the runsc Sentry process's network namespace. The namespace stays open throughout the inspection. Recovery does not rewrite addresses, routes, link state, or lease ownership. An interrupted `created` runtime and a terminal runtime retain their existing ordered cleanup paths; a missing assigned interface stays unavailable until complete inventory reconciliation authorizes release.
+
+This audit verifies connected bindings already present in the authoritative network ledger. A live OCI projection referencing a named network namespace without an exact Allocation lease is rejected; that projection cannot recreate or transfer ownership. Isolated Allocations deliberately have no network lease, and the absence of a lease does not independently prove that an Allocation requested isolation.
 
 `nat_backend` selects either the iptables implementation or the bpfnet eBPF implementation. Axnoded never falls back between them implicitly. A required backend that cannot attach or reconcile keeps the node unavailable. Backend behavior is defined by [bpfnet Architecture](../../../network/bpfnet/docs/architecture.md).
 

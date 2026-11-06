@@ -113,6 +113,7 @@ Useful symptoms:
 | `idle_environment_retention_ttl` | How long idle prepared Environment/rootfs state remains warm. | Empty falls back to `5m`. |
 | `idle_environment_retention_max` | Max retained prepared Environments per node. | Defaults to `8`; `<= 0` disables idle retention. Retention keeps rootfs leases and reusable OCI bundle projections, never an allocation-less OCI container. |
 | `cgroup_enforcement` | `required` or explicit local-only `disabled_dev`. | Defaults to `required`. `disabled_dev` rejects any workload declaring a memory hard limit. |
+| `native_recovery` | Opt in to the native systemd pause and recovery handoff. | Defaults to `false` for Compose and local development. Requires `cgroup_enforcement = "required"` and the native stop/start hooks; only the native installer enables it. |
 | `guest_task_limit` | Per-Allocation ceiling for gVisor guest tasks, including processes and threads across UIDs. | Both task limits default to `0` for existing deployment profiles. Enable them together with values from `64` through `65536`; task enforcement requires `cgroup_enforcement = "required"`. Native serving sets this to `256`. |
 | `host_task_limit` | Per-Allocation ceiling for Sentry, gofer and other host tasks in its cgroup subtree. | Must be enabled together with `guest_task_limit`; native serving sets this to `1024`. This is a separate boundary from guest tasks. |
 | `filestore_mode` | `existing` or `loopback_dev`. | Production uses an existing data-disk mount. Loopback mode is development-only and never reformats an existing image. |

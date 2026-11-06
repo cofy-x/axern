@@ -12,8 +12,9 @@ import (
 )
 
 type NodeCapabilityCheck struct {
-	keys   []*capabilityv1.CapabilityKey
-	bootID string
+	keys          []*capabilityv1.CapabilityKey
+	bootID        string
+	observedAfter time.Time
 }
 
 type NodeCapabilityCheckResult struct {
@@ -21,12 +22,20 @@ type NodeCapabilityCheckResult struct {
 	Reason string
 }
 
-func NewNodeCapabilityCheck(platforms []string, bootID string) (NodeCapabilityCheck, error) {
+func NewNodeCapabilityCheck(platforms []string, bootID, observedAfter string) (NodeCapabilityCheck, error) {
 	if len(platforms) == 0 {
 		return NodeCapabilityCheck{}, fmt.Errorf("at least one --platform is required")
 	}
 	if err := capabilitycontract.ValidateEvidence(capabilitycontract.BootEvidence(bootID), capabilitycontract.IdentityBoot); err != nil {
 		return NodeCapabilityCheck{}, fmt.Errorf("--boot-id: %w", err)
+	}
+	var lowerBound time.Time
+	if observedAfter != "" {
+		var err error
+		lowerBound, err = time.Parse(time.RFC3339Nano, observedAfter)
+		if err != nil {
+			return NodeCapabilityCheck{}, fmt.Errorf("--observed-after must be an RFC3339 timestamp: %w", err)
+		}
 	}
 	keys := make([]*capabilityv1.CapabilityKey, 0, len(platforms))
 	for _, name := range platforms {
@@ -39,7 +48,7 @@ func NewNodeCapabilityCheck(platforms []string, bootID string) (NodeCapabilityCh
 	if err := capabilitycontract.ValidateRequirementKeys(keys); err != nil {
 		return NodeCapabilityCheck{}, err
 	}
-	return NodeCapabilityCheck{keys: keys, bootID: bootID}, nil
+	return NodeCapabilityCheck{keys: keys, bootID: bootID, observedAfter: lowerBound}, nil
 }
 
 func (c NodeControl) CheckCapabilities(ctx context.Context, nodeID string, check NodeCapabilityCheck) (NodeCapabilityCheckResult, error) {
@@ -70,11 +79,15 @@ func (c NodeCapabilityCheck) evaluate(nodes []*adminv1.AdminNode, snapshot *capa
 	if _, err := capabilitycontract.ResolveRequirements(snapshot, c.keys, now); err != nil {
 		return NodeCapabilityCheckResult{Reason: "node capability evidence is invalid, expired, or unavailable"}
 	}
+	if !c.observedAfter.IsZero() && snapshot.GetCollectedAt().AsTime().Before(c.observedAfter) {
+		return NodeCapabilityCheckResult{Reason: "node capability snapshot was collected before --observed-after"}
+	}
 	// ResolveRequirements owns evidence, expiry, and dependency validation. Bind
-	// every host identity in that same dependency closure to the expected boot.
+	// every host identity in that same dependency closure to the expected boot
+	// and every observation to the optional process-start freshness boundary.
 	visited := make(map[capabilityv1.PlatformCapability]bool)
-	var checkBoot func(*capabilityv1.CapabilityKey) error
-	checkBoot = func(key *capabilityv1.CapabilityKey) error {
+	var checkEvidence func(*capabilityv1.CapabilityKey) error
+	checkEvidence = func(key *capabilityv1.CapabilityKey) error {
 		if visited[key.GetPlatform()] {
 			return nil
 		}
@@ -82,6 +95,9 @@ func (c NodeCapabilityCheck) evaluate(nodes []*adminv1.AdminNode, snapshot *capa
 		observation, available := capabilitycontract.AvailableObservation(snapshot, key, now)
 		if !available {
 			return fmt.Errorf("required capability %s is not available", key.GetPlatform())
+		}
+		if !c.observedAfter.IsZero() && !observation.GetObservedAt().AsTime().After(c.observedAfter) {
+			return fmt.Errorf("required capability %s was not observed after %s", key.GetPlatform(), c.observedAfter.UTC().Format(time.RFC3339Nano))
 		}
 		evidence := observation.GetEvidence()
 		var bootID string
@@ -101,14 +117,14 @@ func (c NodeCapabilityCheck) evaluate(nodes []*adminv1.AdminNode, snapshot *capa
 			return err
 		}
 		for _, dependency := range dependencies {
-			if err := checkBoot(dependency); err != nil {
+			if err := checkEvidence(dependency); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
 	for _, key := range c.keys {
-		if err := checkBoot(key); err != nil {
+		if err := checkEvidence(key); err != nil {
 			return NodeCapabilityCheckResult{Reason: err.Error()}
 		}
 	}

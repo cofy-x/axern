@@ -24,10 +24,13 @@ func (h *sandboxService) initContainerRuntime(ctx context.Context) (chan bool, e
 		return nil, err
 	}
 
-	resourceManagers, err := resourcemanager.NewResourceManager(h.store, h.config)
+	resourceSet, err := resourcemanager.NewResourceManager(h.store, h.config)
 	if err != nil {
 		return nil, err
 	}
+	resourceManagers := resourceSet.Managers
+	h.networkRecovery = resourceSet.Network
+	h.conformanceRecovery = resourceSet.Conformance
 	logrus.Debugf("resource manager init success with config: %v", h.config.PluginConfig.ResourceConfig)
 
 	if err = os.MkdirAll(h.config.RootDir, 0755); err != nil {
@@ -152,7 +155,7 @@ func disabledResourcePools(cfg config.ResourceConfig, cgroupDisabled bool) []res
 func (h *sandboxService) watchContainerReadiness(healthChan <-chan bool) {
 	go func() {
 		for ready := range healthChan {
-			h.ready.Store(ready)
+			h.ready.Store(ready && h.recoveryComplete.Load())
 		}
 	}()
 }
