@@ -23,6 +23,22 @@ SETTINGS = {
 
 
 class InstallerTest(unittest.TestCase):
+    def test_serving_requires_current_boot_enforcement_and_fresh_node_summary(self):
+        nodes = {'nodes': [{'node_id': SETTINGS['node_id'], 'lifecycle_status': 'active',
+                            'heartbeat_fresh': True, 'summary_fresh': True, 'axnoded_ready': True}]}
+        keys = ('NETWORK_BRIDGE', 'DNS_POLICY_ENFORCEMENT', 'STRICT_EGRESS_ENFORCEMENT',
+                'RUNSC_MEMORY_HARD_LIMIT', 'RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT', 'RUNSC_MEMORY_ENFORCEMENT_SELF_TEST')
+        snapshot = {'snapshot': {'observations': [
+            {'key': {'platform': 'PLATFORM_CAPABILITY_' + key}, 'state': 'CAPABILITY_STATE_AVAILABLE',
+             'evidence': {'runtime': {'bootId': 'current'}}} for key in keys]}}
+        self.assertTrue(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'current'))
+        self.assertFalse(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'previous'))
+        nodes['nodes'][0]['summary_fresh'] = False
+        self.assertFalse(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'current'))
+        nodes['nodes'][0]['summary_fresh'] = True
+        snapshot['snapshot']['observations'][3]['state'] = 'CAPABILITY_STATE_UNAVAILABLE'
+        self.assertFalse(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'current'))
+
     def test_rejects_unsafe_or_ambiguous_configuration(self):
         for key, value in (
             ('node_id', 'node\nExecStart=/bin/false'), ('node_id', '../other'),
