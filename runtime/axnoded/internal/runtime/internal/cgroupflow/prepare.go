@@ -16,6 +16,7 @@ var (
 	runtimeCgroupPath         = hostlinux.RuntimeCgroupPath
 	sanitizeResourceForDriver = hostlinux.SanitizeResourceForDriver
 	updateCgroup              = hostlinux.UpdateCgroup
+	verifyCPUControls         = hostlinux.VerifyCgroupCPUControls
 	configureMemoryDomain     = hostlinux.ConfigureCgroupMemoryDomain
 )
 
@@ -78,7 +79,10 @@ func PrepareRuntime(request *apipb.CreateContainerRequest, options contract.Hand
 		result.Request.Resource = prep.SanitizedResource
 	}
 	if err := updateCgroup(prep.RuntimeCgroupPath, prep.SanitizedResource); err != nil {
-		return RuntimePreparation{}, fmt.Errorf("set cgroup resource limits on %s failed: %v", prep.RuntimeCgroupPath, err)
+		return RuntimePreparation{}, fmt.Errorf("set cgroup resource limits on %s failed: %w", prep.RuntimeCgroupPath, err)
+	}
+	if err := verifyCPUControls(prep.RuntimeCgroupPath, request.Resource); err != nil {
+		return RuntimePreparation{}, fmt.Errorf("verify requested CPU controls on %s: %w", prep.RuntimeCgroupPath, err)
 	}
 	if result.Options.MemoryLimitBytes > 0 {
 		if _, err := configureMemoryDomain(options.CgroupPath, prep.RuntimeCgroupPath, result.Options.MemoryLimitBytes); err != nil {

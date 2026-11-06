@@ -31,12 +31,14 @@ func withCgroupRuntimeHooks(t *testing.T, updateErr error) {
 	oldRuntimeCgroupPath := runtimeCgroupPath
 	oldSanitizeResourceForDriver := sanitizeResourceForDriver
 	oldUpdateCgroup := updateCgroup
+	oldVerifyCPUControls := verifyCPUControls
 	oldConfigureMemoryDomain := configureMemoryDomain
 	t.Cleanup(func() {
 		defaultCgroupDriver = oldDefaultCgroupDriver
 		runtimeCgroupPath = oldRuntimeCgroupPath
 		sanitizeResourceForDriver = oldSanitizeResourceForDriver
 		updateCgroup = oldUpdateCgroup
+		verifyCPUControls = oldVerifyCPUControls
 		configureMemoryDomain = oldConfigureMemoryDomain
 	})
 
@@ -52,8 +54,66 @@ func withCgroupRuntimeHooks(t *testing.T, updateErr error) {
 	updateCgroup = func(string, *apipb.LinuxContainerResources) error {
 		return updateErr
 	}
+	verifyCPUControls = func(string, *apipb.LinuxContainerResources) error { return nil }
 	configureMemoryDomain = func(string, string, int64) (*hostlinux.CgroupMemoryDomain, error) {
 		return &hostlinux.CgroupMemoryDomain{}, nil
+	}
+}
+
+func TestPrepareRuntimeCPUOnlyLimitsAreWrittenAndVerified(t *testing.T) {
+	withCgroupRuntimeHooks(t, nil)
+	resource := &apipb.LinuxContainerResources{CpuShares: 1024, CpuQuota: 25000, CpuPeriod: 100000}
+	written := false
+	verified := false
+	updateCgroup = func(path string, got *apipb.LinuxContainerResources) error {
+		if path != "/sandbox/test/workload" || got.GetCpuQuota() != resource.CpuQuota || got.GetCpuPeriod() != resource.CpuPeriod || got.GetCpuShares() != resource.CpuShares {
+			t.Fatalf("CPU write = %s %v", path, got)
+		}
+		written = true
+		return nil
+	}
+	verifyCPUControls = func(path string, got *apipb.LinuxContainerResources) error {
+		if !written || path != "/sandbox/test/workload" || got != resource {
+			t.Fatalf("CPU verification must follow the write and use the original request: written=%t path=%s resource=%v", written, path, got)
+		}
+		verified = true
+		return nil
+	}
+	prepared, err := PrepareRuntime(&apipb.CreateContainerRequest{Resource: resource}, contract.HandlerOptions{CgroupPath: "/sandbox/test"}, RuntimePolicy{})
+	if err != nil || !verified || prepared.Request.Resource.GetMemoryLimitInBytes() != 0 {
+		t.Fatalf("CPU-only preparation: verified=%t error=%v", verified, err)
+	}
+}
+
+func TestPrepareRuntimeCPUReadbackFailureStopsPreparation(t *testing.T) {
+	withCgroupRuntimeHooks(t, nil)
+	resource := &apipb.LinuxContainerResources{CpuQuota: 25000, CpuPeriod: 100000}
+	readbackErr := errors.New("CPU limit is unlimited")
+	verifyCPUControls = func(_ string, got *apipb.LinuxContainerResources) error {
+		if got != resource {
+			t.Fatal("readback did not use the original CPU request")
+		}
+		return readbackErr
+	}
+	if _, err := PrepareRuntime(&apipb.CreateContainerRequest{Resource: resource}, contract.HandlerOptions{CgroupPath: "/sandbox/test"}, RuntimePolicy{}); !errors.Is(err, readbackErr) {
+		t.Fatalf("CPU readback failure was not propagated: %v", err)
+	}
+}
+
+func TestPrepareRuntimeDisabledDevSkipsCPUHostControls(t *testing.T) {
+	withCgroupRuntimeHooks(t, nil)
+	updateCgroup = func(string, *apipb.LinuxContainerResources) error {
+		t.Fatal("disabled_dev wrote host controls")
+		return nil
+	}
+	verifyCPUControls = func(string, *apipb.LinuxContainerResources) error {
+		t.Fatal("disabled_dev verified host controls")
+		return nil
+	}
+	resource := &apipb.LinuxContainerResources{CpuShares: 1024, CpuQuota: 25000, CpuPeriod: 100000}
+	prepared, err := PrepareRuntime(&apipb.CreateContainerRequest{Resource: resource}, contract.HandlerOptions{}, RuntimePolicy{IgnoreCgroups: true})
+	if err != nil || prepared.Request.GetResource() != resource {
+		t.Fatalf("disabled_dev CPU compatibility changed: %v", err)
 	}
 }
 

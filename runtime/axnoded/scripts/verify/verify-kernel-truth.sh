@@ -15,6 +15,7 @@ trap 'rm -rf -- "${test_dir}"' EXIT
 cd "${ROOT_DIR}"
 GOOS=linux GOARCH="${arch}" CGO_ENABLED=0 "${GO:-go}" test -c -tags=kerneltruth -o "${test_dir}/resources.test" ./internal/resources
 GOOS=linux GOARCH="${arch}" CGO_ENABLED=0 "${GO:-go}" test -c -tags=kerneltruth -o "${test_dir}/image.test" ./axctl/commands/image
+GOOS=linux GOARCH="${arch}" CGO_ENABLED=0 "${GO:-go}" test -c -tags=kerneltruth -o "${test_dir}/hostlinux.test" ./internal/hostlinux
 
 # Private cgroup namespace: the driver can evacuate/enable controllers only
 # inside this disposable container. An anonymous disk volume avoids tmpfs and
@@ -25,5 +26,6 @@ docker run --rm --privileged --cgroupns=private --platform "${platform}" \
   --env TMPDIR=/truth-data --entrypoint /bin/sh "${BASE_IMAGE}" -ec '
     /tests/resources.test -test.v -test.timeout=30s -test.run="^TestKillCgroupProcesses$"
     /tests/image.test -test.v -test.timeout=30s -test.run="^TestDropMountedFilePageCacheEvictsRegularFile$"
+    /tests/hostlinux.test -test.v -test.timeout=30s -test.run="^TestCgroupCPUControlsKernelTruth$"
   '
 echo "kernel_truth_ok=true"

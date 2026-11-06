@@ -282,15 +282,8 @@ func SanitizeResourceForDriver(driver os2.CgroupDriver, cgroupPath string, resou
 
 	sanitized := cloneResource(resource)
 	resourceDir := resourceDirForCgroupPath(cgroupPath)
-	if hasCPUResource(sanitized) {
-		if _, err := os.Stat(filepath.Join(resourceDir, "cpu.weight")); err != nil {
-			sanitized.CpuShares = 0
-			sanitized.CpuQuota = 0
-			sanitized.CpuPeriod = 0
-			sanitized.CpusetCpus = ""
-			sanitized.CpusetMems = ""
-		}
-	}
+	// Required CPU controls must reach the writer unchanged. Missing delegated
+	// controllers are errors, not permission to discard an admitted CPU limit.
 	if hasMemoryResource(sanitized) {
 		if _, err := os.Stat(filepath.Join(resourceDir, "memory.max")); err != nil {
 			sanitized.MemoryLimitInBytes = 0
