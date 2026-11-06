@@ -4,7 +4,9 @@ The native installer provisions one experimental Axern installation on a dedicat
 
 ## Host Prerequisites
 
-Use a native amd64 or arm64 host matching the archive, systemd, cgroup v2, ext4 or XFS storage with a stable filesystem UUID, and enabled IPv4 forwarding. The installer requires an unused sandbox address range, unused service ports and exclusive ownership of `sandbox0`. It never formats disks or changes forwarding configuration. Kernel/runtime capability checks must pass before the node becomes ready; there is no development enforcement bypass.
+Use a native amd64 or arm64 host matching the archive, systemd, cgroup v2, and enabled IPv4 forwarding. Before installation, provision an empty, dedicated ext4 or XFS filesystem with a stable UUID at `/var/lib/axern`, and configure its persistent mount through the host's normal storage management. The installer accepts ext4's `lost+found` but no existing installation data. This mount contains PostgreSQL, node/image state and the runtime's `runsc`/`projections` partitions; the storage reserve applies to their shared capacity. An ordinary directory on the system filesystem does not satisfy the runtime storage contract.
+
+The installer requires an unused sandbox address range, unused service ports and exclusive ownership of `sandbox0`. It never formats disks or changes forwarding configuration. Kernel/runtime capability checks must pass before the node becomes ready; there is no development enforcement bypass.
 
 Install the host packages using the operating system package manager:
 

@@ -43,6 +43,7 @@ class InstallerTest(unittest.TestCase):
         value = tomllib.loads(installer.node_config(installer.validate_settings(SETTINGS)))
         self.assertEqual(value['plugin']['runtime']['cgroup_enforcement'], 'required')
         self.assertEqual(value['plugin']['runtime']['filestore_mode'], 'existing')
+        self.assertEqual(value['plugin']['runtime']['filestore_dir'], str(installer.DATA))
         self.assertEqual(value['plugin']['resource']['memory_system_reserve_bytes'], 1024**3)
         self.assertEqual(value['plugin']['runtime']['dns']['nameservers'], ['10.0.2.3'])
 

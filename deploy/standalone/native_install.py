@@ -147,7 +147,7 @@ def unit_name(service: str) -> str:
 def data_identity() -> dict:
     if DATA.is_symlink() or not DATA.is_dir():
         raise InstallError('owned data directory is missing or replaced')
-    uuid = subprocess.check_output(['findmnt', '-no', 'UUID', '-T', str(DATA)], text=True).strip()
+    uuid = subprocess.check_output(['findmnt', '-no', 'UUID', '--mountpoint', str(DATA)], text=True).strip()
     if not uuid:
         raise InstallError('data filesystem must have a stable UUID')
     return {'filesystem_uuid': uuid, 'directory_inode': DATA.stat().st_ino}
@@ -242,7 +242,7 @@ image_manager_socket = "/run/axern-native-imagemgr/imagemgr.sock"
 egress_manager_socket = "/run/axern-native-egressd/egressd.sock"
 cgroup_enforcement = "required"
 filestore_mode = "existing"
-filestore_dir = "{DATA}/filestore"
+filestore_dir = "{DATA}"
 filestore_system_reserve_bytes = {settings['storage_reserve_bytes']}
 ephemeral_storage_default_limit_bytes = 268435456
 [plugin.runtime.dns]
@@ -268,7 +268,10 @@ def preflight(settings: dict, first_install: bool) -> None:
             raise InstallError('PostgreSQL 16 server/client tools are required')
     if pathlib.Path('/proc/sys/net/ipv4/ip_forward').read_text().strip() != '1':
         raise InstallError('enable IPv4 forwarding on this dedicated host before installation')
-    fs = subprocess.check_output(['findmnt', '-no', 'FSTYPE', '-T', str(DATA if DATA.exists() else DATA.parent)], text=True).strip()
+    mount = subprocess.run(['findmnt', '-no', 'FSTYPE', '--mountpoint', str(DATA)], capture_output=True, text=True)
+    if mount.returncode != 0:
+        raise InstallError(f'mount the dedicated data filesystem at {DATA} before installation')
+    fs = mount.stdout.strip()
     if fs not in ('ext4', 'xfs'):
         raise InstallError('the data path must be on ext4 or XFS')
     if first_install:
@@ -372,7 +375,8 @@ def install(settings: dict) -> None:
     preflight(settings, first)
     if first:
         for directory in (ETC, DATA):
-            if directory.exists() and (directory.is_symlink() or any(directory.iterdir())):
+            if directory.exists() and (directory.is_symlink() or any(
+                    entry.name != 'lost+found' or directory != DATA for entry in directory.iterdir())):
                 raise InstallError(f'refusing to adopt existing data/configuration: {directory}')
         for name in (*[unit_name(service) for service in SERVICES], TARGET, 'axern.slice'):
             if (UNITS / name).exists() or (UNITS / name).is_symlink():
@@ -411,7 +415,7 @@ def install(settings: dict) -> None:
             run('useradd', '--system', '--user-group', '--home-dir', '/nonexistent', '--shell', '/usr/sbin/nologin', account)
     for directory in ('private', 'credentials'):
         safe_directory(ETC / directory, 0o700 if directory == 'private' else 0o755)
-    for directory in ('axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd', 'filestore'):
+    for directory in ('axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd'):
         safe_directory(DATA / directory)
     owned_data_directory(DATA / 'imagemgr/chunk_db', 'axern-imagefsd')
     secret_path = ETC / 'private/secrets.json'
