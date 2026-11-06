@@ -6,7 +6,7 @@ The installation uses the existing `Environment -> Run -> Allocation` lifecycle,
 
 ## Build
 
-Build natively on Ubuntu 24.04, on amd64 or arm64, from a clean committed checkout. Cross-compilation and other build distributions are rejected by the initial profile. Use the repository's Go version and Rust toolchain with the locked dependencies; Rust's native dependencies require a C/C++ compiler, CMake, pkg-config, OpenSSL development headers and protoc. Dependencies and generated protobuf prerequisites follow the existing repository bootstrap and module build instructions.
+Build natively on Ubuntu 24.04, on amd64 or arm64, from a clean committed checkout. Cross-compilation and other build distributions are rejected by the initial profile. Use the repository's Go version with locked dependencies. Generated protobuf prerequisites follow the existing repository bootstrap and module build instructions. The native payload uses OCI-only imagemgr and does not build or package Rust/imagefsd.
 
 Obtain the full `gvisor.tar.bz2` archive selected by [gvisor.lock](../../runtime/axnoded/gvisor.lock). The upstream URL is `https://storage.googleapis.com/gvisor/releases/release/<AXERN_GVISOR_RELEASE>/<x86_64-or-aarch64>/gvisor.tar.bz2`. The builder checks the architecture-specific SHA-512 before compiling and retains the complete archive without unpacking or executing it.
 
@@ -15,7 +15,7 @@ make native-runtime-check
 make native-runtime-build GVISOR_ARCHIVE=/absolute/path/to/gvisor.tar.bz2
 ```
 
-The builder compiles the Go service entrypoints and the locked Rust `imagefsd` package. It uses temporary staging, keeps the Rust build cache under `target/native-runtime`, and publishes to `dist/native-runtime/axern-runtime_<version>_linux_<arch>.tar.gz` only after verification. It refuses to replace an existing output and does not remove another build's artifacts. To compare multiple builds, use a new output directory:
+The builder compiles the Go service entrypoints, uses temporary staging, and publishes to `dist/native-runtime/axern-runtime_<version>_linux_<arch>.tar.gz` only after verification. It refuses to replace an existing output and does not remove another build's artifacts. To compare multiple builds, use a new output directory:
 
 ```bash
 python3 scripts/release/native_runtime.py build \
@@ -31,15 +31,15 @@ The final JSON receipt reports the archive path and SHA-256. Build output goes t
 
 | Payload | Purpose |
 | --- | --- |
-| `bin/` | CLI, control/migration/access-bootstrap/retention, gateway, node, image manager/filesystem, egress, tunnel and diagnostic binaries |
+| `bin/` | CLI, control/migration/access-bootstrap/retention, gateway, node, OCI image manager, egress, tunnel and diagnostic binaries |
 | `libexec/axnoded/` | Sandbox supervisor, egress/DNS probes and sandbox tunnel agent |
 | `libexec/axern/` | Native installer and payload verification/staging tool |
 | `runtime/gvisor.tar.bz2` and `share/axern/gvisor.lock` | Full pinned upstream runtime, including its helper directory; the installer must preserve its layout |
 | `share/axern/runtime-selftest/memory-hog` and `share/axern/erofs-root/` | Axern-owned capability fixture inputs for installer assembly |
-| `share/axern/nydus_registry.json.example` and `share/axern/registry_auths.json` | Existing image-backend template and an empty credential map |
+| `share/axern/registry_auths.json` | Empty OCI registry credential map |
 | `requirements.json`, `LICENSE`, `NOTICE` | Candidate host requirements and Axern license notices |
 
-PostgreSQL, Python, system libraries, Linux utilities and BusyBox are host prerequisites, not bundled executables. The installer assembles the capability rootfs using host `busybox-static` and the bundled memory-hog, and generates the EROFS fixture from its source directory. This avoids copying arbitrary host binaries into the release payload. Imagefsd is included because imagemgr requires it even on ordinary OCI paths.
+PostgreSQL, Python, system libraries, Linux utilities and BusyBox are host prerequisites, not bundled executables. The installer assembles the capability rootfs using host `busybox-static` and the bundled memory-hog, and generates the EROFS fixture from its source directory. This avoids copying arbitrary host binaries into the release payload. Imagemgr starts with `-enable_nydus=false`; Nydus images are rejected and no imagefsd service, template or binary is required.
 
 The payload contains no node identity, TLS/private keys, database, registry credentials or mutable workspace. The fixed inventory rejects additional files rather than recursively archiving a developer's directory. The installer generates host-specific configuration and systemd units; staging files alone does not start services.
 

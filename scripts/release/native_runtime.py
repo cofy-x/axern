@@ -57,11 +57,10 @@ SOURCE_FILES = {
     "LICENSE": "LICENSE",
     "NOTICE": "NOTICE",
     "share/axern/gvisor.lock": "runtime/axnoded/gvisor.lock",
-    "share/axern/nydus_registry.json.example": "runtime/imagemgr/configs/nydus_registry.json.example",
     "share/axern/erofs-root/hello.txt": "deploy/images/fixtures/erofs-root/hello.txt",
     "share/axern/erofs-root/etc/runtime-fixture": "deploy/images/fixtures/erofs-root/etc/runtime-fixture",
 }
-EXECUTABLES = set(GO_BINARIES) | {"bin/imagefsd"}
+EXECUTABLES = set(GO_BINARIES)
 PAYLOAD_PATHS = EXECUTABLES | set(SOURCE_FILES) | {
     "runtime/gvisor.tar.bz2", "share/axern/registry_auths.json", "requirements.json",
 }
@@ -69,8 +68,8 @@ REQUIREMENTS = {
     "profile": "ubuntu-24.04-candidate",
     "qualification": "experimental native installation; platform acceptance is revision-specific",
     "external_packages": [
-        "postgresql-16", "ca-certificates", "libc6", "libgcc-s1", "libssl3t64",
-        "busybox-static", "erofs-utils", "fuse3", "iproute2", "iptables",
+        "postgresql-16", "ca-certificates", "libc6", "libgcc-s1",
+        "busybox-static", "erofs-utils", "iproute2", "iptables",
         "nftables", "kmod", "util-linux", "e2fsprogs", "xfsprogs", "python3", "curl",
     ],
     "host_capabilities": ["systemd", "cgroup-v2-delegation", "runsc-systrap", "mount-and-network-enforcement"],
@@ -343,9 +342,6 @@ def build(root: pathlib.Path, output_dir: pathlib.Path, gvisor_archive: pathlib.
                 "-ldflags", f"-s -w -X github.com/cofy-x/axern/sdk/go.version={version}",
                 "-o", str(stage / name), package,
             ], cwd=root, env=env, check=True)
-        subprocess.run(["cargo", "build", "--release", "--locked", "-p", "imagefsd",
-                        "--target-dir", str(root / "target/native-runtime")], cwd=root, check=True)
-        shutil.copyfile(root / "target/native-runtime/release/imagefsd", stage / "bin/imagefsd")
         for name, source in SOURCE_FILES.items():
             shutil.copyfile(root / source, stage / name)
         shutil.copyfile(gvisor_archive, stage / "runtime/gvisor.tar.bz2")

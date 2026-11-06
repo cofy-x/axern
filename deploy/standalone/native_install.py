@@ -30,9 +30,9 @@ OPT = pathlib.Path('/opt/axern')
 UNITS = pathlib.Path('/etc/systemd/system')
 PG = pathlib.Path('/usr/lib/postgresql/16/bin')
 TARGET = 'axern-native.target'
-SERVICES = ('postgres', 'bootstrap', 'controld', 'retention', 'tunneld', 'imagefsd', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd')
-USERS = ('postgres', 'control', 'retention', 'tunnel', 'imagefsd', 'gateway')
-PORTS = (25432, 24000, 24001, 24002, 24100, 24010, 23001, 25000, 25080, 9876)
+SERVICES = ('postgres', 'bootstrap', 'controld', 'retention', 'tunneld', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd')
+USERS = ('postgres', 'control', 'retention', 'tunnel', 'gateway')
+PORTS = (25432, 24000, 24001, 24002, 24100, 24010, 23001, 25000, 25080)
 SETTINGS = {'node_id', 'memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'sandbox_cidr', 'dns_nameservers', 'max_instances'}
 
 
@@ -184,8 +184,7 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
         'controld': ('control', ['bootstrap'], [binary('controld'), '-grpc-address', '127.0.0.1:24000', '-http-address', '127.0.0.1:24001', '-enrollment-address', '127.0.0.1:24002', '-workload-signer-bundle', credential('control', 'signer.pem'), '-tunnel-relays', 'default,127.0.0.1:25000,127.0.0.1:24100,1,false'] + tls('control')),
         'retention': ('retention', ['bootstrap'], [binary('controld-retention')]),
         'tunneld': ('tunnel', ['controld'], [binary('tunneld'), '-listen', '127.0.0.1:24100', '-control-target', '127.0.0.1:24000', '-relay-tls-cert', credential('tunnel', 'bundle.pem'), '-relay-tls-key', credential('tunnel', 'bundle.pem')] + tls('tunnel')),
-        'imagefsd': ('imagefsd', [], [binary('imagefsd'), 'serve-chunk', '--chunk-db-dir', str(DATA / 'imagemgr/chunk_db'), '--listen-address', '127.0.0.1', '--listen-port', '9876', '--chunk-server-sock', str(DATA / 'imagemgr/chunk_db/chunkserver.sock'), '--log-file', str(DATA / 'imagemgr/chunk_db/server.log')]),
-        'imagemgr': (None, ['imagefsd'], [binary('imagemgr'), '-root', str(DATA / 'imagemgr'), '-node_id', settings['node_id'], '-imagefsd_bin', binary('imagefsd'), '-nydus_template', str(root / 'share/axern/nydus_registry.json.example'), '-registry_auths_path', str(root / 'share/axern/registry_auths.json'), '-http_sock', '/run/axern-native-imagemgr/imagemgr.sock']),
+        'imagemgr': (None, [], [binary('imagemgr'), '-root', str(DATA / 'imagemgr'), '-node_id', settings['node_id'], '-enable_nydus=false', '-registry_auths_path', str(root / 'share/axern/registry_auths.json'), '-http_sock', '/run/axern-native-imagemgr/imagemgr.sock']),
         'egressd': (None, [], [binary('egressd'), '-root', str(DATA / 'egressd'), '-socket', '/run/axern-native-egressd/egressd.sock']),
         'axnoded': (None, ['controld', 'imagemgr', 'egressd'], [binary('axnoded'), '-root', str(DATA / 'axnoded'), '-config', str(ETC / 'node.toml'), '-enrollment-token-file', str(ETC / 'private/enrollment-token'), '-socket', '/run/axern-native-axnoded/axnoded.sock', '-tunnel-socket', '/run/axern-native-axnoded/tunnel.sock', '-grpc-address', '127.0.0.1:24010', '-http-address', '127.0.0.1:23001', '-log-file', str(DATA / 'axnoded/axnoded.log')]),
         'node-tunneld': (None, ['axnoded', 'tunneld'], [binary('node-tunneld'), '-node-id', settings['node_id'], '-control-target', '127.0.0.1:24000', '-tunnel-socket', '/run/axern-native-axnoded/tunnel.sock', '-tls-ca-cert', str(ETC / 'ca.crt'), '-identity-bundle', str(DATA / 'axnoded/root/identity/node.pem'), '-workload-cluster', 'axern.local', '-relay-tls-ca-cert', str(ETC / 'ca.crt'), '-runsc-binary', str(OPT / 'gvisor/runsc'), '-runsc-root', str(DATA / 'axnoded/root/runsc'), '-agent-binary', str(root / 'libexec/axnoded/tunnel-agent')]),
@@ -207,7 +206,7 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
             lines += [f'EnvironmentFile={credential(user, "environment") }']
         if name == 'postgres':
             lines += ['KillSignal=SIGINT', 'ExecStartPost=' + command(helper + ['internal-ready', 'postgres'])]
-        if name in ('imagefsd', 'imagemgr', 'egressd', 'axnoded'):
+        if name in ('imagemgr', 'egressd', 'axnoded'):
             lines += ['ExecStartPost=' + command(helper + ['internal-ready', name])]
         if name == 'axnoded':
             lines += ['Delegate=yes', 'KillMode=mixed', f'Environment=AXERN_SANDBOXD_BINARY={root}/libexec/axnoded/axern-sandboxd', f'Environment=AXERN_EROFS_FIXTURE={DATA}/fixtures/minimal.erofs']
@@ -420,7 +419,6 @@ def install(settings: dict) -> None:
         safe_directory(ETC / directory, 0o700 if directory == 'private' else 0o755)
     for directory in ('axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd'):
         safe_directory(DATA / directory)
-    owned_data_directory(DATA / 'imagemgr/chunk_db', 'axern-imagefsd')
     secret_path = ETC / 'private/secrets.json'
     if not secret_path.exists():
         if (ETC / 'installed').exists():
@@ -475,7 +473,6 @@ def database_bootstrap() -> None:
 def wait_ready(service: str) -> None:
     checks = {
         'postgres': [str(PG / 'pg_isready'), '-h', '127.0.0.1', '-p', '25432'],
-        'imagefsd': [str(ROOT / 'bin/imagefsd'), 'stats-locality', '--chunk-db-dir', str(DATA / 'imagemgr/chunk_db'), '--chunk-server-sock', str(DATA / 'imagemgr/chunk_db/chunkserver.sock')],
         'imagemgr': ['curl', '--fail', '--silent', '--max-time', '2', '--unix-socket', '/run/axern-native-imagemgr/imagemgr.sock', 'http://unix/inventory'],
         'egressd': [str(ROOT / 'bin/egressdctl'), '-socket', '/run/axern-native-egressd/egressd.sock', 'health'],
         'axnoded': ['curl', '--fail', '--silent', '--max-time', '2', 'http://127.0.0.1:23001/readyz'],

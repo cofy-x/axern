@@ -81,14 +81,15 @@ class InstallerTest(unittest.TestCase):
         self.assertIn('MemoryMax=3221225472', units[installer.unit_name('axnoded')])
         self.assertIn('Slice=axern-services.slice', gateway)
         self.assertIn('MemoryMax=1073741824', units['axern-services.slice'])
-        self.assertIn('"--listen-address" "127.0.0.1"', units[installer.unit_name('imagefsd')])
+        self.assertNotIn(installer.unit_name('imagefsd'), units)
+        self.assertIn('"-enable_nydus=false"', units[installer.unit_name('imagemgr')])
 
     @unittest.skipUnless(shutil.which('systemd-analyze'), 'systemd parser is unavailable')
     def test_systemd_accepts_generated_units_without_starting_services(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             (root / 'bin').mkdir()
-            for binary in ('postgres', 'controld', 'controld-retention', 'tunneld', 'imagefsd', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd'):
+            for binary in ('postgres', 'controld', 'controld-retention', 'tunneld', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd'):
                 (root / 'bin' / binary).symlink_to('/bin/true')
             with mock.patch.object(installer, 'PG', root / 'bin'):
                 units = installer.service_units(root, SETTINGS)

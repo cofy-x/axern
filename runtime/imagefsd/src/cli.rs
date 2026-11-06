@@ -109,8 +109,6 @@ struct ServeChunkOptions {
     log_file: String,
     #[arg(long)]
     chunk_db_dir: String,
-    #[arg(long, default_value = "0.0.0.0")]
-    listen_address: std::net::IpAddr,
     #[arg(long, default_value_t = 9876)]
     listen_port: u16,
     #[arg(long, default_value = "")]

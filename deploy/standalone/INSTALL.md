@@ -11,10 +11,10 @@ The installer requires an unused sandbox address range, unused service ports and
 Install the host packages using the operating system package manager:
 
 ```bash
-sudo apt-get install postgresql-16 python3 curl ca-certificates busybox-static erofs-utils fuse3 iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
+sudo apt-get install postgresql-16 python3 curl ca-certificates busybox-static erofs-utils iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
 ```
 
-Existing PostgreSQL clusters are not adopted or modified. Axern initializes its own cluster on loopback port `25432` with generated credentials. Internal service ports are `24000`, `24001`, `24002`, `24100`, `24010`, `23001` and `9876`; the authenticated gateway uses `25000`, and its health listener uses `25080`. These service listeners bind to loopback. Egress enforcement separately owns node-local listeners that receive sandbox traffic.
+Existing PostgreSQL clusters are not adopted or modified. Axern initializes its own cluster on loopback port `25432` with generated credentials. Internal service ports are `24000`, `24001`, `24002`, `24100`, `24010` and `23001`; the authenticated gateway uses `25000`, and its health listener uses `25080`. These service listeners bind to loopback. Egress enforcement separately owns node-local listeners that receive sandbox traffic. Imagemgr runs in OCI-only mode without Nydus/imagefsd or a chunk server.
 
 ## Stage And Install
 
