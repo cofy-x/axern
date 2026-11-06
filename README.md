@@ -18,7 +18,7 @@ Axern is an open-source, self-hosted execution platform for AI agents. It isolat
 
 The product direction is **single-host-first infrastructure for personal agent systems**: simpler Linux deployment, long-running sandbox services, and persistent Workspaces that multiple agents can use through explicit access and ownership. Agent planning, collaboration, and workflows remain in caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
 
-> **Project status:** Axern is pre-1.0 and under active development. The dedicated single-host serving deployment and persistent Workspace resource are planned, not implemented. Today's local path is a Docker Compose development stack; writable storage is Allocation-local, and sealed outputs expire after 15 minutes. Review the current deployment and storage boundaries before use.
+> **Project status:** Axern is pre-1.0 and under active development. The dedicated single-host serving deployment and persistent Workspace resource are planned, not implemented. Today's local path is a Docker Compose development stack; writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
 
 The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade over that chain, not a second execution lifecycle.
 
@@ -97,7 +97,7 @@ flowchart LR
     Node --> Runtime["runsc sandboxes"]
 ```
 
-`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before their 15-minute expiry. A successful finite Run may separately publish its complete writable rootfs as a content-addressed OCI image and ordinary reusable Environment. Neither path creates a persistent workspace or generic object store. See the [storage architecture](./docs/architecture/storage-architecture.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
+`gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane traffic; `controld` and PostgreSQL remain authoritative for product state, while node services own host-local execution, images, networking, and Allocation-local writable storage. A Run can declare a bounded set of files or tar archives for node-local sealing before runtime cleanup; callers download and durably publish those bytes before the reported output expiry, which is 15 minutes after cleanup begins. A successful finite Run may separately publish its complete writable rootfs as a content-addressed OCI image and ordinary reusable Environment. Neither path creates a persistent workspace or generic object store. See the [storage architecture](./docs/architecture/storage-architecture.md), [runtime architecture](./docs/architecture/runtime-architecture.md), and [resource model](./docs/architecture/resource-model.md).
 
 Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/README.md). Shared wire contracts are defined in [`sdk/proto`](./sdk/proto/README.md).
 

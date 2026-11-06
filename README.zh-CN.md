@@ -18,7 +18,7 @@ Axern 是一个面向 AI agent 的开源、自托管执行平台。它用 gVisor
 
 产品方向是**以单机为先的个人 Agent 系统基础设施**：简化 Linux 部署，支持长期运行的沙箱服务，以及通过明确访问权限和所有权供多个 agent 使用的持久 Workspace。Agent 的规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。专门的单机 serving 部署和持久 Workspace 资源尚在计划中，未实现。当前本地路径是 Docker Compose 开发栈；可写存储属于 Allocation，封存输出在 15 分钟后过期。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。专门的单机 serving 部署和持久 Workspace 资源尚在计划中，未实现。当前本地路径是 Docker Compose 开发栈；可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
@@ -99,7 +99,7 @@ flowchart LR
     Node --> Runtime["runsc 沙箱"]
 ```
 
-`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在 15 分钟过期时间内下载并持久发布这些字节。成功的有限 Run 还可以独立地把完整可写 rootfs 发布为内容寻址 OCI 镜像和普通可复用 Environment。两条路径都不会创建持久 Workspace 或通用对象存储。详细契约见[存储架构](./docs/architecture/storage-architecture.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
+`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在返回的输出过期时间前下载并持久发布这些字节，该截止时间为清理开始 15 分钟后。成功的有限 Run 还可以独立地把完整可写 rootfs 发布为内容寻址 OCI 镜像和普通可复用 Environment。两条路径都不会创建持久 Workspace 或通用对象存储。详细契约见[存储架构](./docs/architecture/storage-architecture.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
 
 公共客户端提供 Go、Python 和 TypeScript 版本，位于 [`sdk/`](./sdk/README.md)。共享的传输契约定义在 [`sdk/proto`](./sdk/proto/README.md)。
 

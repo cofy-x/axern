@@ -265,7 +265,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
         <span class="ax-workload-index">04 / 04</span>
       </div>
       <h3>{zh ? '交付声明输出' : 'Deliver declared outputs'}</h3>
-      <p>{zh ? '在 Run 中声明有限输出，在 runtime 清理前封存，并在 15 分钟内下载保存。' : 'Declare bounded Run outputs, seal them before runtime cleanup, and download them within 15 minutes for retention.'}</p>
+      <p>{zh ? '在 Run 中声明有限输出，在 runtime 清理前封存，并在输出截止时间前下载保存：清理开始后 15 分钟即过期。' : 'Declare bounded Run outputs, seal them before runtime cleanup, and download them before the output deadline: 15 minutes after cleanup begins.'}</p>
       <a href={`${base}/guides/run/`}>{zh ? '查看 Run 合同' : 'Read the Run contract'}</a>
     </article>
   </div>
@@ -290,7 +290,7 @@ axern run python:3.12-slim -- python -c 'print(42)'`,
     <span class="ax-maturity__badge">PRE-1.0</span>
     <strong>{zh ? '当前适合评估与贡献' : 'Ready for evaluation and contribution'}</strong>
   </div>
-  <p>{zh ? '专门的单机 serving 部署和持久 Workspace 尚未实现。当前本地路径是 Compose 开发栈，可写存储属于 Allocation，封存输出在 15 分钟后过期。' : 'Dedicated single-host serving and persistent Workspaces are not implemented yet. The local path is a Compose development stack; writable storage is Allocation-local, and sealed outputs expire after 15 minutes.'}</p>
+  <p>{zh ? '专门的单机 serving 部署和持久 Workspace 尚未实现。当前本地路径是 Compose 开发栈，可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。' : 'Dedicated single-host serving and persistent Workspaces are not implemented yet. The local path is a Compose development stack; writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins.'}</p>
 </aside>
 
 <script>
