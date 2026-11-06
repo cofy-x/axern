@@ -94,6 +94,9 @@ type SandboxRuntime interface {
 	// and workloads. Configuration changes require a new handler.
 	ConfigurationDigest() (string, error)
 	AllocationEnforcementManifestProvider
+	// VerifyAllocationTaskLimits audits the immutable node-owned task policy
+	// before recovering a live Allocation; it never rewrites live controls.
+	VerifyAllocationTaskLimits(context.Context, string, *apipb.AllocationEnforcementManifest) error
 	HostRequirements() HostRequirements
 	Version(context.Context) (*apipb.RuntimeVersion, error)
 	DeleteContainer(context.Context, *apipb.DeleteContainerRequest, HandlerOptions) (*apipb.DeleteContainerResponse, error)

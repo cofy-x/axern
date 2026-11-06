@@ -33,6 +33,9 @@ func (b specBuilder) withProfile(profile ExecutionProfile) specBuilder {
 }
 
 func (b specBuilder) build(base *spec.Spec, options buildOptions) (*spec.Spec, error) {
+	if err := b.profile.validate(); err != nil {
+		return nil, err
+	}
 	ociSpec := deepCopySpec(base)
 	if err := b.applyRequestToSpec(ociSpec, options); err != nil {
 		return ociSpec, err
@@ -58,6 +61,9 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 	applyHostname(ociSpec, request, options.containerID)
 	b.profile.Baseline.apply(ociSpec)
 	applyNetworkNamespace(ociSpec, options.networkNamespacePath)
+	if err := b.profile.applyTaskLimits(ociSpec); err != nil {
+		return err
+	}
 
 	if options.overrideRootPath != "" && ociSpec.Root != nil {
 		ociSpec.Root.Path = options.overrideRootPath

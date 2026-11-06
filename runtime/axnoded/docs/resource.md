@@ -58,6 +58,16 @@ With required cgroup enforcement, requested CPU quota, period and shares are nev
 
 These CPU checks fence creation; they do not add a continuous CPU capability audit or revalidate already-running Allocations during recovery. Recovery retains the admitted resource specification and existing kernel cgroups, and rolls back a runtime still in `created` state through the normal failed-start path.
 
+## Task Ceilings
+
+The optional paired node policy `guest_task_limit` / `host_task_limit` applies to every new Allocation, including internal runtime-conformance Allocations. It is not a public resource request or a namespace quota. Both values are zero in existing deployment profiles; the native serving profile enables guest `256` and host `1024`. Enabling the pair requires cgroup-v2 enforcement and positive values from `64` through `65536`.
+
+The host boundary counts Linux tasks, including Sentry and gofer threads. Axnoded sets `pids.max` on the Allocation parent and its workload leaf, reads back both controls before and after runsc create, and verifies Sentry/gofer attribution. The parent ceiling covers the entire Allocation subtree. An unavailable controller, wrong limit or missing attribution prevents workload activation.
+
+The guest boundary counts gVisor tasks, including processes and threads regardless of UID. Runsc uses its in-sandbox cgroup-v2 hierarchy with a private cgroup namespace and a read-only guest cgroup mount. After OCI start, Axnoded uses runsc's host-side control channel to close descendant delegation with `cgroup.max.depth=0` and `cgroup.max.descendants=0`, verifies no descendant cgroups and a bounded task count, then sets and reads back `pids.max`. Sandboxd PID 1 independently waits for the exact protected guest controls before opening any API listener or starting caller code. Guest cgroup subdelegation is intentionally unavailable in this profile. Runtime command or readback failures retain the existing ordered failed-start cleanup path.
+
+The effective pair is recorded in the immutable `AllocationEnforcementManifest` before OCI start. Node restart verifies running Allocations against those persisted values and the exact runtime manifest, host controls, Sentry/gofer attribution and guest controls before restoring image leases or advertising capacity. Recovery never rewrites a live limit to match changed node configuration. A previously protected Allocation remains verified against its original limits even if the node policy changes or is disabled. Enabling the policy refuses existing live Allocations whose manifests have no task limits; drain and recreate those Allocations first. Runtimes still in `created` state follow existing interrupted-start cleanup, while an unreadable or inconsistent running task boundary prevents node startup for operator inspection. These fences do not introduce a continuous task-limit audit or a CPU recovery audit.
+
 ## Cgroup Boundary
 
 The Allocation parent is the memory safety boundary; the runtime-created workload leaf is the OCI attribution boundary. Axnoded verifies controls, identity, and PID membership but does not install a second authoritative limit at the leaf.

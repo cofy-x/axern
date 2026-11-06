@@ -10,6 +10,9 @@ import (
 )
 
 func (*runtimeSpyHandler) ConfigurationDigest() (string, error) { return "test-runtime", nil }
+func (*runtimeSpyHandler) VerifyAllocationTaskLimits(context.Context, string, *apipb.AllocationEnforcementManifest) error {
+	return nil
+}
 
 type runtimeSpyHandler struct {
 	name               string

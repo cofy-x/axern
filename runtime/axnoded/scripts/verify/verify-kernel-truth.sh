@@ -27,5 +27,6 @@ docker run --rm --privileged --cgroupns=private --platform "${platform}" \
     /tests/resources.test -test.v -test.timeout=30s -test.run="^TestKillCgroupProcesses$"
     /tests/image.test -test.v -test.timeout=30s -test.run="^TestDropMountedFilePageCacheEvictsRegularFile$"
     /tests/hostlinux.test -test.v -test.timeout=30s -test.run="^TestCgroupCPUControlsKernelTruth$"
+    /tests/hostlinux.test -test.v -test.timeout=60s -test.run="^TestCgroupPIDDomainKernelTruth$"
   '
 echo "kernel_truth_ok=true"

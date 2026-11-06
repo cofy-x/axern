@@ -34,6 +34,10 @@ SERVICES = ('postgres', 'bootstrap', 'controld', 'retention', 'tunneld', 'imagem
 USERS = ('postgres', 'control', 'retention', 'tunnel', 'gateway')
 PORTS = (25432, 24000, 24001, 24002, 24100, 24010, 23001, 25000, 25080)
 SETTINGS = {'node_id', 'memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'sandbox_cidr', 'dns_nameservers', 'max_instances'}
+GUEST_TASK_LIMIT = 256
+HOST_TASK_LIMIT = 1024
+NODE_TASK_RESERVE = 512
+SERVICE_TASK_BUDGET = 1024
 
 
 class InstallError(ValueError):
@@ -168,6 +172,7 @@ def command(args: list[str]) -> str:
 
 
 def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
+    node_task_budget = settings['max_instances'] * HOST_TASK_LIMIT + NODE_TASK_RESERVE
     def binary(name):
         return str(root / 'bin' / name)
 
@@ -210,11 +215,11 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
             lines += ['ExecStartPost=' + command(helper + ['internal-ready', name])]
         if name == 'axnoded':
             lines += ['Delegate=yes', 'KillMode=mixed', f'Environment=AXERN_SANDBOXD_BINARY={root}/libexec/axnoded/axern-sandboxd', f'Environment=AXERN_EROFS_FIXTURE={DATA}/fixtures/minimal.erofs']
-            lines += [f'MemoryMax={settings["memory_budget_bytes"] - settings["service_memory_budget_bytes"]}']
+            lines += [f'MemoryMax={settings["memory_budget_bytes"] - settings["service_memory_budget_bytes"]}', f'TasksMax={node_task_budget}']
         units[unit_name(name)] = '\n'.join(lines) + '\n'
     units[TARGET] = '[Unit]\nDescription=Axern native candidate\nWants=' + ' '.join(unit_name(name) for name in SERVICES) + '\nAfter=' + ' '.join(unit_name(name) for name in SERVICES) + '\n[Install]\nWantedBy=multi-user.target\n'
-    units['axern.slice'] = f'[Unit]\nDescription=Axern native memory budget\n[Slice]\nMemoryMax={settings["memory_budget_bytes"]}\nMemorySwapMax=0\n'
-    units['axern-services.slice'] = f'[Unit]\nDescription=Axern native supporting services\n[Slice]\nMemoryMax={settings["service_memory_budget_bytes"]}\n'
+    units['axern.slice'] = f'[Unit]\nDescription=Axern native resource budget\n[Slice]\nMemoryMax={settings["memory_budget_bytes"]}\nMemorySwapMax=0\nTasksMax={node_task_budget + SERVICE_TASK_BUDGET}\n'
+    units['axern-services.slice'] = f'[Unit]\nDescription=Axern native supporting services\n[Slice]\nMemoryMax={settings["service_memory_budget_bytes"]}\nTasksMax={SERVICE_TASK_BUDGET}\n'
     return units
 
 
@@ -243,6 +248,8 @@ image_lib_dir = "{DATA}/axnoded/rootfs"
 image_manager_socket = "/run/axern-native-imagemgr/imagemgr.sock"
 egress_manager_socket = "/run/axern-native-egressd/egressd.sock"
 cgroup_enforcement = "required"
+guest_task_limit = {GUEST_TASK_LIMIT}
+host_task_limit = {HOST_TASK_LIMIT}
 filestore_mode = "existing"
 filestore_dir = "{DATA}"
 filestore_system_reserve_bytes = {settings['storage_reserve_bytes']}

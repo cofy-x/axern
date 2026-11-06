@@ -12,6 +12,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/cgroupflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/preparedflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/rootfsflow"
+	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
 )
@@ -73,11 +74,22 @@ func (r *RunscServiceHandler) StartPreparedContainer(ctx context.Context, prepar
 			if err != nil {
 				return err
 			}
+			if r.guestTaskLimit > 0 {
+				if err := r.validateTaskEnforcementManifest(ctx, containerID, options.EnforcementManifest); err != nil {
+					return err
+				}
+			}
 			_, err = r.common.Run(ctx, args...)
 			return err
 		},
 		r.startExitStatePersister,
 		r.waitForPreparedContainerStart,
+		func(ctx context.Context) error {
+			if r.guestTaskLimit == 0 {
+				return nil
+			}
+			return r.configureGuestTaskLimits(ctx, prepared.ContainerID, options.EnforcementManifest)
+		},
 		func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
 			return runtimesandboxd.WaitReadyOrExit(ctx, config.RuntimeNameRunsc, options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
 		},
@@ -96,5 +108,38 @@ func (r *RunscServiceHandler) prepareCreateRequest(request *apipb.CreateContaine
 	if err != nil {
 		return nil, contract.HandlerOptions{}, err
 	}
+	if r.hostTaskLimit > 0 {
+		if err := configureTaskPIDDomain(prep.Options.CgroupPath, prep.Options.RuntimeCgroupPath, r.hostTaskLimit); err != nil {
+			return nil, contract.HandlerOptions{}, fmt.Errorf("configure host task domain: %w", err)
+		}
+	}
+	prep.Options = r.withTaskExecutionProfiles(prep.Options)
 	return prep.Request, prep.Options, nil
+}
+
+func (r *RunscServiceHandler) withTaskExecutionProfiles(options contract.HandlerOptions) contract.HandlerOptions {
+	options.ExecutionProfile = r.withTaskExecutionProfile(options.ExecutionProfile)
+	if options.BundleTemplateSource != nil {
+		source := *options.BundleTemplateSource
+		if source.ExecutionProfile == nil {
+			source.ExecutionProfile = options.ExecutionProfile
+		} else {
+			source.ExecutionProfile = r.withTaskExecutionProfile(source.ExecutionProfile)
+		}
+		options.BundleTemplateSource = &source
+	}
+	return options
+}
+
+func (r *RunscServiceHandler) withTaskExecutionProfile(original *runtimeoci.ExecutionProfile) *runtimeoci.ExecutionProfile {
+	if r.guestTaskLimit == 0 && original == nil {
+		return nil
+	}
+	profile := runtimeoci.DefaultExecutionProfile()
+	if original != nil {
+		profile = *original
+	}
+	profile.GuestTaskLimit = r.guestTaskLimit
+	profile.HostTaskLimit = r.hostTaskLimit
+	return &profile
 }

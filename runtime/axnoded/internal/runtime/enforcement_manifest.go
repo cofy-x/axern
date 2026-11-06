@@ -27,6 +27,10 @@ func writeRuntimeEnforcementManifest(bundlePath, runtimeName, filestoreDir strin
 		RunscOverlayArg: overlayArg,
 		BundlePath:      bundlePath, CreatedAtUnixNano: time.Now().UTC().UnixNano(),
 	}
+	if options.ExecutionProfile != nil {
+		manifest.GuestTaskLimit = options.ExecutionProfile.GuestTaskLimit
+		manifest.HostTaskLimit = options.ExecutionProfile.HostTaskLimit
+	}
 	if options.MemoryLimitBytes > 0 {
 		domain, err := hostlinux.InspectCgroupMemoryDomain(options.CgroupPath, options.RuntimeCgroupPath)
 		if err != nil {

@@ -46,6 +46,11 @@ func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdou
 			return fmt.Errorf("verify runsc CPU cgroup attribution: %w", err)
 		}
 	}
+	if r.hostTaskLimit > 0 {
+		if err := r.verifyHostTaskLimits(ctx, containerID, options.CgroupPath, options.RuntimeCgroupPath, r.hostTaskLimit); err != nil {
+			return fmt.Errorf("verify host task controls after runsc create: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -60,6 +65,9 @@ func (r *RunscServiceHandler) preparedContainerCreateArgs(options contract.Handl
 
 func (r *RunscServiceHandler) preparedContainerLifecycleArgs(options contract.HandlerOptions, containerID string, commandArgs ...string) ([]string, error) {
 	args := r.lifecycleArgs()
+	if r.guestTaskLimit > 0 {
+		args = append(args, "--in-sandbox-cgroup=v2")
+	}
 	if options.NetworkMode == commonv1.NetworkMode_NETWORK_MODE_ISOLATED {
 		if options.NetworkNamespacePath != "" {
 			return nil, fmt.Errorf("isolated allocation %s has a connected network namespace", containerID)

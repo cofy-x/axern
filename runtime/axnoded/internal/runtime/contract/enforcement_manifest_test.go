@@ -51,3 +51,30 @@ func TestValidateEnforcementManifestRejectsCrossRuntimeAndMutableBackingState(t 
 		t.Fatalf("valid memory enforcement manifest rejected: %v", err)
 	}
 }
+
+func TestValidateTaskEnforcementManifest(t *testing.T) {
+	valid := &apipb.AllocationEnforcementManifest{
+		BundlePath: "/containers/allocation", CreatedAtUnixNano: 1,
+		GuestTaskLimit: 256, HostTaskLimit: 1024,
+		CgroupPath: "/sandbox/allocation", RuntimeCgroupPath: "/sandbox/allocation/workload",
+	}
+	if err := ValidateEnforcementManifest(valid, ""); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*apipb.AllocationEnforcementManifest){
+		"partial pair":   func(m *apipb.AllocationEnforcementManifest) { m.HostTaskLimit = 0 },
+		"negative pair":  func(m *apipb.AllocationEnforcementManifest) { m.GuestTaskLimit = -1 },
+		"unbounded pair": func(m *apipb.AllocationEnforcementManifest) { m.HostTaskLimit = 65537 },
+		"missing parent": func(m *apipb.AllocationEnforcementManifest) { m.CgroupPath = "" },
+		"unrelated leaf": func(m *apipb.AllocationEnforcementManifest) { m.RuntimeCgroupPath = "/other/workload" },
+		"nested leaf":    func(m *apipb.AllocationEnforcementManifest) { m.RuntimeCgroupPath += "/nested" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			m := proto.Clone(valid).(*apipb.AllocationEnforcementManifest)
+			mutate(m)
+			if err := ValidateEnforcementManifest(m, ""); err == nil {
+				t.Fatal("invalid task policy accepted")
+			}
+		})
+	}
+}
