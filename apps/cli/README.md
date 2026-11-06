@@ -67,6 +67,7 @@ axern tunnel doctor --allocation-id <allocation-id>
 axern admin reliability check
 axern admin consistency check
 axern admin node list --status active
+axern admin node capability check <node-id> --platform NETWORK_BRIDGE --boot-id <host-boot-uuid> --output json
 axern admin node revoke <node-id> --operator-reason "host authority compromised"
 axern admin node retire <node-id> --operator-reason "host permanently removed"
 axern identity whoami
@@ -177,3 +178,5 @@ See [tunnel usage](./docs/tunnel.md) and the [resource model](../../docs/archite
 Admit each Node with `axern admin node admit <node-id> --enrollment-token-file <file> --operator-reason <reason>`. Registration consumes that token for one CSR within one hour. Normal node calls authenticate the node-owned certificate and automatic renewal keeps the same Node identity. The old credential flag and shared Node certificate are removed; internal Proto changes require matching node/control images and a rebuilt local database.
 
 Node revocation withdraws authority without declaring resources cleaned; safe retirement remains blocked until execution and access obligations converge. Use `node list --status revoked` and `admin audit list --operation revoke-node` for incident diagnosis. Node identity is explicit and independent of the Kubernetes hostname.
+
+`admin node capability check` reads the node and its published snapshot through the authenticated gateway. Repeat `--platform` with uppercase platform requirement names without the `PLATFORM_CAPABILITY_` prefix. The command requires an active node, fresh heartbeat and summary, ready runtime, and the same capability evidence, expiry and dependency checks used for admission. `--boot-id` is required and fences every host identity in the requested requirements and their dependencies to that boot. It does not execute a sandbox or certify other deployment behavior. JSON reports `ready` and, on failure, `reason`. Exit `0` means ready, `1` means unavailable evidence or an API/transport failure, and `2` means invalid arguments, local connection material, or an authentication/authorization rejection; callers should repair the latter instead of polling it.

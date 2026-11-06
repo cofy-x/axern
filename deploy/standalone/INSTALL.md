@@ -62,11 +62,19 @@ sudo journalctl -u axern-native-axnoded.service -n 100 --no-pager
 sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py stop
 ```
 
-Start enables `axern-native.target` for subsequent boots. Database creation, migrations and initial administrator/node admission complete before the control plane starts. Dependency probes use real APIs, not socket-file existence. Before reporting success, the start command also waits for a fresh node summary and network, memory and storage enforcement evidence through the authenticated gateway, including runtime certification from the current boot. After a host reboot, invoke start again to wait for this admission barrier; an active systemd target alone is not proof that node observations have reached the controller. A failed daemon restarts independently; the runtime continues to own allocation and enforcement recovery. Every service checks the installation and data filesystem/directory identity before startup. Missing or replaced data fails explicitly instead of creating an empty replacement installation.
+Start enables `axern-native.target` for subsequent boots. Database creation, migrations and initial administrator/node admission complete before the control plane starts. Dependency probes use real APIs, not socket-file existence. Start checks every required service individually before and after waiting for a fresh node summary and network, memory and storage enforcement evidence through the authenticated gateway. The packaged CLI applies the canonical capability freshness and dependency checks, including evidence from the current boot. After a host reboot, invoke start again to wait for this admission barrier; an active systemd target alone is not proof that node observations have reached the controller. A failed daemon restarts independently; the runtime continues to own allocation and enforcement recovery. Every service checks the installation and data filesystem/directory identity before startup. Missing or replaced data fails explicitly instead of creating an empty replacement installation.
 
 Stop retains configuration, database, node identity and runtime storage. It does not disable boot startup or promise that workload processes survive a stop or reboot. Recovery uses the existing Run and Allocation contract. To prevent startup after reboot, explicitly disable `axern-native.target` through systemd.
 
 The generated `/etc/axern/client.env` points the CLI at the authenticated gateway using the initial administrator credential. It is root-readable. In an administrator shell, source that file and use the packaged CLI to inspect nodes and run a workload. This does not modify an existing user context or change `axern local` behavior. Treat the private PKI and encryption material as installation authority; never share it with sandbox workloads.
+
+The start readiness check uses that initial credential by default. After rotating or revoking it, supply both `AXERN_TLS_CERT` and `AXERN_TLS_KEY` for a valid replacement administrator; a partial override is rejected before services start. The installation still selects its own local gateway, CA and server identity. Authentication or authorization failure is reported immediately instead of being retried as missing capability evidence. For example:
+
+```bash
+sudo env AXERN_TLS_CERT=/absolute/path/to/current-admin.crt \
+  AXERN_TLS_KEY=/absolute/path/to/current-admin.key \
+  python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py start
+```
 
 ```bash
 source /etc/axern/client.env
@@ -76,4 +84,4 @@ source /etc/axern/client.env
   IMAGE_REFERENCE -- /bin/sh -c 'printf "native sandbox ready\n"'
 ```
 
-Renew service certificates explicitly using `native_install.py renew-services`. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.
+Renew service certificates explicitly using `native_install.py renew-services`. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. An expired initial administrator does not prevent service renewal, and renewal does not restore revoked administrator authorization. Use a valid replacement administrator for readiness checks and administrative API access. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.

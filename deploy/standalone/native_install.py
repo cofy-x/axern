@@ -491,41 +491,54 @@ def wait_ready(service: str) -> None:
     raise InstallError(f'{service} failed its API readiness probe; inspect journalctl -u {unit_name(service)}')
 
 
-def serving_ready(nodes: dict, snapshot: dict, node_id: str, boot_id: str) -> bool:
-    if not any(node.get('node_id') == node_id and node.get('lifecycle_status') == 'active'
-               and all(node.get(key) is True for key in ('heartbeat_fresh', 'summary_fresh', 'axnoded_ready'))
-               for node in nodes.get('nodes', [])):
-        return False
-    observations = snapshot.get('snapshot', {}).get('observations', [])
-    available = {item.get('key', {}).get('platform') for item in observations if item.get('state') == 'CAPABILITY_STATE_AVAILABLE'}
-    required = {'NETWORK_BRIDGE', 'DNS_POLICY_ENFORCEMENT', 'STRICT_EGRESS_ENFORCEMENT', 'RUNSC_MEMORY_HARD_LIMIT', 'RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT'}
-    if not {'PLATFORM_CAPABILITY_' + key for key in required} <= available:
-        return False
-    # Do not accept still-fresh observations from the previous boot during registration.
-    return any(item.get('key', {}).get('platform') == 'PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST'
-               and item.get('state') == 'CAPABILITY_STATE_AVAILABLE'
-               and item.get('evidence', {}).get('runtime', {}).get('bootId') == boot_id for item in observations)
+def require_active_services() -> None:
+    # is-active with several units succeeds if any unit is active.
+    for service in SERVICES:
+        unit = unit_name(service)
+        result = subprocess.run(['systemctl', 'is-active', '--quiet', unit],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        if result.returncode != 0:
+            raise InstallError(f'required service is not active: {unit}; inspect journalctl -u {unit}')
 
 
-def wait_serving(node_id: str) -> None:
-    environment = {**os.environ, 'AXERN_ENDPOINT': '127.0.0.1:25000', 'AXERN_PROXY_MODE': 'direct',
-                   'AXERN_TLS_CA_CERT': str(ETC / 'ca.crt'), 'AXERN_TLS_CERT': str(ETC / 'private/pki/client.crt'),
-                   'AXERN_TLS_KEY': str(ETC / 'private/pki/client.key'), 'AXERN_TLS_SERVER_NAME': 'localhost'}
+def readiness_environment() -> dict[str, str]:
+    certificate = os.environ.get('AXERN_TLS_CERT', '').strip()
+    key = os.environ.get('AXERN_TLS_KEY', '').strip()
+    if bool(certificate) != bool(key):
+        raise InstallError('set AXERN_TLS_CERT and AXERN_TLS_KEY together to select an administrator credential')
+    return {**os.environ, 'AXERN_ENDPOINT': '127.0.0.1:25000', 'AXERN_PROXY_MODE': 'direct',
+            'AXERN_TLS_CA_CERT': str(ETC / 'ca.crt'),
+            'AXERN_TLS_CERT': certificate or str(ETC / 'private/pki/client.crt'),
+            'AXERN_TLS_KEY': key or str(ETC / 'private/pki/client.key'), 'AXERN_TLS_SERVER_NAME': 'localhost'}
+
+
+def wait_serving(node_id: str, environment: dict[str, str]) -> None:
     boot_id = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    args = [str(ROOT / 'bin/axern'), 'admin', 'node', 'capability', 'check', node_id,
+            '--boot-id', boot_id, '--output', 'json']
+    for capability in ('NETWORK_BRIDGE', 'DNS_POLICY_ENFORCEMENT', 'STRICT_EGRESS_ENFORCEMENT',
+                       'RUNSC_MEMORY_HARD_LIMIT', 'RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT'):
+        args += ['--platform', capability]
     deadline = time.monotonic() + 150
+    reason = 'node has not published fresh admission/enforcement evidence'
     while time.monotonic() < deadline:
         try:
-            results = []
-            for args in (['list'], ['capability', 'snapshot', node_id]):
-                response = subprocess.run([str(ROOT / 'bin/axern'), 'admin', 'node', *args, '--output', 'json'],
-                                          env=environment, capture_output=True, text=True, timeout=5, check=True)
-                results.append(json.loads(response.stdout))
-            if serving_ready(*results, node_id, boot_id):
+            response = subprocess.run(args, env=environment, capture_output=True, text=True, timeout=5)
+            try:
+                report = json.loads(response.stdout)
+            except ValueError:
+                report = {}
+            if not isinstance(report, dict):
+                report = {}
+            reason = report.get('reason') or 'capability check failed; run the authenticated CLI check for diagnostics'
+            if response.returncode == 2:
+                raise InstallError(f'cannot verify serving readiness: {reason}')
+            if response.returncode == 0 and report.get('ready') is True:
                 return
-        except (subprocess.SubprocessError, ValueError):
-            pass
+        except subprocess.TimeoutExpired:
+            reason = 'capability API request timed out'
         time.sleep(0.5)
-    raise InstallError('node has not published fresh admission/enforcement evidence through the authenticated gateway; inspect node capability diagnostics')
+    raise InstallError(f'node is not ready through the authenticated gateway: {reason}')
 
 
 def main() -> None:
@@ -560,11 +573,13 @@ def main() -> None:
                 return
             identity = verify_installed(check_data=args.command not in ('stop', 'status'))
             if args.command == 'start':
+                environment = readiness_environment()
                 preflight(validate_settings(identity['settings']), False)
                 run('systemctl', 'enable', '--now', TARGET)
-                run('systemctl', 'is-active', *[unit_name(name) for name in SERVICES])
+                require_active_services()
                 wait_ready('axnoded')
-                wait_serving(identity['settings']['node_id'])
+                wait_serving(identity['settings']['node_id'], environment)
+                require_active_services()
                 print('native services started; run a real sandbox to qualify serving')
             elif args.command == 'stop':
                 run('systemctl', 'stop', TARGET)

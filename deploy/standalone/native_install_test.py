@@ -3,6 +3,7 @@
 
 import copy
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -23,21 +24,82 @@ SETTINGS = {
 
 
 class InstallerTest(unittest.TestCase):
-    def test_serving_requires_current_boot_enforcement_and_fresh_node_summary(self):
-        nodes = {'nodes': [{'node_id': SETTINGS['node_id'], 'lifecycle_status': 'active',
-                            'heartbeat_fresh': True, 'summary_fresh': True, 'axnoded_ready': True}]}
-        keys = ('NETWORK_BRIDGE', 'DNS_POLICY_ENFORCEMENT', 'STRICT_EGRESS_ENFORCEMENT',
-                'RUNSC_MEMORY_HARD_LIMIT', 'RUNSC_EPHEMERAL_STORAGE_HARD_LIMIT', 'RUNSC_MEMORY_ENFORCEMENT_SELF_TEST')
-        snapshot = {'snapshot': {'observations': [
-            {'key': {'platform': 'PLATFORM_CAPABILITY_' + key}, 'state': 'CAPABILITY_STATE_AVAILABLE',
-             'evidence': {'runtime': {'bootId': 'current'}}} for key in keys]}}
-        self.assertTrue(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'current'))
-        self.assertFalse(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'previous'))
-        nodes['nodes'][0]['summary_fresh'] = False
-        self.assertFalse(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'current'))
-        nodes['nodes'][0]['summary_fresh'] = True
-        snapshot['snapshot']['observations'][3]['state'] = 'CAPABILITY_STATE_UNAVAILABLE'
-        self.assertFalse(installer.serving_ready(nodes, snapshot, SETTINGS['node_id'], 'current'))
+    def test_start_checks_each_required_service(self):
+        for failed in ('retention', 'node-tunneld'):
+            with self.subTest(failed=failed):
+                def status(args, **kwargs):
+                    # Model systemctl's any-active semantics: the old aggregate
+                    # command would succeed even with this failed unit.
+                    units = [arg for arg in args if arg.endswith('.service')]
+                    return subprocess.CompletedProcess(args, 0 if any(unit != installer.unit_name(failed) for unit in units) else 3)
+
+                with mock.patch.object(installer.subprocess, 'run', side_effect=status):
+                    with self.assertRaisesRegex(installer.InstallError, installer.unit_name(failed)):
+                        installer.require_active_services()
+        with mock.patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as run:
+            installer.require_active_services()
+            self.assertEqual([call.args[0][-1] for call in run.call_args_list],
+                             [installer.unit_name(service) for service in installer.SERVICES])
+
+    def test_readiness_credentials_allow_explicit_pair_without_changing_installation_trust(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            environment = installer.readiness_environment()
+        self.assertEqual(environment['AXERN_TLS_CERT'], str(installer.ETC / 'private/pki/client.crt'))
+        self.assertEqual(environment['AXERN_TLS_KEY'], str(installer.ETC / 'private/pki/client.key'))
+        with mock.patch.dict(os.environ, {'AXERN_TLS_CERT': '/operator/current.crt', 'AXERN_TLS_KEY': '/operator/current.key',
+                                         'AXERN_ENDPOINT': 'other-host:25000', 'AXERN_TLS_CA_CERT': '/other-ca.crt',
+                                         'AXERN_TLS_SERVER_NAME': 'other-host', 'AXERN_PROXY_MODE': 'auto'}, clear=True):
+            environment = installer.readiness_environment()
+        self.assertEqual(environment['AXERN_TLS_CERT'], '/operator/current.crt')
+        self.assertEqual(environment['AXERN_TLS_KEY'], '/operator/current.key')
+        self.assertEqual(environment['AXERN_ENDPOINT'], '127.0.0.1:25000')
+        self.assertEqual(environment['AXERN_TLS_CA_CERT'], str(installer.ETC / 'ca.crt'))
+        self.assertEqual(environment['AXERN_TLS_SERVER_NAME'], 'localhost')
+        self.assertEqual(environment['AXERN_PROXY_MODE'], 'direct')
+
+    def test_readiness_rejects_partial_administrator_override(self):
+        for name in ('AXERN_TLS_CERT', 'AXERN_TLS_KEY'):
+            with self.subTest(name=name), mock.patch.dict(os.environ, {name: '/operator/credential'}, clear=True):
+                with self.assertRaisesRegex(installer.InstallError, 'together'):
+                    installer.readiness_environment()
+
+    def test_start_waits_for_canonical_capability_check_with_replacement_credentials(self):
+        with mock.patch.dict(os.environ, {'AXERN_TLS_CERT': '/operator/current.crt', 'AXERN_TLS_KEY': '/operator/current.key'}, clear=True):
+            environment = installer.readiness_environment()
+        replies = [subprocess.CompletedProcess([], 1, json.dumps({'ready': False, 'reason': 'expired dependency'})),
+                   subprocess.CompletedProcess([], 0, json.dumps({'ready': True}))]
+        with mock.patch.object(installer.subprocess, 'run', side_effect=replies) as run, \
+                mock.patch.object(installer.time, 'monotonic', side_effect=[0, 0, 1]), \
+                mock.patch.object(installer.time, 'sleep'):
+            installer.wait_serving(SETTINGS['node_id'], environment)
+        self.assertEqual(run.call_count, 2)
+        for call in run.call_args_list:
+            args = call.args[0]
+            self.assertEqual(args[1:6], ['admin', 'node', 'capability', 'check', SETTINGS['node_id']])
+            self.assertEqual(args[args.index('--boot-id') + 1], pathlib.Path('/proc/sys/kernel/random/boot_id').read_text().strip())
+            self.assertEqual(call.kwargs['env']['AXERN_TLS_CERT'], '/operator/current.crt')
+            self.assertEqual(call.kwargs['env']['AXERN_TLS_KEY'], '/operator/current.key')
+
+    def test_start_reports_authentication_failure_without_readiness_timeout(self):
+        failure = subprocess.CompletedProcess([], 2, json.dumps({'ready': False, 'reason': 'administrator credential is revoked'}))
+        with mock.patch.object(installer.subprocess, 'run', return_value=failure) as run, \
+                mock.patch.object(installer.time, 'monotonic', side_effect=[0, 0]), \
+                mock.patch.object(installer.time, 'sleep') as sleep:
+            with self.assertRaisesRegex(installer.InstallError, 'credential is revoked'):
+                installer.wait_serving(SETTINGS['node_id'], {})
+        self.assertEqual(run.call_count, 1)
+        sleep.assert_not_called()
+
+    def test_start_never_accepts_unready_or_malformed_capability_reports(self):
+        for code, body in ((1, {'ready': False, 'reason': 'expired observation'}),
+                           (0, {'ready': False}), (0, []), (0, 'invalid json')):
+            with self.subTest(code=code, body=body):
+                response = subprocess.CompletedProcess([], code, json.dumps(body))
+                with mock.patch.object(installer.subprocess, 'run', return_value=response), \
+                        mock.patch.object(installer.time, 'monotonic', side_effect=[0, 0, 151]), \
+                        mock.patch.object(installer.time, 'sleep'):
+                    with self.assertRaisesRegex(installer.InstallError, 'node is not ready'):
+                        installer.wait_serving(SETTINGS['node_id'], {})
 
     def test_rejects_unsafe_or_ambiguous_configuration(self):
         for key, value in (

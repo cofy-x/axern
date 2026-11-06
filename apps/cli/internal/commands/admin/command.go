@@ -152,7 +152,7 @@ func nodeCapabilityCommand(runtime command.Runtime) *cobra.Command {
 		output.RenderAllocationCapabilityDiagnostics(cmd.OutOrStdout(), resp)
 		return nil
 	}}
-	root.AddCommand(snapshot, allocation)
+	root.AddCommand(snapshot, allocation, nodeCapabilityCheckCommand(runtime))
 	return root
 }
 
