@@ -87,6 +87,9 @@ class InstallerTest(unittest.TestCase):
             with self.assertRaises(installer.InstallError):
                 installer.write_file(path, b'replacement')
             self.assertEqual(path.read_bytes(), b'original')
+            path.chmod(0o644)
+            with self.assertRaisesRegex(installer.InstallError, 'permissions changed'):
+                installer.write_file(path, b'original')
 
     def test_symlink_never_redirects_managed_writes(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -112,6 +115,7 @@ class InstallerTest(unittest.TestCase):
                 with mock.patch.object(installer, 'data_identity', side_effect=installer.InstallError('missing')):
                     with self.assertRaisesRegex(installer.InstallError, 'missing'):
                         installer.verify_installed()
+                    self.assertEqual(installer.verify_installed(check_data=False)['archive_sha256'], checksum)
 
 
 if __name__ == '__main__':

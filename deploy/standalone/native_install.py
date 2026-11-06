@@ -106,10 +106,16 @@ def safe_directory(path: pathlib.Path, mode: int = 0o755) -> None:
 def write_file(path: pathlib.Path, data: bytes, mode: int = 0o600, group: str | None = None, replace: bool = False) -> None:
     if path.is_symlink():
         raise InstallError(f'refusing symlink: {path}')
-    if path.exists() and not replace:
-        if not path.is_file() or path.read_bytes() != data:
+    if path.exists():
+        info = path.stat()
+        gid = grp.getgrnam(group).gr_gid if group else os.getegid()
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid() or info.st_gid != gid
+                or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != mode):
+            raise InstallError(f'managed file ownership or permissions changed: {path}')
+        if not replace and path.read_bytes() != data:
             raise InstallError(f'existing managed file differs: {path}')
-        return
+        if not replace:
+            return
     descriptor, temporary = tempfile.mkstemp(prefix='.axern-', dir=path.parent)
     try:
         with os.fdopen(descriptor, 'wb') as output:
@@ -371,6 +377,13 @@ def install(settings: dict) -> None:
         for name in (*[unit_name(service) for service in SERVICES], TARGET, 'axern.slice'):
             if (UNITS / name).exists() or (UNITS / name).is_symlink():
                 raise InstallError(f'existing service unit is not owned by this installation: {name}')
+            loaded = subprocess.run(['systemctl', 'show', '--property=LoadState,FragmentPath,ActiveState,Transient,DropInPaths', name], capture_output=True, text=True)
+            properties = dict(line.split('=', 1) for line in loaded.stdout.splitlines() if '=' in line)
+            implicit_slice = (name == 'axern.slice' and properties.get('LoadState') == 'loaded'
+                              and properties.get('ActiveState') == 'inactive' and properties.get('Transient') == 'no'
+                              and properties.get('FragmentPath') == '' and properties.get('DropInPaths') == '')
+            if properties.get('LoadState') != 'not-found' and not implicit_slice:
+                raise InstallError(f'service unit is already known to systemd or cannot be checked: {name}')
         for name in USERS:
             try:
                 pwd.getpwnam('axern-' + name)
