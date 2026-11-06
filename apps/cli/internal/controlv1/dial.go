@@ -53,19 +53,22 @@ func dialControlGRPC(ctx context.Context, config Config) (*grpc.ClientConn, erro
 	certPath := config.TLSCert
 	keyPath := config.TLSKey
 	if caPath == "" && certPath == "" && keyPath == "" {
-		return nil, fmt.Errorf("gateway mTLS requires --tls-ca-cert, --tls-cert, and --tls-key")
+		return nil, ConfigurationError{Err: fmt.Errorf("gateway mTLS requires --tls-ca-cert, --tls-cert, and --tls-key")}
 	}
 	cert, err := tls.LoadX509KeyPair(certPath, keyPath)
 	if err != nil {
-		return nil, err
+		return nil, ConfigurationError{Err: err}
+	}
+	if err := validateClientCertificateTime(cert, time.Now()); err != nil {
+		return nil, ConfigurationError{Err: err}
 	}
 	caPEM, err := os.ReadFile(caPath)
 	if err != nil {
-		return nil, err
+		return nil, ConfigurationError{Err: err}
 	}
 	roots := x509.NewCertPool()
 	if !roots.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("parse tls ca cert %q", caPath)
+		return nil, ConfigurationError{Err: fmt.Errorf("parse tls ca cert %q", caPath)}
 	}
 	dialCtx, cancel := context.WithTimeout(ctx, dialTimeout)
 	defer cancel()
@@ -82,11 +85,24 @@ func dialControlGRPC(ctx context.Context, config Config) (*grpc.ClientConn, erro
 	case ProxyModeDirect:
 		dialOpts = append(dialOpts, grpc.WithNoProxy())
 	default:
-		return nil, fmt.Errorf("invalid proxy mode %q; expected %q or %q", config.ProxyMode, ProxyModeEnv, ProxyModeDirect)
+		return nil, ConfigurationError{Err: fmt.Errorf("invalid proxy mode %q; expected %q or %q", config.ProxyMode, ProxyModeEnv, ProxyModeDirect)}
 	}
 	return grpcclient.NewReadyClient(
 		dialCtx,
 		target,
 		dialOpts...,
 	)
+}
+
+func validateClientCertificateTime(cert tls.Certificate, now time.Time) error {
+	for _, raw := range cert.Certificate {
+		certificate, err := x509.ParseCertificate(raw)
+		if err != nil {
+			return fmt.Errorf("parse client certificate: %w", err)
+		}
+		if now.Before(certificate.NotBefore) || !now.Before(certificate.NotAfter) {
+			return fmt.Errorf("client certificate chain is not currently valid")
+		}
+	}
+	return nil
 }

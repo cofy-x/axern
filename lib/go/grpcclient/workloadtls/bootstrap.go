@@ -180,8 +180,13 @@ func (b Bootstrap) Ensure(renewServices bool) error {
 	if err != nil {
 		return err
 	}
-	if cert.CheckSignatureFrom(issuer.Certificate) != nil || len(cert.URIs) != 0 || !time.Now().Before(cert.NotAfter) {
+	if cert.CheckSignatureFrom(issuer.Certificate) != nil || len(cert.URIs) != 0 {
 		return fmt.Errorf("invalid bootstrap administrator authority")
+	}
+	// Service renewal does not authenticate or renew this Principal credential.
+	// Preserve its identity even after expiry; authorization remains control-owned.
+	if !renewServices && !time.Now().Before(cert.NotAfter) {
+		return fmt.Errorf("bootstrap administrator credential has expired")
 	}
 	keyPEM, err := encodeSigner(pair.PrivateKey.(crypto.Signer))
 	if err != nil {

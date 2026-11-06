@@ -36,6 +36,13 @@ type Config struct {
 	Timeout       time.Duration
 }
 
+// ConfigurationError identifies local connection material that cannot be used;
+// waiting for the gateway to become ready cannot repair it.
+type ConfigurationError struct{ Err error }
+
+func (e ConfigurationError) Error() string { return e.Err.Error() }
+func (e ConfigurationError) Unwrap() error { return e.Err }
+
 type SessionOpener func(context.Context) (*Session, error)
 
 func Opener(config Config) SessionOpener {

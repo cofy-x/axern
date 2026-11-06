@@ -71,3 +71,14 @@ func boolLabel(value bool) string {
 	}
 	return "no"
 }
+
+func PrintNodeCapabilityCheckJSON(w io.Writer, ready bool, reason string) error {
+	return PrintJSON(w, struct {
+		Ready  bool   `json:"ready"`
+		Reason string `json:"reason,omitempty"`
+	}{Ready: ready, Reason: reason})
+}
+
+func RenderNodeCapabilityCheck(w io.Writer, ready bool, reason string) {
+	RenderTable(w, []string{"READY", "REASON"}, [][]string{{boolLabel(ready), reason}})
+}

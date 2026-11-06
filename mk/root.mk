@@ -132,6 +132,7 @@ native-runtime-build: ## Build a candidate Linux payload; requires clean source 
 
 native-runtime-check: ## Test native payload integrity and packaging boundaries without running services
 	python3 $(ROOTDIR)/scripts/release/native_runtime_test.py
+	python3 $(ROOTDIR)/deploy/standalone/native_install_test.py
 
 native-runtime-verify: ## Verify RUNTIME_ARCHIVE against the trusted RUNTIME_SHA256 without extracting
 	@test -n "$(RUNTIME_ARCHIVE)" -a -n "$(RUNTIME_SHA256)" || (echo "set RUNTIME_ARCHIVE and RUNTIME_SHA256" >&2; exit 1)
