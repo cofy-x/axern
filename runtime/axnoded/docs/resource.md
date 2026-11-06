@@ -54,6 +54,10 @@ Axnoded reads the immutable `ResourceSpec` from `AllocationState` and applies on
 
 CPU and memory commitment use requests, falling back to the corresponding limit only when the request is absent. A running Allocation with neither value increments the matching unbounded diagnostic counter.
 
+With required cgroup enforcement, requested CPU quota, period and shares are never discarded when the CPU controller is missing. Axnoded writes the workload leaf, reads back its exact `cpu.max` quota/period and the `cpu.weight` produced by the cgroup driver's shares conversion, then repeats that readback and verifies the runsc Sentry/gofer process attribution after runsc create and before returning a prepared container. Missing, unreadable or mismatched quota, period, weight or process attribution fails creation through the existing cleanup path before user code starts. CPU-only limits receive the same checks without requiring a memory limit. Explicit `disabled_dev` retains its development behavior and skips these host cgroup checks; native serving uses `required`. CPU-set controls are outside this readback contract.
+
+These CPU checks fence creation; they do not add a continuous CPU capability audit or revalidate already-running Allocations during recovery. Recovery retains the admitted resource specification and existing kernel cgroups, and rolls back a runtime still in `created` state through the normal failed-start path.
+
 ## Cgroup Boundary
 
 The Allocation parent is the memory safety boundary; the runtime-created workload leaf is the OCI attribution boundary. Axnoded verifies controls, identity, and PID membership but does not install a second authoritative limit at the leaf.

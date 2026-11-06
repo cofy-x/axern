@@ -4,12 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/startupflow"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
-func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdoutPath, stderrPath, bundlePath, containerID string, overlayArgs []string, options contract.HandlerOptions) error {
+var (
+	verifyCreatedCPUControls  = hostlinux.VerifyCgroupCPUControls
+	verifyCreatedCPUProcesses = hostlinux.VerifyRunscCgroupProcesses
+)
+
+func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdoutPath, stderrPath, bundlePath, containerID string, overlayArgs []string, resource *apipb.LinuxContainerResources, options contract.HandlerOptions) error {
 	pidFilePath, _, err := r.common.PrepareContainerStatePaths(containerID)
 	if err != nil {
 		return err
@@ -19,7 +26,27 @@ func (r *RunscServiceHandler) createPreparedContainer(ctx context.Context, stdou
 	if err != nil {
 		return err
 	}
-	return r.common.RunWithIO(ctx, stdoutPath, stderrPath, args...)
+	if err := r.common.RunWithIO(ctx, stdoutPath, stderrPath, args...); err != nil {
+		return err
+	}
+	// runsc create may configure OCI resources, but has not started user code.
+	// Re-read the same allocated leaf before publishing a prepared container.
+	if !r.ignoreCgroups && (resource.GetCpuShares() > 0 || resource.GetCpuQuota() > 0 || resource.GetCpuPeriod() > 0) {
+		if err := verifyCreatedCPUControls(options.RuntimeCgroupPath, resource); err != nil {
+			return fmt.Errorf("verify CPU controls after runsc create: %w", err)
+		}
+		state, err := r.state(ctx, containerID)
+		if err != nil {
+			return fmt.Errorf("read runsc state for CPU enforcement: %w", err)
+		}
+		if state.Pid <= 0 {
+			return fmt.Errorf("runsc state has no Sentry host pid for CPU enforcement")
+		}
+		if err := verifyCreatedCPUProcesses(options.RuntimeCgroupPath, state.Pid, r.common.Binary()); err != nil {
+			return fmt.Errorf("verify runsc CPU cgroup attribution: %w", err)
+		}
+	}
+	return nil
 }
 
 func (r *RunscServiceHandler) preparedContainerCreateArgs(options contract.HandlerOptions, overlayArgs []string, pidFilePath, bundlePath, containerID string) ([]string, error) {
