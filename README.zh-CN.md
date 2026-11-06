@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — 面向 AI agent 的沙箱执行：Environment → Run → Allocation → runsc sandbox">
+  <img src="./assets/readme/hero.svg" width="100%" alt="Axern — 面向 AI agent 的自托管执行平台：Environment → Run → Allocation → runsc sandbox">
 </p>
 
 <p align="center">
@@ -14,9 +14,11 @@
   <a href="./README.md">English</a>
 </p>
 
-Axern 是一个面向 agent 评测、训练与数据合成的开源环境执行平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 allocation 范围的访问能力。
+Axern 是一个面向 AI agent 的开源、自托管执行平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 allocation 范围的访问能力。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。它适合评估与贡献；在部署多租户工作负载之前，运维人员应先审阅安全与生产边界。
+产品方向是**以单机为先的个人 Agent 系统基础设施**：简化 Linux 部署，支持长期运行的沙箱服务，以及通过明确访问权限和所有权供多个 agent 使用的持久 Workspace。Agent 的规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
+
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。专门的单机 serving 部署和持久 Workspace 资源尚在计划中，未实现。当前本地路径是 Docker Compose 开发栈；可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
@@ -28,7 +30,7 @@ Axern 是一个面向 agent 评测、训练与数据合成的开源环境执行�
 
 ## 快速开始
 
-受支持的本地路径通过 Docker Compose 运行完整技术栈，只需要 `axern` CLI 和 Docker Compose v2，不需要源码检出、Make、Helm 或任何语言工具链。
+受支持的本地开发路径通过 Docker Compose 运行完整技术栈：Linux 上直接运行，macOS 上通过 Docker Desktop 的 Linux VM 运行。只需要 `axern` CLI 和 Docker Compose v2，不需要源码检出、Make、Helm 或任何语言工具链。两种情况下，gVisor 执行层都运行在 Linux 上。
 
 ```bash
 brew install cofy-x/tap/axern
@@ -72,16 +74,16 @@ make quickstart-source
 ## 可以构建什么
 
 - **Agent 沙箱：** 在 runsc 隔离边界后执行 agent 生成的代码，同时保留进程、文件、终端和输出 API。
-- **评测与数据合成批次：** 通过 Run 并发执行隔离工作负载，并显式记录输入、输出和生命周期证据。
+- **并行 Agent 任务：** 通过独立 Run 执行编码、研究、评测或数据处理任务，并显式记录输入、输出和生命周期证据。
 - **SDK 驱动执行：** 通过正式发布的 SDK 创建 Run、操作其 Allocation、封存有限的声明输出、将成功执行后的可写 rootfs 发布为可复用 Environment，并使用公共资源身份恢复查询。
 
 ## 为什么选择 Axern
 
-- **沙箱即原语：** 评测、训练、数据合成、编码工作区和 agent 任务都组合自同一套 Run 执行模型。
+- **服务你的 Agent 系统：** 通过同一套 Run 执行模型组合隔离任务，规划、记忆和协作逻辑由你的应用负责。
 - **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、Allocation 级状态、健康和清理信息，在进程或节点重启后依然保持权威。
 - **单一生产运行时：** runsc 工作负载使用相同的公共 API；OCI 与 Nydus 镜像路径在节点运行时汇聚。
 - **真实的数据面访问：** 进程流、文件、归档、SSH 兼容终端和反向 TCP 隧道都是 allocation 的显式能力。
-- **本地到集群的连续性：** Docker Compose、kind 和云中立的 Helm chart 验证相同的组件边界。
+- **聚焦的演进方向：** 优先简化单机部署并支持持久工作数据；这些能力实现期间，现有 Compose、kind 和 Helm 部署契约仍有文档说明。
 
 ## 架构
 
@@ -97,7 +99,7 @@ flowchart LR
     Node --> Runtime["runsc 沙箱"]
 ```
 
-`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在 15 分钟过期时间内下载并持久发布这些字节。成功的有限 Run 还可以独立地把完整可写 rootfs 发布为内容寻址 OCI 镜像和普通可复用 Environment。两条路径都不会创建持久 Workspace 或通用对象存储。详细契约见[存储架构](./docs/architecture/storage-architecture.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
+`gatewayd` 是公共控制流量和 Allocation 范围数据面流量的统一外部网关；`controld` 和 PostgreSQL 保持产品状态权威，节点服务负责宿主机本地执行、镜像、网络和 Allocation 私有的临时可写存储。Run 可以声明有限的文件或 tar 归档，由节点在 runtime 清理前封存；调用方必须在返回的输出过期时间前下载并持久发布这些字节，该截止时间为清理开始 15 分钟后。成功的有限 Run 还可以独立地把完整可写 rootfs 发布为内容寻址 OCI 镜像和普通可复用 Environment。两条路径都不会创建持久 Workspace 或通用对象存储。详细契约见[存储架构](./docs/architecture/storage-architecture.md)、[运行时架构](./docs/architecture/runtime-architecture.md)和[资源模型](./docs/architecture/resource-model.md)。
 
 公共客户端提供 Go、Python 和 TypeScript 版本，位于 [`sdk/`](./sdk/README.md)。共享的传输契约定义在 [`sdk/proto`](./sdk/proto/README.md)。
 
