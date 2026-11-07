@@ -23,6 +23,7 @@ include mk/devbox.mk
 include mk/dev-env.mk
 include mk/root.mk
 include mk/deploy.mk
+include mk/agent-images.mk
 include mk/subsystems/axnoded.mk
 include mk/subsystems/controld.mk
 include mk/subsystems/egressd.mk
