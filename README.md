@@ -14,13 +14,22 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-Axern is an open-source, self-hosted execution platform for AI agents. It isolates agent-generated code with gVisor (`runsc`) through one resource and lifecycle model. Runsc is the supported execution runtime, with no runtime fallback. The CLI and the Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and allocation-scoped access.
+Axern is open-source, self-hosted infrastructure for **single-host agent execution and persistent workspaces**. Today it provides isolated execution through gVisor (`runsc`); persistent Workspace resources remain planned. The CLI and Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and Allocation-scoped access. gVisor/runsc is the sole long-term execution backend.
 
-The product direction is **single-host-first infrastructure for personal agent systems**: simpler Linux deployment, long-running sandbox services, and persistent Workspaces that multiple agents can use through explicit access and ownership. Agent planning, collaboration, and workflows remain in caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
+The primary use case is a personal agent system on one Linux host: independent workers, inspectable execution, retained working data, and a small operational surface. Agent sessions, configuration, planning, collaboration, and workflows belong to caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
 
-> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) is available as a source-built runtime archive; it is not yet a published release channel or a supported upgrade path. Persistent Workspace resources remain planned. Today's local path is a Docker Compose development stack; writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
+> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) provides a source-built runtime archive and managed systemd lifecycle; installation and runtime acceptance evidence is tracked in [#197](https://github.com/cofy-x/axern/issues/197). It is not yet a published release channel or a supported upgrade path. Docker Compose remains the local development path. Writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
 
-The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade over that chain, not a second execution lifecycle.
+The durable chain is **Environment → Run → Allocation → runsc sandbox**. The following concepts describe how an agent system uses that chain; they do not introduce another execution lifecycle or an Axern Agent resource.
+
+| Concept | Responsibility and status |
+| --- | --- |
+| Image | Immutable runtime, tools, and reference inputs. Environments resolve execution inputs and policy; read-only ImageMounts provide additional image content. |
+| Workspace | **Planned:** retained working data with its own identity, authorization, capacity, and deletion. The first version targets one writer per Workspace. |
+| Sandbox | The running execution view and SDK facade over one Run/Allocation, including its processes and filesystem access. It does not own a persistent Agent session. |
+| AgentSession | Caller-owned conversation, configuration, planning, and coordination state; Axern executes the worker without interpreting that session. |
+
+The default collaboration pattern is independent writable working directories, common read-only references, and explicitly published results that the caller merges or hands off. Today this uses separate Allocations, read-only image mounts, and caller-managed export/restore. Native Workspace retention and simultaneous shared writable mounts remain unimplemented; [#213](https://github.com/cofy-x/axern/issues/213) tracks the consumer experiment and its gaps.
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
@@ -93,7 +102,7 @@ flowchart LR
     Gateway --> Node["axnoded\nsandbox execution"]
     Control --> Node
     Node --> Egress["egressd\ntrusted egress policy enforcement"]
-    Node --> Image["imagemgr + imagefsd\nOCI and Nydus rootfs"]
+    Node --> Image["imagemgr\nOCI; optional Nydus/imagefsd"]
     Node --> Runtime["runsc sandboxes"]
 ```
 
