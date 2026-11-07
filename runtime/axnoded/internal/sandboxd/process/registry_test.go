@@ -500,6 +500,20 @@ func TestRegistryShutdownHonorsCanceledContext(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	helperID := status.ID
+	managed, ok := registry.process(helperID)
+	if !ok {
+		t.Fatal("started helper is missing from registry")
+	}
+	defer func() {
+		// Preserve exact command ownership and reap even when an assertion fails.
+		_ = waiter.Signal(managed.cmd, os.Kill)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if _, _, err := registry.Wait(cleanupCtx, helperID); err != nil {
+			t.Errorf("cleanup helper: %v", err)
+		}
+	}()
 	ready, err := listener.Accept()
 	if err != nil {
 		t.Fatalf("wait for helper readiness: %v", err)
@@ -510,14 +524,22 @@ func TestRegistryShutdownHonorsCanceledContext(t *testing.T) {
 	if err := registry.Shutdown(ctx, time.Second); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Shutdown() error = %v, want context canceled", err)
 	}
+	select {
+	case <-managed.done:
+	default:
+		t.Fatal("Shutdown() returned before reaping its TERM-ignoring helper")
+	}
 	waitCtx, waitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer waitCancel()
-	status, ok, err := registry.Wait(waitCtx, status.ID)
+	status, ok, err = registry.Wait(waitCtx, helperID)
 	if err != nil || !ok {
 		t.Fatalf("Wait() status = %#v, ok = %v, err = %v", status, ok, err)
 	}
-	if status.State != ProcessStateExited {
-		t.Fatalf("status = %#v, want exited after forced cleanup", status)
+	if status.State != ProcessStateExited || status.ExitCode == nil || *status.ExitCode != 137 || status.Signal != os.Kill.String() {
+		t.Fatalf("status = %#v, want SIGKILL exit after forced cleanup", status)
+	}
+	if err := waiter.Signal(managed.cmd, os.Kill); !errors.Is(err, os.ErrProcessDone) {
+		t.Fatalf("Signal() = %v, want reaped command to have no signal authority", err)
 	}
 }
 
