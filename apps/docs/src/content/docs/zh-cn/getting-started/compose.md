@@ -1,9 +1,9 @@
 ---
 title: Local Axern
-description: 管理无需源码、机器级的 Axern 本地实例。
+description: 管理无需源码的 Docker Compose 开发实例。
 ---
 
-`axern local up` 是官方支持的本地安装入口。CLI 内置同版本部署资源，负责生成本地身份、调用 Docker Compose v2，并配置公开 Gateway Context。
+`axern local up` 管理 Docker Compose 开发配置。CLI 内置同版本部署资源，负责生成本地身份、调用 Docker Compose v2，并配置公开 Gateway Context。
 
 它是机器级实例：可以从任意目录运行，不需要项目初始化文件。
 

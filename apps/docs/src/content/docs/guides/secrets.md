@@ -5,6 +5,8 @@ description: Store immutable, metadata-only-listed secrets for registry credenti
 
 `axern secret` stores immutable secrets in a namespace. Secrets are referenced by ID from other resources — for example an environment's `--registry-credential-id` — and are never embedded in resource specs. Listing and inspection expose metadata only, not secret values.
 
+A workload authorized to receive a Secret can read its projected value and write it into logs or output files. The caller owns safe credential use and must prevent unwanted disclosure when collecting or exporting results; Axern does not automatically redact arbitrary workload output.
+
 ## Create a secret
 
 Opaque secrets take one or more `key=value` entries. Prefer stdin so values do not appear in command arguments. Reference an existing environment variable instead of writing the value literally in a command or heredoc:

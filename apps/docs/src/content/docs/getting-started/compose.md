@@ -1,9 +1,9 @@
 ---
 title: Local Axern
-description: Run and manage a source-free, machine-level Axern instance.
+description: Run and manage a source-free Docker Compose development instance.
 ---
 
-`axern local up` is the supported local installation. The CLI contains the version-matched deployment bundle, generates local identity material, invokes Docker Compose v2, and configures the public gateway context.
+`axern local up` manages the Docker Compose development profile. The CLI contains the version-matched deployment bundle, generates local identity material, invokes Docker Compose v2, and configures the public gateway context.
 
 It is a machine-level instance: you can run the command from any directory and do not need an Axern project file.
 
@@ -17,7 +17,7 @@ axern local status
 
 Starting again is idempotent. Existing PostgreSQL, runtime, and identity data is preserved. If another context is already selected, `local up` does not replace it; use `axern local up --use` when you want to switch.
 
-Optional local telemetry is deliberately excluded from the cold-start path:
+Enable optional local telemetry explicitly:
 
 ```bash
 axern local up --profile observability

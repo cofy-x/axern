@@ -9,7 +9,7 @@ This page is the complete reference. For a guided first run, start with [Local A
 
 ## Requirements and boundaries
 
-The first release supports macOS and Linux on amd64 and arm64 with Docker Compose v2. Windows, Podman, offline installation, multiple local instances, and automatic Kubernetes creation are not supported.
+Local Axern supports macOS and Linux on amd64 and arm64 with Docker Compose v2. Windows, Podman, offline installation, multiple local instances, and automatic Kubernetes creation are not supported.
 
 Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Workload and agent images are pulled on first use. The optional observability profile requires additional memory and disk.
 
@@ -51,7 +51,7 @@ All host listeners bind only to `127.0.0.1`.
 | `24101` | Control-plane HTTP                             |
 | `25432` | PostgreSQL                                     |
 
-The observability profile additionally uses `4317`, `4318`, and `13000`. The first version intentionally does not allocate alternate ports; stop the conflicting process and rerun `axern local doctor`.
+The observability profile additionally uses `4317`, `4318`, and `13000`. Ports are fixed; resolve any conflicting listener before rerunning `axern local doctor`.
 
 ## Context behavior
 

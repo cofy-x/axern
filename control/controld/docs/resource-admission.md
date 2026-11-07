@@ -90,7 +90,7 @@ go test ./internal/kernel/resource ./internal/kernel/placement \
   -benchmem -count=3
 ```
 
-On 2026-09-15, an Apple M4 Pro (`darwin/arm64`) measured `EvaluateFit` at 16.88–16.98 ns/op and `EvaluationLess` at 5.55–6.32 ns/op, both with zero allocations. These local numbers are regression references, not production SLOs. End-to-end P50/P95/P99 and lock wait must come from `controld_resource_admission_stage_duration_seconds`, node lifecycle RPC histograms, and axnoded startup phase histograms under the deployment workload; recording a workstation database latency as a portable target would be misleading.
+Measure end-to-end P50/P95/P99 and lock wait from `controld_resource_admission_stage_duration_seconds`, node lifecycle RPC histograms, and axnoded startup phase histograms under the deployment workload. Microbenchmarks isolate policy evaluation costs; they do not define a production Ready SLO.
 
 The partial covering index `idx_allocations_resource_charge_node` serves Node charge scans without introducing a resource counter table. Namespace scans use `idx_runs_namespace_id` plus the unique Allocation `run_id`. Query-plan changes must preserve those facts and be measured against realistic non-released cardinality before adding an index or cache.
 
@@ -103,11 +103,10 @@ The human-readable Run `message` is operator context, not a machine contract. Ty
 
 ## Boundary Rules
 
-- `internal/kernel/resource` owns pure policy, fit evaluation, and shared diagnostic reason names.
+- `internal/kernel/resource` owns pure policy, fit evaluation, and admission diagnostic classification.
 - `internal/placement` owns candidate selection and placement-specific `ErrorInfo` construction.
 - `internal/postgres/resourceadmission` owns transactional Namespace quota and Node-capacity admission.
 - `internal/application/run` maps admission failures into Run diagnostics. It does not sum or cache resource charges.
-- `internal/kernel/resource` owns admission reason and diagnostic classification.
 - CLI and SDK clients render the typed diagnostic emitted by the control plane and never infer it from message text.
 - `axnoded` remains the runtime authority for cgroup enforcement; overcommit and quota do not change container limits.
 - A nonzero `resources.limits.memory_bytes` automatically requires the selected runtime's typed memory-hard-limit capability. Its probes, evidence, and allocation-specific enforcement are defined by the canonical observed capability contract.

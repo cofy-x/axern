@@ -5,6 +5,8 @@ description: Install Axern and run an isolated command locally without cloning s
 
 Run a complete Axern stack on your machine without cloning the repository or installing Go, Node.js, Helm, `kubectl`, Make, or OpenSSL.
 
+This guide uses the Docker Compose development profile. For native Linux single-host serving, follow the repository's [experimental installation guide](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md), which defines the source-built archive, host requirements and systemd lifecycle.
+
 ## Prerequisites
 
 - macOS or Linux on amd64 or arm64
@@ -57,7 +59,7 @@ Run status is durable. stdout/stderr and explicitly declared files or directory-
 - Learn how to stop, diagnose, reset, and upgrade the stack in [Local Axern](/getting-started/compose/).
 - Define reusable, reviewable executions in [Runs](/guides/run/).
 - See the complete lifecycle reference in [`axern local`](/guides/local/).
-- Use [Kubernetes installation](/getting-started/kubernetes/) for shared or production deployments.
+- Use [Kubernetes installation](/getting-started/kubernetes/) for a cluster deployment and its operator-owned configuration.
 
 :::caution[Local development boundary]
 

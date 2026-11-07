@@ -1,6 +1,6 @@
 # Release Operations
 
-Axern releases one coherent version across the CLI, Helm chart, platform images, Python, Go, and TypeScript SDKs, and source metadata. Workload images are supplied by callers and are not Axern release artifacts. `VERSION` is the canonical version without a leading `v`.
+Axern releases one coherent version across the CLI, Helm chart, platform images, Python, Go, and TypeScript SDKs, and source metadata. `VERSION` is the canonical version without a leading `v`. The repository also maintains [Agent workload image recipes](../../images/agents/README.md); building and publishing those images is an explicit operator action outside this platform release workflow.
 
 ## Prepare
 
@@ -14,7 +14,7 @@ make sdk-artifact-verify
 make open-source-check
 ```
 
-Confirm the public documentation still matches the release. Every English page in `apps/docs` changed since the previous release must have its Simplified Chinese counterpart updated in the same release; the `zh-cn` locale is a maintained journey, not a best-effort fallback. Review time-bounded statements in user-facing pages and update or remove any statement the release makes stale. Persistent volume provisioning is outside Axern's product boundary, not a pending CLI feature. Run `make docs-verify` before tagging.
+Confirm that user-facing commands, capability descriptions, and upgrade guidance match the release. Update the Simplified Chinese counterpart of each changed English page in `apps/docs` in the same release. Check the [storage contract](../architecture/storage-architecture.md) before advertising persistence or migration support. Run `make docs-verify` before tagging.
 
 The GitHub `sdk-release` environment is the deployment boundary for SDK registries. PyPI trusts the `Release` workflow for `axern-sdk` and npm trusts the same workflow for `@cofy-x/axern-sdk`; both use GitHub OIDC and must not use long-lived publish tokens. Configure the npm trusted publisher for repository `cofy-x/axern`, workflow `release.yml`, environment `sdk-release`, and allow `npm publish`. The npm organization and initial public package must exist before its trusted publisher can be registered. Bootstrap a validated prerelease (for example `X.Y.Z-bootstrap.0` under the `next` dist-tag) interactively with 2FA from a temporary clean export; do not consume the final version. Then configure trust and remove the bootstrap credential before creating the release tags. npm generates provenance automatically for subsequent public OIDC publishes.
 

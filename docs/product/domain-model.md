@@ -51,7 +51,9 @@ Rootfs sealing is an optional Run finalization result independent from workload 
 
 ### Secret
 
-Run and Environment state contain typed Secret references, never plaintext. Read APIs return metadata only, required references prevent unsafe deletion, and plaintext cannot enter logs, events, metrics, diagnostics, outputs, or runtime identity.
+Run and Environment state contain typed Secret references, never plaintext. Read APIs return metadata only, required references prevent unsafe deletion, and platform-generated metadata, identities, logs, events, metrics and diagnostics must not serialize or copy resolved plaintext.
+
+Runtime projection provides Secret values to an authorized execution. That program can read them and deliberately include them in its streams or files; the calling application must avoid and review such disclosure in logs and delivered artifacts. Secret projection does not provide general data-loss prevention for workload-generated content.
 
 ### Principal, Credential, And RoleBinding
 
@@ -134,7 +136,9 @@ Run and Allocation never double-own a fact: Run owns immutable execution intent 
 | Function, Invoke, worker dispatch | Caller queue or workflow system |
 | Persistent Workspace | Not currently implemented; the [single-writer Workspace decision](../decisions/single-writer-workspaces.md) defines the planned independent data identity, attachment and restore boundary |
 | General or distributed Volume provisioning | External storage layer |
-| Dashboard, IDE, cluster, region, cloud account, image build | Composed product or deployment infrastructure |
+| Dashboard, IDE, cluster, region, cloud account and image-build service orchestration | Composed product or deployment infrastructure |
+
+Axern maintains [workload image recipes](../../images/agents/README.md), their shared toolchains and local build/check commands. This source ownership does not create a control-plane image-build service, Agent resource or model-provider configuration authority.
 
 ## Invariants
 

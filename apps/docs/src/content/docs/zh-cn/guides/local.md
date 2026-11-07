@@ -9,7 +9,7 @@ description: Local Axern 的环境要求、生命周期、数据、版本替换�
 
 ## 支持范围
 
-首版支持 amd64/arm64 的 macOS 和 Linux，以及 Docker Compose v2；不支持 Windows、Podman、离线安装、多本地实例和自动创建 Kubernetes。
+Local Axern 支持 amd64/arm64 的 macOS 和 Linux，以及 Docker Compose v2；不支持 Windows、Podman、离线安装、多本地实例和自动创建 Kubernetes。
 
 建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘。工作负载和 Agent 镜像首次使用时才拉取；可观测 Profile 需要额外资源。
 
@@ -43,7 +43,7 @@ description: Local Axern 的环境要求、生命周期、数据、版本替换�
 
 所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway 和 mTLS WebSocket Terminal，`25080` 为 Gateway HTTP 健康检查，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
 
-首版不自动分配替代端口；请停止冲突进程后重新运行 `axern local doctor`。
+端口是固定的；先处理冲突的 listener，再重新运行 `axern local doctor`。
 
 ## Context 与代理
 

@@ -15,15 +15,16 @@ flowchart LR
     Gateway -->|Allocation operations| Node
     Gateway -->|client peer| Tunnel["tunneld\nreverse TCP relay"]
     Node -->|node peer| Tunnel
-    Node --> Image["imagemgr + imagefsd\nOCI + Nydus"]
-    Node --> Runtime["runsc"]
+    Node --> Egress["egressd\nnetwork policy enforcement"]
+    Node --> Image["imagemgr\nOCI; optional Nydus/imagefsd"]
+    Node --> Runtime["gVisor / runsc"]
 ```
 
 ## Stable ownership
 
 - **Gateway:** authenticates public clients and forwards control, process, file, archive, terminal, SSH, and Tunnel traffic without owning durable state.
 - **Control plane:** persists resources and coordinates placement, leases, health, allocation-scoped status, and cleanup.
-- **Node runtime:** owns sandbox processes, filesystems, images, networking (an eBPF NAT dataplane with an explicit iptables rollback; see [Node Networking](/architecture/networking/)), probes, and node-local reconciliation.
+- **Node runtime:** owns sandbox processes, filesystems, image acquisition, [node networking](/architecture/networking/), probes, and node-local reconciliation. `egressd` enforces sandbox network policy. Native Linux serving uses OCI-only image management; Nydus/imagefsd is an optional image path.
 - **SDKs:** expose Sandbox ergonomics over the durable `Environment -> Run -> Allocation` chain without creating another workload model.
 
 This page intentionally stays conceptual. The repository's [runtime architecture](https://github.com/cofy-x/axern/blob/main/docs/architecture/runtime-architecture.md), [resource model](https://github.com/cofy-x/axern/blob/main/docs/architecture/resource-model.md), and [execution lifecycle](https://github.com/cofy-x/axern/blob/main/docs/architecture/execution-lifecycle.md) are the engineering sources of truth.
