@@ -31,6 +31,8 @@ The durable chain is **Environment → Run → Allocation → runsc sandbox**. T
 
 The default collaboration pattern is independent writable working directories, common read-only references, and explicitly published results that the caller merges or hands off. Today this uses separate Allocations, read-only image mounts, and caller-managed export/restore. Native Workspace retention and simultaneous shared writable mounts remain unimplemented.
 
+[Agent workload images](./images/agents/README.md) share a base and development toolchain, then add official Claude Code or Codex programs in separate layers. Build them locally with `make agent-images`; model credentials, provider selection, tasks and session policy remain runtime inputs owned by the caller.
+
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
 </p>

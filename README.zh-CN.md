@@ -33,6 +33,8 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 默认协作方式是独立的可写工作目录、共同的只读参考资料，以及由调用方明确发布、合并或交接的产物。目前可通过独立 Allocation、只读镜像挂载和调用方管理的导出／恢复实现这一方式。原生 Workspace 保留与同时多写的共享可写挂载尚未实现。
 
+[Agent 工作负载镜像](./images/agents/README.md)复用基础系统和开发工具链，再分别加入官方 Claude Code 或 Codex 程序。通过 `make agent-images` 在本地构建；模型凭据、提供方选择、任务和会话策略由调用方在运行时配置。
+
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="当前 axern CLI 帮助录制：本地执行、Run、SSH 和 Tunnel 命令">
 </p>

@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "platform": "linux/amd64",
+  "base": {
+    "image": "docker.io/library/python:3.12.16-slim-bookworm@sha256:0f086103b026048cc50cb5da25ec435c023c5241a83fc44daea593377abc61c4",
+    "python_version": "3.12.16"
+  },
+  "artifacts": {
+    "claude-code": {
+      "version": "2.1.319",
+      "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.319.tgz",
+      "sha256": "733a926c19df1c84f35a8e4285a637edce7bf2de13672cfe13a1397efd0bf823",
+      "integrity": "sha512-XoyAxGXBmNsb9ahz0xLAtyz/I6b1j+4lyLpucyTQIq4FcKUxrMDM2AzA2sHipHoN1DdMJINQQrLZxRZRq7FqBA==",
+      "size": 31599
+    },
+    "claude-code-linux-x64": {
+      "version": "2.1.319",
+      "url": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.319.tgz",
+      "sha256": "9b7b53954b8ffb886fafeefe9ef1e0e9e5c15e8aaf2f54d65ba64d0cca795dc7",
+      "integrity": "sha512-FO4Sd23BO1VCQPiJe5vG3bNnmV5+YiTau7o1lqK3Fr5VlE4TLdKiyYpwQRwEXO91kE2l12Ep2i7J19T8Md2oOQ==",
+      "size": 158448451
+    },
+    "node": {
+      "version": "24.16.0",
+      "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.xz",
+      "sha256": "d804845d34eddc21dc1092b519d643ef40b1f58ec5dec5c22b1f4bd8fabde6c9",
+      "size": 31428548
+    },
+    "go": {
+      "version": "1.26.8",
+      "url": "https://go.dev/dl/go1.26.8.linux-amd64.tar.gz",
+      "sha256": "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b",
+      "size": 66897291
+    },
+    "codex": {
+      "version": "0.167.0",
+      "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.167.0-linux-x64.tgz",
+      "sha256": "2dc9aa871abb513c3539d20d025f701faf1974c46ee906bda3a1e1f5026d4434",
+      "integrity": "sha512-FNc7danfUng9Sp6w+Fh7kofNHHZpA6VMyNKWsWrS3OwHly69gywTWeiuwrUPXpJSho8Df4xqRsHfHRPzj7zYQg==",
+      "size": 173743288
+    },
+    "codex-license": {
+      "version": "0.167.0",
+      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/LICENSE",
+      "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
+      "size": 10926
+    },
+    "codex-notice": {
+      "version": "0.167.0",
+      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/NOTICE",
+      "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
+      "size": 242
+    }
+  }
+}

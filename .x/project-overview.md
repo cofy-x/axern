@@ -14,6 +14,7 @@ Use this document for repository layout, workspace membership, and build orchest
 | `sdk/`            | Public SDKs and protobuf contracts                                                     |
 | `lib/`            | Internal libraries shared by multiple modules                                          |
 | `deploy/`         | Local, kind, image, and Helm deployment surfaces                                       |
+| `images/agents/`  | Layered Agent workload images and their pinned build inputs                            |
 | `mk/`, `Makefile` | Root orchestration and subsystem wrappers                                              |
 | `docs/`           | Product direction, current architecture, durable decisions, verification, and runbooks |
 | `examples/`       | Maintained user-facing examples                                                        |
@@ -43,6 +44,7 @@ When membership changes, update the configuration, lockfile if applicable, root 
 - `mk/devbox.mk` owns the Linux source-development environment and standalone daemon stack.
 - `mk/dev-env.mk` owns local Compose, kind, registry, image, context, and smoke workflows.
 - `mk/deploy.mk` owns cloud-neutral Helm validation and Kubernetes deployment helpers.
+- `mk/agent-images.mk` owns workload-image builds, host-safe contracts and explicit model-free Docker checks.
 
 Use `make help` for commands and the owning module README for details. Command inventories in documentation are explanatory, not authoritative.
 

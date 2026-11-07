@@ -65,9 +65,18 @@ fi
 
 docs=false docs_site=false proto=false root_go=false axnoded=false egressd=false bpfnet=false
 rust=false typescript=false python=false broad=false network_policy_linux=false
-release_contract=false
+release_contract=false agent_images=false
 
 for path in "${paths[@]}"; do
+  # Workload-image tooling is independent of the Python SDK and host network
+  # enforcement. Keep its host-safe contract checks in the owning directory.
+  case "${path}" in
+    images/agents/*|mk/agent-images.mk)
+      agent_images=true
+      case "${path}" in *.md|*.mdx) docs=true ;; esac
+      continue
+      ;;
+  esac
   case "${path}" in
     *.md|*.mdx)
       docs=true
@@ -119,6 +128,7 @@ if [[ "${broad}" == "true" ]]; then
   [[ "${release_contract}" == "true" ]] && add_group release-contract
 else
   [[ "${docs}" == "true" ]] && add_group docs
+  [[ "${agent_images}" == "true" ]] && add_group agent-images
   [[ "${docs_site}" == "true" ]] && add_group docs-site
   [[ "${proto}" == "true" ]] && add_group proto
   [[ "${root_go}" == "true" ]] && add_group go
@@ -154,6 +164,7 @@ for group in "${fast_groups[@]}"; do
   case "${group}" in
     verify-fast-all) run make verify-fast-all ;;
     docs) run make agent-doc-check ;;
+    agent-images) run make agent-images-check ;;
     docs-site) run make docs-check ;;
     proto) run make -C sdk/proto lint; run make proto-generated-check ;;
     go) run make test-go; run make lint-go ;;
