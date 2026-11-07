@@ -17,7 +17,7 @@ Because the backing resources are ordinary Axern resources, they remain visible 
 
 ## Sources and connections
 
-Each Sandbox selects exactly one source: a portable OCI `image` or an existing `environment_id` to continue prior work.
+Each Sandbox selects exactly one immutable source: an OCI `image` or an existing `environment_id`. Reusing an Environment reuses its execution inputs. A new Sandbox execution creates a new Run, Allocation and writable layer; changes in another Allocation are not shared automatically. Retain and restore selected files explicitly through the file and declared-output APIs when work must continue in a new execution.
 
 Connections are explicit. `AxernClient.from_env()` reads `AXERN_ENDPOINT` and `AXERN_TLS_*` variables; `from_context()` reads the same versioned context schema as the CLI. SDK constructors never inspect the user directory implicitly.
 

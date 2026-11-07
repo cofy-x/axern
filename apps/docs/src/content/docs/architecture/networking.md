@@ -1,11 +1,11 @@
 ---
 title: Node Networking
-description: How Axern connects sandboxes to the network — the eBPF NAT dataplane, its packet paths, and the explicit rollback.
+description: Explicit NAT backend selection and ownership for sandbox networking.
 ---
 
-Axern's node networking uses `bpfnet`, an in-repo IPv4 eBPF egress-NAT library embedded by `axnoded`. It is the default production NAT dataplane on supported Linux nodes. IPv6 requires explicitly selecting the separate iptables backend.
+`axnoded` owns sandbox network namespaces, interfaces and NAT backend selection. The [native Linux installation](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md) configures the iptables backend. The Helm chart defaults to `ebpf`, using the repository's IPv4 `bpfnet` library embedded in `axnoded`. IPv6 requires explicitly selecting iptables.
 
-## Packet paths
+## eBPF packet paths
 
 | Path | Program |
 | --- | --- |
@@ -17,8 +17,8 @@ Axern's node networking uses `bpfnet`, an in-repo IPv4 eBPF egress-NAT library e
 
 `axnoded` owns Allocation lifecycle, bridge/veth/netns resources, backend selection, rollback policy, and SNAT GC scheduling. `bpfnet` owns egress dataplane attach and reconciliation, pinned maps/programs, and status collection. Inbound access uses Allocation-scoped Tunnel or SSH sessions; node-global endpoint publication is not part of the model.
 
-## Fallback semantics
+## Backend configuration
 
-Fallbacks are explicit states, not silent degradation. The eBPF backend requires both TC directions and all current pinned objects. The Helm chart defaults `node.network.natBackend` to `ebpf`; set it to `iptables` only as an explicit rollback backend or for IPv6.
+The eBPF backend requires both TC directions and all current pinned objects. Set `node.network.natBackend` in Helm values to select `ebpf` or `iptables` for that installation's network profile; use iptables for IPv6. Backend health and any configured rollback are explicit operational states.
 
 The engineering contracts — attach lifecycle, production replacement gates, regression runbook, and alerting — live with the module in the repository's [`network/bpfnet/docs/`](https://github.com/cofy-x/axern/tree/main/network/bpfnet/docs) and the [Helm chart README](https://github.com/cofy-x/axern/tree/main/deploy/helm/axern).

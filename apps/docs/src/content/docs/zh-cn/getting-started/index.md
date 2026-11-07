@@ -5,6 +5,8 @@ description: 无需克隆源码，在本机安装 Axern 并运行第一个隔离
 
 无需克隆仓库，也无需安装 Go、Node.js、Helm、`kubectl`、Make 或 OpenSSL，即可在本机运行完整 Axern。
 
+本指南使用 Docker Compose 开发配置。原生 Linux 单机 serving 请参阅仓库的[实验安装指南](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md)，其中定义源码构建归档、主机要求和 systemd 生命周期。
+
 ## 环境要求
 
 - amd64 或 arm64 的 macOS/Linux
@@ -57,7 +59,7 @@ Run 状态会持久保存；stdout/stderr 与显式声明的文件或目录 tar 
 - 在 [Local Axern](/zh-cn/getting-started/compose/) 中学习启动、停止、诊断、重置和升级。
 - 在 [Run](/zh-cn/guides/run/) 中定义可复用、可评审的执行。
 - 查看完整的 [`axern local` 参考](/zh-cn/guides/local/)。
-- 团队共享与生产部署请使用 [Kubernetes 安装](/zh-cn/getting-started/kubernetes/)。
+- 集群部署及其运维配置见 [Kubernetes 安装](/zh-cn/getting-started/kubernetes/)。
 
 :::caution[本地开发边界]
 

@@ -11,7 +11,7 @@
 | [Runtime Stack](runtime-stack.md)       | Which contracts and owners does a cross-component change affect? | Changing shared APIs, lifecycle, sockets, or runtime integration                |
 | [Coding Standards](coding-standards.md) | Where should code live and how should it be validated?    | Implementing or validating a change                                                |
 
-Follow [Task-Scoped Reading](../AGENTS.md#task-scoped-reading); this index adds no mandatory reading beyond the task's scope.
+Start with the [Agent Contract](../AGENTS.md) and use this map to select context for the task.
 
 ## Maintenance Rules
 

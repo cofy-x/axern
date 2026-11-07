@@ -18,7 +18,7 @@ Follow the [Markdown Formatting](../.x/coding-standards.md#markdown-formatting) 
 
 ## Reading And Authority
 
-This is a lookup index, not a required reading list. Follow [Task-Scoped Reading](../AGENTS.md#task-scoped-reading). The document types above define authority; agent contracts retain short safety constraints and route to those explanations.
+Use the [Agent Contract](../AGENTS.md) and module guide to select the documents relevant to a task. The document types above identify the owner of each explanation.
 
 When a rule already has an owner, link to it instead of adding another full explanation to an AGENTS file, README, or `.x` page. Keep critical prohibitions visible in agent contracts, but update detailed behavior at its authoritative source. If code and a documented contract disagree, establish the intended behavior and report the discrepancy; do not silently treat either duplication or implementation drift as a new contract.
 
@@ -27,7 +27,7 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 ## Decisions
 
 - [Documentation Site Visual Direction](decisions/docs-site-visual-direction.md): durable visual, content, interaction, and ownership constraints for the public documentation site.
-- [Single-Host Agent Serving](decisions/single-host-agent-serving.md): Linux standalone direction, long-term gVisor-only execution, planned persistent Workspace, upper-agent boundary, module dispositions, and capability dependencies.
+- [Single-Host Agent Serving](decisions/single-host-agent-serving.md): the reasons for Linux single-host serving, gVisor-only execution, and the separation from upper Agent orchestration.
 - [Managed Single-Writer Workspaces](decisions/single-writer-workspaces.md): planned host-local data identity, exclusive attachment, retained capacity, deletion and cold-restore boundaries; no current Workspace API.
 - [Node Operator Authority Boundary](decisions/node-operator-authority-boundary.md): retain Allocation-scoped node diagnostics without creating a second lifecycle authority or sharing operator privilege with machine integrations.
 - [Verification Feedback Tiers](decisions/verification-feedback-tiers.md): separate fast development feedback, Linux correctness, full regression, and frozen-candidate qualification.
@@ -47,6 +47,7 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 - [Resource Model](architecture/resource-model.md): requests, limits, quota, admission, and diagnostics.
 - [Principal And Namespace Authorization](architecture/authorization.md): public mTLS identity mapping, scoped roles, gateway trust, and rotation.
 - [Storage Architecture](architecture/storage-architecture.md): durable control state, Allocation-local writable data, image mounts, output transfer, and cleanup.
+- [Agent Workload Images](../images/agents/README.md): layered development and Agent images, version locks, build commands, and runtime inputs.
 - [Nydus Image Runtime](architecture/nydus-image-runtime.md): Nydus mount, caching, deduplication, and scaling model.
 
 For a module-internal design, prefer that module's `docs/` directory. Promote material here only when multiple modules need the same model.

@@ -15,15 +15,16 @@ flowchart LR
     Gateway -->|Allocation 操作| Node
     Gateway -->|客户端 peer| Tunnel["tunneld\n反向 TCP 中继"]
     Node -->|节点 peer| Tunnel
-    Node --> Image["imagemgr + imagefsd\nOCI + Nydus"]
-    Node --> Runtime["runsc"]
+    Node --> Egress["egressd\n网络策略执行"]
+    Node --> Image["imagemgr\nOCI；可选 Nydus/imagefsd"]
+    Node --> Runtime["gVisor / runsc"]
 ```
 
 ## 稳定的职责划分
 
 - **Gateway：** 认证公开客户端，转发控制、进程、文件、归档、终端、SSH 和 Tunnel 流量，但不拥有持久状态。
 - **控制面：** 持久化资源，协调调度、租约、健康、Allocation 级状态和清理。
-- **节点运行时：** 掌管 Sandbox 进程、文件系统、镜像、网络（eBPF NAT 数据面，可显式回退 iptables，见[节点网络](/zh-cn/architecture/networking/)）、探针和节点本地的 reconcile。
+- **节点运行时：** 掌管 Sandbox 进程、文件系统、镜像获取、[节点网络](/zh-cn/architecture/networking/)、探针和节点本地的 reconcile。`egressd` 执行 Sandbox 网络策略。原生 Linux serving 使用 OCI-only 镜像管理；Nydus/imagefsd 是可选镜像路径。
 - **SDK：** 在持久的 `Environment -> Run -> Allocation` 链之上提供 Sandbox 易用接口，不创建另一套工作负载模型。
 
 本页刻意保持概念层。仓库的 [运行时架构](https://github.com/cofy-x/axern/blob/main/docs/architecture/runtime-architecture.md)、[资源模型](https://github.com/cofy-x/axern/blob/main/docs/architecture/resource-model.md)和 [执行生命周期](https://github.com/cofy-x/axern/blob/main/docs/architecture/execution-lifecycle.md) 是工程层面的权威来源。

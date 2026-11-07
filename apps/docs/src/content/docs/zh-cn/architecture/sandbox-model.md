@@ -17,7 +17,7 @@ Sandbox 是 SDK 对隔离工作负载的可编程视图。Python、Go、TypeScri
 
 ## Source 与连接
 
-每个 Sandbox 严格选择一个 source：便携的 OCI `image`，或用于继续已有工作的 `environment_id`。
+每个 Sandbox 严格选择一个不可变 source：OCI `image` 或已有的 `environment_id`。复用 Environment 会复用执行输入。新 Sandbox 执行会创建新的 Run、Allocation 和独立可写层；另一 Allocation 中的修改不会自动共享。需要在新执行中继续工作时，通过文件和声明输出 API 显式保留并恢复选定文件。
 
 连接是显式的。`AxernClient.from_env()` 读取 `AXERN_ENDPOINT` 和 `AXERN_TLS_*` 变量；`from_context()` 读取与 CLI 相同的版本化 Context schema。SDK 构造函数从不隐式检查用户目录。
 
@@ -28,7 +28,7 @@ Sandbox 是 SDK 对隔离工作负载的可编程视图。Python、Go、TypeScri
 - `exec()` 执行一次性命令并捕获退出码和输出；`process()` 用于交互式 stdin、终止和显式等待
 - 文件操作（`read_text`/`write_text`、`list_dir`、`stat`、`mkdir`、`remove`、`copy`、`move`、`chmod`），以及基于归档、拒绝不安全路径和链接的 `upload_dir`/`download_dir`
 - 由 SDK 负责续期和清理的反向[隧道](/zh-cn/guides/tunnels/)
-- 在具备能力的镜像上进行 [Computer Use 和浏览器自动化](/zh-cn/guides/computer-use/)
+- 在具备能力的镜像上进行 [Computer Use](/zh-cn/guides/computer-use/)；浏览器自动化由调用方的工作负载程序负责
 
 ## 生命周期与清理
 

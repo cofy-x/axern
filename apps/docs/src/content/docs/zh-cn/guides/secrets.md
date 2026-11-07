@@ -5,6 +5,8 @@ description: 存储不可变、列表仅暴露元数据的 Secret，用于仓库
 
 `axern secret` 在命名空间中存储不可变 Secret。其他资源按 ID 引用 Secret——例如环境的 `--registry-credential-id`——Secret 绝不写入资源 Spec。列表和查看只暴露元数据，不暴露 Secret 值。
 
+获授权接收 Secret 的工作负载可以读取投影值，并将其写入日志或输出文件。调用方负责安全使用凭据，并在收集或导出结果时避免不必要的披露；Axern 不会自动脱敏任意工作负载输出。
+
 ## 创建 Secret
 
 不透明 Secret 接受一个或多个 `key=value` 条目。优先用 stdin，避免值出现在命令参数中。引用已有环境变量，而不是把值写进命令或 heredoc：

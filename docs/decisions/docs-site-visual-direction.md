@@ -23,7 +23,7 @@ The site remains static, accessible, responsive, and compatible with the Starlig
 
 - `apps/docs` owns components, styles, localized public journeys, and assets.
 - Axern product modules own API and runtime semantics; examples must match those implementations.
-- Forge owns publication and cross-project operational coordination, not the site design source of truth.
+- Publication and cross-project operational coordination belong to the deployment operator; site design remains in `apps/docs`.
 
 ## Acceptance
 

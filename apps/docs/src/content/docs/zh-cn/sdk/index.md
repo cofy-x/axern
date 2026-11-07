@@ -27,11 +27,10 @@ Sandbox 边界是共享的；各语言的深度差异是刻意设计。
 | 文件与归档传输               | ✓                     | ✓                 | ✓            |
 | 反向隧道                     | ✓                     | ✓                 | ✓            |
 | Computer Use                 | ✓                     | ✓                 | ✓            |
-| 托管浏览器                   | ✓                     | —                 | —            |
 | Environment 与 Run           | ✓                     | ✓                 | ✓            |
 | 并发模型                     | 同步 + `AsyncSandbox` | `context.Context` | Promise 原生 |
 
-Secret、配额、命名空间、SSH 和 admin 授权目前以 CLI 为产品界面；SDK 只在生成的 protobuf 层暴露它们。
+Secret 生命周期、配额、命名空间和访问管理使用 CLI 或生成的公开 API。SDK 执行配置接受已存 Secret 的引用，用于运行时注入；密钥值不应进入镜像或 Run 参数。SSH 会话使用 CLI 中绑定 Allocation 的连接入口。
 
 从公开的包仓库安装官方包：
 
@@ -39,6 +38,6 @@ Secret、配额、命名空间、SSH 和 admin 授权目前以 CLI 为产品界�
 - Go：`go get github.com/cofy-x/axern/sdk/go@<version>`，来自 [Go module index](https://pkg.go.dev/github.com/cofy-x/axern/sdk/go)
 - TypeScript：`pnpm add @cofy-x/axern-sdk@<version>`，来自 [npm](https://www.npmjs.com/package/@cofy-x/axern-sdk)
 
-每个 Sandbox 严格选择一个 source：用 OCI 镜像创建新 Environment，或用 Environment ID 从已有不可变 Environment 继续执行。生命周期和数据面操作都走 Axern 公开 API；SDK 不会为平台行为增加 SSH 或 shell 旁路。
+每个 Sandbox 严格选择一个 source：用 OCI 镜像创建新 Environment，或复用已有不可变 Environment ID。新 Sandbox 执行会创建新的 Run、Allocation 和独立可写层；另一 Allocation 中的修改不会自动共享。生命周期和数据面操作都走 Axern 公开 API；SDK 不会为平台行为增加 SSH 或 shell 旁路。
 
 Axern 的 CLI、Helm Chart、运行时镜像和三个 SDK 以同一仓库版本发布。Python 和 TypeScript 使用公开包仓库；Go 使用带版本的 `sdk/go` module。1.0 前的 Axern Release 应视为一个整体，提交包管理器 lockfile 或解析后的 `go.mod` 版本以保证可复现构建。

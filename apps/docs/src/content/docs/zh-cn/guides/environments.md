@@ -5,6 +5,8 @@ description: 复用不可变环境，按命名空间组织工作负载，并查�
 
 Environment 是不可变、可复用的执行源：解析好的 OCI 镜像引用，Run 和 Sandbox 可以共享它而不必重复解析镜像。命名空间组织资源，配额限制各命名空间可准入的用量。
 
+镜像封装开发工具和 Agent 程序。仓库的 [Agent 工作负载镜像](https://github.com/cofy-x/axern/tree/main/images/agents)共享 Go/Node/Python 工具链，并分别派生 Claude Code 和 Codex 层。项目文件、任务、模型配置和凭据由调用方在运行时提供。
+
 ## 创建和复用 Environment
 
 ```bash

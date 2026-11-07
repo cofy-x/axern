@@ -5,6 +5,8 @@ description: Reuse immutable environments, organize workloads by namespace, and 
 
 An Environment is an immutable, reusable execution source: a resolved OCI image reference that Runs and Sandboxes can share without re-resolving the image. Namespaces group resources, and quota bounds what each namespace may admit.
 
+Images package development tools and Agent programs. The repository's [Agent workload images](https://github.com/cofy-x/axern/tree/main/images/agents) share a Go/Node/Python toolchain with separate Claude Code and Codex layers. Callers provide project files, tasks, model configuration and credentials at runtime.
+
 ## Create and reuse an Environment
 
 ```bash
