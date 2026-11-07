@@ -14,15 +14,24 @@
   <a href="./README.md">English</a>
 </p>
 
-Axern 是一个面向 AI agent 的开源、自托管执行平台。它用 gVisor（runsc）隔离运行 agent 生成的代码，使用统一的资源与生命周期模型。执行运行时统一使用 runsc，不提供运行时回退。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 allocation 范围的访问能力。
+Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**，以开源、自托管方式提供。目前已通过 gVisor（runsc）提供隔离执行，持久 Workspace 资源仍在计划中。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 Allocation 范围的访问能力。gVisor/runsc 是唯一的长期执行后端。
 
-产品方向是**以单机为先的个人 Agent 系统基础设施**：简化 Linux 部署，支持长期运行的沙箱服务，以及通过明确访问权限和所有权供多个 agent 使用的持久 Workspace。Agent 的规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
+主要使用场景是在一台 Linux 主机上运行个人 Agent 系统：独立的 worker、可检查的执行状态、保留工作数据，以及较低的运维复杂度。Agent 的会话、配置、规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已支持从源码构建运行时包，尚未纳入正式发布渠道，也不支持升级。持久 Workspace 资源仍在计划中。当前本地路径是 Docker Compose 开发栈；可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。它尚未纳入正式发布渠道，也不支持升级。Docker Compose 仍是本地开发路径。可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
-持久领域链路为 **Environment → Run → Allocation → runsc sandbox**。Sandbox 是这条链路上的 SDK 门面，不建立第二套执行生命周期。
+持久领域链路为 **Environment → Run → Allocation → runsc sandbox**。以下概念描述 Agent 系统如何使用这条链路，不引入第二套执行生命周期或 Axern Agent 资源。
+
+| 概念 | 职责与状态 |
+| --- | --- |
+| Image | 不可变的运行环境、工具和参考资料。Environment 解析执行输入与策略；只读 ImageMount 提供额外的镜像内容。 |
+| Workspace | **计划中：** 具有独立身份、授权、容量和删除语义的持久工作数据；首版目标是每个 Workspace 只有一个写入者。 |
+| Sandbox | 一个 Run/Allocation 的运行时视图与 SDK 门面，提供进程和文件系统访问，不拥有持久 Agent 会话。 |
+| AgentSession | 调用方拥有的对话、配置、规划和协作状态；Axern 执行 worker，但不解释其会话语义。 |
+
+默认协作方式是独立的可写工作目录、共同的只读参考资料，以及由调用方明确发布、合并或交接的产物。目前可通过独立 Allocation、只读镜像挂载和调用方管理的导出／恢复实现这一方式。原生 Workspace 保留与同时多写的共享可写挂载尚未实现。
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="当前 axern CLI 帮助录制：本地执行、Run、SSH 和 Tunnel 命令">
@@ -95,7 +104,7 @@ flowchart LR
     Gateway --> Node["axnoded\n沙箱执行"]
     Control --> Node
     Node --> Egress["egressd\n可信出站策略执行"]
-    Node --> Image["imagemgr + imagefsd\nOCI 与 Nydus rootfs"]
+    Node --> Image["imagemgr\nOCI；可选 Nydus/imagefsd"]
     Node --> Runtime["runsc 沙箱"]
 ```
 
