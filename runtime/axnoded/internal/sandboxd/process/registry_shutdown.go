@@ -71,29 +71,20 @@ func waitManagedProcesses(ctx context.Context, processes []*managedProcess, time
 		}
 		return true
 	}
-	waitCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for _, managed := range processes {
-			select {
-			case <-managed.done:
-			case <-waitCtx.Done():
-				return
-			}
-		}
-	}()
+	// A canceled wait is not process completion. Wait directly on each owned
+	// completion channel and share one timeout across the complete set.
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-	select {
-	case <-done:
-		return true
-	case <-ctx.Done():
-		return false
-	case <-timer.C:
-		return false
+	for _, managed := range processes {
+		select {
+		case <-managed.done:
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+			return false
+		}
 	}
+	return true
 }
 
 func (p *managedProcess) signal(signal os.Signal) error {
