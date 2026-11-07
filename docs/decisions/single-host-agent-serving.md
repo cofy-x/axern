@@ -2,9 +2,9 @@
 
 ## Decision And Status
 
-Axern's direction is a self-hosted execution platform for AI agents, optimized for continued work on one Linux host. gVisor/runsc is the sole long-term execution backend. Persistent Workspace and a qualified standalone serving profile are accepted product goals; they are not implemented by this documentation change.
+Axern's direction is single-host execution and persistent workspace infrastructure for agents. gVisor/runsc is the sole long-term execution backend. The experimental native Linux installation provides the executable baseline; persistent Workspace and the complete stateful serving/maintenance contract remain planned. This decision preserves the implemented execution chain rather than adding an Agent platform inside Axern.
 
-This decision supersedes the conditional second-runtime direction in [Firecracker Evaluation Boundary](firecracker-evaluation-boundary.md). The [Product Direction](../product/product-direction.md) owns the enduring scope. The [roadmap issue](https://github.com/cofy-x/axern/issues/195) and linked phase issues own delivery status, dependencies, and verification evidence; the current [Domain Model](../product/domain-model.md), [Runtime Architecture](../architecture/runtime-architecture.md), and [Storage Architecture](../architecture/storage-architecture.md) continue to describe implemented contracts.
+This decision supersedes the conditional second-runtime direction in [Firecracker Evaluation Boundary](firecracker-evaluation-boundary.md). The [Product Direction](../product/product-direction.md) owns the enduring scope. The current [Domain Model](../product/domain-model.md), [Runtime Architecture](../architecture/runtime-architecture.md), and [Storage Architecture](../architecture/storage-architecture.md) continue to describe implemented contracts.
 
 ## Rationale
 
@@ -14,19 +14,19 @@ The existing execution identities, authority checks, runtime recovery, and clean
 
 ## Current Baseline And Target
 
-This assessment uses source baseline `c0d8444964d21468d2e778a769570cc7b21b00ef` (v0.12.1). It is a design baseline, not a claim that a current host or release artifact has passed qualification.
+The [native installation](../../deploy/standalone/INSTALL.md) provides the experimental executable baseline. Its [payload and qualification guide](../../deploy/standalone/README.md) defines build and verification entrypoints. This decision defines enduring boundaries; it does not certify every supported build architecture or host configuration.
 
 | Concern | Current implementation | Target |
 | --- | --- | --- |
-| Local startup | CLI-managed Compose with PostgreSQL and multiple services; generated development identity, loopback listeners, and `disabled_dev` cgroup enforcement | One qualified Linux installation and managed service lifecycle with required enforcement enabled |
+| Single-host startup | Experimental native archive, systemd installation/lifecycle, required enforcement, OCI-only image management, and PostgreSQL; Compose remains a separate development profile | A qualified, published Linux serving package with a small managed operational surface |
 | macOS | CLI and local stack through a Linux VM | Client and VM development experience; no native macOS runsc implementation |
 | Execution | Environment -> Run -> Allocation; Sandbox facade; runsc only | Preserve the execution chain and permanently select gVisor/runsc |
-| Working files | Allocation-local writable rootfs; no persistent Workspace API | Independently retained, authorized host-local Workspace data |
+| Working files | Independent Allocation-local writable rootfs and read-only image mounts; no persistent Workspace or shared writable volume API | Independently retained, authorized host-local Workspaces with one writer each initially |
 | Results | Bounded node-local outputs; successful rootfs sealing creates an immutable Environment | Explicit retained-result delivery with inspectable success, retention, and failure |
 | Connections | Processes, terminals, SSH, and reverse Tunnels | Reconnectable work and authenticated service previews with explicit execution identity |
-| Maintenance | Pre-stable schema changes use coordinated rebuilds; local refresh paths can reset state | Supported-version migration, protected backups, restore, and observable restart recovery |
+| Maintenance | Native start/stop and eligible live-instance node recovery; no supported upgrade or coordinated backup/restore path | Supported-version migration, protected backups, restore, and qualified stateful recovery |
 
-Current local Compose must not be relabeled as the qualified serving profile. Existing commands and published APIs remain valid until an implementation changes them explicitly; this decision defines no new executable command or released API.
+Current local Compose must not be relabeled as the native serving profile, and the experimental native installer must not be presented as a supported stateful upgrade path. Existing commands and published APIs remain valid until an implementation changes them explicitly; this decision defines no new executable command or released API.
 
 ## Target Ownership
 
@@ -44,9 +44,17 @@ flowchart TB
 
 This is an ownership diagram, not a promise that each box is a separate daemon. The target installation manages one public endpoint and configuration surface, a control service, the necessary local execution/helpers, and PostgreSQL. Public traffic must not inherit host operator authority when components share a package or process. Remote transports can be removed or localized only with an explicit equivalent authorization and failure contract.
 
-Axern owns execution and data facts: what is running, where authorized files live, which writer owns an attachment, what resources are charged, what bytes were delivered, and whether cleanup is confirmed. The upper agent platform owns task completion, Agent roles, model choice, memory, scheduling policy, messages, approvals, semantic retries, result merging, and external effects. A worker protocol and its Session meaning belong to the adapter rather than Axern's domain model.
+Axern owns execution facts and, once Workspace is implemented, retained-data facts: what is running, where authorized files live, which writer owns an attachment, what resources are charged, what bytes were delivered, and whether cleanup is confirmed. The upper agent platform owns task completion, Agent roles, model choice, memory, scheduling policy, messages, approvals, semantic retries, result merging, and external effects. Its AgentSession owns conversation state, worker configuration, and orchestration semantics; a worker protocol and its session meaning belong to the adapter rather than Axern's domain model.
 
 Running a worker's complete harness inside a sandbox is the preferred first integration shape. Redirecting only shell commands is insufficient if filesystem operations, background jobs, or subagents still execute on the host. An adapter must enumerate those paths and its scoped model/credential transport; Axern need not understand the harness's private Session format.
+
+## Image, Workspace, Sandbox, And AgentSession
+
+Image supplies immutable runtime, tools, and reference inputs. Environment remains the public immutable execution-input identity and policy; an image is not a writable session store. Workspace is the planned independently retained data identity. Sandbox is the runtime view and SDK facade over an explicit Run/Allocation. AgentSession belongs to the upper agent system and can persist its files without making their meaning an Axern responsibility. These concepts compose through the existing `Environment -> Run -> Allocation -> runsc sandbox` chain; they do not introduce a second execution chain or an Axern Agent object.
+
+Independent writable working directories are the default for multiple workers. Shared reference material should use immutable read-only inputs, while shared results require explicit publication and caller-owned merging or handoff. The initial Workspace contract provides one writer per Workspace; simultaneously mounting one shared writable directory into multiple agents is outside that first contract and remains a separate design question. Its consistency, fencing, authority, capacity, and failure semantics cannot be inferred from the ability to share artifacts.
+
+Before Workspace exists, the public composition is separate Allocations with read-only ImageMounts and explicit export/restore through file and declared-output APIs. Destroying and recreating an Allocation does not itself preserve its writable directory. A caller can retain selected bytes externally and restore them into a new Allocation, but this is caller-managed handoff rather than native Workspace retention. Arbitrary host-path binds are not a shortcut around the missing public data contract.
 
 ## Persistent Workspace Boundary
 
@@ -79,31 +87,22 @@ The table describes implementation direction, not completed moves or module dele
 | `runtime/axnoded`, `axern-sandboxd`, runsc | Keep execution boundary | Own runtime, processes, mounts, enforced limits, local recovery and cleanup. Pin/manage the full runtime package and qualify systrap as the initial serving platform on supported Linux hosts. No additional backend or runtime registry. |
 | `runtime/egressd` | Keep enforcement responsibility | Managed local helper with explicit privilege and health checks. Co-packaging must not bypass fail-closed network policy. |
 | `runtime/tunneld`, node tunnel connector | Consolidate deployment where justified | Preserve finite allocation authority and reverse-relay behavior. Co-locate wiring where useful; do not confuse relay consolidation with adding authenticated preview. |
-| `runtime/imagemgr` | Keep and narrow default dependencies | Preserve OCI pull/cache/rootfs ownership. Audit startup coupling before making Nydus-specific dependencies optional; ordinary OCI currently does not imply those dependencies can simply be deleted. |
-| `runtime/imagefsd`, Nydus, chunk/P2P paths | Defer new optimization; isolate optional path | Keep existing supported behavior until an explicit compatibility change. Make it unnecessary for the default OCI installation only after dependency and cleanup tests prove separation. |
+| `runtime/imagemgr` | Keep and narrow default dependencies | Preserve OCI pull/cache/rootfs ownership. The native profile already uses OCI-only mode; preserve its independent startup and cleanup contract while retaining explicitly supported Nydus deployments. |
+| `runtime/imagefsd`, Nydus, chunk/P2P paths | Defer new optimization; keep optional path separate | The native OCI-only payload omits imagefsd and Nydus dependencies. Keep existing supported behavior in other deployments until an explicit compatibility change; do not reintroduce those dependencies into the default installation without demonstrated need. |
 | `network/bpfnet` and alternate host-network paths | Keep a qualified default; defer expansion | Select one tested Linux serving profile. Changing backend is a separate enforcement qualification, not a shortcut to fewer services. |
 | `deploy/local` | Keep development workflow | Preserve macOS/Linux local development, while separating it clearly from the qualified Linux serving profile. |
 | Helm/kind, cluster/HA/multi-region work | Maintain existing contracts; defer new scope | They must not be prerequisites for the personal installation. Removing an existing deployment path needs an explicit migration decision. |
 | Local registry and observability services | Manage or make optional by demonstrated need | Consume existing OCI images first; document registry/cache needs. Diagnostics are required, a full metrics dashboard stack is not a first-task prerequisite. |
-| `apps/docs` and root documentation | Keep aligned with evidence | Publish current commands and capabilities; label planned behavior and route implementation status to issues. |
+| `apps/docs` and root documentation | Keep aligned with evidence | Publish current commands and capabilities, and distinguish planned behavior from implemented contracts. |
 | Axrun, Kova, and agent harnesses | External consumers or optional producers | Axrun retains its evaluation contract; Kova can supply images but is not required. Agent orchestration and worker adapters remain outside Axern. |
 
-## Phased Delivery
+## Capability Dependencies And Verification
 
-Each phase issue owns its checklist, implementation PRs, and actual acceptance results. Phase numbers express dependencies, not calendar promises. Contract design can overlap, but dependent behavior must not be advertised before its prerequisites pass. During Phases 1–2, run a bounded consumer compatibility experiment with a complete worker, filesystem tools, background jobs, subagents, and model connectivity inside the execution boundary. Use its findings to shape the contracts; Phase 5 still owns complete integration acceptance after qualification.
+Persistent data depends on an enforced Linux execution and storage baseline. Workspace attachment must define independent ownership, capacity, authorization, writer fencing, retention, deletion, and failure recovery across all public surfaces. Retained-result delivery and coordinated backup/restore depend on that data contract. A rebuild-only schema policy is insufficient for retained personal work; stateful maintenance requires a supported-version migration and restore contract before the installation can be presented as long-term serving infrastructure.
 
-| Phase | Scope | Dependency and exit evidence |
-| --- | --- | --- |
-| [0: Positioning and architecture](https://github.com/cofy-x/axern/issues/196) | Product descriptions, boundaries, module dispositions, and this decision | Reviewed current/planned separation and documentation checks |
-| [1: Linux standalone baseline](https://github.com/cofy-x/axern/issues/197) | Managed setup/configuration, enforced runsc path, component consolidation and OCI dependency simplification | Phase 0; fresh-host real sandbox, resource/network enforcement, preserved data on restart, measured operational footprint |
-| [2: Persistent Workspace](https://github.com/cofy-x/axern/issues/198) | Independent data lifecycle, authorization, attachment, fencing, capacity and deletion | Phase 1 runtime/storage baseline; restart/recreate retention and competing-writer/deletion/failure tests |
-| [3: Reconnect and handoff](https://github.com/cofy-x/axern/issues/199) | Background work, terminal recovery, authenticated preview and explicit result delivery | Phase 2; disconnect, revocation, cleanup and delivery-failure acceptance |
-| [4: Stateful maintenance](https://github.com/cofy-x/axern/issues/200) | Supported upgrades, consistent backup/restore, reboot and failure convergence | Phase 1 baseline plus Phase 2/3 data contracts; isolated restore and supported-version upgrade preserving data and authority |
-| [5: Personal-agent pilot](https://github.com/cofy-x/axern/issues/201) | External adapter, two isolated workers, human inspection and retained follow-up | Phases 1–4; reproducible complete task and interruption scenarios using public APIs |
+Consumer verification uses complete worker programs inside separate execution boundaries, scoped model connectivity, independent writable directories, common read-only reference inputs, and explicit caller-owned result publication. Existing public APIs can exercise caller-managed export and restore; they cannot qualify a missing native Workspace or shared writable mount. Background jobs and subagent behavior must be verified for the selected harness rather than inferred from shell access.
 
-Phase 1 establishes the executable Linux baseline; its release/backup design must precede persistent data work. Phase 4 qualifies the complete stateful maintenance contract. Until that passes, the new profile remains evaluation-only rather than claiming long-term service readiness. The current rebuild-only schema policy cannot silently become the upgrade policy for retained personal work.
-
-The pilot uses separate Workspaces for independent writers and explicit caller-owned result merging. It must distinguish controller/client restart from full host reboot, show that sandbox destruction preserves data, and require explicit Workspace deletion. A human handoff must coordinate with the worker's writing policy; a terminal connection by itself does not establish exclusive access.
+A complete retained-work acceptance must distinguish controller/client restart from full host reboot, prove that sandbox destruction preserves the attached Workspace, reject competing or stale writers, and require explicit Workspace deletion. Human handoff must coordinate writer authority; a terminal connection alone does not establish exclusive access. Disconnect, revocation, cleanup, delivery failure, isolated restore, and supported-version upgrades need their own failure checks before their behavior is advertised as available.
 
 ## Consequences And Revisit Conditions
 

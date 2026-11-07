@@ -365,7 +365,10 @@ def pause_node_runtimes() -> None:
 
 def stop_native() -> None:
     try:
-        run('systemctl', 'stop', TARGET)
+        # Stopping the target alone can return while its PartOf service jobs
+        # still drain. Wait for every owned unit before the final fail-stop,
+        # otherwise it can SIGKILL a daemon that is shutting down normally.
+        run('systemctl', 'stop', TARGET, *[unit_name(name) for name in SERVICES])
     finally:
         kill_node_runtimes()
         # Stop must still work when the data mount is unavailable. Clear a

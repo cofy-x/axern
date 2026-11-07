@@ -27,7 +27,8 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 ## Decisions
 
 - [Documentation Site Visual Direction](decisions/docs-site-visual-direction.md): durable visual, content, interaction, and ownership constraints for the public documentation site.
-- [Single-Host Agent Serving](decisions/single-host-agent-serving.md): Linux standalone direction, long-term gVisor-only execution, planned persistent Workspace, upper-agent boundary, module dispositions, and linked delivery phases.
+- [Single-Host Agent Serving](decisions/single-host-agent-serving.md): Linux standalone direction, long-term gVisor-only execution, planned persistent Workspace, upper-agent boundary, module dispositions, and capability dependencies.
+- [Managed Single-Writer Workspaces](decisions/single-writer-workspaces.md): planned host-local data identity, exclusive attachment, retained capacity, deletion and cold-restore boundaries; no current Workspace API.
 - [Firecracker Evaluation Boundary](decisions/firecracker-evaluation-boundary.md): superseded conditional runtime-evaluation decision; the current direction selects gVisor only.
 - [Node Operator Authority Boundary](decisions/node-operator-authority-boundary.md): retain Allocation-scoped node diagnostics without creating a second lifecycle authority or sharing operator privilege with machine integrations.
 - [Verification Feedback Tiers](decisions/verification-feedback-tiers.md): separate fast development feedback, Linux correctness, full regression, and frozen-candidate qualification.
@@ -37,7 +38,6 @@ Do not keep completed plans, migration diaries, dated progress summaries, or alt
 - [Long-Term Direction](product/product-direction.md): product north star, durable principles, investment areas, and non-goals.
 - [Stable Domain Model](product/domain-model.md): normative product objects, ownership, lifecycle meaning, and boundaries for API and persistence design.
 - [SDK User Model](product/sdk-user-model.md): intended SDK concepts and common lifecycle contract.
-- [Single-Host Roadmap](https://github.com/cofy-x/axern/issues/195): live implementation status, dependent phase issues, and acceptance evidence. Planned capabilities remain distinct from the current architecture below.
 
 ## Architecture
 

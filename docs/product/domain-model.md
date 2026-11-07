@@ -132,7 +132,7 @@ Run and Allocation never double-own a fact: Run owns immutable execution intent 
 | --- | --- |
 | Service, Replica, Route, Rollout | External PaaS or application |
 | Function, Invoke, worker dispatch | Caller queue or workflow system |
-| Persistent Workspace | Not currently implemented; a narrow host-local data resource is planned in the [single-host decision](../decisions/single-host-agent-serving.md) |
+| Persistent Workspace | Not currently implemented; the [single-writer Workspace decision](../decisions/single-writer-workspaces.md) defines the planned independent data identity, attachment and restore boundary |
 | General or distributed Volume provisioning | External storage layer |
 | Dashboard, IDE, cluster, region, cloud account, image build | Composed product or deployment infrastructure |
 
