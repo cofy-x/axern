@@ -8,7 +8,7 @@ Copy `measure_native.py` from the source checkout to the measurement host. The s
 
 ```bash
 sudo python3 /absolute/path/to/measure_native.py \
-  --release /opt/axern/current \
+  --release /opt/axern/releases/EXPECTED_SHA256_FROM_TRUSTED_BUILD_RECEIPT \
   --expected-archive EXPECTED_SHA256_FROM_TRUSTED_BUILD_RECEIPT \
   --output-dir /absolute/path/to/new-full-start-observation \
   --image docker.io/library/python@sha256:EXACT_IMAGE_DIGEST \
