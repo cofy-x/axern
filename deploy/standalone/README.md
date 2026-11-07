@@ -4,6 +4,8 @@ This directory owns the native Linux installation assets and operating instructi
 
 The installation uses the existing `Environment -> Run -> Allocation` lifecycle, PostgreSQL authority and gVisor/runsc execution boundary. It requires a Linux host. It does not provision Lima, manage `axern local` contexts or implement persistent Workspace APIs.
 
+Use the opt-in [startup and idle measurement](MEASUREMENT.md) harness to record the installed candidate's startup phases, first workload output and cgroup/process resource footprint on an exclusive disposable host.
+
 ## Build
 
 Build natively on Ubuntu 24.04, on amd64 or arm64, from a clean committed checkout. Cross-compilation and other build distributions are rejected by the initial profile. Use the repository's Go version with locked dependencies. Generated protobuf prerequisites follow the existing repository bootstrap and module build instructions. The native payload uses OCI-only imagemgr and does not build or package Rust/imagefsd.
