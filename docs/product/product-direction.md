@@ -1,6 +1,6 @@
 # Axern Product Direction
 
-This document defines the durable direction used to accept or reject scope. The [single-host architecture decision](../decisions/single-host-agent-serving.md) defines the target and module dispositions; the [roadmap](https://github.com/cofy-x/axern/issues/195) tracks implementation and acceptance. Current API and lifecycle guarantees remain in the [Domain Model](domain-model.md) and architecture documents.
+This document defines the durable direction used to accept or reject scope. The [single-host architecture decision](../decisions/single-host-agent-serving.md) defines the target and module dispositions. Current API and lifecycle guarantees remain in the [Domain Model](domain-model.md) and architecture documents.
 
 ## North Star
 
@@ -12,9 +12,9 @@ The target experience is to run independent agent workers, retain their work, in
 
 The current product provides the `Environment -> Run -> Allocation` execution model, a Sandbox SDK facade, process/file/terminal operations, reverse Tunnels, read-only image mounts, bounded declared outputs, and successful-Run rootfs sealing into an immutable Environment. Writable files remain Allocation-local; neither output retention nor rootfs sealing provides a mutable persistent Workspace.
 
-An experimental native Linux profile now provides a source-built archive, systemd installation and lifecycle, required resource/network enforcement, and OCI-only image management. It has been built and exercised on fresh installations; [#197](https://github.com/cofy-x/axern/issues/197) owns the platform-specific acceptance evidence and remaining qualification work. This is separate from the Compose development path, which uses development credentials and `disabled_dev` cgroup enforcement. Native installation is not yet a published release channel or a supported upgrade/backup contract.
+An experimental native Linux profile now provides a source-built archive, systemd installation and lifecycle, required resource/network enforcement, and OCI-only image management. Its experimental qualification is limited to the documented host profile. This is separate from the Compose development path, which uses development credentials and `disabled_dev` cgroup enforcement. Native installation is not yet a published release channel or a supported upgrade/backup contract.
 
-Persistent Workspace, retained-result handoff, and the complete stateful maintenance contract remain planned. This direction does not introduce those APIs, change output retention, or promise process survival across reboot. The [consumer experiment](https://github.com/cofy-x/axern/issues/213) uses existing public APIs to expose integration gaps; its plan is not evidence of Workspace or full agent-pilot acceptance.
+Persistent Workspace, retained-result handoff, and the complete stateful maintenance contract remain planned. This direction does not introduce those APIs, change output retention, or promise process survival across reboot. Caller integrations using the existing file and output APIs do not establish native Workspace retention or complete stateful maintenance.
 
 ## Principles
 

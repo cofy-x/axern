@@ -18,7 +18,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 主要使用场景是在一台 Linux 主机上运行个人 Agent 系统：独立的 worker、可检查的执行状态、保留工作数据，以及较低的运维复杂度。Agent 的会话、配置、规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期，安装与运行时验收证据记录在 [#197](https://github.com/cofy-x/axern/issues/197)。它尚未纳入正式发布渠道，也不支持升级。Docker Compose 仍是本地开发路径。可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。它尚未纳入正式发布渠道，也不支持升级。Docker Compose 仍是本地开发路径。可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
@@ -31,7 +31,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 | Sandbox | 一个 Run/Allocation 的运行时视图与 SDK 门面，提供进程和文件系统访问，不拥有持久 Agent 会话。 |
 | AgentSession | 调用方拥有的对话、配置、规划和协作状态；Axern 执行 worker，但不解释其会话语义。 |
 
-默认协作方式是独立的可写工作目录、共同的只读参考资料，以及由调用方明确发布、合并或交接的产物。目前可通过独立 Allocation、只读镜像挂载和调用方管理的导出／恢复实现这一方式。原生 Workspace 保留与同时多写的共享可写挂载尚未实现；[#213](https://github.com/cofy-x/axern/issues/213) 跟踪消费者实验及其缺口。
+默认协作方式是独立的可写工作目录、共同的只读参考资料，以及由调用方明确发布、合并或交接的产物。目前可通过独立 Allocation、只读镜像挂载和调用方管理的导出／恢复实现这一方式。原生 Workspace 保留与同时多写的共享可写挂载尚未实现。
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="当前 axern CLI 帮助录制：本地执行、Run、SSH 和 Tunnel 命令">

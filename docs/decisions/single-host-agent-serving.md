@@ -4,7 +4,7 @@
 
 Axern's direction is single-host execution and persistent workspace infrastructure for agents. gVisor/runsc is the sole long-term execution backend. The experimental native Linux installation provides the executable baseline; persistent Workspace and the complete stateful serving/maintenance contract remain planned. This decision preserves the implemented execution chain rather than adding an Agent platform inside Axern.
 
-This decision supersedes the conditional second-runtime direction in [Firecracker Evaluation Boundary](firecracker-evaluation-boundary.md). The [Product Direction](../product/product-direction.md) owns the enduring scope. The [roadmap issue](https://github.com/cofy-x/axern/issues/195) and linked phase issues own delivery status, dependencies, and verification evidence; the current [Domain Model](../product/domain-model.md), [Runtime Architecture](../architecture/runtime-architecture.md), and [Storage Architecture](../architecture/storage-architecture.md) continue to describe implemented contracts.
+This decision supersedes the conditional second-runtime direction in [Firecracker Evaluation Boundary](firecracker-evaluation-boundary.md). The [Product Direction](../product/product-direction.md) owns the enduring scope. The current [Domain Model](../product/domain-model.md), [Runtime Architecture](../architecture/runtime-architecture.md), and [Storage Architecture](../architecture/storage-architecture.md) continue to describe implemented contracts.
 
 ## Rationale
 
@@ -14,7 +14,7 @@ The existing execution identities, authority checks, runtime recovery, and clean
 
 ## Current Baseline And Target
 
-The [native installation](../../deploy/standalone/INSTALL.md) is now an experimental implementation with fresh-installation and runtime evidence tracked in [#197](https://github.com/cofy-x/axern/issues/197). Exact source, archive, platform, and measurement results belong to those acceptance records. This decision defines enduring boundaries; it does not certify every supported build architecture or host configuration.
+The [native installation](../../deploy/standalone/INSTALL.md) provides the experimental executable baseline. Its [payload and qualification guide](../../deploy/standalone/README.md) defines build and verification entrypoints. This decision defines enduring boundaries; it does not certify every supported build architecture or host configuration.
 
 | Concern | Current implementation | Target |
 | --- | --- | --- |
@@ -93,25 +93,16 @@ The table describes implementation direction, not completed moves or module dele
 | `deploy/local` | Keep development workflow | Preserve macOS/Linux local development, while separating it clearly from the qualified Linux serving profile. |
 | Helm/kind, cluster/HA/multi-region work | Maintain existing contracts; defer new scope | They must not be prerequisites for the personal installation. Removing an existing deployment path needs an explicit migration decision. |
 | Local registry and observability services | Manage or make optional by demonstrated need | Consume existing OCI images first; document registry/cache needs. Diagnostics are required, a full metrics dashboard stack is not a first-task prerequisite. |
-| `apps/docs` and root documentation | Keep aligned with evidence | Publish current commands and capabilities; label planned behavior and route implementation status to issues. |
+| `apps/docs` and root documentation | Keep aligned with evidence | Publish current commands and capabilities, and distinguish planned behavior from implemented contracts. |
 | Axrun, Kova, and agent harnesses | External consumers or optional producers | Axrun retains its evaluation contract; Kova can supply images but is not required. Agent orchestration and worker adapters remain outside Axern. |
 
-## Phased Delivery
+## Capability Dependencies And Verification
 
-Each phase issue owns its checklist, implementation PRs, and actual acceptance results. Phase numbers express dependencies, not calendar promises. Contract design can overlap, but dependent behavior must not be advertised before its prerequisites pass. During Phases 1–2, the [bounded consumer experiment (#213)](https://github.com/cofy-x/axern/issues/213) exercises complete workers, filesystem tools, background jobs, and model connectivity inside the execution boundary, and records subagent behavior where the selected harness supports it. It uses existing public APIs and caller-managed export/restore, recording native Workspace and shared-writable requirements as unimplemented gaps. Its findings inform [#197](https://github.com/cofy-x/axern/issues/197), [#198](https://github.com/cofy-x/axern/issues/198), [#199](https://github.com/cofy-x/axern/issues/199), and [#201](https://github.com/cofy-x/axern/issues/201); the experiment does not claim Phase 2–5 acceptance. Phase 5 still owns complete integration acceptance after qualification.
+Persistent data depends on an enforced Linux execution and storage baseline. Workspace attachment must define independent ownership, capacity, authorization, writer fencing, retention, deletion, and failure recovery across all public surfaces. Retained-result delivery and coordinated backup/restore depend on that data contract. A rebuild-only schema policy is insufficient for retained personal work; stateful maintenance requires a supported-version migration and restore contract before the installation can be presented as long-term serving infrastructure.
 
-| Phase | Scope | Dependency and exit evidence |
-| --- | --- | --- |
-| [0: Positioning and architecture](https://github.com/cofy-x/axern/issues/196) | Product descriptions, boundaries, module dispositions, and this decision | Reviewed current/planned separation and documentation checks |
-| [1: Linux standalone baseline](https://github.com/cofy-x/axern/issues/197) | Managed setup/configuration, enforced runsc path, component consolidation and OCI dependency simplification | Phase 0; fresh-host real sandbox, resource/network enforcement, preserved data on restart, measured operational footprint |
-| [2: Persistent Workspace](https://github.com/cofy-x/axern/issues/198) | Independent data lifecycle, authorization, attachment, fencing, capacity and deletion | Phase 1 runtime/storage baseline; restart/recreate retention and competing-writer/deletion/failure tests |
-| [3: Reconnect and handoff](https://github.com/cofy-x/axern/issues/199) | Background work, terminal recovery, authenticated preview and explicit result delivery | Phase 2; disconnect, revocation, cleanup and delivery-failure acceptance |
-| [4: Stateful maintenance](https://github.com/cofy-x/axern/issues/200) | Supported upgrades, consistent backup/restore, reboot and failure convergence | Phase 1 baseline plus Phase 2/3 data contracts; isolated restore and supported-version upgrade preserving data and authority |
-| [5: Personal-agent pilot](https://github.com/cofy-x/axern/issues/201) | External adapter, two isolated workers, human inspection and retained follow-up | Phases 1–4; reproducible complete task and interruption scenarios using public APIs |
+Consumer verification uses complete worker programs inside separate execution boundaries, scoped model connectivity, independent writable directories, common read-only reference inputs, and explicit caller-owned result publication. Existing public APIs can exercise caller-managed export and restore; they cannot qualify a missing native Workspace or shared writable mount. Background jobs and subagent behavior must be verified for the selected harness rather than inferred from shell access.
 
-Phase 1 establishes the executable Linux baseline; its release/backup design must precede persistent data work. Phase 4 qualifies the complete stateful maintenance contract. Until that passes, the new profile remains evaluation-only rather than claiming long-term service readiness. The current rebuild-only schema policy cannot silently become the upgrade policy for retained personal work.
-
-The Phase 5 target pilot uses separate Workspaces for independent writers, shared read-only references, and explicit caller-owned result publication and merging. Once the Workspace contract exists, it must distinguish controller/client restart from full host reboot, show that sandbox destruction preserves data, and require explicit Workspace deletion. A human handoff must coordinate with the worker's writing policy; a terminal connection by itself does not establish exclusive access.
+A complete retained-work acceptance must distinguish controller/client restart from full host reboot, prove that sandbox destruction preserves the attached Workspace, reject competing or stale writers, and require explicit Workspace deletion. Human handoff must coordinate writer authority; a terminal connection alone does not establish exclusive access. Disconnect, revocation, cleanup, delivery failure, isolated restore, and supported-version upgrades need their own failure checks before their behavior is advertised as available.
 
 ## Consequences And Revisit Conditions
 

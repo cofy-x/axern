@@ -18,7 +18,7 @@ Axern is open-source, self-hosted infrastructure for **single-host agent executi
 
 The primary use case is a personal agent system on one Linux host: independent workers, inspectable execution, retained working data, and a small operational surface. Agent sessions, configuration, planning, collaboration, and workflows belong to caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
 
-> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) provides a source-built runtime archive and managed systemd lifecycle; installation and runtime acceptance evidence is tracked in [#197](https://github.com/cofy-x/axern/issues/197). It is not yet a published release channel or a supported upgrade path. Docker Compose remains the local development path. Writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
+> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) provides a source-built runtime archive and managed systemd lifecycle. It is not yet a published release channel or a supported upgrade path. Docker Compose remains the local development path. Writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
 
 The durable chain is **Environment → Run → Allocation → runsc sandbox**. The following concepts describe how an agent system uses that chain; they do not introduce another execution lifecycle or an Axern Agent resource.
 
@@ -29,7 +29,7 @@ The durable chain is **Environment → Run → Allocation → runsc sandbox**. T
 | Sandbox | The running execution view and SDK facade over one Run/Allocation, including its processes and filesystem access. It does not own a persistent Agent session. |
 | AgentSession | Caller-owned conversation, configuration, planning, and coordination state; Axern executes the worker without interpreting that session. |
 
-The default collaboration pattern is independent writable working directories, common read-only references, and explicitly published results that the caller merges or hands off. Today this uses separate Allocations, read-only image mounts, and caller-managed export/restore. Native Workspace retention and simultaneous shared writable mounts remain unimplemented; [#213](https://github.com/cofy-x/axern/issues/213) tracks the consumer experiment and its gaps.
+The default collaboration pattern is independent writable working directories, common read-only references, and explicitly published results that the caller merges or hands off. Today this uses separate Allocations, read-only image mounts, and caller-managed export/restore. Native Workspace retention and simultaneous shared writable mounts remain unimplemented.
 
 <p align="center">
   <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
