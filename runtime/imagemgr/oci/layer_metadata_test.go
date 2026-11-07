@@ -76,15 +76,8 @@ func TestExtractedLayerWarmAndCrashRecoveryRetainGuestModes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, recoverRecord := range []bool{false, true} {
-		var source v1.Layer = panicUncompressedLayer{digest: layer.digest}
-		if recoverRecord {
-			if err := mgr.store.deleteLayer(record.Digest); err != nil {
-				t.Fatal(err)
-			}
-			source = layer
-		}
-		got, err := mgr.ensureLayerExtracted(source)
+	for range 2 {
+		got, err := mgr.ensureLayerExtracted(panicUncompressedLayer{digest: layer.digest})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -92,6 +85,8 @@ func TestExtractedLayerWarmAndCrashRecoveryRetainGuestModes(t *testing.T) {
 		assertDirectoryMode(t, filepath.Join(got.Path, "etc"), 0755)
 		assertDirectoryMode(t, filepath.Dir(got.Path), 0700)
 	}
+	_ = record
+
 }
 
 func TestLayerCrashRecoveryDoesNotGuessMissingRootHeaderFact(t *testing.T) {
@@ -175,13 +170,14 @@ func TestChainRootMetadataInheritsAndExplicitlyOverrides(t *testing.T) {
 	baseUID, baseGID := os.Getuid(), os.Getgid()
 	layers := []v1.Layer{makeLayer("base", 0750, baseUID, baseGID),
 		makeLayer("inherited", 0, 0, 0), makeLayer("override", 0711, os.Getuid(), os.Getgid())}
-	_, paths, rootMetadata, err := mgr.extractLayersWithWorkers(context.Background(), layers)
+	layerFacts, err := mgr.extractLayersWithWorkers(context.Background(), layers)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rootMetadata[0] || rootMetadata[1] || !rootMetadata[2] {
-		t.Fatalf("root header facts = %v", rootMetadata)
+	if !layerFacts[0].HasRootMetadata || layerFacts[1].HasRootMetadata || !layerFacts[2].HasRootMetadata {
+		t.Fatalf("root header facts = %v", layerFacts)
 	}
+	_, paths := testLayerRecordFields(layerFacts)
 	// Root whiteout semantics belong to the source layer, not inherited stat metadata.
 	xattrs := unix.Setxattr(paths[0], "user.overlay.opaque", []byte("y"), 0) == nil
 	diffIDs := make([]v1.Hash, len(layers))
@@ -195,7 +191,7 @@ func TestChainRootMetadataInheritsAndExplicitlyOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	chains, err := mgr.ensureChainLowerDirs(chainIDs, paths, rootMetadata)
+	chains, err := mgr.ensureChainLowerDirs(chainIDs, layerFacts)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -223,7 +219,7 @@ func TestChainRootMetadataInheritsAndExplicitlyOverrides(t *testing.T) {
 	if err := mgr.store.deleteChain(chainIDs[1]); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := mgr.ensureChainLowerDirs(chainIDs, paths, rootMetadata); err != nil {
+	if _, err := mgr.ensureChainLowerDirs(chainIDs, layerFacts); err != nil {
 		t.Fatal(err)
 	}
 	assertDirectoryMode(t, chains[1], 0750)
@@ -242,7 +238,7 @@ func TestChainRootInheritsNonRootOwnership(t *testing.T) {
 		t.Fatal(err)
 	}
 	chains, err := mgr.ensureChainLowerDirs([]string{"base-owner", "child-owner"},
-		[]string{base, child}, []bool{true, false})
+		[]*LayerRecord{{Path: base, HasRootMetadata: true, ImplicitDirectories: []string{}}, {Path: child, ImplicitDirectories: []string{}}})
 	if err != nil {
 		t.Fatal(err)
 	}

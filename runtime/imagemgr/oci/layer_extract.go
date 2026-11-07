@@ -1,12 +1,10 @@
 package oci
 
 import (
-	"archive/tar"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,35 +12,6 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/sirupsen/logrus"
 )
-
-func readLayerRootMetadata(layer v1.Layer) (bool, error) {
-	stream, err := layer.Uncompressed()
-	if err != nil {
-		return false, err
-	}
-	defer stream.Close()
-	reader := tar.NewReader(stream)
-	hasRoot := false
-	for {
-		header, err := reader.Next()
-		if err == io.EOF {
-			return hasRoot, nil
-		}
-		if err != nil {
-			return false, err
-		}
-		name, err := cleanArchivePath(header.Name)
-		if err != nil {
-			return false, err
-		}
-		if name == "" {
-			if header.Typeflag != tar.TypeDir {
-				return false, fmt.Errorf("layer root entry must be a directory")
-			}
-			hasRoot = true
-		}
-	}
-}
 
 type layerExtractJob struct {
 	index    int
@@ -96,9 +65,9 @@ func (m *Manager) fetchImageWithCacheKey(ctx context.Context, imageURL, dockerCo
 	return img, nil
 }
 
-func (m *Manager) extractLayersWithWorkers(ctx context.Context, layers []v1.Layer) ([]string, []string, []bool, error) {
+func (m *Manager) extractLayersWithWorkers(ctx context.Context, layers []v1.Layer) ([]*LayerRecord, error) {
 	if len(layers) == 0 {
-		return nil, nil, nil, nil
+		return nil, nil
 	}
 	m.ensureLayerWorkerPool()
 	batchStart := time.Now()
@@ -117,7 +86,7 @@ submitLoop:
 		case <-m.stopCh:
 			err := fmt.Errorf("oci manager is closing")
 			logrus.Warnf("OCI layer extraction interrupted before submit: submitted=%d/%d cost=%s err=%v", submitted, len(layers), time.Since(batchStart), err)
-			return nil, nil, nil, err
+			return nil, err
 		case m.layerJobs <- layerExtractJob{
 			index:    i,
 			layer:    layer,
@@ -128,8 +97,7 @@ submitLoop:
 	}
 
 	layerDigests := make([]string, len(layers))
-	layerPaths := make([]string, len(layers))
-	rootMetadata := make([]bool, len(layers))
+	records := make([]*LayerRecord, len(layers))
 	firstErr := submitErr
 	success := 0
 	for i := 0; i < submitted; i++ {
@@ -138,7 +106,7 @@ submitLoop:
 		case <-m.stopCh:
 			err := fmt.Errorf("oci manager is closing")
 			logrus.Warnf("OCI layer extraction interrupted while waiting results: received=%d/%d cost=%s err=%v", i, submitted, time.Since(batchStart), err)
-			return nil, nil, nil, err
+			return nil, err
 		case res = <-results:
 		}
 		if ctx.Err() != nil && firstErr == nil {
@@ -151,17 +119,16 @@ submitLoop:
 			continue
 		}
 		layerDigests[res.index] = res.rec.Digest
-		layerPaths[res.index] = res.rec.Path
-		rootMetadata[res.index] = res.rec.HasRootMetadata
+		records[res.index] = res.rec
 		success++
 	}
 	if firstErr != nil {
 		m.rollbackReservedLayerRefs(layerDigests)
 		logrus.Warnf("OCI layer extraction failed: submitted=%d success=%d cost=%s err=%v", submitted, success, time.Since(batchStart), firstErr)
-		return nil, nil, nil, firstErr
+		return nil, firstErr
 	}
 	logrus.Infof("OCI layer extraction finished: submitted=%d success=%d cost=%s", submitted, success, time.Since(batchStart))
-	return layerDigests, layerPaths, rootMetadata, nil
+	return records, nil
 }
 
 func (m *Manager) ensureLayerWorkerPool() {
@@ -231,6 +198,9 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 		if err := validateExtractedLayerFormat(rec.Path); err != nil {
 			return nil, err
 		}
+		if rec.ImplicitDirectories == nil {
+			return nil, fmt.Errorf("cached OCI layer has incomplete directory metadata facts: %s", rec.Path)
+		}
 		rec, err = m.store.incrementLayerRef(digestStr, m.now().Unix())
 		if err != nil {
 			return nil, fmt.Errorf("failed to reserve layer metadata %s: %w", digestStr, err)
@@ -239,37 +209,14 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 		return rec, nil
 	}
 
-	// Recovery for crash window: extracted layer exists but metadata was not persisted.
 	if pathExists(layerPath) {
 		if err := validateExtractedLayerFormat(layerPath); err != nil {
 			return nil, err
 		}
-		size, err := dirSizeBytes(layerPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to stat recovered layer path %s: %w", layerPath, err)
-		}
-		recoveredRefCount := 1
-		if rec != nil {
-			recoveredRefCount = rec.RefCount + 1
-		}
-		hasRootMetadata, err := readLayerRootMetadata(layer)
-		if err != nil {
-			return nil, fmt.Errorf("recover layer root metadata: %w", err)
-		}
-		rec = &LayerRecord{
-			HasRootMetadata: hasRootMetadata,
-			Digest:          digestStr,
-			Path:            layerPath,
-			SizeBytes:       size,
-			RefCount:        recoveredRefCount,
-			RefZeroAtUnix:   0,
-			LastUsedUnix:    m.now().Unix(),
-		}
-		if err := m.store.putLayer(rec); err != nil {
-			return nil, fmt.Errorf("failed to recover layer metadata %s: %w", digestStr, err)
-		}
-		logrus.Infof("OCI layer cache recovered: digest=%s path=%s size_bytes=%d cost=%s", digestStr, layerPath, size, time.Since(start))
-		return rec, nil
+		return nil, fmt.Errorf("canonical OCI layer exists without complete metadata facts: %s", layerPath)
+	}
+	if rec != nil && rec.RefCount != 0 {
+		return nil, fmt.Errorf("referenced OCI layer content is missing; preserve its ownership: %s", layerPath)
 	}
 	logrus.Infof("OCI layer cache miss: digest=%s action=download_extract", digestStr)
 
@@ -291,6 +238,9 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 		logrus.Warnf("OCI layer extract failed: digest=%s tmp_dir=%s cost=%s err=%v", digestStr, tmpDir, time.Since(start), err)
 		return nil, fmt.Errorf("failed to extract layer %s: %w", digestStr, err)
 	}
+	if extracted.RequiresUserXattr {
+		return nil, fmt.Errorf("OCI layer requires userxattr but this mount profile does not select it")
+	}
 	if err := validateExtractedLayerFormat(tmpDir); err != nil {
 		return nil, err
 	}
@@ -298,25 +248,24 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 	if err := os.MkdirAll(layerRoot, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create layer root %s: %w", layerRoot, err)
 	}
-	if err := os.RemoveAll(layerPath); err != nil {
-		return nil, fmt.Errorf("failed to cleanup old layer path %s: %w", layerPath, err)
+	rec = &LayerRecord{
+		Digest: digestStr, Path: layerPath, SizeBytes: extracted.SizeBytes,
+		HasRootMetadata: extracted.HasRootMetadata, ImplicitDirectories: extracted.ImplicitDirectories,
+		RefCount: 0, RefZeroAtUnix: m.now().Unix(), LastUsedUnix: m.now().Unix(),
 	}
-	if err := os.Rename(tmpDir, layerPath); err != nil {
+	// Metadata facts commit before the canonical directory is published. Both
+	// operations and reservation remain under the same layer/GC lock.
+	if err := m.store.putLayer(rec); err != nil {
+		return nil, fmt.Errorf("failed to persist extracted layer facts %s: %w", digestStr, err)
+	}
+	if err := m.renameLayerFn(tmpDir, layerPath); err != nil {
 		return nil, fmt.Errorf("failed to place extracted layer %s: %w", digestStr, err)
 	}
+	rec, err = m.store.incrementLayerRef(digestStr, m.now().Unix())
+	if err != nil {
+		return nil, fmt.Errorf("failed to reserve published layer %s: %w", digestStr, err)
+	}
 
-	rec = &LayerRecord{
-		Digest:          digestStr,
-		Path:            layerPath,
-		SizeBytes:       extracted.SizeBytes,
-		HasRootMetadata: extracted.HasRootMetadata,
-		RefCount:        1,
-		RefZeroAtUnix:   0,
-		LastUsedUnix:    m.now().Unix(),
-	}
-	if err := m.store.putLayer(rec); err != nil {
-		return nil, fmt.Errorf("failed to persist layer metadata %s: %w", digestStr, err)
-	}
 	logrus.Infof("OCI layer download/extract success: digest=%s path=%s size_bytes=%d cost=%s", digestStr, layerPath, extracted.SizeBytes, time.Since(start))
 	return rec, nil
 }

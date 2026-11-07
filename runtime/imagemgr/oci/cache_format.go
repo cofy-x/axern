@@ -11,7 +11,7 @@ import (
 
 var extractionFormatBucket = []byte("extraction_format")
 
-const extractionFormat = "guest-metadata-v1"
+const extractionFormat = "guest-metadata-v2"
 
 // The metadata DB owns one extraction format for all cached layers, chains,
 // mounted projections and crash-recovery records. Never repair leased content

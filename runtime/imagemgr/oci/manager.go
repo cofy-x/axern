@@ -65,11 +65,12 @@ type Manager struct {
 	stopOnce sync.Once
 	stopCh   chan struct{}
 
-	now       func() time.Time
-	mountFn   func(target string, lowerDirs []string) error
-	unmountFn func(target string) error
-	diskUsage func(path string) (float64, error)
-	readMnts  func() (managedMountSnapshot, error)
+	now           func() time.Time
+	mountFn       func(target string, lowerDirs []string) error
+	unmountFn     func(target string) error
+	renameLayerFn func(string, string) error
+	diskUsage     func(path string) (float64, error)
+	readMnts      func() (managedMountSnapshot, error)
 
 	layerWorkers   int
 	layerJobs      chan layerExtractJob
@@ -185,24 +186,25 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 	}
 
 	mgr := &Manager{
-		root:       root,
-		layersDir:  layersDir,
-		chainsDir:  chainsDir,
-		mountsDir:  mountsDir,
-		importsDir: importsDir,
-		supportDir: supportDir,
-		proxy:      proxy,
-		registry:   registryClient,
-		store:      store,
-		containers: make(map[string]*ContainerInfo),
-		imageLocks: make(map[string]*imageLockEntry),
-		layerLocks: make(map[string]*imageLockEntry),
-		chainLocks: make(map[string]*imageLockEntry),
-		stopCh:     make(chan struct{}),
-		now:        time.Now,
-		mountFn:    defaultOverlayMount,
-		unmountFn:  defaultOverlayUnmount,
-		diskUsage:  defaultDiskUsage,
+		root:          root,
+		layersDir:     layersDir,
+		chainsDir:     chainsDir,
+		mountsDir:     mountsDir,
+		importsDir:    importsDir,
+		supportDir:    supportDir,
+		proxy:         proxy,
+		registry:      registryClient,
+		store:         store,
+		containers:    make(map[string]*ContainerInfo),
+		imageLocks:    make(map[string]*imageLockEntry),
+		layerLocks:    make(map[string]*imageLockEntry),
+		chainLocks:    make(map[string]*imageLockEntry),
+		stopCh:        make(chan struct{}),
+		now:           time.Now,
+		mountFn:       defaultOverlayMount,
+		unmountFn:     defaultOverlayUnmount,
+		renameLayerFn: os.Rename,
+		diskUsage:     defaultDiskUsage,
 		readMnts: func() (managedMountSnapshot, error) {
 			return readManagedMounts(mountsDir)
 		},

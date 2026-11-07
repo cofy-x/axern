@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 )
 
-func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string, rootMetadata []bool) ([]string, error) {
-	if len(chainIDs) != len(layerPaths) || len(chainIDs) != len(rootMetadata) {
-		return nil, fmt.Errorf("chain count mismatch: chainIDs=%d paths=%d root_metadata=%d", len(chainIDs), len(layerPaths), len(rootMetadata))
+func (m *Manager) ensureChainLowerDirs(chainIDs []string, layers []*LayerRecord) ([]string, error) {
+	if len(chainIDs) != len(layers) {
+		return nil, fmt.Errorf("chain count mismatch: chainIDs=%d layers=%d", len(chainIDs), len(layers))
 	}
 
 	paths := make([]string, len(chainIDs))
@@ -18,15 +18,11 @@ func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string, r
 			m.rollbackReservedChainRefs(reservedChainIDs)
 			return nil, fmt.Errorf("chainID at index %d is empty", i)
 		}
-		if layerPaths[i] == "" {
+		if layers[i] == nil || layers[i].Path == "" {
 			m.rollbackReservedChainRefs(reservedChainIDs)
 			return nil, fmt.Errorf("layer path at index %d is empty", i)
 		}
-		rootMetadataPath := layerPaths[i]
-		if i > 0 && !rootMetadata[i] {
-			rootMetadataPath = paths[i-1]
-		}
-		path, err := m.getOrCreateChainLowerDir(chainID, layerPaths[i], rootMetadataPath)
+		path, err := m.getOrCreateChainLowerDir(chainID, layers[i], paths[:i])
 		if err != nil {
 			m.rollbackReservedChainRefs(reservedChainIDs)
 			return nil, err
@@ -37,7 +33,7 @@ func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string, r
 	return paths, nil
 }
 
-func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath, rootMetadataPath string) (string, error) {
+func (m *Manager) getOrCreateChainLowerDir(chainID string, layer *LayerRecord, previousRoots []string) (string, error) {
 	unlock := m.acquireChainLock(chainID)
 	defer unlock()
 
@@ -78,8 +74,8 @@ func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath, rootMetada
 		return targetPath, nil
 	}
 
-	if err := m.materializeChainLowerDir(layerPath, targetPath, rootMetadataPath); err != nil {
-		return "", fmt.Errorf("failed to build lowerdir for chain %s from %s: %w", chainID, layerPath, err)
+	if err := m.materializeChainLowerDir(layer, targetPath, previousRoots); err != nil {
+		return "", fmt.Errorf("failed to build lowerdir for chain %s from %s: %w", chainID, layer.Path, err)
 	}
 
 	if record == nil {
@@ -102,7 +98,7 @@ func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath, rootMetada
 	return targetPath, nil
 }
 
-func (m *Manager) materializeChainLowerDir(sourcePath string, targetPath, rootMetadataPath string) error {
+func (m *Manager) materializeChainLowerDir(layer *LayerRecord, targetPath string, previousRoots []string) error {
 	parentDir := filepath.Dir(targetPath)
 	tmpDir := filepath.Join(parentDir, fmt.Sprintf("tmp-%d", m.now().UnixNano()))
 
@@ -112,10 +108,17 @@ func (m *Manager) materializeChainLowerDir(sourcePath string, targetPath, rootMe
 	if err := os.RemoveAll(tmpDir); err != nil {
 		return fmt.Errorf("failed to cleanup chain lowerdir temp dir %s: %w", tmpDir, err)
 	}
-	if err := buildHardlinkTree(sourcePath, tmpDir); err != nil {
+	if err := buildHardlinkTree(layer.Path, tmpDir); err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
+	if err := inheritImplicitDirectoryMetadata(tmpDir, previousRoots, layer.ImplicitDirectories, overlayAttribute); err != nil {
+		return err
+	}
+	rootMetadataPath := layer.Path
+	if !layer.HasRootMetadata && len(previousRoots) > 0 {
+		rootMetadataPath = previousRoots[len(previousRoots)-1]
+	}
 	rootInfo, err := os.Lstat(rootMetadataPath)
 	if err != nil {
 		return fmt.Errorf("stat effective chain root metadata: %w", err)
