@@ -395,23 +395,112 @@ def qualify_memory(runner):
 
 
 def storage_script(overflow):
-    return ('import errno,json,os,time\n'
+    return ('import json,os,pathlib,time,uuid\n'
             f'target={96 if overflow else 8}*1024*1024\n'
-            'written=0;code=None\n'
+            'path="/.axern-native-storage-"+uuid.uuid4().hex\n'
+            'mountinfo=pathlib.Path("/proc/self/mountinfo").read_text()\n'
+            'roots=[line.split() for line in mountinfo.splitlines() if line.split()[4]=="/"]\n'
+            'assert len(roots)==1 and roots[0][roots[0].index("-")+1]=="overlay", "root is not an overlay"\n'
+            'assert os.path.realpath(path)==path, "probe path is redirected"\n'
+            'root_fs=os.statvfs("/")\n'
+            'assert root_fs.f_blocks*root_fs.f_frsize==64*1024*1024, "root overlay capacity differs from limit"\n'
+            'root_device=os.stat("/").st_dev\n'
+            'written=0;code=None;probe_device=None;probe_capacity=None\n'
             'try:\n'
-            ' with open("/tmp/native-storage-probe","wb",buffering=0) as file:\n'
+            ' with open(path,"xb",buffering=0) as file:\n'
+            '  probe_device=os.fstat(file.fileno()).st_dev\n'
+            '  probe_fs=os.fstatvfs(file.fileno());probe_capacity=probe_fs.f_blocks*probe_fs.f_frsize\n'
+            '  assert probe_device==root_device and probe_capacity==64*1024*1024, "probe is outside bounded root overlay"\n'
             '  while written<target:\n'
             '   count=file.write(b"x"*1048576)\n'
             '   if count<=0: raise RuntimeError("zero length write")\n'
             '   written+=count\n'
             '  os.fsync(file.fileno())\n'
             'except OSError as error: code=error.errno\n'
-            'print(json.dumps({"qualification_result":True,"kind":"storage","written_bytes":written,"errno":code,"target_bytes":target}),flush=True)\n'
+            'print(json.dumps({"qualification_result":True,"kind":"storage","written_bytes":written,"errno":code,"target_bytes":target,\n'
+            ' "probe_path":path,"probe_real_path":os.path.realpath(path),"mountinfo":mountinfo,"root_device":root_device,\n'
+            ' "probe_device":probe_device,"root_capacity_bytes":root_fs.f_blocks*root_fs.f_frsize,"probe_capacity_bytes":probe_capacity}),flush=True)\n'
             'time.sleep(120)\n')
+
+
+def mount_for_path(mountinfo, path):
+    """Select an exact guest mount from the probe's captured mountinfo."""
+    matches = []
+    for line in mountinfo.splitlines():
+        fields = line.split()
+        require(len(fields) >= 10 and '-' in fields, 'invalid guest mountinfo')
+        separator = fields.index('-')
+        require(separator >= 6 and len(fields) == separator + 4, 'invalid guest mountinfo fields')
+        point = re.sub(r'\\([0-7]{3})', lambda match: chr(int(match[1], 8)), fields[4])
+        if point == '/' or path == point or path.startswith(point + '/'):
+            matches.append({'mount_id': fields[0], 'device': fields[2], 'mount_point': point,
+                            'options': fields[5].split(','), 'filesystem': fields[separator+1],
+                            'super_options': fields[separator+3].split(','), 'raw': line})
+    require(matches, 'guest mountinfo does not cover the storage probe')
+    longest = max(len(mount['mount_point']) for mount in matches)
+    matches = [mount for mount in matches if len(mount['mount_point']) == longest]
+    require(len(matches) == 1, 'guest storage mount is ambiguous')
+    return matches[0]
+
+
+def verify_storage_scope(result, limit):
+    path = result.get('probe_path', '')
+    require(re.fullmatch(r'/\.axern-native-storage-[0-9a-f]{32}', path), 'storage probe is not directly under the root overlay')
+    require(result.get('probe_real_path') == path, 'storage probe path was redirected')
+    root = mount_for_path(result['mountinfo'], '/')
+    probe = mount_for_path(result['mountinfo'], path)
+    require(root == probe and root['mount_point'] == '/' and root['filesystem'] == 'overlay'
+            and 'rw' in root['options'], 'storage probe is not on the writable root overlay')
+    sizes = [option[5:] for option in root['super_options'] if option.startswith('size=')]
+    require(len(sizes) == 1 and re.fullmatch(r'[0-9]+[kKmMgG]?', sizes[0]), 'root overlay size evidence is missing or ambiguous')
+    size = sizes[0]
+    suffix = size[-1].lower() if size[-1].isalpha() else ''
+    multiplier = {'': 1, 'k': 1024, 'm': 1024**2, 'g': 1024**3}[suffix]
+    require(int(size[:-1] if suffix else size)*multiplier == limit, 'root overlay mount size differs from requested limit')
+    require(type(result.get('root_device')) is int and result['root_device'] >= 0
+            and result.get('probe_device') == result['root_device'],
+            'storage probe file is on a different device')
+    require(f'{os.major(result["root_device"])}:{os.minor(result["root_device"])}' == root['device'],
+            'storage file device does not match the root mount identity')
+    require(result.get('root_capacity_bytes') == limit and result.get('probe_capacity_bytes') == limit,
+            'storage probe statvfs capacity differs from requested limit')
+    return {'root_mount': root, 'probe_mount': probe, 'tmp_mount': mount_for_path(result['mountinfo'], '/tmp')}
+
+
+def capture_storage_runtime(case):
+    process = pathlib.Path('/proc', str(case['sentry_pid']))
+    before = (process / 'stat').read_text().rsplit(')', 1)[1].split()[19]
+    configured = pathlib.Path('/opt/axern/gvisor/gvisor-bin/gvisor_sentry').stat()
+    actual = (process / 'exe').stat()
+    require((actual.st_dev, actual.st_ino) == (configured.st_dev, configured.st_ino), 'storage Sentry executable identity changed')
+    args = (process / 'cmdline').read_bytes().split(b'\0')
+    require(args[-1] == b'' and args[0] == b'runsc-sandbox', 'storage Sentry argv is unavailable')
+    global_args = []
+    for value in args[1:-1]:
+        if value.startswith(b'--') and b'=' in value:
+            global_args.append(value.decode())
+            continue
+        require(value == b'boot', 'storage Sentry launch command changed')
+        break
+    else:
+        raise QualificationError('storage Sentry boot command is missing')
+    backing = installer.DATA / 'runsc'
+    expected = f'--overlay2=root:dir={backing},size={case["storage_bytes"]}'
+    require([value for value in global_args if value.startswith('--overlay2=')] == [expected],
+            'storage runtime launch does not enforce the requested file-backed root limit')
+    require((process / 'cgroup').read_text().strip() == '0::/' + str(pathlib.Path(case['cgroup']).relative_to('/sys/fs/cgroup')),
+            'storage Sentry cgroup attribution changed')
+    require((process / 'stat').read_text().rsplit(')', 1)[1].split()[19] == before, 'storage Sentry process identity changed')
+    require(backing.resolve() == backing, 'storage backing directory is redirected')
+    stat = backing.stat()
+    return {'sentry_pid': case['sentry_pid'], 'sentry_start_ticks': before, 'overlay_argument': expected,
+            'sentry_executable': {'device': actual.st_dev, 'inode': actual.st_ino},
+            'backing_directory': {'path': str(backing), 'device': stat.st_dev, 'inode': stat.st_ino}}
 
 
 def verify_storage(result, overflow, limit):
     require(result.get('kind') == 'storage', 'storage probe returned the wrong result')
+    verify_storage_scope(result, limit)
     written, code = result.get('written_bytes'), result.get('errno')
     require(type(written) is int and written > 0, 'storage probe did not write any data')
     if overflow:
@@ -427,8 +516,11 @@ def qualify_storage(runner):
         try:
             name = 'storage-overflow' if overflow else 'storage-within-limit'
             case = runner.start_case(name, ['python3', '-u', '-c', storage_script(overflow)], storage_bytes=64*MIB)
+            case['storage_runtime'] = capture_storage_runtime(case)
+            runner.record(name + '-runtime', case['storage_runtime'])
             result = runner.wait_result(case)
             verify_storage(result, overflow, 64*MIB)
+            case['storage_scope'] = verify_storage_scope(result, 64*MIB)
             case['passed'] = True
         finally:
             if case:

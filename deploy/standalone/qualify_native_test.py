@@ -13,6 +13,15 @@ from unittest import mock
 import qualify_native as qualify
 
 
+def storage_result(**changes):
+    path = '/.axern-native-storage-' + 'a'*32
+    return {'kind': 'storage', 'written_bytes': 63*qualify.MIB, 'target_bytes': 96*qualify.MIB, 'errno': 28,
+            'probe_path': path, 'probe_real_path': path,
+            'mountinfo': '12 11 0:14 / / rw - overlay none rw,size=65536k\n23 12 0:29 / /tmp rw - tmpfs none rw,mode=01777\n',
+            'root_device': 14, 'probe_device': 14, 'root_capacity_bytes': 64*qualify.MIB,
+            'probe_capacity_bytes': 64*qualify.MIB, **changes}
+
+
 class QualificationTest(unittest.TestCase):
     def test_memory_domain_requires_exact_parent_and_leaf_contract(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(qualify, 'NODE_CGROUP', pathlib.Path(directory)):
@@ -83,7 +92,7 @@ class QualificationTest(unittest.TestCase):
             qualify.verify_memory_positive(evidence, {'allocated_bytes': 8*qualify.MIB})
 
     def test_storage_requires_actual_quota_errno_and_bounded_write(self):
-        result = {'kind': 'storage', 'written_bytes': 63*qualify.MIB, 'target_bytes': 96*qualify.MIB, 'errno': 28}
+        result = storage_result()
         qualify.verify_storage(result, True, 64*qualify.MIB)
         result['errno'] = 122
         qualify.verify_storage(result, True, 64*qualify.MIB)
@@ -96,11 +105,34 @@ class QualificationTest(unittest.TestCase):
             qualify.verify_storage({**result, 'written_bytes': 0}, True, 64*qualify.MIB)
 
     def test_storage_positive_control_cannot_accept_overflow_or_short_write(self):
-        result = {'kind': 'storage', 'written_bytes': 8*qualify.MIB, 'errno': None}
+        result = storage_result(written_bytes=8*qualify.MIB, errno=None)
         qualify.verify_storage(result, False, 64*qualify.MIB)
         for mutation in ({'errno': 28}, {'written_bytes': 7*qualify.MIB}, {'kind': 'other'}):
             with self.assertRaises(qualify.QualificationError):
                 qualify.verify_storage({**result, **mutation}, False, 64*qualify.MIB)
+
+    def test_storage_scope_rejects_tmpfs_redirect_or_wrong_capacity_even_with_enospc(self):
+        result = storage_result()
+        scope = qualify.verify_storage_scope(result, 64*qualify.MIB)
+        self.assertEqual(scope['root_mount']['filesystem'], 'overlay')
+        self.assertEqual(scope['tmp_mount']['filesystem'], 'tmpfs')
+        for mutation in (
+            {'probe_path': '/tmp/native-storage-probe', 'probe_real_path': '/tmp/native-storage-probe'},
+            {'probe_real_path': '/tmp/redirect'}, {'probe_device': 29}, {'root_device': 15, 'probe_device': 15},
+            {'root_capacity_bytes': 128*qualify.MIB}, {'probe_capacity_bytes': 128*qualify.MIB},
+            {'mountinfo': result['mountinfo'].replace('- overlay ', '- tmpfs ')},
+            {'mountinfo': result['mountinfo'].replace('size=65536k', 'size=131072k')},
+            {'mountinfo': result['mountinfo'].replace('size=65536k', 'size=65536k,size=65536k')},
+            {'mountinfo': result['mountinfo'] + f'24 12 0:30 / {result["probe_path"]} rw - tmpfs none rw\n'},
+        ):
+            with self.subTest(mutation=mutation), self.assertRaises(qualify.QualificationError):
+                qualify.verify_storage({**result, **mutation}, True, 64*qualify.MIB)
+
+    def test_storage_mount_evidence_rejects_missing_ambiguous_or_malformed_roots(self):
+        result = storage_result()
+        for mountinfo in ('', 'bad line\n', result['mountinfo'] + result['mountinfo'].splitlines()[0] + '\n'):
+            with self.subTest(mountinfo=mountinfo), self.assertRaises(qualify.QualificationError):
+                qualify.verify_storage_scope({**result, 'mountinfo': mountinfo}, 64*qualify.MIB)
 
     def test_result_requires_one_explicit_marker(self):
         self.assertIsNone(qualify.workload_results('not JSON\n{"result":true}\n'))
