@@ -31,7 +31,33 @@ type ResourceSpecJSON struct {
 }
 
 type NetworkSpecJSON struct {
-	Mode string `json:"mode"`
+	Mode         string                   `json:"mode"`
+	EgressPolicy *NetworkEgressPolicyJSON `json:"egress_policy,omitempty"`
+}
+
+type NetworkEgressPolicyJSON struct {
+	Strict  *StrictEgressPolicyJSON `json:"strict,omitempty"`
+	DNSDeny *DNSDenyPolicyJSON      `json:"dns_deny,omitempty"`
+}
+
+type StrictEgressPolicyJSON struct {
+	AllowedDomains []string              `json:"allowed_domains,omitempty"`
+	AllowedCIDRs   []*CIDREgressRuleJSON `json:"allowed_cidrs,omitempty"`
+}
+
+type DNSDenyPolicyJSON struct {
+	DeniedDomains []string `json:"denied_domains"`
+}
+
+type CIDREgressRuleJSON struct {
+	CIDR     string           `json:"cidr"`
+	Protocol string           `json:"protocol"`
+	Ports    []*PortRangeJSON `json:"ports"`
+}
+
+type PortRangeJSON struct {
+	Start uint32 `json:"start"`
+	End   uint32 `json:"end"`
 }
 
 type ExtensionCapabilityRequirementJSON struct {
@@ -107,7 +133,40 @@ func newNetworkSpecJSON(network *commonv1.NetworkSpec) *NetworkSpecJSON {
 	if network == nil {
 		return nil
 	}
-	return &NetworkSpecJSON{Mode: networkModeLabel(network.GetMode())}
+	out := &NetworkSpecJSON{Mode: networkModeLabel(network.GetMode())}
+	if policy := network.GetEgressPolicy(); policy != nil {
+		out.EgressPolicy = &NetworkEgressPolicyJSON{}
+		if dns := policy.GetDnsDeny(); dns != nil {
+			out.EgressPolicy.DNSDeny = &DNSDenyPolicyJSON{DeniedDomains: append([]string(nil), dns.GetDeniedDomains()...)}
+		}
+		if strict := policy.GetStrict(); strict != nil {
+			out.EgressPolicy.Strict = &StrictEgressPolicyJSON{AllowedDomains: append([]string(nil), strict.GetAllowedDomains()...)}
+			for _, rule := range strict.GetAllowedCidrs() {
+				if rule == nil {
+					continue
+				}
+				converted := &CIDREgressRuleJSON{CIDR: rule.GetCidr(), Protocol: egressProtocolLabel(rule.GetProtocol())}
+				for _, port := range rule.GetPorts() {
+					if port != nil {
+						converted.Ports = append(converted.Ports, &PortRangeJSON{Start: port.GetStart(), End: port.GetEnd()})
+					}
+				}
+				out.EgressPolicy.Strict.AllowedCIDRs = append(out.EgressPolicy.Strict.AllowedCIDRs, converted)
+			}
+		}
+	}
+	return out
+}
+
+func egressProtocolLabel(protocol commonv1.EgressProtocol) string {
+	switch protocol {
+	case commonv1.EgressProtocol_EGRESS_PROTOCOL_TCP:
+		return "tcp"
+	case commonv1.EgressProtocol_EGRESS_PROTOCOL_UDP:
+		return "udp"
+	default:
+		return "unspecified"
+	}
 }
 
 func newExtensionCapabilityRequirementJSONs(requirements []*capabilityv1.ExtensionCapabilityRequirement) []*ExtensionCapabilityRequirementJSON {

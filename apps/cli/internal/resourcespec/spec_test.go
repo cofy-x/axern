@@ -1,11 +1,67 @@
 package resourcespec
 
 import (
+	axernsdk "github.com/cofy-x/axern/sdk/go"
+	"google.golang.org/protobuf/proto"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestNetworkPolicySpecUsesPublicSDKContract(t *testing.T) {
+	dns, err := axernsdk.DenyDNSNetworkPolicy("DENIED.example.", "denied.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	strict, err := axernsdk.NewStrictNetworkPolicy([]string{"EXAMPLE.COM."}, []axernsdk.CIDRRule{{CIDR: "198.19.0.7/24", Protocol: axernsdk.EgressProtocolTCP, Ports: []axernsdk.PortRange{{Start: 18080}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name, policy string
+		want         *axernsdk.NetworkPolicy
+	}{
+		{"dns", `{"dns_deny":{"denied_domains":["DENIED.example.","denied.example"]}}`, dns},
+		{"strict", `{"strict":{"allowed_domains":["EXAMPLE.COM."],"allowed_cidrs":[{"cidr":"198.19.0.7/24","protocol":"tcp","ports":[{"start":18080}]}]}}`, strict},
+		{"isolated", `{"strict":{}}`, axernsdk.DenyAllNetworkPolicy()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			path := writeSpec(t, t.TempDir(), "run.json", `{"api_version":"axern/v1","kind":"Run","metadata":{},"spec":{"source":{"image":"example.test/image:latest"},"network_policy":`+test.policy+`}}`)
+			envelope, err := Load(path, KindRun)
+			if err != nil {
+				t.Fatal(err)
+			}
+			config, err := envelope.ExecutionConfig()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !proto.Equal(config.GetNetwork().GetEgressPolicy(), test.want.Proto()) {
+				t.Fatalf("policy = %v", config.GetNetwork())
+			}
+		})
+	}
+	config, err := (Envelope{}).ExecutionConfig()
+	if err != nil || config.GetNetwork() != nil {
+		t.Fatalf("absent policy: %v, %v", config, err)
+	}
+}
+
+func TestNetworkPolicySpecRejectsAmbiguityAndInvalidGrants(t *testing.T) {
+	for _, policy := range []string{
+		`{}`, `{"strict":{},"dns_deny":{"denied_domains":["example.com"]}}`,
+		`{"dns_deny":{"denied_domains":[]}}`, `{"strict":{"allowed_domains":["https://example.com"]}}`,
+		`{"strict":{"allowed_cidrs":[{"cidr":"127.0.0.1/32","protocol":"tcp","ports":[{"start":80}]}]}}`,
+		`{"strict":{"allowed_cidrs":[{"cidr":"198.19.0.2/32","protocol":"sctp","ports":[{"start":80}]}]}}`,
+		`{"strict":{"allowed_cidrs":[{"cidr":"198.19.0.2/32","protocol":"tcp","ports":[{"start":90,"end":80}]}]}}`,
+		`{"strict":{"obsolete":true}}`,
+	} {
+		path := writeSpec(t, t.TempDir(), "run.json", `{"api_version":"axern/v1","kind":"Run","metadata":{},"spec":{"source":{"image":"example.test/image:latest"},"network_policy":`+policy+`}}`)
+		if _, err := Load(path, KindRun); err == nil {
+			t.Fatalf("accepted %s", policy)
+		}
+	}
+}
 
 func TestLoadRejectsUnknownFieldsAndMultipleDocuments(t *testing.T) {
 	dir := t.TempDir()

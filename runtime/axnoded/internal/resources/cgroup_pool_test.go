@@ -188,6 +188,71 @@ func TestMemoryCapacityIdentityChangeWithCommitmentFailsClosed(t *testing.T) {
 	}
 }
 
+func TestMemoryCapacityRefreshPreservesConformanceOwnershipAndDebt(t *testing.T) {
+	for _, state := range []apipb.CgroupLifecycleState{
+		apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_ASSIGNED,
+		apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING,
+	} {
+		t.Run(state.String(), func(t *testing.T) {
+			manager := &CgroupManager{
+				memoryAdmissionRequired: true,
+				usingID:                 cmap.New[struct{}](), idleID: queue.New(""), leases: cmap.New[*apipb.CgroupLease](),
+				cgroups: cmap.New[struct{}](), gcQueue: queue.New(""), db: discardStateStore{},
+			}
+			lease := &apipb.CgroupLease{
+				CgroupID: "/node/conformance/probe-a", State: state,
+				OwnerKind:    apipb.CgroupLeaseOwnerKind_CGROUP_LEASE_OWNER_KIND_RUNTIME_CONFORMANCE,
+				AllocationID: "probe-a", AssignedAtUnixNano: 1, RetiringAtUnixNano: 2,
+				MemoryRequestBytes: 256 << 20, MemoryLimitBytes: 256 << 20, CapacityChargeBytes: 512 << 20,
+				CgroupBootID: "boot-a", CgroupMountIdentity: "mount-a", CgroupParentInode: 11, CgroupLeafInode: 12,
+			}
+			manager.leases.Set(lease.CgroupID, lease)
+			snapshot := MemoryCapacitySnapshot{
+				EffectiveAllocatableBytes: 2 << 30, CapacityIdentity: "unchanged-user-domain", SampledAt: time.Now().UTC(),
+				SystemReserveBaseAvailableBytes: 512 << 20, SystemReserveAvailableBytes: 480 << 20,
+			}
+			if err := manager.UpdateMemoryCapacity(snapshot); err != nil {
+				t.Fatal(err)
+			}
+			before := manager.MemoryCommitment()
+			// A newly empty conformance sibling reports all reserve bytes free.
+			// Existing lease ownership and charges must still block another probe.
+			snapshot.SystemReserveAvailableBytes = snapshot.SystemReserveBaseAvailableBytes
+			snapshot.SampledAt = time.Now().UTC()
+			if err := manager.UpdateMemoryCapacity(snapshot); err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, before, manager.MemoryCommitment())
+			assert.EqualValues(t, 512<<20, manager.MemoryCommitment().ConformanceBytes)
+			if state == apipb.CgroupLifecycleState_CGROUP_LIFECYCLE_STATE_RETIRING {
+				assert.EqualValues(t, 512<<20, manager.MemoryCommitment().ConformanceCleanupDebtBytes)
+			}
+			request := AllocateOption{ContainerID: "probe-b", CgroupOwnerKind: lease.OwnerKind,
+				MemoryRequestBytes: 256 << 20, MemoryLimitBytes: 256 << 20, CapacityChargeBytes: 512 << 20}
+			if _, err := manager.Allocate(request); err == nil || !strings.Contains(err.Error(), "commitment headroom") {
+				t.Fatalf("empty sibling bypassed reserve commitment: %v", err)
+			}
+			// Even ample current headroom cannot replace an assigned/retiring owner.
+			snapshot.SystemReserveBaseAvailableBytes, snapshot.SystemReserveAvailableBytes = 1<<30, 1<<30
+			if err := manager.UpdateMemoryCapacity(snapshot); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := manager.Allocate(request); err == nil || !strings.Contains(err.Error(), "already assigned or retiring") {
+				t.Fatalf("capacity refresh bypassed conformance ownership: %v", err)
+			}
+			stored, found := manager.leases.Get(lease.CgroupID)
+			if !found || stored.AllocationID != "probe-a" || stored.State != state || stored.CgroupParentInode != 11 {
+				t.Fatal("capacity refresh rewrote the conformance lease")
+			}
+			domain := &hostlinux.CgroupMemoryDomain{BootID: "boot-a", MountIdentity: "mount-a", ParentInode: 99,
+				LimitBytes: 256 << 20, OOMGroup: true}
+			if err := verifyPersistedCgroupParentIdentity(stored, domain); err == nil {
+				t.Fatal("capacity refresh allowed a replaced conformance Allocation parent")
+			}
+		})
+	}
+}
+
 func TestCgroupManagerAddReleasesIDAfterCreateFailure(t *testing.T) {
 	driver := &stubCgroupDriver{failFirst: 1}
 	manager := &CgroupManager{

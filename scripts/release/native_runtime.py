@@ -54,6 +54,8 @@ GO_BINARIES = {
 SOURCE_FILES = {
     "libexec/axern/native_install.py": "deploy/standalone/native_install.py",
     "libexec/axern/native_runtime.py": "scripts/release/native_runtime.py",
+    "libexec/axern/qualify_native.py": "deploy/standalone/qualify_native.py",
+    "libexec/axern/qualify_network.py": "deploy/standalone/qualify_network.py",
     "LICENSE": "LICENSE",
     "NOTICE": "NOTICE",
     "share/axern/gvisor.lock": "runtime/axnoded/gvisor.lock",

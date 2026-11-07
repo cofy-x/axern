@@ -150,6 +150,17 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary 
 	if err := VerifyPIDInCgroup(cgroupPath, sentryPID); err != nil {
 		return err
 	}
+	pids, err := cgroupPIDs(cgroupPath)
+	if err != nil {
+		return err
+	}
+	if err := verifyRunscProcessIdentities("/proc", pids, sentryPID, runtimeBinary); err != nil {
+		return fmt.Errorf("runsc cgroup %s: %w", cgroupPath, err)
+	}
+	return nil
+}
+
+func verifyRunscProcessIdentities(procRoot string, pids map[int]struct{}, sentryPID int, runtimeBinary string) error {
 	expectedRunsc, err := os.Stat(runtimeBinary)
 	if err != nil {
 		return fmt.Errorf("stat configured runsc binary: %w", err)
@@ -158,23 +169,19 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary 
 	if err != nil {
 		return fmt.Errorf("stat configured gVisor sentry binary: %w", err)
 	}
-	pids, err := cgroupPIDs(cgroupPath)
-	if err != nil {
-		return err
-	}
 	sentryFound, goferFound := false, false
 	for pid := range pids {
-		data, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(pid), "cmdline"))
+		data, err := os.ReadFile(filepath.Join(procRoot, strconv.Itoa(pid), "cmdline"))
 		if err != nil {
 			continue
 		}
-		command := strings.ToLower(strings.ReplaceAll(string(data), "\x00", " "))
-		isSentry := pid == sentryPID && (strings.Contains(command, "sandbox") || strings.Contains(command, " boot"))
-		isGofer := strings.Contains(command, "gofer")
+		role := runscProcessRole(data)
+		isSentry := pid == sentryPID && role == "boot"
+		isGofer := pid != sentryPID && role == "gofer"
 		if !isSentry && !isGofer {
 			continue
 		}
-		actualBinary, err := os.Stat(filepath.Join("/proc", strconv.Itoa(pid), "exe"))
+		actualBinary, err := os.Stat(filepath.Join(procRoot, strconv.Itoa(pid), "exe"))
 		if err != nil {
 			return fmt.Errorf("stat runsc process %d executable: %w", pid, err)
 		}
@@ -193,9 +200,42 @@ func VerifyRunscCgroupProcesses(cgroupPath string, sentryPID int, runtimeBinary 
 		}
 	}
 	if !sentryFound || !goferFound {
-		return fmt.Errorf("runsc cgroup %s attribution incomplete: sentry=%t gofer=%t pids=%d", cgroupPath, sentryFound, goferFound, len(pids))
+		return fmt.Errorf("attribution incomplete: sentry=%t gofer=%t pids=%d", sentryFound, goferFound, len(pids))
 	}
 	return nil
+}
+
+// runscProcessRole recognizes the pinned launcher argv, not occurrences inside
+// flags, paths, or arguments to another command. In particular, Sentry and its
+// newly cloned systrap children carry --gofer-* flags; they are not Gofer
+// processes. A role is only a candidate: the caller also requires the exact
+// saved Sentry PID and the configured executable inode for each counted role.
+func runscProcessRole(cmdline []byte) string {
+	args := strings.Split(string(cmdline), "\x00")
+	if len(args) < 2 || args[len(args)-1] != "" {
+		return ""
+	}
+	var command string
+	switch args[0] {
+	case "runsc-sandbox":
+		command = "boot"
+	case "runsc-gofer":
+		command = "gofer"
+	default:
+		return ""
+	}
+	for _, arg := range args[1:] {
+		// The pinned launcher emits global flags as --key=value. Stop at
+		// the first positional token so a later argument cannot name a role.
+		if strings.HasPrefix(arg, "--") && strings.Contains(arg, "=") {
+			continue
+		}
+		if arg == command {
+			return command
+		}
+		return ""
+	}
+	return ""
 }
 
 // VerifyProcessExecutable proves that pid still executes the configured file.

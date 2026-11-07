@@ -26,6 +26,8 @@ type Request struct {
 	RequestedEphemeralStorageBytes  int64
 	Network                         string
 	NetworkBackend                  string
+	RequiresDNSPolicyEnforcement    bool
+	RequiresStrictEgressEnforcement bool
 	CapabilityRequirements          []*capabilityv1.CapabilityKey
 	ExtensionCapabilityRequirements []*capabilityv1.ExtensionCapabilityRequirement
 	NodeSelector                    map[string]string
@@ -58,14 +60,16 @@ func ResolveRequestForNode(base *Request, summary *nodev1.NodeSummary, now time.
 		}
 	}
 	input := capabilitycontract.RequirementInput{
-		NetworkMode:                 out.Network,
-		NetworkBackend:              out.NetworkBackend,
-		MemoryLimitBytes:            out.MemoryLimitBytes,
-		RootfsWritable:              out.RootfsWritable,
-		EphemeralStorageLimitBytes:  out.EphemeralStorageLimitBytes,
-		EROFSBacking:                erofsBacking,
-		RootfsSnapshot:              out.RootfsSnapshot,
-		ExtensionCapabilityRequests: out.ExtensionCapabilityRequirements,
+		NetworkMode:                     out.Network,
+		NetworkBackend:                  out.NetworkBackend,
+		RequiresDNSPolicyEnforcement:    out.RequiresDNSPolicyEnforcement,
+		RequiresStrictEgressEnforcement: out.RequiresStrictEgressEnforcement,
+		MemoryLimitBytes:                out.MemoryLimitBytes,
+		RootfsWritable:                  out.RootfsWritable,
+		EphemeralStorageLimitBytes:      out.EphemeralStorageLimitBytes,
+		EROFSBacking:                    erofsBacking,
+		RootfsSnapshot:                  out.RootfsSnapshot,
+		ExtensionCapabilityRequests:     out.ExtensionCapabilityRequirements,
 	}
 	var requirements []*capabilityv1.CapabilityKey
 	var err error

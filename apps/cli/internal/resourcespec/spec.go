@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/cofy-x/axern/apps/cli/internal/parse"
+	axernsdk "github.com/cofy-x/axern/sdk/go"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	"gopkg.in/yaml.v3"
@@ -50,6 +51,60 @@ type Spec struct {
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
 	ImageMounts           []ImageMount      `json:"image_mounts,omitempty" yaml:"image_mounts,omitempty"`
 	RootfsSnapshot        bool              `json:"rootfs_snapshot,omitempty" yaml:"rootfs_snapshot,omitempty"`
+	NetworkPolicy         *NetworkPolicy    `json:"network_policy,omitempty" yaml:"network_policy,omitempty"`
+}
+
+type NetworkPolicy struct {
+	Strict  *StrictNetworkPolicy `json:"strict,omitempty" yaml:"strict,omitempty"`
+	DNSDeny *DNSDenyPolicy       `json:"dns_deny,omitempty" yaml:"dns_deny,omitempty"`
+}
+
+type StrictNetworkPolicy struct {
+	AllowedDomains []string   `json:"allowed_domains,omitempty" yaml:"allowed_domains,omitempty"`
+	AllowedCIDRs   []CIDRRule `json:"allowed_cidrs,omitempty" yaml:"allowed_cidrs,omitempty"`
+}
+
+type DNSDenyPolicy struct {
+	DeniedDomains []string `json:"denied_domains" yaml:"denied_domains"`
+}
+
+type CIDRRule struct {
+	CIDR     string      `json:"cidr" yaml:"cidr"`
+	Protocol string      `json:"protocol" yaml:"protocol"`
+	Ports    []PortRange `json:"ports" yaml:"ports"`
+}
+
+type PortRange struct {
+	Start uint32 `json:"start" yaml:"start"`
+	End   uint32 `json:"end,omitempty" yaml:"end,omitempty"`
+}
+
+func (p *NetworkPolicy) networkSpec() (*commonv1.NetworkSpec, error) {
+	if p == nil {
+		return nil, nil
+	}
+	if (p.Strict == nil) == (p.DNSDeny == nil) {
+		return nil, fmt.Errorf("spec.network_policy requires exactly one of strict or dns_deny")
+	}
+	var policy *axernsdk.NetworkPolicy
+	var err error
+	if p.DNSDeny != nil {
+		policy, err = axernsdk.DenyDNSNetworkPolicy(p.DNSDeny.DeniedDomains...)
+	} else {
+		var rules []axernsdk.CIDRRule
+		for _, rule := range p.Strict.AllowedCIDRs {
+			var ports []axernsdk.PortRange
+			for _, port := range rule.Ports {
+				ports = append(ports, axernsdk.PortRange{Start: port.Start, End: port.End})
+			}
+			rules = append(rules, axernsdk.CIDRRule{CIDR: rule.CIDR, Protocol: axernsdk.EgressProtocol(rule.Protocol), Ports: ports})
+		}
+		policy, err = axernsdk.NewStrictNetworkPolicy(p.Strict.AllowedDomains, rules)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("spec.network_policy: %w", err)
+	}
+	return &commonv1.NetworkSpec{EgressPolicy: policy.Proto()}, nil
 }
 
 type Source struct {
@@ -150,6 +205,9 @@ func (e *Envelope) Validate(expected Kind) error {
 	if _, _, _, err := e.secretAndImageMounts(); err != nil {
 		return err
 	}
+	if _, err := e.Spec.NetworkPolicy.networkSpec(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -167,6 +225,10 @@ func (e Envelope) EnvironmentSpec() (string, *environmentv1.EnvironmentSpec) {
 }
 
 func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
+	network, err := e.Spec.NetworkPolicy.networkSpec()
+	if err != nil {
+		return nil, err
+	}
 	resources, err := e.ResourceSpec()
 	if err != nil {
 		return nil, err
@@ -193,6 +255,7 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 		SecretEnv:                       secretEnv,
 		SecretFiles:                     secretFiles,
 		ImageMounts:                     imageMounts,
+		Network:                         network,
 	}
 	if e.Spec.RootfsSnapshot {
 		config.RootfsSnapshot = &commonv1.RootfsSnapshot{}

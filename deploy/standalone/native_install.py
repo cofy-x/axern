@@ -542,7 +542,7 @@ def sync_identity(renew: bool = False) -> None:
 
 def prepare_runtime() -> None:
     if not (OPT / 'gvisor').exists():
-        allowed = {'runsc', 'containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer', 'gvisor-bin/gvisor-sentry-prewarmer', 'gvisor-bin/gvisor_sentry', 'gvisor-bin/runsc-fd-parking', 'gvisor-bin/runsc-metric-server'}
+        allowed = {'runsc', 'containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer', 'gvisor-bin/gvisor-sentry-prewarmer', 'gvisor-bin/gvisor-proc-umounter', 'gvisor-bin/gvisor_sentry', 'gvisor-bin/runsc-fd-parking', 'gvisor-bin/runsc-metric-server'}
         with tempfile.TemporaryDirectory(prefix='.gvisor-', dir=OPT) as temporary:
             stage = pathlib.Path(temporary) / 'runtime'
             stage.mkdir()

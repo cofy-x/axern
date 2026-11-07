@@ -137,6 +137,29 @@ func forgetNativeRuntimeState(ctx context.Context, runtimeRoot, allocationID, bu
 	if err := verifyNativeStateFile(root, stateName, stateFD); err != nil {
 		return err
 	}
+	// The pinned release atomically publishes state through this exact sibling.
+	// An interrupted write can leave partial JSON; its name and the existing
+	// primary state's ownership, never its contents, bind this cleanup debt.
+	temporaryName := stateName + ".tmp"
+	temporaryFD := -1
+	var temporaryInfo unix.Stat_t
+	if err := unix.Fstatat(root, temporaryName, &temporaryInfo, unix.AT_SYMLINK_NOFOLLOW); errors.Is(err, unix.ENOENT) {
+		// Absence is rechecked after kernel verification under the same lock.
+	} else if err != nil {
+		return fmt.Errorf("inspect native temporary state: %w", err)
+	} else {
+		if err := validateNativeStateFileInfo(temporaryName, &temporaryInfo); err != nil {
+			return err
+		}
+		temporaryFD, err = unix.Openat(root, temporaryName, unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return fmt.Errorf("open native temporary state: %w", err)
+		}
+		defer unix.Close(temporaryFD)
+		if err := verifyNativeStateFile(root, temporaryName, temporaryFD); err != nil {
+			return err
+		}
+	}
 	const maximumStateBytes = 16 << 20
 	payload, err := io.ReadAll(io.LimitReader(state, maximumStateBytes+1))
 	if err != nil {
@@ -169,11 +192,22 @@ func forgetNativeRuntimeState(ctx context.Context, runtimeRoot, allocationID, bu
 	if err := verifyNativeStateFile(root, stateName, stateFD); err != nil {
 		return err
 	}
+	if err := verifyNativeTemporaryState(root, temporaryName, temporaryFD); err != nil {
+		return err
+	}
 	// Retire the saved control socket before losing the only record naming
 	// it. Internal probes reuse their identity after ordered cleanup; leaking
 	// this socket eventually exhausts runsc's fallback binding locations.
 	if err := socket.retire(ctx); err != nil {
 		return err
+	}
+	if err := verifyNativeTemporaryState(root, temporaryName, temporaryFD); err != nil {
+		return err
+	}
+	if temporaryFD >= 0 {
+		if err := unix.Unlinkat(root, temporaryName, 0); err != nil {
+			return fmt.Errorf("forget exact native temporary state: %w", err)
+		}
 	}
 	if err := unix.Unlinkat(root, stateName, 0); err != nil {
 		return fmt.Errorf("forget exact native runtime state: %w", err)
@@ -188,6 +222,19 @@ func forgetNativeRuntimeState(ctx context.Context, runtimeRoot, allocationID, bu
 		return fmt.Errorf("persist native runtime state retirement: %w", err)
 	}
 	return nil
+}
+
+func verifyNativeTemporaryState(root int, name string, fd int) error {
+	if fd >= 0 {
+		return verifyNativeStateFile(root, name, fd)
+	}
+	var info unix.Stat_t
+	if err := unix.Fstatat(root, name, &info, unix.AT_SYMLINK_NOFOLLOW); errors.Is(err, unix.ENOENT) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("recheck native temporary state absence: %w", err)
+	}
+	return errors.New("native temporary state appeared during termination verification")
 }
 
 func openNativeStateRoot(root string) (int, error) {

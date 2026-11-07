@@ -147,6 +147,22 @@ spec:
 
 When `--file` is used, resource-definition flags cannot be mixed with the spec. Context, output, detach, and timeout flags remain operational overrides.
 
+Run files also accept `spec.network_policy`, validated with the public Go SDK:
+
+```yaml
+network_policy:
+  strict:
+    allowed_domains: [example.com]
+    allowed_cidrs:
+      - cidr: 192.0.2.0/24
+        protocol: tcp
+        ports: [{start: 18080}]
+```
+
+Use `network_policy: {dns_deny: {denied_domains: [example.com]}}` to refuse matching conventional UDP/TCP DNS queries only. Direct IP and alternative resolvers remain outside that policy. `network_policy: {strict: {}}` requests isolated deny-all networking; omitting the field requests unrestricted networking. Choose exactly one of `strict` and `dns_deny`. Strict domain grants cover HTTP/HTTPS, while CIDR grants name explicit TCP/UDP destination ports; omitted port `end` means the single `start` port. These immutable policies follow the [sandbox network policy contract](../../docs/architecture/sandbox-network-policy.md).
+
+Run JSON output includes the admitted policy at `run.config.network.egress_policy`; isolated deny-all is represented by `run.config.network.mode: isolated` without a separate egress policy.
+
 ## Output And Exit Codes
 
 Interactive output defaults to `table`. Automation uses `--output json`; JSON is rendered from stable public DTOs rather than generated proto objects. YAML is an input format, not an output format.

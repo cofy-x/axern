@@ -109,19 +109,11 @@ func InspectEnforcedNodeMemoryBudget(physicalCapacityBytes, sourceAllocatableByt
 	if !mounted || mountIdentity == "" {
 		return NodeMemoryBudgetSample{}, fmt.Errorf("cgroup mount identity is unavailable")
 	}
-	rootInode, err := cgroupInode(delegationDir)
-	if err != nil {
-		return NodeMemoryBudgetSample{}, err
-	}
-	sandboxInode, err := cgroupInode(sandboxDir)
-	if err != nil {
-		return NodeMemoryBudgetSample{}, err
-	}
-	conformanceInode, err := cgroupInode(conformanceDir)
-	if err != nil {
-		return NodeMemoryBudgetSample{}, err
-	}
 	bootID, err := CurrentBootID()
+	if err != nil {
+		return NodeMemoryBudgetSample{}, err
+	}
+	capacityIdentity, err := nodeMemoryCapacityIdentity(bootID, mountIdentity, delegationDir, sandboxDir)
 	if err != nil {
 		return NodeMemoryBudgetSample{}, err
 	}
@@ -135,9 +127,27 @@ func InspectEnforcedNodeMemoryBudget(physicalCapacityBytes, sourceAllocatableByt
 		ConformanceCurrentBytes: conformanceCurrent,
 		ConformanceLimitBytes:   conformanceLimit,
 		SandboxCurrentBytes:     sandboxCurrent,
-		CapacityIdentity:        fmt.Sprintf("cgroup-v2:boot=%s:%s:rootino=%x:sandboxino=%x:conformanceino=%x", bootID, mountIdentity, rootInode, sandboxInode, conformanceInode),
+		CapacityIdentity:        capacityIdentity,
 		SystemReserveExhausted:  systemReserveBytes > 0 && saturatingBudgetAdd(internalCurrent, conformanceCurrent) > systemReserveBytes,
 	}, nil
+}
+
+// nodeMemoryCapacityIdentity fences the delegated capacity and user execution
+// subtree. systemd may remove an empty conformance sibling during node restart
+// while preserving live user sandboxes. That sibling is sampled and bounded
+// above, but its replacement cannot invalidate unchanged user commitments.
+// Conformance leases retain their own boot/mount/inode checks and cleanup debt;
+// publishing a new capacity sample does not release or rebind those leases.
+func nodeMemoryCapacityIdentity(bootID, mountIdentity, delegationDir, sandboxDir string) (string, error) {
+	rootInode, err := cgroupInode(delegationDir)
+	if err != nil {
+		return "", err
+	}
+	sandboxInode, err := cgroupInode(sandboxDir)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("cgroup-v2:boot=%s:%s:rootino=%x:sandboxino=%x", bootID, mountIdentity, rootInode, sandboxInode), nil
 }
 
 func saturatingBudgetAdd(left, right int64) int64 {

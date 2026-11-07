@@ -75,6 +75,8 @@ The Allocation parent is the memory safety boundary; the runtime-created workloa
 
 The memory request covers runtime processes, guest accounting, anonymous and shared memory, kernel memory, lower and writable page cache, dirty pages, and writeback. Node daemons and conformance workloads are charged to the separately bounded system reserve under the same delegated cgroup-v2 root.
 
+Node memory-capacity identity binds the boot, cgroup mount, delegated root inode, and user sandbox subtree inode. An empty internal or conformance sibling may be recreated during a native daemon restart without invalidating live user commitments. Conformance controls and usage are still sampled on every inventory refresh; its typed Allocation leases retain their own boot, mount, parent/leaf inode checks and conservative assigned or retiring charges. Capacity refresh never releases or rebinds a lease, and a pending conformance lease prevents another probe from consuming its reserve.
+
 Cgroup GC never kills an unexplained process. It retains cleanup debt and retries removal after the runtime barrier. Optional `memory.peak` and PSI data are diagnostic only and never weaken enforcement.
 
 Capability evidence and loss policy are defined by [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md).

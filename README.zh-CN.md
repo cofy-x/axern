@@ -18,7 +18,7 @@ Axern 是一个面向 AI agent 的开源、自托管执行平台。它用 gVisor
 
 产品方向是**以单机为先的个人 Agent 系统基础设施**：简化 Linux 部署，支持长期运行的沙箱服务，以及通过明确访问权限和所有权供多个 agent 使用的持久 Workspace。Agent 的规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。专门的单机 serving 部署和持久 Workspace 资源尚在计划中，未实现。当前本地路径是 Docker Compose 开发栈；可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已支持从源码构建运行时包，尚未纳入正式发布渠道，也不支持升级。持久 Workspace 资源仍在计划中。当前本地路径是 Docker Compose 开发栈；可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
@@ -111,6 +111,7 @@ flowchart LR
 
 ## 部署
 
+- [Linux 原生安装](./deploy/standalone/INSTALL.md)提供实验性的单机 systemd 部署路径；[运行时包说明](./deploy/standalone/README.md)记录构建和验收边界。
 - [Docker Compose 和 kind](./deploy/local/README.md) 是仓库自持的本地基准环境。
 - [Axern Helm chart](./deploy/helm/axern/README.md) 是云中立的，接受运维方自持的镜像仓库、证书、存储类和密钥。
 - 云厂商账号准备、集群创建、凭据和区域发布自动化有意放在本仓库之外。

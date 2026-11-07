@@ -93,3 +93,5 @@ source /etc/axern/client.env
 ```
 
 Renew service certificates explicitly using `native_install.py renew-services`. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. An expired initial administrator does not prevent service renewal, and renewal does not restore revoked administrator authorization. Use a valid replacement administrator for readiness checks and administrative API access. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.
+
+Qualify a complete archive on a disposable fresh installation with the opt-in [memory, storage and network acceptance matrix](QUALIFICATION.md). Serving readiness alone does not run or replace that matrix.
