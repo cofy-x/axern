@@ -18,10 +18,15 @@ func TestProjectionRootPreservesGuestMetadataUnderPrivateUmask(t *testing.T) {
 		t.Run(mode.String(), func(t *testing.T) {
 			lower := t.TempDir()
 			require.NoError(t, os.Chmod(lower, mode))
+			// Existing image parents can be copied by the host test's user.
+			// New guest directories intentionally require root:root ownership.
+			require.NoError(t, os.Mkdir(filepath.Join(lower, "reference"), 0755))
 			view := overlayViewForContainer("metadata", t.TempDir(), projectionViewDir, []string{lower})
 			require.NoError(t, initializeOverlayView(view, lower))
 			require.NoError(t, seedMountTargets(lower, view.UpperDir,
-				[]MountTarget{{Destination: "/reference/nested", Kind: TargetDirectory}}))
+				[]MountTarget{{Destination: "/reference/input", Kind: TargetRegularFile}}))
+			require.FileExists(t, filepath.Join(view.UpperDir, "reference/input"))
+			require.NoFileExists(t, filepath.Join(lower, "reference/input"))
 			upperInfo, err := os.Stat(view.UpperDir)
 			require.NoError(t, err)
 			lowerInfo, err := os.Stat(lower)
