@@ -2,11 +2,13 @@
 """Host-safe installer boundary checks; actual service acceptance runs in a VM."""
 
 import copy
+import io
 import json
 import os
 import pathlib
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import tomllib
 import unittest
@@ -25,6 +27,42 @@ DAEMON_GENERATION = ('1' * 32, '2026-11-06T14:34:14.110196Z')
 
 
 class InstallerTest(unittest.TestCase):
+    def test_pinned_runtime_preserves_new_sidecar_and_rejects_incomplete_layouts(self):
+        members = ['runsc', 'containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer',
+                   'gvisor-bin/gvisor-sentry-prewarmer', 'gvisor-bin/gvisor-proc-umounter',
+                   'gvisor-bin/gvisor_sentry', 'gvisor-bin/runsc-fd-parking', 'gvisor-bin/runsc-metric-server']
+        for variant in ('complete', 'missing-sidecar', 'extra-member', 'duplicate'):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
+                base = pathlib.Path(temporary)
+                root, opt, data = base / 'release', base / 'opt', base / 'data'
+                (root / 'runtime').mkdir(parents=True)
+                opt.mkdir()
+                (data / 'fixtures/rootfs').mkdir(parents=True)
+                entries = list(members)
+                if variant == 'missing-sidecar':
+                    entries.remove('gvisor-bin/gvisor-proc-umounter')
+                elif variant == 'extra-member':
+                    entries.append('unexpected')
+                elif variant == 'duplicate':
+                    entries.append('gvisor-bin/gvisor-proc-umounter')
+                with tarfile.open(root / 'runtime/gvisor.tar.bz2', 'w:bz2') as archive:
+                    for name in entries:
+                        payload = name.encode()
+                        member = tarfile.TarInfo(name)
+                        member.size = len(payload)
+                        archive.addfile(member, io.BytesIO(payload))
+                with mock.patch.multiple(installer, ROOT=root, OPT=opt, DATA=data):
+                    if variant == 'complete':
+                        installer.prepare_runtime()
+                        for name in members:
+                            target = opt / 'gvisor' / name
+                            self.assertEqual(target.read_bytes(), name.encode())
+                            self.assertEqual(target.stat().st_mode & 0o777, 0o755)
+                    else:
+                        with self.assertRaises(installer.InstallError):
+                            installer.prepare_runtime()
+                        self.assertFalse((opt / 'gvisor').exists())
+
     def test_node_generation_uses_systemd_start_with_microsecond_precision(self):
         properties = ('MainPID=123\nExecMainStartTimestamp=Fri 2026-11-06 14:34:14.110196 UTC\n'
                       'InvocationID=' + DAEMON_GENERATION[0] + '\n')

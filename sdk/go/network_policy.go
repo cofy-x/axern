@@ -84,6 +84,12 @@ func DenyAllNetworkPolicy() *NetworkPolicy {
 }
 
 func (p *NetworkPolicy) proto() *commonv1.NetworkEgressPolicy {
+	return p.Proto()
+}
+
+// Proto returns an independent public API representation of the validated policy.
+// Mutating the result does not change the policy used by subsequent requests.
+func (p *NetworkPolicy) Proto() *commonv1.NetworkEgressPolicy {
 	if p == nil || p.wire == nil {
 		return nil
 	}

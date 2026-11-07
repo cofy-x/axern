@@ -33,7 +33,7 @@ The final JSON receipt reports the archive path and SHA-256. Build output goes t
 | --- | --- |
 | `bin/` | CLI, control/migration/access-bootstrap/retention, gateway, node, OCI image manager, egress, tunnel and diagnostic binaries |
 | `libexec/axnoded/` | Sandbox supervisor, egress/DNS probes and sandbox tunnel agent |
-| `libexec/axern/` | Native installer and payload verification/staging tool |
+| `libexec/axern/` | Native installer, payload verification/staging tool and opt-in qualification runners |
 | `runtime/gvisor.tar.bz2` and `share/axern/gvisor.lock` | Full pinned upstream runtime, including its helper directory; the installer must preserve its layout |
 | `share/axern/runtime-selftest/memory-hog` and `share/axern/erofs-root/` | Axern-owned capability fixture inputs for installer assembly |
 | `share/axern/registry_auths.json` | Empty OCI registry credential map |
@@ -57,7 +57,7 @@ The verifier reads the archive without extraction or execution. It checks the ou
 
 ## Verification And Support Boundary
 
-`make native-runtime-check` exercises corruption, architecture checks, concurrent staging, configuration validation, generated systemd units and data-identity protection. Its archive tests use synthetic ELF headers; it does not download gVisor, compile services or run a sandbox. The check is part of `make release-check`. Real native builds, service operation and sandbox enforcement require separate acceptance tests.
+`make native-runtime-check` exercises corruption, architecture checks, concurrent staging, configuration validation, generated systemd units and data-identity protection. Its archive tests use synthetic ELF headers; it does not download gVisor, compile services or run a sandbox. The check is part of `make release-check`. Real native builds, service operation and sandbox enforcement require the separate [fresh-archive qualification](QUALIFICATION.md).
 
 This candidate is deliberately outside `make release-build` and automated publication. Extending the release channel requires a payload-aware dependency/license inventory, required third-party notices, provenance/checksum publication, native architecture builds and qualified installation tests. The source-tree SBOM alone is not a claim that the complete binary/runtime archive has passed the [dependency license policy](../../docs/legal/dependency-licenses.md).
 

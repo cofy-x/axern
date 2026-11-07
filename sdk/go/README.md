@@ -115,6 +115,8 @@ func main() {
 
 Leaving `SandboxOptions.NetworkPolicy` nil requests unrestricted networking. Strict policies are fail-closed; DNS deny only refuses matching traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved addresses.
 
+For callers using generated public API clients, `NetworkPolicy.Proto()` returns an independent protobuf copy of the validated policy. Mutating that copy does not change subsequent SDK requests. An empty strict policy is canonicalized by the server to isolated networking.
+
 ```go
 policy, err := axern.DenyDNSNetworkPolicy(
 	"github.com",

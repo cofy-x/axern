@@ -18,7 +18,7 @@ Axern is an open-source, self-hosted execution platform for AI agents. It isolat
 
 The product direction is **single-host-first infrastructure for personal agent systems**: simpler Linux deployment, long-running sandbox services, and persistent Workspaces that multiple agents can use through explicit access and ownership. Agent planning, collaboration, and workflows remain in caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
 
-> **Project status:** Axern is pre-1.0 and under active development. The dedicated single-host serving deployment and persistent Workspace resource are planned, not implemented. Today's local path is a Docker Compose development stack; writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
+> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) is available as a source-built runtime archive; it is not yet a published release channel or a supported upgrade path. Persistent Workspace resources remain planned. Today's local path is a Docker Compose development stack; writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
 
 The durable chain is **Environment → Run → Allocation → runsc sandbox**. Sandbox is an SDK facade over that chain, not a second execution lifecycle.
 
@@ -109,6 +109,7 @@ Treat each Axern release as one coordinated CLI, SDK, chart, and runtime version
 
 ## Deployment
 
+- [Native Linux installation](./deploy/standalone/INSTALL.md) is the experimental single-host systemd path; [payload construction](./deploy/standalone/README.md) records its build and qualification boundaries.
 - [Docker Compose and kind](./deploy/local/README.md) are the repository-owned local truth environments.
 - The [Axern Helm chart](./deploy/helm/axern/README.md) is cloud-neutral and accepts operator-owned image registries, certificates, storage classes, and secrets.
 - Provider account setup, cluster creation, credentials, and regional release automation intentionally live outside this repository.

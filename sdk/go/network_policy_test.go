@@ -6,6 +6,22 @@ import (
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 )
 
+func TestNetworkPolicyProtoReturnsIndependentPublicContract(t *testing.T) {
+	policy, err := AllowDomainNetworkPolicy("Example.COM.")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire := policy.Proto()
+	wire.GetStrict().AllowedDomains[0] = "changed.example"
+	if got := policy.Proto().GetStrict().GetAllowedDomains()[0]; got != "example.com" {
+		t.Fatalf("caller mutated policy: %q", got)
+	}
+	var absent *NetworkPolicy
+	if absent.Proto() != nil {
+		t.Fatal("nil policy must remain absent")
+	}
+}
+
 func TestDenyDNSNetworkPolicyNormalizesDomains(t *testing.T) {
 	policy, err := DenyDNSNetworkPolicy("GitHub.COM.", "github.com", "*.BÜCHER.example")
 	if err != nil {

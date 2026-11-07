@@ -50,6 +50,7 @@ verify_sha512() {
 if [ "${RUNSC_CACHE_REFRESH}" != "true" ] && \
    [ -x "${runsc_path}" ] && \
    [ -x "${cache_dir}/gvisor-bin/checkpointgofer" ] && \
+   [ -x "${cache_dir}/gvisor-bin/gvisor-proc-umounter" ] && \
    [ -x "${cache_dir}/gvisor-bin/gvisor_sentry" ] && \
    [ -x "${cache_dir}/gvisor-bin/runsc-fd-parking" ] && \
    [ "$(cat "${release_path}" 2>/dev/null || true)" = "${AXERN_GVISOR_RELEASE}" ] && \
@@ -78,7 +79,7 @@ cp -a "${tmpdir}/extracted/." "${cache_dir}/"
 printf '%s\n' "${AXERN_GVISOR_RELEASE}" > "${release_path}"
 printf '%s\n' "${RUNSC_ARCHIVE_SHA512}" > "${archive_digest_path}"
 chmod 0755 "${runsc_path}" "${cache_dir}/containerd-shim-runsc-v1" "${cache_dir}"/gvisor-bin/*
-for component in checkpointgofer gvisor_sentry runsc-fd-parking; do
+for component in checkpointgofer gvisor-proc-umounter gvisor_sentry runsc-fd-parking; do
   if [ ! -x "${cache_dir}/gvisor-bin/${component}" ]; then
     echo "cached gVisor release is missing required component: ${component}" >&2
     exit 1

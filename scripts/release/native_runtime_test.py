@@ -35,7 +35,7 @@ class NativeRuntimeTest(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(header if name in runtime.EXECUTABLES else b"fixture")
         self.gvisor_digest = runtime.file_digest(self.stage / "runtime/gvisor.tar.bz2", "sha512")
-        lock = ("AXERN_GVISOR_RELEASE=20260914.0\n"
+        lock = ("AXERN_GVISOR_RELEASE=20261102.0\n"
                 f"AXERN_GVISOR_COMMIT={'a' * 40}\n"
                 f"AXERN_GVISOR_SHA512_AMD64={self.gvisor_digest}\n")
         (self.stage / "share/axern/gvisor.lock").write_text(lock)
