@@ -51,7 +51,12 @@ class InstallerTest(unittest.TestCase):
                         member = tarfile.TarInfo(name)
                         member.size = len(payload)
                         archive.addfile(member, io.BytesIO(payload))
-                with mock.patch.multiple(installer, ROOT=root, OPT=opt, DATA=data):
+                # This test owns archive layout, not the separately enforced
+                # root-only installation boundary. Keep its fixture host-safe
+                # for unprivileged release-contract CI runners.
+                with mock.patch.multiple(installer, ROOT=root, OPT=opt, DATA=data), \
+                     mock.patch.object(installer, 'safe_directory',
+                                       side_effect=lambda path: path.mkdir(mode=0o755)):
                     if variant == 'complete':
                         installer.prepare_runtime()
                         for name in members:

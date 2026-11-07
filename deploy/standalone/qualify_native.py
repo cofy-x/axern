@@ -67,12 +67,37 @@ def workload_results(output):
     return results[0] if results else None
 
 
-class MemoryObserver:
-    """Read only: sample the exact cgroup before terminal cleanup removes it."""
+def capture_memory_domain(group, limit_bytes):
+    """Read the exact allocation safety boundary and its OCI workload leaf."""
+    sandbox = NODE_CGROUP / 'sandbox'
+    require(group.name == 'workload' and group.parent.parent == sandbox and group.resolve() == group,
+            'runtime is outside the owned workload cgroup domain')
+    parent = group.parent
+    parent_inode, leaf_inode = parent.stat().st_ino, group.stat().st_ino
+    parent_controls = {key: (parent / key).read_text().strip() for key in
+                       ('memory.max', 'memory.swap.max', 'memory.oom.group')}
+    leaf_controls = {key: (group / key).read_text().strip() for key in
+                     ('memory.max', 'memory.swap.max', 'memory.oom.group', 'pids.max', 'cpu.max')}
+    require(parent.stat().st_ino == parent_inode and group.stat().st_ino == leaf_inode,
+            'allocation memory domain was replaced during inspection')
+    require(parent_controls['memory.max'] == str(limit_bytes) and leaf_controls['memory.max'] == str(limit_bytes),
+            'allocation or workload memory.max differs from requested limit')
+    require(parent_controls['memory.swap.max'] == '0' and leaf_controls['memory.swap.max'] == '0',
+            'allocation or workload memory domain permits swap')
+    require(parent_controls['memory.oom.group'] == '1', 'allocation memory domain lacks group-OOM enforcement')
+    require(leaf_controls['memory.oom.group'] in ('0', '1'), 'invalid workload group-OOM control')
+    return {'path': str(parent), 'inode': parent_inode, 'controls': parent_controls,
+            'workload_path': str(group), 'workload_inode': leaf_inode, 'workload_controls': leaf_controls}
 
-    def __init__(self, group):
+
+class MemoryObserver:
+    """Read only: sample the allocation subtree before terminal cleanup."""
+
+    def __init__(self, group, expected_inode=None):
         self.group = group
         self.inode = group.stat().st_ino
+        require(expected_inode is None or self.inode == expected_inode,
+                'allocation cgroup was replaced before observation')
         self.initial = self.sample()
         self.latest = self.initial
         self.maximum_events = dict(self.initial['events'])
@@ -82,8 +107,8 @@ class MemoryObserver:
         self.thread = threading.Thread(target=self.observe, daemon=True)
 
     def sample(self):
-        require(self.group.stat().st_ino == self.inode, 'workload cgroup was replaced during observation')
-        return {'events': counters((self.group / 'memory.events.local').read_text()),
+        require(self.group.stat().st_ino == self.inode, 'allocation cgroup was replaced during observation')
+        return {'events': counters((self.group / 'memory.events').read_text()),
                 'peak_bytes': int((self.group / 'memory.peak').read_text()),
                 'current_bytes': int((self.group / 'memory.current').read_text())}
 
@@ -108,7 +133,8 @@ class MemoryObserver:
     def finish(self):
         self.stop_event.set()
         self.thread.join(timeout=2)
-        return {'before': self.initial, 'last': self.latest, 'maximum_events': self.maximum_events,
+        return {'path': str(self.group), 'inode': self.inode, 'events_file': 'memory.events',
+                'before': self.initial, 'last': self.latest, 'maximum_events': self.maximum_events,
                 'peak_bytes': self.peak_bytes, 'sampling_error': self.error}
 
 
@@ -240,15 +266,9 @@ class Runner:
         group = pathlib.Path('/proc', str(state['pid']), 'cgroup').read_text().strip()
         require(group.startswith('0::/'), 'runtime is not in cgroup v2')
         group = pathlib.Path('/sys/fs/cgroup') / group[4:]
-        parent = NODE_CGROUP / 'sandbox'
-        require(group.is_relative_to(parent) and group.name == 'workload' and group.parent.parent == parent
-                and group.resolve() == group, 'runtime is outside the owned workload cgroup domain')
-        case.update(sentry_pid=state['pid'], cgroup=str(group), cgroup_inode=group.stat().st_ino)
-        case['controls'] = {key: (group / key).read_text().strip() for key in
-                            ('memory.max', 'memory.swap.max', 'memory.oom.group', 'pids.max', 'cpu.max')}
-        require(case['controls']['memory.max'] == str(memory_bytes), 'workload memory.max differs from requested limit')
-        require(case['controls']['memory.swap.max'] == '0' and case['controls']['memory.oom.group'] == '1',
-                'workload memory domain lacks no-swap/group-OOM enforcement')
+        domain = capture_memory_domain(group, memory_bytes)
+        case.update(sentry_pid=state['pid'], cgroup=str(group), cgroup_inode=domain['workload_inode'],
+                    controls=domain['workload_controls'], memory_domain=domain)
         self.record(name + '-started', case)
         return case
 
@@ -326,8 +346,8 @@ def memory_script(barrier_url, overflow):
 def verify_memory_oom(evidence, terminal):
     before, after = evidence['before']['events'], evidence['maximum_events']
     require(evidence['sampling_error'] is None, 'kernel memory observer failed')
-    require(after.get('oom_kill', 0) > before.get('oom_kill', 0), 'no exact workload cgroup OOM-kill evidence')
-    require(after.get('oom', 0) > before.get('oom', 0), 'no exact workload cgroup OOM evidence')
+    require(after.get('oom_kill', 0) > before.get('oom_kill', 0), 'no exact allocation cgroup OOM-kill evidence')
+    require(after.get('oom', 0) > before.get('oom', 0), 'no exact allocation cgroup OOM evidence')
     require(terminal['status'] == 'failed' and terminal.get('diagnostic_code') == 'memory-limit-exceeded',
             'public Run did not report memory-limit-exceeded')
 
@@ -348,7 +368,10 @@ def qualify_memory(runner):
             case = runner.start_case(name, ['python3', '-u', '-c', memory_script(barrier.url, overflow)],
                                      memory_bytes=128*MIB)
             require(barrier.arrived.wait(20), 'workload could not reach the qualification barrier')
-            observer = MemoryObserver(pathlib.Path(case['cgroup']))
+            domain = case['memory_domain']
+            require(pathlib.Path(domain['workload_path']).stat().st_ino == domain['workload_inode'],
+                    'workload cgroup was replaced before observation')
+            observer = MemoryObserver(pathlib.Path(domain['path']), domain['inode'])
             observer.start()
             barrier.release.set()
             if overflow:

@@ -27,13 +27,15 @@ The output directory must be new. The runner verifies the installation/data iden
 
 | Case | Required evidence |
 | --- | --- |
-| Memory within 128 MiB | A guest touches and retains 16 MiB, reports completion, and causes no new workload OOM kill. |
-| Memory overflow | A guest waits at a private HTTP barrier until the host has captured its exact Allocation's cgroup identity and controls, then attempts at most 512 MiB of touched anonymous memory. The same workload cgroup must show new `oom` and `oom_kill` events, and the public Run must report `memory-limit-exceeded`. A different failure or a reused old counter fails qualification. |
+| Memory within 128 MiB | A guest touches and retains 16 MiB, reports completion, and causes no new Allocation OOM kill. |
+| Memory overflow | A guest waits at a private HTTP barrier until the host has captured its exact Allocation parent and workload cgroup identities and controls, then attempts at most 512 MiB of touched anonymous memory. That Allocation parent's hierarchical `memory.events` must show new `oom` and `oom_kill` events, and the public Run must report `memory-limit-exceeded`. A different failure or a reused old counter fails qualification. |
 | Storage within 64 MiB | A guest writes and fsyncs 8 MiB successfully. |
 | Storage overflow | A guest attempts at most 96 MiB and catches numeric `ENOSPC` or `EDQUOT`; successful writes must remain within the 64 MiB requested limit. Arbitrary nonzero exit status, permission failure or OOM does not count as quota enforcement. |
 | Network positive/deny controls | The controlled fixture proves allowed reachability before and after the policy cases, DNS deny returns REFUSED over UDP and TCP, and strict CIDR/port policy blocks reachable excluded targets. Exact Allocation policy and kernel-rule evidence is captured. |
 
 Workload code sleeps after its result so the host can inspect the active Allocation before cleanup. The memory barrier listens temporarily on the native bridge address and uses a random per-case URL; it exists only for the bounded qualification. The host samples memory counters without writing cgroup controls. Lifecycle operations remain public Environment/Run calls; runsc state, cgroup and policy inspection provide read-only host evidence.
+
+Memory inspection requires the exact `sandbox/<pool>/workload` leaf and its direct Allocation parent under the fixed native node unit. Both must have the requested `memory.max` and `memory.swap.max=0`; `memory.oom.group=1` belongs to the Allocation parent, which bounds the entire sandbox subtree. The OCI leaf may retain `memory.oom.group=0`. The runner records both inodes and control sets and samples the verified parent's hierarchical events so OOM in either the parent or its workload leaf remains attributable to that Allocation. It never substitutes a wider ancestor's controls or counters.
 
 ## Results And Cleanup
 

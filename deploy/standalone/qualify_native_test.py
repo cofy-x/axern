@@ -14,6 +14,39 @@ import qualify_native as qualify
 
 
 class QualificationTest(unittest.TestCase):
+    def test_memory_domain_requires_exact_parent_and_leaf_contract(self):
+        with tempfile.TemporaryDirectory() as directory, mock.patch.object(qualify, 'NODE_CGROUP', pathlib.Path(directory)):
+            parent = pathlib.Path(directory) / 'sandbox' / 'pool-one'
+            group = parent / 'workload'
+            group.mkdir(parents=True)
+            parent_controls = {'memory.max': str(128*qualify.MIB), 'memory.swap.max': '0', 'memory.oom.group': '1'}
+            leaf_controls = {**parent_controls, 'memory.oom.group': '0', 'pids.max': '1024', 'cpu.max': '100000 100000'}
+            for path, controls in ((parent, parent_controls), (group, leaf_controls)):
+                for key, value in controls.items():
+                    (path / key).write_text(value)
+            domain = qualify.capture_memory_domain(group, 128*qualify.MIB)
+            self.assertEqual(domain['path'], str(parent))
+            self.assertEqual(domain['controls']['memory.oom.group'], '1')
+            self.assertEqual(domain['workload_controls']['memory.oom.group'], '0')
+            for path, key, wrong in ((parent, 'memory.oom.group', '0'),
+                                     (parent, 'memory.max', 'max'), (group, 'memory.max', str(256*qualify.MIB)),
+                                     (parent, 'memory.swap.max', 'max'), (group, 'memory.swap.max', 'max')):
+                control = path / key
+                original = control.read_text()
+                control.write_text(wrong)
+                with self.subTest(path=path, key=key), self.assertRaises(qualify.QualificationError):
+                    qualify.capture_memory_domain(group, 128*qualify.MIB)
+                control.write_text(original)
+            # A healthy wider ancestor cannot authorize a different layout.
+            outside = parent / 'nested' / 'workload'
+            outside.mkdir(parents=True)
+            with self.assertRaisesRegex(qualify.QualificationError, 'outside'):
+                qualify.capture_memory_domain(outside, 128*qualify.MIB)
+            alias = pathlib.Path(directory) / 'sandbox' / 'alias'
+            alias.symlink_to(parent, target_is_directory=True)
+            with self.assertRaisesRegex(qualify.QualificationError, 'outside'):
+                qualify.capture_memory_domain(alias / 'workload', 128*qualify.MIB)
+
     def test_memory_requires_kernel_oom_and_public_classification(self):
         evidence = {'before': {'events': {'oom': 0, 'oom_kill': 0}},
                     'maximum_events': {'oom': 1, 'oom_kill': 1}, 'sampling_error': None}
@@ -105,9 +138,13 @@ class QualificationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             group = pathlib.Path(directory) / 'workload'
             group.mkdir()
-            for name, value in {'memory.events.local': 'oom 0\noom_kill 0\n', 'memory.peak': '12', 'memory.current': '8'}.items():
+            for name, value in {'memory.events': 'oom 1\noom_kill 1\n', 'memory.events.local': 'oom 0\noom_kill 0\n',
+                                'memory.peak': '12', 'memory.current': '8'}.items():
                 (group / name).write_text(value)
-            observer = qualify.MemoryObserver(group)
+            observer = qualify.MemoryObserver(group, group.stat().st_ino)
+            self.assertEqual(observer.initial['events']['oom_kill'], 1)
+            with self.assertRaisesRegex(qualify.QualificationError, 'replaced'):
+                qualify.MemoryObserver(group, group.stat().st_ino + 1)
             group.rename(group.with_name('old'))
             group.mkdir()
             with self.assertRaisesRegex(qualify.QualificationError, 'replaced'):
