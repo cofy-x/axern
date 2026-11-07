@@ -68,6 +68,8 @@ func TestNodeCapabilityCheckValidatesFlagsBeforeOpeningConnection(t *testing.T) 
 		{"node-test"},
 		{"node-test", "--platform", "NETWORK_BRIDGE"},
 		{"node-test", "--platform", "UNKNOWN", "--boot-id", "11111111-2222-3333-4444-555555555555"},
+		{"node-test", "--platform", "NETWORK_BRIDGE", "--boot-id", "11111111-2222-3333-4444-555555555555", "--observed-after", "yesterday"},
+		{"node-test", "--platform", "NETWORK_BRIDGE", "--boot-id", "11111111-2222-3333-4444-555555555555", "--observed-after", "2026-11-06T12:00:00"},
 	} {
 		cmd := nodeCapabilityCheckCommand(command.Runtime{})
 		cmd.SetArgs(args)

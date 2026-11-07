@@ -45,6 +45,9 @@ func newRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 }
 
 func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstanceConfig, loader runtimeoci.Loader) (*RunscServiceHandler, error) {
+	if err := cfg.RuntimeConfig.ValidateNativeRecovery(); err != nil {
+		return nil, err
+	}
 	if err := cfg.RuntimeConfig.ValidateTaskLimits(); err != nil {
 		return nil, err
 	}
@@ -81,6 +84,7 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 	handler := &RunscServiceHandler{
 		common:                            common,
 		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
+		nativeRecovery:                    cfg.RuntimeConfig.NativeRecovery,
 		allowSUID:                         runtimeCfg.Options.AllowSUIDEnabled(true),
 		guestTaskLimit:                    cfg.RuntimeConfig.GuestTaskLimit,
 		hostTaskLimit:                     cfg.RuntimeConfig.HostTaskLimit,

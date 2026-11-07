@@ -15,7 +15,10 @@ import (
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
-func (*runtimeSpyHandler) ConfigurationDigest() (string, error) { return "test-runtime", nil }
+func (*runtimeSpyHandler) ConfigurationDigest() (string, error)                           { return "test-runtime", nil }
+func (*runtimeSpyHandler) PauseContainer(context.Context, contract.HandlerOptions) error  { return nil }
+func (*runtimeSpyHandler) ResumeContainer(context.Context, contract.HandlerOptions) error { return nil }
+func (*runtimeSpyHandler) KillSandbox(context.Context, contract.HandlerOptions) error     { return nil }
 func (*runtimeSpyHandler) VerifyAllocationTaskLimits(context.Context, string, *apipb.AllocationEnforcementManifest) error {
 	return nil
 }
@@ -167,4 +170,8 @@ func writeContainerSpecFile(t *testing.T, rootDir, containerID string, annotatio
 	if err := os.WriteFile(filepath.Join(containerDir, config.ContainerSpecFile), data, 0644); err != nil {
 		t.Fatalf("WriteFile spec error = %v", err)
 	}
+}
+
+func (*runtimeSpyHandler) VerifySandboxStopped(context.Context, contract.HandlerOptions) (bool, error) {
+	return false, nil
 }

@@ -16,7 +16,7 @@ import (
 
 func nodeCapabilityCheckCommand(runtime command.Runtime) *cobra.Command {
 	var platforms []string
-	var bootID string
+	var bootID, observedAfter string
 	check := &cobra.Command{
 		Use: "check <node-id>", Short: "Check fresh capability admission evidence for an expected host boot",
 		Args: command.ExactArgs(1),
@@ -24,7 +24,7 @@ func nodeCapabilityCheckCommand(runtime command.Runtime) *cobra.Command {
 			if strings.TrimSpace(args[0]) == "" {
 				return command.Usage(fmt.Errorf("node ID is required"))
 			}
-			options, err := appadmin.NewNodeCapabilityCheck(platforms, bootID)
+			options, err := appadmin.NewNodeCapabilityCheck(platforms, bootID, observedAfter)
 			if err != nil {
 				return command.Usage(err)
 			}
@@ -39,6 +39,7 @@ func nodeCapabilityCheckCommand(runtime command.Runtime) *cobra.Command {
 	}
 	check.Flags().StringArrayVar(&platforms, "platform", nil, "required platform capability uppercase name without PLATFORM_CAPABILITY_; repeat for each requirement")
 	check.Flags().StringVar(&bootID, "boot-id", "", "expected host boot UUID for all required host evidence")
+	check.Flags().StringVar(&observedAfter, "observed-after", "", "require every requested capability and dependency to be observed strictly after this RFC3339 timestamp (nanoseconds accepted)")
 	return check
 }
 

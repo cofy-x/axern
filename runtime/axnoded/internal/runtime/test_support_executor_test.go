@@ -41,6 +41,7 @@ func (s *scriptedExecutor) Execute(ctx context.Context, cmd string, args ...stri
 }
 
 type recordingExecutor struct {
+	stateOutput string
 	mu          sync.Mutex
 	args        [][]string
 	ioCalls     int
@@ -53,6 +54,9 @@ func (r *recordingExecutor) Execute(ctx context.Context, cmd string, args ...str
 	r.mu.Lock()
 	r.args = append(r.args, recorded)
 	r.mu.Unlock()
+	if containsArg(args, "state") && r.stateOutput != "" {
+		return []byte(r.stateOutput), nil
+	}
 	return nil, nil
 }
 

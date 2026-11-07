@@ -142,7 +142,7 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			if resourceErr != nil && !errors.Is(resourceErr, os.ErrNotExist) {
 				return fmt.Errorf("collect partial failed-start resources: %w", resourceErr)
 			}
-			if _, deleteErr := handler.DeleteContainer(ctx, &apipb.DeleteContainerRequest{ID: containerID, Timeout: 0}, contract.HandlerOptions{ContainerID: containerID, ForceDelete: true}); deleteErr != nil && !isDeleteNotFound(deleteErr) {
+			if _, deleteErr := handler.DeleteContainer(ctx, &apipb.DeleteContainerRequest{ID: containerID, Timeout: 0}, contract.HandlerOptions{ContainerID: containerID, ForceDelete: true, EnforcementManifest: h.EnforcementManifest(containerID)}); deleteErr != nil && !isDeleteNotFound(deleteErr) {
 				return fmt.Errorf("delete partial failed-start runtime: %w", deleteErr)
 			} else if resourceErr == nil {
 				if networkErr := h.sandboxNetworking().CleanupActivationNetwork(resource); networkErr != nil {

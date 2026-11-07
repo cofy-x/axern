@@ -30,6 +30,7 @@ require (
 	github.com/tchap/go-patricia/v2 v2.3.1
 	github.com/urfave/cli v1.22.17
 	github.com/vishvananda/netlink v1.3.1
+	github.com/vishvananda/netns v0.0.5
 	go.etcd.io/bbolt v1.4.3
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/sdk v1.46.0
@@ -64,7 +65,6 @@ require (
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.30.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
-	github.com/vishvananda/netns v0.0.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.70.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.70.0 // indirect

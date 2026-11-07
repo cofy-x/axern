@@ -17,6 +17,11 @@ type HandlerOptions struct {
 	StartupPhaseRecorder StartupPhaseRecorder
 
 	ForceDelete bool
+	// RuntimeConformanceCleanup is set only after the service verifies the
+	// exact container checkpoint against a durable RUNTIME_CONFORMANCE cgroup
+	// lease. It permits no-signal cleanup of an already-dead legacy probe that
+	// lacks a memory-domain identity; it never permits start, resume, or kill.
+	RuntimeConformanceCleanup bool
 
 	CgroupPath                 string
 	RuntimeCgroupPath          string

@@ -34,8 +34,8 @@ func (r *RunscServiceHandler) VerifyAllocationTaskLimits(ctx context.Context, co
 	if err != nil {
 		return fmt.Errorf("read runsc state for recovered task enforcement: %w", err)
 	}
-	if state.Status != string(contract.ContainerStatusRunning) {
-		return fmt.Errorf("task-limited allocation is not running: %q", state.Status)
+	if state.Status != string(contract.ContainerStatusRunning) && state.Status != string(contract.ContainerStatusPaused) {
+		return fmt.Errorf("task-limited allocation is not live: %q", state.Status)
 	}
 	if err := r.verifyHostTaskLimits(ctx, containerID, durable.GetCgroupPath(), durable.GetRuntimeCgroupPath(), durable.GetHostTaskLimit()); err != nil {
 		return err
@@ -71,7 +71,7 @@ func (r *RunscServiceHandler) verifyHostTaskLimits(ctx context.Context, containe
 	if err != nil {
 		return fmt.Errorf("read runsc state for host task attribution: %w", err)
 	}
-	if state.Pid <= 0 || (state.Status != string(contract.ContainerStatusCreated) && state.Status != string(contract.ContainerStatusRunning)) {
+	if state.Pid <= 0 || (state.Status != string(contract.ContainerStatusCreated) && state.Status != string(contract.ContainerStatusRunning) && state.Status != string(contract.ContainerStatusPaused)) {
 		return fmt.Errorf("runsc has no live Sentry for host task attribution")
 	}
 	if err := verifyTaskProcesses(workloadPath, state.Pid, r.common.Binary()); err != nil {

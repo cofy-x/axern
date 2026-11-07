@@ -61,7 +61,7 @@ func TestRunscStartPreparedContainerUsesStart(t *testing.T) {
 		t.Fatalf("NewRunscServiceHandler() error = %v", err)
 	}
 	disableSandboxReadyWait(t, handler)
-	recorder := &recordingExecutor{}
+	recorder := &recordingExecutor{stateOutput: `{"status":"stopped"}`}
 	handler.common.SetExecutor(recorder)
 	pidPath := handler.common.RuntimePIDFilePath("allocation-prepared")
 	assert.NoError(t, os.MkdirAll(filepath.Dir(pidPath), 0755))

@@ -291,7 +291,7 @@ func (h *sandboxService) runRuntimeConformanceSelfTest(ctx context.Context, kind
 		return fmt.Errorf("cleanup previous runtime conformance sandbox: %w", err)
 	}
 	preflightCancel()
-	request, err := runtimeConformanceStartRequest(allocationID, environmentID, rootfs, kind)
+	request, err := runtimeConformanceStartRequest(allocationID, environmentID, rootfs, kind, h.config.RuntimeConfig.NativeRecovery)
 	if err != nil {
 		return err
 	}
@@ -368,6 +368,11 @@ func runtimeConformanceOperationContext(parent context.Context) (context.Context
 }
 
 func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context, allocationID string) error {
+	if h.config.RuntimeConfig.NativeRecovery {
+		if err := h.cleanupNativeConformanceRuntime(ctx, allocationID); err != nil {
+			return err
+		}
+	}
 	_, err := h.allocationController().Delete(ctx, &runtimev1.DeleteRequest{ID: allocationID, Timeout: 0})
 	if err == nil {
 		return h.verifyRuntimeConformanceCleanup(ctx, allocationID)
@@ -390,8 +395,9 @@ func (h *sandboxService) cleanupRuntimeConformanceAllocation(ctx context.Context
 		return fmt.Errorf("collect partial self-test resources: %w", resourceErr)
 	}
 	if _, deleteErr := handler.DeleteContainer(ctx, &runtimev1.DeleteContainerRequest{ID: allocationID, Timeout: 0}, contract.HandlerOptions{
-		ContainerID: allocationID,
-		ForceDelete: true,
+		ContainerID:         allocationID,
+		ForceDelete:         true,
+		EnforcementManifest: h.allocationController().EnforcementManifest(allocationID),
 	}); deleteErr != nil {
 		return fmt.Errorf("delete partial self-test runtime: %w", deleteErr)
 	}
@@ -457,7 +463,7 @@ func (h *sandboxService) verifyRuntimeConformanceCleanup(ctx context.Context, al
 	}
 }
 
-func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, kind runtimeConformanceKind) (*runtimev1.StartRequest, error) {
+func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, kind runtimeConformanceKind, nativeRecovery bool) (*runtimev1.StartRequest, error) {
 	request := &runtimev1.StartRequest{
 		AllocationID: allocationID,
 		Environment: &runtimev1.ResolvedEnvironment{
@@ -483,6 +489,13 @@ func runtimeConformanceStartRequest(allocationID, environmentID, rootfs string, 
 		request.Resources = &commonv1.ResourceSpec{
 			Requests: &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},
 			Limits:   &commonv1.ResourceQuantity{EphemeralStorageBytes: runtimeConformanceStorage},
+		}
+		if nativeRecovery {
+			// Native stop/recovery needs a durable kernel identity for every
+			// probe. This stays within the existing certification reserve; the
+			// storage result still requires explicit ENOSPC/EDQUOT evidence.
+			request.Resources.Requests.MemoryBytes = config.RuntimeConformanceMemoryLimitBytes
+			request.Resources.Limits.MemoryBytes = config.RuntimeConformanceMemoryLimitBytes
 		}
 	default:
 		return nil, fmt.Errorf("unsupported runtime conformance kind %q", kind)

@@ -140,7 +140,7 @@ func TestCollectRuntimeInventoryRejectsInvalidStatus(t *testing.T) {
 	runsc := runtimetest.NewFakeSandboxRuntime()
 	service := runtimeInventoryTestService(t, inventoryTestHandler{
 		SandboxRuntime: runsc,
-		states:         []*contract.UnionContainerState{{ID: "bad", Status: "paused"}},
+		states:         []*contract.UnionContainerState{{ID: "bad", Status: "bogus"}},
 	})
 
 	_, err := service.collectRuntimeInventory(context.Background())

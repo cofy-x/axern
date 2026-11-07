@@ -55,6 +55,9 @@ type ExtensionCapabilityConfig struct {
 }
 
 func (c Config) Validate() error {
+	if err := c.RuntimeConfig.ValidateNativeRecovery(); err != nil {
+		return err
+	}
 	if err := c.ValidateNodeIdentity(); err != nil {
 		return err
 	}
@@ -69,6 +72,10 @@ func (c Config) Validate() error {
 
 // RuntimeConfig defines runsc and shared node execution policy.
 type RuntimeConfig struct {
+	// NativeRecovery enables the native systemd handoff protocol. Other deployments
+	// must not opt in without its stop/start hooks.
+	NativeRecovery bool `toml:"native_recovery" json:"nativeRecovery"`
+
 	Runsc RuntimeInstanceConfig `toml:"runsc" json:"runsc"`
 
 	// CgroupEnforcement is "required" in production. "disabled_dev" is an
@@ -592,4 +599,18 @@ func DefaultConfig() Config {
 
 func boolPtr(v bool) *bool {
 	return &v
+}
+
+func (c RuntimeConfig) ValidateNativeRecovery() error {
+	if !c.NativeRecovery {
+		return nil
+	}
+	mode, err := c.CgroupEnforcementMode()
+	if err != nil {
+		return err
+	}
+	if mode != CgroupEnforcementRequired {
+		return fmt.Errorf("native_recovery requires cgroup_enforcement = required")
+	}
+	return nil
 }

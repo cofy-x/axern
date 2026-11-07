@@ -31,6 +31,28 @@ type Manager interface {
 	ResourceName() ResourceName
 }
 
+// NetworkManager makes recovery verification an explicit required capability.
+type NetworkManager interface {
+	Manager
+	VerifyRecoveredNetworkBindings(map[string]int) error
+}
+
+type RuntimeConformanceRecoveryVerifier interface {
+	VerifyRuntimeConformanceBinding(string, *apipb.AllocationEnforcementManifest) error
+}
+
+type cgroupManagerPool interface {
+	resizable
+	RuntimeConformanceRecoveryVerifier
+}
+
+// ManagerSet retains typed recovery collaborators alongside the allocation pools.
+type ManagerSet struct {
+	Managers    []Manager
+	Network     NetworkManager
+	Conformance RuntimeConformanceRecoveryVerifier
+}
+
 type AllocateOption struct {
 	Context            context.Context
 	ContainerID        string
@@ -73,17 +95,19 @@ type resizable interface {
 }
 
 // NewResourceManager will init all resource manager and start to sync resource.
-func NewResourceManager(db stateStore, cfg config.Config) ([]Manager, error) {
-	return newResourceManager(db, cfg, LoadNetworkManager, func(db stateStore, cfg config.ResourceConfig, required bool) (resizable, error) {
+func NewResourceManager(db stateStore, cfg config.Config) (*ManagerSet, error) {
+	return newResourceManager(db, cfg, LoadNetworkManager, func(db stateStore, cfg config.ResourceConfig, required bool) (cgroupManagerPool, error) {
 		return NewCgroupManager(db, cfg, required)
 	})
 }
 
-type networkManagerFactory func(stateStore, int, int, config.NetworkConfig) (Manager, error)
-type cgroupManagerFactory func(stateStore, config.ResourceConfig, bool) (resizable, error)
+type networkManagerFactory func(stateStore, int, int, config.NetworkConfig) (NetworkManager, error)
+type cgroupManagerFactory func(stateStore, config.ResourceConfig, bool) (cgroupManagerPool, error)
 
-func newResourceManager(db stateStore, cfg config.Config, loadNetwork networkManagerFactory, newCgroup cgroupManagerFactory) ([]Manager, error) {
+func newResourceManager(db stateStore, cfg config.Config, loadNetwork networkManagerFactory, newCgroup cgroupManagerFactory) (*ManagerSet, error) {
 	managers := make([]Manager, 0)
+	var network NetworkManager
+	var conformance RuntimeConformanceRecoveryVerifier
 	var resizables []resizable
 	cleanup := func(initErr error) error {
 		var cleanupErrs []error
@@ -108,6 +132,7 @@ func newResourceManager(db stateStore, cfg config.Config, loadNetwork networkMan
 		if err != nil {
 			return nil, err
 		}
+		network = interfaceManager
 		managers = append(managers, interfaceManager)
 		if r, ok := interfaceManager.(resizable); ok {
 			resizables = append(resizables, r)
@@ -123,11 +148,12 @@ func newResourceManager(db stateStore, cfg config.Config, loadNetwork networkMan
 		if err != nil {
 			return nil, cleanup(err)
 		}
+		conformance = cgroupManager
 		managers = append(managers, cgroupManager)
 		resizables = append(resizables, cgroupManager)
 		metrics.RecordResourceGauge("cgroup", float64(cgroupManager.CacheSizeLimit()))
 	}
 
 	runManager(reconcileInterval, resizables...)
-	return managers, nil
+	return &ManagerSet{Managers: managers, Network: network, Conformance: conformance}, nil
 }

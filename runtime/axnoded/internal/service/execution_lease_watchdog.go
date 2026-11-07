@@ -13,7 +13,7 @@ func (h *sandboxService) startExecutionLeaseWatchdog(parent context.Context) {
 	if h == nil || h.config.PluginConfig.ControlPlaneTargetValue() == "" {
 		return
 	}
-	ctx, cancel := context.WithCancel(parent)
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	h.executionLeaseCancel = cancel
 	h.executionLeaseWG.Add(1)
 	go func() {

@@ -68,6 +68,10 @@ func writeFakeOCIRuntimeBinary(t *testing.T, rootDir, runtimeName string) string
 	script := `#!/bin/sh
 pid_file=""
 while [ "$#" -gt 0 ]; do
+  if [ "$1" = "state" ]; then
+    echo '{"status":"stopped"}'
+    exit 0
+  fi
   if [ "$1" = "--pid-file" ]; then
     shift
     pid_file="$1"

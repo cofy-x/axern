@@ -120,7 +120,7 @@ func (h *Controller) registerCreatedContainerLifecycle(
 func (h *Controller) cleanupCreatedRuntime(handler contract.SandboxRuntime, resource container.OccupiedResource, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	_, deleteErr := handler.DeleteContainer(cleanupCtx, &apipb.DeleteContainerRequest{ID: resource.ID, Timeout: 0}, contract.HandlerOptions{ContainerID: resource.ID, ForceDelete: true})
+	_, deleteErr := handler.DeleteContainer(cleanupCtx, &apipb.DeleteContainerRequest{ID: resource.ID, Timeout: 0}, contract.HandlerOptions{ContainerID: resource.ID, ForceDelete: true, EnforcementManifest: h.EnforcementManifest(resource.ID)})
 	if deleteErr != nil && !isDeleteNotFound(deleteErr) {
 		// Runtime ownership is still uncertain. Releasing its cgroup, network, or
 		// storage would make the surviving process unaccounted and uncleanable.

@@ -90,9 +90,10 @@ func (h *Controller) deleteContainerWithRuntime(
 	traceID, spanID string,
 ) (*apipb.DeleteContainerResponse, error) {
 	options := contract.HandlerOptions{
-		TraceID:     traceID,
-		SpanID:      spanID,
-		ContainerID: request.ID,
+		TraceID:             traceID,
+		SpanID:              spanID,
+		ContainerID:         request.ID,
+		EnforcementManifest: h.EnforcementManifest(request.ID),
 	}
 
 	if request.Timeout == 0 {

@@ -55,7 +55,7 @@ func (r *RunscServiceHandler) Wait(ctx context.Context, options contract.Handler
 	}
 	result, err := client.WaitWorkload(ctx)
 	if err != nil {
-		return contract.Exit{}, r.classifyWorkloadWaitError(ctx, options.ContainerID, err)
+		return contract.Exit{}, r.classifyWorkloadWaitError(ctx, options, err)
 	}
 	exit, err := workloadExit(result)
 	if err != nil {
@@ -71,13 +71,26 @@ func (r *RunscServiceHandler) Wait(ctx context.Context, options contract.Handler
 // sandbox cannot have an authoritative unavailable exit result. The monitor
 // retries ordinary transport errors and commits ErrExitStatusUnavailable only
 // after runsc or its durable exit checkpoint proves termination.
-func (r *RunscServiceHandler) classifyWorkloadWaitError(ctx context.Context, containerID string, waitErr error) error {
+func (r *RunscServiceHandler) classifyWorkloadWaitError(ctx context.Context, options contract.HandlerOptions, waitErr error) error {
+	containerID := options.ContainerID
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return fmt.Errorf("wait for sandboxd workload: %w", ctxErr)
 	}
 	state, stateErr := r.state(ctx, containerID)
 	if stateErr == nil && state.Status == string(contract.ContainerStatusExited) {
 		return fmt.Errorf("wait for sandboxd workload after confirmed runtime exit: %w: %w", waitErr, contract.ErrExitStatusUnavailable)
+	}
+	if stateErr == nil && state.Status == string(contract.ContainerStatusPaused) {
+		// Live monitors do not carry admission data. They may observe kernel
+		// termination using the exact bundle projection, never authorize
+		// activation or deletion from it. Startup supplies its admitted copy.
+		if options.EnforcementManifest == nil {
+			options.EnforcementManifest, _ = r.AllocationEnforcementManifest(ctx, containerID)
+		}
+		stopped, err := r.VerifySandboxStopped(ctx, options)
+		if err == nil && stopped {
+			return fmt.Errorf("wait for sandboxd workload after confirmed paused sandbox termination: %w: %w", waitErr, contract.ErrExitStatusUnavailable)
+		}
 	}
 	if _, exited, exitErr := r.readExitState(containerID); exitErr == nil && exited {
 		return fmt.Errorf("wait for sandboxd workload after durable runtime exit: %w: %w", waitErr, contract.ErrExitStatusUnavailable)

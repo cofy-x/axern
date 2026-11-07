@@ -18,7 +18,7 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-func LoadNetworkManager(db stateStore, size, cacheSize int, cfg config.NetworkConfig) (Manager, error) {
+func LoadNetworkManager(db stateStore, size, cacheSize int, cfg config.NetworkConfig) (NetworkManager, error) {
 	switch cfg.NatBackend {
 	case config.NatBackendIptables, config.NatBackendEBPF:
 		return NewInterfaceManager(db, cfg.IPRange, size, cacheSize, cfg.NatBackend)
@@ -72,6 +72,15 @@ func NewInterfaceManager(db stateStore, ipRange string, size int, cacheSize int,
 		usingInterfaces.Set(resource, struct{}{})
 		interfaceOwners[interfaceName] = allocationID
 		ipOwners[canonicalIP] = allocationID
+	}
+	for item := range allocationLeases.IterBuffered() {
+		resource, err := NewNetResource(item.Val)
+		if err != nil {
+			return nil, fmt.Errorf("decode network lease for allocation %s: %w", item.Key, err)
+		}
+		if err := validateNetworkLeaseBinding(resource, ipRange, gatewayIp); err != nil {
+			return nil, fmt.Errorf("validate network lease for allocation %s: %w", item.Key, err)
+		}
 	}
 
 	if err := initBridge(ipRange, natBackend); err != nil {
@@ -179,45 +188,41 @@ func (m *InterfaceManager) cleanup() {
 }
 
 func (m *InterfaceManager) load(ips map[string]struct{}) error {
+	m.updateInterfacesCache()
+	return m.loadInterfaces(ips, m.allInterfaces)
+}
+
+func (m *InterfaceManager) loadInterfaces(ips map[string]struct{}, devs []net.Interface) error {
 	_, addressNet, err := net.ParseCIDR(m.IpRange)
 	if err != nil {
 		return err
 	}
 
-	m.updateInterfacesCache()
-	expectedByName := make(map[string]string)
 	ownerByName := make(map[string]string)
 	for item := range m.allocationLeases.IterBuffered() {
 		resource, err := NewNetResource(item.Val)
 		if err != nil || resource.Interface == nil || resource.Interface.Name == "" || resource.Ip == nil || resource.NetNSPath == "" {
 			return fmt.Errorf("network lease for allocation %s is invalid", item.Key)
 		}
-		if previous, exists := expectedByName[resource.Interface.Name]; exists && previous != item.Val {
+		if err := validateNetworkLeaseBinding(resource, m.IpRange, m.BridgeIp); err != nil {
+			return fmt.Errorf("validate network lease for allocation %s: %w", item.Key, err)
+		}
+		if _, exists := ownerByName[resource.Interface.Name]; exists {
 			return fmt.Errorf("network ledger assigns interface %s more than once", resource.Interface.Name)
 		}
-		expectedByName[resource.Interface.Name] = item.Val
 		ownerByName[resource.Interface.Name] = item.Key
 		delete(ips, resource.Ip.String())
 	}
-	foundOwners := make(map[string]struct{}, len(expectedByName))
+	foundOwners := make(map[string]struct{}, len(ownerByName))
 
-	devs := m.allInterfaces
 	for idx := range devs {
 		if strings.HasPrefix(devs[idx].Name, config.HostVethPrefix) {
-			// set host veth up
-			link, err := netlink.LinkByName(devs[idx].Name)
-			if err != nil {
-				if _, expected := expectedByName[devs[idx].Name]; expected {
-					return fmt.Errorf("recover assigned interface %s: %w", devs[idx].Name, err)
-				}
-				logrus.Errorf("get link by name %v failed: %v", devs[idx].Name, err)
-				continue
-			}
-			if err := netlink.LinkSetUp(link); err != nil {
-				if _, expected := expectedByName[devs[idx].Name]; expected {
-					return fmt.Errorf("restore assigned interface %s: %w", devs[idx].Name, err)
-				}
-				logrus.Errorf("set link %v up failed: %v", devs[idx].Name, err)
+			if owner, assigned := ownerByName[devs[idx].Name]; assigned {
+				// A live runsc netstack has already consumed the namespace's
+				// addresses. Preserve its binding without changing the link or
+				// applying idle-pool L3 checks. Complete runtime recovery audits
+				// the exact Allocation, namespace and peer before readiness.
+				foundOwners[owner] = struct{}{}
 				continue
 			}
 			ip := vethToIP(devs[idx].Name, m.IpRange)
@@ -233,37 +238,14 @@ func (m *InterfaceManager) load(ips map[string]struct{}) error {
 				Type:      "bridge",
 				NetNSPath: netnsPath(ip.String()),
 			}
-			if persisted, assigned := expectedByName[devs[idx].Name]; assigned {
-				expected, parseErr := NewNetResource(persisted)
-				if parseErr != nil || !expected.Ip.Equal(dev.Ip) || expected.NetNSPath != dev.NetNSPath {
-					return fmt.Errorf("assigned interface %s conflicts with its durable IP or netns binding", devs[idx].Name)
-				}
-				if err := m.validateInterfaceConfiguration(dev); err != nil {
-					return fmt.Errorf("validate assigned interface %s: %w", devs[idx].Name, err)
-				}
-				owner := ownerByName[devs[idx].Name]
-				foundOwners[owner] = struct{}{}
-				actual := dev.ToString()
-				if actual != persisted {
-					m.usingInterfaces.Remove(persisted)
-					m.usingInterfaces.Set(actual, struct{}{})
-					m.allocationLeases.Set(owner, actual)
-				}
-			} else {
-				if err := m.validateInterfaceConfiguration(dev); err != nil {
-					logrus.Warnf("recovered idle interface %s is stale, rebuilding: %v", dev.ToString(), err)
-					rebuilt, rebuildErr := m.rebuildDevice(dev)
-					if rebuildErr != nil {
-						logrus.Errorf("rebuild recovered interface %s failed: %v", dev.ToString(), rebuildErr)
-						m.idleIp.Push(ip.String())
-						delete(ips, ip.String())
-						continue
-					}
-					dev = rebuilt
-				}
-				m.resetBridgeNeighbor(dev.Ip, "load")
-				m.interfaces.Push(dev.ToString())
+			if err := m.validateInterfaceConfiguration(dev); err != nil {
+				// Missing preparation may instead mean that runsc consumed L3
+				// while its ownership record was lost. Neither a name prefix nor
+				// ledger absence authorizes rebuilding a possibly live interface.
+				return fmt.Errorf("validate unassigned interface %s before pool recovery: %w", dev.Interface.Name, err)
 			}
+			m.resetBridgeNeighbor(dev.Ip, "load")
+			m.interfaces.Push(dev.ToString())
 			delete(ips, ip.String())
 		}
 	}
