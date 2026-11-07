@@ -28,8 +28,8 @@ func TestRunscProcessRole(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"sentry", []string{"runsc-sandbox", "--root=/run/gofer", "--log-fd=3", "boot", "--gofer-mount-confs=lisafs:none"}, "boot"},
-		{"gofer", []string{"runsc-gofer", "--root=/run/sandbox", "--log-fd=3", "gofer", "--bundle", "/bundle"}, "gofer"},
+		{"sentry", []string{"runsc-sandbox", "--root=/run/gofer", "--debug=true", "--log-fd=3", "boot", "--gofer-mount-confs=lisafs:none", "--setup-root", "--cpu-num", "4"}, "boot"},
+		{"gofer", []string{"runsc-gofer", "--root=/run/sandbox", "--strace=false", "--log-fd=3", "gofer", "--bundle", "/bundle"}, "gofer"},
 		{"title alone", []string{"runsc-gofer"}, ""},
 		{"flag is not a command", []string{"runsc-gofer", "--gofer-mount-confs=gofer"}, ""},
 		{"flag value is not a command", []string{"runsc-gofer", "--log=gofer", "start", "id"}, ""},
