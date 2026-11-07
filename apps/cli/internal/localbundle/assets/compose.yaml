@@ -124,21 +124,6 @@ services:
     command: ["-listen", "0.0.0.0:24100", "-control-target", "controld:24000", "-tls-ca-cert", "/certs/ca.crt", "-workload-bundle", "/certs/tunneld.pem", "-relay-id", "default", "-relay-tls-cert", "/certs/tunneld.pem", "-relay-tls-key", "/certs/tunneld.pem"]
     volumes: ["${AXERN_LOCAL_DIR}/certs/ca.crt:/certs/ca.crt:ro", "${AXERN_LOCAL_DIR}/certs/tunneld.pem:/certs/tunneld.pem:ro"]
 
-  controld-retention:
-    image: ${CONTROLD_IMAGE}
-    depends_on:
-      controld-migrate: {condition: service_completed_successfully}
-    restart: unless-stopped
-    entrypoint: ["/usr/local/bin/controld-retention"]
-    environment:
-      CONTROLD_POSTGRES_DSN: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/axern?sslmode=disable
-      CONTROLD_RETENTION_ENABLED: "true"
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
-    command: ["-postgres-dsn", "postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/axern?sslmode=disable"]
-
   node:
     image: ${NODE_ALL_IN_ONE_IMAGE}
     privileged: true

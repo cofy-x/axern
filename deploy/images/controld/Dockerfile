@@ -14,7 +14,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY deploy/images/controld/.build/controld /usr/local/bin/controld
 COPY deploy/images/controld/.build/controld-migrate /usr/local/bin/controld-migrate
 COPY deploy/images/controld/.build/controld-access-bootstrap /usr/local/bin/controld-access-bootstrap
-COPY deploy/images/controld/.build/controld-retention /usr/local/bin/controld-retention
 
 EXPOSE 24000 24001 24020 24021
 

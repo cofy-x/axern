@@ -22,14 +22,13 @@ This is a lookup index, not a required reading list. Follow [Task-Scoped Reading
 
 When a rule already has an owner, link to it instead of adding another full explanation to an AGENTS file, README, or `.x` page. Keep critical prohibitions visible in agent contracts, but update detailed behavior at its authoritative source. If code and a documented contract disagree, establish the intended behavior and report the discrepancy; do not silently treat either duplication or implementation drift as a new contract.
 
-Do not keep completed plans, migration diaries, dated progress summaries, or alternative designs here after the current contract is established. Git history preserves the process. If a non-obvious decision will constrain future work, record it as a short `docs/decisions/<topic>.md` containing the decision, rationale, consequences, and revisit condition. Create `docs/decisions/` only when the first durable decision is needed. Mark a replaced decision as superseded and link its replacement; keep current behavior in architecture documents.
+Do not keep completed plans, migration diaries, dated progress summaries, or alternative designs here after the current contract is established. Git history preserves the process. If a non-obvious decision will constrain future work, record it as a short `docs/decisions/<topic>.md` containing the decision, rationale, consequences, and revisit condition. Keep current behavior in architecture documents.
 
 ## Decisions
 
 - [Documentation Site Visual Direction](decisions/docs-site-visual-direction.md): durable visual, content, interaction, and ownership constraints for the public documentation site.
 - [Single-Host Agent Serving](decisions/single-host-agent-serving.md): Linux standalone direction, long-term gVisor-only execution, planned persistent Workspace, upper-agent boundary, module dispositions, and capability dependencies.
 - [Managed Single-Writer Workspaces](decisions/single-writer-workspaces.md): planned host-local data identity, exclusive attachment, retained capacity, deletion and cold-restore boundaries; no current Workspace API.
-- [Firecracker Evaluation Boundary](decisions/firecracker-evaluation-boundary.md): superseded conditional runtime-evaluation decision; the current direction selects gVisor only.
 - [Node Operator Authority Boundary](decisions/node-operator-authority-boundary.md): retain Allocation-scoped node diagnostics without creating a second lifecycle authority or sharing operator privilege with machine integrations.
 - [Verification Feedback Tiers](decisions/verification-feedback-tiers.md): separate fast development feedback, Linux correctness, full regression, and frozen-candidate qualification.
 

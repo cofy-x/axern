@@ -18,13 +18,6 @@ func NewController(store Store, cfg Config) *Controller {
 	return &Controller{store: store, cfg: NormalizeConfig(cfg)}
 }
 
-func (c *Controller) Config() Config {
-	if c == nil {
-		return DefaultConfig()
-	}
-	return c.cfg
-}
-
 func (c *Controller) Cleanup(ctx context.Context, now time.Time) (Result, error) {
 	start := time.Now()
 	if c == nil || c.store == nil || !c.cfg.Enabled {

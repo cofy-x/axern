@@ -3,6 +3,7 @@ package localruntime
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -294,7 +295,8 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		options.Profile = ""
 	}
 	registryPolicyChanged := metadataErr == nil && !slices.Equal(externalRegistries, existing.ExternalInsecureRegistries)
-	if metadataErr == nil && options.Profile == existing.Profile && !registryPolicyChanged {
+	bundleDigest := localBundleDigest()
+	if metadataErr == nil && existing.AppliedBundleDigest == bundleDigest && options.Profile == existing.Profile && !registryPolicyChanged && !m.localBundleChanged() {
 		if status, statusErr := m.Status(ctx); statusErr == nil && status.State == "running" && m.localNodeReady(ctx, &http.Client{Timeout: 3 * time.Second}) {
 			dnsCheck := m.probeNodeDNS(ctx, options.Profile, defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
 			networkExists, networkErr := m.inspectRegistryNetwork(ctx)
@@ -337,7 +339,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if err := m.composeRun(ctx, options.Profile, "up", "--force-recreate", "--exit-code-from", "controld-access-bootstrap", "controld-access-bootstrap"); err != nil {
 		return err
 	}
-	services := []string{"controld", "controld-retention", "tunneld", "node", "gatewayd"}
+	services := []string{"controld", "tunneld", "node", "gatewayd"}
 	if options.Profile == "observability" {
 		services = append(services, "otel-lgtm", "otel-collector")
 	}
@@ -365,7 +367,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if metadataErr == nil && existing.ComposeProject != "" {
 		composeProject = existing.ComposeProject
 	}
-	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, Profile: options.Profile, ExternalInsecureRegistries: externalRegistries, UpdatedAt: time.Now().UTC()}
+	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, AppliedBundleDigest: bundleDigest, Profile: options.Profile, ExternalInsecureRegistries: externalRegistries, UpdatedAt: time.Now().UTC()}
 	if metadataErr == nil {
 		metadata.CreatedAt = existing.CreatedAt
 	}
@@ -394,6 +396,27 @@ func (m *Manager) localDNSConfigurationChanged() bool {
 	desired, desiredErr := localDNSNameservers()
 	applied, appliedErr := readMaterializedDNSNameservers(m.envPath())
 	return desiredErr != nil || appliedErr != nil || !slices.Equal(desired, applied)
+}
+
+func (m *Manager) localBundleChanged() bool {
+	for path, desired := range map[string][]byte{
+		m.composePath(): localbundle.Compose,
+		filepath.Join(m.Dir, "otel-collector.yaml"): localbundle.CollectorConfig,
+	} {
+		materialized, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(materialized, desired) {
+			return true
+		}
+	}
+	return false
+}
+
+func localBundleDigest() string {
+	// Hash each asset first so their boundary remains unambiguous.
+	compose := sha256.Sum256(localbundle.Compose)
+	collector := sha256.Sum256(localbundle.CollectorConfig)
+	digest := sha256.Sum256(append(compose[:], collector[:]...))
+	return fmt.Sprintf("%x", digest)
 }
 
 func (m *Manager) localRegistryConfigurationChanged(externalRegistries []string) bool {

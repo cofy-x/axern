@@ -52,7 +52,7 @@ axern tunnel events <session-id> --limit 50
 axern tunnel doctor --session-id <session-id> --local 127.0.0.1:8080
 ```
 
-The event stream is owned by `controld` and records durable lifecycle changes such as create, renew, node status, relay peer connect/disconnect/pair, resource limiting, revoke, and expiry. Events include a machine-readable reason code plus free-form detail text, and are retained by `controld-retention`. They are intended for debugging and operations, not for high-volume per-stream traffic tracing.
+The event stream is owned by `controld` and records durable lifecycle changes such as create, renew, node status, relay peer connect/disconnect/pair, resource limiting, revoke, and expiry. Events include a machine-readable reason code plus free-form detail text, and follow the background retention policy in `controld`. They are intended for debugging and operations, not for high-volume per-stream traffic tracing.
 
 ## Operational Model
 

@@ -290,11 +290,11 @@ compose_project_up() {
   if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     infra_services+=(otel-collector otel-lgtm)
   fi
-  docker compose "${compose_args[@]}" stop gatewayd node tunneld controld-retention controld >/dev/null 2>&1 || true
+  docker compose "${compose_args[@]}" stop gatewayd node tunneld controld >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" up -d --remove-orphans "${infra_services[@]}"
   docker compose "${compose_args[@]}" rm -sf controld-migrate controld-access-bootstrap >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" up --force-recreate --exit-code-from controld-access-bootstrap controld-access-bootstrap
-  docker compose "${compose_args[@]}" up -d --force-recreate --no-deps --remove-orphans controld controld-retention tunneld node gatewayd
+  docker compose "${compose_args[@]}" up -d --force-recreate --no-deps --remove-orphans controld tunneld node gatewayd
 }
 
 compose_project_reset_state() {
@@ -304,7 +304,7 @@ compose_project_reset_state() {
     compose_args+=(--profile otel)
   fi
   docker compose "${compose_args[@]}" stop \
-    gatewayd node tunneld controld-retention controld controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
+    gatewayd node tunneld controld controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
   rm -rf "${COMPOSE_STATE_DIR}/postgres" "${COMPOSE_STATE_DIR}/run"
   ensure_state_dirs

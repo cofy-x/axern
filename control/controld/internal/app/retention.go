@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -11,45 +11,46 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const (
-	resourceTunnelEvents = "tunnel_events"
-	resourceQuotaEvents  = "quota_events"
-	resourceTerminalRuns = "terminal_runs"
-	resourceAccessGrants = "allocation_access_grants"
-)
+const retentionTimeout = 30 * time.Second
 
-type cleanupController interface {
-	Cleanup(ctx context.Context, now time.Time) (retentionkernel.Result, error)
+type retentionCleanupController interface {
+	Cleanup(context.Context, time.Time) (retentionkernel.Result, error)
 }
 
-type runner struct {
-	controller cleanupController
-	timeout    time.Duration
-	now        func() time.Time
+func (a *App) startRetentionWorker(interval time.Duration) {
+	if a.retention == nil {
+		return
+	}
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		ctx := a.backgroundReconcileContext()
+		for {
+			select {
+			case <-ticker.C:
+				if ctx.Err() != nil {
+					return
+				}
+				_ = a.cleanupRetainedHistory(ctx)
+			case <-ctx.Done():
+				return
+			case <-a.stopCh:
+				return
+			}
+		}
+	}()
 }
 
-func newRunner(controller cleanupController, timeout time.Duration, now func() time.Time) *runner {
-	if timeout <= 0 {
-		timeout = 30 * time.Second
-	}
-	if now == nil {
-		now = func() time.Time { return time.Now().UTC() }
-	}
-	return &runner{controller: controller, timeout: timeout, now: now}
-}
-
-func (r *runner) RunOnce(ctx context.Context) error {
-	if r == nil || r.controller == nil {
-		return nil
-	}
-	ctx, cancel := context.WithTimeout(ctx, r.timeout)
+func (a *App) cleanupRetainedHistory(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, retentionTimeout)
 	defer cancel()
-
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
 		Name:     controldobs.SpanRetentionCleanup,
 		Duration: controldobs.MetricRetentionDuration,
 	})
-	result, err := r.controller.Cleanup(ctx, r.now())
+	result, err := a.retention.Cleanup(ctx, a.now())
 	if result.Skipped {
 		op.SetResult(sdkobs.ResultSkipped)
 	}
@@ -58,16 +59,16 @@ func (r *runner) RunOnce(ctx context.Context) error {
 	}
 	op.End(err)
 
-	recordDeleted(ctx, resourceTunnelEvents, result.TunnelEventsDeleted)
-	recordDeleted(ctx, resourceQuotaEvents, result.QuotaEventsDeleted)
-	recordDeleted(ctx, resourceTerminalRuns, result.TerminalRunsDeleted)
-	recordDeleted(ctx, resourceAccessGrants, result.AccessGrantsDeleted)
-	recordDeleted(ctx, "node_enrollment_receipts", result.EnrollmentReceiptsDeleted)
-	logResult(result, err)
+	recordRetentionDeleted(ctx, "tunnel_events", result.TunnelEventsDeleted)
+	recordRetentionDeleted(ctx, "quota_events", result.QuotaEventsDeleted)
+	recordRetentionDeleted(ctx, "terminal_runs", result.TerminalRunsDeleted)
+	recordRetentionDeleted(ctx, "allocation_access_grants", result.AccessGrantsDeleted)
+	recordRetentionDeleted(ctx, "node_enrollment_receipts", result.EnrollmentReceiptsDeleted)
+	logRetentionResult(result, err)
 	return err
 }
 
-func recordDeleted(ctx context.Context, resource string, count int64) {
+func recordRetentionDeleted(ctx context.Context, resource string, count int64) {
 	if count <= 0 {
 		return
 	}
@@ -79,7 +80,7 @@ func recordDeleted(ctx context.Context, resource string, count int64) {
 	)
 }
 
-func logResult(result retentionkernel.Result, err error) {
+func logRetentionResult(result retentionkernel.Result, err error) {
 	fields := logrus.Fields{
 		"tunnel_events_deleted":       result.TunnelEventsDeleted,
 		"quota_events_deleted":        result.QuotaEventsDeleted,

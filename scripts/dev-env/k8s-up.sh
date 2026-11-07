@@ -86,7 +86,10 @@ else
   kubectl -n "${K8S_NAMESPACE}" delete deployment/jaeger service/jaeger --ignore-not-found >/dev/null
 fi
 kubectl -n "${K8S_NAMESPACE}" rollout status deployment/postgres --timeout=180s >/dev/null
-for deployment in gatewayd controld-retention controld; do
+# Retention now runs inside controld. Remove the obsolete local deployment
+# before starting its replacement in this managed namespace.
+kubectl -n "${K8S_NAMESPACE}" delete deployment/controld-retention --ignore-not-found --cascade=foreground --wait=true --timeout=180s >/dev/null
+for deployment in gatewayd controld; do
   if kubectl -n "${K8S_NAMESPACE}" get deployment/"${deployment}" >/dev/null 2>&1; then
     kubectl -n "${K8S_NAMESPACE}" scale deployment/"${deployment}" --replicas=0 >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/"${deployment}" --timeout=180s >/dev/null
@@ -115,11 +118,6 @@ if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
     OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.axern-local.svc.cluster.local:4317 \
     OTEL_EXPORTER_OTLP_INSECURE=true \
     OTEL_RESOURCE_ATTRIBUTES=deployment.environment="${K8S_ENV_NAME}" >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set env deployment/controld-retention \
-    AXERN_OTEL_ENABLED=true \
-    OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.axern-local.svc.cluster.local:4317 \
-    OTEL_EXPORTER_OTLP_INSECURE=true \
-    OTEL_RESOURCE_ATTRIBUTES=deployment.environment="${K8S_ENV_NAME}" >/dev/null
   kubectl -n "${K8S_NAMESPACE}" set env deployment/gatewayd \
     AXERN_OTEL_ENABLED=true \
     OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.axern-local.svc.cluster.local:4317 \
@@ -136,11 +134,6 @@ else
     OTEL_EXPORTER_OTLP_ENDPOINT- \
     OTEL_EXPORTER_OTLP_INSECURE- \
     OTEL_RESOURCE_ATTRIBUTES- >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set env deployment/controld-retention \
-    AXERN_OTEL_ENABLED=false \
-    OTEL_EXPORTER_OTLP_ENDPOINT- \
-    OTEL_EXPORTER_OTLP_INSECURE- \
-    OTEL_RESOURCE_ATTRIBUTES- >/dev/null
   kubectl -n "${K8S_NAMESPACE}" set env deployment/gatewayd \
     AXERN_OTEL_ENABLED=false \
     OTEL_EXPORTER_OTLP_ENDPOINT- \
@@ -153,7 +146,7 @@ else
     OTEL_RESOURCE_ATTRIBUTES- >/dev/null
 fi
 
-kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/controld deployment/controld-retention >/dev/null
+kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/controld >/dev/null
 kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/gatewayd >/dev/null
 kubectl -n "${K8S_NAMESPACE}" rollout restart daemonset/node-all-in-one >/dev/null
 

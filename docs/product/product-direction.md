@@ -55,7 +55,7 @@ The first Workspace version retains this independent-writer layout. Simultaneous
 
 The planned Workspace is deliberately narrow: managed local data with an independent lifetime, not a general volume platform. Stopping an execution must not imply deleting its retained Workspace; competing writer requests require enforced ownership rather than a shared-directory convention. The exact public contract must be implemented atomically across state, APIs, SDKs, CLI, and verification before the Domain Model presents it as available.
 
-Existing Kubernetes, Nydus, and other supported paths are not removed by this direction. New cluster/HA, distributed image/storage optimization, and transparent process snapshot/fork investment is deferred behind demonstrated single-host needs. Additional execution runtimes are outside the chosen product scope.
+Kubernetes and Nydus are optional implemented paths outside the native serving default. Their maintenance must serve a concrete requirement; simplify or remove paths that no longer justify their cost. New cluster/HA, distributed image/storage optimization, and transparent process snapshot/fork investment is deferred behind demonstrated single-host needs. Additional execution runtimes are outside the chosen product scope.
 
 ## Scope Test
 

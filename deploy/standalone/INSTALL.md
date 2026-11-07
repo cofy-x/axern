@@ -57,6 +57,8 @@ Systemd gives axnoded `max_instances * 1024 + 512` host tasks, reserves another 
 
 The installer generates private PostgreSQL, encryption and enrollment secrets; initializes deployment PKI using the existing workload authority implementation; and prepares the full locked gVisor runtime and capability fixtures. The control service receives the signer, while gateway and relay receive only their own workload identities. Public services run under separate unprivileged accounts. Node execution, image mounting, egress enforcement and the node tunnel connector retain their required host privileges. Secret values are not placed in systemd command lines.
 
+History retention runs as a background task in `controld`, sharing its database pool and supervised shutdown. Its [retention policy](../../control/controld/README.md#run) belongs to the control service; no separate retention service, account or database credential is required.
+
 ## Operate
 
 Use the helper in the installed release directory:
