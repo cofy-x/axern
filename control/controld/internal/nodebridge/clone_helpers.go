@@ -81,16 +81,6 @@ func cloneCapabilityRequirements(in []*capabilityv1.CapabilityRequirement) []*ca
 	return out
 }
 
-func cloneCapabilityConditions(in []*capabilityv1.CapabilityCondition) []*capabilityv1.CapabilityCondition {
-	out := make([]*capabilityv1.CapabilityCondition, 0, len(in))
-	for _, condition := range in {
-		if condition != nil {
-			out = append(out, proto.Clone(condition).(*capabilityv1.CapabilityCondition))
-		}
-	}
-	return out
-}
-
 func cloneCapabilityConditionSet(in *capabilityv1.CapabilityConditionSet) *capabilityv1.CapabilityConditionSet {
 	if in == nil {
 		return nil
