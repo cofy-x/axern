@@ -248,7 +248,7 @@ func (p *overlayProvider) Prepare(_ context.Context, containerID string, request
 	}
 	lowerDirs := append([]string(nil), request.ImmutableMount.LowerDirs...)
 	view := overlayViewForContainer(containerID, p.filestoreDir, projectionViewDir, lowerDirs)
-	if err := initializeOverlayView(view); err != nil {
+	if err := initializeOverlayView(view, request.RootDir); err != nil {
 		return View{}, err
 	}
 	if err := seedMountTargets(request.RootDir, view.UpperDir, missing); err != nil {
@@ -704,16 +704,16 @@ func atomicWrite(target string, content []byte, mode os.FileMode) error {
 	return durablefile.Write(target, content, mode)
 }
 
-func initializeOverlayView(rootfs overlayView) error {
-	return initializeOverlayViewWithMkdir(rootfs, os.Mkdir)
+func initializeOverlayView(rootfs overlayView, lowerRoot string) error {
+	return initializeOverlayViewWithMkdir(rootfs, lowerRoot, os.Mkdir)
 }
 
-func initializeOverlayViewWithMkdir(rootfs overlayView, mkdir func(string, os.FileMode) error) (result error) {
+func initializeOverlayViewWithMkdir(rootfs overlayView, lowerRoot string, mkdir func(string, os.FileMode) error) (result error) {
 	rootfsRoot := filepath.Dir(rootfs.MergedDir)
-	if err := os.MkdirAll(filepath.Dir(rootfsRoot), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(rootfsRoot), 0700); err != nil {
 		return fmt.Errorf("create writable rootfs view class: %w", err)
 	}
-	if err := mkdir(rootfsRoot, 0755); err != nil {
+	if err := mkdir(rootfsRoot, 0700); err != nil {
 		if os.IsExist(err) {
 			return fmt.Errorf("rootfs view already exists for container at %s", rootfsRoot)
 		}
@@ -725,9 +725,26 @@ func initializeOverlayViewWithMkdir(rootfs overlayView, mkdir func(string, os.Fi
 		}
 	}()
 	for _, dir := range []string{rootfs.UpperDir, rootfs.WorkDir, rootfs.MergedDir} {
-		if err := mkdir(dir, 0755); err != nil {
+		if err := mkdir(dir, 0700); err != nil {
 			return fmt.Errorf("mkdir writable rootfs view dir %s: %w", dir, err)
 		}
+	}
+	// OverlayFS takes the merged root metadata from upper. Preserve the image
+	// root instead of exposing the service's private creation umask to guests.
+	info, err := os.Lstat(lowerRoot)
+	if err != nil {
+		return fmt.Errorf("stat projection lower root: %w", err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("projection lower root is not a directory")
+	}
+	if stat, ok := info.Sys().(*syscall.Stat_t); ok {
+		if err := os.Chown(rootfs.UpperDir, int(stat.Uid), int(stat.Gid)); err != nil {
+			return fmt.Errorf("copy projection root ownership: %w", err)
+		}
+	}
+	if err := os.Chmod(rootfs.UpperDir, info.Mode()); err != nil {
+		return fmt.Errorf("copy projection root mode: %w", err)
 	}
 	return nil
 }

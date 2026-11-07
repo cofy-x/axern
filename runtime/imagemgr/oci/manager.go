@@ -65,11 +65,12 @@ type Manager struct {
 	stopOnce sync.Once
 	stopCh   chan struct{}
 
-	now       func() time.Time
-	mountFn   func(target string, lowerDirs []string) error
-	unmountFn func(target string) error
-	diskUsage func(path string) (float64, error)
-	readMnts  func() (managedMountSnapshot, error)
+	now           func() time.Time
+	mountFn       func(target string, lowerDirs []string) error
+	unmountFn     func(target string) error
+	renameLayerFn func(string, string) error
+	diskUsage     func(path string) (float64, error)
+	readMnts      func() (managedMountSnapshot, error)
 
 	layerWorkers   int
 	layerJobs      chan layerExtractJob
@@ -144,6 +145,20 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		}
 	}
 
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create OCI state root %s: %w", root, err)
+	}
+	store, err := openMetadataStore(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	closeStore := true
+	defer func() {
+		if closeStore {
+			_ = store.close()
+		}
+	}()
+
 	if err := os.MkdirAll(layersDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create layers dir %s: %w", layersDir, err)
 	}
@@ -160,41 +175,36 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		return nil, fmt.Errorf("failed to prepare runtime support dir %s: %w", supportDir, err)
 	}
 
-	store, err := openMetadataStore(dbPath)
-	if err != nil {
-		return nil, err
-	}
-
 	var registryClient *imageregistry.Client
 	if len(sharedRegistryClient) > 0 && sharedRegistryClient[0] != nil {
 		registryClient = sharedRegistryClient[0]
 	} else {
 		registryClient, err = imageregistry.NewClient("")
 		if err != nil {
-			store.close()
 			return nil, fmt.Errorf("failed to create registry client: %w", err)
 		}
 	}
 
 	mgr := &Manager{
-		root:       root,
-		layersDir:  layersDir,
-		chainsDir:  chainsDir,
-		mountsDir:  mountsDir,
-		importsDir: importsDir,
-		supportDir: supportDir,
-		proxy:      proxy,
-		registry:   registryClient,
-		store:      store,
-		containers: make(map[string]*ContainerInfo),
-		imageLocks: make(map[string]*imageLockEntry),
-		layerLocks: make(map[string]*imageLockEntry),
-		chainLocks: make(map[string]*imageLockEntry),
-		stopCh:     make(chan struct{}),
-		now:        time.Now,
-		mountFn:    defaultOverlayMount,
-		unmountFn:  defaultOverlayUnmount,
-		diskUsage:  defaultDiskUsage,
+		root:          root,
+		layersDir:     layersDir,
+		chainsDir:     chainsDir,
+		mountsDir:     mountsDir,
+		importsDir:    importsDir,
+		supportDir:    supportDir,
+		proxy:         proxy,
+		registry:      registryClient,
+		store:         store,
+		containers:    make(map[string]*ContainerInfo),
+		imageLocks:    make(map[string]*imageLockEntry),
+		layerLocks:    make(map[string]*imageLockEntry),
+		chainLocks:    make(map[string]*imageLockEntry),
+		stopCh:        make(chan struct{}),
+		now:           time.Now,
+		mountFn:       defaultOverlayMount,
+		unmountFn:     defaultOverlayUnmount,
+		renameLayerFn: os.Rename,
+		diskUsage:     defaultDiskUsage,
 		readMnts: func() (managedMountSnapshot, error) {
 			return readManagedMounts(mountsDir)
 		},
@@ -211,6 +221,7 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 	}
 
 	go mgr.pruneImagesLoop()
+	closeStore = false
 	return mgr, nil
 }
 

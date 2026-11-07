@@ -300,21 +300,22 @@ func newTestManager(t *testing.T) *Manager {
 	}
 
 	mgr := &Manager{
-		root:       root,
-		layersDir:  layersDir,
-		chainsDir:  chainsDir,
-		mountsDir:  mountsDir,
-		importsDir: importsDir,
-		supportDir: supportDir,
-		store:      store,
-		containers: make(map[string]*ContainerInfo),
-		imageLocks: make(map[string]*imageLockEntry),
-		layerLocks: make(map[string]*imageLockEntry),
-		chainLocks: make(map[string]*imageLockEntry),
-		stopCh:     make(chan struct{}),
-		now:        func() time.Time { return time.Unix(1700000000, 0) },
-		mountFn:    func(string, []string) error { return nil },
-		unmountFn:  func(string) error { return nil },
+		root:          root,
+		layersDir:     layersDir,
+		chainsDir:     chainsDir,
+		mountsDir:     mountsDir,
+		importsDir:    importsDir,
+		supportDir:    supportDir,
+		store:         store,
+		containers:    make(map[string]*ContainerInfo),
+		imageLocks:    make(map[string]*imageLockEntry),
+		layerLocks:    make(map[string]*imageLockEntry),
+		chainLocks:    make(map[string]*imageLockEntry),
+		stopCh:        make(chan struct{}),
+		now:           func() time.Time { return time.Unix(1700000000, 0) },
+		mountFn:       func(string, []string) error { return nil },
+		unmountFn:     func(string) error { return nil },
+		renameLayerFn: os.Rename,
 		readMnts: func() (managedMountSnapshot, error) {
 			return managedMountSnapshot{paths: map[string]struct{}{}}, nil
 		},
@@ -331,4 +332,14 @@ func newTestManager(t *testing.T) *Manager {
 		mgr.layerPoolMu.Unlock()
 	})
 	return mgr
+}
+
+func testLayerRecordFields(records []*LayerRecord) ([]string, []string) {
+	digests, paths := make([]string, len(records)), make([]string, len(records))
+	for i, record := range records {
+		if record != nil {
+			digests[i], paths[i] = record.Digest, record.Path
+		}
+	}
+	return digests, paths
 }

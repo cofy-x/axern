@@ -31,10 +31,11 @@ func TestEnsureChainLowerDirs_CreatesDockerStyleLowerdirs(t *testing.T) {
 		sleepLayer{digest: hash2},
 	}
 
-	layerDigests, layerPaths, err := mgr.extractLayersWithWorkers(context.Background(), layers)
+	layerFacts, err := mgr.extractLayersWithWorkers(context.Background(), layers)
 	if err != nil {
 		t.Fatalf("extractLayersWithWorkers() error: %v", err)
 	}
+	layerDigests, layerPaths := testLayerRecordFields(layerFacts)
 	if layerDigests[1] != layerDigests[2] {
 		t.Fatalf("expected duplicate digests, got %s and %s", layerDigests[1], layerDigests[2])
 	}
@@ -51,11 +52,11 @@ func TestEnsureChainLowerDirs_CreatesDockerStyleLowerdirs(t *testing.T) {
 		t.Fatalf("expected duplicate layer occurrence to produce distinct chainIDs, got %s", chainIDs[1])
 	}
 
-	gotPaths, err := mgr.ensureChainLowerDirs(chainIDs, layerPaths)
+	gotPaths, err := mgr.ensureChainLowerDirs(chainIDs, layerFacts)
 	if err != nil {
 		t.Fatalf("ensureChainLowerDirs() error: %v", err)
 	}
-	gotPathsAgain, err := mgr.ensureChainLowerDirs(chainIDs, layerPaths)
+	gotPathsAgain, err := mgr.ensureChainLowerDirs(chainIDs, layerFacts)
 	if err != nil {
 		t.Fatalf("ensureChainLowerDirs() second call error: %v", err)
 	}
@@ -117,7 +118,7 @@ func TestEnsureChainLowerDirs_RollsBackReservedRefsOnError(t *testing.T) {
 		t.Fatalf("buildChainIDs() error: %v", err)
 	}
 
-	if _, err := mgr.ensureChainLowerDirs(chainIDs, []string{firstPath, filepath.Join(mgr.layersDir, "missing", "fs")}); err == nil {
+	if _, err := mgr.ensureChainLowerDirs(chainIDs, []*LayerRecord{{Path: firstPath, ImplicitDirectories: []string{}}, {Path: filepath.Join(mgr.layersDir, "missing", "fs"), ImplicitDirectories: []string{}}}); err == nil {
 		t.Fatalf("ensureChainLowerDirs() error = nil, want non-nil")
 	}
 
@@ -160,7 +161,7 @@ func TestMaterializeChainLowerDir_UsesManagerClockForTempDir(t *testing.T) {
 		t.Fatalf("write stale tmp file: %v", err)
 	}
 
-	if err := mgr.materializeChainLowerDir(sourcePath, targetPath); err != nil {
+	if err := mgr.materializeChainLowerDir(&LayerRecord{Path: sourcePath, HasRootMetadata: true, ImplicitDirectories: []string{}}, targetPath, nil); err != nil {
 		t.Fatalf("materializeChainLowerDir() error: %v", err)
 	}
 

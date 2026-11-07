@@ -34,8 +34,9 @@ func TestOverlayViewForContainerUsesFilestore(t *testing.T) {
 
 func TestOverlayViewInitializationNeverReplacesExistingView(t *testing.T) {
 	view := overlayViewForContainer("sandbox", t.TempDir(), projectionViewDir, []string{"/lower"})
-	require.NoError(t, initializeOverlayView(view))
-	require.ErrorContains(t, initializeOverlayView(view), "already exists")
+	lower := t.TempDir()
+	require.NoError(t, initializeOverlayView(view, lower))
+	require.ErrorContains(t, initializeOverlayView(view, lower), "already exists")
 	require.NoError(t, cleanupOverlayView(filepath.Dir(view.MergedDir)))
 	require.NoError(t, cleanupOverlayView(filepath.Dir(view.MergedDir)))
 }
@@ -43,7 +44,8 @@ func TestOverlayViewInitializationNeverReplacesExistingView(t *testing.T) {
 func TestOverlayViewInitializationRollsBackPartialView(t *testing.T) {
 	view := overlayViewForContainer("sandbox", t.TempDir(), projectionViewDir, []string{"/lower"})
 	calls := 0
-	err := initializeOverlayViewWithMkdir(view, func(name string, mode os.FileMode) error {
+	lower := t.TempDir()
+	err := initializeOverlayViewWithMkdir(view, lower, func(name string, mode os.FileMode) error {
 		calls++
 		if calls == 3 {
 			return errors.New("injected mkdir failure")
@@ -53,7 +55,7 @@ func TestOverlayViewInitializationRollsBackPartialView(t *testing.T) {
 	require.ErrorContains(t, err, "injected mkdir failure")
 	_, statErr := os.Stat(filepath.Dir(view.MergedDir))
 	require.ErrorIs(t, statErr, os.ErrNotExist)
-	require.NoError(t, initializeOverlayView(view))
+	require.NoError(t, initializeOverlayView(view, lower))
 }
 
 func TestImmutableMountDescriptorIsSourceOwnedAndBounded(t *testing.T) {

@@ -214,54 +214,28 @@ func TestExtractLayerTar_HardlinkDoesNotClobberTargetMode(t *testing.T) {
 	}
 }
 
-func TestEnsureLayerExtracted_RecoversMetadataFromExistingPath(t *testing.T) {
+func TestEnsureLayerExtractedRejectsCanonicalWithoutFacts(t *testing.T) {
 	mgr := newTestManager(t)
-	defer mgr.store.close()
-
-	hash, err := v1.NewHash("sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	layer := sleepLayer{digest: v1.Hash{Algorithm: "sha256", Hex: "canonical-without-facts"}}
+	dir, err := mgr.store.getOrCreateLayerDir(layer.digest.String())
 	if err != nil {
-		t.Fatalf("new hash: %v", err)
+		t.Fatal(err)
 	}
-
-	layerDir, err := mgr.store.getOrCreateLayerDir(hash.String())
-	if err != nil {
-		t.Fatalf("getOrCreateLayerDir: %v", err)
+	target := filepath.Join(mgr.layersDir, dir, "fs")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
 	}
-	layerPath := filepath.Join(mgr.layersDir, layerDir, "fs")
-	if err := os.MkdirAll(filepath.Join(layerPath, "etc"), 0755); err != nil {
-		t.Fatalf("mkdir layer path: %v", err)
+	if err := os.WriteFile(filepath.Join(target, "retained"), []byte("retained"), 0644); err != nil {
+		t.Fatal(err)
 	}
-	content := []byte("hello")
-	if err := os.WriteFile(filepath.Join(layerPath, "etc", "config"), content, 0644); err != nil {
-		t.Fatalf("write file: %v", err)
+	if _, err := mgr.ensureLayerExtracted(layer); err == nil {
+		t.Fatal("canonical content without facts was admitted")
 	}
-
-	rec, err := mgr.ensureLayerExtracted(panicUncompressedLayer{digest: hash})
-	if err != nil {
-		t.Fatalf("ensureLayerExtracted() error: %v", err)
+	if data, err := os.ReadFile(filepath.Join(target, "retained")); err != nil || string(data) != "retained" {
+		t.Fatalf("existing content changed: %q %v", data, err)
 	}
-	if rec == nil {
-		t.Fatalf("expected layer record")
-	}
-	if rec.Path != layerPath {
-		t.Fatalf("unexpected recovered path: got %s want %s", rec.Path, layerPath)
-	}
-	if rec.SizeBytes <= 0 {
-		t.Fatalf("expected recovered layer size > 0, got %d", rec.SizeBytes)
-	}
-
-	stored, err := mgr.store.getLayer(hash.String())
-	if err != nil {
-		t.Fatalf("get recovered layer: %v", err)
-	}
-	if stored == nil {
-		t.Fatalf("expected recovered layer metadata in store")
-	}
-	if stored.RefCount != 1 {
-		t.Fatalf("expected recovered layer refcount = 1, got %d", stored.RefCount)
-	}
-	if stored.RefZeroAtUnix != 0 {
-		t.Fatalf("expected recovered layer ref-zero timestamp cleared, got %d", stored.RefZeroAtUnix)
+	if record, err := mgr.store.getLayer(layer.digest.String()); err != nil || record != nil {
+		t.Fatalf("unknown facts were stamped: %+v %v", record, err)
 	}
 }
 

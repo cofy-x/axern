@@ -177,16 +177,20 @@ func (m *Manager) MountImageWithContextAndAuthKey(ctx context.Context, imageURL,
 	timing.Stage("build_chain_ids", time.Since(stageStart))
 
 	stageStart = time.Now()
-	layerDigests, layerPaths, err := m.extractLayersWithWorkers(ctx, layers)
+	layerFacts, err := m.extractLayersWithWorkers(ctx, layers)
 	if err != nil {
 		timing.RecordError(err)
 		return nil, err
 	}
 	timing.Stage("extract_layers", time.Since(stageStart))
+	layerDigests := make([]string, len(layerFacts))
+	for i, record := range layerFacts {
+		layerDigests[i] = record.Digest
+	}
 	reservedDigests = append(reservedDigests, layerDigests...)
 
 	stageStart = time.Now()
-	chainPaths, err := m.ensureChainLowerDirs(chainIDs, layerPaths)
+	chainPaths, err := m.ensureChainLowerDirs(chainIDs, layerFacts)
 	if err != nil {
 		timing.RecordError(err)
 		return nil, err

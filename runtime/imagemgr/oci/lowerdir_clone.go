@@ -62,6 +62,13 @@ func buildHardlinkTree(sourceRoot string, targetRoot string) error {
 }
 
 func copyDirectoryMetadata(sourcePath string, targetPath string, info os.FileInfo) error {
+	if err := copyDirectoryStatMetadata(targetPath, info); err != nil {
+		return err
+	}
+	return copyXattrs(sourcePath, targetPath)
+}
+
+func copyDirectoryStatMetadata(targetPath string, info os.FileInfo) error {
 	if err := copyOwnership(targetPath, info); err != nil {
 		return err
 	}
@@ -69,9 +76,6 @@ func copyDirectoryMetadata(sourcePath string, targetPath string, info os.FileInf
 		return fmt.Errorf("failed to copy mode for %s: %w", targetPath, err)
 	}
 	if err := copyTimes(targetPath, info); err != nil {
-		return err
-	}
-	if err := copyXattrs(sourcePath, targetPath); err != nil {
 		return err
 	}
 	return nil

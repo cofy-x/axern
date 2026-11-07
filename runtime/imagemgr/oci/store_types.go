@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	bolt "go.etcd.io/bbolt"
 )
@@ -23,12 +24,14 @@ var (
 
 // LayerRecord stores local extracted layer metadata.
 type LayerRecord struct {
-	Digest        string `json:"digest"`
-	Path          string `json:"path"`
-	SizeBytes     int64  `json:"size_bytes"`
-	RefCount      int    `json:"ref_count"`
-	RefZeroAtUnix int64  `json:"ref_zero_at_unix"`
-	LastUsedUnix  int64  `json:"last_used_unix"`
+	HasRootMetadata     bool     `json:"has_root_metadata"`
+	ImplicitDirectories []string `json:"implicit_directories"`
+	Digest              string   `json:"digest"`
+	Path                string   `json:"path"`
+	SizeBytes           int64    `json:"size_bytes"`
+	RefCount            int      `json:"ref_count"`
+	RefZeroAtUnix       int64    `json:"ref_zero_at_unix"`
+	LastUsedUnix        int64    `json:"last_used_unix"`
 }
 
 // ChainRecord stores local lowdir metadata keyed by Docker-style chainID.
@@ -107,6 +110,9 @@ func openMetadataStore(dbPath string) (*metadataStore, error) {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
+		if err := initializeExtractionFormat(tx, filepath.Dir(dbPath)); err != nil {
+			return err
+		}
 		if _, err := tx.CreateBucketIfNotExists(layerRecordsBucket); err != nil {
 			return err
 		}
