@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 )
 
-func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string) ([]string, error) {
-	if len(chainIDs) != len(layerPaths) {
-		return nil, fmt.Errorf("chain count mismatch: chainIDs=%d paths=%d", len(chainIDs), len(layerPaths))
+func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string, rootMetadata []bool) ([]string, error) {
+	if len(chainIDs) != len(layerPaths) || len(chainIDs) != len(rootMetadata) {
+		return nil, fmt.Errorf("chain count mismatch: chainIDs=%d paths=%d root_metadata=%d", len(chainIDs), len(layerPaths), len(rootMetadata))
 	}
 
 	paths := make([]string, len(chainIDs))
@@ -22,7 +22,11 @@ func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string) (
 			m.rollbackReservedChainRefs(reservedChainIDs)
 			return nil, fmt.Errorf("layer path at index %d is empty", i)
 		}
-		path, err := m.getOrCreateChainLowerDir(chainID, layerPaths[i])
+		rootMetadataPath := layerPaths[i]
+		if i > 0 && !rootMetadata[i] {
+			rootMetadataPath = paths[i-1]
+		}
+		path, err := m.getOrCreateChainLowerDir(chainID, layerPaths[i], rootMetadataPath)
 		if err != nil {
 			m.rollbackReservedChainRefs(reservedChainIDs)
 			return nil, err
@@ -33,7 +37,7 @@ func (m *Manager) ensureChainLowerDirs(chainIDs []string, layerPaths []string) (
 	return paths, nil
 }
 
-func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath string) (string, error) {
+func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath, rootMetadataPath string) (string, error) {
 	unlock := m.acquireChainLock(chainID)
 	defer unlock()
 
@@ -74,7 +78,7 @@ func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath string) (st
 		return targetPath, nil
 	}
 
-	if err := m.materializeChainLowerDir(layerPath, targetPath); err != nil {
+	if err := m.materializeChainLowerDir(layerPath, targetPath, rootMetadataPath); err != nil {
 		return "", fmt.Errorf("failed to build lowerdir for chain %s from %s: %w", chainID, layerPath, err)
 	}
 
@@ -98,7 +102,7 @@ func (m *Manager) getOrCreateChainLowerDir(chainID string, layerPath string) (st
 	return targetPath, nil
 }
 
-func (m *Manager) materializeChainLowerDir(sourcePath string, targetPath string) error {
+func (m *Manager) materializeChainLowerDir(sourcePath string, targetPath, rootMetadataPath string) error {
 	parentDir := filepath.Dir(targetPath)
 	tmpDir := filepath.Join(parentDir, fmt.Sprintf("tmp-%d", m.now().UnixNano()))
 
@@ -112,6 +116,18 @@ func (m *Manager) materializeChainLowerDir(sourcePath string, targetPath string)
 		return err
 	}
 	defer os.RemoveAll(tmpDir)
+	rootInfo, err := os.Lstat(rootMetadataPath)
+	if err != nil {
+		return fmt.Errorf("stat effective chain root metadata: %w", err)
+	}
+	if !rootInfo.IsDir() {
+		return fmt.Errorf("effective chain root metadata is not a directory")
+	}
+	// Root ownership/mode inherit when absent from a layer; overlay whiteout
+	// xattrs remain those of this layer and must not inherit from its parent.
+	if err := copyDirectoryStatMetadata(tmpDir, rootInfo); err != nil {
+		return err
+	}
 
 	if err := os.RemoveAll(targetPath); err != nil {
 		return fmt.Errorf("failed to cleanup chain lowerdir target %s: %w", targetPath, err)

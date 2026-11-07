@@ -15,9 +15,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func extractLayerTar(r io.Reader, dst string) (int64, error) {
+type layerExtraction struct {
+	SizeBytes       int64
+	HasRootMetadata bool
+}
+
+func extractLayerTar(r io.Reader, dst string) (layerExtraction, error) {
+	// The extraction root is guest-visible metadata, unlike its private host
+	// ancestors. Layers without an explicit root entry use the OCI default.
+	if err := os.Chmod(dst, 0755); err != nil {
+		return layerExtraction{}, fmt.Errorf("set default layer root mode: %w", err)
+	}
+	root, err := os.OpenRoot(dst)
+	if err != nil {
+		return layerExtraction{}, fmt.Errorf("open layer root: %w", err)
+	}
+	defer root.Close()
 	tr := tar.NewReader(r)
 	var totalSize int64
+	var rootHeader *tar.Header
 
 	for {
 		hdr, err := tr.Next()
@@ -25,92 +41,104 @@ func extractLayerTar(r io.Reader, dst string) (int64, error) {
 			break
 		}
 		if err != nil {
-			return 0, fmt.Errorf("failed to read tar stream: %w", err)
+			return layerExtraction{}, fmt.Errorf("failed to read tar stream: %w", err)
 		}
 
 		relPath, err := cleanArchivePath(hdr.Name)
 		if err != nil {
-			return 0, err
+			return layerExtraction{}, err
 		}
 		if relPath == "" {
+			if hdr.Typeflag != tar.TypeDir {
+				return layerExtraction{}, fmt.Errorf("layer root entry must be a directory")
+			}
+			copy := *hdr
+			rootHeader = &copy
 			continue
 		}
 
 		if isWhiteout(relPath) {
+			if err := ensureLayerDirectory(root, filepath.Dir(relPath)); err != nil {
+				return layerExtraction{}, err
+			}
 			if err := applyOCIWhiteout(dst, relPath); err != nil {
-				return 0, err
+				return layerExtraction{}, err
 			}
 			continue
 		}
 
 		target := filepath.Join(dst, relPath)
-		if err := ensureParent(target); err != nil {
-			return 0, err
+		if err := ensureLayerDirectory(root, filepath.Dir(relPath)); err != nil {
+			return layerExtraction{}, err
 		}
 
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, os.FileMode(hdr.Mode)); err != nil {
-				return 0, fmt.Errorf("failed to create dir %s: %w", target, err)
+			if err := ensureLayerDirectory(root, relPath); err != nil {
+				return layerExtraction{}, fmt.Errorf("failed to create dir %s: %w", target, err)
 			}
 		case tar.TypeReg, tar.TypeRegA:
 			if err := os.RemoveAll(target); err != nil {
-				return 0, fmt.Errorf("failed to replace file %s: %w", target, err)
+				return layerExtraction{}, fmt.Errorf("failed to replace file %s: %w", target, err)
 			}
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, fileModeFromTar(hdr.Mode))
 			if err != nil {
-				return 0, fmt.Errorf("failed to create file %s: %w", target, err)
+				return layerExtraction{}, fmt.Errorf("failed to create file %s: %w", target, err)
 			}
 			n, copyErr := io.Copy(f, tr)
 			closeErr := f.Close()
 			totalSize += n
 			if copyErr != nil {
-				return 0, fmt.Errorf("failed to write file %s: %w", target, copyErr)
+				return layerExtraction{}, fmt.Errorf("failed to write file %s: %w", target, copyErr)
 			}
 			if closeErr != nil {
-				return 0, fmt.Errorf("failed to close file %s: %w", target, closeErr)
+				return layerExtraction{}, fmt.Errorf("failed to close file %s: %w", target, closeErr)
 			}
 		case tar.TypeSymlink:
 			if err := os.RemoveAll(target); err != nil {
-				return 0, fmt.Errorf("failed to replace symlink %s: %w", target, err)
+				return layerExtraction{}, fmt.Errorf("failed to replace symlink %s: %w", target, err)
 			}
 			if err := os.Symlink(hdr.Linkname, target); err != nil {
-				return 0, fmt.Errorf("failed to create symlink %s -> %s: %w", target, hdr.Linkname, err)
+				return layerExtraction{}, fmt.Errorf("failed to create symlink %s -> %s: %w", target, hdr.Linkname, err)
 			}
 		case tar.TypeLink:
 			linkTarget, err := cleanArchivePath(hdr.Linkname)
 			if err != nil {
-				return 0, fmt.Errorf("invalid hardlink target %s: %w", hdr.Linkname, err)
+				return layerExtraction{}, fmt.Errorf("invalid hardlink target %s: %w", hdr.Linkname, err)
 			}
 			if linkTarget == "" {
-				return 0, fmt.Errorf("invalid hardlink target %s", hdr.Linkname)
+				return layerExtraction{}, fmt.Errorf("invalid hardlink target %s", hdr.Linkname)
 			}
-			absLinkTarget := filepath.Join(dst, linkTarget)
 			if err := os.RemoveAll(target); err != nil {
-				return 0, fmt.Errorf("failed to replace hardlink %s: %w", target, err)
+				return layerExtraction{}, fmt.Errorf("failed to replace hardlink %s: %w", target, err)
 			}
-			if err := os.Link(absLinkTarget, target); err != nil {
-				return 0, fmt.Errorf("failed to create hardlink %s -> %s: %w", target, absLinkTarget, err)
+			if err := root.Link(linkTarget, relPath); err != nil {
+				return layerExtraction{}, fmt.Errorf("failed to create hardlink %s -> %s: %w", relPath, linkTarget, err)
 			}
 		case tar.TypeChar, tar.TypeBlock, tar.TypeFifo:
 			if err := os.RemoveAll(target); err != nil {
-				return 0, fmt.Errorf("failed to replace special file %s: %w", target, err)
+				return layerExtraction{}, fmt.Errorf("failed to replace special file %s: %w", target, err)
 			}
 			if err := createSpecialNode(target, hdr); err != nil {
-				return 0, err
+				return layerExtraction{}, err
 			}
 		case tar.TypeXGlobalHeader, tar.TypeXHeader, tar.TypeGNULongName, tar.TypeGNULongLink:
 			continue
 		default:
-			return 0, fmt.Errorf("unsupported tar entry type %d for %s", hdr.Typeflag, hdr.Name)
+			return layerExtraction{}, fmt.Errorf("unsupported tar entry type %d for %s", hdr.Typeflag, hdr.Name)
 		}
 
 		if err := applyMetadata(target, hdr); err != nil {
-			return 0, err
+			return layerExtraction{}, err
 		}
 	}
 
-	return totalSize, nil
+	if rootHeader != nil {
+		if err := applyMetadata(dst, rootHeader); err != nil {
+			return layerExtraction{}, err
+		}
+	}
+	return layerExtraction{SizeBytes: totalSize, HasRootMetadata: rootHeader != nil}, nil
 }
 
 func createSpecialNode(target string, hdr *tar.Header) error {
@@ -256,9 +284,28 @@ func cleanArchivePath(raw string) (string, error) {
 	return cleaned, nil
 }
 
-func ensureParent(target string) error {
-	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
-		return fmt.Errorf("failed to create parent dir for %s: %w", target, err)
+func ensureLayerDirectory(root *os.Root, name string) error {
+	if name == "." || name == "" {
+		return nil
+	}
+	if info, err := root.Stat(name); err == nil {
+		if !info.IsDir() {
+			return fmt.Errorf("layer parent %s is not a directory", name)
+		}
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("inspect layer parent %s: %w", name, err)
+	}
+	if err := ensureLayerDirectory(root, filepath.Dir(name)); err != nil {
+		return err
+	}
+	if err := root.Mkdir(name, 0755); err != nil {
+		return fmt.Errorf("create layer parent %s: %w", name, err)
+	}
+	// Only newly created implicit parents get a default mode. Existing
+	// directories retain their explicit archive metadata.
+	if err := root.Chmod(name, 0755); err != nil {
+		return fmt.Errorf("set layer parent mode %s: %w", name, err)
 	}
 	return nil
 }

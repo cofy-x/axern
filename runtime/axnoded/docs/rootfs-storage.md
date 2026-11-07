@@ -22,6 +22,8 @@ Imagemgr owns image representation, the effective immutable mount, its opaque id
 
 Every bind source must be a regular file or directory. Destinations must be normalized absolute container paths. Parent and leaf symlinks, special files, non-directory parents, and source/target type mismatches are rejected. Missing parents copy mode/UID/GID from existing lower parents; genuinely new parents are root:root `0755`. Arbitrary xattrs, ACLs, devices, FIFOs, and sockets are never copied.
 
+The projection upper root copies the effective immutable root's UID, GID and permission bits before mounting, so a private host creation umask cannot prevent guest users from traversing an otherwise accessible image. The view's enclosing directory, work directory and unmounted merge target remain private host artifacts. This copies guest metadata into the new Allocation's projection; it does not chmod image-cache roots or relax the service umask.
+
 Artifacts are partitioned as `projections/<id>` and `runsc` under the filestore. The OCI readonly bit is preserved exactly. Imagemgr's active rootfs reference and immutable identity remain owned by the lower mount lease; projection cleanup must finish before that lease is released.
 
 ## Ephemeral-storage enforcement

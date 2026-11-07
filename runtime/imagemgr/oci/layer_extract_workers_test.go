@@ -28,7 +28,7 @@ func TestExtractLayersWithWorkers_RollsBackReservedRefsOnError(t *testing.T) {
 		t.Fatalf("new bad hash: %v", err)
 	}
 
-	_, _, err = mgr.extractLayersWithWorkers(context.Background(), []v1.Layer{
+	_, _, _, err = mgr.extractLayersWithWorkers(context.Background(), []v1.Layer{
 		sleepLayer{digest: goodHash},
 		errorLayer{digest: badHash, err: fmt.Errorf("boom")},
 	})
@@ -98,7 +98,7 @@ func TestExtractLayersWithWorkers_ConcurrentAndOrdered(t *testing.T) {
 	})
 	go func() {
 		defer close(done)
-		gotDigests, gotPaths, err = mgr.extractLayersWithWorkers(context.Background(), layers)
+		gotDigests, gotPaths, _, err = mgr.extractLayersWithWorkers(context.Background(), layers)
 	}()
 	wait := func(ch <-chan struct{}, label string) {
 		t.Helper()
@@ -181,7 +181,7 @@ func TestExtractLayersWithWorkers_UseGlobalWorkerLimit(t *testing.T) {
 	errCh := make(chan error, 2)
 	run := func(offset int) {
 		defer wg.Done()
-		_, _, err := mgr.extractLayersWithWorkers(context.Background(), buildLayers(offset))
+		_, _, _, err := mgr.extractLayersWithWorkers(context.Background(), buildLayers(offset))
 		errCh <- err
 	}
 
@@ -224,7 +224,7 @@ func TestClose_WaitsForInFlightLayerWorker(t *testing.T) {
 
 	extractDone := make(chan error, 1)
 	go func() {
-		_, _, err := mgr.extractLayersWithWorkers(context.Background(), []v1.Layer{layer})
+		_, _, _, err := mgr.extractLayersWithWorkers(context.Background(), []v1.Layer{layer})
 		extractDone <- err
 	}()
 

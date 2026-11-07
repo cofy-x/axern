@@ -144,6 +144,20 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		}
 	}
 
+	if err := os.MkdirAll(root, 0700); err != nil {
+		return nil, fmt.Errorf("failed to create OCI state root %s: %w", root, err)
+	}
+	store, err := openMetadataStore(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	closeStore := true
+	defer func() {
+		if closeStore {
+			_ = store.close()
+		}
+	}()
+
 	if err := os.MkdirAll(layersDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create layers dir %s: %w", layersDir, err)
 	}
@@ -160,18 +174,12 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 		return nil, fmt.Errorf("failed to prepare runtime support dir %s: %w", supportDir, err)
 	}
 
-	store, err := openMetadataStore(dbPath)
-	if err != nil {
-		return nil, err
-	}
-
 	var registryClient *imageregistry.Client
 	if len(sharedRegistryClient) > 0 && sharedRegistryClient[0] != nil {
 		registryClient = sharedRegistryClient[0]
 	} else {
 		registryClient, err = imageregistry.NewClient("")
 		if err != nil {
-			store.close()
 			return nil, fmt.Errorf("failed to create registry client: %w", err)
 		}
 	}
@@ -211,6 +219,7 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 	}
 
 	go mgr.pruneImagesLoop()
+	closeStore = false
 	return mgr, nil
 }
 

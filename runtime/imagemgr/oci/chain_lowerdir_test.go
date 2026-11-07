@@ -31,7 +31,7 @@ func TestEnsureChainLowerDirs_CreatesDockerStyleLowerdirs(t *testing.T) {
 		sleepLayer{digest: hash2},
 	}
 
-	layerDigests, layerPaths, err := mgr.extractLayersWithWorkers(context.Background(), layers)
+	layerDigests, layerPaths, rootMetadata, err := mgr.extractLayersWithWorkers(context.Background(), layers)
 	if err != nil {
 		t.Fatalf("extractLayersWithWorkers() error: %v", err)
 	}
@@ -51,11 +51,11 @@ func TestEnsureChainLowerDirs_CreatesDockerStyleLowerdirs(t *testing.T) {
 		t.Fatalf("expected duplicate layer occurrence to produce distinct chainIDs, got %s", chainIDs[1])
 	}
 
-	gotPaths, err := mgr.ensureChainLowerDirs(chainIDs, layerPaths)
+	gotPaths, err := mgr.ensureChainLowerDirs(chainIDs, layerPaths, rootMetadata)
 	if err != nil {
 		t.Fatalf("ensureChainLowerDirs() error: %v", err)
 	}
-	gotPathsAgain, err := mgr.ensureChainLowerDirs(chainIDs, layerPaths)
+	gotPathsAgain, err := mgr.ensureChainLowerDirs(chainIDs, layerPaths, rootMetadata)
 	if err != nil {
 		t.Fatalf("ensureChainLowerDirs() second call error: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestEnsureChainLowerDirs_RollsBackReservedRefsOnError(t *testing.T) {
 		t.Fatalf("buildChainIDs() error: %v", err)
 	}
 
-	if _, err := mgr.ensureChainLowerDirs(chainIDs, []string{firstPath, filepath.Join(mgr.layersDir, "missing", "fs")}); err == nil {
+	if _, err := mgr.ensureChainLowerDirs(chainIDs, []string{firstPath, filepath.Join(mgr.layersDir, "missing", "fs")}, []bool{false, false}); err == nil {
 		t.Fatalf("ensureChainLowerDirs() error = nil, want non-nil")
 	}
 
@@ -160,7 +160,7 @@ func TestMaterializeChainLowerDir_UsesManagerClockForTempDir(t *testing.T) {
 		t.Fatalf("write stale tmp file: %v", err)
 	}
 
-	if err := mgr.materializeChainLowerDir(sourcePath, targetPath); err != nil {
+	if err := mgr.materializeChainLowerDir(sourcePath, targetPath, sourcePath); err != nil {
 		t.Fatalf("materializeChainLowerDir() error: %v", err)
 	}
 

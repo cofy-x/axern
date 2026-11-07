@@ -1,10 +1,12 @@
 package oci
 
 import (
+	"archive/tar"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,6 +14,35 @@ import (
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/sirupsen/logrus"
 )
+
+func readLayerRootMetadata(layer v1.Layer) (bool, error) {
+	stream, err := layer.Uncompressed()
+	if err != nil {
+		return false, err
+	}
+	defer stream.Close()
+	reader := tar.NewReader(stream)
+	hasRoot := false
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			return hasRoot, nil
+		}
+		if err != nil {
+			return false, err
+		}
+		name, err := cleanArchivePath(header.Name)
+		if err != nil {
+			return false, err
+		}
+		if name == "" {
+			if header.Typeflag != tar.TypeDir {
+				return false, fmt.Errorf("layer root entry must be a directory")
+			}
+			hasRoot = true
+		}
+	}
+}
 
 type layerExtractJob struct {
 	index    int
@@ -65,9 +96,9 @@ func (m *Manager) fetchImageWithCacheKey(ctx context.Context, imageURL, dockerCo
 	return img, nil
 }
 
-func (m *Manager) extractLayersWithWorkers(ctx context.Context, layers []v1.Layer) ([]string, []string, error) {
+func (m *Manager) extractLayersWithWorkers(ctx context.Context, layers []v1.Layer) ([]string, []string, []bool, error) {
 	if len(layers) == 0 {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	m.ensureLayerWorkerPool()
 	batchStart := time.Now()
@@ -86,7 +117,7 @@ submitLoop:
 		case <-m.stopCh:
 			err := fmt.Errorf("oci manager is closing")
 			logrus.Warnf("OCI layer extraction interrupted before submit: submitted=%d/%d cost=%s err=%v", submitted, len(layers), time.Since(batchStart), err)
-			return nil, nil, err
+			return nil, nil, nil, err
 		case m.layerJobs <- layerExtractJob{
 			index:    i,
 			layer:    layer,
@@ -98,6 +129,7 @@ submitLoop:
 
 	layerDigests := make([]string, len(layers))
 	layerPaths := make([]string, len(layers))
+	rootMetadata := make([]bool, len(layers))
 	firstErr := submitErr
 	success := 0
 	for i := 0; i < submitted; i++ {
@@ -106,7 +138,7 @@ submitLoop:
 		case <-m.stopCh:
 			err := fmt.Errorf("oci manager is closing")
 			logrus.Warnf("OCI layer extraction interrupted while waiting results: received=%d/%d cost=%s err=%v", i, submitted, time.Since(batchStart), err)
-			return nil, nil, err
+			return nil, nil, nil, err
 		case res = <-results:
 		}
 		if ctx.Err() != nil && firstErr == nil {
@@ -120,15 +152,16 @@ submitLoop:
 		}
 		layerDigests[res.index] = res.rec.Digest
 		layerPaths[res.index] = res.rec.Path
+		rootMetadata[res.index] = res.rec.HasRootMetadata
 		success++
 	}
 	if firstErr != nil {
 		m.rollbackReservedLayerRefs(layerDigests)
 		logrus.Warnf("OCI layer extraction failed: submitted=%d success=%d cost=%s err=%v", submitted, success, time.Since(batchStart), firstErr)
-		return nil, nil, firstErr
+		return nil, nil, nil, firstErr
 	}
 	logrus.Infof("OCI layer extraction finished: submitted=%d success=%d cost=%s", submitted, success, time.Since(batchStart))
-	return layerDigests, layerPaths, nil
+	return layerDigests, layerPaths, rootMetadata, nil
 }
 
 func (m *Manager) ensureLayerWorkerPool() {
@@ -219,13 +252,18 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 		if rec != nil {
 			recoveredRefCount = rec.RefCount + 1
 		}
+		hasRootMetadata, err := readLayerRootMetadata(layer)
+		if err != nil {
+			return nil, fmt.Errorf("recover layer root metadata: %w", err)
+		}
 		rec = &LayerRecord{
-			Digest:        digestStr,
-			Path:          layerPath,
-			SizeBytes:     size,
-			RefCount:      recoveredRefCount,
-			RefZeroAtUnix: 0,
-			LastUsedUnix:  m.now().Unix(),
+			HasRootMetadata: hasRootMetadata,
+			Digest:          digestStr,
+			Path:            layerPath,
+			SizeBytes:       size,
+			RefCount:        recoveredRefCount,
+			RefZeroAtUnix:   0,
+			LastUsedUnix:    m.now().Unix(),
 		}
 		if err := m.store.putLayer(rec); err != nil {
 			return nil, fmt.Errorf("failed to recover layer metadata %s: %w", digestStr, err)
@@ -248,7 +286,7 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 	}
 	defer rc.Close()
 
-	size, err := extractLayerTar(rc, tmpDir)
+	extracted, err := extractLayerTar(rc, tmpDir)
 	if err != nil {
 		logrus.Warnf("OCI layer extract failed: digest=%s tmp_dir=%s cost=%s err=%v", digestStr, tmpDir, time.Since(start), err)
 		return nil, fmt.Errorf("failed to extract layer %s: %w", digestStr, err)
@@ -268,17 +306,18 @@ func (m *Manager) ensureLayerExtracted(layer v1.Layer) (*LayerRecord, error) {
 	}
 
 	rec = &LayerRecord{
-		Digest:        digestStr,
-		Path:          layerPath,
-		SizeBytes:     size,
-		RefCount:      1,
-		RefZeroAtUnix: 0,
-		LastUsedUnix:  m.now().Unix(),
+		Digest:          digestStr,
+		Path:            layerPath,
+		SizeBytes:       extracted.SizeBytes,
+		HasRootMetadata: extracted.HasRootMetadata,
+		RefCount:        1,
+		RefZeroAtUnix:   0,
+		LastUsedUnix:    m.now().Unix(),
 	}
 	if err := m.store.putLayer(rec); err != nil {
 		return nil, fmt.Errorf("failed to persist layer metadata %s: %w", digestStr, err)
 	}
-	logrus.Infof("OCI layer download/extract success: digest=%s path=%s size_bytes=%d cost=%s", digestStr, layerPath, size, time.Since(start))
+	logrus.Infof("OCI layer download/extract success: digest=%s path=%s size_bytes=%d cost=%s", digestStr, layerPath, extracted.SizeBytes, time.Since(start))
 	return rec, nil
 }
 

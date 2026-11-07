@@ -236,7 +236,7 @@ func TestEnsureLayerExtracted_RecoversMetadataFromExistingPath(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 
-	rec, err := mgr.ensureLayerExtracted(panicUncompressedLayer{digest: hash})
+	rec, err := mgr.ensureLayerExtracted(sleepLayer{digest: hash})
 	if err != nil {
 		t.Fatalf("ensureLayerExtracted() error: %v", err)
 	}
