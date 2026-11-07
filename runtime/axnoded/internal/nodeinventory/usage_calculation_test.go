@@ -48,10 +48,29 @@ func TestMemoryCommitmentBytes(t *testing.T) {
 
 func TestCPUUsedMilli(t *testing.T) {
 	prev := cpuUsageSample{UsageNs: 100_000_000, CollectedAt: time.Unix(0, 0)}
-	current := cpuUsageSample{UsageNs: 300_000_000, CollectedAt: time.Unix(0, int64(time.Second))}
-	got, ok := cpuUsedMilli(prev, current)
-	if !ok || got != 200 {
-		t.Fatalf("cpuUsedMilli() = (%d, %v), want (200, true)", got, ok)
+	tests := []struct {
+		name    string
+		usageNs uint64
+		elapsed time.Duration
+		want    int64
+		ok      bool
+	}{
+		{name: "active", usageNs: 300_000_000, elapsed: time.Second, want: 200, ok: true},
+		{name: "idle", usageNs: prev.UsageNs, elapsed: time.Second, ok: true},
+		{name: "counter reset", usageNs: prev.UsageNs - 1, elapsed: time.Second},
+		{name: "same time", usageNs: 300_000_000},
+		{name: "idle same time", usageNs: prev.UsageNs},
+		{name: "time reversed", usageNs: 300_000_000, elapsed: -time.Second},
+		{name: "idle time reversed", usageNs: prev.UsageNs, elapsed: -time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			current := cpuUsageSample{UsageNs: tt.usageNs, CollectedAt: prev.CollectedAt.Add(tt.elapsed)}
+			got, ok := cpuUsedMilli(prev, current)
+			if got != tt.want || ok != tt.ok {
+				t.Fatalf("cpuUsedMilli() = (%d, %v), want (%d, %v)", got, ok, tt.want, tt.ok)
+			}
+		})
 	}
 }
 

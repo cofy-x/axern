@@ -356,6 +356,73 @@ func TestCollectAxnodedInventoryDisabledDevDoesNotFabricateCgroupUsage(t *testin
 	}
 }
 
+func TestCollectAxnodedInventoryIdleCPUBecomesAndRemainsReady(t *testing.T) {
+	const allocationID = "allocation-idle"
+	const cgroupPath = "/sandbox/allocation-idle/workload"
+	stats := &os2.CgroupStats{MemoryUsage: 32 << 20}
+	source := NewAxnodedSource(AxnodedSourceOptions{
+		Ready:                func() bool { return true },
+		RuntimeCount:         func() int { return 1 },
+		MemoryCgroupEnforced: true,
+		AllocationIDs:        func() []string { return []string{allocationID} },
+		AllocationResourceSpec: func(string) *commonv1.ResourceSpec {
+			return &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 128 << 20}}
+		},
+		Container: &fakeContainerManager{
+			list: []*container.Container{inventoryContainer(allocationID, container.Status{
+				RuntimeState: runtimeapi.RuntimeCheckpointState_RUNTIME_CHECKPOINT_STATE_RUNNING,
+				StartedAt:    "2026-11-07T00:00:00Z",
+			})},
+			pools: map[string]PoolInventory{
+				"cgroup":    {Using: 1, Capacity: 8},
+				"interface": {Using: 1, Capacity: 8},
+			},
+			runtimeCgroup: map[string]string{allocationID: cgroupPath},
+		},
+		CgroupDriver: &fakeCgroupDriver{stats: map[string]*os2.CgroupStats{cgroupPath: stats}},
+	})
+	// A restored idle Allocation has no previous sample. After that initial
+	// warm-up, a constant cumulative counter is a valid zero-CPU observation.
+	// A counter reset still needs a new baseline before usage is publishable.
+	samples := []struct {
+		name    string
+		usageNs uint64
+		status  string
+		milli   int64
+	}{
+		{name: "first sample", usageNs: 100_000_000, status: StatusWarming},
+		{name: "idle after restart", usageNs: 100_000_000, status: StatusReady},
+		{name: "still idle", usageNs: 100_000_000, status: StatusReady},
+		{name: "active", usageNs: 300_000_000, status: StatusReady, milli: 40},
+		{name: "idle after activity", usageNs: 300_000_000, status: StatusReady},
+		{name: "counter reset", usageNs: 10_000_000, status: StatusWarming},
+		{name: "idle after reset", usageNs: 10_000_000, status: StatusReady},
+	}
+	start := time.Date(2026, 11, 7, 0, 0, 0, 0, time.UTC)
+	for index, sample := range samples {
+		t.Run(sample.name, func(t *testing.T) {
+			stats.CPUUsageTotal = sample.usageNs
+			snapshot := NewSnapshot()
+			if !source.collectAxnodedInventory(start.Add(time.Duration(index)*5*time.Second), &snapshot) {
+				t.Fatal("collectAxnodedInventory() ready = false")
+			}
+			component := snapshot.Components.Axnoded
+			if !component.Ready || component.Status != sample.status || component.Error != "" {
+				t.Fatalf("axnoded component = %+v, want ready with status %s", component, sample.status)
+			}
+			if sourceStatus := snapshot.Sources["axnoded"]; sourceStatus.Status != sample.status || sourceStatus.Error != "" {
+				t.Fatalf("axnoded source = %+v, want status %s", sourceStatus, sample.status)
+			}
+			if got := snapshot.Resources.CPU.AxnodedUsedMilli; got != sample.milli {
+				t.Fatalf("CPU usage = %d, want %d", got, sample.milli)
+			}
+			if snapshot.Resources.CPU.AxnodedCommittedMilli != 500 || snapshot.Resources.Memory.AxnodedUsedBytes != 32<<20 || component.RunningContainers != 1 {
+				t.Fatalf("idle sampling lost allocation accounting: %+v, component %+v", snapshot.Resources, component)
+			}
+		})
+	}
+}
+
 func inventoryContainer(id string, status container.Status) *container.Container {
 	return &container.Container{
 		ID:       id,

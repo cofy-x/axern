@@ -65,7 +65,9 @@ func memoryCommitmentBytes(spec *commonv1.ResourceSpec) (int64, bool) {
 }
 
 func cpuUsedMilli(prev, current cpuUsageSample) (int64, bool) {
-	if !prev.CollectedAt.Before(current.CollectedAt) || current.UsageNs <= prev.UsageNs {
+	// An unchanged cumulative counter is a valid idle sample. Only a reset
+	// or non-increasing sample time prevents calculating usage.
+	if !prev.CollectedAt.Before(current.CollectedAt) || current.UsageNs < prev.UsageNs {
 		return 0, false
 	}
 	elapsedNs := current.CollectedAt.Sub(prev.CollectedAt).Nanoseconds()
