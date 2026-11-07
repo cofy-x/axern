@@ -10,15 +10,6 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 )
 
-func containsRuntime(runtimes []string, runtimeName string) bool {
-	for _, name := range runtimes {
-		if name == runtimeName {
-			return true
-		}
-	}
-	return false
-}
-
 func imagemgrUsable(summary *nodev1.NodeSummary) bool {
 	if summary == nil {
 		return false

@@ -321,21 +321,6 @@ func defaultString(value, fallback string) string {
 	return fallback
 }
 
-func durationFromEnv(name string, fallback time.Duration) (time.Duration, error) {
-	value := strings.TrimSpace(os.Getenv(name))
-	if value == "" {
-		return fallback, nil
-	}
-	parsed, err := time.ParseDuration(value)
-	if err != nil {
-		return 0, fmt.Errorf("%s must be a valid duration: %w", name, err)
-	}
-	if parsed <= 0 {
-		return 0, fmt.Errorf("%s must be > 0", name)
-	}
-	return parsed, nil
-}
-
 func configureLogging(levelName string) error {
 	level, err := logrus.ParseLevel(strings.ToLower(levelName))
 	if err != nil {

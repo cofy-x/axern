@@ -88,20 +88,6 @@ func createDefaultEnvironment(t *testing.T, app *App) *environmentv1.Environment
 	return resp.GetEnvironment()
 }
 
-func createImageEnvironment(t *testing.T, app *App, imageRef string) *environmentv1.Environment {
-	t.Helper()
-	resp, err := app.PublicV1Handler().CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
-		Spec: &environmentv1.EnvironmentSpec{
-			Namespace: "default",
-			Image:     &environmentv1.EnvironmentImageSource{Ref: imageRef},
-		},
-	})
-	if err != nil {
-		t.Fatalf("CreateEnvironment(image) error = %v", err)
-	}
-	return resp.GetEnvironment()
-}
-
 func assertPostgresConsistencyOK(t *testing.T, app *App) {
 	t.Helper()
 	snapshot, err := pgconsistency.Snapshot(context.Background(), app.db.Pool(), app.now())
