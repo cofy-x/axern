@@ -18,6 +18,7 @@ const (
 type Metadata struct {
 	Version                    string    `json:"version"`
 	ComposeProject             string    `json:"compose_project"`
+	AppliedBundleDigest        string    `json:"applied_bundle_digest,omitempty"`
 	Profile                    string    `json:"profile,omitempty"`
 	ExternalInsecureRegistries []string  `json:"external_insecure_registries,omitempty"`
 	CreatedAt                  time.Time `json:"created_at"`

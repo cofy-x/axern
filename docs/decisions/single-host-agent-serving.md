@@ -4,7 +4,7 @@
 
 Axern's direction is single-host execution and persistent workspace infrastructure for agents. gVisor/runsc is the sole long-term execution backend. The experimental native Linux installation provides the executable baseline; persistent Workspace and the complete stateful serving/maintenance contract remain planned. This decision preserves the implemented execution chain rather than adding an Agent platform inside Axern.
 
-This decision supersedes the conditional second-runtime direction in [Firecracker Evaluation Boundary](firecracker-evaluation-boundary.md). The [Product Direction](../product/product-direction.md) owns the enduring scope. The current [Domain Model](../product/domain-model.md), [Runtime Architecture](../architecture/runtime-architecture.md), and [Storage Architecture](../architecture/storage-architecture.md) continue to describe implemented contracts.
+The [Product Direction](../product/product-direction.md) owns the enduring scope. The [Domain Model](../product/domain-model.md), [Runtime Architecture](../architecture/runtime-architecture.md), and [Storage Architecture](../architecture/storage-architecture.md) describe implemented contracts.
 
 ## Rationale
 
@@ -75,23 +75,23 @@ Recovery also needs immutable Environment image digests, supported runtime versi
 
 ## Module Dispositions
 
-The table describes implementation direction, not completed moves or module deletion. Linked module contracts continue to own current technical behavior.
+The table describes implementation direction, not completed moves or module deletion. Linked module contracts own current technical behavior. Simplification may remove modules or break compatibility when the implementation, affected callers, tests, and documentation are updated together.
 
 | Existing module or dependency | Disposition | Planned treatment and constraint |
 | --- | --- | --- |
 | `apps/cli`, Go/Python/TypeScript SDKs, `sdk/proto` | Keep and simplify the common path | One standalone setup/diagnostic experience; add Workspace and reconnect contracts atomically across public surfaces. Preserve explicit IDs and error semantics. |
 | `control/controld` | Keep authority; consolidate deployment | Retain intent, authorization, resource charge, and lifecycle; add Workspace metadata. Local placement should not require cluster operations. |
 | `gateway/gatewayd` | Consolidate compatible control wiring | Evaluate one control-service composition with `controld`; preserve public access checks, stream behavior, revocation, and no host-operator privilege. A process merger requires failure tests. |
-| `controld-retention`, migration and access bootstrap jobs | Fold into managed lifecycle | Integrate retention scheduling and one-shot setup/upgrade orchestration without competing writers or resetting existing state. Keep migration ordering explicit. |
+| `controld` retention, migration and access bootstrap jobs | Retention is an internal control task; setup stays explicit | Run scheduled retention in the control process. Keep migration and access bootstrap ordered before serving, without competing writers or resetting existing state. |
 | PostgreSQL | Keep one authority | Manage installation, backup and upgrades. Do not add SQLite or dual state backends during this transition. |
 | `runtime/axnoded`, `axern-sandboxd`, runsc | Keep execution boundary | Own runtime, processes, mounts, enforced limits, local recovery and cleanup. Pin/manage the full runtime package and qualify systrap as the initial serving platform on supported Linux hosts. No additional backend or runtime registry. |
 | `runtime/egressd` | Keep enforcement responsibility | Managed local helper with explicit privilege and health checks. Co-packaging must not bypass fail-closed network policy. |
 | `runtime/tunneld`, node tunnel connector | Consolidate deployment where justified | Preserve finite allocation authority and reverse-relay behavior. Co-locate wiring where useful; do not confuse relay consolidation with adding authenticated preview. |
-| `runtime/imagemgr` | Keep and narrow default dependencies | Preserve OCI pull/cache/rootfs ownership. The native profile already uses OCI-only mode; preserve its independent startup and cleanup contract while retaining explicitly supported Nydus deployments. |
-| `runtime/imagefsd`, Nydus, chunk/P2P paths | Defer new optimization; keep optional path separate | The native OCI-only payload omits imagefsd and Nydus dependencies. Keep existing supported behavior in other deployments until an explicit compatibility change; do not reintroduce those dependencies into the default installation without demonstrated need. |
+| `runtime/imagemgr` | Keep and narrow default dependencies | Own OCI pull/cache/rootfs acquisition and cleanup. Use OCI-only mode for native serving, with optional image paths isolated from its startup dependencies. |
+| `runtime/imagefsd`, Nydus, chunk/P2P paths | Optional optimization; defer expansion | The native OCI-only payload omits imagefsd and Nydus dependencies. Retain optional paths only where workloads justify their maintenance; simplify or remove unused paths. |
 | `network/bpfnet` and alternate host-network paths | Keep a qualified default; defer expansion | Select one tested Linux serving profile. Changing backend is a separate enforcement qualification, not a shortcut to fewer services. |
 | `deploy/local` | Keep development workflow | Preserve macOS/Linux local development, while separating it clearly from the qualified Linux serving profile. |
-| Helm/kind, cluster/HA/multi-region work | Maintain existing contracts; defer new scope | They must not be prerequisites for the personal installation. Removing an existing deployment path needs an explicit migration decision. |
+| Helm/kind, cluster/HA/multi-region work | Optional deployments; defer expansion | Helm and kind serve cluster installation and integration checks today. Keep them outside the native serving package; simplify or remove paths that no longer justify their maintenance cost. |
 | Local registry and observability services | Manage or make optional by demonstrated need | Consume existing OCI images first; document registry/cache needs. Diagnostics are required, a full metrics dashboard stack is not a first-task prerequisite. |
 | `apps/docs` and root documentation | Keep aligned with evidence | Publish current commands and capabilities, and distinguish planned behavior from implemented contracts. |
 | Axrun, Kova, and agent harnesses | External consumers or optional producers | Axrun retains its evaluation contract; Kova can supply images but is not required. Agent orchestration and worker adapters remain outside Axern. |

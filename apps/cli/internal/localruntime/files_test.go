@@ -50,6 +50,45 @@ func TestLocalBundleLimitsExternalRegistryNetworkToRegistryConsumers(t *testing.
 	}
 }
 
+func TestLocalBundleChangesRequireReconfiguration(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		path string
+		data []byte
+	}{
+		{name: "removed Compose service", path: "compose.yaml", data: append(bytes.Clone(localbundle.Compose), []byte("\n  obsolete-worker:\n    image: example.invalid/worker:dev\n")...)},
+		{name: "changed collector", path: "otel-collector.yaml", data: []byte("receivers: {}\n")},
+		{name: "missing Compose", path: "compose.yaml"},
+		{name: "missing collector", path: "otel-collector.yaml"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			manager := &Manager{Dir: t.TempDir()}
+			for path, data := range map[string][]byte{
+				manager.composePath():                             localbundle.Compose,
+				filepath.Join(manager.Dir, "otel-collector.yaml"): localbundle.CollectorConfig,
+			} {
+				if err := os.WriteFile(path, data, 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if manager.localBundleChanged() {
+				t.Fatal("current embedded bundle requires reconfiguration")
+			}
+			path := filepath.Join(manager.Dir, test.path)
+			if test.data == nil {
+				if err := os.Remove(path); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.WriteFile(path, test.data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if !manager.localBundleChanged() {
+				t.Fatal("changed or missing bundle would bypass Compose reconciliation")
+			}
+		})
+	}
+}
+
 func TestGeneratedIdentityFilesAreValidAndPrivate(t *testing.T) {
 	dir := t.TempDir()
 	certs := filepath.Join(dir, "certs")

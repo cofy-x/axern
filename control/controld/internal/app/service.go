@@ -19,6 +19,7 @@ import (
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
+	retentionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/retention"
 	secretkernel "github.com/cofy-x/axern/control/controld/internal/kernel/secret"
 	"github.com/cofy-x/axern/control/controld/internal/nodebridge"
 	"github.com/cofy-x/axern/control/controld/internal/ociimage"
@@ -28,6 +29,7 @@ import (
 	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
 	pgnamespace "github.com/cofy-x/axern/control/controld/internal/postgres/namespace"
 	pgnodes "github.com/cofy-x/axern/control/controld/internal/postgres/nodes"
+	pgretention "github.com/cofy-x/axern/control/controld/internal/postgres/retention"
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
@@ -57,6 +59,7 @@ type Config struct {
 	ReconcileTimeout         time.Duration
 	TunnelRelays             string
 	ResourcePolicy           resourcekernel.AdmissionPolicy
+	Retention                *retentionkernel.Config
 
 	NodeLifecycle            nodebridge.LifecycleClient
 	NodeTransportCredentials func(string) credentials.TransportCredentials
@@ -95,6 +98,8 @@ type App struct {
 	reconcileHealth *reconcilekernel.HealthTracker
 	runReconciler   apprun.Reconciler
 	nodeReconciler  appnode.AvailabilityReconciler
+	retention       retentionCleanupController
+	retentionConfig retentionkernel.Config
 
 	adminAPI    *apiadminv1.Server
 	identityAPI *apiidentityv1.Server
@@ -124,6 +129,10 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 	if cfg.PostgresMaxConnections <= 0 {
 		cfg.PostgresMaxConnections = defaultPostgresMaxConnections
 	}
+	retentionConfig := retentionkernel.DefaultConfig()
+	if cfg.Retention != nil {
+		retentionConfig = retentionkernel.NormalizeConfig(*cfg.Retention)
+	}
 	cfg.ResourcePolicy = resourcekernel.NormalizeAdmissionPolicy(cfg.ResourcePolicy)
 	if err := resourcekernel.ValidateAdmissionPolicy(cfg.ResourcePolicy); err != nil {
 		return nil, err
@@ -146,6 +155,7 @@ func newApp(cfg Config, startBackgroundReconciler bool) (*App, error) {
 		reconcileInterval:        cfg.ReconcileInterval,
 		reconcileTimeout:         cfg.ReconcileTimeout,
 		resourcePolicy:           cfg.ResourcePolicy,
+		retentionConfig:          retentionConfig,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -222,6 +232,7 @@ func (a *App) configureDependencies(cfg Config) error {
 		return err
 	}
 	a.tunnelPG = pgtunnel.NewStore(db, pgtunnel.WithRelays(relays), pgtunnel.WithMasterKey(masterKey))
+	a.retention = retentionkernel.NewController(pgretention.NewPGStore(db), a.retentionConfig)
 	a.nodeBridge = nodebridge.New(a.nodeLifecycle, nodebridge.Config{
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,

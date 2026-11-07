@@ -33,7 +33,7 @@ The final JSON receipt reports the archive path and SHA-256. Build output goes t
 
 | Payload | Purpose |
 | --- | --- |
-| `bin/` | CLI, control/migration/access-bootstrap/retention, gateway, node, OCI image manager, egress, tunnel and diagnostic binaries |
+| `bin/` | CLI, control with scheduled retention, migration/access-bootstrap, gateway, node, OCI image manager, egress, tunnel and diagnostic binaries |
 | `libexec/axnoded/` | Sandbox supervisor, egress/DNS probes and sandbox tunnel agent |
 | `libexec/axern/` | Native installer, payload verification/staging tool and opt-in qualification runners |
 | `runtime/gvisor.tar.bz2` and `share/axern/gvisor.lock` | Full pinned upstream runtime, including its helper directory; the installer must preserve its layout |

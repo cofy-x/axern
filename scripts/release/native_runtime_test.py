@@ -104,7 +104,7 @@ class NativeRuntimeTest(unittest.TestCase):
             self.package()
 
     def test_missing_required_file(self) -> None:
-        (self.stage / "bin/controld-retention").unlink()
+        (self.stage / "bin/controld").unlink()
         with self.assertRaises(runtime.BundleError):
             self.package()
 

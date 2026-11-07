@@ -32,8 +32,8 @@ OPT = pathlib.Path('/opt/axern')
 UNITS = pathlib.Path('/etc/systemd/system')
 PG = pathlib.Path('/usr/lib/postgresql/16/bin')
 TARGET = 'axern-native.target'
-SERVICES = ('postgres', 'bootstrap', 'controld', 'retention', 'tunneld', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd')
-USERS = ('postgres', 'control', 'retention', 'tunnel', 'gateway')
+SERVICES = ('postgres', 'bootstrap', 'controld', 'tunneld', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd')
+USERS = ('postgres', 'control', 'tunnel', 'gateway')
 PORTS = (25432, 24000, 24001, 24002, 24100, 24010, 23001, 25000, 25080)
 SETTINGS = {'node_id', 'memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'sandbox_cidr', 'dns_nameservers', 'max_instances'}
 GUEST_TASK_LIMIT = 256
@@ -404,7 +404,6 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
         'postgres': ('postgres', [], [str(PG / 'postgres'), '-D', str(DATA / 'postgres'), '-c', 'config_file=' + str(ETC / 'postgres.conf')]),
         'bootstrap': (None, ['postgres'], helper + ['internal-bootstrap']),
         'controld': ('control', ['bootstrap'], [binary('controld'), '-grpc-address', '127.0.0.1:24000', '-http-address', '127.0.0.1:24001', '-enrollment-address', '127.0.0.1:24002', '-workload-signer-bundle', credential('control', 'signer.pem'), '-tunnel-relays', 'default,127.0.0.1:25000,127.0.0.1:24100,1,false'] + tls('control')),
-        'retention': ('retention', ['bootstrap'], [binary('controld-retention')]),
         'tunneld': ('tunnel', ['controld'], [binary('tunneld'), '-listen', '127.0.0.1:24100', '-control-target', '127.0.0.1:24000', '-relay-tls-cert', credential('tunnel', 'bundle.pem'), '-relay-tls-key', credential('tunnel', 'bundle.pem')] + tls('tunnel')),
         'imagemgr': (None, [], [binary('imagemgr'), '-root', str(DATA / 'imagemgr'), '-node_id', settings['node_id'], '-enable_nydus=false', '-registry_auths_path', str(root / 'share/axern/registry_auths.json'), '-http_sock', '/run/axern-native-imagemgr/imagemgr.sock']),
         'egressd': (None, [], [binary('egressd'), '-root', str(DATA / 'egressd'), '-socket', '/run/axern-native-egressd/egressd.sock']),
@@ -424,7 +423,7 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
             lines += ['RemainAfterExit=yes']
         else:
             lines += ['Restart=on-failure', 'RestartSec=3']
-        if name in ('controld', 'retention'):
+        if name == 'controld':
             lines += [f'EnvironmentFile={credential(user, "environment") }']
         if name == 'postgres':
             lines += ['KillSignal=SIGINT', 'ExecStartPost=' + command(helper + ['internal-ready', 'postgres'])]
@@ -654,13 +653,8 @@ def install(settings: dict) -> None:
     write_file(ETC / 'private/enrollment-token', (secret['enrollment_token'] + '\n').encode())
     credentials('postgres', 'password', (secret['postgres_password'] + '\n').encode())
     dsn = 'postgres://axern:' + secret['postgres_password'] + '@127.0.0.1:25432/axern?sslmode=disable'
-    for role in ('control', 'retention'):
-        environment = 'CONTROLD_POSTGRES_DSN=' + dsn + '\n'
-        if role == 'control':
-            environment += 'AXERN_SECRETS_MASTER_KEY=' + secret['master_key'] + '\n'
-        else:
-            environment += 'CONTROLD_RETENTION_ENABLED=true\n'
-        credentials(role, 'environment', environment.encode())
+    environment = 'CONTROLD_POSTGRES_DSN=' + dsn + '\nAXERN_SECRETS_MASTER_KEY=' + secret['master_key'] + '\n'
+    credentials('control', 'environment', environment.encode())
     sync_identity()
     prepare_runtime()
     if not (DATA / 'postgres').exists():

@@ -98,6 +98,8 @@ spec:
                 secretKeyRef:
                   name: {{ include "axern.postgresSecretName" . }}
                   key: {{ .Values.postgres.dsnKey }}
+            - name: CONTROLD_RETENTION_ENABLED
+              value: {{ .Values.controld.retention.enabled | quote }}
             - name: CONTROLD_TUNNEL_RELAYS
               value: {{ include "axern.tunnelRelays" . | quote }}
             - name: AXERN_SECRETS_MASTER_KEY
@@ -158,55 +160,3 @@ spec:
     - name: http
       port: 24001
       targetPort: 24001
-{{- if .Values.controld.retention.enabled }}
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: controld-retention
-  labels:
-    {{- include "axern.componentLabels" (dict "root" . "component" "controld-retention") | nindent 4 }}
-spec:
-  replicas: {{ .Values.controld.retention.replicas }}
-  selector:
-    matchLabels:
-      {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld-retention") | nindent 6 }}
-  template:
-    metadata:
-      labels:
-        {{- include "axern.componentSelectorLabels" (dict "root" . "component" "controld-retention") | nindent 8 }}
-    spec:
-      {{- include "axern.scheduling" (dict "root" . "profile" "platform" "component" "controld-retention" "spread" true) | nindent 6 }}
-      {{- with .Values.global.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      initContainers:
-        - name: wait-controld
-          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
-          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
-          command:
-            - /bin/sh
-            - -ec
-          args:
-            - |
-              until curl -fsS http://controld.{{ .Release.Namespace }}.svc:24001/healthz >/dev/null; do
-                echo "waiting for controld"
-                sleep 2
-              done
-      containers:
-        - name: controld-retention
-          image: {{ include "axern.image" (dict "root" . "image" .Values.controld.image) | quote }}
-          imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.controld.image) }}
-          command:
-            - /usr/local/bin/controld-retention
-          env:
-            - name: CONTROLD_POSTGRES_DSN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "axern.postgresSecretName" . }}
-                  key: {{ .Values.postgres.dsnKey }}
-            - name: CONTROLD_RETENTION_ENABLED
-              value: "true"
-            {{- include "axern.otelEnv" . | nindent 12 }}
-{{- end }}

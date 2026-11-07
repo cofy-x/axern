@@ -17,14 +17,13 @@ sequenceDiagram
   participant Migrate as controld-migrate
   participant DB as Postgres
   participant Control as controld
-  participant Retention as retention worker
 
   Migrate->>DB: acquire advisory lock
   Migrate->>DB: validate applied versions and checksums
   Migrate->>DB: apply pending migrations transactionally
   Migrate->>DB: record version and checksum
   Control->>DB: require the complete schema
-  Retention->>DB: require the complete schema
+  Control->>DB: periodically prune eligible history under retention advisory lock
 ```
 
 An edited checksum, a missing version, or a database ahead of the binary is a startup error. Rebuild the database whenever a baseline checksum changes.

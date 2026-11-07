@@ -10,6 +10,9 @@ import (
 
 func (a *App) startReconciler() {
 	a.startPeriodicReconciler()
+	if a.retentionConfig.Enabled {
+		a.startRetentionWorker(a.retentionConfig.Interval)
+	}
 }
 
 func (a *App) startPeriodicReconciler() {

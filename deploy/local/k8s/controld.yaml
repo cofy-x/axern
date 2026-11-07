@@ -115,31 +115,3 @@ spec:
       port: 24001
       targetPort: 24001
       nodePort: 30211
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: controld-retention
-  namespace: axern-local
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: controld-retention
-  template:
-    metadata:
-      labels:
-        app: controld-retention
-    spec:
-      containers:
-        - name: controld-retention
-          image: axern/local-controld:dev
-          imagePullPolicy: IfNotPresent
-          command:
-            - /usr/local/bin/controld-retention
-          args:
-            - -postgres-dsn
-            - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-          env:
-            - name: CONTROLD_RETENTION_ENABLED
-              value: "true"

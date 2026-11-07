@@ -18,6 +18,7 @@ import (
 	"github.com/cofy-x/axern/control/controld/internal/api/rpcstatus"
 	"github.com/cofy-x/axern/control/controld/internal/app"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
+	retentionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/retention"
 	controldobs "github.com/cofy-x/axern/control/controld/internal/observability"
 	"github.com/cofy-x/axern/control/controld/internal/postgres"
 	privateadminv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/admin/v1"
@@ -67,6 +68,7 @@ type options struct {
 	workloadCluster            string
 	workloadBundle             string
 	workloadSignerBundle       string
+	retention                  retentionkernel.Config
 }
 
 func main() {
@@ -114,6 +116,7 @@ func run() error {
 		SecretsMasterKey:         opts.secretsMasterKey,
 		ReconcileTimeout:         opts.reconcileTimeout,
 		TunnelRelays:             opts.tunnelRelays,
+		Retention:                &opts.retention,
 		ResourcePolicy: resourcekernel.AdmissionPolicy{
 			CPUOvercommitRatio: opts.resourceCPUOvercommitRatio,
 		},
@@ -248,7 +251,7 @@ func run() error {
 }
 
 func parseFlags() (options, error) {
-	opts := options{}
+	opts := options{retention: retentionConfigFromEnv()}
 	flagSet := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	flagSet.StringVar(&opts.grpcAddress, "grpc-address", defaultGRPCAddress, "controld gRPC listen address")
 	flagSet.StringVar(&opts.enrollmentAddress, "enrollment-address", "127.0.0.1:24002", "TLS-only Node enrollment and renewal listen address")
@@ -266,6 +269,14 @@ func parseFlags() (options, error) {
 	flagSet.Float64Var(&opts.resourceCPUOvercommitRatio, "resource-cpu-overcommit-ratio", resourcekernel.DefaultCPUOvercommitRatio, "CPU overcommit ratio for request resource admission")
 	flagSet.StringVar(&opts.tlsCACert, "tls-ca-cert", defaultString(os.Getenv("CONTROLD_TLS_CA_CERT"), defaultTLSCACert), "CA certificate used to verify mTLS clients")
 	flagSet.StringVar(&opts.tunnelRelays, "tunnel-relays", defaultString(os.Getenv("CONTROLD_TUNNEL_RELAYS"), defaultTunnelRelays), "semicolon-separated tunnel relay registry entries: id,client_target,node_target,weight,drain")
+	flagSet.BoolVar(&opts.retention.Enabled, "retention-enabled", opts.retention.Enabled, "enable retention cleanup controller")
+	flagSet.DurationVar(&opts.retention.Interval, "retention-interval", opts.retention.Interval, "retention cleanup interval")
+	flagSet.IntVar(&opts.retention.BatchSize, "retention-batch-size", opts.retention.BatchSize, "maximum rows to delete per retention cleanup class per cycle")
+	flagSet.DurationVar(&opts.retention.TunnelEventsTTL, "retention-tunnel-events-ttl", opts.retention.TunnelEventsTTL, "tunnel session event retention TTL")
+	flagSet.IntVar(&opts.retention.TunnelEventsKeep, "retention-tunnel-events-keep", opts.retention.TunnelEventsKeep, "minimum tunnel session events to retain per session")
+	flagSet.DurationVar(&opts.retention.QuotaEventsTTL, "retention-quota-events-ttl", opts.retention.QuotaEventsTTL, "namespace quota admission event retention TTL")
+	flagSet.DurationVar(&opts.retention.TerminalRunsTTL, "retention-terminal-runs-ttl", opts.retention.TerminalRunsTTL, "terminal run retention TTL")
+	flagSet.DurationVar(&opts.retention.AccessGrantsTTL, "retention-access-grants-ttl", opts.retention.AccessGrantsTTL, "expired or revoked allocation access grant retention TTL")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		return options{}, err
 	}
@@ -293,6 +304,7 @@ func parseFlags() (options, error) {
 	if strings.TrimSpace(opts.tlsCACert) == "" {
 		return options{}, fmt.Errorf("tls-ca-cert is required")
 	}
+	opts.retention = retentionkernel.NormalizeConfig(opts.retention)
 	return opts, nil
 }
 

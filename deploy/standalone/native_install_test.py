@@ -129,7 +129,7 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(run.call_count, 2)
 
     def test_start_checks_each_required_service(self):
-        for failed in ('retention', 'node-tunneld'):
+        for failed in ('tunneld', 'node-tunneld'):
             with self.subTest(failed=failed):
                 def status(args, **kwargs):
                     # Model systemctl's any-active semantics: the old aggregate
@@ -305,7 +305,7 @@ class InstallerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = pathlib.Path(temporary)
             (root / 'bin').mkdir()
-            for binary in ('postgres', 'controld', 'controld-retention', 'tunneld', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd'):
+            for binary in ('postgres', 'controld', 'tunneld', 'imagemgr', 'egressd', 'axnoded', 'node-tunneld', 'gatewayd'):
                 (root / 'bin' / binary).symlink_to('/bin/true')
             with mock.patch.object(installer, 'PG', root / 'bin'):
                 units = installer.service_units(root, SETTINGS)

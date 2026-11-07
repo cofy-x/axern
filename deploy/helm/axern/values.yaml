@@ -202,7 +202,6 @@ controld:
   reconcileTimeout: 30s
   retention:
     enabled: true
-    replicas: 1
 
 tunneld:
   replicas: 1

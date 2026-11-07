@@ -33,7 +33,6 @@ Node rows are durable identities with `active`, `revoked`, and `retired` states.
 make -C control/controld build
 make -C control/controld build-migrate
 make -C control/controld build-access-bootstrap
-make -C control/controld build-retention
 ```
 
 ## Test
@@ -75,7 +74,7 @@ go run ./control/controld/cmd/controld \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
 ```
 
-Postgres schema migration and retention cleanup are separate entrypoints:
+Postgres schema migration and initial access bootstrap are explicit setup entrypoints:
 
 ```bash
 go run ./control/controld/cmd/migrate \
@@ -85,12 +84,13 @@ go run ./control/controld/cmd/migrate \
 go run ./control/controld/cmd/access-bootstrap \
   -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable" \
   -certificate .dev/certs/client.crt
-
-go run ./control/controld/cmd/retention \
-  -postgres-dsn "postgres://postgres:postgres@127.0.0.1:5432/axern?sslmode=disable"
 ```
 
-`controld` requires both migrations and access bootstrap to be complete. It refuses startup without an active platform administrator. Public product APIs accept only gatewayd-forwarded verified client fingerprints; direct public API calls to controld are rejected. See [Principal And Namespace Authorization](../../docs/architecture/authorization.md). `cmd/retention` assumes the database has already been initialized. Retention uses a Postgres advisory lock, so duplicate workers skip instead of racing. The cleanup policy covers tunnel session events, terminal runs, and expired or revoked allocation access grants; use the `-retention-*-ttl` and `-retention-*-keep` flags on `cmd/retention` for per-resource tuning.
+`controld` requires both migrations and access bootstrap to be complete. It refuses startup without an active platform administrator. Public product APIs accept only gatewayd-forwarded verified client fingerprints; direct public API calls to controld are rejected. See [Principal And Namespace Authorization](../../docs/architecture/authorization.md).
+
+Retention runs inside `controld` with the existing PostgreSQL pool. By default, every ten minutes a bounded cleanup transaction removes at most 500 rows per resource class with a 30-second deadline. It retains tunnel session events, quota events and eligible terminal Runs for seven days, keeps at least 100 events per TunnelSession, and prunes expired or revoked Allocation access grants created more than 24 hours ago. Expired Node enrollment receipts are also pruned. A transaction-scoped advisory lock makes concurrent controllers skip instead of racing. Shutdown cancels and joins the worker before closing the database.
+
+Configure policy on `controld` with `-retention-enabled`, `-retention-interval`, `-retention-batch-size`, `-retention-tunnel-events-ttl`, `-retention-tunnel-events-keep`, `-retention-quota-events-ttl`, `-retention-terminal-runs-ttl` and `-retention-access-grants-ttl`. Their environment defaults are `CONTROLD_RETENTION_ENABLED`, `CONTROLD_RETENTION_INTERVAL`, `CONTROLD_RETENTION_BATCH_SIZE`, `CONTROLD_RETENTION_TUNNEL_EVENTS_TTL`, `CONTROLD_RETENTION_TUNNEL_EVENTS_KEEP`, `CONTROLD_RETENTION_QUOTA_EVENTS_TTL`, `CONTROLD_RETENTION_TERMINAL_RUNS_TTL` and `CONTROLD_RETENTION_ACCESS_GRANTS_TTL`. Explicit flags override environment settings. There is no separate retention executable or deployment.
 
 Common optional environment variables:
 
@@ -181,7 +181,7 @@ flowchart LR
 
 ## Code Layout
 
-- `cmd/controld`, `cmd/migrate`, and `cmd/retention` are executable entrypoints.
+- `cmd/controld`, `cmd/migrate`, `cmd/access-bootstrap`, and `cmd/workload-pki` are executable entrypoints.
 - `internal/app` is the composition root and lifecycle wiring layer.
 - `internal/api/{adminv1,publicv1,nodev1,gatewayv1,debughttp}` adapts gRPC/HTTP to narrow capabilities.
 - `internal/application/{admin,capability,environment,gateway,node,run}` owns use-case orchestration across kernel contracts and adapters, including node availability, capability-loss reconciliation, and workload lifecycle convergence.

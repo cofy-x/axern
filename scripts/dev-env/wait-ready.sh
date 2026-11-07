@@ -50,7 +50,6 @@ case "${mode}" in
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/postgres --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" wait --for=condition=complete job/controld-migrate --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/controld --timeout=180s >/dev/null
-    kubectl -n "${K8S_NAMESPACE}" rollout status deployment/controld-retention --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status deployment/gatewayd --timeout=180s >/dev/null
     kubectl -n "${K8S_NAMESPACE}" rollout status daemonset/node-all-in-one --timeout=240s >/dev/null
     ensure_k8s_local_access

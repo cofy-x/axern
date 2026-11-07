@@ -147,24 +147,6 @@ services:
       - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
       - "${COMPOSE_STATE_DIR}/certs/tunneld.pem:/certs/tunneld.pem:ro"
 
-  controld-retention:
-    image: ${CONTROLD_IMAGE}
-    depends_on:
-      controld-migrate:
-        condition: service_completed_successfully
-    restart: unless-stopped
-    entrypoint: ["/usr/local/bin/controld-retention"]
-    environment:
-      CONTROLD_POSTGRES_DSN: postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-      CONTROLD_RETENTION_ENABLED: "true"
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
-      OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
-    command:
-      - -postgres-dsn
-      - postgres://postgres:postgres@postgres:5432/axern?sslmode=disable
-
   node:
     image: ${NODE_ALL_IN_ONE_IMAGE}
     privileged: true
