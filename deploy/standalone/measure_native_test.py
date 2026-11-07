@@ -54,6 +54,33 @@ class MeasurementTests(unittest.TestCase):
         with self.assertRaisesRegex(measure.MeasurementError, 'restarted'):
             measure.assert_same_generation(before, after)
 
+    def test_stop_drain_waits_for_both_inactive_services_and_empty_runtime(self):
+        clock = [0.0]
+        snapshots = mock.Mock(side_effect=[{'node': unit()}, {'node': unit(active=False)}, {'node': unit(active=False)}])
+        empty = mock.Mock(side_effect=[False, True])
+        with mock.patch.object(measure.time, 'monotonic', side_effect=lambda: clock[0]), \
+                mock.patch.object(measure.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
+            elapsed = measure.wait_stopped(snapshots, empty)
+        self.assertAlmostEqual(elapsed, 0.4)
+        self.assertEqual(snapshots.call_count, 3)
+        self.assertEqual(empty.call_count, 2)  # Never inspect runtime until the services are stopped.
+        self.assertLess(empty.call_args.args[0], 10)
+
+    def test_stop_drain_has_a_deadline_and_does_not_retry_invalid_evidence(self):
+        for stopped in (False, True):
+            clock = [0.0]
+            snapshot = mock.Mock(return_value={'node': unit(active=not stopped)})
+            empty = mock.Mock(return_value=False)
+            with mock.patch.object(measure.time, 'monotonic', side_effect=lambda: clock[0]), \
+                    mock.patch.object(measure.time, 'sleep', side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)), \
+                    self.subTest(stopped=stopped), self.assertRaisesRegex(measure.MeasurementError, '10 seconds'):
+                measure.wait_stopped(snapshot, empty)
+            self.assertAlmostEqual(clock[0], 10)
+        snapshot = mock.Mock(side_effect=measure.MeasurementError('invalid unit evidence'))
+        with self.assertRaisesRegex(measure.MeasurementError, 'invalid unit evidence'):
+            measure.wait_stopped(snapshot, mock.Mock())
+        self.assertEqual(snapshot.call_count, 1)
+
     def test_cpu_is_delta_over_actual_wall_time_not_cpu_count_or_sum_of_samples(self):
         result = measure.summarize_idle(idle_samples(), 4)['total']
         self.assertEqual(result['cpu_core_equivalents'], 1)

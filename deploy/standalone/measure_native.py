@@ -196,6 +196,28 @@ def entirely_stopped(units):
     return all(value['ActiveState'] in ('inactive', 'failed') and value['MainPID'] == 0 for value in units.values())
 
 
+def wait_stopped(snapshot, empty, timeout=10):
+    """Drain a completed stop job before starting the measurement clock."""
+    started = time.monotonic()
+    deadline = started + timeout
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        units = snapshot(remaining)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        if entirely_stopped(units) and empty(remaining):
+            elapsed = time.monotonic() - started
+            require(elapsed <= timeout, 'native stop did not drain within 10 seconds')
+            return elapsed
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(0.2, remaining))
+    raise MeasurementError('native stop did not drain within 10 seconds')
+
+
 def no_active_runs(api):
     cursor, seen = '', set()
     deadline = time.monotonic() + 60
@@ -264,38 +286,47 @@ def measure(runner, installer, qualifier, scenario):
     helper = ['python3', runner.root / 'libexec/axern/native_install.py']
     units = [installer.unit_name(name) for name in installer.SERVICES]
 
-    def unit_snapshot(active=True):
-        return parse_units(runner.command(['systemctl', 'show', *['--property=' + key for key in PROPERTIES], *units]), units, active)
+    def unit_snapshot(active=True, timeout=30):
+        return parse_units(runner.command(['systemctl', 'show', *['--property=' + key for key in PROPERTIES], *units],
+                                          timeout=timeout), units, active)
 
-    def local_empty(stopped=False):
+    def local_empty(stopped=False, timeout=30):
         runtime = qualifier.RUNTIME_ROOT
         if runtime.exists():
-            inventory = runner.command(['/opt/axern/gvisor/runsc', '--root=' + str(runtime), 'list', '--quiet'])
-            require(not inventory.strip(), 'runtime inventory must be empty before measurement')
+            inventory = runner.command(['/opt/axern/gvisor/runsc', '--root=' + str(runtime), 'list', '--quiet'], timeout=timeout)
+            if inventory.strip():
+                return False
         else:
             require(stopped and not runtime.is_symlink(), 'runtime inventory root is unavailable')
         group = qualifier.NODE_CGROUP if stopped else qualifier.NODE_CGROUP / 'sandbox'
         if group.exists():
-            require(counters((group / 'cgroup.events').read_text()).get('populated') == 0,
-                    'native runtime domain is still populated')
+            try:
+                populated = counters((group / 'cgroup.events').read_text()).get('populated')
+                require(populated in (0, 1), 'invalid native runtime population evidence')
+                if populated:
+                    return False
+            except FileNotFoundError:
+                require(stopped and not group.exists() and not group.is_symlink(), 'native runtime population evidence disappeared')
         else:
             require(stopped and not group.is_symlink(), 'user sandbox domain is unavailable')
+        return True
 
     def empty():
         no_active_runs(runner.api)
-        local_empty()
+        require(local_empty(), 'runtime inventory or user sandbox domain is not empty')
 
     before = unit_snapshot(active=False)
     initially_stopped = entirely_stopped(before)
     if scenario == 'full-start' and initially_stopped:
-        local_empty(stopped=True)  # Includes a newly installed, never-started host.
+        require(local_empty(stopped=True), 'stopped installation still contains runtime workloads')
     else:
         require(not initially_stopped, 'node-restart requires an already running installation')
         empty()  # Check public authority before any stop/restart operation.
         if scenario == 'full-start':
+            preparation = runner.report['preparation'] = {'stop_drain_timeout_seconds': 10}
             runner.command([*helper, 'stop'], timeout=190)
-            require(entirely_stopped(unit_snapshot(active=False)), 'native stop left a service active')
-            local_empty(stopped=True)
+            preparation['stop_drain_seconds'] = wait_stopped(lambda timeout: unit_snapshot(active=False, timeout=timeout),
+                                                            lambda timeout: local_empty(stopped=True, timeout=timeout))
         else:
             runner.command([*helper, 'start'], timeout=190)  # Untimed known-good baseline.
             before = unit_snapshot()
