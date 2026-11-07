@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Host-safe checks for qualification evidence and scoped cleanup."""
 
+import base64
 import copy
 import json
 import pathlib
@@ -18,7 +19,8 @@ def storage_result(**changes):
     return {'kind': 'storage', 'written_bytes': 63*qualify.MIB, 'target_bytes': 96*qualify.MIB, 'errno': 28,
             'probe_path': path, 'probe_real_path': path,
             'mountinfo': '12 11 0:14 / / rw - overlay none rw,size=65536k\n23 12 0:29 / /tmp rw - tmpfs none rw,mode=01777\n',
-            'root_device': 14, 'probe_device': 14, 'root_capacity_bytes': 64*qualify.MIB,
+            'root_device': 14, 'probe_device': 12, 'probe_fdinfo': 'pos:\t0\nflags:\t02100001\nmnt_id:\t12\n',
+            'probe_fd_path': path, 'root_capacity_bytes': 64*qualify.MIB,
             'probe_capacity_bytes': 64*qualify.MIB, **changes}
 
 
@@ -118,7 +120,8 @@ class QualificationTest(unittest.TestCase):
         self.assertEqual(scope['tmp_mount']['filesystem'], 'tmpfs')
         for mutation in (
             {'probe_path': '/tmp/native-storage-probe', 'probe_real_path': '/tmp/native-storage-probe'},
-            {'probe_real_path': '/tmp/redirect'}, {'probe_device': 29}, {'root_device': 15, 'probe_device': 15},
+            {'probe_real_path': '/tmp/redirect'}, {'probe_fd_path': '/tmp/redirect'},
+            {'probe_fd_path': result['probe_path'] + ' (deleted)'}, {'root_device': 15},
             {'root_capacity_bytes': 128*qualify.MIB}, {'probe_capacity_bytes': 128*qualify.MIB},
             {'mountinfo': result['mountinfo'].replace('- overlay ', '- tmpfs ')},
             {'mountinfo': result['mountinfo'].replace('size=65536k', 'size=131072k')},
@@ -127,6 +130,15 @@ class QualificationTest(unittest.TestCase):
         ):
             with self.subTest(mutation=mutation), self.assertRaises(qualify.QualificationError):
                 qualify.verify_storage({**result, **mutation}, True, 64*qualify.MIB)
+
+    def test_storage_descriptor_mount_proves_upper_file_membership_despite_distinct_device(self):
+        result = storage_result()
+        self.assertNotEqual(result['root_device'], result['probe_device'])
+        qualify.verify_storage(result, True, 64*qualify.MIB)
+        for fdinfo in (None, '', 'pos:\t0\n', 'mnt_id:\t23\n', 'mnt_id:\t12\nmnt_id:\t12\n',
+                       'mnt_id:\t12 extra\n', 'mnt_id:\twrong\n'):
+            with self.subTest(fdinfo=fdinfo), self.assertRaises(qualify.QualificationError):
+                qualify.verify_storage({**result, 'probe_fdinfo': fdinfo}, True, 64*qualify.MIB)
 
     def test_storage_mount_evidence_rejects_missing_ambiguous_or_malformed_roots(self):
         result = storage_result()
@@ -140,6 +152,44 @@ class QualificationTest(unittest.TestCase):
         self.assertEqual(qualify.workload_results('startup\n' + json.dumps(value)), value)
         with self.assertRaises(qualify.QualificationError):
             qualify.workload_results(json.dumps(value) + '\n' + json.dumps(value))
+
+    def test_wait_result_reports_terminal_stderr_immediately_and_preserves_logs(self):
+        runner = object.__new__(qualify.Runner)
+        runner.cli, runner.record = 'axern', mock.Mock()
+        raw = json.dumps({'stream': 'stderr', 'data_base64': base64.b64encode(b'AssertionError: wrong mount\n').decode(),
+                          'terminal': True, 'truncated': False})
+        runner.command = mock.Mock(return_value=raw)
+        with mock.patch.object(qualify.time, 'sleep') as sleep, self.assertRaisesRegex(qualify.QualificationError, 'AssertionError: wrong mount'):
+            runner.wait_result({'name': 'storage', 'id': 'run-own'})
+        runner.command.assert_called_once()
+        sleep.assert_not_called()
+        self.assertEqual(runner.record.call_args.args, ('storage-logs', {
+            'raw': raw, 'stdout': '', 'stderr': 'AssertionError: wrong mount\n'}))
+
+    def test_wait_result_preserves_chunked_marker_and_rejects_truncated_evidence(self):
+        runner = object.__new__(qualify.Runner)
+        runner.cli, runner.record = 'axern', mock.Mock()
+        value = {'qualification_result': True, 'kind': 'storage'}
+        encoded = json.dumps(value).encode()
+        events = [{'stream': 'stdout', 'data_base64': base64.b64encode(chunk).decode(),
+                   'terminal': False, 'truncated': False} for chunk in (encoded[:12], encoded[12:])]
+        runner.command = mock.Mock(return_value='\n'.join(map(json.dumps, events)))
+        self.assertEqual(runner.wait_result({'name': 'storage', 'id': 'run-own'}), value)
+        events[-1]['truncated'] = True
+        runner.command.return_value = '\n'.join(map(json.dumps, events))
+        with self.assertRaisesRegex(qualify.QualificationError, 'truncated'):
+            runner.wait_result({'name': 'storage', 'id': 'run-own'})
+        self.assertEqual(runner.record.call_args.args[0], 'storage-logs')
+
+    def test_wait_result_does_not_treat_nonterminal_stderr_as_failure(self):
+        runner = object.__new__(qualify.Runner)
+        runner.cli, runner.record = 'axern', mock.Mock()
+        warning = {'stream': 'stderr', 'data_base64': base64.b64encode(b'progress\n').decode(), 'terminal': False}
+        value = {'qualification_result': True}
+        marker = {'stream': 'stdout', 'data_base64': base64.b64encode(json.dumps(value).encode()).decode(), 'terminal': False}
+        runner.command = mock.Mock(side_effect=[json.dumps(warning), '\n'.join(map(json.dumps, [warning, marker]))])
+        with mock.patch.object(qualify.time, 'sleep'):
+            self.assertEqual(runner.wait_result({'name': 'storage', 'id': 'run-own'}), value)
 
     def test_barrier_waits_for_host_observer(self):
         barrier = qualify.WorkloadBarrier('127.0.0.1')

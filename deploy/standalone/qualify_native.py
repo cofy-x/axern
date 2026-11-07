@@ -275,13 +275,23 @@ class Runner:
     def wait_result(self, case, timeout=45):
         def result():
             raw = self.command([self.cli, '--output', 'json', 'run', 'logs', case['id']])
-            stdout = b''
+            # Preserve the public evidence even if parsing or validation fails.
+            self.record(case['name'] + '-logs', {'raw': raw})
+            streams = {'stdout': b'', 'stderr': b''}
+            events = []
             for line in raw.splitlines():
                 event = json.loads(line)
-                require(not event.get('truncated'), 'qualification output was truncated')
-                if event.get('stream') == 'stdout':
-                    stdout += base64.b64decode(event['data_base64'], validate=True)
-            return workload_results(stdout.decode())
+                events.append(event)
+                if event.get('stream') in streams:
+                    streams[event['stream']] += base64.b64decode(event['data_base64'], validate=True)
+            output = {name: data.decode() for name, data in streams.items()}
+            self.record(case['name'] + '-logs', {'raw': raw, **output})
+            require(not any(event.get('truncated') for event in events), 'qualification output was truncated')
+            value = workload_results(output['stdout'])
+            if value is None and any(event.get('terminal') for event in events):
+                detail = output['stderr'][-2500:] or output['stdout'][-2500:] or 'no workload output'
+                raise QualificationError(f'{case["name"]} ended before reporting a qualification result: {detail}')
+            return value
         value = wait_until(result, timeout)
         case['result'] = value
         self.record(case['name'] + '-result', value)
@@ -405,12 +415,15 @@ def storage_script(overflow):
             'root_fs=os.statvfs("/")\n'
             'assert root_fs.f_blocks*root_fs.f_frsize==64*1024*1024, "root overlay capacity differs from limit"\n'
             'root_device=os.stat("/").st_dev\n'
-            'written=0;code=None;probe_device=None;probe_capacity=None\n'
+            'written=0;code=None;probe_device=None;probe_capacity=None;probe_fdinfo=None;probe_fd_path=None\n'
             'try:\n'
             ' with open(path,"xb",buffering=0) as file:\n'
             '  probe_device=os.fstat(file.fileno()).st_dev\n'
             '  probe_fs=os.fstatvfs(file.fileno());probe_capacity=probe_fs.f_blocks*probe_fs.f_frsize\n'
-            '  assert probe_device==root_device and probe_capacity==64*1024*1024, "probe is outside bounded root overlay"\n'
+            '  probe_fdinfo=pathlib.Path("/proc/self/fdinfo/"+str(file.fileno())).read_text()\n'
+            '  probe_fd_path=os.readlink("/proc/self/fd/"+str(file.fileno()))\n'
+            '  mount_ids=[line.split()[1:] for line in probe_fdinfo.splitlines() if line.split()[:1]==["mnt_id:"]]\n'
+            '  assert mount_ids==[[roots[0][0]]] and probe_fd_path==path and probe_capacity==64*1024*1024, "probe descriptor is outside bounded root overlay: "+repr((probe_fdinfo,probe_fd_path,probe_capacity))\n'
             '  while written<target:\n'
             '   count=file.write(b"x"*1048576)\n'
             '   if count<=0: raise RuntimeError("zero length write")\n'
@@ -419,7 +432,8 @@ def storage_script(overflow):
             'except OSError as error: code=error.errno\n'
             'print(json.dumps({"qualification_result":True,"kind":"storage","written_bytes":written,"errno":code,"target_bytes":target,\n'
             ' "probe_path":path,"probe_real_path":os.path.realpath(path),"mountinfo":mountinfo,"root_device":root_device,\n'
-            ' "probe_device":probe_device,"root_capacity_bytes":root_fs.f_blocks*root_fs.f_frsize,"probe_capacity_bytes":probe_capacity}),flush=True)\n'
+            ' "probe_device":probe_device,"probe_fdinfo":probe_fdinfo,"probe_fd_path":probe_fd_path,\n'
+            ' "root_capacity_bytes":root_fs.f_blocks*root_fs.f_frsize,"probe_capacity_bytes":probe_capacity}),flush=True)\n'
             'time.sleep(120)\n')
 
 
@@ -458,10 +472,19 @@ def verify_storage_scope(result, limit):
     multiplier = {'': 1, 'k': 1024, 'm': 1024**2, 'g': 1024**3}[suffix]
     require(int(size[:-1] if suffix else size)*multiplier == limit, 'root overlay mount size differs from requested limit')
     require(type(result.get('root_device')) is int and result['root_device'] >= 0
-            and result.get('probe_device') == result['root_device'],
-            'storage probe file is on a different device')
+            and type(result.get('probe_device')) is int and result['probe_device'] >= 0,
+            'storage probe device evidence is missing')
     require(f'{os.major(result["root_device"])}:{os.minor(result["root_device"])}' == root['device'],
-            'storage file device does not match the root mount identity')
+            'root directory device does not match the root mount identity')
+    # gVisor overlay directories and upper regular files intentionally expose
+    # different st_dev values. The open file's outer VFS mount ID proves its
+    # mount; its upper device number is diagnostic only.
+    fdinfo = result.get('probe_fdinfo')
+    require(isinstance(fdinfo, str), 'storage probe descriptor mount evidence is missing')
+    mount_ids = [line.split()[1:] for line in fdinfo.splitlines() if line.split()[:1] == ['mnt_id:']]
+    require(root['mount_id'].isdigit() and int(root['mount_id']) > 0 and mount_ids == [[root['mount_id']]],
+            'storage probe descriptor does not belong to the root overlay mount')
+    require(result.get('probe_fd_path') == path, 'storage probe descriptor path differs from its exclusive file')
     require(result.get('root_capacity_bytes') == limit and result.get('probe_capacity_bytes') == limit,
             'storage probe statvfs capacity differs from requested limit')
     return {'root_mount': root, 'probe_mount': probe, 'tmp_mount': mount_for_path(result['mountinfo'], '/tmp')}
