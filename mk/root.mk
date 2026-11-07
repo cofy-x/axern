@@ -135,6 +135,7 @@ native-runtime-check: ## Test native payload integrity and packaging boundaries 
 	python3 $(ROOTDIR)/deploy/standalone/native_install_test.py
 	python3 $(ROOTDIR)/deploy/standalone/qualify_native_test.py
 	python3 $(ROOTDIR)/deploy/standalone/qualify_network_test.py
+	python3 $(ROOTDIR)/deploy/standalone/measure_native_test.py
 
 native-runtime-verify: ## Verify RUNTIME_ARCHIVE against the trusted RUNTIME_SHA256 without extracting
 	@test -n "$(RUNTIME_ARCHIVE)" -a -n "$(RUNTIME_SHA256)" || (echo "set RUNTIME_ARCHIVE and RUNTIME_SHA256" >&2; exit 1)
