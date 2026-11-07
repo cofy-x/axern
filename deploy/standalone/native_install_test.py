@@ -456,6 +456,20 @@ class NativeRecoveryTest(unittest.TestCase):
                     installer.stop_native()
                 self.kill_node_runtimes.assert_called_once()
 
+    def test_full_stop_waits_for_every_owned_service_job_before_final_fail_stop(self):
+        ordered = mock.Mock()
+        ordered.attach_mock(self.run, 'stop')
+        ordered.attach_mock(self.kill_node_runtimes, 'fail_stop')
+        ordered.attach_mock(self.verify_installed, 'verify')
+        ordered.attach_mock(self.native_runtime_paths, 'paths')
+        ordered.attach_mock(self.clear_runtime_transition, 'clear')
+        installer.stop_native()
+        self.assertEqual(ordered.mock_calls, [
+            mock.call.stop('systemctl', 'stop', installer.TARGET,
+                           *[installer.unit_name(name) for name in installer.SERVICES]),
+            mock.call.fail_stop(), mock.call.verify(), mock.call.paths(), mock.call.clear(),
+        ])
+
     def test_interrupted_transition_never_trusts_saved_paused_state(self):
         self.transition_exists.return_value = True
         with self.assertRaisesRegex(installer.InstallError, 'transition was interrupted'):
