@@ -61,6 +61,33 @@ class NativeRuntimeTest(unittest.TestCase):
     def write_selected_lock(self):
         (self.stage / "share/axern/gvisor-selected.lock.json").write_bytes(runtime.json_bytes(self.selected_lock))
 
+    def test_generated_service_flags_match_the_executable_help_contract(self):
+        installer_path = runtime.ROOT / 'deploy/standalone/native_install.py'
+        spec = importlib.util.spec_from_file_location('native_install', installer_path)
+        installer = importlib.util.module_from_spec(spec)
+        exec(compile(installer_path.read_bytes(), str(installer_path), 'exec'), installer.__dict__)
+        units = installer.service_units(self.stage, {
+            'node_id': 'node-build-check', 'memory_budget_bytes': 4 * 1024**3,
+            'service_memory_budget_bytes': 1024**3, 'max_instances': 8,
+        })
+        unit_name = installer.unit_name('imagemgr')
+        image_unit = {unit_name: units[unit_name]}
+        executable = self.stage / 'bin/imagemgr'
+        # An independent daemon fixture declares its interface and rejects any
+        # invocation that could start a service. In particular it has no node_id.
+        executable.write_text('#!/bin/sh\n'
+            '[ "$#" = 1 ] && [ "$1" = -help ] || exit 99\n'
+            'printf "Usage of imagemgr:\\n  -root string\\n  -registry_auths_path string\\n  -http_sock string\\n"\n'
+            'exit 2\n')
+        executable.chmod(0o755)
+        runtime.verify_service_flags(self.stage, image_unit)
+        unsupported = {unit_name: units[unit_name].replace('"-root"', '"-retired-flag"')}
+        with self.assertRaisesRegex(runtime.BundleError, 'unsupported native service flags.*retired-flag'):
+            runtime.verify_service_flags(self.stage, unsupported)
+        executable.write_text('#!/bin/sh\nprintf "unexpected startup failure\\n"\nexit 1\n')
+        with self.assertRaisesRegex(runtime.BundleError, 'cannot inspect native service flags'):
+            runtime.verify_service_flags(self.stage, image_unit)
+
     def package(self) -> str:
         return runtime.create_bundle(self.stage, self.archive, self.metadata, 1234567890)
 

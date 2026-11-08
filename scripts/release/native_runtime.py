@@ -14,6 +14,7 @@ import os
 import pathlib
 import platform
 import re
+import shlex
 import shutil
 import stat
 import struct
@@ -367,6 +368,17 @@ def build(root: pathlib.Path, output_dir: pathlib.Path, gvisor_archive: pathlib.
             ], cwd=root, env=env, check=True)
         for name, source in SOURCE_FILES.items():
             shutil.copyfile(root / source, stage / name)
+        # Check the actual installer against the actual service binaries before
+        # publishing. Unit syntax checks cannot detect retired daemon flags.
+        installer_path = stage / "libexec/axern/native_install.py"
+        installer_spec = importlib.util.spec_from_file_location("native_install", installer_path)
+        installer = importlib.util.module_from_spec(installer_spec)
+        exec(compile(installer_path.read_bytes(), str(installer_path), "exec"), installer.__dict__)
+        units = installer.service_units(stage, {
+            "node_id": "node-build-check", "memory_budget_bytes": 4 * 1024**3,
+            "service_memory_budget_bytes": 1024**3, "max_instances": 8,
+        })
+        verify_service_flags(stage, units)
         try:
             selected = gvisor_payload.parse_selected((stage / "share/axern/gvisor-selected.lock.json").read_bytes(), arch, lock)
             # Only the authenticated selected profile enters the delivery inventory.
@@ -380,6 +392,27 @@ def build(root: pathlib.Path, output_dir: pathlib.Path, gvisor_archive: pathlib.
             raise BundleError("source changed during the build")
         checksum = create_bundle(stage, output, metadata, timestamp)
     return output, checksum
+
+
+def verify_service_flags(stage: pathlib.Path, units: dict[str, str]) -> None:
+    """Ask only freshly built Axern daemons for help; never start a service."""
+    for unit, text in units.items():
+        commands = [shlex.split(line.removeprefix("ExecStart=")) for line in text.splitlines()
+                    if line.startswith("ExecStart=")]
+        for args in commands:
+            if not args or pathlib.Path(args[0]).parent != stage / "bin":
+                continue  # PostgreSQL and Python are host prerequisites.
+            if str(pathlib.Path(args[0]).relative_to(stage)) not in GO_BINARIES:
+                raise BundleError(f"unknown native service executable: {unit}")
+            result = subprocess.run([args[0], "-help"], stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                env={"PATH": os.defpath, "LANG": "C"}, cwd=stage, timeout=10, check=False)
+            supported = set(re.findall(r"^  -([A-Za-z0-9_-]+)(?:\s|$)", result.stdout, re.MULTILINE))
+            if result.returncode not in (0, 1, 2) or "Usage of " not in result.stdout or not supported:
+                raise BundleError(f"cannot inspect native service flags: {unit}")
+            supplied = {arg[1:].split("=", 1)[0] for arg in args[1:] if arg.startswith("-")}
+            if missing := supplied - supported:
+                raise BundleError(f"unsupported native service flags in {unit}: {sorted(missing)}")
 
 
 def stage_bundle(path: pathlib.Path, expected_sha256: str, destination: pathlib.Path) -> dict:
@@ -465,7 +498,7 @@ def main() -> None:
             manifest = verify_bundle(args.archive, args.sha256)
             print(json.dumps({"status": "verified", "version": manifest["version"],
                               "architecture": manifest["architecture"], "source_revision": manifest["source_revision"]}))
-    except (BundleError, OSError, subprocess.CalledProcessError, tarfile.TarError, UnicodeError, json.JSONDecodeError) as error:
+    except (BundleError, OSError, subprocess.SubprocessError, tarfile.TarError, UnicodeError, json.JSONDecodeError) as error:
         parser.exit(1, f"native-runtime: {error}\n")
 
 

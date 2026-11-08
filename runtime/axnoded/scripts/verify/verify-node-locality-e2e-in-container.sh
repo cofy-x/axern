@@ -150,7 +150,7 @@ wait_for_jq \
   "initial locality-ready inventory snapshot" \
   "${inventory_file}" \
   20 \
-  '.version == "v1alpha2" and (.heat.locality | type == "array") and .sources.imagemgr.status == "ready" and .components.imagemgr.reachable == true'
+  '.version == "v1alpha3" and (.heat.locality | type == "array") and .sources.imagemgr.status == "ready" and .components.imagemgr.reachable == true'
 
 oci_locality_key="image:$(resolve_image_cache_key "${OCI_IMAGE_URL}")"
 

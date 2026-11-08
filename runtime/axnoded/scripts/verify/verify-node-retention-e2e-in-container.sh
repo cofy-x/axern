@@ -129,7 +129,7 @@ wait_for_jq \
   "initial empty inventory snapshot" \
   "${inventory_file}" \
   20 \
-  '.version == "v1alpha2" and (.heat.locality | type == "array") and .components.axnoded.running_containers == 0 and .heat.retained_environment_count == 0 and .heat.retained_rootfs_count == 0'
+  '.version == "v1alpha3" and (.heat.locality | type == "array") and .components.axnoded.running_containers == 0 and .heat.retained_environment_count == 0 and .heat.retained_rootfs_count == 0'
 
 container_id="$(start_container "${runtime_name}" "${environment_id}" "/tmp/${runtime_name}.retention.first.stdout" "/tmp/${runtime_name}.retention.first.stderr")"
 [ -n "${container_id}" ] || {

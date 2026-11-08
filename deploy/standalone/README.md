@@ -17,7 +17,7 @@ make native-runtime-check
 make native-runtime-build GVISOR_ARCHIVE=/absolute/path/to/gvisor.tar.bz2
 ```
 
-The builder compiles the Go service entrypoints, uses temporary staging, and publishes to `dist/native-runtime/axern-runtime_<version>_linux_<arch>.tar.gz` only after verification. It refuses to replace an existing output and does not remove another build's artifacts. To compare multiple builds, use a new output directory:
+The builder compiles the Go service entrypoints, checks the generated installer unit arguments against those binaries' help interfaces without starting services, uses temporary staging, and publishes to `dist/native-runtime/axern-runtime_<version>_linux_<arch>.tar.gz` only after verification. It refuses to replace an existing output and does not remove another build's artifacts. To compare multiple builds, use a new output directory:
 
 ```bash
 python3 scripts/release/native_runtime.py build \
