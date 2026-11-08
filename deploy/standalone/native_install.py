@@ -618,6 +618,32 @@ def prepare_runtime() -> None:
         raise InstallError('unexpected existing runtime fixture path')
 
 
+def verify_completed_installation_data(settings: dict, checksum: str) -> None:
+    marker = ETC / 'installed'
+    completed = marker.exists() or marker.is_symlink()
+    bootstrap = ETC / 'private/database-bootstrapped'
+    if not completed:
+        if bootstrap.exists() or bootstrap.is_symlink():
+            raise InstallError('initialized database has lost its installation marker; restore the owned installation')
+        return
+    info = marker.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+            or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o644
+            or marker.read_text() != checksum + '\n'):
+        raise InstallError('completed installation marker differs; restore the owned installation')
+    directories = ['postgres', 'postgres/base', 'postgres/global', 'postgres/pg_wal',
+                   'axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd']
+    if 'workspace_capacity_bytes' in settings:
+        directories.append('workspaces')
+    for relative in directories:
+        path = DATA / relative
+        if path.is_symlink() or not path.is_dir():
+            raise InstallError(f'completed installation data is missing or replaced: {relative}; restore its backup')
+    version = DATA / 'postgres/PG_VERSION'
+    if version.is_symlink() or not version.is_file() or version.read_text().strip() != '16':
+        raise InstallError('initialized PostgreSQL identity is missing or incompatible; restore its backup')
+
+
 def install(settings: dict) -> None:
     receipt = read_json(ROOT / 'stage-receipt.json')
     checksum = receipt.get('archive_sha256', '')
@@ -663,6 +689,9 @@ def install(settings: dict) -> None:
         identity['data_identity'] = data_identity()
         if read_json(existing) != identity:
             raise InstallError('installation identity/configuration differs; upgrades and data adoption are not supported by this candidate')
+    # A completed installation is not a creation intent. Only an unfinished
+    # installation may initialize absent data; never turn loss into empty state.
+    verify_completed_installation_data(settings, checksum)
     for name in USERS:
         account = 'axern-' + name
         try:
