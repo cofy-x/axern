@@ -61,6 +61,49 @@ AXNODED_CONFIG="${AXNODED_ROOT}/node-config.toml"
 REGISTRY_AUTHS="/tmp/imagemgr-registry-auths.json"
 AXNODED_LOG="/var/log/axnoded/axnoded.log"
 
+prepare_node_state_root() {
+  local state_root="/var/lib/axnoded" parent owner mode
+  if [ "${EUID}" -ne 0 ]; then
+    echo "node state initialization requires root" >&2
+    return 1
+  fi
+  for parent in /var /var/lib; do
+    if [ -L "${parent}" ] || [ ! -d "${parent}" ]; then
+      echo "node state ancestor must be a real directory: ${parent}" >&2
+      return 1
+    fi
+    owner="$(stat -c '%u' -- "${parent}")" || return $?
+    mode="$(stat -c '%a' -- "${parent}")" || return $?
+    if [ "${owner}" -ne 0 ] || (( (8#${mode} & 0022) != 0 )); then
+      echo "node state ancestor is not trusted: ${parent}" >&2
+      return 1
+    fi
+  done
+  if [ -L "${state_root}" ] || { [ -e "${state_root}" ] && [ ! -d "${state_root}" ]; }; then
+    echo "node state root must be a real directory: ${state_root}" >&2
+    return 1
+  fi
+  if [ ! -e "${state_root}" ]; then
+    mkdir -m 0700 -- "${state_root}" || return $?
+  fi
+  owner="$(stat -c '%u' -- "${state_root}")" || return $?
+  mode="$(stat -c '%a' -- "${state_root}")" || return $?
+  if (( (8#${mode} & 0022) != 0 )) || { [ "${owner}" -ne 0 ] && ! mountpoint -q -- "${state_root}"; }; then
+    echo "node state root must be trusted storage or an operator-owned private mount: ${state_root}" >&2
+    return 1
+  fi
+  # Compose bind mounts start with the operator's UID. Initialize only this
+  # fixed mount root; retained children keep their original identity and modes.
+  chown --no-dereference 0:0 -- "${state_root}" || return $?
+  chmod 0700 -- "${state_root}" || return $?
+  if [ -L "${state_root}" ] || [ "$(stat -c '%u:%g:%a' -- "${state_root}")" != '0:0:700' ]; then
+    echo "node state root ownership initialization failed" >&2
+    return 1
+  fi
+}
+
+prepare_node_state_root
+
 mkdir -p \
   "$(dirname "${IMAGEMGR_SOCKET}")" \
   "$(dirname "${EGRESSD_SOCKET}")" \
