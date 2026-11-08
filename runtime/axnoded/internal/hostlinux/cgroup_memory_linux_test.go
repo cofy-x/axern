@@ -112,12 +112,69 @@ func TestOptionalCgroupMemoryInterfaceUnavailable(t *testing.T) {
 	}
 }
 
-func TestReadCgroupMemoryObservationRejectsKernelPeakBelowCurrent(t *testing.T) {
+func TestReadCgroupMemoryObservationPreservesIndependentKernelCounters(t *testing.T) {
 	dir := writeMemoryObservationFixture(t)
-	writeFixtureFile(t, dir, "memory.peak", "9\n")
+	// A live memcg charge can be visible in current before being rejected or
+	// reflected in the lockless watermark. Preserve the actual kernel samples.
+	const current = int64(268660736)
+	const peak = int64(268464128)
+	writeFixtureFile(t, dir, "memory.current", strconv.FormatInt(current, 10)+"\n")
+	writeFixtureFile(t, dir, "memory.peak", strconv.FormatInt(peak, 10)+"\n")
 
-	if _, err := readCgroupMemoryObservationDir(dir); err == nil || !strings.Contains(err.Error(), "below memory.current") {
+	observation, err := readCgroupMemoryObservationDir(dir)
+	if err != nil {
 		t.Fatalf("readCgroupMemoryObservationDir() error = %v", err)
+	}
+	if observation.CurrentBytes != current || observation.PeakBytes != peak || !observation.PeakAvailable || observation.Events["oom_kill"] != 1 {
+		t.Fatalf("kernel counters were rejected or rewritten: %+v", observation)
+	}
+}
+
+func TestReadCgroupMemoryObservationRejectsInvalidUsageCounters(t *testing.T) {
+	for _, name := range []string{"memory.current", "memory.peak", "memory.swap.current"} {
+		for _, value := range []string{"-1", "max", "", "not-a-counter", "9223372036854775808"} {
+			t.Run(name+"/"+value, func(t *testing.T) {
+				dir := writeMemoryObservationFixture(t)
+				writeFixtureFile(t, dir, name, value+"\n")
+				if _, err := readCgroupMemoryObservationDir(dir); err == nil {
+					t.Fatalf("accepted invalid %s value %q", name, value)
+				}
+			})
+		}
+		t.Run(name+"/unreadable", func(t *testing.T) {
+			dir := writeMemoryObservationFixture(t)
+			path := filepath.Join(dir, name)
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(path, 0o700); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := readCgroupMemoryObservationDir(dir); err == nil {
+				t.Fatalf("accepted unreadable %s", name)
+			}
+		})
+	}
+}
+
+func TestReadCgroupMemoryObservationAllowsZeroUsageCounters(t *testing.T) {
+	dir := writeMemoryObservationFixture(t)
+	for _, name := range []string{"memory.current", "memory.peak", "memory.swap.current"} {
+		writeFixtureFile(t, dir, name, "0\n")
+	}
+	observation, err := readCgroupMemoryObservationDir(dir)
+	if err != nil || observation.CurrentBytes != 0 || observation.PeakBytes != 0 || !observation.PeakAvailable || observation.SwapCurrent != 0 {
+		t.Fatalf("zero counter observation = %+v, error = %v", observation, err)
+	}
+}
+
+func TestReadCgroupMemoryLimitRetainsUnlimitedSentinel(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "memory.max")
+	writeFixtureFile(t, dir, "memory.max", "max\n")
+	value, err := readCgroupInt64(path)
+	if err != nil || value != -1 {
+		t.Fatalf("memory.max = %d, error = %v, want unlimited sentinel", value, err)
 	}
 }
 

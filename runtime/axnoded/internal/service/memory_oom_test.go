@@ -23,7 +23,7 @@ func TestMemoryObservationIndicatesOOMOnlyForKernelEventDelta(t *testing.T) {
 		{name: "group oom kill", events: map[string]uint64{"oom_kill": 3, "oom_group_kill": 2}, want: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			if got := memoryObservationIndicatesOOM(manifest, &hostlinux.CgroupMemoryObservation{Events: test.events}); got != test.want {
+			if got := memoryObservationIndicatesOOM(manifest, &hostlinux.CgroupMemoryObservation{CurrentBytes: 268660736, PeakBytes: 268464128, PeakAvailable: true, Events: test.events}); got != test.want {
 				t.Fatalf("memoryObservationIndicatesOOM() = %t, want %t", got, test.want)
 			}
 		})
