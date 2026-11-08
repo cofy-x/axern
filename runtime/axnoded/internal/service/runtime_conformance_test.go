@@ -53,8 +53,7 @@ func TestRuntimeConformanceUsesLoadedPolicyNotFiles(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, "runsc-config.json"), []byte(`{"process":{"env":["TERM=xterm"]}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	allow := false
-	p.cfg.PluginConfig.RuntimeConfig.Runsc.Options.AllowSUID = &allow
+	p.cfg.PluginConfig.RuntimeConfig.NativeRecovery = !p.cfg.PluginConfig.RuntimeConfig.NativeRecovery
 	after, _, _, err := p.runtimeIdentity()
 	if err != nil {
 		t.Fatal(err)

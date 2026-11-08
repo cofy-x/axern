@@ -13,6 +13,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -70,7 +71,8 @@ func taskEnforcementFixture(t *testing.T) (*RunscServiceHandler, *apipb.Allocati
 	require.NoError(t, err)
 	t.Cleanup(handler.ShutDown)
 	manifest := &apipb.AllocationEnforcementManifest{
-		BundlePath: filepath.Join(root, "containers", "task-allocation"), CreatedAtUnixNano: 1,
+		ProcessSecurityProfile: wire.ProcessSecurityProfile,
+		BundlePath:             filepath.Join(root, "containers", "task-allocation"), CreatedAtUnixNano: 1,
 		GuestTaskLimit: 256, HostTaskLimit: 1024,
 		CgroupPath: "/sandbox/task-allocation", RuntimeCgroupPath: "/sandbox/task-allocation/workload",
 	}
@@ -103,6 +105,7 @@ func writeTaskManifestFixture(t *testing.T, manifest *apipb.AllocationEnforcemen
 	data, err := proto.Marshal(manifest)
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(manifest.BundlePath, runtimeEnforcementManifestFile), data, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(manifest.BundlePath, "config.json"), []byte(`{"process":{"noNewPrivileges":true,"capabilities":{}}}`), 0o600))
 }
 
 func TestConfigureGuestTaskLimitsClosesDelegationBeforeReleasingTaskCeiling(t *testing.T) {

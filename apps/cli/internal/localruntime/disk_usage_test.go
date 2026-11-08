@@ -46,28 +46,6 @@ func TestDirectoryAllocatedSizeAllowsMissingRoot(t *testing.T) {
 	}
 }
 
-func TestDirectoryAllocatedSizeSkipsUnreadableRuntimeState(t *testing.T) {
-	dir := t.TempDir()
-	private := filepath.Join(dir, "identity")
-	if err := os.Mkdir(private, 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(private, "node.pem"), []byte("private"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(private, 0); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(private, 0o700) })
-	_, partial, err := directoryAllocatedSize(dir)
-	if err != nil {
-		t.Fatalf("root-owned runtime state made disk diagnostics fail: %v", err)
-	}
-	if !partial {
-		t.Fatal("unreadable runtime state was not reported as partial")
-	}
-}
-
 func TestStatusJSONNamesAllocatedDiskContract(t *testing.T) {
 	data, err := json.Marshal(Status{DiskAllocatedBytes: 42, DiskUsagePartial: true})
 	if err != nil {

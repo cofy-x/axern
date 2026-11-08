@@ -434,6 +434,9 @@ func (h *sandboxService) verifyRecoveredTaskLimits(ctx context.Context, inventor
 		if state == nil || (state.Status != contract.ContainerStatusRunning && state.Status != contract.ContainerStatusPaused && (h.config.RuntimeConfig.GuestTaskLimit > 0 || manifest.GetGuestTaskLimit() > 0)) {
 			return fmt.Errorf("cannot verify task enforcement for allocation %s with uncertain runtime state", id)
 		}
+		if !h.allocationController().GuestProcessProfileVerified(id) {
+			return fmt.Errorf("allocation %s has no observed guest process profile; stop and recreate its execution", id)
+		}
 		if err := h.runscHandler.VerifyAllocationTaskLimits(ctx, id, manifest); err != nil {
 			return fmt.Errorf("verify recovered allocation %s task limits: %w", id, err)
 		}

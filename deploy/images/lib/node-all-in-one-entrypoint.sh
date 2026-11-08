@@ -199,8 +199,6 @@ options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 
-[plugin.runtime.runsc.options]
-allow_suid = true
 
 EOF
 

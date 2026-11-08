@@ -63,5 +63,8 @@ func (h *Controller) ValidateRecoveryActivationWithLifecycleHeld(id string) (tim
 	if !complete {
 		return time.Time{}, fmt.Errorf("allocation %q has incomplete recovered execution ownership: %w", id, errord.ErrFailedPrecondition)
 	}
+	if !h.GuestProcessProfileVerified(id) {
+		return time.Time{}, fmt.Errorf("allocation %q has no observed guest process profile: %w", id, errord.ErrFailedPrecondition)
+	}
 	return deadline, h.ValidateActivation(id)
 }

@@ -2,7 +2,6 @@ package oci
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -31,13 +30,6 @@ func appendMountIfMissing(ociSpec *spec.Spec, mnt *apipb.Mount) {
 		Source:      mnt.Source,
 		Options:     append([]string(nil), mnt.Options...),
 	})
-}
-
-func appendUnique(values []string, value string) []string {
-	if slices.Contains(values, value) {
-		return values
-	}
-	return append(values, value)
 }
 
 func combineEnvs(envs []string, request *apipb.CreateContainerRequest) []string {

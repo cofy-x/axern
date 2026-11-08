@@ -297,7 +297,7 @@ func TestTaskLimitLoaderRejectsPerTemplateLimitOverrides(t *testing.T) {
 func taskLimitTestInjection(t *testing.T) *SandboxdInjectionOptions {
 	t.Helper()
 	binaryPath := filepath.Join(t.TempDir(), "sandboxd")
-	if err := os.WriteFile(binaryPath, []byte("test sandboxd binary"), 0700); err != nil {
+	if err := os.WriteFile(binaryPath, staticSandboxdFixture(), 0700); err != nil {
 		t.Fatal(err)
 	}
 	return &SandboxdInjectionOptions{HostBinaryPath: binaryPath}

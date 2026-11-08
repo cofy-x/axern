@@ -83,6 +83,3 @@ host_task_limit = 0
 
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
-
-[plugin.runtime.runsc.options]
-allow_suid = true

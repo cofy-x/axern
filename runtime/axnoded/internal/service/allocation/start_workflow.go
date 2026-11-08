@@ -221,6 +221,9 @@ func (h *Controller) existingActiveStartResponse(ctx context.Context, request *r
 	if ct.Status != nil && ct.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED {
 		return startErrorResponse(fmt.Sprintf("allocation %s already exists in terminal state", containerID)), true, errord.ErrAlreadyExists
 	}
+	if !h.GuestProcessProfileVerified(containerID) {
+		return nil, true, fmt.Errorf("allocation %s has no observed guest process profile: %w", containerID, errord.ErrFailedPrecondition)
+	}
 	resp := startSuccessResponse(containerID)
 	return resp, true, nil
 }

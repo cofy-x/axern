@@ -2,14 +2,19 @@ package wire
 
 import "time"
 
+// ProcessSecurityProfile identifies the compiled managed-process implementation.
+// Kernel privilege evidence is checked separately; this is not a capability claim.
+const ProcessSecurityProfile = "no-new-privileges-empty-nonroot-capabilities-v1"
+
 type HealthResponse struct {
 	ProtocolVersion int    `json:"protocolVersion,omitempty"`
 	Status          string `json:"status"`
 }
 
 type ReadyResponse struct {
-	ProtocolVersion int  `json:"protocolVersion,omitempty"`
-	Ready           bool `json:"ready"`
+	ProcessSecurityProfile string `json:"processSecurityProfile"`
+	ProtocolVersion        int    `json:"protocolVersion,omitempty"`
+	Ready                  bool   `json:"ready"`
 }
 
 type CapabilitiesResponse struct {
@@ -69,18 +74,19 @@ type ReadySnapshot struct {
 }
 
 type DiagnosticsResponse struct {
-	ProtocolVersion int                        `json:"protocolVersion,omitempty"`
-	GeneratedAt     time.Time                  `json:"generatedAt"`
-	Ready           bool                       `json:"ready"`
-	Detail          string                     `json:"detail,omitempty"`
-	Status          StatusResponse             `json:"status"`
-	Capabilities    []string                   `json:"capabilities"`
-	Providers       []CapabilityProvider       `json:"providers,omitempty"`
-	ProviderSummary ProviderSummary            `json:"providerSummary,omitempty"`
-	ProcessSummary  ProcessSummary             `json:"processSummary,omitempty"`
-	FileLimits      *FileLimitSnapshot         `json:"fileLimits,omitempty"`
-	Processes       *ProcessListResponse       `json:"processes,omitempty"`
-	Ports           *PortSnapshot              `json:"ports,omitempty"`
-	Mounts          *MountSnapshot             `json:"mounts,omitempty"`
-	ComputerUse     *ComputerUseStatusResponse `json:"computerUse,omitempty"`
+	ProcessSecurityProfile string                     `json:"processSecurityProfile"`
+	ProtocolVersion        int                        `json:"protocolVersion,omitempty"`
+	GeneratedAt            time.Time                  `json:"generatedAt"`
+	Ready                  bool                       `json:"ready"`
+	Detail                 string                     `json:"detail,omitempty"`
+	Status                 StatusResponse             `json:"status"`
+	Capabilities           []string                   `json:"capabilities"`
+	Providers              []CapabilityProvider       `json:"providers,omitempty"`
+	ProviderSummary        ProviderSummary            `json:"providerSummary,omitempty"`
+	ProcessSummary         ProcessSummary             `json:"processSummary,omitempty"`
+	FileLimits             *FileLimitSnapshot         `json:"fileLimits,omitempty"`
+	Processes              *ProcessListResponse       `json:"processes,omitempty"`
+	Ports                  *PortSnapshot              `json:"ports,omitempty"`
+	Mounts                 *MountSnapshot             `json:"mounts,omitempty"`
+	ComputerUse            *ComputerUseStatusResponse `json:"computerUse,omitempty"`
 }

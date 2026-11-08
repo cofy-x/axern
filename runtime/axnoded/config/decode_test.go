@@ -10,14 +10,12 @@ func TestDecodeRunsc(t *testing.T) {
 	cfg, err := Decode([]byte(`
 [plugin.runtime.runsc]
 binary = "/custom/runsc"
-[plugin.runtime.runsc.options]
-allow_suid = false
 `))
 	if err != nil {
 		t.Fatal(err)
 	}
 	runsc := cfg.RuntimeConfig.Runsc
-	if runsc.Binary != "/custom/runsc" || runsc.Options.AllowSUIDEnabled(true) {
+	if runsc.Binary != "/custom/runsc" {
 		t.Fatalf("runsc configuration = %+v", runsc)
 	}
 	if cfg.RuntimeConfig.CgroupEnforcement != CgroupEnforcementRequired {
@@ -27,6 +25,8 @@ allow_suid = false
 
 func TestDecodeRejectsUnknownAndRemovedSettings(t *testing.T) {
 	for _, input := range []string{
+		"[plugin.runtime.runsc.options]\nallow_suid = true",
+		"[plugin.runtime.runsc.options]\nallow_suid = false",
 		"[plugin.runtime.runsc]\nbase_spec = '/custom/runsc.json'",
 		"[plugin.runtime.runtime_binary]\nrunsc = '/legacy/runsc'",
 		"[plugin.runtime.basic_spec]\nrunsc = '/legacy/runsc.json'",

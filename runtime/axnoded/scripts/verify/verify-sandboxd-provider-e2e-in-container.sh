@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-go build -o "${tmpdir}/axern-sandboxd" ./cmd/axern-sandboxd
+CGO_ENABLED=0 go build -o "${tmpdir}/axern-sandboxd" ./cmd/axern-sandboxd
 
 wait_for_socket() {
   local socket_path="$1"

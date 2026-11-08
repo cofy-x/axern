@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	runtimeapi "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/fileutil"
 	"github.com/google/uuid"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
@@ -100,6 +101,7 @@ func ExecProcessFromSpec(specConf *spec.Spec, command []string, envs map[string]
 		processConf.Env = mergeExecEnv(processConf.Env, envs)
 	}
 	processConf.Terminal = terminal
+	runtimeoci.EnforceProcessSecurity(&processConf)
 	return &processConf, nil
 }
 

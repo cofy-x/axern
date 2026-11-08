@@ -25,17 +25,17 @@ func TestClientHealthReadyStatusCapabilities(t *testing.T) {
 		case "/healthz":
 			fmt.Fprint(w, `{"protocolVersion":1,"status":"ok"}`)
 		case "/readyz":
-			fmt.Fprint(w, `{"protocolVersion":1,"ready":true}`)
+			fmt.Fprint(w, `{"processSecurityProfile":"no-new-privileges-empty-nonroot-capabilities-v1","protocolVersion":1,"ready":true}`)
 		case "/status":
 			fmt.Fprint(w, `{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}}`)
 		case "/capabilities":
 			fmt.Fprint(w, `{"protocolVersion":1,"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}]}`)
 		case "/diagnostics":
 			if r.URL.Query().Get("detail") != "full" {
-				fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}],"providerSummary":{"total":1,"available":1}}`)
+				fmt.Fprint(w, `{"processSecurityProfile":"no-new-privileges-empty-nonroot-capabilities-v1","protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}],"providerSummary":{"total":1,"available":1}}`)
 				return
 			}
-			fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"detail":"full","status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}],"providerSummary":{"total":1,"available":1},"processes":{"processes":[{"id":"proc-1","state":"running","pid":12}]},"fileLimits":{"maxArchiveEntries":256,"maxArchiveBytes":67108864,"maxArchiveEntryBytes":33554432,"maxArchivePathDepth":64},"ports":{"ports":[{"protocol":"tcp","address":"127.0.0.1","port":18081,"state":"0A"}]},"mounts":{"mounts":[{"mountpoint":"/","fsType":"overlay"}],"paths":[{"path":"/","exists":true}]},"computerUse":{"available":true,"display":":99","backend":"x11"}}`)
+			fmt.Fprint(w, `{"processSecurityProfile":"no-new-privileges-empty-nonroot-capabilities-v1","protocolVersion":1,"ready":true,"detail":"full","status":{"daemonPid":7,"uptimeSeconds":1.5,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running","pid":11}},"capabilities":["archive","diagnostics","health","status","supervisor","file","process","pty","probe","ports","mounts","computer_use"],"providers":[{"name":"computer_use","available":true,"capabilities":["computer_use"]}],"providerSummary":{"total":1,"available":1},"processes":{"processes":[{"id":"proc-1","state":"running","pid":12}]},"fileLimits":{"maxArchiveEntries":256,"maxArchiveBytes":67108864,"maxArchiveEntryBytes":33554432,"maxArchivePathDepth":64},"ports":{"ports":[{"protocol":"tcp","address":"127.0.0.1","port":18081,"state":"0A"}]},"mounts":{"mounts":[{"mountpoint":"/","fsType":"overlay"}],"paths":[{"path":"/","exists":true}]},"computerUse":{"available":true,"display":":99","backend":"x11"}}`)
 		case "/computer-use/status":
 			fmt.Fprint(w, `{"available":true,"display":":99","backend":"x11"}`)
 		case "/computer-use/screenshot":
@@ -393,7 +393,7 @@ func TestClientWaitReadyRetriesUntilReady(t *testing.T) {
 				fmt.Fprint(w, `{"ready":false}`)
 				return
 			}
-			fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"exited"}},"capabilities":["health"]}`)
+			fmt.Fprint(w, `{"processSecurityProfile":"no-new-privileges-empty-nonroot-capabilities-v1","protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"exited"}},"capabilities":["health"]}`)
 		default:
 			http.NotFound(w, r)
 		}
@@ -420,7 +420,7 @@ func TestClientWaitReadyAcceptsTerminalUserStates(t *testing.T) {
 					http.NotFound(w, r)
 					return
 				}
-				fmt.Fprintf(w, `{"protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":%q}},"capabilities":["health","status","supervisor"]}`, state)
+				fmt.Fprintf(w, `{"processSecurityProfile":"no-new-privileges-empty-nonroot-capabilities-v1","protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":%q}},"capabilities":["health","status","supervisor"]}`, state)
 			}))
 			defer shutdown()
 
@@ -520,5 +520,20 @@ func serveUnix(t *testing.T, handler http.Handler) (string, func()) {
 		_ = server.Close()
 		<-done
 		_ = os.RemoveAll(dir)
+	}
+}
+
+func TestClientWaitReadyRejectsOlderHelperPolicyImmediately(t *testing.T) {
+	socketPath, shutdown := serveUnix(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"status":{"userProcess":{"state":"running"}}}`)
+	}))
+	defer shutdown()
+	started := time.Now()
+	_, err := NewClient(socketPath).WaitReady(context.Background(), time.Second, time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "privilege policy") {
+		t.Fatalf("expected old helper rejection: %v", err)
+	}
+	if time.Since(started) > 500*time.Millisecond {
+		t.Fatal("incompatible running helper must not be retried as cold startup")
 	}
 }

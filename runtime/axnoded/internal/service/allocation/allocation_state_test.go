@@ -510,14 +510,14 @@ func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testin
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.puts.Load(); got != 2 {
-		t.Fatalf("allocation writes after start = %d, want admission and runtime crash barriers", got)
+	if got := store.puts.Load(); got != 4 {
+		t.Fatalf("allocation writes after start = %d, want admission, runtime, enforcement and observed Ready crash barriers", got)
 	}
 	var record apipb.AllocationState
 	if err := store.GetRecord(config.AllocationStateBucket, allocationID, &record); err != nil {
 		t.Fatal(err)
 	}
-	if record.GetEnvironment() == nil || len(record.GetImageMountUrls()) != 1 {
+	if record.GetEnvironment() == nil || len(record.GetImageMountUrls()) != 1 || record.GetEnforcementManifest() == nil || !record.GetGuestProcessProfileVerified() {
 		t.Fatalf("persisted aggregate state = %+v", &record)
 	}
 	if _, err := fixture.controller.Delete(context.Background(), &apipb.DeleteRequest{ID: allocationID}); err != nil {

@@ -146,12 +146,7 @@ type RuntimeConfig struct {
 }
 
 type RuntimeInstanceConfig struct {
-	Binary  string         `toml:"binary" json:"binary"`
-	Options RuntimeOptions `toml:"options" json:"options"`
-}
-
-type RuntimeOptions struct {
-	AllowSUID *bool `toml:"allow_suid" json:"allowSuid"`
+	Binary string `toml:"binary" json:"binary"`
 }
 
 type RuntimeDNSConfig struct {
@@ -186,13 +181,6 @@ func (c RuntimeConfig) ValidateTaskLimits() error {
 		return fmt.Errorf("task limits require cgroup_enforcement = required")
 	}
 	return nil
-}
-
-func (o RuntimeOptions) AllowSUIDEnabled(defaultValue bool) bool {
-	if o.AllowSUID == nil {
-		return defaultValue
-	}
-	return *o.AllowSUID
 }
 
 func (c RuntimeConfig) ImageManagerEnabledValue() bool {
@@ -577,9 +565,6 @@ func DefaultConfig() Config {
 			RuntimeConfig: RuntimeConfig{
 				Runsc: RuntimeInstanceConfig{
 					Binary: DefaultRunscBinary,
-					Options: RuntimeOptions{
-						AllowSUID: boolPtr(true),
-					},
 				},
 				CgroupEnforcement:                 CgroupEnforcementRequired,
 				ImageLibDir:                       DefaultImageLibDir,

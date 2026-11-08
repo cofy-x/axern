@@ -1,12 +1,14 @@
 package oci
 
 import (
+	"debug/elf"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -55,6 +57,7 @@ func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options 
 	if ociSpec == nil || ociSpec.Process == nil {
 		return fmt.Errorf("sandboxd injection requires OCI process")
 	}
+	EnforceProcessSecurity(ociSpec.Process)
 	if len(ociSpec.Process.Args) == 0 || ociSpec.Process.Args[0] == "" {
 		return fmt.Errorf("sandboxd injection requires original process args")
 	}
@@ -134,20 +137,57 @@ func copySandboxdBinary(path, source string) error {
 		return fmt.Errorf("open sandboxd binary: %w", err)
 	}
 	defer in.Close()
-	out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0555)
+	out, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0555)
 	if err != nil {
 		return fmt.Errorf("create sandboxd binary: %w", err)
 	}
-	_, copyErr := io.Copy(out, in)
-	closeErr := out.Close()
-	if copyErr != nil {
-		return fmt.Errorf("copy sandboxd binary: %w", copyErr)
+	verified := false
+	defer func() {
+		_ = out.Close()
+		if !verified {
+			_ = os.Remove(path)
+		}
+	}()
+	if _, err := io.Copy(out, in); err != nil {
+		return fmt.Errorf("copy sandboxd binary: %w", err)
 	}
-	if closeErr != nil {
-		return fmt.Errorf("close sandboxd binary: %w", closeErr)
+	// Verify the exact copied inode. A dynamic loader from the caller's image
+	// must never run during root self-exec before child privilege reduction.
+	if err := validateStaticSandboxdBinary(out); err != nil {
+		return err
 	}
-	if err := os.Chmod(path, 0555); err != nil {
+	if err := out.Chmod(0555); err != nil {
 		return fmt.Errorf("chmod sandboxd binary: %w", err)
+	}
+	if err := out.Sync(); err != nil {
+		return fmt.Errorf("sync sandboxd binary: %w", err)
+	}
+	if err := out.Close(); err != nil {
+		return fmt.Errorf("close sandboxd binary: %w", err)
+	}
+	verified = true
+	return nil
+}
+
+func validateStaticSandboxdBinary(file *os.File) error {
+	parsed, err := elf.NewFile(file)
+	if err != nil {
+		return fmt.Errorf("sandboxd must be a static Linux ELF executable: %w", err)
+	}
+	defer parsed.Close()
+	machine := map[string]elf.Machine{"amd64": elf.EM_X86_64, "arm64": elf.EM_AARCH64}[runtime.GOARCH]
+	if machine == elf.EM_NONE || parsed.Class != elf.ELFCLASS64 || parsed.Data != elf.ELFDATA2LSB || parsed.Machine != machine ||
+		(parsed.OSABI != elf.ELFOSABI_NONE && parsed.OSABI != elf.ELFOSABI_LINUX) || (parsed.Type != elf.ET_EXEC && parsed.Type != elf.ET_DYN) {
+		return fmt.Errorf("sandboxd must be a static Linux ELF executable for this node architecture")
+	}
+	for _, program := range parsed.Progs {
+		if program.Type == elf.PT_INTERP || program.Type == elf.PT_DYNAMIC {
+			return fmt.Errorf("sandboxd must not use an image-provided ELF interpreter or dynamic dependencies")
+		}
+	}
+	libraries, err := parsed.ImportedLibraries()
+	if err != nil || len(libraries) != 0 {
+		return fmt.Errorf("sandboxd must not import dynamic libraries")
 	}
 	return nil
 }
@@ -176,7 +216,7 @@ func isSandboxdMountDestinationConflict(destination string) bool {
 }
 
 func validateSandboxdSupportedUser(user spec.User) error {
-	if user.UID != 0 || user.GID != 0 || len(user.AdditionalGids) > 0 || user.Username != "" {
+	if user.UID != 0 || user.GID != 0 || len(user.AdditionalGids) > 0 || user.Username != "" || user.Umask != nil {
 		return fmt.Errorf("sandboxd injection currently supports only root OCI process user")
 	}
 	return nil

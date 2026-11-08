@@ -1,8 +1,10 @@
 package bundleflow
 
 import (
+	"encoding/binary"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -167,7 +169,20 @@ func writeFakeSandboxdBinary(t *testing.T, rootDir string) string {
 		t.Fatalf("mkdir bin dir: %v", err)
 	}
 	binPath := filepath.Join(binDir, "axern-sandboxd")
-	if err := os.WriteFile(binPath, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+	// Metadata-only static ELF envelope; this fixture is never executed.
+	data := make([]byte, 64)
+	copy(data, []byte{0x7f, 'E', 'L', 'F', 2, 1, 1})
+	binary.LittleEndian.PutUint16(data[16:], 2)
+	machine := uint16(62)
+	if runtime.GOARCH == "arm64" {
+		machine = 183
+	}
+	binary.LittleEndian.PutUint16(data[18:], machine)
+	binary.LittleEndian.PutUint32(data[20:], 1)
+	binary.LittleEndian.PutUint16(data[52:], 64)
+	binary.LittleEndian.PutUint16(data[54:], 56)
+	binary.LittleEndian.PutUint16(data[58:], 64)
+	if err := os.WriteFile(binPath, data, 0755); err != nil {
 		t.Fatalf("write fake sandboxd binary: %v", err)
 	}
 	t.Setenv("AXERN_SANDBOXD_BINARY", binPath)

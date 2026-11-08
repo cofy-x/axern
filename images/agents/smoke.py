@@ -59,6 +59,25 @@ print(json.dumps(observed))
 '''
 
 
+PRIVILEGE_SCAN = r'''
+import json,os,stat
+special=[]
+errors=[]
+count=0
+for root,dirs,files in os.walk('/',onerror=lambda error:errors.append(str(error))):
+ dirs[:]=[name for name in dirs if os.path.join(root,name) not in ('/proc','/sys','/dev')]
+ for name in files:
+  path=os.path.join(root,name)
+  try:info=os.stat(path,follow_symlinks=False)
+  except OSError as error:errors.append(str(error));continue
+  if not stat.S_ISREG(info.st_mode):continue
+  count+=1
+  if info.st_mode&(stat.S_ISUID|stat.S_ISGID):special.append({'path':path,'mode':oct(stat.S_IMODE(info.st_mode))})
+print(json.dumps({'regular_files_checked':count,'suid_sgid_files':special,'errors':errors,'excluded_virtual_trees':['/proc','/sys','/dev']}))
+if special or errors:raise SystemExit('image privilege-bit scan failed')
+'''
+
+
 def main():
     args = arguments(__doc__, cache=False).parse_args()
     lock = load_lock()
@@ -85,6 +104,16 @@ def main():
             (output / 'smoke-receipts.json').write_text(json.dumps(reports, indent=2) + '\n')
         if process.returncode:
             raise SystemExit(process.stdout.decode())
+        scan_command = prefix + ['run', '--rm', '--network', 'none', '--cap-drop', 'ALL', '--cap-add', 'DAC_OVERRIDE', '--security-opt', 'no-new-privileges', '--user', '0:0', '-i', tags[target], 'python3', '-']
+        scan_started = time.monotonic()
+        scan = subprocess.run(scan_command, input=PRIVILEGE_SCAN.encode(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, timeout=180)
+        report['privilege_scan'] = {'command': scan_command, 'exit_code': scan.returncode, 'elapsed_seconds': round(time.monotonic() - scan_started, 3), 'stdout': scan.stdout.decode()}
+        report['passed'] = scan.returncode == 0
+        if output:
+            (output / (target + '-privilege-scan.log')).write_bytes(scan.stdout)
+            (output / 'smoke-receipts.json').write_text(json.dumps(reports, indent=2) + '\n')
+        if scan.returncode:
+            raise SystemExit(scan.stdout.decode())
     if 'toolchain' in layers:
         for target in ('claude-code', 'codex'):
             if target in layers and layers[target][:len(layers['toolchain'])] != layers['toolchain']:

@@ -28,8 +28,11 @@ type HandlerOptions struct {
 	MemoryLimitBytes           int64
 	EphemeralStorageLimitBytes int64
 	EnforcementManifest        *apipb.AllocationEnforcementManifest
-	AllocatedResources         map[resourcemanager.ResourceName]string
-	RootfsType                 string
+	// GuestProcessProfileVerified is the durable post-start Ready observation,
+	// not a declaration from the bundle or current node configuration.
+	GuestProcessProfileVerified bool
+	AllocatedResources          map[resourcemanager.ResourceName]string
+	RootfsType                  string
 
 	BundleTemplateCarrier runtimeoci.TemplateCarrier
 	BundleTemplateSource  *runtimeoci.TemplateOptions

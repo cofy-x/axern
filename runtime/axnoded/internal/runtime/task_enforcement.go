@@ -27,6 +27,9 @@ func (r *RunscServiceHandler) VerifyAllocationTaskLimits(ctx context.Context, co
 	if err := r.validateTaskEnforcementManifest(ctx, containerID, durable); err != nil {
 		return err
 	}
+	if err := r.verifyManagedProcessPolicy(ctx, containerID, durable); err != nil {
+		return err
+	}
 	if durable.GetGuestTaskLimit() == 0 {
 		return nil
 	}

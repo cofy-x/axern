@@ -16,6 +16,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodestate"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -102,7 +103,8 @@ func persistRecoveryAllocation(t *testing.T, s *sandboxService, id string, deadl
 		AllocationID: id, NodeID: "node-a", AllocationRequestDigest: "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		ExecutionLeaseExpiresAtUnixNano: deadline.UnixNano(),
 		Environment:                     &apipb.ResolvedEnvironment{ID: "environment-" + id, Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}}, Argv: []string{"/bin/sh"}},
-		EnforcementManifest:             &apipb.AllocationEnforcementManifest{BundlePath: filepath.Join(s.config.RootDir, "containers", id), CreatedAtUnixNano: time.Now().Add(-time.Minute).UnixNano()},
+		EnforcementManifest:             &apipb.AllocationEnforcementManifest{BundlePath: filepath.Join(s.config.RootDir, "containers", id), CreatedAtUnixNano: time.Now().Add(-time.Minute).UnixNano(), ProcessSecurityProfile: wire.ProcessSecurityProfile},
+		GuestProcessProfileVerified:     true,
 	}
 	require.NoError(t, s.store.PutRecord(config.AllocationStateBucket, id, record))
 	require.NoError(t, s.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{}))
@@ -116,6 +118,10 @@ func TestRecoveryPersistsExpiryBeforeHostFailStopAndPreservesFirstCause(t *testi
 			r.states["allocation"] = contract.ContainerStatusPaused
 			s := newRecoveryTestService(t, r)
 			record := persistRecoveryAllocation(t, s, "allocation", time.Now().Add(-time.Second))
+			// Pre-policy ownership still authorizes exact fail-stop and cleanup,
+			// never adoption of the old guest implementation.
+			record.GuestProcessProfileVerified = false
+			record.EnforcementManifest.ProcessSecurityProfile = ""
 			record.TerminationDiagnosticCode = prior
 			if prior != commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 				record.TerminationMessage = "original reason"
@@ -174,6 +180,26 @@ func TestResumeRequiresWatchdogAndCompleteRecoveredOwnership(t *testing.T) {
 	r.resumeHook = func(string) { require.NotNil(t, s.executionLeaseCancel) }
 	require.NoError(t, s.resumeRecoveredSandboxes(t.Context()))
 	require.Equal(t, []string{"allocation"}, r.resumed)
+}
+
+func TestResumeRejectsUnconfirmedGuestWithoutRuntimeCommandsOrAuthorityRewrite(t *testing.T) {
+	r := newRecoveryRuntime()
+	r.states["allocation"] = contract.ContainerStatusPaused
+	s := newRecoveryTestService(t, r)
+	record := persistRecoveryAllocation(t, s, "allocation", time.Now().Add(time.Minute))
+	record.GuestProcessProfileVerified = false
+	require.NoError(t, s.store.PutRecord(config.AllocationStateBucket, "allocation", record))
+	require.NoError(t, s.allocations.RestoreAllocationState(map[string]struct{}{"allocation": {}}))
+	s.config.ControlPlaneTarget = "127.0.0.1:1"
+	s.startExecutionLeaseWatchdog(t.Context())
+	defer s.executionLeaseCancel()
+	require.ErrorContains(t, s.resumeRecoveredSandboxes(t.Context()), "no observed guest process profile")
+	require.Empty(t, r.resumed)
+	require.Empty(t, r.killed)
+	require.Empty(t, r.paused)
+	var after apipb.AllocationState
+	require.NoError(t, s.store.GetRecord(config.AllocationStateBucket, "allocation", &after))
+	require.True(t, proto.Equal(record, &after), "rejected resume must retain original ownership and cleanup debt")
 }
 
 func TestResumeRechecksElapsedLeaseAndRejectsLateRenewal(t *testing.T) {

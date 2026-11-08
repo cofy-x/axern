@@ -46,7 +46,7 @@ func TestTaskRecoveryReadsPersistedPolicyBeforeAllocationRestore(t *testing.T) {
 				service := newTestService(t, handler)
 				service.config.RuntimeConfig.GuestTaskLimit = configured
 				service.config.RuntimeConfig.HostTaskLimit = configured * 4
-				record := &apipb.AllocationState{AllocationID: "allocation", NodeID: "node-a", AllocationRequestDigest: "sha256:" + strings.Repeat("a", 64), ExecutionLeaseExpiresAtUnixNano: time.Now().Add(time.Minute).UnixNano(), EnforcementManifest: want}
+				record := &apipb.AllocationState{AllocationID: "allocation", NodeID: "node-a", AllocationRequestDigest: "sha256:" + strings.Repeat("a", 64), ExecutionLeaseExpiresAtUnixNano: time.Now().Add(time.Minute).UnixNano(), EnforcementManifest: want, GuestProcessProfileVerified: true}
 				require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, "allocation", record))
 				require.Nil(t, service.allocations.VerifiedEnforcementManifest("allocation"), "in-memory allocation restoration has not happened")
 				err := service.verifyRecoveredTaskLimits(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: contract.ContainerStatusRunning}})
@@ -79,6 +79,24 @@ func TestTaskRecoveryRejectsUnknownLiveStateAndSkipsTerminal(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 			}
+		})
+	}
+}
+
+func TestTaskRecoveryRequiresObservedGuestReadyAndPreservesUnconfirmedRecord(t *testing.T) {
+	for _, status := range []contract.ContainerStatus{contract.ContainerStatusRunning, contract.ContainerStatusPaused} {
+		t.Run(string(status), func(t *testing.T) {
+			handler := taskRecoveryRuntime{SandboxRuntime: runtimetest.NewFakeSandboxRuntime(), verify: func(context.Context, string, *apipb.AllocationEnforcementManifest) error {
+				t.Fatal("unconfirmed guest must be rejected before runtime verification")
+				return nil
+			}}
+			service := newTestService(t, handler)
+			record := &apipb.AllocationState{AllocationID: "allocation", NodeID: "node-a", EnforcementManifest: &apipb.AllocationEnforcementManifest{BundlePath: "/containers/allocation", CreatedAtUnixNano: 1}}
+			require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, "allocation", record))
+			require.ErrorContains(t, service.verifyRecoveredTaskLimits(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: status}}), "no observed guest process profile")
+			var after apipb.AllocationState
+			require.NoError(t, service.store.GetRecord(config.AllocationStateBucket, "allocation", &after))
+			require.True(t, proto.Equal(record, &after), "recovery must retain unconfirmed ownership without upgrading it")
 		})
 	}
 }

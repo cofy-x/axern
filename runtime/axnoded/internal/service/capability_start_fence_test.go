@@ -12,6 +12,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	capabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -41,7 +42,8 @@ func (r *capabilityStartBarrierRuntime) AllocationEnforcementManifest(_ context.
 		BundlePath: "/fake/" + id, CreatedAtUnixNano: time.Now().UnixNano(),
 		EphemeralStorageLimitBytes: 64 << 20, RunscBackingDirectory: "/fake/filestore/runsc",
 		RunscBackingDirectoryIdentity: "devino:v1:1:2", FilestoreMountIdentity: "42:/dev/loop0:/fake/filestore",
-		RunscOverlayArg: "root:dir=/fake/filestore/runsc,size=67108864",
+		RunscOverlayArg:        "root:dir=/fake/filestore/runsc,size=67108864",
+		ProcessSecurityProfile: wire.ProcessSecurityProfile,
 	}, nil
 }
 

@@ -80,7 +80,5 @@ ephemeral_storage_default_limit_bytes = 268435456
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 
-[plugin.runtime.runsc.options]
-allow_suid = true
 
 EOF

@@ -124,6 +124,9 @@ message AllocationState {
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 13;
   axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 14;
   axern.private.node.lifecycle.v1.WorkspaceBinding workspace = 15;
+  // The matching guest helper implementation passed post-start Ready. This
+  // observed fact is distinct from desired pre-activation enforcement policy.
+  bool guest_process_profile_verified = 16;
 }
 
 // RootfsSnapshotReceipt is the minimal durable response retained after runtime
@@ -175,6 +178,9 @@ message AllocationEnforcementManifest {
   // node configuration changes and is verified again before live recovery.
   int64 guest_task_limit = 22;
   int64 host_task_limit = 23;
+  // Fixed managed-process privilege policy used by the creating node/helper.
+  // Empty legacy values retain cleanup authority but never authorize activation.
+  string process_security_profile = 24;
 }
 
 message TerminalResize {

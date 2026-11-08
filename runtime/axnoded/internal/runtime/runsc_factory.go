@@ -85,7 +85,6 @@ func NewRunscServiceHandler(cfg config.Config, runtimeCfg config.RuntimeInstance
 		common:                            common,
 		ignoreCgroups:                     cgroupMode == config.CgroupEnforcementDisabledDev,
 		nativeRecovery:                    cfg.RuntimeConfig.NativeRecovery,
-		allowSUID:                         runtimeCfg.Options.AllowSUIDEnabled(true),
 		guestTaskLimit:                    cfg.RuntimeConfig.GuestTaskLimit,
 		hostTaskLimit:                     cfg.RuntimeConfig.HostTaskLimit,
 		filestoreDir:                      filestoreDir,

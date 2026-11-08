@@ -59,6 +59,9 @@ func (b specBuilder) applyRequestToSpec(ociSpec *spec.Spec, options buildOptions
 	}
 
 	applyHostname(ociSpec, request, options.containerID)
+	if err := b.profile.validateTaskLimitCapabilities(ociSpec); err != nil {
+		return err
+	}
 	b.profile.Baseline.apply(ociSpec)
 	applyNetworkNamespace(ociSpec, options.networkNamespacePath)
 	if err := b.profile.applyTaskLimits(ociSpec); err != nil {

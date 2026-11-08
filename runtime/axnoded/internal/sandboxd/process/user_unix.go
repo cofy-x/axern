@@ -15,17 +15,22 @@ func processSysProcAttr(user processUser, hasUser bool, terminal bool) *syscall.
 	} else {
 		attr.Setpgid = true
 	}
-	if hasUser {
+	if hasUser && user.uid == 0 {
 		attr.Credential = &syscall.Credential{
 			Uid:    user.uid,
 			Gid:    user.gid,
-			Groups: user.groups,
+			Groups: nil,
 		}
 	}
 	return attr
 }
 
 func startProcessGroupWithUser(cmd *exec.Cmd, user processUser, hasUser bool) error {
+	cleanup, err := prepareProcessUser(cmd, user, hasUser)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	cmd.SysProcAttr = processSysProcAttr(user, hasUser, false)
 	return cmd.Start()
 }

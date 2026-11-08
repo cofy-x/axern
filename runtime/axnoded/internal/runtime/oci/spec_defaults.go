@@ -23,6 +23,7 @@ func defaultBundleSpec() *spec.Spec {
 	return &spec.Spec{
 		Version: "1.0.0",
 		Process: &spec.Process{
+			NoNewPrivileges: true,
 			User: spec.User{
 				UID: 0,
 				GID: 0,

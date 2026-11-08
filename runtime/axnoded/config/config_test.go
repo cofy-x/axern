@@ -99,21 +99,6 @@ func TestResourceConfigCgroupRootNameIsDelegatedChild(t *testing.T) {
 	}
 }
 
-func TestRuntimeOptionsAllowSUIDEnabled(t *testing.T) {
-	if !(RuntimeOptions{}).AllowSUIDEnabled(true) {
-		t.Fatal("expected nil allow_suid option to use true default")
-	}
-	if (RuntimeOptions{}).AllowSUIDEnabled(false) {
-		t.Fatal("expected nil allow_suid option to use false default")
-	}
-	if (RuntimeOptions{AllowSUID: boolPtr(false)}).AllowSUIDEnabled(true) {
-		t.Fatal("expected explicit allow_suid=false to win")
-	}
-	if !(RuntimeOptions{AllowSUID: boolPtr(true)}).AllowSUIDEnabled(false) {
-		t.Fatal("expected explicit allow_suid=true to win")
-	}
-}
-
 func TestDefaultConfigSetsImageManagerSocket(t *testing.T) {
 	cfg := DefaultConfig()
 	if !cfg.PluginConfig.RuntimeConfig.ImageManagerEnabledValue() {
@@ -126,14 +111,6 @@ func TestDefaultConfigSetsImageManagerSocket(t *testing.T) {
 	if cfg.PluginConfig.RuntimeConfig.ImageManagerSocketPath() != DefaultImageManagerSocket {
 		t.Fatalf("expected default image manager socket path %q, got %q",
 			DefaultImageManagerSocket, cfg.PluginConfig.RuntimeConfig.ImageManagerSocketPath())
-	}
-}
-
-func TestDefaultConfigEnablesRunscSUID(t *testing.T) {
-	cfg := DefaultConfig()
-	runsc := cfg.PluginConfig.RuntimeConfig.Runsc
-	if !runsc.Options.AllowSUIDEnabled(false) {
-		t.Fatal("expected default runsc runtime to enable setuid binaries")
 	}
 }
 

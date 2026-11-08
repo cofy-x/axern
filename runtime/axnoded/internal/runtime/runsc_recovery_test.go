@@ -12,6 +12,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/ocicli"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +66,7 @@ func TestRunscRecoveryTransitionsFenceRPCAndConfirmState(t *testing.T) {
 			if from == "running" {
 				err = h.PauseContainer(t.Context(), contract.HandlerOptions{ContainerID: "allocation"})
 			} else {
-				err = h.ResumeContainer(t.Context(), contract.HandlerOptions{ContainerID: "allocation"})
+				err = h.ResumeContainer(t.Context(), recoveryPolicyOptions(t, h))
 			}
 			require.NoError(t, err)
 			require.NoFileExists(t, fence)
@@ -84,7 +85,7 @@ func TestRunscRecoveryTransitionFailureRetainsFence(t *testing.T) {
 				e.transitionErr = errors.New("RPC outcome unavailable")
 			}
 			h.common.SetExecutor(e)
-			require.Error(t, h.ResumeContainer(t.Context(), contract.HandlerOptions{ContainerID: "allocation"}))
+			require.Error(t, h.ResumeContainer(t.Context(), recoveryPolicyOptions(t, h)))
 			require.FileExists(t, fence)
 			count := len(e.Args())
 			require.ErrorContains(t, h.PauseContainer(t.Context(), contract.HandlerOptions{ContainerID: "allocation"}), "unfinished runtime transition")
@@ -189,7 +190,7 @@ func TestResumeNeverIssuesRPCWhenStateReadCrossesLeaseDeadline(t *testing.T) {
 	h.common.SetExecutor(e)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
-	require.ErrorIs(t, h.ResumeContainer(ctx, contract.HandlerOptions{ContainerID: "allocation"}), context.DeadlineExceeded)
+	require.ErrorIs(t, h.ResumeContainer(ctx, recoveryPolicyOptions(t, h)), context.DeadlineExceeded)
 	require.NoFileExists(t, filepath.Join(filepath.Dir(h.containerRoot), "runtime-transition"))
 	for _, args := range e.Args() {
 		require.NotContains(t, args, "resume")
@@ -271,4 +272,22 @@ func TestNativeDeleteIsIdempotentAfterExactStateRetirement(t *testing.T) {
 	// The bundle projection may already have been reclaimed too. Exact runtime
 	// absence remains sufficient to finish previously authorized storage cleanup.
 	require.NoError(t, h.deleteNativeRuntimeContainer(t.Context(), contract.HandlerOptions{ContainerID: "allocation", EnforcementManifest: &apipb.AllocationEnforcementManifest{}}, true))
+}
+
+func recoveryPolicyOptions(t *testing.T, h *RunscServiceHandler) contract.HandlerOptions {
+	t.Helper()
+	manifest := &apipb.AllocationEnforcementManifest{BundlePath: filepath.Join(h.containerRoot, "allocation"), CreatedAtUnixNano: 1, ProcessSecurityProfile: wire.ProcessSecurityProfile}
+	writeTaskManifestFixture(t, manifest)
+	return contract.HandlerOptions{ContainerID: "allocation", EnforcementManifest: manifest, GuestProcessProfileVerified: true}
+}
+
+func TestResumeRequiresObservedGuestProfileBeforeAnyRuntimeCommand(t *testing.T) {
+	h := newNativeRecoveryTestHandler(t)
+	executor := &recoveryExecutor{status: "paused", fence: filepath.Join(filepath.Dir(h.containerRoot), "runtime-transition")}
+	h.common.SetExecutor(executor)
+	options := recoveryPolicyOptions(t, h)
+	options.GuestProcessProfileVerified = false
+	require.ErrorContains(t, h.ResumeContainer(t.Context(), options), "no observed guest process profile")
+	require.Empty(t, executor.Args())
+	require.NoFileExists(t, executor.fence)
 }

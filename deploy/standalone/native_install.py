@@ -502,8 +502,6 @@ ephemeral_storage_default_limit_bytes = 268435456
 nameservers = {json.dumps(settings['dns_nameservers'])}
 [plugin.runtime.runsc]
 binary = "{OPT}/gvisor/runsc"
-[plugin.runtime.runsc.options]
-allow_suid = true
 '''
 
 

@@ -6,6 +6,7 @@ import (
 
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -79,8 +80,9 @@ func (h *runtimeSpyHandler) StartPreparedContainer(_ context.Context, prepared *
 
 func (h *runtimeSpyHandler) AllocationEnforcementManifest(_ context.Context, containerID string) (*apipb.AllocationEnforcementManifest, error) {
 	return &apipb.AllocationEnforcementManifest{
-		BundlePath:        "/fake/" + containerID,
-		CreatedAtUnixNano: time.Now().UTC().UnixNano(),
+		BundlePath:             "/fake/" + containerID,
+		CreatedAtUnixNano:      time.Now().UTC().UnixNano(),
+		ProcessSecurityProfile: wire.ProcessSecurityProfile,
 	}, nil
 }
 

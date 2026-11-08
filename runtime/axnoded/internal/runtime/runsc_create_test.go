@@ -67,9 +67,9 @@ func TestRunscSandboxdArgsEnableHostUDS(t *testing.T) {
 }
 
 func TestRunscLifecycleArgsEnableConfiguredRuntimeFlags(t *testing.T) {
-	handler := &RunscServiceHandler{ignoreCgroups: true, allowSUID: true}
+	handler := &RunscServiceHandler{ignoreCgroups: true}
 	got := handler.lifecycleArgs("run", "cid")
-	want := []string{"--ignore-cgroups", "--allow-suid", "run", "cid"}
+	want := []string{"--ignore-cgroups", "run", "cid"}
 	if len(got) != len(want) {
 		t.Fatalf("args = %#v, want %#v", got, want)
 	}
@@ -80,10 +80,10 @@ func TestRunscLifecycleArgsEnableConfiguredRuntimeFlags(t *testing.T) {
 	}
 }
 
-func TestRunscLifecycleArgsAllowSUIDCanBeDisabled(t *testing.T) {
-	handler := &RunscServiceHandler{ignoreCgroups: true}
+func TestRunscLifecycleArgsRequiredCgroupsNeverAllowSetUID(t *testing.T) {
+	handler := &RunscServiceHandler{}
 	got := handler.lifecycleArgs("run", "cid")
-	want := []string{"--ignore-cgroups", "run", "cid"}
+	want := []string{"run", "cid"}
 	if len(got) != len(want) {
 		t.Fatalf("args = %#v, want %#v", got, want)
 	}
