@@ -6,11 +6,11 @@ This chart is the deployment entrypoint for running Axern on Kubernetes. It supp
 
 Provision identity material first with `axern admin pki bootstrap` and create `pki.secretName` and the separate control-only `pki.signerSecretName`. The [Kubernetes install guide](../../../apps/docs/src/content/docs/getting-started/kubernetes.md) gives the release-only commands. Source deployments can use `make helm-pki-bootstrap` before `make helm-install`. The chart never generates or shares Node private keys.
 
-Released charts are published to GHCR as OCI artifacts:
+Released charts are published to GHCR as OCI artifacts. Select an actually published chart version and use its matching CLI, SDKs and service images; a source version does not establish artifact availability:
 
 ```bash
 helm install axern oci://ghcr.io/cofy-x/charts/axern \
-  --version 0.12.1 \
+  --version <published-version> \
   --namespace axern-system \
   --create-namespace \
   --set-string node.enrollment.existingSecret=axern-enrollment-tokens \
@@ -19,6 +19,8 @@ helm install axern oci://ghcr.io/cofy-x/charts/axern \
 ```
 
 The default Axern images are immutable version tags from the same release. Source development uses `values-local-development.yaml` after `make local-images-build`; it does not change the public chart defaults.
+
+Set `node.registryMirrorURL` when using an OCI registry mirror. Node image credentials use `node.registryAuth.existingSecret`; standard HTTP proxy settings use `proxyEnv`.
 
 Keep environment-specific values outside this repository and pass them through `AXERN_HELM_VALUES`:
 

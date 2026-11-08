@@ -20,8 +20,7 @@ enum MountType {
   MOUNT_TYPE_UNSPECIFIED = 0;
   MOUNT_TYPE_LOCAL = 1;
   MOUNT_TYPE_OCI = 2;
-  MOUNT_TYPE_NYDUS = 3;
-  MOUNT_TYPE_EROFS = 4;
+  MOUNT_TYPE_EROFS = 3;
 }
 
 enum ComponentState {
@@ -102,18 +101,8 @@ message AxnodedSummary {
 message ImagemgrSummary {
   ComponentState state = 1;
   bool reachable = 2;
-  int32 daemon_count = 3;
-  int32 mounted_image_count = 4;
-  int32 imported_image_count = 5;
-}
-
-message ImagefsdSummary {
-  ComponentState state = 1;
-  bool reachable = 2;
-  bool chunkdb_present = 3;
-  int64 chunk_count = 4;
-  int64 chunkdb_used_bytes = 5;
-  double chunkdb_usage_percent = 6;
+  int32 mounted_image_count = 3;
+  int32 imported_image_count = 4;
 }
 
 message BpfNetSummary {
@@ -155,8 +144,7 @@ message NodeDiagnostics {
 message ComponentsSummary {
   AxnodedSummary axnoded = 1;
   ImagemgrSummary imagemgr = 2;
-  ImagefsdSummary imagefsd = 3;
-  BpfNetSummary bpfnet = 4;
+  BpfNetSummary bpfnet = 3;
 }
 
 message LocalitySummary {
@@ -167,14 +155,7 @@ message LocalitySummary {
   int32 retained_environment_count = 5;
   int32 retained_rootfs_count = 6;
   int32 running_container_count = 7;
-  bool nydus_daemon_alive = 8;
-  int64 chunkdb_total_chunks = 9;
-  int64 chunkdb_used_bytes = 10;
-  int64 chunkdb_recent_access_age_secs = 11;
-  int64 peer_healthy_count = 12;
-  int64 peer_unhealthy_count = 13;
-  int64 peer_hinted_count = 14;
-  string environment_id = 15;
+  string environment_id = 8;
 }
 
 message WorkspaceStorage {
@@ -206,13 +187,13 @@ message NodeSummary {
   WorkspaceStorage workspace_storage = 14;
 }
 
-message ReportNodeRequest {
+message PublishNodeSnapshotRequest {
   string node_id = 1;
   NodeSummary summary = 2;
   string node_target = 3;
 }
 
-message ReportNodeResponse {
+message PublishNodeSnapshotResponse {
   // Explicit finite grants for Allocations currently allowed to execute.
   // Absence does not revoke an existing deadline: a response can race Create.
   // TTL is measured from receipt on the node; expired authority is not revived.
@@ -363,7 +344,7 @@ message ReportTunnelSessionStatusRequest {
 message ReportTunnelSessionStatusResponse {}
 
 service NodeControl {
-  rpc ReportNode(ReportNodeRequest) returns (ReportNodeResponse) {}
+  rpc PublishNodeSnapshot(PublishNodeSnapshotRequest) returns (PublishNodeSnapshotResponse) {}
   rpc BatchReportAllocationLifecycle(BatchReportAllocationLifecycleRequest) returns (BatchReportAllocationLifecycleResponse) {}
   rpc BatchReportAllocationCapabilityConditions(BatchReportAllocationCapabilityConditionsRequest) returns (BatchReportAllocationCapabilityConditionsResponse) {}
   rpc WatchAllocationAccessGrants(WatchAllocationAccessGrantsRequest) returns (stream WatchAllocationAccessGrantsResponse) {}

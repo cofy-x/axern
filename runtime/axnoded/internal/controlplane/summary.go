@@ -54,17 +54,8 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 			Imagemgr: &nodev1.ImagemgrSummary{
 				State:              componentStateFromString(snapshot.Components.Imagemgr.Status),
 				Reachable:          snapshot.Components.Imagemgr.Reachable,
-				DaemonCount:        int32(snapshot.Components.Imagemgr.DaemonCount),
 				MountedImageCount:  int32(snapshot.Components.Imagemgr.MountedImageCount),
 				ImportedImageCount: int32(snapshot.Components.Imagemgr.ImportedImageCount),
-			},
-			Imagefsd: &nodev1.ImagefsdSummary{
-				State:               componentStateFromString(snapshot.Components.Imagefsd.Status),
-				Reachable:           snapshot.Components.Imagefsd.Reachable,
-				ChunkdbPresent:      snapshot.Components.Imagefsd.ChunkDBPresent,
-				ChunkCount:          snapshot.Components.Imagefsd.ChunkCount,
-				ChunkdbUsedBytes:    snapshot.Components.Imagefsd.ChunkDBUsedBytes,
-				ChunkdbUsagePercent: snapshot.Components.Imagefsd.ChunkDBUsagePercent,
 			},
 			Bpfnet: &nodev1.BpfNetSummary{
 				State:   componentStateFromString(snapshot.Components.BPFNet.Status),
@@ -100,20 +91,13 @@ func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.Node
 	}
 	for _, entry := range snapshot.Heat.Locality {
 		summary.Locality = append(summary.Locality, &nodev1.LocalitySummary{
-			Key:                        entry.Key,
-			RootfsType:                 rootfsTypeToProto(entry.RootfsType),
-			MountType:                  mountTypeToProto(entry.MountType),
-			Mounted:                    entry.Mounted,
-			RetainedEnvironmentCount:   int32(entry.RetainedEnvironmentCount),
-			RetainedRootfsCount:        int32(entry.RetainedRootfsCount),
-			RunningContainerCount:      int32(entry.RunningContainerCount),
-			NydusDaemonAlive:           entry.NydusDaemonAlive,
-			ChunkdbTotalChunks:         entry.ChunkDBTotalChunks,
-			ChunkdbUsedBytes:           entry.ChunkDBUsedBytes,
-			ChunkdbRecentAccessAgeSecs: entry.ChunkDBRecentAccessAgeSecs,
-			PeerHealthyCount:           entry.PeerHealthyCount,
-			PeerUnhealthyCount:         entry.PeerUnhealthyCount,
-			PeerHintedCount:            entry.PeerHintedCount,
+			Key:                      entry.Key,
+			RootfsType:               rootfsTypeToProto(entry.RootfsType),
+			MountType:                mountTypeToProto(entry.MountType),
+			Mounted:                  entry.Mounted,
+			RetainedEnvironmentCount: int32(entry.RetainedEnvironmentCount),
+			RetainedRootfsCount:      int32(entry.RetainedRootfsCount),
+			RunningContainerCount:    int32(entry.RunningContainerCount),
 		})
 	}
 	for _, entry := range snapshot.Storage {
@@ -216,8 +200,6 @@ func mountTypeToProto(mountType string) nodev1.MountType {
 		return nodev1.MountType_MOUNT_TYPE_LOCAL
 	case "oci":
 		return nodev1.MountType_MOUNT_TYPE_OCI
-	case "nydus":
-		return nodev1.MountType_MOUNT_TYPE_NYDUS
 	case "erofs":
 		return nodev1.MountType_MOUNT_TYPE_EROFS
 	default:

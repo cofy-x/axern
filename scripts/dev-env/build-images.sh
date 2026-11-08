@@ -63,7 +63,7 @@ report_image_build_phase() {
 
 if [ "${build_node_runtime_base}" = "true" ]; then
   phase_started_at="$(date +%s)"
-  build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
+  build_node_runtime_base_image "${APT_MIRROR_SOURCE}"
   push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   report_image_build_phase "node-runtime-base" "${phase_started_at}"
 fi

@@ -55,7 +55,6 @@ metadata = {
     "pyproject.toml": toml_version(root / "pyproject.toml"),
     "sdk/python/pyproject.toml": toml_version(root / "sdk/python/pyproject.toml"),
     "sdk/typescript/package.json": json.loads((root / "sdk/typescript/package.json").read_text())["version"],
-    "runtime/imagefsd/Cargo.toml": toml_version(root / "runtime/imagefsd/Cargo.toml"),
 }
 typescript = json.loads((root / "sdk/typescript/package.json").read_text())
 if typescript.get("private") is not None:

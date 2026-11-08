@@ -113,31 +113,6 @@
       "problemMatcher": []
     },
     {
-      "label": "Axern: Restart Imagefsd",
-      "type": "shell",
-      "command": "make",
-      "args": [
-        "dev-stack-restart",
-        "SERVICE=imagefsd"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Axern: Build Imagefsd",
-      "type": "shell",
-      "command": "make",
-      "args": [
-        "imagefsd-build"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "Axern: Clean Axnoded Socket",
       "type": "shell",
       "command": "rm",
@@ -154,16 +129,6 @@
       "args": [
         "-f",
         "${workspaceFolder}/.dev/run/imagemgr.sock"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "Axern: Clean Imagefsd Socket",
-      "type": "shell",
-      "command": "rm",
-      "args": [
-        "-f",
-        "${workspaceFolder}/.dev/run/imagefsd-chunk.sock"
       ],
       "problemMatcher": []
     },
@@ -238,18 +203,7 @@
       "dependsOn": [
         "Axern: Ensure Delve",
         "Axern: Node Dev Prepare",
-        "Axern: Build Imagefsd",
         "Axern: Clean Imagemgr Socket"
-      ],
-      "problemMatcher": []
-    },
-    {
-      "label": "Axern: Prepare Imagefsd Debug",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Axern: Node Dev Prepare",
-        "Axern: Build Imagefsd",
-        "Axern: Clean Imagefsd Socket"
       ],
       "problemMatcher": []
     }

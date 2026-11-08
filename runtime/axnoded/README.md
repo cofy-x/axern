@@ -1,10 +1,12 @@
 # Axnoded
 
+The pinned gVisor distribution uses the direct `runsc` systrap profile. Delivery contains `runsc` and its Sentry, prewarmer, `/proc` unmounter and FD-parking helpers. The upstream archive is an authenticated build input; the selected per-architecture hashes, sizes and modes are maintained in [gvisor-selected.lock.json](gvisor-selected.lock.json). Process checkpoint/restore, the containerd shim and the standalone gVisor metric server are outside this profile. Workspace persistence retains files independently of processes.
+
 `axnoded` is Axern's Linux node-local sandbox execution agent. It runs on a selected node and owns sandbox creation, OCI bundle generation, runtime lifecycle, resource coordination, node-local operator inspection, gateway-forwarded execution after `controld` placement, and request-scoped image-backed process. macOS local development runs this Linux execution stack inside a VM.
 
 `controld` is the product-facing control plane. `axnoded` is the node authority for executing an admitted allocation.
 
-Rootfs sources are local directories or registry images (OCI/Nydus). Node locality reports use those same sources; object-store artifact storage does not provide workload rootfs mounts.
+Rootfs sources are local directories or OCI registry images. Node locality reports use those same sources; object-store artifact storage does not provide workload rootfs mounts.
 
 Axnoded owns the aggregate `runtime_slots` capacity contract reported to controld. It derives the aggregate from `max_instance_num`, active containers, and enabled resource-pool constraints. Disabled pools do not block inventory, but startup fails when a loaded runtime requires a disabled pool. Controld does not accept reports from older nodes that omit this contract, so such releases require a coordinated rebuild rather than mixed-version operation.
 

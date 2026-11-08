@@ -10,21 +10,23 @@ import (
 
 	v1 "github.com/google/go-containerregistry/pkg/v1"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/nydus"
 )
 
-// ErrNydusImage means content needs the Nydus backend and cannot be extracted as
-// ordinary OCI layers. Callers must not retry it through another OCI route.
+// ErrNydusImage rejects retired content before extraction or cache publication.
 var ErrNydusImage = errors.New("Nydus image is not supported by OCI extraction")
 
 func validateOCIImage(img v1.Image) error {
-	detected, err := nydus.IsNydusImage(img)
+	manifest, err := img.Manifest()
 	if err != nil {
 		return fmt.Errorf("inspect OCI image format: %w", err)
 	}
-	if detected {
+	if hasRetiredImageAnnotations(manifest.Annotations) {
 		return ErrNydusImage
+	}
+	for _, layer := range manifest.Layers {
+		if isRetiredImageDescriptor(layer) {
+			return ErrNydusImage
+		}
 	}
 	return nil
 }
@@ -33,7 +35,7 @@ func validateOCIArchiveDescriptor(descriptor tarball.Descriptor) error {
 	// ImageFromPath reconstructs a Docker manifest and may normalize descriptor
 	// metadata. Inspect retained source descriptors before that conversion.
 	for _, source := range descriptor.LayerSources {
-		if nydus.IsNydusDescriptor(source) {
+		if isRetiredImageDescriptor(source) {
 			return ErrNydusImage
 		}
 	}
@@ -83,7 +85,7 @@ func validateImportBootstrapLayer(ctx context.Context, layer v1.Layer) error {
 		if err != nil {
 			return err
 		}
-		if name == nydus.BootstrapFileNameInLayer && (header.Typeflag == tar.TypeReg || header.Typeflag == tar.TypeRegA) {
+		if name == retiredBootstrapFileNameInLayer && (header.Typeflag == tar.TypeReg || header.Typeflag == tar.TypeRegA) {
 			if err := validateBootstrapContent(reader); err != nil {
 				return err
 			}
@@ -92,12 +94,12 @@ func validateImportBootstrapLayer(ctx context.Context, layer v1.Layer) error {
 }
 
 func validateBootstrapContent(reader io.Reader) error {
-	header, err := io.ReadAll(io.LimitReader(reader, nydus.BootstrapHeaderSize))
+	header, err := io.ReadAll(io.LimitReader(reader, retiredBootstrapHeaderSize))
 	if err != nil {
 		return fmt.Errorf("inspect bootstrap header: %w", err)
 	}
-	if nydus.IsNydusBootstrap(header) {
-		return fmt.Errorf("%w: RAFS bootstrap at %s", ErrNydusImage, nydus.BootstrapFileNameInLayer)
+	if isRetiredBootstrap(header) {
+		return fmt.Errorf("%w: RAFS bootstrap at %s", ErrNydusImage, retiredBootstrapFileNameInLayer)
 	}
 	return nil
 }
@@ -119,14 +121,14 @@ func validateExtractedLayerFormat(layerPath string) error {
 	if err != nil {
 		return fmt.Errorf("inspect layer bootstrap directory: %w", err)
 	}
-	info, err = root.Lstat(nydus.BootstrapFileNameInLayer)
+	info, err = root.Lstat(retiredBootstrapFileNameInLayer)
 	if errors.Is(err, os.ErrNotExist) || (err == nil && !info.Mode().IsRegular()) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("inspect layer bootstrap file: %w", err)
 	}
-	file, err := root.Open(nydus.BootstrapFileNameInLayer)
+	file, err := root.Open(retiredBootstrapFileNameInLayer)
 	if err != nil {
 		return fmt.Errorf("open layer bootstrap file: %w", err)
 	}

@@ -59,7 +59,7 @@ make agent-doc-check
 | direct daemon | host/container tmpfs | strict JSON, diagnostics, file/archive, process, PTY, probes, ports, mounts, structured errors | provider discovery hooks | `make verify-sandboxd-provider-e2e` |
 | `runsc` | sample OCI rootfs | PID 1 injection, bundle socket, lifecycle, file/process/PTY/probe diagnostics | none | `make verify-sandboxd-oci-e2e` |
 | `runsc` | Docker OCI image | node create/wait/kill, network, file/process/terminal through product APIs | Computer Use when the image supports it | `make verify-docker-runsc-ebpf`, `make local-compose-refresh-verify` |
-| `runsc` | OCI/Nydus rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e` |
+| `runsc` | OCI rootfs | image manager integration, read-only mount handling, sandboxd runtime mount injection | image-dependent | `make verify-node-oci-e2e` |
 | `runsc` | explicit workload image | SSH and terminal semantics, probes, and normal sandbox lifecycle | none | `make local-compose-python-sdk-e2e` |
 | `runsc` | test-only desktop fixture | normal sandbox lifecycle plus desktop session readiness | Computer Use | `make local-compose-computer-use-e2e` |
 
@@ -104,11 +104,11 @@ Runtime recovery tests must preserve the lifecycle evidence boundary: a missing 
 | bundle and allocation create/start gate | `make verify-node-bundle-template-e2e`, `make verify-node-cli-e2e`                                             |
 | explicit workload image              | `make verify-node-python-runtime-e2e`                                                                              |
 | retention/locality/warm pool         | `make verify-node-retention-e2e`, `make verify-node-locality-e2e`, `make verify-node-warm-pool-e2e`               |
-| rootfs modes                         | `make verify-node-oci-e2e`, `make verify-node-nydus-e2e`                                                          |
+| rootfs modes                         | `make verify-node-oci-e2e`                                                          |
 
 Node-local network-policy diagnostics are covered by `go test ./internal/service ./internal/api ./axctl/commands/sandbox`. The gate must exercise `absent`, `dns_deny`, `strict`, capability-unavailable, enforcement-unhealthy, and binding-mismatch results, and must reject destination names, Host/SNI, remote addresses, CIDR values, policy digests, and raw daemon state from both the private operator response and stable JSON output.
 
-`verify-node-locality-e2e` reports explicit phases for initial inventory, OCI start, OCI retention, Nydus start, and Nydus heat. If create fails, inspect the printed context in this order: image pull and imagemgr mount state, runtime create output and sandbox stdout/stderr, sandboxd readiness in the runtime stderr, `/readyz` and `/inventoryz`, then locality heat fields in the cached inventory snapshot. The create timeout is script-configurable through `CREATE_SANDBOX_TIMEOUT`; the default is `300s`, high enough for cold image plus Nydus mount paths without relaxing the final locality assertions.
+`verify-node-locality-e2e` reports explicit phases for initial inventory, OCI start and OCI retention. If create fails, inspect the printed context in this order: image pull and imagemgr mount state, runtime create output and sandbox stdout/stderr, sandboxd readiness in the runtime stderr, `/readyz` and `/inventoryz`, then locality heat fields in the cached inventory snapshot. The create timeout is script-configurable through `CREATE_SANDBOX_TIMEOUT`; the default is `300s`, high enough for cold OCI image pulls and mount preparation without relaxing the final locality assertions.
 
 Startup observability uses two axnoded histogram levels. `axern.axnoded_startup_phase_duration_seconds` keeps the stable operator view: environment lookup, rootfs preparation, resource allocation, runtime bundle preparation, runtime launch, and network activation. `axern.axnoded_startup_step_duration_seconds` is the attribution view for rootfs and runtime internals such as rootfs cache lookup, rootfs wait, rootfs mount, writable rootfs view preparation, bundle materialization, runtime start, runtime state wait, and sandboxd readiness wait. Image-manager rootfs internals are exported by imagemgr as `axern.imagemgr_timed_operation_stage_duration_seconds`; use that metric to separate registry fetch, layer/bootstrap extraction, daemon creation, overlay or loop mount, and mount-readiness cost. Pair those node-side startup metrics with `axern.controld_node_lifecycle_rpc_duration_seconds`, `axern.axnoded_lifecycle_stage_duration_seconds`, and `axern.controld_allocation_lifecycle_report_stage_duration_seconds`. Use `axern.axnoded_allocation_lifecycle_queue_wait_duration_seconds` to distinguish node-side delivery delay from Allocation persistence and Run projection. Together these metrics distinguish placement admission, controld-to-node lifecycle RPC, node lifecycle request handling, runtime startup, queued lifecycle-observation delivery, and durable Run status projection.
 
@@ -119,7 +119,6 @@ Root-level equivalents exist for common node checks, for example:
 ```bash
 make axnoded-verify-docker
 make axnoded-verify-node-oci-e2e
-make axnoded-verify-node-nydus-e2e
 ```
 
 ## Local Demos
@@ -136,6 +135,6 @@ make benchmark-docker-runsc-compare
 BENCHMARK_IMAGE=registry.example.com/axnoded-verify:tag make benchmark-kubernetes-runsc-compare
 ```
 
-`benchmark-startup-matrix` and `benchmark-docker-runsc-compare` are Docker regression gates. They are useful before committing script or runtime changes, but they are not production bpfnet replacement evidence. The startup matrix defaults to `runsc-local` and `runsc-oci`; run `STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` for focused Nydus startup validation.
+`benchmark-startup-matrix` and `benchmark-docker-runsc-compare` are Docker regression gates. They are useful before committing script or runtime changes, but they are not production bpfnet replacement evidence. The startup matrix defaults to `runsc-local` and `runsc-oci`.
 
 Use `benchmark-kubernetes-runsc-compare` for bpfnet dataplane validation on a real Linux Kubernetes node. The Job image must be the axnoded verify image, not the production `node-all-in-one` image, because the benchmark needs the verify binaries and sample rootfs. Clear local proxy variables when they would intercept the Kubernetes API path, and point `BENCHMARK_IMAGE` at an image available to the target namespace. For the production replacement command matrix, expected readiness and compatibility modes, and `snatMap*` diagnostics, use [`network/bpfnet/docs/production-regression-runbook.md`](../../../network/bpfnet/docs/production-regression-runbook.md).

@@ -97,7 +97,6 @@ func ReadySummary(collectedAt time.Time) *nodev1.NodeSummary {
 		Components: &nodev1.ComponentsSummary{
 			Axnoded:  &nodev1.AxnodedSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Ready: true},
 			Imagemgr: &nodev1.ImagemgrSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Reachable: true},
-			Imagefsd: &nodev1.ImagefsdSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Reachable: true},
 			Bpfnet:   &nodev1.BpfNetSummary{State: nodev1.ComponentState_COMPONENT_STATE_READY, Enabled: true, Ready: true},
 		},
 	}

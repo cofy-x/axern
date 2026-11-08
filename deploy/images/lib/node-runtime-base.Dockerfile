@@ -1,23 +1,16 @@
-ARG GO_IMAGE=golang:1.26.8
-ARG RUST_IMAGE=rust:1.89.0
+ARG GO_IMAGE=golang:1.26.10
 ARG BASE_IMAGE=ubuntu:24.04
 FROM ${GO_IMAGE} AS golang-dist
-FROM ${RUST_IMAGE} AS rust-dist
 
 FROM ${BASE_IMAGE} AS node-runtime-base-build
 
 ARG APT_MIRROR_SOURCE=archive
-ARG CARGO_REGISTRY_SOURCE=crates-io
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
 ARG RUNSC_SOURCE=remote
 ARG RUNSC_CACHE_ARCH=aarch64
 ENV DEBIAN_FRONTEND=noninteractive
-ENV CARGO_HOME=/usr/local/cargo
-ENV RUSTUP_HOME=/usr/local/rustup
-ENV PATH=/usr/local/go/bin:/usr/local/cargo/bin:${PATH}
-ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-ENV CARGO_NET_RETRY=10
+ENV PATH=/usr/local/go/bin:${PATH}
 ENV GOPROXY=${GOPROXY}
 ENV GOSUMDB=${GOSUMDB}
 ENV GOMODCACHE=/go/pkg/mod
@@ -52,7 +45,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl \
     e2fsprogs \
     erofs-utils \
-    fuse3 \
     git \
     iproute2 \
     iptables \
@@ -62,48 +54,38 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     linux-tools-common \
     linux-tools-generic \
     procps \
+    python3 \
     util-linux \
     xfsprogs \
     && rm -rf /var/lib/apt/lists/partial
 
-RUN mkdir -p /usr/local/cargo && \
-    printf '[net]\nretry = %s\ngit-fetch-with-cli = true\n' "${CARGO_NET_RETRY}" > /usr/local/cargo/config.toml && \
-    git config --global http.lowSpeedLimit 1024 && \
-    git config --global http.lowSpeedTime 60
-
 COPY --from=golang-dist /usr/local/go /usr/local/go
-COPY --from=rust-dist /usr/local/cargo /usr/local/cargo
-COPY --from=rust-dist /usr/local/rustup /usr/local/rustup
 
 RUN go version
-RUN cargo --version
 
-COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
 COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
+COPY runtime/axnoded/gvisor-selected.lock.json runtime/axnoded/gvisor_payload.py /usr/local/share/axern/
 
-RUN set -eux; \
+# The local cache is a read-only build input, never a final-image layer.
+RUN --mount=type=bind,source=runtime/axnoded/.cache/gvisor,target=/opt/gvisor-cache,readonly \
+    set -eux; \
     . /usr/local/share/axern/runtime-tools.sh; \
     ARCH="$(dpkg --print-architecture)"; \
-    case "$ARCH" in \
-      amd64) GV_ARCH="x86_64"; GVISOR_SHA512="${AXERN_GVISOR_SHA512_AMD64}" ;; \
-      arm64) GV_ARCH="aarch64"; GVISOR_SHA512="${AXERN_GVISOR_SHA512_ARM64}" ;; \
-      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
-    esac; \
-    mkdir -p /tmp/gvisor; \
+    case "$ARCH" in amd64) GV_ARCH="x86_64" ;; arm64) GV_ARCH="aarch64" ;; *) exit 1 ;; esac; \
     if [ "${RUNSC_SOURCE}" = "local" ]; then \
-      cp -a "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/." /tmp/gvisor/; \
-    else \
+      python3 /usr/local/share/axern/gvisor_payload.py copy --arch "$ARCH" \
+        --lock /usr/local/share/axern/gvisor-selected.lock.json --upstream-lock /usr/local/share/axern/gvisor.lock \
+        --source "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}" --destination /tmp/gvisor; \
+    elif [ "${RUNSC_SOURCE}" = "remote" ]; then \
       URL="https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${GV_ARCH}/gvisor.tar.bz2"; \
       curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 900 -fsSLo /tmp/gvisor.tar.bz2 "${URL}"; \
-      printf '%s  %s\n' "${GVISOR_SHA512}" /tmp/gvisor.tar.bz2 | sha512sum -c -; \
-      tar -xjf /tmp/gvisor.tar.bz2 -C /tmp/gvisor; \
-    fi; \
+      python3 /usr/local/share/axern/gvisor_payload.py extract --arch "$ARCH" \
+        --lock /usr/local/share/axern/gvisor-selected.lock.json --upstream-lock /usr/local/share/axern/gvisor.lock \
+        --source /tmp/gvisor.tar.bz2 --destination /tmp/gvisor; \
+    else echo "unsupported RUNSC_SOURCE" >&2; exit 1; fi; \
     install -m 0755 /tmp/gvisor/runsc /usr/local/bin/runsc; \
-    if [ -f /tmp/gvisor/containerd-shim-runsc-v1 ]; then install -m 0755 /tmp/gvisor/containerd-shim-runsc-v1 /usr/local/bin/containerd-shim-runsc-v1; fi; \
-    for COMPONENT in checkpointgofer gvisor-proc-umounter gvisor_sentry runsc-fd-parking; do test -x "/tmp/gvisor/gvisor-bin/$COMPONENT"; done; \
-    mkdir -p /usr/local/bin/gvisor-bin; \
-    cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; \
+    cp -a /tmp/gvisor/gvisor-bin /usr/local/bin/gvisor-bin; \
     /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 
@@ -123,7 +105,7 @@ COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
-go 1.26.8
+go 1.26.10
 
 use (
 	./internal/proto
@@ -191,76 +173,6 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     mkdir -p /out && \
     GOTOOLCHAIN=local GOFLAGS= go build -o /out/imagemgr ./cmd/imagemgr
 
-FROM node-runtime-base-build AS imagefsd-build-base
-
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
-    build-essential \
-    cmake \
-    libssl-dev \
-    pkg-config \
-    protobuf-compiler \
-    && rm -rf /var/lib/apt/lists/partial
-
-FROM imagefsd-build-base AS imagefsd-builder
-WORKDIR /workspace
-
-COPY Cargo.toml Cargo.lock /workspace/
-COPY runtime/imagefsd/ /workspace/runtime/imagefsd/
-RUN mkdir -p /workspace/runtime/imagefsd/.cargo && \
-    case "${CARGO_REGISTRY_SOURCE}" in \
-      aliyun) \
-        printf '%s\n' \
-          '[net]' \
-          'git-fetch-with-cli = true' \
-          '' \
-          '[source.crates-io]' \
-          'registry = "https://github.com/rust-lang/crates.io-index"' \
-          "replace-with = 'aliyun'" \
-          '' \
-          '[source.aliyun]' \
-          'registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"' \
-          > /workspace/runtime/imagefsd/.cargo/config.toml \
-        ;; \
-      ustc) \
-        printf '%s\n' \
-          '[net]' \
-          'git-fetch-with-cli = true' \
-          '' \
-          '[source.crates-io]' \
-          'registry = "https://github.com/rust-lang/crates.io-index"' \
-          "replace-with = 'ustc'" \
-          '' \
-          '[source.ustc]' \
-          'registry = "sparse+https://mirrors.ustc.edu.cn/crates.io-index/"' \
-          > /workspace/runtime/imagefsd/.cargo/config.toml \
-        ;; \
-      crates-io) \
-        printf '%s\n' \
-          '[net]' \
-          'git-fetch-with-cli = true' \
-          '' \
-          '[source.crates-io]' \
-          'registry = "sparse+https://index.crates.io/"' \
-          > /workspace/runtime/imagefsd/.cargo/config.toml \
-        ;; \
-      *) \
-        echo "unsupported CARGO_REGISTRY_SOURCE: ${CARGO_REGISTRY_SOURCE}" >&2; \
-        exit 1 \
-        ;; \
-    esac
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    cargo fetch --locked --manifest-path /workspace/runtime/imagefsd/Cargo.toml
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,target=/workspace/target,sharing=locked \
-    mkdir -p /out && \
-    cargo build --release --locked --manifest-path /workspace/runtime/imagefsd/Cargo.toml && \
-    install -m 0755 /workspace/target/release/imagefsd /out/imagefsd
-
 FROM node-runtime-base-build AS node-runtime-base-final
 WORKDIR /workspace
 
@@ -304,6 +216,5 @@ COPY --from=axnoded-builder /out/egressdctl /usr/local/bin/egressdctl
 COPY --from=axnoded-builder /out/node-tunneld /usr/local/bin/node-tunneld
 COPY --from=axnoded-builder /out/tunnel-agent /usr/local/bin/tunnel-agent
 COPY --from=imagemgr-builder /out/imagemgr /usr/local/bin/imagemgr
-COPY --from=imagefsd-builder /out/imagefsd /usr/local/bin/imagefsd
 
 CMD ["/bin/bash"]

@@ -2,13 +2,13 @@
 """Host-safe installer boundary checks; actual service acceptance runs in a VM."""
 
 import copy
-import io
 import json
 import os
 import pathlib
 import shutil
+import hashlib
+import struct
 import subprocess
-import tarfile
 import tempfile
 import tomllib
 import unittest
@@ -76,46 +76,63 @@ class InstallerTest(unittest.TestCase):
             with mock.patch.object(installer, 'ETC', etc), self.assertRaises(installer.InstallError):
                 installer.verify_completed_installation_data(SETTINGS, 'a' * 64)
 
-    def test_pinned_runtime_preserves_new_sidecar_and_rejects_incomplete_layouts(self):
-        members = ['runsc', 'containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer',
-                   'gvisor-bin/gvisor-sentry-prewarmer', 'gvisor-bin/gvisor-proc-umounter',
-                   'gvisor-bin/gvisor_sentry', 'gvisor-bin/runsc-fd-parking', 'gvisor-bin/runsc-metric-server']
-        for variant in ('complete', 'missing-sidecar', 'extra-member', 'duplicate'):
+    def test_selected_runtime_verifies_members_and_rejects_modified_or_retired_files(self):
+        members = installer.gvisor_payload.MEMBERS
+        for variant in ('complete', 'missing-sidecar', 'retired-member', 'corrupt', 'mode', 'symlink', 'wrong-arch', 'existing-modified'):
             with self.subTest(variant=variant), tempfile.TemporaryDirectory() as temporary:
                 base = pathlib.Path(temporary)
                 root, opt, data = base / 'release', base / 'opt', base / 'data'
-                (root / 'runtime').mkdir(parents=True)
+                selected = root / 'runtime/gvisor'
+                (selected / 'gvisor-bin').mkdir(parents=True)
+                (root / 'share/axern').mkdir(parents=True)
                 opt.mkdir()
                 (data / 'fixtures/rootfs').mkdir(parents=True)
-                entries = list(members)
+                header = bytearray(64)
+                header[:7] = b'\x7fELF\x02\x01\x01'
+                struct.pack_into('<HH', header, 16, 2, 62)
+                record = {'size': 64, 'mode': 0o755, 'sha256': hashlib.sha256(header).hexdigest()}
+                lock = {'schema': installer.gvisor_payload.SCHEMA, 'profile': installer.gvisor_payload.PROFILE,
+                        'release': '20261102.0', 'commit': 'a' * 40,
+                        'architectures': {arch: {'archive_sha512': 'b' * 128,
+                            'members': {name: record for name in members}} for arch in ('amd64', 'arm64')}}
+                (root / 'share/axern/gvisor.lock').write_text('AXERN_GVISOR_RELEASE=20261102.0\nAXERN_GVISOR_COMMIT=' + 'a'*40 + '\nAXERN_GVISOR_SHA512_AMD64=' + 'b'*128 + '\n')
+                (root / 'share/axern/gvisor-selected.lock.json').write_text(json.dumps(lock))
+                for name in members:
+                    (selected / name).write_bytes(header)
+                    (selected / name).chmod(0o755)
                 if variant == 'missing-sidecar':
-                    entries.remove('gvisor-bin/gvisor-proc-umounter')
-                elif variant == 'extra-member':
-                    entries.append('unexpected')
-                elif variant == 'duplicate':
-                    entries.append('gvisor-bin/gvisor-proc-umounter')
-                with tarfile.open(root / 'runtime/gvisor.tar.bz2', 'w:bz2') as archive:
-                    for name in entries:
-                        payload = name.encode()
-                        member = tarfile.TarInfo(name)
-                        member.size = len(payload)
-                        archive.addfile(member, io.BytesIO(payload))
-                # This test owns archive layout, not the separately enforced
-                # root-only installation boundary. Keep its fixture host-safe
-                # for unprivileged release-contract CI runners.
+                    (selected / 'gvisor-bin/gvisor-proc-umounter').unlink()
+                elif variant == 'retired-member':
+                    (selected / 'containerd-shim-runsc-v1').write_bytes(header)
+                elif variant == 'corrupt':
+                    (selected / 'runsc').write_bytes(header + b'changed')
+                elif variant == 'mode':
+                    (selected / 'runsc').chmod(0o777)
+                elif variant == 'symlink':
+                    (selected / 'runsc').unlink()
+                    (selected / 'runsc').symlink_to('gvisor-bin/gvisor_sentry')
+                elif variant == 'wrong-arch':
+                    wrong = bytearray(header)
+                    struct.pack_into('<H', wrong, 18, 183)
+                    (selected / 'runsc').write_bytes(wrong)
+                elif variant == 'existing-modified':
+                    shutil.copytree(selected, opt / 'gvisor')
+                    (opt / 'gvisor/runsc').write_bytes(b'preserve invalid existing runtime')
                 with mock.patch.multiple(installer, ROOT=root, OPT=opt, DATA=data), \
-                     mock.patch.object(installer, 'safe_directory',
-                                       side_effect=lambda path: path.mkdir(mode=0o755)):
+                     mock.patch.object(installer.platform, 'machine', return_value='x86_64'), \
+                     mock.patch.object(installer, 'safe_directory', side_effect=lambda path: path.mkdir(mode=0o755)):
                     if variant == 'complete':
                         installer.prepare_runtime()
                         for name in members:
-                            target = opt / 'gvisor' / name
-                            self.assertEqual(target.read_bytes(), name.encode())
-                            self.assertEqual(target.stat().st_mode & 0o777, 0o755)
+                            self.assertEqual((opt / 'gvisor' / name).read_bytes(), header)
+                            self.assertEqual((opt / 'gvisor' / name).stat().st_mode & 0o777, 0o755)
                     else:
                         with self.assertRaises(installer.InstallError):
                             installer.prepare_runtime()
-                        self.assertFalse((opt / 'gvisor').exists())
+                        if variant == 'existing-modified':
+                            self.assertEqual((opt / 'gvisor/runsc').read_bytes(), b'preserve invalid existing runtime')
+                        else:
+                            self.assertFalse((opt / 'gvisor').exists())
 
     def test_node_generation_uses_systemd_start_with_microsecond_precision(self):
         properties = ('MainPID=123\nExecMainStartTimestamp=Fri 2026-11-06 14:34:14.110196 UTC\n'
@@ -367,7 +384,6 @@ class InstallerTest(unittest.TestCase):
         self.assertIn('TasksMax=1024\n', units['axern-services.slice'])
         self.assertIn('TasksMax=9728\n', units['axern.slice'])
         self.assertNotIn(installer.unit_name('imagefsd'), units)
-        self.assertIn('"-enable_nydus=false"', units[installer.unit_name('imagemgr')])
 
     def test_node_task_budget_covers_all_configured_allocations_and_reserve(self):
         for maximum in (1, 64):

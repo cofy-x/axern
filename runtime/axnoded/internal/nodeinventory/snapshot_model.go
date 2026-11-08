@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-const SnapshotVersion = "v1alpha2"
+const SnapshotVersion = "v1alpha3"
 
 const (
 	StatusReady    = "ready"
@@ -183,19 +183,8 @@ type ImagemgrComponentInventory struct {
 	Status             string `json:"status"`
 	Error              string `json:"error,omitempty"`
 	Reachable          bool   `json:"reachable"`
-	DaemonCount        int    `json:"daemon_count"`
 	MountedImageCount  int    `json:"mounted_image_count"`
 	ImportedImageCount int    `json:"imported_image_count"`
-}
-
-type ImagefsdComponentInventory struct {
-	Status              string  `json:"status"`
-	Error               string  `json:"error,omitempty"`
-	Reachable           bool    `json:"reachable"`
-	ChunkDBPresent      bool    `json:"chunkdb_present"`
-	ChunkCount          int64   `json:"chunk_count"`
-	ChunkDBUsedBytes    int64   `json:"chunkdb_used_bytes"`
-	ChunkDBUsagePercent float64 `json:"chunkdb_usage_percent"`
 }
 
 type BPFNetComponentInventory struct {
@@ -209,43 +198,25 @@ type BPFNetComponentInventory struct {
 type ComponentsInventory struct {
 	Axnoded  AxnodedComponentInventory  `json:"axnoded"`
 	Imagemgr ImagemgrComponentInventory `json:"imagemgr"`
-	Imagefsd ImagefsdComponentInventory `json:"imagefsd"`
 	BPFNet   BPFNetComponentInventory   `json:"bpfnet"`
 }
 
-type ChunkDBHeat struct {
-	TotalChunks  int64   `json:"total_chunks"`
-	UsedBytes    int64   `json:"used_bytes"`
-	FreeBytes    int64   `json:"free_bytes"`
-	TotalBytes   int64   `json:"total_bytes"`
-	UsagePercent float64 `json:"usage_percent"`
-}
-
 type LocalityHeatEntry struct {
-	Key                        string `json:"key"`
-	RootfsType                 string `json:"rootfs_type"`
-	MountType                  string `json:"mount_type"`
-	Mounted                    bool   `json:"mounted"`
-	RetainedEnvironmentCount   int    `json:"retained_environment_count"`
-	RetainedRootfsCount        int    `json:"retained_rootfs_count"`
-	RunningContainerCount      int    `json:"running_container_count"`
-	NydusDaemonAlive           bool   `json:"nydus_daemon_alive"`
-	ChunkDBTotalChunks         int64  `json:"chunkdb_total_chunks"`
-	ChunkDBUsedBytes           int64  `json:"chunkdb_used_bytes"`
-	ChunkDBRecentAccessAgeSecs int64  `json:"chunkdb_recent_access_age_secs"`
-	PeerHealthyCount           int64  `json:"peer_healthy_count"`
-	PeerUnhealthyCount         int64  `json:"peer_unhealthy_count"`
-	PeerHintedCount            int64  `json:"peer_hinted_count"`
+	Key                      string `json:"key"`
+	RootfsType               string `json:"rootfs_type"`
+	MountType                string `json:"mount_type"`
+	Mounted                  bool   `json:"mounted"`
+	RetainedEnvironmentCount int    `json:"retained_environment_count"`
+	RetainedRootfsCount      int    `json:"retained_rootfs_count"`
+	RunningContainerCount    int    `json:"running_container_count"`
 }
 
 type HeatInventory struct {
 	MountedImageURLs         []string            `json:"mounted_image_urls"`
 	MountedRootfsCount       int                 `json:"mounted_rootfs_count"`
-	NydusDaemonCount         int                 `json:"nydus_daemon_count"`
 	RetainedEnvironmentCount int                 `json:"retained_environment_count"`
 	RetainedRootfsCount      int                 `json:"retained_rootfs_count"`
 	Locality                 []LocalityHeatEntry `json:"locality"`
-	ChunkDB                  ChunkDBHeat         `json:"chunkdb"`
 }
 
 type NodeInventorySnapshot struct {

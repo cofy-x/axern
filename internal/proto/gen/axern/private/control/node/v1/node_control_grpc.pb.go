@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	NodeControl_ReportNode_FullMethodName                                = "/axern.private.control.node.v1.NodeControl/ReportNode"
+	NodeControl_PublishNodeSnapshot_FullMethodName                       = "/axern.private.control.node.v1.NodeControl/PublishNodeSnapshot"
 	NodeControl_BatchReportAllocationLifecycle_FullMethodName            = "/axern.private.control.node.v1.NodeControl/BatchReportAllocationLifecycle"
 	NodeControl_BatchReportAllocationCapabilityConditions_FullMethodName = "/axern.private.control.node.v1.NodeControl/BatchReportAllocationCapabilityConditions"
 	NodeControl_WatchAllocationAccessGrants_FullMethodName               = "/axern.private.control.node.v1.NodeControl/WatchAllocationAccessGrants"
@@ -31,7 +31,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeControlClient interface {
-	ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error)
+	PublishNodeSnapshot(ctx context.Context, in *PublishNodeSnapshotRequest, opts ...grpc.CallOption) (*PublishNodeSnapshotResponse, error)
 	BatchReportAllocationLifecycle(ctx context.Context, in *BatchReportAllocationLifecycleRequest, opts ...grpc.CallOption) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(ctx context.Context, in *BatchReportAllocationCapabilityConditionsRequest, opts ...grpc.CallOption) (*BatchReportAllocationCapabilityConditionsResponse, error)
 	WatchAllocationAccessGrants(ctx context.Context, in *WatchAllocationAccessGrantsRequest, opts ...grpc.CallOption) (NodeControl_WatchAllocationAccessGrantsClient, error)
@@ -47,9 +47,9 @@ func NewNodeControlClient(cc grpc.ClientConnInterface) NodeControlClient {
 	return &nodeControlClient{cc}
 }
 
-func (c *nodeControlClient) ReportNode(ctx context.Context, in *ReportNodeRequest, opts ...grpc.CallOption) (*ReportNodeResponse, error) {
-	out := new(ReportNodeResponse)
-	err := c.cc.Invoke(ctx, NodeControl_ReportNode_FullMethodName, in, out, opts...)
+func (c *nodeControlClient) PublishNodeSnapshot(ctx context.Context, in *PublishNodeSnapshotRequest, opts ...grpc.CallOption) (*PublishNodeSnapshotResponse, error) {
+	out := new(PublishNodeSnapshotResponse)
+	err := c.cc.Invoke(ctx, NodeControl_PublishNodeSnapshot_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (c *nodeControlClient) ReportTunnelSessionStatus(ctx context.Context, in *R
 // All implementations must embed UnimplementedNodeControlServer
 // for forward compatibility
 type NodeControlServer interface {
-	ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error)
+	PublishNodeSnapshot(context.Context, *PublishNodeSnapshotRequest) (*PublishNodeSnapshotResponse, error)
 	BatchReportAllocationLifecycle(context.Context, *BatchReportAllocationLifecycleRequest) (*BatchReportAllocationLifecycleResponse, error)
 	BatchReportAllocationCapabilityConditions(context.Context, *BatchReportAllocationCapabilityConditionsRequest) (*BatchReportAllocationCapabilityConditionsResponse, error)
 	WatchAllocationAccessGrants(*WatchAllocationAccessGrantsRequest, NodeControl_WatchAllocationAccessGrantsServer) error
@@ -164,8 +164,8 @@ type NodeControlServer interface {
 type UnimplementedNodeControlServer struct {
 }
 
-func (UnimplementedNodeControlServer) ReportNode(context.Context, *ReportNodeRequest) (*ReportNodeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReportNode not implemented")
+func (UnimplementedNodeControlServer) PublishNodeSnapshot(context.Context, *PublishNodeSnapshotRequest) (*PublishNodeSnapshotResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PublishNodeSnapshot not implemented")
 }
 func (UnimplementedNodeControlServer) BatchReportAllocationLifecycle(context.Context, *BatchReportAllocationLifecycleRequest) (*BatchReportAllocationLifecycleResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method BatchReportAllocationLifecycle not implemented")
@@ -195,20 +195,20 @@ func RegisterNodeControlServer(s grpc.ServiceRegistrar, srv NodeControlServer) {
 	s.RegisterService(&NodeControl_ServiceDesc, srv)
 }
 
-func _NodeControl_ReportNode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReportNodeRequest)
+func _NodeControl_PublishNodeSnapshot_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishNodeSnapshotRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeControlServer).ReportNode(ctx, in)
+		return srv.(NodeControlServer).PublishNodeSnapshot(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeControl_ReportNode_FullMethodName,
+		FullMethod: NodeControl_PublishNodeSnapshot_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeControlServer).ReportNode(ctx, req.(*ReportNodeRequest))
+		return srv.(NodeControlServer).PublishNodeSnapshot(ctx, req.(*PublishNodeSnapshotRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -317,8 +317,8 @@ var NodeControl_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeControlServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "ReportNode",
-			Handler:    _NodeControl_ReportNode_Handler,
+			MethodName: "PublishNodeSnapshot",
+			Handler:    _NodeControl_PublishNodeSnapshot_Handler,
 		},
 		{
 			MethodName: "BatchReportAllocationLifecycle",

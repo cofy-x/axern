@@ -9,10 +9,10 @@ Axern separates durable product intent from node-local execution:
 - `controld` and PostgreSQL own Environments, Runs, Allocations with their resource charges, allocation access grants, TunnelSessions, placement, authorization, and durable lifecycle state. Axnoded persists the locally received execution-lease deadline with its Allocation recovery record.
 - `axnoded` owns node-local Allocation execution, recovery, cleanup, and allocation-scoped reporting. Its local state and queues cannot become a second source of product truth.
 - `gatewayd` is the unified external gateway for public control and Allocation-scoped data-plane protocols. It owns no placement, lifecycle, or durable product state.
-- `imagemgr`, `imagefsd`, `egressd`, `bpfnet`, and `tunneld` own narrow image, network, or relay responsibilities below the Run lifecycle.
+- `imagemgr`, `egressd`, `bpfnet`, and `tunneld` own narrow image, network, or relay responsibilities below the Run lifecycle.
 - SDK `Sandbox` objects compose the durable `Environment -> Run -> Allocation` chain without creating another lifecycle.
 
-Imagemgr can run in explicit [OCI-only mode](../../runtime/imagemgr/README.md#startup-modes) without starting imagefsd or loading Nydus configuration. Existing deployment defaults retain Nydus support. This option preserves the image-manager API and lease ownership; it does not combine services or implement the planned standalone installer.
+[Imagemgr](../../runtime/imagemgr/README.md) manages OCI image extraction, immutable rootfs identity and read-only mount leases. Native, Compose and Kubernetes deployments use the same image path.
 
 ## External And Internal Flows
 

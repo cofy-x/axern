@@ -112,13 +112,18 @@ fi
 grep -Fq "AXERN_DOCKER_CACHE_BACKEND must be none or gha" <<< "${output}"
 
 : > "${calls_file}"
+# This fixture verifies Docker arguments with an inert function. Selecting
+# remote inputs prevents module initialization from downloading a local runtime.
+RUNSC_SOURCE=remote
+RUNSC_CACHE_ARCH=x86_64
 source "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
 VERIFY_DOCKER_VARIANT=full
 VERIFY_DOCKER_PLATFORM=linux/amd64
 NODE_RUNTIME_BASE_IMAGE_TAG=axern/local-node-runtime-base:dev
-build_verify_image archive crates-io
+build_verify_image archive
 assert_contains "image inspect axern/local-node-runtime-base:dev"
 assert_contains "build --platform linux/amd64 -f"
+assert_contains "--build-arg RUNSC_SOURCE=remote"
 if grep -Fq "buildx build" "${calls_file}"; then
   echo "local-parent build unexpectedly used an isolated Buildx image store" >&2
   exit 1

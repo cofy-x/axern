@@ -106,10 +106,6 @@
         "-debug",
         "-root",
         "${workspaceFolder}/.dev/imagemgr",
-        "-imagefsd_bin",
-        "${workspaceFolder}/target/debug/imagefsd",
-        "-nydus_template",
-        "${workspaceFolder}/runtime/imagemgr/configs/nydus_registry.json.example",
         "-registry_auths_path",
         "${workspaceFolder}/runtime/imagemgr/registry_auths.json.example",
         "-http_sock",
@@ -118,29 +114,6 @@
       "env": {
         "GOTOOLCHAIN": "local"
       }
-    },
-    {
-      "name": "Imagefsd: Debug chunk server",
-      "type": "cppdbg",
-      "request": "launch",
-      "program": "${workspaceFolder}/target/debug/imagefsd",
-      "cwd": "${workspaceFolder}/runtime/imagefsd",
-      "args": [
-        "--verbose",
-        "serve-chunk",
-        "--chunk-db-dir",
-        "${workspaceFolder}/.dev/imagefsd/chunkdb",
-        "--listen-port",
-        "9876",
-        "--chunk-server-sock",
-        "${workspaceFolder}/.dev/run/imagefsd-chunk.sock",
-        "--log-file",
-        "${workspaceFolder}/.dev/imagefsd/imagefsd.log"
-      ],
-      "preLaunchTask": "Axern: Prepare Imagefsd Debug",
-      "MIMode": "gdb",
-      "miDebuggerPath": "/usr/bin/gdb",
-      "externalConsole": false
     }
   ]
 }

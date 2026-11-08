@@ -8,9 +8,9 @@ Use the opt-in [startup and idle measurement](MEASUREMENT.md) harness to record 
 
 ## Build
 
-Build natively on Ubuntu 24.04, on amd64 or arm64, from a clean committed checkout. Cross-compilation and other build distributions are rejected by the initial profile. Use the repository's Go version with locked dependencies. Generated protobuf prerequisites follow the existing repository bootstrap and module build instructions. The native payload uses OCI-only imagemgr and does not build or package Rust/imagefsd.
+Build natively on Ubuntu 24.04, on amd64 or arm64, from a clean committed checkout. Cross-compilation and other build distributions are rejected by the initial profile. Use the repository's Go version with locked dependencies. Generated protobuf prerequisites follow the existing repository bootstrap and module build instructions. The native payload includes OCI image management.
 
-Obtain the full `gvisor.tar.bz2` archive selected by [gvisor.lock](../../runtime/axnoded/gvisor.lock). The upstream URL is `https://storage.googleapis.com/gvisor/releases/release/<AXERN_GVISOR_RELEASE>/<x86_64-or-aarch64>/gvisor.tar.bz2`. The builder checks the architecture-specific SHA-512 before compiling and retains the complete archive without unpacking or executing it.
+Obtain the full `gvisor.tar.bz2` archive selected by [gvisor.lock](../../runtime/axnoded/gvisor.lock). The upstream URL is `https://storage.googleapis.com/gvisor/releases/release/<AXERN_GVISOR_RELEASE>/<x86_64-or-aarch64>/gvisor.tar.bz2`. This is a build input, not a delivered payload. The builder verifies its architecture-specific SHA-512, then selects only `runsc` and the four helpers in [gvisor-selected.lock.json](../../runtime/axnoded/gvisor-selected.lock.json). Each selected file must match its locked SHA-256, size, mode and ELF architecture before packaging; the builder does not execute upstream binaries.
 
 ```bash
 make native-runtime-check
@@ -29,21 +29,22 @@ The final JSON receipt reports the archive path and SHA-256. Build output goes t
 
 ## Payload Contract
 
-`manifest.json` is the first archive member. Its `axern.native-runtime.v2` schema records the version, source commit, Linux architecture, candidate build profile/libc, gVisor source/release/archive digest and the exact file inventory with sizes, SHA-256 hashes and modes. Entries use deterministic order, normalized ownership/modes and source-commit timestamps; gzip omits the output filename and wall-clock timestamp. This makes packaging the same staged bytes reproducible, without claiming every compiler produces reproducible binaries.
+`manifest.json` is the first archive member. Its `axern.native-runtime.v3` schema records the version, source commit, Linux architecture, candidate build profile/libc, gVisor source/release/input-archive digest and the exact selected file inventory with sizes, SHA-256 hashes and modes. The bundled selected-member lock binds the direct-runsc profile to those bytes. Entries use deterministic order, normalized ownership/modes and source-commit timestamps; gzip omits the output filename and wall-clock timestamp. This makes packaging the same staged bytes reproducible, without claiming every compiler produces reproducible binaries.
 
 | Payload | Purpose |
 | --- | --- |
 | `bin/` | CLI, control with scheduled retention, migration/access-bootstrap, gateway, node, OCI image manager, egress, tunnel and diagnostic binaries |
 | `libexec/axnoded/` | Sandbox supervisor, egress/DNS probes and sandbox tunnel agent |
-| `libexec/axern/` | Native installer, payload verification/staging tool and opt-in qualification runners |
-| `runtime/gvisor.tar.bz2` and `share/axern/gvisor.lock` | Full pinned upstream runtime, including its helper directory; the installer must preserve its layout |
+| `libexec/axern/` | Native installer, selected-runtime and payload verification/staging tools, and opt-in qualification runners |
+| `runtime/gvisor/runsc` and `runtime/gvisor/gvisor-bin/` | Direct runsc with `gvisor_sentry`, `gvisor-sentry-prewarmer`, `gvisor-proc-umounter` and `runsc-fd-parking`, preserving their required relative layout |
+| `share/axern/gvisor.lock` and `share/axern/gvisor-selected.lock.json` | Upstream provenance and architecture-specific selected-member integrity |
 | `share/axern/runtime-selftest/memory-hog` and `share/axern/erofs-root/` | Axern-owned capability fixture inputs for installer assembly |
 | `share/axern/registry_auths.json` | Empty OCI registry credential map |
 | `requirements.json`, `LICENSE`, `NOTICE` | Candidate host requirements and Axern license notices |
 
-PostgreSQL, Python, system libraries, Linux utilities and BusyBox are host prerequisites, not bundled executables. The installer assembles the capability rootfs using host `busybox-static` and the bundled memory-hog, and generates the EROFS fixture from its source directory. This avoids copying arbitrary host binaries into the release payload. Imagemgr starts with `-enable_nydus=false`; Nydus images are rejected and no imagefsd service, template or binary is required.
+PostgreSQL, Python, system libraries, Linux utilities and BusyBox are host prerequisites, not bundled executables. The installer assembles the capability rootfs using host `busybox-static` and the bundled memory-hog, and generates the EROFS fixture from its source directory. This avoids copying arbitrary host binaries into the release payload. Imagemgr owns OCI extraction and immutable mount leases.
 
-The payload contains no node identity, TLS/private keys, database, registry credentials or mutable workspace. The fixed inventory rejects additional files rather than recursively archiving a developer's directory. The installer generates host-specific configuration and systemd units; staging files alone does not start services.
+The payload contains no node identity, TLS/private keys, database, registry credentials or mutable workspace. It contains neither the original gVisor archive nor containerd shim, checkpoint-gofer or metric-server executables. Axern uses the direct runsc lifecycle; upstream checkpoint and standalone metric-server commands are outside this selected profile. The fixed inventory rejects additional files rather than recursively archiving a developer's directory. The installer generates host-specific configuration and systemd units; staging files alone does not start services.
 
 ## Verify Without Installation
 
@@ -55,7 +56,7 @@ make native-runtime-verify \
   RUNTIME_SHA256=EXPECTED_SHA256_FROM_TRUSTED_RECEIPT
 ```
 
-The verifier reads the archive without extraction or execution. It checks the outer digest, bounded manifest, closed inventory, per-file size/mode/hash, ELF architecture and the nested gVisor archive against the bundled lock. Duplicate names, unexpected files, links, special files, credential-bearing registry templates and missing members fail. Passing verifies payload structure and integrity; it does not authenticate the publisher, inspect dynamic library compatibility, or prove sandbox isolation.
+The verifier reads the payload without extraction or execution. It checks the outer digest, bounded manifest, closed inventory, per-file size/mode/hash and the selected gVisor members against their bundled lock and ELF architecture. Duplicate payload names, unexpected files, links, special files, credential-bearing registry templates and missing members fail. Passing verifies payload structure and integrity; it does not authenticate the publisher, inspect dynamic library compatibility, prove sandbox isolation or replace a dependency audit of the actual delivered binaries.
 
 ## Verification And Support Boundary
 

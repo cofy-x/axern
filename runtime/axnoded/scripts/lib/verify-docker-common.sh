@@ -8,12 +8,10 @@ IMAGE_TAG="${IMAGE_TAG:-axnoded-verify:latest}"
 CONTAINER_NAME="${CONTAINER_NAME:-axnoded-verify}"
 VERIFY_DOCKER_VARIANT="${VERIFY_DOCKER_VARIANT:-full}"
 APT_MIRROR_SOURCE="${APT_MIRROR_SOURCE:-archive}"
-CARGO_REGISTRY_SOURCE="${CARGO_REGISTRY_SOURCE:-crates-io}"
 GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}"
 GOSUMDB="${GOSUMDB:-sum.golang.org}"
 BASE_IMAGE="${BASE_IMAGE:-ubuntu:24.04}"
-GO_IMAGE="${GO_IMAGE:-golang:1.26.8}"
-RUST_IMAGE="${RUST_IMAGE:-rust:1.89.0}"
+GO_IMAGE="${GO_IMAGE:-golang:1.26.10}"
 NODE_RUNTIME_BASE_IMAGE_TAG="${NODE_RUNTIME_BASE_IMAGE_TAG:-axern/local-node-runtime-base:dev}"
 VERIFY_DOCKER_BUILDKIT="${VERIFY_DOCKER_BUILDKIT:-1}"
 RUNSC_SOURCE="${RUNSC_SOURCE:-auto}"
@@ -45,18 +43,7 @@ normalize_apt_mirror_source() {
   esac
 }
 
-normalize_cargo_registry_source() {
-  case "$1" in
-    aliyun|ustc|crates-io) echo "$1" ;;
-    *)
-      echo "unsupported CARGO_REGISTRY_SOURCE: $1 (expected one of: aliyun, ustc, crates-io)" >&2
-      return 1
-      ;;
-  esac
-}
-
 APT_MIRROR_SOURCE="$(normalize_apt_mirror_source "${APT_MIRROR_SOURCE}")"
-CARGO_REGISTRY_SOURCE="$(normalize_cargo_registry_source "${CARGO_REGISTRY_SOURCE}")"
 RUNSC_SOURCE="$(normalize_runsc_source "${RUNSC_SOURCE}")"
 
 normalize_verify_docker_variant() {
@@ -405,67 +392,6 @@ prepare_oci_test_image_source() {
   echo "oci_test_image_source=docker-cache original_image=${image_ref} runtime_image=${runtime_ref}"
 }
 
-prepare_nydus_test_image_source() {
-  local image_ref="$1"
-  local source_mode="${NYDUS_TEST_IMAGE_SOURCE:-local-build}"
-  local local_registry_port="${OCI_TEST_LOCAL_REGISTRY_PORT:-${LOCAL_REGISTRY_PORT:-5001}}"
-  local local_registry_name="${LOCAL_REGISTRY_NAME:-axern-registry}"
-  local build_output registry_ip registry_runtime_host runtime_ref
-
-  PREPARED_NYDUS_TEST_IMAGE="${image_ref}"
-  OCI_TEST_INSECURE_REGISTRIES="${IMAGEMGR_INSECURE_REGISTRIES:-${OCI_TEST_INSECURE_REGISTRIES:-}}"
-
-  case "${source_mode}" in
-    registry)
-      echo "nydus_test_image_source=registry image=${image_ref}"
-      export PREPARED_NYDUS_TEST_IMAGE OCI_TEST_INSECURE_REGISTRIES
-      return 0
-      ;;
-    local-build)
-      if ! LOCAL_REGISTRY_PORT="${local_registry_port}" "${REPO_ROOT}/scripts/dev-env/registry-up.sh" >/dev/null; then
-        echo "failed to start the repo-managed local registry on port ${local_registry_port}" >&2
-        return 1
-      fi
-      registry_ip="$(docker inspect --format '{{with index .NetworkSettings.Networks "bridge"}}{{.IPAddress}}{{end}}' "${local_registry_name}")"
-      if [ -z "${registry_ip}" ]; then
-        echo "local registry has no bridge address: ${local_registry_name}" >&2
-        return 1
-      fi
-      registry_runtime_host="${registry_ip}:5000"
-      build_output="$(
-        LOCAL_REGISTRY_PORT="${local_registry_port}" \
-          LOCAL_REGISTRY_CLUSTER_HOST="${registry_runtime_host}" \
-          NYDUS_PLATFORM="${VERIFY_DOCKER_PLATFORM}" \
-          bash "${REPO_ROOT}/scripts/dev-env/registry-nydus-image-build.sh"
-      )"
-      runtime_ref="$(printf '%s\n' "${build_output}" | awk -F= '$1 == "cluster_nydus_image" {print $2}')"
-      if [ -z "${runtime_ref}" ]; then
-        printf '%s\n' "${build_output}" >&2
-        echo "local Nydus image build did not return cluster_nydus_image" >&2
-        return 1
-      fi
-      ;;
-    *)
-      echo "unsupported NYDUS_TEST_IMAGE_SOURCE: ${source_mode} (expected local-build or registry)" >&2
-      return 1
-      ;;
-  esac
-
-  if [ -n "${OCI_TEST_INSECURE_REGISTRIES}" ]; then
-    OCI_TEST_INSECURE_REGISTRIES+=",${runtime_ref%%/*}"
-  else
-    OCI_TEST_INSECURE_REGISTRIES="${runtime_ref%%/*}"
-  fi
-  case ",${REGISTRY_NO_PROXY}," in
-    *,"${registry_ip}",*) ;;
-    *) REGISTRY_NO_PROXY="${REGISTRY_NO_PROXY:+${REGISTRY_NO_PROXY},}${registry_ip}" ;;
-  esac
-
-  PREPARED_NYDUS_TEST_IMAGE="${runtime_ref}"
-  export PREPARED_NYDUS_TEST_IMAGE OCI_TEST_INSECURE_REGISTRIES REGISTRY_NO_PROXY
-  echo "nydus_test_image_source=local-build runtime_image=${runtime_ref}"
-}
-
 resolve_build_https_proxy() {
   if [ -n "${VERIFY_DOCKER_HTTPS_PROXY:-}" ]; then
     normalize_runtime_proxy_url "${VERIFY_DOCKER_HTTPS_PROXY}"
@@ -546,7 +472,6 @@ export REGISTRY_PROXY_URL REGISTRY_NO_PROXY
 
 build_verify_image() {
   local apt_mirror_source="$1"
-  local cargo_registry_source="$2"
   local dockerfile_path="${ROOT_DIR}/docker/verify/Dockerfile"
   local perf_kernel_release=""
   local build_http_proxy=""
@@ -565,7 +490,6 @@ build_verify_image() {
     --build-arg BASE_IMAGE="${BASE_IMAGE}"
     --build-arg NODE_RUNTIME_BASE_IMAGE="${NODE_RUNTIME_BASE_IMAGE_TAG}"
     --build-arg APT_MIRROR_SOURCE="${apt_mirror_source}"
-    --build-arg CARGO_REGISTRY_SOURCE="${cargo_registry_source}"
     --build-arg GOPROXY="${GOPROXY}"
     --build-arg GOSUMDB="${GOSUMDB}"
     --build-arg RUNSC_SOURCE="${RUNSC_SOURCE}"
@@ -635,7 +559,6 @@ build_verify_image() {
 
 build_node_runtime_base_image() {
   local apt_mirror_source="$1"
-  local cargo_registry_source="$2"
   local dockerfile_path="${REPO_ROOT}/deploy/images/lib/node-runtime-base.Dockerfile"
   local build_http_proxy=""
   local build_https_proxy=""
@@ -646,10 +569,8 @@ build_node_runtime_base_image() {
   local build_args=(
     -f "${dockerfile_path}"
     --build-arg GO_IMAGE="${GO_IMAGE}"
-    --build-arg RUST_IMAGE="${RUST_IMAGE}"
     --build-arg BASE_IMAGE="${BASE_IMAGE}"
     --build-arg APT_MIRROR_SOURCE="${apt_mirror_source}"
-    --build-arg CARGO_REGISTRY_SOURCE="${cargo_registry_source}"
     --build-arg GOPROXY="${GOPROXY}"
     --build-arg GOSUMDB="${GOSUMDB}"
     --build-arg RUNSC_SOURCE="${RUNSC_SOURCE}"
@@ -698,51 +619,26 @@ build_node_runtime_base_image() {
 
 ensure_verify_image() {
   local apt_mirror_source="${APT_MIRROR_SOURCE}"
-  local cargo_registry_source="${CARGO_REGISTRY_SOURCE}"
-
   if [ "${VERIFY_DOCKER_VARIANT}" = "full" ]; then
-    if build_node_runtime_base_image "${apt_mirror_source}" "${cargo_registry_source}"; then
+    if build_node_runtime_base_image "${apt_mirror_source}"; then
       :
-    elif [ "${cargo_registry_source}" != "crates-io" ]; then
-      echo "shared node runtime base build failed with APT_MIRROR_SOURCE=${apt_mirror_source} and CARGO_REGISTRY_SOURCE=${cargo_registry_source}, retrying with CARGO_REGISTRY_SOURCE=crates-io" >&2
-      cargo_registry_source="crates-io"
-      if build_node_runtime_base_image "${apt_mirror_source}" "${cargo_registry_source}"; then
-        :
-      elif [ "${apt_mirror_source}" != "archive" ]; then
-        echo "shared node runtime base build failed with APT_MIRROR_SOURCE=${apt_mirror_source} and CARGO_REGISTRY_SOURCE=${cargo_registry_source}, retrying with APT_MIRROR_SOURCE=archive" >&2
-        apt_mirror_source="archive"
-        build_node_runtime_base_image "${apt_mirror_source}" "${cargo_registry_source}"
-      else
-        exit 1
-      fi
     elif [ "${apt_mirror_source}" != "archive" ]; then
-      echo "shared node runtime base build failed with APT_MIRROR_SOURCE=${apt_mirror_source} and CARGO_REGISTRY_SOURCE=${cargo_registry_source}, retrying with APT_MIRROR_SOURCE=archive" >&2
+      echo "shared node runtime base build failed with APT_MIRROR_SOURCE=${apt_mirror_source}, retrying with APT_MIRROR_SOURCE=archive" >&2
       apt_mirror_source="archive"
-      build_node_runtime_base_image "${apt_mirror_source}" "${cargo_registry_source}"
+      build_node_runtime_base_image "${apt_mirror_source}"
     else
-      exit 1
+      return 1
     fi
   fi
-
-  if build_verify_image "${apt_mirror_source}" "${cargo_registry_source}"; then
+  if build_verify_image "${apt_mirror_source}"; then
     return 0
   fi
-
-  if [ "${cargo_registry_source}" != "crates-io" ]; then
-    echo "docker build failed with APT_MIRROR_SOURCE=${apt_mirror_source} and CARGO_REGISTRY_SOURCE=${cargo_registry_source}, retrying with CARGO_REGISTRY_SOURCE=crates-io" >&2
-    cargo_registry_source="crates-io"
-    if build_verify_image "${apt_mirror_source}" "${cargo_registry_source}"; then
-      return 0
-    fi
-  fi
-
   if [ "${apt_mirror_source}" != "archive" ]; then
-    echo "docker build failed with APT_MIRROR_SOURCE=${apt_mirror_source} and CARGO_REGISTRY_SOURCE=${cargo_registry_source}, retrying with APT_MIRROR_SOURCE=archive" >&2
-    build_verify_image archive "${cargo_registry_source}"
+    echo "docker build failed with APT_MIRROR_SOURCE=${apt_mirror_source}, retrying with APT_MIRROR_SOURCE=archive" >&2
+    build_verify_image archive
     return $?
   fi
-
-  exit 1
+  return 1
 }
 
 cleanup_verify_container() {
@@ -761,11 +657,10 @@ run_verify_container() {
     --name "${CONTAINER_NAME}"
     --privileged
   )
+  run_args+=(-e "HTTP_PROXY=${REGISTRY_PROXY_URL}" -e "HTTPS_PROXY=${REGISTRY_PROXY_URL}" -e "NO_PROXY=${REGISTRY_NO_PROXY}")
   local passthrough_envs=(
     RUNTIME_BINARY
     SOCKET_ADDRESS
-    REGISTRY_PROXY_URL
-    REGISTRY_NO_PROXY
     DEBUG_LOG_LINES
     NAT_BACKEND
     AXNODED_IP_RANGE

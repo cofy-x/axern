@@ -13,14 +13,8 @@ func TestCanonicalPhaseForStage(t *testing.T) {
 		want  string
 	}{
 		{stage: "reuse_in_memory_mount", want: "rootfs_prepare"},
-		{stage: "create_daemon", want: "rootfs_prepare"},
-		{stage: "wait_mount_ready", want: "rootfs_prepare"},
-		{stage: "bootstrap_cache_lookup", want: "rootfs_prepare"},
-		{stage: "bootstrap_cache_store", want: "rootfs_prepare"},
-		{stage: "read_image_config", want: "rootfs_prepare"},
-		{stage: "open_bootstrap_stream", want: "rootfs_prepare"},
-		{stage: "scan_bootstrap_archive", want: "rootfs_prepare"},
-		{stage: "copy_bootstrap_file", want: "rootfs_prepare"},
+		{stage: "extract_layers", want: "rootfs_prepare"},
+		{stage: "persist_mount_record", want: "rootfs_prepare"},
 		{stage: "validate_request", want: ""},
 	}
 
@@ -35,17 +29,17 @@ func TestCanonicalPhaseForStage(t *testing.T) {
 
 func TestBuildSummaryIncludesCanonicalPhaseLabels(t *testing.T) {
 	op := &Operation{
-		operation:       "api.MountNydus",
+		operation:       "oci.MountImage",
 		identifierKey:   "identifier",
-		identifierValue: "daemon-1",
+		identifierValue: "image-1",
 		stages: []stageRecord{
-			{name: "check_existing_daemon", canonicalPhase: canonicalPhaseForStage("check_existing_daemon"), duration: 5 * time.Millisecond},
+			{name: "reuse_in_memory_mount", canonicalPhase: canonicalPhaseForStage("reuse_in_memory_mount"), duration: 5 * time.Millisecond},
 			{name: "validate_request", canonicalPhase: canonicalPhaseForStage("validate_request"), duration: time.Millisecond},
 		},
 	}
 
 	summary := op.buildSummary(20 * time.Millisecond)
-	if !strings.Contains(summary, "check_existing_daemon[rootfs_prepare]") {
+	if !strings.Contains(summary, "reuse_in_memory_mount[rootfs_prepare]") {
 		t.Fatalf("summary missing canonical phase label: %s", summary)
 	}
 	if !strings.Contains(summary, "validate_request=") {

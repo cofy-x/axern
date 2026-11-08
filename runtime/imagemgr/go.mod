@@ -1,19 +1,17 @@
 module github.com/cofy-x/axern/runtime/imagemgr
 
-go 1.26.8
+go 1.26.10
 
 require (
-	github.com/avast/retry-go/v4 v4.7.0
 	github.com/cofy-x/axern/lib/go/imageref v0.0.0
-	github.com/google/go-containerregistry v0.20.7
-	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/google/go-containerregistry v0.22.1
 	github.com/moby/sys/mountinfo v0.7.2
 	github.com/sirupsen/logrus v1.9.4
+	github.com/stretchr/testify v1.12.1
 	go.etcd.io/bbolt v1.4.3
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/trace v1.46.0
-	golang.org/x/sync v0.23.0
-	golang.org/x/sys v0.48.0
+	golang.org/x/sys v0.49.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
@@ -38,8 +36,10 @@ require (
 	go.opentelemetry.io/otel/sdk/log v0.21.0 // indirect
 	go.opentelemetry.io/otel/sdk/metric v1.46.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.11.0 // indirect
-	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/text v0.42.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260819154853-08b0e4226688 // indirect
 	google.golang.org/grpc v1.83.2 // indirect
@@ -49,15 +49,12 @@ require (
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cofy-x/axern/lib/go/observability v0.0.0
-	github.com/containerd/stargz-snapshotter/estargz v0.18.1 // indirect
-	github.com/docker/cli v29.5.3+incompatible // indirect
-	github.com/docker/distribution v2.8.3+incompatible // indirect
+	github.com/docker/cli v29.7.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.3 // indirect
-	github.com/klauspost/compress v1.18.7 // indirect
-	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/go-jose/go-jose/v4 v4.1.9 // indirect; security floor for the complete gRPC module graph
+	github.com/klauspost/compress v1.20.2 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/vbatts/tar-split v0.12.2 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )
 

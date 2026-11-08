@@ -201,7 +201,7 @@ func (r *Reporter) Stop() {
 
 func (r *Reporter) report() {
 	ctx, op := sdkobs.StartOperation(context.Background(), sdkobs.OperationConfig{
-		Name:        sandboxobs.SpanControlPlaneReportNode,
+		Name:        sandboxobs.SpanControlPlanePublishNodeSnapshot,
 		SpanAttrs:   []attribute.KeyValue{attribute.String(sdkobs.AttrNodeID, r.nodeID)},
 		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "report_node")},
 		Counter:     sandboxobs.MetricControlPlaneReportTotal,
@@ -232,16 +232,16 @@ func (r *Reporter) report() {
 	r.sequence++
 	summary.NodeInstanceID = r.nodeInstanceID
 	summary.Sequence = r.sequence
-	req := &nodev1.ReportNodeRequest{
+	req := &nodev1.PublishNodeSnapshotRequest{
 		NodeID:     r.nodeID,
 		Summary:    summary,
 		NodeTarget: r.nodeTarget,
 	}
 	started := time.Now()
-	var response *nodev1.ReportNodeResponse
+	var response *nodev1.PublishNodeSnapshotResponse
 	if err := r.withClient(ctx, func(ctx context.Context, client nodev1.NodeControlClient) error {
 		var err error
-		response, err = client.ReportNode(ctx, req)
+		response, err = client.PublishNodeSnapshot(ctx, req)
 		return err
 	}); err != nil {
 		op.SetErrorStatus("report node")

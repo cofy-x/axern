@@ -76,16 +76,20 @@ func serverFixture(t *testing.T) (Manager, fixtureFiles, *recordingRunner, strin
 	digest := strings.Repeat("a", 64)
 	release := "/opt/axern/releases/" + digest
 	helper := release + "/" + helperRelativePath
-	data := []byte("# trusted installed fixture; never executed\n")
-	checksum := sha256.Sum256(data)
 	files.put("/etc/axern/installation.json", []byte(`{"schema":"axern.native-install.v1","archive_sha256":"`+digest+`","source_revision":"revision"}`))
 	files.put("/etc/axern/installed", []byte(digest+"\n"))
-	manifest, err := json.Marshal(map[string]any{"schema": "axern.native-runtime.v2", "os": "linux", "source_revision": "revision", "files": []map[string]any{{"path": helperRelativePath, "sha256": hex.EncodeToString(checksum[:]), "size": len(data)}}})
+	entries := []map[string]any{}
+	for _, relative := range []string{helperRelativePath, "libexec/axern/native_runtime.py", "libexec/axern/gvisor_payload.py"} {
+		data := []byte("# trusted installed fixture " + relative + "; never executed\n")
+		checksum := sha256.Sum256(data)
+		files.put(filepath.Join(release, relative), data)
+		entries = append(entries, map[string]any{"path": relative, "sha256": hex.EncodeToString(checksum[:]), "size": len(data)})
+	}
+	manifest, err := json.Marshal(map[string]any{"schema": "axern.native-runtime.v3", "os": "linux", "source_revision": "revision", "files": entries})
 	if err != nil {
 		t.Fatal(err)
 	}
 	files.put(release+"/manifest.json", manifest)
-	files.put(helper, data)
 	return Manager{runner: runner, files: files, stdout: io.Discard, stderr: io.Discard, osName: "linux"}, files, runner, helper
 }
 
@@ -125,6 +129,12 @@ func TestInvalidInstallationNeverExecutesHelper(t *testing.T) {
 			v.data = []byte("unexpected helper")
 			f[helper] = v
 		},
+		"legacy-runtime-schema": func(f fixtureFiles, helper string) {
+			path := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(helper))), "manifest.json")
+			v := f[path]
+			v.data = []byte(strings.ReplaceAll(string(v.data), "axern.native-runtime.v3", "axern.native-runtime.v2"))
+			f[path] = v
+		},
 		"wrong-manifest": func(f fixtureFiles, helper string) {
 			f[filepath.Dir(filepath.Dir(filepath.Dir(helper)))+"/manifest.json"] = fixtureFile{data: []byte(`{"schema":"wrong"}`), mode: 0644}
 		},
@@ -140,6 +150,62 @@ func TestInvalidInstallationNeverExecutesHelper(t *testing.T) {
 				t.Fatal("host tool executed before verification")
 			}
 		})
+	}
+}
+
+func TestBootstrapSiblingMustBeTrustedBeforeAnyHostExecution(t *testing.T) {
+	for _, sibling := range []string{"native_runtime.py", "gvisor_payload.py"} {
+		for _, variant := range []string{"missing", "symlink", "writable", "modified", "wrong-owner", "unlisted", "duplicate"} {
+			t.Run(sibling+"/"+variant, func(t *testing.T) {
+				manager, files, runner, helper := serverFixture(t)
+				path := filepath.Join(filepath.Dir(helper), sibling)
+				entry := files[path]
+				switch variant {
+				case "missing":
+					delete(files, path)
+				case "symlink":
+					entry.mode = os.ModeSymlink | 0755
+					files[path] = entry
+				case "writable":
+					entry.mode = 0666
+					files[path] = entry
+				case "modified":
+					entry.data = []byte("# unexpected bootstrap dependency\n")
+					files[path] = entry
+				case "wrong-owner":
+					entry.uid = 1000
+					files[path] = entry
+				case "unlisted", "duplicate":
+					manifestPath := filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(helper))), "manifest.json")
+					original := files[manifestPath]
+					var manifest map[string]any
+					if err := json.Unmarshal(original.data, &manifest); err != nil {
+						t.Fatal(err)
+					}
+					entries := []any{}
+					for _, item := range manifest["files"].([]any) {
+						if item.(map[string]any)["path"] != "libexec/axern/"+sibling {
+							entries = append(entries, item)
+						} else if variant == "duplicate" {
+							entries = append(entries, item, item)
+						}
+					}
+					manifest["files"] = entries
+					data, err := json.Marshal(manifest)
+					if err != nil {
+						t.Fatal(err)
+					}
+					original.data = data
+					files[manifestPath] = original
+				}
+				if err := manager.Operate(t.Context(), "start"); err == nil {
+					t.Fatal("untrusted bootstrap sibling accepted")
+				}
+				if runner.calls != 0 {
+					t.Fatal("host tool executed before bootstrap closure verification")
+				}
+			})
+		}
 	}
 }
 

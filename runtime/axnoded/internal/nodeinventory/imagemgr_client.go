@@ -14,13 +14,15 @@ import (
 const imageManagerInventoryTimeout = 3 * time.Second
 
 type MountedImageDetail struct {
-	ImageURL      string `json:"image_url"`
-	MountType     string `json:"mount_type"`
-	NydusImageURL string `json:"nydus_image_url,omitempty"`
-	MountPath     string `json:"mount_path"`
+	CacheKey   string `json:"cache_key,omitempty"`
+	LeaseCount int    `json:"lease_count"`
+	ImageURL   string `json:"image_url"`
+	MountType  string `json:"mount_type"`
+	MountPath  string `json:"mount_path"`
 }
 
 type ImportedImageDetail struct {
+	CacheKey       string `json:"cache_key,omitempty"`
 	ImageRef       string `json:"image_ref"`
 	ContentDigest  string `json:"content_digest"`
 	ArchiveDigest  string `json:"archive_digest"`
@@ -29,58 +31,9 @@ type ImportedImageDetail struct {
 	ImportedAtUnix int64  `json:"imported_at_unix"`
 }
 
-type DaemonInfo struct {
-	ID           string `json:"id"`
-	Name         string `json:"name"`
-	MountPoint   string `json:"mount_point"`
-	SourceType   string `json:"source_type"`
-	IsAlive      bool   `json:"is_alive"`
-	ImageURL     string `json:"image_url,omitempty"`
-	Endpoint     string `json:"endpoint,omitempty"`
-	Bucket       string `json:"bucket,omitempty"`
-	ObjectPrefix string `json:"object_prefix,omitempty"`
-}
-
-type ChunkDBStats struct {
-	Chunks struct {
-		TotalCount int64 `json:"total_count"`
-	} `json:"chunks"`
-	Storage struct {
-		FreeSizeBytes  int64  `json:"free_size_bytes"`
-		TotalSizeBytes int64  `json:"total_size_bytes"`
-		UsagePercent   string `json:"usage_percent"`
-		UsedSizeBytes  int64  `json:"used_size_bytes"`
-	} `json:"storage"`
-}
-
-type ImageLocalityEntry struct {
-	Key                        string `json:"key"`
-	MountType                  string `json:"mount_type"`
-	ImageURL                   string `json:"image_url,omitempty"`
-	NydusImageURL              string `json:"nydus_image_url,omitempty"`
-	MountPath                  string `json:"mount_path,omitempty"`
-	Mounted                    bool   `json:"mounted"`
-	DaemonID                   string `json:"daemon_id,omitempty"`
-	DaemonAlive                bool   `json:"daemon_alive"`
-	ChunkDBTotalChunks         int64  `json:"chunkdb_total_chunks"`
-	ChunkDBUsedBytes           int64  `json:"chunkdb_used_bytes"`
-	ChunkDBRecentAccessAgeSecs int64  `json:"chunkdb_recent_access_age_secs"`
-	PeerHealthyCount           int64  `json:"peer_healthy_count"`
-	PeerUnhealthyCount         int64  `json:"peer_unhealthy_count"`
-	PeerHintedCount            int64  `json:"peer_hinted_count"`
-}
-
 type ImageManagerInventory struct {
-	// Nil preserves the inventory contract of imagemgr versions that predate
-	// explicit OCI-only operation. False means imagefsd is intentionally absent.
-	ImagefsdEnabled *bool                 `json:"imagefsd_enabled,omitempty"`
-	MountedImages   []MountedImageDetail  `json:"mounted_images"`
-	ImportedImages  []ImportedImageDetail `json:"imported_images,omitempty"`
-	Locality        []ImageLocalityEntry  `json:"locality"`
-	Daemons         []DaemonInfo          `json:"daemons"`
-	ChunkDB         *ChunkDBStats         `json:"chunkdb,omitempty"`
-	ChunkDBError    string                `json:"chunkdb_error,omitempty"`
-	LocalityError   string                `json:"locality_error,omitempty"`
+	MountedImages  []MountedImageDetail  `json:"mounted_images"`
+	ImportedImages []ImportedImageDetail `json:"imported_images,omitempty"`
 }
 
 type ImageManagerClient struct {
@@ -135,6 +88,11 @@ func (c *ImageManagerClient) Inventory(ctx context.Context) (*ImageManagerInvent
 	var inventory ImageManagerInventory
 	if err := json.NewDecoder(resp.Body).Decode(&inventory); err != nil {
 		return nil, fmt.Errorf("decode imagemgr inventory: %w", err)
+	}
+	for _, mounted := range inventory.MountedImages {
+		if mounted.MountType != "oci" || mounted.ImageURL == "" || mounted.MountPath == "" {
+			return nil, fmt.Errorf("imagemgr returned an unsupported or incomplete mounted image")
+		}
 	}
 	return &inventory, nil
 }

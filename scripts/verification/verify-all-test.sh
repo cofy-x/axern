@@ -12,7 +12,7 @@ for suite in source runtime; do
 done
 cat "${work_dir}/source" "${work_dir}/runtime" >"${work_dir}/partition"
 cmp "${work_dir}/all" "${work_dir}/partition"
-[ "$(wc -l <"${work_dir}/all" | tr -d ' ')" = 29 ]
+[ "$(wc -l <"${work_dir}/all" | tr -d ' ')" = 28 ]
 [ "$(head -1 "${work_dir}/runtime")" = axern-cli-e2e ]
 # The runtime runner must build its own host executables, not depend on files
 # left by the source suite on another runner.

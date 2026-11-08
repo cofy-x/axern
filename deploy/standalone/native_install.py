@@ -9,6 +9,7 @@ import datetime
 import fcntl
 import grp
 import ipaddress
+import importlib.util
 import json
 import os
 import pathlib
@@ -21,11 +22,22 @@ import socket
 import stat
 import subprocess
 import sys
-import tarfile
 import tempfile
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+# Isolated Python (-I) excludes the script directory. Resolve only the fixed
+# packaged sibling or this checkout's source file, never CWD/site imports.
+_selector = pathlib.Path(__file__).resolve().with_name('gvisor_payload.py')
+if not _selector.exists():
+    _selector = ROOT / 'runtime/axnoded/gvisor_payload.py'
+if _selector.is_symlink() or not _selector.is_file():
+    raise ImportError('the matching gvisor_payload.py staging tool is required')
+_selector_spec = importlib.util.spec_from_file_location('gvisor_payload', _selector)
+gvisor_payload = importlib.util.module_from_spec(_selector_spec)
+# Compile the verified source directly: do not load or write unmanifested .pyc.
+exec(compile(_selector.read_bytes(), str(_selector), 'exec'), gvisor_payload.__dict__)
+
 ETC = pathlib.Path('/etc/axern')
 DATA = pathlib.Path('/var/lib/axern')
 OPT = pathlib.Path('/opt/axern')
@@ -416,7 +428,7 @@ def service_units(root: pathlib.Path, settings: dict) -> dict[str, str]:
         'bootstrap': (None, ['postgres'], helper + ['internal-bootstrap']),
         'controld': ('control', ['bootstrap'], [binary('controld'), '-grpc-address', '127.0.0.1:24000', '-http-address', '127.0.0.1:24001', '-enrollment-address', '127.0.0.1:24002', '-workload-signer-bundle', credential('control', 'signer.pem'), '-tunnel-relays', 'default,127.0.0.1:25000,127.0.0.1:24100,1,false'] + tls('control')),
         'tunneld': ('tunnel', ['controld'], [binary('tunneld'), '-listen', '127.0.0.1:24100', '-control-target', '127.0.0.1:24000', '-relay-tls-cert', credential('tunnel', 'bundle.pem'), '-relay-tls-key', credential('tunnel', 'bundle.pem')] + tls('tunnel')),
-        'imagemgr': (None, [], [binary('imagemgr'), '-root', str(DATA / 'imagemgr'), '-node_id', settings['node_id'], '-enable_nydus=false', '-registry_auths_path', str(root / 'share/axern/registry_auths.json'), '-http_sock', '/run/axern-native-imagemgr/imagemgr.sock']),
+        'imagemgr': (None, [], [binary('imagemgr'), '-root', str(DATA / 'imagemgr'), '-node_id', settings['node_id'], '-registry_auths_path', str(root / 'share/axern/registry_auths.json'), '-http_sock', '/run/axern-native-imagemgr/imagemgr.sock']),
         'egressd': (None, [], [binary('egressd'), '-root', str(DATA / 'egressd'), '-socket', '/run/axern-native-egressd/egressd.sock']),
         'axnoded': (None, ['controld', 'imagemgr', 'egressd'], [binary('axnoded'), '-root', str(DATA / 'axnoded'), '-config', str(ETC / 'node.toml'), '-enrollment-token-file', str(ETC / 'private/enrollment-token'), '-socket', '/run/axern-native-axnoded/axnoded.sock', '-tunnel-socket', '/run/axern-native-axnoded/tunnel.sock', '-grpc-address', '127.0.0.1:24010', '-http-address', '127.0.0.1:23001', '-log-file', str(DATA / 'axnoded/axnoded.log')]),
         'node-tunneld': (None, ['axnoded', 'tunneld'], [binary('node-tunneld'), '-node-id', settings['node_id'], '-control-target', '127.0.0.1:24000', '-tunnel-socket', '/run/axern-native-axnoded/tunnel.sock', '-tls-ca-cert', str(ETC / 'ca.crt'), '-identity-bundle', str(DATA / 'axnoded/root/identity/node.pem'), '-workload-cluster', 'axern.local', '-relay-tls-ca-cert', str(ETC / 'ca.crt'), '-runsc-binary', str(OPT / 'gvisor/runsc'), '-runsc-root', str(DATA / 'axnoded/root/runsc'), '-agent-binary', str(root / 'libexec/axnoded/tunnel-agent')]),
@@ -574,27 +586,24 @@ def sync_identity(renew: bool = False) -> None:
 
 
 def prepare_runtime() -> None:
-    if not (OPT / 'gvisor').exists():
-        allowed = {'runsc', 'containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer', 'gvisor-bin/gvisor-sentry-prewarmer', 'gvisor-bin/gvisor-proc-umounter', 'gvisor-bin/gvisor_sentry', 'gvisor-bin/runsc-fd-parking', 'gvisor-bin/runsc-metric-server'}
-        with tempfile.TemporaryDirectory(prefix='.gvisor-', dir=OPT) as temporary:
-            stage = pathlib.Path(temporary) / 'runtime'
-            stage.mkdir()
-            seen = set()
-            with tarfile.open(ROOT / 'runtime/gvisor.tar.bz2', 'r|bz2') as archive:
-                for member in archive:
-                    if member.isdir() and member.name.rstrip('/') == 'gvisor-bin':
-                        continue
-                    if member.name not in allowed or member.name in seen or not member.isfile() or member.size > 1024**3:
-                        raise InstallError('unexpected gVisor runtime layout')
-                    target = stage / member.name
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    with archive.extractfile(member) as source, target.open('xb') as output:
-                        shutil.copyfileobj(source, output)
-                    target.chmod(0o755)
-                    seen.add(member.name)
-            if seen != allowed:
-                raise InstallError('incomplete gVisor runtime')
-            stage.rename(OPT / 'gvisor')
+    arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
+    if arch is None:
+        raise InstallError('unsupported gVisor host architecture')
+    try:
+        upstream = gvisor_payload.upstream_lock(ROOT / 'share/axern/gvisor.lock', arch)
+        members = gvisor_payload.parse_selected((ROOT / 'share/axern/gvisor-selected.lock.json').read_bytes(), arch, upstream)
+        source = ROOT / 'runtime/gvisor'
+        gvisor_payload.verify_tree(source, members, arch)
+        if (OPT / 'gvisor').exists() or (OPT / 'gvisor').is_symlink():
+            # Never adopt a previous or modified runtime, including unused files.
+            gvisor_payload.verify_tree(OPT / 'gvisor', members, arch)
+        else:
+            with tempfile.TemporaryDirectory(prefix='.gvisor-', dir=OPT) as temporary:
+                stage = pathlib.Path(temporary) / 'runtime'
+                gvisor_payload.copy_tree(source, stage, members, arch)
+                stage.rename(OPT / 'gvisor')
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise InstallError('invalid selected gVisor runtime') from error
     fixtures = DATA / 'fixtures'
     if not fixtures.exists():
         with tempfile.TemporaryDirectory(prefix='.fixtures-', dir=DATA) as temporary:
@@ -912,7 +921,7 @@ def main() -> None:
                 run('systemctl', 'try-restart', *[unit_name(name) for name in ('controld', 'tunneld', 'gatewayd')])
             else:
                 run('systemctl', '--no-pager', 'status', TARGET, *[unit_name(name) for name in SERVICES])
-    except (InstallError, OSError, ValueError, subprocess.SubprocessError, tarfile.TarError) as error:
+    except (InstallError, OSError, ValueError, subprocess.SubprocessError) as error:
         parser.exit(1, f'native-install: {error}\n')
 
 

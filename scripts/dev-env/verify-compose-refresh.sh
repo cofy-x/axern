@@ -82,9 +82,6 @@ run_cmd bash -lc 'source scripts/dev-env/lib.sh; local_smoke_report_reliability 
 if [ "${LOCAL_COMPOSE_REGISTRY_IMAGE_SMOKE:-0}" = "1" ] || [ "${LOCAL_COMPOSE_REGISTRY_IMAGE_SMOKE:-0}" = "true" ]; then
   run_with_retry 2 make local-compose-registry-image-smoke
 fi
-if [ "${LOCAL_COMPOSE_AXERN_NYDUS_SMOKE:-0}" = "1" ] || [ "${LOCAL_COMPOSE_AXERN_NYDUS_SMOKE:-0}" = "true" ]; then
-  run_with_retry 2 make local-compose-nydus-smoke
-fi
 
 log "waiting for compose allocation cleanup convergence"
 run_cmd bash -lc 'source scripts/dev-env/lib.sh; local_smoke_wait_for_compose_allocation_cleanup 120'

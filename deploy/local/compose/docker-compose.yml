@@ -180,8 +180,6 @@ services:
       # privileged gates instead of claiming enforcement here.
       AXNODED_CGROUP_ENFORCEMENT: disabled_dev
       AXNODED_MEMORY_SYSTEM_RESERVE_BYTES: "0"
-      REGISTRY_PROXY_URL: ${REGISTRY_PROXY_URL}
-      REGISTRY_NO_PROXY: ${CONTAINER_NO_PROXY}
       IMAGEMGR_INSECURE_REGISTRIES: ${IMAGEMGR_INSECURE_REGISTRIES}
       AXNODED_ROOTFS_SNAPSHOT_REPOSITORY: host.docker.internal:5001/axern/rootfs-snapshots
       AXERN_OTEL_ENABLED: ${OTEL_ENABLED}

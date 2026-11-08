@@ -1,25 +1,21 @@
 .PHONY: bootstrap bootstrap-tools \
-		bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py \
-		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
+		bootstrap-go bootstrap-ts bootstrap-py \
+		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract release-verification-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check cli-e2e-environment-contract native-runtime-build native-runtime-check native-runtime-verify \
 		grafana-assets-check \
 		build-go test-go lint-go fmt-go \
-		build-rust test-rust lint-rust fmt-rust \
 		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-layout-check docs-assets docs-social-card \
 		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-artifacts sdk-artifact-verify sdk-release-verify sdk-contract-verify \
-		imagemgr-build imagemgr-test imagemgr-check-architecture \
-		imagefsd-build imagefsd-test
+		imagemgr-build imagemgr-test imagemgr-check-architecture
 
-bootstrap: bootstrap-tools bootstrap-go bootstrap-rust bootstrap-ts bootstrap-py ## Initialize local development dependencies
+bootstrap: bootstrap-tools bootstrap-go bootstrap-ts bootstrap-py ## Initialize local development dependencies
 
 bootstrap-tools: ## Verify required local toolchains are available
 	@command -v $(GO) >/dev/null 2>&1 || (echo "missing Go toolchain: $(GO)" && exit 1)
-	@command -v $(CARGO) >/dev/null 2>&1 || (echo "missing Cargo toolchain: $(CARGO)" && exit 1)
 	@command -v node >/dev/null 2>&1 || (echo "missing Node.js runtime: node" && exit 1)
 	@command -v $(PNPM) >/dev/null 2>&1 || (echo "missing pnpm: $(PNPM)" && exit 1)
 	@command -v $(UV) >/dev/null 2>&1 || (echo "missing uv: $(UV)" && exit 1)
 	@$(GO) version
-	@$(CARGO) --version
 	@node --version
 	@$(PNPM) --version
 	@$(UV) --version
@@ -33,20 +29,17 @@ bootstrap-go: ## Download Go module dependencies
 	$(GO) -C sdk/go mod download
 	$(GO) -C runtime/axnoded mod download
 
-bootstrap-rust: ## Download Rust workspace dependencies
-	$(CARGO) fetch --locked
-
 bootstrap-ts: ## Install TypeScript workspace dependencies
 	$(PNPM) install --frozen-lockfile
 
 bootstrap-py: ## Sync Python workspace dependencies
 	$(UV) sync --frozen --all-packages
 
-build: build-go build-rust build-ts build-py ## Build all root language workspaces
+build: build-go build-ts build-py ## Build all root language workspaces
 
-test: test-go test-rust test-ts test-py ## Run all root workspace tests
+test: test-go test-ts test-py ## Run all root workspace tests
 
-lint: lint-go lint-rust lint-ts lint-py ## Run non-mutating root workspace checks
+lint: lint-go lint-ts lint-py ## Run non-mutating root workspace checks
 
 verify-changed: ## Run host-safe checks selected from changes against VERIFY_BASE (default: origin/main)
 	bash $(ROOTDIR)/scripts/verification/plan.sh --base "$${VERIFY_BASE:-origin/main}"
@@ -68,10 +61,10 @@ verify-fast-all: ## Run the complete host-safe source gate without Compose, kind
 verify-full: ## Run the serial full repository gate for broad changes or post-merge validation
 	bash $(ROOTDIR)/scripts/verify-all.sh $(ARGS)
 
-verify-release: ## Run the source/deployment release gate; environment qualification remains separate
-	bash $(ROOTDIR)/scripts/verify-all.sh $(ARGS)
+verify-release: ## Verify release artifacts, source audit, full regression, SDKs and docs; qualification remains separate
+	bash $(ROOTDIR)/scripts/verify-release.sh $(ARGS)
 
-fmt: fmt-go fmt-rust ## Format root Go and Rust workspaces
+fmt: fmt-go ## Format root Go workspaces
 
 protos: proto-generate ## Regenerate shared protobuf code and runtime-internal protobufs
 
@@ -82,7 +75,7 @@ proto-generated-check: ## Verify committed protobuf outputs match source contrac
 	bash $(ROOTDIR)/scripts/proto-generated-check.sh
 
 clean: ## Remove root build artifacts
-	rm -rf bin dist target apps/docs/dist sdk/typescript/dist sdk/python/dist
+	rm -rf bin dist apps/docs/dist sdk/typescript/dist sdk/python/dist
 
 agent-doc-check: ## Verify Markdown formatting, links, and module contract indexing
 	bash $(ROOTDIR)/scripts/agent-doc-check.sh
@@ -90,7 +83,13 @@ agent-doc-check: ## Verify Markdown formatting, links, and module contract index
 open-source-check: ## Audit the public source tree, credentials, metadata, and dependency licenses
 	bash $(ROOTDIR)/scripts/open-source-check.sh
 
+.PHONY: security-check
+security-check: ## Audit all locked Go, npm and Python dependencies; unavailable scans fail
+	python3 -m unittest discover -s $(ROOTDIR)/scripts -p test_security_check.py
+	GO="$(GO)" PNPM="$(PNPM)" UV="$(UV)" python3 $(ROOTDIR)/scripts/security-check.py $(ARGS)
+
 release-check: ## Verify release versions and package contracts
+	python3 -m unittest discover -s $(ROOTDIR)/scripts -p test_security_check.py
 	$(MAKE) verification-plan-contract
 	$(MAKE) native-runtime-check
 	bash $(ROOTDIR)/scripts/release/version-check.sh
@@ -110,9 +109,13 @@ release-check: ## Verify release versions and package contracts
 verification-plan-contract: ## Verify change classification and heavyweight-gate routing
 	bash $(ROOTDIR)/scripts/verification/plan-test.sh
 	$(MAKE) post-merge-workflow-contract
+	$(MAKE) release-verification-contract
 
 post-merge-workflow-contract: ## Verify unattended post-merge regression workflow invariants
 	bash $(ROOTDIR)/scripts/verification/post-merge-workflow-contract-test.sh
+
+release-verification-contract: ## Verify complete, ordered and fail-fast local release orchestration
+	bash $(ROOTDIR)/scripts/verification/verify-release-test.sh
 
 hermetic-dns-contract-check: ## Verify local verification uses only the repository DNS fixture
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
@@ -209,24 +212,6 @@ sdk-go-verify: ## Run Go SDK tests, race smoke, vet, and formatting checks
 	$(GO) test -race -tags=axern_contract ./sdk/go
 	$(GO) vet ./sdk/go/...
 	test -z "$$(find sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted Go SDK files" && exit 1)
-
-build-rust: ## Build the root Rust workspace
-	$(CARGO) build --workspace
-
-test-rust: ## Run the root Rust test suite
-	$(CARGO) test --workspace -- --test-threads=1
-
-imagefsd-build: ## Build the imagefsd debug binary
-	$(CARGO) build -p imagefsd
-
-imagefsd-test: ## Run imagefsd tests
-	$(CARGO) test -p imagefsd -- --test-threads=1
-
-lint-rust: ## Check Rust formatting
-	$(CARGO) fmt --all --check
-
-fmt-rust: ## Format the root Rust workspace
-	$(CARGO) fmt --all
 
 build-ts: ## Build the TypeScript SDK and documentation workspaces
 	$(PNPM) run build

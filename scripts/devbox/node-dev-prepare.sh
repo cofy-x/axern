@@ -15,7 +15,6 @@ BIN_DIR="${STACK_DIR}/bin"
 AXNODED_DIR="${DEV_DIR}/axnoded"
 IMAGEMGR_DIR="${DEV_DIR}/imagemgr"
 EGRESSD_DIR="${DEV_DIR}/egressd"
-IMAGEFSD_DIR="${DEV_DIR}/imagefsd"
 CONTROL_PLANE_TARGET="${AXERN_DEV_CONTROL_PLANE_TARGET:-127.0.0.1:24000}"
 CONTROL_PLANE_NODE_ID="${AXERN_DEV_CONTROL_PLANE_NODE_ID:-axern-dev-node}"
 CONTROL_PLANE_NODE_TARGET="${AXERN_DEV_CONTROL_PLANE_NODE_TARGET:-127.0.0.1:23000}"
@@ -40,8 +39,7 @@ mkdir -p \
   "${AXNODED_DIR}/logs" \
   "${AXNODED_DIR}/filestore" \
   "${IMAGEMGR_DIR}" \
-  "${EGRESSD_DIR}" \
-  "${IMAGEFSD_DIR}/chunkdb"
+  "${EGRESSD_DIR}"
 
 bash "${ROOT_DIR}/scripts/dev-mtls-certs.sh" "${DEV_DIR}/certs" >/dev/null
 cat > "${AXNODED_DIR}/config.toml" <<EOF

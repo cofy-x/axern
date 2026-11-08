@@ -52,7 +52,7 @@ entrypoint = pathlib.Path(sys.argv[3]).read_text()
 probe = re.search(r'^wait_node_dependency\(\) \{\n.*?^\}', entrypoint, re.M | re.S)
 if probe is None:
     raise SystemExit("node entrypoint must probe live dependency APIs")
-for command in ("http://unix/inventory", 'egressdctl -socket "${EGRESSD_SOCKET}" health', "imagefsd stats-locality"):
+for command in ("http://unix/inventory", 'egressdctl -socket "${EGRESSD_SOCKET}" health'):
     if command not in entrypoint:
         raise SystemExit(f"missing dependency health check: {command}")
 for test in (

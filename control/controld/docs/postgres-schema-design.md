@@ -113,7 +113,7 @@ sequenceDiagram
 
 Gateway and node protocols deliberately use different messages. `AllocationAccessGrant` exists only on the trusted gateway issuance path and carries plaintext. `NodeAllocationAccessGrant` is the node validation projection and never has a plaintext field. Neither message carries a type or routing target; the Allocation binding owns both purpose and node routing.
 
-Execution liveness uses no Postgres lease entity. A successful authenticated `ReportNode` response contains the complete set of Allocations currently authorized on that Node, each with a TTL. Axnoded measures expiry from receipt time and persists only that deadline in its authoritative local Allocation record. Omission, expiry, invalid identity, or inability to renew stops the sandbox fail-closed.
+Execution liveness uses no Postgres lease entity. A successful authenticated `PublishNodeSnapshot` response contains the complete set of Allocations currently authorized on that Node, each with a TTL. Axnoded measures expiry from receipt time and persists only that deadline in its authoritative local Allocation record. An omitted grant retains its existing finite deadline because an in-flight response can precede a new Allocation Create; omission does not renew or revoke authority. Failed renewal never extends that deadline. Invalid identity or expired authority fails closed, and a late grant cannot revive expired execution.
 
 ## Tunnel Model
 

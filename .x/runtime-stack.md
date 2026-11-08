@@ -27,7 +27,7 @@ Read only the contracts affected by the change:
 | Writable filesystem reservation, recovery, or cleanup | `runtime/axnoded`, `control/controld`, storage architecture |
 | Public gateway, terminal, SSH, file/archive, or Tunnel client path | `gateway/gatewayd`, `control/controld`, `runtime/tunneld`, `runtime/axnoded` |
 | Sandboxd process, file, PTY, or proxy behavior | `runtime/axnoded`, sandboxd documentation, SDK/proto when public |
-| OCI, Nydus, rootfs, or image mounts | `runtime/axnoded`, `runtime/imagemgr`, `runtime/imagefsd`, SDK/proto when public; [imagemgr startup modes](../runtime/imagemgr/README.md#startup-modes) own optional Nydus wiring, and axnoded consumes its inventory mode |
+| OCI rootfs or image mounts | `runtime/axnoded`, `runtime/imagemgr`, SDK/proto when public; imagemgr owns immutable image identity and mount leases |
 | Devbox sockets or `.dev/` stack layout | Root Make files, devbox scripts, root docs, affected service docs |
 
 A socket, mount target, or `.dev/` layout change updates every owning module that names it. Follow the root [Agent Contract](../AGENTS.md) for synchronized contract changes and validation; this index does not add another verification tier.

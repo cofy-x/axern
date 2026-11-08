@@ -1,8 +1,7 @@
 FROM ubuntu:24.04
 
-ARG GO_VERSION=1.26.8
-ARG RUST_VERSION=1.89.0
-ARG NODE_VERSION=v24.13.0
+ARG GO_VERSION=1.26.10
+ARG NODE_VERSION=v24.22.2
 ARG NVM_VERSION=v0.40.1
 ARG DOCKER_BUILDX_VERSION=v0.29.1
 ARG DOCKER_COMPOSE_VERSION=v2.40.3
@@ -51,7 +50,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     docker.io \
     e2fsprogs \
     file \
-    fuse3 \
     gdb \
     git \
     gnupg \
@@ -117,9 +115,7 @@ ENV GOROOT=/usr/local/go \
     NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY} \
     NVM_DIR=/home/axern/.nvm \
     NODE_VERSION=${NODE_VERSION} \
-    CARGO_HOME=/home/axern/.cargo \
-    RUSTUP_HOME=/home/axern/.rustup \
-    PATH=/usr/local/go/bin:/home/axern/go/bin:/home/axern/.cargo/bin:/home/axern/.local/bin:/home/axern/.nvm/versions/node/${NODE_VERSION}/bin:${PATH}
+    PATH=/usr/local/go/bin:/home/axern/go/bin:/home/axern/.local/bin:/home/axern/.nvm/versions/node/${NODE_VERSION}/bin:${PATH}
 
 RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     set -eux; \
@@ -162,19 +158,11 @@ RUN set -eux; \
     npm --version; \
     pnpm --version
 
-RUN set -eux; \
-    go env -w "GOPROXY=${GOPROXY}"; \
-    curl --retry 5 --retry-delay 2 --retry-all-errors https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal --default-toolchain "${RUST_VERSION}" && \
-    rustup component add rustfmt && \
-    cargo --version
+RUN go env -w "GOPROXY=${GOPROXY}"
 
 USER root
 
 RUN set -eux; \
-    ln -sf /home/axern/.cargo/bin/cargo /usr/local/bin/cargo; \
-    ln -sf /home/axern/.cargo/bin/rustc /usr/local/bin/rustc; \
-    ln -sf /home/axern/.cargo/bin/rustfmt /usr/local/bin/rustfmt; \
-    ln -sf /home/axern/.cargo/bin/rustup /usr/local/bin/rustup; \
     ln -sf "${NVM_DIR}/versions/node/${NODE_VERSION}/bin/node" /usr/local/bin/node; \
     ln -sf "${NVM_DIR}/versions/node/${NODE_VERSION}/bin/npm" /usr/local/bin/npm; \
     ln -sf "${NVM_DIR}/versions/node/${NODE_VERSION}/bin/npx" /usr/local/bin/npx; \
@@ -213,28 +201,29 @@ RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
 
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
 COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
+COPY runtime/axnoded/gvisor-selected.lock.json runtime/axnoded/gvisor_payload.py /usr/local/share/axern/
 
 RUN --mount=type=cache,target=/var/cache/axern-downloads,sharing=locked \
     set -eux; \
     . /usr/local/share/axern/runtime-tools.sh; \
     arch="$(dpkg --print-architecture)"; \
     case "${arch}" in \
-      amd64) gv_arch="x86_64"; gvisor_sha512="${AXERN_GVISOR_SHA512_AMD64}" ;; \
-      arm64) gv_arch="aarch64"; gvisor_sha512="${AXERN_GVISOR_SHA512_ARM64}" ;; \
+      amd64) gv_arch="x86_64" ;; \
+      arm64) gv_arch="aarch64" ;; \
       *) echo "unsupported arch: ${arch}" >&2; exit 1 ;; \
     esac; \
     gvisor_dir="/var/cache/axern-downloads/gvisor-${AXERN_GVISOR_RELEASE}-${gv_arch}"; \
     archive="${gvisor_dir}/gvisor.tar.bz2"; \
-    install -d -m 0755 "${gvisor_dir}/extracted"; \
+    install -d -m 0755 "${gvisor_dir}"; \
     curl --retry 5 --retry-delay 2 --retry-all-errors -C - -fsSLo "${archive}" \
       "https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${gv_arch}/gvisor.tar.bz2"; \
-    printf '%s  %s\n' "${gvisor_sha512}" "${archive}" | sha512sum -c -; \
-    tar -xjf "${archive}" -C "${gvisor_dir}/extracted"; \
-    install -m 0755 "${gvisor_dir}/extracted/runsc" /usr/local/bin/runsc; \
-    install -m 0755 "${gvisor_dir}/extracted/containerd-shim-runsc-v1" /usr/local/bin/containerd-shim-runsc-v1; \
-    install -d -m 0755 /usr/local/bin/gvisor-bin; \
-    cp -a "${gvisor_dir}/extracted/gvisor-bin/." /usr/local/bin/gvisor-bin/; \
-    runsc --version | grep -F "${AXERN_GVISOR_TAG}"
+    python3 /usr/local/share/axern/gvisor_payload.py extract --arch "$arch" \
+      --lock /usr/local/share/axern/gvisor-selected.lock.json --upstream-lock /usr/local/share/axern/gvisor.lock \
+      --source "$archive" --destination /tmp/axern-gvisor; \
+    install -m 0755 /tmp/axern-gvisor/runsc /usr/local/bin/runsc; \
+    cp -a /tmp/axern-gvisor/gvisor-bin /usr/local/bin/gvisor-bin; \
+    runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
+    rm -rf /tmp/axern-gvisor
 
 COPY runtime/axnoded/cmd/memory-hog/main.go /tmp/axern-memory-hog.go
 
@@ -257,7 +246,7 @@ RUN set -eux; \
       printf 'export NVM_DIR="$HOME/.nvm"\n'; \
       printf '[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"\n'; \
       printf '[ -s "$NVM_DIR/bash_completion" ] && . "$NVM_DIR/bash_completion"\n'; \
-      printf 'export PATH="/usr/local/go/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.local/bin:$PATH"\n'; \
+      printf 'export PATH="/usr/local/go/bin:$HOME/go/bin:$HOME/.local/bin:$PATH"\n'; \
       printf 'export GOPROXY=%s\n' "${GOPROXY}"; \
       printf 'export NPM_CONFIG_REGISTRY=%s\n' "${NPM_CONFIG_REGISTRY}"; \
       printf '[ -f "$HOME/.axern-devbox-env" ] && . "$HOME/.axern-devbox-env"\n'; \

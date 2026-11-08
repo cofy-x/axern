@@ -3,13 +3,11 @@ package observability
 import sdkobs "github.com/cofy-x/axern/lib/go/observability"
 
 const (
-	SpanHTTP         = "imagemgr.http"
-	SpanOCIMount     = "imagemgr.oci.mount"
-	SpanOCIUnmount   = "imagemgr.oci.unmount"
-	SpanOCIImport    = "imagemgr.oci.import"
-	SpanNydusMount   = "imagemgr.nydus.mount"
-	SpanNydusUnmount = "imagemgr.nydus.unmount"
-	SpanInventory    = "imagemgr.inventory"
+	SpanHTTP       = "imagemgr.http"
+	SpanOCIMount   = "imagemgr.oci.mount"
+	SpanOCIUnmount = "imagemgr.oci.unmount"
+	SpanOCIImport  = "imagemgr.oci.import"
+	SpanInventory  = "imagemgr.inventory"
 )
 
 var (

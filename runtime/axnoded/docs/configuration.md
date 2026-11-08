@@ -185,7 +185,7 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | --------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | axnoded will not start            | top-level paths, runtime binaries, filestore | axnoded startup logs, path permissions, `runsc --version`.                     |
 | node never appears in `controld`  | control plane                                            | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs.       |
-| image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
+| image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs. |
 | sandbox has no egress             | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |
 | start is slow after burst         | resource pool                                            | idle gauges, `miss_sync_create`, reconcile interval, cache sizes.              |
 | delete leaves resources behind    | resource/runtime paths                                   | typed resource ledgers, storeDir, cleanup logs, GC queue metric.                |

@@ -1,4 +1,4 @@
-ARG GO_IMAGE=golang:1.26.8
+ARG GO_IMAGE=golang:1.26.10
 ARG BASE_IMAGE=ubuntu:24.04
 ARG NODE_RUNTIME_BASE_IMAGE=axern/local-node-runtime-base:dev
 ARG AXERN_GIT_REVISION=development
@@ -20,7 +20,7 @@ COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
-go 1.26.8
+go 1.26.10
 
 use (
 	./internal/proto
@@ -85,7 +85,7 @@ COPY lib/go/nodecapability/go.mod /workspace/lib/go/nodecapability/go.mod
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
-go 1.26.8
+go 1.26.10
 
 use (
 	./control/controld

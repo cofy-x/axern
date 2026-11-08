@@ -76,7 +76,6 @@ VERIFY_DOCKER_HTTPS_PROXY=http://host.docker.internal:8080
 VERIFY_DOCKER_NO_PROXY=localhost,127.0.0.1,host.docker.internal
 OCI_TEST_IMAGE_SOURCE=auto
 APT_MIRROR_SOURCE=archive
-CARGO_REGISTRY_SOURCE=crates-io
 GOPROXY=https://proxy.golang.org,direct
 GOSUMDB=sum.golang.org
 BASE_IMAGE=ubuntu:24.04
@@ -118,7 +117,7 @@ Use `egress_tcp_short_multi_client` when the single-client `egress_tcp_short` ru
 
 For bpfnet TCP short-connection churn, prefer the coherent `snatMapPeak` snapshot over only looking at end-of-phase `snatMapAfter`. A healthy full-close release path should keep `snatMapPeak.translatedPortsUsed` close to the active concurrency level, with `snatAllocExhausted=0` and `snatFullCloseMarks` increasing as map entries enter full-closing state. `snatTcpFullCloseDeletes` should rise when terminal ACK-like packets release full-closing mappings. Later `snatTcpNonSynMissFwdLookups` usually means extra local FIN/RST/ACK packets arrived after a mapping was already released; treat that as expected close churn when failures remain zero and post-GC maps are empty. `snatTcpReverseMissSynAcks` is higher risk because it means an inbound SYN-ACK missed a reverse mapping for a tuple bpfnet had previously managed. If peak translated-port usage approaches the `SNAT_PORT_MIN..SNAT_PORT_MAX` pool while active entries remain low, the dataplane is retaining closed mappings too long and will regress against iptables under tcp-short churn. Use [bpfnet Production Replacement Baseline](../../../network/bpfnet/docs/production-replacement-baseline.md) as the reusable production replacement comparison point.
 
-The startup matrix default is intentionally limited to stable Docker regression scenarios: `runsc-local` and `runsc-oci`. Run `STARTUP_MATRIX_SCENARIOS=runsc-nydus make benchmark-startup-matrix` when validating Nydus image startup as a focused image-runtime path.
+The startup matrix default is intentionally limited to stable Docker regression scenarios: `runsc-local` and `runsc-oci`.
 
 Workflow-specific knobs:
 

@@ -38,12 +38,12 @@ Usage:
 Start Axern's standalone dev stack inside the Linux devbox.
 
 Services:
-  postgres, controld, tunneld, imagefsd, imagemgr, egressd, axnoded, node-tunneld, gatewayd
+  postgres, controld, tunneld, imagemgr, egressd, axnoded, node-tunneld, gatewayd
 EOF
 }
 
 services() {
-  printf '%s\n' postgres controld tunneld imagefsd imagemgr egressd axnoded node-tunneld gatewayd
+  printf '%s\n' postgres controld tunneld imagemgr egressd axnoded node-tunneld gatewayd
 }
 
 ensure_linux() {
@@ -136,9 +136,6 @@ service_health() {
     tunneld)
       tcp_status 127.0.0.1 24100
       ;;
-    imagefsd)
-      unix_socket_status "${RUN_DIR}/imagefsd-chunk.sock" "${state}"
-      ;;
     imagemgr)
       unix_socket_status "${RUN_DIR}/imagemgr.sock" "${state}"
       ;;
@@ -221,7 +218,7 @@ stop_matching_processes() {
 
 normalize_service() {
   case "${1:-}" in
-    postgres|controld|tunneld|imagefsd|imagemgr|egressd|axnoded|node-tunneld|gatewayd)
+    postgres|controld|tunneld|imagemgr|egressd|axnoded|node-tunneld|gatewayd)
       printf '%s\n' "$1"
       ;;
     "")
@@ -279,7 +276,6 @@ stop_runtime_services() {
   stop_service axnoded
   stop_service egressd
   stop_service imagemgr
-  stop_service imagefsd
   stop_service tunneld
   stop_service controld
   stop_matching_processes "${ROOT_DIR}/gateway/gatewayd.*go.*run"
@@ -289,7 +285,6 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/runtime/egressd.*cmd/egressd"
   stop_matching_processes "${ROOT_DIR}/runtime/imagemgr.*cmd/imagemgr"
   stop_matching_processes "${ROOT_DIR}/control/controld.*cmd/controld"
-  stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd.*serve-chunk"
   stop_matching_processes "127.0.0.1:24000"
   stop_matching_processes "127.0.0.1:24100"
   stop_matching_processes "127.0.0.1:25080"
@@ -297,15 +292,12 @@ stop_runtime_services() {
   stop_matching_processes "${ROOT_DIR}/.dev/run/axnoded-tunnel.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/egressd.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/run/imagemgr.sock"
-  stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
   stop_matching_processes "${ROOT_DIR}/.dev/imagemgr"
-  stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd"
   rm -f \
     "${RUN_DIR}/axnoded.sock" \
     "${RUN_DIR}/axnoded-tunnel.sock" \
     "${RUN_DIR}/egressd.sock" \
-    "${RUN_DIR}/imagemgr.sock" \
-    "${RUN_DIR}/imagefsd-chunk.sock"
+    "${RUN_DIR}/imagemgr.sock"
   sleep 1
 }
 
@@ -317,7 +309,6 @@ prepare_workspace_config() {
 }
 
 build_runtime_artifacts() {
-  make -C "${ROOT_DIR}" imagefsd-build >/dev/null
   CGO_ENABLED=0 go -C "${ROOT_DIR}/runtime/tunneld" build -o "${BIN_DIR}/tunnel-agent" ./cmd/tunnel-agent
 }
 
@@ -376,23 +367,11 @@ start_tunneld() {
   wait_tcp 127.0.0.1 24100 tunneld
 }
 
-start_imagefsd() {
-  start_service imagefsd "exec '${ROOT_DIR}/target/debug/imagefsd' --verbose serve-chunk \
-    --chunk-db-dir '${DEV_DIR}/imagefsd/chunkdb' \
-    --listen-port 9876 \
-    --chunk-server-sock '${RUN_DIR}/imagefsd-chunk.sock' \
-    --log-file '${LOG_DIR}/imagefsd-inner.log'"
-  wait_unix_socket "${RUN_DIR}/imagefsd-chunk.sock" imagefsd
-}
-
 start_imagemgr() {
   start_service imagemgr "exec '${ROOT_DIR}/scripts/devbox/sudo-go.sh' \
     -C '${ROOT_DIR}/runtime/imagemgr' run ./cmd/imagemgr \
     -debug \
     -root '${DEV_DIR}/imagemgr' \
-    -node_id 'node-devbox' \
-    -imagefsd_bin '${ROOT_DIR}/target/debug/imagefsd' \
-    -nydus_template '${ROOT_DIR}/runtime/imagemgr/configs/nydus_registry.json.example' \
     -registry_auths_path '${ROOT_DIR}/runtime/imagemgr/registry_auths.json.example' \
     -http_sock '${RUN_DIR}/imagemgr.sock'"
   wait_unix_socket "${RUN_DIR}/imagemgr.sock" imagemgr
@@ -462,7 +441,6 @@ start_all() {
 
   start_controld
   start_tunneld
-  start_imagefsd
   start_imagemgr
   start_egressd
   start_axnoded
@@ -486,10 +464,6 @@ stop_service_deep() {
     tunneld)
       stop_matching_processes "127.0.0.1:24100"
       stop_matching_processes "${ROOT_DIR}/runtime/tunneld.*cmd/tunneld"
-      ;;
-    imagefsd)
-      stop_matching_processes "${ROOT_DIR}/target/debug/imagefsd.*serve-chunk"
-      stop_matching_processes "${ROOT_DIR}/.dev/run/imagefsd-chunk.sock"
       ;;
     imagemgr)
       stop_matching_processes "${ROOT_DIR}/runtime/imagemgr.*cmd/imagemgr"
@@ -532,7 +506,6 @@ restart_service() {
       run_migrations
       start_controld
       start_tunneld
-      start_imagefsd
       start_imagemgr
       start_egressd
       start_axnoded
@@ -563,17 +536,6 @@ restart_service() {
       stop_service_deep axnoded
       stop_service_deep egressd
       start_egressd
-      start_axnoded
-      start_node_tunneld
-      ;;
-    imagefsd)
-      stop_service_deep node-tunneld
-      stop_service_deep axnoded
-      stop_service_deep imagemgr
-      stop_service_deep imagefsd
-      build_runtime_artifacts
-      start_imagefsd
-      start_imagemgr
       start_axnoded
       start_node_tunneld
       ;;

@@ -10,15 +10,27 @@ from install import load_lock
 
 
 SCRIPT = r'''
-import json,os,pathlib,subprocess,sys,tempfile
+import json,os,pathlib,shutil,subprocess,sys,tempfile
 lock=json.loads(pathlib.Path('/usr/local/share/axern/agent-images/versions.lock.json').read_text())
 assert os.getuid()==1000
 assert pathlib.Path.cwd()==pathlib.Path('/workspace')
 assert tuple(map(int,lock['base']['python_version'].split('.')))==sys.version_info[:3]
+release=dict(line.split('=',1) for line in pathlib.Path('/etc/os-release').read_text().splitlines() if '=' in line)
+assert release['ID'].strip('"')=='debian'
+assert release['VERSION_ID'].strip('"')==lock['base']['debian_version']
+pip_version=subprocess.check_output([sys.executable,'-m','pip','--version'],text=True).split()[1]
+assert pip_version==lock['artifacts']['pip']['version']
 for command in (['git','--version'],['rg','--version']):subprocess.run(command,check=True,stdout=subprocess.DEVNULL)
 stage=sys.argv[1]
-observed={'python':'.'.join(map(str,sys.version_info[:3])),'uid':os.getuid()}
+observed={'python':'.'.join(map(str,sys.version_info[:3])),'debian':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid()}
 if stage!='base':
+ for name in ('npm','npx','corepack','pnpm','pnpx','yarn','yarnpkg'):
+  assert shutil.which(name) is None, name+' must be supplied by a caller-owned project image'
+  path=pathlib.Path('/opt/node/bin')/name
+  assert not path.exists() and not path.is_symlink()
+ managers=pathlib.Path('/opt/node/lib/node_modules')
+ assert not managers.exists() and not managers.is_symlink()
+ observed['node_package_managers']='caller-owned; not installed'
  for name,command in (('go',['go','version']),('node',['node','--version'])):
   value=subprocess.check_output(command,text=True).strip()
   assert lock['artifacts'][name]['version'] in value

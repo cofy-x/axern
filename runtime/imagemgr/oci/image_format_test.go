@@ -18,6 +18,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/cofy-x/axern/runtime/imagemgr/pkg/imageregistry"
 	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/registry"
@@ -28,9 +29,6 @@ import (
 	"github.com/google/go-containerregistry/pkg/v1/static"
 	"github.com/google/go-containerregistry/pkg/v1/tarball"
 	"github.com/google/go-containerregistry/pkg/v1/types"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/nydus"
-	"github.com/cofy-x/axern/runtime/imagemgr/pkg/imageregistry"
 )
 
 func TestMountRejectsNydusBeforeFetchingLayerContent(t *testing.T) {
@@ -63,11 +61,11 @@ func TestMountRejectsNydusBeforeFetchingLayerContent(t *testing.T) {
 			addendum := mutate.Addendum{Layer: layer, MediaType: types.OCIUncompressedLayer}
 			switch marker {
 			case "media-type":
-				addendum.MediaType = types.MediaType(nydus.MediaTypeNydusBlob)
+				addendum.MediaType = types.MediaType(retiredMediaTypeNydusBlob)
 			case "layer-bootstrap", "inline-auth":
-				addendum.Annotations = map[string]string{nydus.LayerAnnotationNydusBootstrap: "true"}
+				addendum.Annotations = map[string]string{retiredLayerAnnotationNydusBootstrap: "true"}
 			case "layer-blob":
-				addendum.Annotations = map[string]string{nydus.LayerAnnotationNydusBlob: "true"}
+				addendum.Annotations = map[string]string{retiredLayerAnnotationNydusBlob: "true"}
 			}
 			img, err := mutate.Append(empty.Image, addendum)
 			if err != nil {
@@ -75,9 +73,9 @@ func TestMountRejectsNydusBeforeFetchingLayerContent(t *testing.T) {
 			}
 			img = mutate.MediaType(img, types.OCIManifestSchema1)
 			if strings.HasPrefix(marker, "manifest-") {
-				annotation := nydus.LayerAnnotationNydusBootstrap
+				annotation := retiredLayerAnnotationNydusBootstrap
 				if marker == "manifest-blob" {
-					annotation = nydus.LayerAnnotationNydusBlob
+					annotation = retiredLayerAnnotationNydusBlob
 				}
 				img = mutate.Annotations(img, map[string]string{annotation: "true"}).(v1.Image)
 			}
@@ -147,7 +145,7 @@ func TestImportRejectsNydusBeforePublishingContentOrRef(t *testing.T) {
 			if strings.HasPrefix(format, "rafs-") {
 				payload = rafsBootstrapFixture(format)
 			}
-			archivePath := formatDockerArchive(t, imageRef, formatLayerTar(t, nydus.BootstrapFileNameInLayer, payload))
+			archivePath := formatDockerArchive(t, imageRef, formatLayerTar(t, retiredBootstrapFileNameInLayer, payload))
 			if strings.HasPrefix(format, "source-") {
 				addArchiveSourceMarker(t, archivePath, format)
 			}
@@ -187,7 +185,7 @@ func TestMountRejectsPreviouslyImportedNydus(t *testing.T) {
 			if format == "rafs-v6" {
 				payload = rafsBootstrapFixture(format)
 			}
-			archive := formatDockerArchive(t, imageRef, formatLayerTar(t, nydus.BootstrapFileNameInLayer, payload))
+			archive := formatDockerArchive(t, imageRef, formatLayerTar(t, retiredBootstrapFileNameInLayer, payload))
 			if format == "source-bootstrap-annotation" {
 				addArchiveSourceMarker(t, archive, format)
 			}
@@ -240,7 +238,7 @@ func TestMountRejectsReusedNydusRootfsWithoutRemovingState(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(mountPath, "image"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			bootstrap := filepath.Join(mountPath, nydus.BootstrapFileNameInLayer)
+			bootstrap := filepath.Join(mountPath, retiredBootstrapFileNameInLayer)
 			if err := os.WriteFile(bootstrap, rafsBootstrapFixture("rafs-v6"), 0644); err != nil {
 				t.Fatal(err)
 			}
@@ -283,7 +281,7 @@ func TestEnsureLayerRejectsCachedOrRecoveredNydusWithoutMutatingRecords(t *testi
 			if err := os.MkdirAll(filepath.Join(layerPath, "image"), 0755); err != nil {
 				t.Fatal(err)
 			}
-			bootstrapPath := filepath.Join(layerPath, nydus.BootstrapFileNameInLayer)
+			bootstrapPath := filepath.Join(layerPath, retiredBootstrapFileNameInLayer)
 			if err := os.WriteFile(bootstrapPath, rafsBootstrapFixture("rafs-v5"), 0644); err != nil {
 				t.Fatal(err)
 			}
@@ -315,8 +313,8 @@ func TestOrdinaryBootstrapNamedFilesRemainUsable(t *testing.T) {
 		name, path string
 		content    []byte
 	}{
-		{"ordinary-text", nydus.BootstrapFileNameInLayer, []byte("ordinary application data")},
-		{"ordinary-erofs", nydus.BootstrapFileNameInLayer, erofs},
+		{"ordinary-text", retiredBootstrapFileNameInLayer, []byte("ordinary application data")},
+		{"ordinary-erofs", retiredBootstrapFileNameInLayer, erofs},
 		{"rafs-asset-at-another-path", "assets/image.boot", rafsBootstrapFixture("rafs-v5")},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -450,11 +448,11 @@ func addArchiveSourceMarker(t *testing.T, path, format string) {
 			source := v1.Descriptor{MediaType: types.OCIUncompressedLayer, Digest: config.RootFS.DiffIDs[0], Size: 1}
 			switch format {
 			case "source-media-type":
-				source.MediaType = types.MediaType(nydus.MediaTypeNydusBlob)
+				source.MediaType = types.MediaType(retiredMediaTypeNydusBlob)
 			case "source-bootstrap-annotation":
-				source.Annotations = map[string]string{nydus.LayerAnnotationNydusBootstrap: "true"}
+				source.Annotations = map[string]string{retiredLayerAnnotationNydusBootstrap: "true"}
 			case "source-blob-annotation":
-				source.Annotations = map[string]string{nydus.LayerAnnotationNydusBlob: "true"}
+				source.Annotations = map[string]string{retiredLayerAnnotationNydusBlob: "true"}
 			}
 			manifest[0].LayerSources = map[v1.Hash]v1.Descriptor{config.RootFS.DiffIDs[0]: source}
 			body, err = json.Marshal(manifest)

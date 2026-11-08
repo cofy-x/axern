@@ -20,15 +20,13 @@ import (
 )
 
 func TestHttpHandler_OCIImport(t *testing.T) {
-	mgr := newMockManager()
-	ociMgr, err := oci.NewManager(t.TempDir(), "")
+	ociMgr, err := oci.NewManager(t.TempDir())
 	if err != nil {
 		t.Fatalf("oci.NewManager() error: %v", err)
 	}
 	defer ociMgr.Close()
 
 	worker, err := NewHttpWorker(&HttpWorkerConfig{
-		Manager:    mgr,
 		OCIManager: ociMgr,
 	})
 	if err != nil {
@@ -96,15 +94,13 @@ func TestHttpHandler_OCIImport(t *testing.T) {
 }
 
 func TestHttpHandler_OCIImportPreservesMountedRecord(t *testing.T) {
-	mgr := newMockManager()
-	ociMgr, err := oci.NewManager(t.TempDir(), "")
+	ociMgr, err := oci.NewManager(t.TempDir())
 	if err != nil {
 		t.Fatalf("oci.NewManager() error: %v", err)
 	}
 	defer ociMgr.Close()
 
 	worker, err := NewHttpWorker(&HttpWorkerConfig{
-		Manager:    mgr,
 		OCIManager: ociMgr,
 	})
 	if err != nil {
@@ -150,8 +146,7 @@ func TestHttpHandler_OCIImportPreservesMountedRecord(t *testing.T) {
 }
 
 func TestHttpHandler_OCIImportValidation(t *testing.T) {
-	mgr := newMockManager()
-	worker := mustNewHttpWorker(t, mgr)
+	worker := mustNewHttpWorker(t)
 	handler := worker.prepareHttp()
 
 	req := httptest.NewRequest(http.MethodPost, "/oci_import?ref=example.local/test:dev", strings.NewReader("archive"))

@@ -56,12 +56,12 @@ func reportReadyNodeSnapshot(t *testing.T, app *App, nodeID string, now time.Tim
 	node := app.NodeV1Handler()
 	summary := controldtest.ReadySummary(now)
 	summary.Sequence = sequence
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{
+	if _, err := node.PublishNodeSnapshot(context.Background(), &nodev1.PublishNodeSnapshotRequest{
 		NodeID:     nodeID,
 		NodeTarget: "127.0.0.1:25000",
 		Summary:    summary,
 	}); err != nil {
-		t.Fatalf("ReportNode() error = %v", err)
+		t.Fatalf("PublishNodeSnapshot() error = %v", err)
 	}
 }
 

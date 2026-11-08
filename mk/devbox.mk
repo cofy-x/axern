@@ -2,7 +2,7 @@
 		node-dev-ensure-dlv axnoded-debug-server imagemgr-debug-server \
 		postgres-dev-up postgres-dev-down controld-dev-prepare controld-dev-run gatewayd-dev-run \
 		axern-dev axern-dev-build axctl-dev axctl-dev-build egressd-dev-run \
-		axnoded-dev-run imagemgr-dev-run imagefsd-dev-serve-chunk \
+		axnoded-dev-run imagemgr-dev-run \
 		dev-stack-up dev-stack-status dev-stack-down dev-stack-restart dev-stack-logs dev-stack-reset \
 		devbox-image-build devbox-up devbox-status devbox-down devbox-shell \
 		devbox-stack-up devbox-stack-status devbox-stack-down devbox-stack-restart devbox-stack-logs devbox-stack-reset \
@@ -13,7 +13,6 @@ NODE_DEV_RUN_DIR := $(NODE_DEV_DIR)/run
 AXNODED_DEV_DIR := $(NODE_DEV_DIR)/axnoded
 IMAGEMGR_DEV_DIR := $(NODE_DEV_DIR)/imagemgr
 EGRESSD_DEV_DIR := $(NODE_DEV_DIR)/egressd
-IMAGEFSD_DEV_DIR := $(NODE_DEV_DIR)/imagefsd
 AXNODED_DEV_DAP_PORT ?= 43001
 IMAGEMGR_DEV_DAP_PORT ?= 43002
 AXERN_SECRETS_MASTER_KEY ?= local-only-master-key-32-bytes!!
@@ -185,23 +184,19 @@ axnoded-dev-run: node-dev-prepare ## Run axnoded in the repo-local Linux dev wor
 		exit 1; \
 	fi
 
-imagemgr-dev-run: node-dev-prepare imagefsd-build ## Run imagemgr in the repo-local Linux dev workspace
+imagemgr-dev-run: node-dev-prepare ## Run imagemgr in the repo-local Linux dev workspace
 	$(call ensure_linux_workspace)
 	rm -f '$(NODE_DEV_RUN_DIR)/imagemgr.sock'
 	@if [ "$$(id -u)" -eq 0 ]; then \
 		exec $(GO) -C $(ROOTDIR)/runtime/imagemgr run ./cmd/imagemgr \
 			-debug \
 			-root '$(IMAGEMGR_DEV_DIR)' \
-			-imagefsd_bin '$(ROOTDIR)/target/debug/imagefsd' \
-			-nydus_template '$(ROOTDIR)/runtime/imagemgr/configs/nydus_registry.json.example' \
 			-registry_auths_path '$(ROOTDIR)/runtime/imagemgr/registry_auths.json.example' \
 			-http_sock '$(NODE_DEV_RUN_DIR)/imagemgr.sock'; \
 	elif command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then \
 		exec env GO='$(GO)' '$(ROOTDIR)/scripts/devbox/sudo-go.sh' -C '$(ROOTDIR)/runtime/imagemgr' run ./cmd/imagemgr \
 			-debug \
 			-root '$(IMAGEMGR_DEV_DIR)' \
-			-imagefsd_bin '$(ROOTDIR)/target/debug/imagefsd' \
-			-nydus_template '$(ROOTDIR)/runtime/imagemgr/configs/nydus_registry.json.example' \
 			-registry_auths_path '$(ROOTDIR)/runtime/imagemgr/registry_auths.json.example' \
 			-http_sock '$(NODE_DEV_RUN_DIR)/imagemgr.sock'; \
 	else \
@@ -215,15 +210,6 @@ egressd-dev-run: node-dev-prepare ## Run egressd in the repo-local Linux dev wor
 	exec $(GO) -C $(ROOTDIR)/runtime/egressd run ./cmd/egressd \
 		-root '$(EGRESSD_DEV_DIR)' \
 		-socket '$(NODE_DEV_RUN_DIR)/egressd.sock'
-
-imagefsd-dev-serve-chunk: node-dev-prepare imagefsd-build ## Run imagefsd chunk server in the repo-local Linux dev workspace
-	$(call ensure_linux_workspace)
-	rm -f '$(NODE_DEV_RUN_DIR)/imagefsd-chunk.sock'
-	$(ROOTDIR)/target/debug/imagefsd --verbose serve-chunk \
-		--chunk-db-dir '$(IMAGEFSD_DEV_DIR)/chunkdb' \
-		--listen-port 9876 \
-		--chunk-server-sock '$(NODE_DEV_RUN_DIR)/imagefsd-chunk.sock' \
-		--log-file '$(IMAGEFSD_DEV_DIR)/imagefsd.log'
 
 dev-stack-up: ## Start the standalone Axern dev stack inside the Linux workspace
 	$(call ensure_linux_workspace)

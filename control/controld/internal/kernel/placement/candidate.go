@@ -61,18 +61,6 @@ func EvaluationLess(left, right *Evaluation) bool {
 	if leftRank.GetRetainedEnvironmentCount() != rightRank.GetRetainedEnvironmentCount() {
 		return leftRank.GetRetainedEnvironmentCount() > rightRank.GetRetainedEnvironmentCount()
 	}
-	if leftRank.GetNydusDaemonAlive() != rightRank.GetNydusDaemonAlive() {
-		return leftRank.GetNydusDaemonAlive()
-	}
-	if leftRank.GetChunkDBRecentAccessAgeSecs() != rightRank.GetChunkDBRecentAccessAgeSecs() {
-		return leftRank.GetChunkDBRecentAccessAgeSecs() < rightRank.GetChunkDBRecentAccessAgeSecs()
-	}
-	if leftRank.GetPeerHealthyCount() != rightRank.GetPeerHealthyCount() {
-		return leftRank.GetPeerHealthyCount() > rightRank.GetPeerHealthyCount()
-	}
-	if leftRank.GetPeerHintedCount() != rightRank.GetPeerHintedCount() {
-		return leftRank.GetPeerHintedCount() > rightRank.GetPeerHintedCount()
-	}
 	if leftRank.GetIdlePoolReady() != rightRank.GetIdlePoolReady() {
 		return leftRank.GetIdlePoolReady()
 	}

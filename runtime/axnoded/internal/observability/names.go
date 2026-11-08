@@ -3,18 +3,18 @@ package observability
 import sdkobs "github.com/cofy-x/axern/lib/go/observability"
 
 const (
-	SpanHTTP                         = "axnoded.http"
-	SpanAllocationStart              = "axnoded.allocation.start"
-	SpanAllocationDelete             = "axnoded.allocation.delete"
-	SpanControlPlaneReportNode       = "axnoded.control_plane.report_node"
-	SpanControlPlaneReportAllocation = "axnoded.control_plane.report_allocation_lifecycle"
-	SpanRootFSPrepare                = "axnoded.rootfs.prepare"
-	SpanExec                         = "axnoded.exec"
-	SpanExecStream                   = "axnoded.exec_stream"
-	SpanProcess                      = "axnoded.process"
-	SpanResourceAllocate             = "axnoded.resource.allocate"
-	SpanRuntimeCreate                = "axnoded.runtime.create"
-	SpanStatusReport                 = "axnoded.status.report"
+	SpanHTTP                            = "axnoded.http"
+	SpanAllocationStart                 = "axnoded.allocation.start"
+	SpanAllocationDelete                = "axnoded.allocation.delete"
+	SpanControlPlanePublishNodeSnapshot = "axnoded.control_plane.publish_node_snapshot"
+	SpanControlPlaneReportAllocation    = "axnoded.control_plane.report_allocation_lifecycle"
+	SpanRootFSPrepare                   = "axnoded.rootfs.prepare"
+	SpanExec                            = "axnoded.exec"
+	SpanExecStream                      = "axnoded.exec_stream"
+	SpanProcess                         = "axnoded.process"
+	SpanResourceAllocate                = "axnoded.resource.allocate"
+	SpanRuntimeCreate                   = "axnoded.runtime.create"
+	SpanStatusReport                    = "axnoded.status.report"
 )
 
 var (

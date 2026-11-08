@@ -17,11 +17,11 @@
 
 Run creation freezes the Environment source and resolved runtime input, then persists the Run, its single resource-charged Allocation, required Secret references, capability requirements, and node-create intent in one transaction. It returns before node startup. The reusable Environment row may later be physically deleted without changing execution or recovery for admitted Runs. Periodic Run, node, tunnel, and capability maintenance executes in independent, non-overlapping component loops. Allocation creation uses a bounded timeout per lifecycle item so cold image preparation cannot consume unrelated work budgets. On shutdown, active calls are canceled before the application waits for workers.
 
-Runtime-slot admission consumes only axnoded's aggregate `runtime_slots` summary. Individual cgroup and interface pools are diagnostic details. `ReportNode` rejects summaries that omit `runtime_slots`; releases that add a required node-summary contract must rebuild controld and axnoded together.
+Runtime-slot admission consumes only axnoded's aggregate `runtime_slots` summary. Individual cgroup and interface pools are diagnostic details. `PublishNodeSnapshot` rejects summaries that omit `runtime_slots`; releases that add a required node-summary contract must rebuild controld and axnoded together.
 
-Each `ReportNode` publication is one ordered atomic observation covering scheduling quantities, component health, capability evidence, memory-boundary validation, and separate diagnostics. Runsc memory and ephemeral-storage hard limits depend on matching conformance evidence; no alternate-runtime evidence can satisfy them. Controld derives immutable workload requirements, rechecks the current Node observation while candidate rows are locked, and persists those requirements with the Allocation. Capability changes are emitted only as metrics; there is no transition table or capability queue. The shared [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md) document is the canonical contract for provider evidence and loss policy.
+Each `PublishNodeSnapshot` publication is one ordered atomic observation covering scheduling quantities, component health, capability evidence, memory-boundary validation, and separate diagnostics. Runsc memory and ephemeral-storage hard limits depend on matching conformance evidence; no alternate-runtime evidence can satisfy them. Controld derives immutable workload requirements, rechecks the current Node observation while candidate rows are locked, and persists those requirements with the Allocation. Capability changes are emitted only as metrics; there is no transition table or capability queue. The shared [Observed Capability Providers](../../docs/architecture/observed-capability-providers.md) document is the canonical contract for provider evidence and loss policy.
 
-Rootfs locality covers local directories and registry images (OCI/Nydus), not raw object-store mounts.
+Rootfs locality covers local directories and OCI registry images, not raw object-store mounts.
 
 Sandbox egress policy is normalized during API validation and contributes a derived DNS-policy or strict-egress capability requirement. A node without a matching current observation is ineligible; the policy is never forwarded as an optional field that a runtime may ignore. See [Sandbox Network Policy](../../docs/architecture/sandbox-network-policy.md).
 
@@ -110,18 +110,19 @@ Public product APIs:
 
 - `sdk/proto/axern/control/environment/v1/environment.proto`
 - `sdk/proto/axern/control/secret/v1/secret.proto`
-- `sdk/proto/axern/private/control/gateway/v1/gateway.proto`
 - `sdk/proto/axern/control/namespace/v1/namespace.proto`
 - `sdk/proto/axern/control/run/v1/run.proto`
+- `sdk/proto/axern/control/workspace/v1/workspace.proto`
 - `sdk/proto/axern/control/quota/v1/quota.proto`
 - `sdk/proto/axern/control/tunnel/v1/tunnel.proto`
 
 Control-plane coordination and internal calls:
 
+- `sdk/proto/axern/private/control/gateway/v1/gateway.proto`
 - `sdk/proto/axern/private/control/node/v1/node_control.proto`
 - `sdk/proto/axern/private/node/lifecycle/v1/lifecycle.proto`
 
-Persistent-volume product APIs are not supported. Allocation-local writable files remain on the execution path and must be exported before Allocation cleanup.
+Managed Workspaces provide retained data with an independent identity, bound Node, capacity charge and one fenced writer. Arbitrary host-path volumes and simultaneous shared writers are outside this contract. Writable files outside a selected Workspace remain Allocation-local; declare bounded outputs before admission and download their sealed bytes before expiry when they must be retained.
 
 The HTTP listener exposes diagnostics and internal runtime artifact downloads. Diagnostic endpoints are read-only:
 

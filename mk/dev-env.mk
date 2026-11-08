@@ -1,8 +1,8 @@
 .PHONY: quickstart quickstart-source axern-config-init \
-		local-images-build local-node-images-build nydus-builder-image registry-nydus-image-build \
-		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-registry-image-smoke local-compose-image-mount-smoke local-compose-nydus-smoke \
+		local-images-build local-node-images-build \
+		local-compose-up local-compose-down local-compose-status local-compose-purge local-compose-reset local-compose-refresh local-compose-refresh-verify local-compose-image-import local-compose-registry-image-smoke local-compose-image-mount-smoke \
 		local-compose-smoke local-compose-doctor-smoke local-compose-dns-doctor-smoke local-compose-run-smoke local-compose-rootfs-snapshot-smoke local-compose-quota-smoke local-compose-python-sdk-e2e local-compose-computer-use-e2e local-compose-go-sdk-e2e \
-		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-axern-registry-image-smoke kind-axern-nydus-smoke kind-smoke kind-run-smoke kind-quota-smoke kube-env-kind \
+		kind-up kind-down kind-status kind-purge kind-reset kind-refresh kind-refresh-verify registry-up registry-status registry-down registry-image-push kind-image-import kind-axern-registry-image-smoke kind-smoke kind-run-smoke kind-quota-smoke kube-env-kind \
 		local-refresh-verify local-truth-verify \
 		sdk-go-examples-smoke
 
@@ -22,12 +22,6 @@ local-images-build: ## Build the shared local deploy images used by compose and 
 local-node-images-build: ## Build only axnoded's runtime base and node-all-in-one images
 	AXERN_LOCAL_IMAGE_SCOPE=node bash $(ROOTDIR)/scripts/dev-env/build-images.sh
 
-nydus-builder-image: ## Build the repo-managed Nydus conversion helper image
-	bash $(ROOTDIR)/scripts/dev-env/build-nydus-builder-image.sh
-
-registry-nydus-image-build: ## Build and push the repo-managed local Nydus smoke image
-	bash $(ROOTDIR)/scripts/dev-env/registry-nydus-image-build.sh
-
 local-compose-up: ## Bring up the local Docker Compose truth environment
 	bash $(ROOTDIR)/scripts/dev-env/compose-up.sh
 
@@ -45,9 +39,6 @@ local-compose-registry-image-smoke: ## Verify Axern can start an image from the 
 
 local-compose-image-mount-smoke: ## Verify compose Run read-only image mounts and Secret projections
 	bash $(ROOTDIR)/scripts/dev-env/compose-image-mount-smoke.sh
-
-local-compose-nydus-smoke: ## Verify Axern can start a compose sandbox from a Nydus image through imagemgr/imagefsd
-	bash $(ROOTDIR)/scripts/dev-env/compose-nydus-smoke.sh
 
 local-compose-purge: ## Remove the local Docker Compose truth environment and its repo-local state
 	bash $(ROOTDIR)/scripts/dev-env/compose-purge.sh
@@ -114,9 +105,6 @@ kind-image-import: ## Import IMAGE from host Docker into every repo-managed kind
 
 kind-axern-registry-image-smoke: ## Verify Axern can start an image from the repo-managed local registry in kind
 	bash $(ROOTDIR)/scripts/dev-env/kind-axern-registry-image-smoke.sh
-
-kind-axern-nydus-smoke: ## Verify Axern can start a sandbox from a Nydus image through imagemgr/imagefsd
-	bash $(ROOTDIR)/scripts/dev-env/kind-axern-nydus-smoke.sh
 
 kind-purge: ## Remove the repo-managed kind truth environment and its repo-local state
 	bash $(ROOTDIR)/scripts/dev-env/kind-purge.sh

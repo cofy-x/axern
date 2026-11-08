@@ -8,6 +8,7 @@ import ctypes
 import gzip
 import hashlib
 import io
+import importlib.util
 import json
 import os
 import pathlib
@@ -22,7 +23,19 @@ import tarfile
 import tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SCHEMA = "axern.native-runtime.v2"
+# Isolated Python (-I) excludes the script directory. Resolve only the fixed
+# packaged sibling or this checkout's source file, never CWD/site imports.
+_selector = pathlib.Path(__file__).resolve().with_name('gvisor_payload.py')
+if not _selector.exists():
+    _selector = ROOT / 'runtime/axnoded/gvisor_payload.py'
+if _selector.is_symlink() or not _selector.is_file():
+    raise ImportError('the matching gvisor_payload.py staging tool is required')
+_selector_spec = importlib.util.spec_from_file_location('gvisor_payload', _selector)
+gvisor_payload = importlib.util.module_from_spec(_selector_spec)
+# Compile the verified source directly: do not load or write unmanifested .pyc.
+exec(compile(_selector.read_bytes(), str(_selector), 'exec'), gvisor_payload.__dict__)
+
+SCHEMA = "axern.native-runtime.v3"
 MANIFEST = "manifest.json"
 MAX_FILE_SIZE = 1024 * 1024 * 1024
 MAX_TOTAL_SIZE = 4 * MAX_FILE_SIZE
@@ -58,12 +71,15 @@ SOURCE_FILES = {
     "LICENSE": "LICENSE",
     "NOTICE": "NOTICE",
     "share/axern/gvisor.lock": "runtime/axnoded/gvisor.lock",
+    "share/axern/gvisor-selected.lock.json": "runtime/axnoded/gvisor-selected.lock.json",
+    "libexec/axern/gvisor_payload.py": "runtime/axnoded/gvisor_payload.py",
     "share/axern/erofs-root/hello.txt": "deploy/images/fixtures/erofs-root/hello.txt",
     "share/axern/erofs-root/etc/runtime-fixture": "deploy/images/fixtures/erofs-root/etc/runtime-fixture",
 }
-EXECUTABLES = set(GO_BINARIES)
+GVISOR_PATHS = {"runtime/gvisor/" + name for name in gvisor_payload.MEMBERS}
+EXECUTABLES = set(GO_BINARIES) | GVISOR_PATHS
 PAYLOAD_PATHS = EXECUTABLES | set(SOURCE_FILES) | {
-    "runtime/gvisor.tar.bz2", "share/axern/registry_auths.json", "requirements.json",
+    "share/axern/registry_auths.json", "requirements.json",
 }
 REQUIREMENTS = {
     "profile": "ubuntu-24.04-candidate",
@@ -261,7 +277,7 @@ def verify_bundle(path: pathlib.Path, expected_sha256: str) -> dict:
             seen = set()
             total = 0
             lock = None
-            runtime_digest = None
+            selected_data = None
             # next() avoids iterating the already-read first member a second time.
             while (member := archive.next()) is not None:
                 name = member.name
@@ -275,7 +291,7 @@ def verify_bundle(path: pathlib.Path, expected_sha256: str) -> dict:
                     raise BundleError(f"noncanonical archive ownership: {name}")
                 stream = archive.extractfile(member)
                 assert stream is not None
-                sha256, sha512 = hashlib.sha256(), hashlib.sha512()
+                sha256 = hashlib.sha256()
                 small = bytearray()
                 first = True
                 while chunk := stream.read(1024 * 1024):
@@ -283,9 +299,7 @@ def verify_bundle(path: pathlib.Path, expected_sha256: str) -> dict:
                         check_elf(chunk[:64], manifest["architecture"], name)
                     first = False
                     sha256.update(chunk)
-                    if name == "runtime/gvisor.tar.bz2":
-                        sha512.update(chunk)
-                    if name in ("share/axern/gvisor.lock", "requirements.json", "share/axern/registry_auths.json"):
+                    if name in ("share/axern/gvisor.lock", "share/axern/gvisor-selected.lock.json", "requirements.json", "share/axern/registry_auths.json"):
                         if len(small) + len(chunk) > 65536:
                             raise BundleError(f"oversized metadata: {name}")
                         small.extend(chunk)
@@ -293,8 +307,8 @@ def verify_bundle(path: pathlib.Path, expected_sha256: str) -> dict:
                     raise BundleError(f"empty executable: {name}")
                 if sha256.hexdigest() != entry["sha256"]:
                     raise BundleError(f"file SHA-256 mismatch: {name}")
-                if name == "runtime/gvisor.tar.bz2":
-                    runtime_digest = sha512.hexdigest()
+                if name == "share/axern/gvisor-selected.lock.json":
+                    selected_data = bytes(small)
                 elif name == "share/axern/gvisor.lock":
                     lock = parse_lock(small.decode(), manifest["architecture"])
                 elif name == "requirements.json" and read_json(small) != REQUIREMENTS:
@@ -304,8 +318,16 @@ def verify_bundle(path: pathlib.Path, expected_sha256: str) -> dict:
                 seen.add(name)
             if seen != set(entries):
                 raise BundleError("archive is missing required payload members")
-            if lock != manifest["gvisor"] or lock is None or runtime_digest != lock["archive_sha512"]:
-                raise BundleError("gVisor archive does not match the bundled lock and manifest")
+            if lock != manifest["gvisor"] or lock is None or selected_data is None:
+                raise BundleError("gVisor input identity does not match bundled lock and manifest")
+            try:
+                selected = gvisor_payload.parse_selected(selected_data, manifest["architecture"], lock)
+            except (ValueError, KeyError, TypeError) as error:
+                raise BundleError("invalid selected gVisor lock") from error
+            for name, record in selected.items():
+                entry = entries["runtime/gvisor/" + name]
+                if {key: entry[key] for key in ("size", "mode", "sha256")} != record:
+                    raise BundleError("selected gVisor payload does not match the bundled member lock")
             return manifest
 
 
@@ -334,7 +356,7 @@ def build(root: pathlib.Path, output_dir: pathlib.Path, gvisor_archive: pathlib.
     env.update({"GOOS": "linux", "GOARCH": arch, "CGO_ENABLED": "0", "GOFLAGS": ""})
     with tempfile.TemporaryDirectory(prefix="axern-native-build-") as temporary:
         stage = pathlib.Path(temporary) / "payload"
-        for name in PAYLOAD_PATHS:
+        for name in PAYLOAD_PATHS - GVISOR_PATHS:
             (stage / name).parent.mkdir(parents=True, exist_ok=True)
         for name, package in GO_BINARIES.items():
             print(f"building {name}", file=sys.stderr, flush=True)
@@ -345,7 +367,13 @@ def build(root: pathlib.Path, output_dir: pathlib.Path, gvisor_archive: pathlib.
             ], cwd=root, env=env, check=True)
         for name, source in SOURCE_FILES.items():
             shutil.copyfile(root / source, stage / name)
-        shutil.copyfile(gvisor_archive, stage / "runtime/gvisor.tar.bz2")
+        try:
+            selected = gvisor_payload.parse_selected((stage / "share/axern/gvisor-selected.lock.json").read_bytes(), arch, lock)
+            # Only the authenticated selected profile enters the delivery inventory.
+            (stage / "runtime").mkdir()
+            gvisor_payload.extract_archive(gvisor_archive, stage / "runtime/gvisor", selected, arch, lock)
+        except (ValueError, tarfile.TarError) as error:
+            raise BundleError("invalid selected gVisor build input") from error
         (stage / "share/axern/registry_auths.json").write_bytes(json_bytes({}))
         (stage / "requirements.json").write_bytes(json_bytes(REQUIREMENTS))
         if source_identity(root) != (revision, timestamp):

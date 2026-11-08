@@ -22,8 +22,7 @@ Use this page to identify the owner of a task and then switch to that module's l
 | `runtime/axnoded` | Node-local sandbox lifecycle, execution, and allocation cleanup | [Contract](../runtime/axnoded/AGENTS.md), [README](../runtime/axnoded/README.md) |
 | `runtime/egressd` | Trusted node-local sandbox egress policy lifecycle and enforcement | [Contract](../runtime/egressd/AGENTS.md), [README](../runtime/egressd/README.md) |
 | `runtime/tunneld` | Internal reverse-TCP relay and node-local tunnel binding | [Contract](../runtime/tunneld/AGENTS.md), [README](../runtime/tunneld/README.md) |
-| `runtime/imagemgr` | Image rootfs resolution and OCI and Nydus mount orchestration | [Contract](../runtime/imagemgr/AGENTS.md), [README](../runtime/imagemgr/README.md) |
-| `runtime/imagefsd` | Read-only FUSE image data plane and chunk serving | [Contract](../runtime/imagefsd/AGENTS.md), [README](../runtime/imagefsd/README.md) |
+| `runtime/imagemgr` | OCI image rootfs resolution, mount leases and read-only mounts | [Contract](../runtime/imagemgr/AGENTS.md), [README](../runtime/imagemgr/README.md) |
 | `network/bpfnet` | Optional eBPF host networking data plane | [Contract](../network/bpfnet/AGENTS.md), [README](../network/bpfnet/README.md) |
 
 ## Shared And Repository Infrastructure

@@ -22,7 +22,7 @@ type fakeNodeControlServer struct {
 	nodev1.UnimplementedNodeControlServer
 
 	mu          sync.Mutex
-	reportCalls []*nodev1.ReportNodeRequest
+	reportCalls []*nodev1.PublishNodeSnapshotRequest
 	statusCalls []*nodev1.BatchReportAllocationLifecycleRequest
 }
 
@@ -38,12 +38,12 @@ func (p fakeNodeControlProvider) Close() error {
 	return nil
 }
 
-func (s *fakeNodeControlServer) ReportNode(ctx context.Context, req *nodev1.ReportNodeRequest) (*nodev1.ReportNodeResponse, error) {
+func (s *fakeNodeControlServer) PublishNodeSnapshot(ctx context.Context, req *nodev1.PublishNodeSnapshotRequest) (*nodev1.PublishNodeSnapshotResponse, error) {
 	_ = ctx
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.reportCalls = append(s.reportCalls, req)
-	return &nodev1.ReportNodeResponse{}, nil
+	return &nodev1.PublishNodeSnapshotResponse{}, nil
 }
 
 func (s *fakeNodeControlServer) BatchReportAllocationLifecycle(ctx context.Context, req *nodev1.BatchReportAllocationLifecycleRequest) (*nodev1.BatchReportAllocationLifecycleResponse, error) {

@@ -18,14 +18,6 @@ func imagemgrUsable(summary *nodev1.NodeSummary) bool {
 	return component.GetReachable() && component.GetState() != nodev1.ComponentState_COMPONENT_STATE_DISABLED
 }
 
-func imagefsdUsable(summary *nodev1.NodeSummary) bool {
-	if summary == nil {
-		return false
-	}
-	component := summary.GetComponents().GetImagefsd()
-	return component.GetReachable() && component.GetState() != nodev1.ComponentState_COMPONENT_STATE_DISABLED
-}
-
 func effectiveNodeState(summary *nodev1.NodeSummary, heartbeatFresh bool) nodev1.NodeState {
 	if !heartbeatFresh {
 		return nodev1.NodeState_NODE_STATE_UNREACHABLE

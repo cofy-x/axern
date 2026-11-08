@@ -118,7 +118,7 @@ mkdir -p "${go_consumer}"
 cat > "${go_consumer}/go.mod" <<EOF
 module example.com/axern-sdk-consumer
 
-go 1.26.8
+go 1.26.10
 
 require github.com/cofy-x/axern/sdk/go v${version}
 

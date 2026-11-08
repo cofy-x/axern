@@ -37,5 +37,4 @@ else
   echo "running_containers=0"
   echo "mounted_images=0"
   echo "imagemgr_ready_nodes=0"
-  echo "imagefsd_ready_nodes=0"
 fi

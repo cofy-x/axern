@@ -10,7 +10,7 @@ import (
 )
 
 // ListNodeExecutionAllocationIDs returns the complete desired execution set
-// for one bound node. The authenticated ReportNode response turns this durable
+// for one bound node. The authenticated PublishNodeSnapshot response turns this durable
 // Allocation fact into a short node-local lease; no parallel lease entity is
 // needed for runtime liveness.
 func (s *Store) ListNodeExecutionAllocationIDs(ctx context.Context, nodeID string) ([]string, error) {

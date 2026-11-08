@@ -53,16 +53,6 @@ for fragment in (
             "OCI fixture verification must support a shared runtime network: " + fragment
         )
 
-for fragment in (
-    'registry_runtime_host="${registry_ip}:5000"',
-    'LOCAL_REGISTRY_CLUSTER_HOST="${registry_runtime_host}"',
-    'REGISTRY_NO_PROXY="${REGISTRY_NO_PROXY:+${REGISTRY_NO_PROXY},}${registry_ip}"',
-):
-    if fragment not in docker_common:
-        raise SystemExit(
-            "Nydus local-build verification must use the registry container bridge endpoint: "
-            + fragment
-        )
 PY
 
 echo "docker_network_contract_ok=true"

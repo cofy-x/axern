@@ -2,50 +2,40 @@ package app
 
 import (
 	"bytes"
+	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
 )
 
-func TestRunWithoutNydusDependencies(t *testing.T) {
-	if mode := os.Getenv("IMAGEMGR_STARTUP_TEST"); mode != "" {
-		root := os.Args[len(os.Args)-1]
-		args := []string{"-node_id=test", "-root=" + root, "-http_sock=", "-imagefsd_bin=" + filepath.Join(root, "missing-imagefsd")}
-		want := "nydus config template path is required"
-		if mode == "oci-only" {
-			args = append(args, "-enable_nydus=false", "-nydus_template="+filepath.Join(root, "missing-template"))
-			want = "serve http: empty socket path"
-		}
-		// An empty socket ends Run immediately after complete initialization,
-		// without needing to signal the test process or acquire mount privilege.
-		if err := Run(args); err == nil || !strings.Contains(err.Error(), want) {
-			t.Fatalf("Run() = %v, want %q", err, want)
+func TestRunInitializesOnlyOCI(t *testing.T) {
+	if root := os.Getenv("IMAGEMGR_OCI_STARTUP_TEST"); root != "" {
+		if err := Run([]string{"-root=" + root, "-http_sock="}); err == nil || !strings.Contains(err.Error(), "serve http: empty socket path") {
+			t.Fatalf("OCI initialization failed: %v", err)
 		}
 		return
 	}
-	for _, mode := range []string{"default", "oci-only"} {
-		t.Run(mode, func(t *testing.T) {
-			root := t.TempDir()
-			cmd := exec.Command(os.Args[0], "-test.run=^TestRunWithoutNydusDependencies$", "--", root)
-			cmd.Env = append(os.Environ(), "IMAGEMGR_STARTUP_TEST="+mode)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				t.Fatalf("startup subprocess: %v\n%s", err, output)
-			}
-			if mode == "oci-only" {
-				if _, err := os.Stat(filepath.Join(root, "oci", "metadata.db")); err != nil {
-					t.Fatalf("OCI manager was not initialized: %v", err)
-				}
-				for _, dir := range []string{"daemon_configs", "daemons", "chunk_db", "image_metas"} {
-					if _, err := os.Stat(filepath.Join(root, dir)); !os.IsNotExist(err) {
-						t.Fatalf("OCI-only initialized Nydus directory %s: %v", dir, err)
-					}
-				}
-			}
-		})
+	root := t.TempDir()
+	cmd := exec.Command(os.Args[0], "-test.run=^TestRunInitializesOnlyOCI$")
+	cmd.Env = append(os.Environ(), "IMAGEMGR_OCI_STARTUP_TEST="+root)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("startup subprocess: %v\n%s", err, output)
+	}
+	if _, err := os.Stat(filepath.Join(root, "oci", "metadata.db")); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"daemon_configs", "daemons", "chunk_db", "image_metas"} {
+		if _, err := os.Lstat(filepath.Join(root, name)); !os.IsNotExist(err) {
+			t.Fatalf("OCI startup created retired state %s: %v", name, err)
+		}
+	}
+}
+
+func TestRetiredStartupFlagIsRejected(t *testing.T) {
+	if err := Run([]string{"-enable_nydus=false"}); err == nil || !strings.Contains(err.Error(), "flag provided but not defined") {
+		t.Fatalf("retired mode flag was accepted: %v", err)
 	}
 }
 
@@ -84,7 +74,7 @@ func TestRunOCIOnlyRejectsAuthorityBeforeBackendRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := Run([]string{"-node_id=test", "-root=" + root, "-enable_nydus=false"}); err == nil || !strings.Contains(err.Error(), "cannot start with Nydus disabled") {
+			if err := Run([]string{"-root=" + root}); err == nil || !strings.Contains(err.Error(), "retired") {
 				t.Fatalf("Run() did not fail at preflight: %v", err)
 			}
 			after, err := os.ReadFile(path)

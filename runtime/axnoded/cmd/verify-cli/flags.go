@@ -36,7 +36,7 @@ func parseFlags() verifyCLIConfig {
 	flag.StringVar(&cfg.environmentID, "environment-id", "", "runtime id")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfsPath, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
-	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
+	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI image URL for rootfs-src=image")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-cli.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-cli.stderr", "container stderr path")
 	flag.StringVar(&cfg.shellCommand, "shell-command", "sleep 300", "shell command to run inside the container")

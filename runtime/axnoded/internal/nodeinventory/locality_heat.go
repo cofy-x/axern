@@ -2,7 +2,6 @@ package nodeinventory
 
 import (
 	"sort"
-	"strings"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/container"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
@@ -63,25 +62,27 @@ func (s *AxnodedSource) collectAxnodedLocality(snapshot *NodeInventorySnapshot, 
 	}
 }
 
-func mergeImagemgrLocality(snapshot *NodeInventorySnapshot, locality []ImageLocalityEntry) {
-	for _, imageLocality := range locality {
-		entry := ensureLocalityEntry(
-			&snapshot.Heat.Locality,
-			imageLocality.Key,
-			rootfsTypeFromLocalityKey(imageLocality.Key),
-			imageLocality.MountType,
-		)
-		if imageLocality.MountType != "" {
-			entry.MountType = imageLocality.MountType
+// Merge source-owned OCI cache identities with retained execution facts.
+func mergeImagemgrLocality(snapshot *NodeInventorySnapshot, inventory *ImageManagerInventory) {
+	for _, imported := range inventory.ImportedImages {
+		key := imported.CacheKey
+		if key == "" {
+			key = imported.ImageRef
 		}
-		entry.Mounted = entry.Mounted || imageLocality.Mounted
-		entry.NydusDaemonAlive = entry.NydusDaemonAlive || imageLocality.DaemonAlive && imageLocality.MountType == "nydus"
-		entry.ChunkDBTotalChunks = imageLocality.ChunkDBTotalChunks
-		entry.ChunkDBUsedBytes = imageLocality.ChunkDBUsedBytes
-		entry.ChunkDBRecentAccessAgeSecs = imageLocality.ChunkDBRecentAccessAgeSecs
-		entry.PeerHealthyCount = imageLocality.PeerHealthyCount
-		entry.PeerUnhealthyCount = imageLocality.PeerUnhealthyCount
-		entry.PeerHintedCount = imageLocality.PeerHintedCount
+		if key != "" {
+			ensureLocalityEntry(&snapshot.Heat.Locality, "image:"+key, "image", "oci")
+		}
+	}
+	for _, mounted := range inventory.MountedImages {
+		key := mounted.CacheKey
+		if key == "" {
+			key = mounted.ImageURL
+		}
+		if key == "" || mounted.MountType != "oci" {
+			continue
+		}
+		entry := ensureLocalityEntry(&snapshot.Heat.Locality, "image:"+key, "image", "oci")
+		entry.Mounted = true
 	}
 }
 
@@ -103,17 +104,6 @@ func ensureLocalityEntry(entries *[]LocalityHeatEntry, key, rootfsType, mountTyp
 		MountType:  mountType,
 	})
 	return &(*entries)[len(*entries)-1]
-}
-
-func rootfsTypeFromLocalityKey(key string) string {
-	switch {
-	case strings.HasPrefix(key, "local:"):
-		return "local"
-	case strings.HasPrefix(key, "image:"):
-		return "image"
-	default:
-		return "unknown"
-	}
 }
 
 func sortLocalityEntries(entries []LocalityHeatEntry) {

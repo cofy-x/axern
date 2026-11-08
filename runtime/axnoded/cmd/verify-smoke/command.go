@@ -37,7 +37,7 @@ func parseFlags() verifySmokeConfig {
 	flag.StringVar(&cfg.address, "address", config.DefaultSocketAddress, "axnoded unix socket path")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfs, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
-	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
+	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI image URL for rootfs-src=image")
 	flag.StringVar(&cfg.environmentID, "environment-id", "verify-runtime", "runtime id")
 	flag.StringVar(&cfg.stdoutPath, "stdout", "/tmp/axnoded-verify.stdout", "container stdout path")
 	flag.StringVar(&cfg.stderrPath, "stderr", "/tmp/axnoded-verify.stderr", "container stderr path")

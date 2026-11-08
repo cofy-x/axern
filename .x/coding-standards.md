@@ -17,7 +17,6 @@ Product boundaries and general design rules belong to the [Agent Contract](../AG
 | Language | Canonical location | Notes |
 | :-- | :-- | :-- |
 | Go | active `go.work` members | Put product CLI code in `apps/cli`, Go SDK code in `sdk/go`, internal shared libraries in `lib/go`, and platform services in their owning `control/`, `gateway/`, `runtime/`, or `network/` subtree. |
-| Rust | `runtime/imagefsd` | Add new Rust workspace members only with a concrete platform owner and root docs updates. |
 | TypeScript | `sdk/typescript` | Use ESM only. |
 | Python | `sdk/python/src` for public SDK modules; the owning directory for repository and module tooling | Keep SDK modules under `src/` and build, deployment, and verification tools beside their owner. |
 

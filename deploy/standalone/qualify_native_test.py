@@ -4,6 +4,12 @@
 import base64
 import copy
 import json
+import importlib.util
+import marshal
+import shutil
+import struct
+import subprocess
+import sys
 import pathlib
 import tempfile
 import threading
@@ -25,6 +31,37 @@ def storage_result(**changes):
 
 
 class QualificationTest(unittest.TestCase):
+    def test_packaged_qualifier_uses_source_only_under_isolated_python(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            scripts = root / 'release/libexec/axern'
+            scripts.mkdir(parents=True)
+            source = pathlib.Path(qualify.__file__).resolve().parent
+            for name in ('native_install.py', 'qualify_native.py', 'qualify_network.py'):
+                shutil.copyfile(source / name, scripts / name)
+            shutil.copyfile(source.parents[1] / 'runtime/axnoded/gvisor_payload.py', scripts / 'gvisor_payload.py')
+            command = [sys.executable, '-I', str(scripts / 'qualify_native.py'), '--help']
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('usage:', result.stdout)
+            self.assertFalse((scripts / '__pycache__').exists())
+            snapshots = {}
+            for name in ('native_install', 'qualify_network', 'gvisor_payload'):
+                path = scripts / (name + '.py')
+                code = compile('raise RuntimeError("inert stale qualification bytecode")', str(path), 'exec')
+                stale = importlib.util.MAGIC_NUMBER + struct.pack('<III', 0, int(path.stat().st_mtime), path.stat().st_size) + marshal.dumps(code)
+                cache = pathlib.Path(importlib.util.cache_from_source(str(path)))
+                cache.parent.mkdir(exist_ok=True)
+                cache.write_bytes(stale)
+                snapshots[cache] = stale
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual({path: path.read_bytes() for path in snapshots}, snapshots)
+            (scripts / 'native_install.py').unlink()
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('matching native_install.py qualification tool is required', result.stderr)
+
     def test_memory_domain_requires_exact_parent_and_leaf_contract(self):
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(qualify, 'NODE_CGROUP', pathlib.Path(directory)):
             parent = pathlib.Path(directory) / 'sandbox' / 'pool-one'

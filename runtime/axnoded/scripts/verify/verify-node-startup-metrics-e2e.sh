@@ -31,8 +31,9 @@ docker run -d \
   --privileged \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
   -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
-  -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
-  -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
+  -e "HTTP_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "HTTPS_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "NO_PROXY=${REGISTRY_NO_PROXY}" \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
   "${IMAGE_TAG}" \
   /bin/bash /workspace/scripts/verify/node-all-in-one-entrypoint.sh >/dev/null

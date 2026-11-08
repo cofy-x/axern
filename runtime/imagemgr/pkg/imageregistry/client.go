@@ -274,7 +274,7 @@ func (c *Client) useHTTPFor(imageRef string) bool {
 
 // UseHTTPFor reports whether imageRef is configured to use an insecure HTTP
 // registry. Callers that construct secondary registry data paths (for example
-// the Nydus blob backend) must use the same transport policy as this client.
+// streaming image consumers) must use the same transport policy as this client.
 func (c *Client) UseHTTPFor(imageRef string) bool {
 	return c.useHTTPFor(imageRef)
 }

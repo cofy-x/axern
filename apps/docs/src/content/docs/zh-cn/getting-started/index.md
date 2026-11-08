@@ -21,7 +21,7 @@ API Context 选择后续执行请求的服务端。它不会把 `server` 命令�
 
 ## Compose 源码开发
 
-需要 Go 1.26.8、Make，以及 macOS/Linux 上的 Docker Compose v2。建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘。在源码仓库根目录运行：
+需要 Go 1.26.10、Make，以及 macOS/Linux 上的 Docker Compose v2。建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘。在源码仓库根目录运行：
 
 ```bash
 make quickstart-source

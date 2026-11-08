@@ -1,0 +1,68 @@
+{
+  "architectures": {
+    "amd64": {
+      "archive_sha512": "2e6671bb2d033b871c5811ab57e16ac570988b0e0054c525f911cfaf191bab3ca4efb08e0a98daa4b9e7d248f9e5776ef2ef2f8a6b82d829646a42924c98bb05",
+      "members": {
+        "gvisor-bin/gvisor-proc-umounter": {
+          "mode": 493,
+          "sha256": "b3bbbaef5ddc62084e5febd19d3acca14f3d42b2a25d8552fb40def699467019",
+          "size": 1280
+        },
+        "gvisor-bin/gvisor-sentry-prewarmer": {
+          "mode": 493,
+          "sha256": "046e3ec1de3aa7b7ec7ce53b4f0d1e08db15987847606a8e361133d5c5bd3d73",
+          "size": 1752
+        },
+        "gvisor-bin/gvisor_sentry": {
+          "mode": 493,
+          "sha256": "6dfd3af65e664663f332d0e4b9fb82452496e34ebc6cb568ae49f5b1ac9d8166",
+          "size": 54951832
+        },
+        "gvisor-bin/runsc-fd-parking": {
+          "mode": 493,
+          "sha256": "03af90d07ea466c10ecc3e3ba839b2a59540959dd3286aea3886917cba850c11",
+          "size": 1320
+        },
+        "runsc": {
+          "mode": 493,
+          "sha256": "c5a5a7ba1209b605d08874fdd4429035f95afcb2d482bc95ed3fb13d31a25098",
+          "size": 19407310
+        }
+      }
+    },
+    "arm64": {
+      "archive_sha512": "574b5775b4417618f63c8506e6bb237e370df85722832a5d0c3831382155e55e59d4cfa993a1e9bbe1b1cf04346ffd48b20aaa879c6ed9a52c680f762fd19980",
+      "members": {
+        "gvisor-bin/gvisor-proc-umounter": {
+          "mode": 493,
+          "sha256": "8ddecb8894b332be68e84faa073c073bbf1d6f046974d411fc02db03a73fde90",
+          "size": 1024
+        },
+        "gvisor-bin/gvisor-sentry-prewarmer": {
+          "mode": 493,
+          "sha256": "6916df96d23f2248b6566f4c9033d636f5d867c0ac8e497ea52147b30e5b920b",
+          "size": 1512
+        },
+        "gvisor-bin/gvisor_sentry": {
+          "mode": 493,
+          "sha256": "c394ae17b4a1ccf9d07085f17de9c11bc3de3958410e620f5f8138f6887e424e",
+          "size": 51520121
+        },
+        "gvisor-bin/runsc-fd-parking": {
+          "mode": 493,
+          "sha256": "e41db2da554154f282f2829a664a2c4234c163b9da74fc9b4388126223c7090c",
+          "size": 1104
+        },
+        "runsc": {
+          "mode": 493,
+          "sha256": "cbca2f059fdbfd3563d7d7c10b4d77d534aaaa1f524ddb47d76b36285acc6499",
+          "size": 18176288
+        }
+      }
+    }
+  },
+  "commit": "7a675ac66a1e2357abdaa6cccedabcd3cce9aa5c",
+  "profile": "runsc-systrap",
+  "release": "20261102.0",
+  "schema": "axern.gvisor-selected.v1"
+}

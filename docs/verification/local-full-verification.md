@@ -74,7 +74,7 @@ During a serial gate, Docker builds still validate all inputs through BuildKit, 
 
 Do not release or promote a commit until its exact `Full Repository Regression` job succeeds. The workflow is deliberately not a required pull-request check.
 
-Use `make verify-release` for the source and local-deployment release gate. Deployed environment qualification and regional performance or capacity evidence remain separately owned; this command does not produce those receipts.
+Use `make verify-release` for the complete local release gate. It runs `verify-full` once, `security-check`, `release-build` (including release contracts, CLI/chart packaging, source SBOMs and checksums), `open-source-check`, `sdk-contract-verify` (including clean-consumer artifact checks), and `docs-verify` in that order, stopping on failure. Full regression checks generated protobuf output before compilation. `make verify-release ARGS=--list` prints that sequence without executing it. Partial suites and resume ranges belong to `verify-full` and cannot satisfy the release gate. The normal full regression and post-merge source/runtime partition remain unchanged. Deployed native archive, persistent Workspace, registry acceptance and regional performance or capacity qualification remain separately owned; this command does not produce those receipts. See [Release Operations](../operations/releases.md) for the remaining frozen-candidate and publication steps.
 
 ## Tier 4: environment qualification
 

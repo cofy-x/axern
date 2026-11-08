@@ -14,10 +14,13 @@ Managed Workspaces follow the [single-writer contract](../decisions/single-write
 | Writable sandbox rootfs and Allocation-local workspace | `axnoded` and node-local runtime filestore | One Allocation; no persistence promise across Allocation replacement or node loss |
 | Sealed stdout/stderr and bounded declared outputs | `axnoded` node-local retention | Read-only through the Run output deadline; survives runtime cleanup and node-process restart, not node-disk loss |
 | Published rootfs result | Operator-configured OCI repository; referenced by a derived Environment | Content-addressed and reusable across fresh Allocations; physical retention and unreferenced-blob GC are registry policy |
-| Immutable rootfs, read-only image bundles, and image caches | `imagemgr` and `imagefsd` where required | Image-owned cache and live mount leases, separate from writable workload data |
+| Immutable rootfs, read-only image bundles, and image caches | `imagemgr` | Image-owned cache and live mount leases, separate from writable workload data |
+| Runtime Secret file projections | `axnoded`, in private node-owned storage | One Allocation; separate from Workspace data, retained as a cleanup obligation until owned runtime resources are gone |
 | Allocation ownership, cleanup intent, resource state, and recovery records | `axnoded` and its process-owned embedded database | Node-local recovery; not a second shared control-plane database |
 
 PostgreSQL is the only authoritative central state backend. Unselected bytes disappear with Allocation cleanup. Selected declared outputs and bounded logs are sealed before runtime deletion and remain readable only until the immutable output deadline. An explicitly requested successful rootfs result is instead published as an immutable OCI image and referenced by a normal Environment. Downloaded outputs belong to the caller or an upper-layer system. Object storage is never authoritative execution state or a writable POSIX working directory for an Allocation, and Axern does not define a generic public Artifact or Snapshot root.
+
+Runtime Secret projections are not Workspace files or image inputs. The node verifies private directory ownership, permissions and exact file/directory identity before preparing them; unsafe or mismatched storage fails closed. It does not adopt guest-created paths or overwrite an existing projection to recover authority. Projection cleanup follows the Allocation's runtime cleanup barrier, and an unresolved deletion retains its cleanup obligation. Execution metadata contains Secret references rather than private storage paths or values.
 
 ## Managed Workspaces
 

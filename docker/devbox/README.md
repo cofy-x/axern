@@ -4,9 +4,8 @@ The Axern devbox image is the standalone Linux workspace for node-runtime develo
 
 It includes:
 
-- Go `1.26.8`
+- Go `1.26.10`
 - `GOPROXY=https://proxy.golang.org,direct` for the `axern` devbox user
-- Rust `1.89.0` with `rustfmt`
 - Postgres for the standalone source-development stack
 - Node.js, pnpm, Python, and uv for root workspace development
 - `runsc` for runtime validation

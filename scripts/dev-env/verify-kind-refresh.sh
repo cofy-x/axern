@@ -67,9 +67,6 @@ run_cmd bash -lc 'export K8S_ENV_NAME=kind; source scripts/dev-env/lib.sh; local
 if [ "${KIND_REFRESH_REGISTRY_IMAGE_SMOKE:-0}" = "1" ] || [ "${KIND_REFRESH_REGISTRY_IMAGE_SMOKE:-0}" = "true" ]; then
   run_with_retry 2 make kind-axern-registry-image-smoke
 fi
-if [ "${KIND_REFRESH_AXERN_NYDUS_SMOKE:-0}" = "1" ] || [ "${KIND_REFRESH_AXERN_NYDUS_SMOKE:-0}" = "true" ]; then
-  run_with_retry 2 make kind-axern-nydus-smoke
-fi
 
 log "kind refresh verification completed"
 bash "${ROOT_DIR}/scripts/dev-env/kind-status.sh" || true

@@ -2,7 +2,7 @@
 
 Axern's repo-local devbox is the default Linux workspace for source development on the node runtime stack. It is started by `scripts/devbox/devbox.sh` through root Make targets and does not depend on the private Runx devbox CLI.
 
-The devbox image includes Go, Rust, Node.js, pnpm, Python, uv, Postgres, Docker CLI, `runsc`, SSH, and the filesystem/network/debug tools used by runtime development.
+The devbox image includes Go, Node.js, pnpm, Python, uv, Postgres, Docker CLI, `runsc`, SSH, and the filesystem/network/debug tools used by runtime development.
 
 ## Start
 
@@ -50,7 +50,6 @@ This starts repo-local Postgres plus:
 
 - `controld`
 - `tunneld`
-- `imagefsd`
 - `imagemgr`
 - `egressd`
 - `axnoded`
@@ -94,7 +93,6 @@ make devbox-stack-restart SERVICE=gatewayd
 make devbox-stack-restart SERVICE=axnoded
 make devbox-stack-restart SERVICE=imagemgr
 make devbox-stack-restart SERVICE=egressd
-make devbox-stack-restart SERVICE=imagefsd
 make devbox-stack-restart SERVICE=tunneld
 make devbox-stack-restart SERVICE=controld
 ```
@@ -105,7 +103,6 @@ Restart behavior is dependency-aware:
 - `axnoded`: restarts `axnoded` and `node-tunneld`.
 - `egressd`: restarts `egressd`, `axnoded`, and `node-tunneld`.
 - `imagemgr`: restarts `imagemgr`, `axnoded`, and `node-tunneld`.
-- `imagefsd`: rebuilds `imagefsd`, then restarts `imagefsd`, `imagemgr`, `axnoded`, and `node-tunneld`.
 - `tunneld`: rebuilds `tunnel-agent`, then restarts `tunneld` and `node-tunneld`.
 - `controld`: runs migrations, then restarts `controld` plus services that depend on the control plane.
 - `postgres`: restarts the full stack while keeping Postgres data.
@@ -121,7 +118,6 @@ make node-dev-prepare
 make postgres-dev-up
 make controld-dev-run
 make gatewayd-dev-run
-make imagefsd-dev-serve-chunk
 make imagemgr-dev-run
 make egressd-dev-run
 make axnoded-dev-run
@@ -150,21 +146,19 @@ These start external Delve DAP servers on:
 The checked-in VS Code configuration uses these targets:
 
 - `.vscode/tasks.json` exposes stack up/status/restart and debug preparation.
-- `.vscode/launch.json` has `Controld: Debug daemon`, `Gatewayd: Debug daemon`, `Axnoded: Debug daemon`, `Imagemgr: Debug daemon`, and `Imagefsd: Debug chunk server`.
 
 Use these from a VS Code Remote-SSH window attached to `axern-devbox`, so tasks run inside the Linux devbox. `axnoded` and `imagemgr` use the Go extension's `asRoot` launch mode, so VS Code starts Delve through passwordless `sudo` instead of connecting to a separately launched DAP port.
 
-Accept the workspace extension recommendations in `.vscode/extensions.json` inside the Remote-SSH window. The Go and C/C++ debug configuration schemas are contributed by `golang.go` and `ms-vscode.cpptools`; without those extensions enabled on the remote side, VS Code reports the `go` and `cppdbg` debug types as unknown even though the repository configuration is valid for those extensions.
+Accept the workspace extension recommendations in `.vscode/extensions.json` inside the Remote-SSH window. The Go debug configuration schema is contributed by `golang.go`; enable that extension on the remote side before launching the Go daemons.
 
 A practical manual debug startup order is:
 
 1. `Controld: Debug daemon`
 2. `Gatewayd: Debug daemon`
-3. `Imagefsd: Debug chunk server`
-4. `Imagemgr: Debug daemon`
-5. `Axnoded: Debug daemon`
+3. `Imagemgr: Debug daemon`
+4. `Axnoded: Debug daemon`
 
-`Axnoded: Debug daemon` registers `axern-dev-node` with the standalone `controld` at `127.0.0.1:24000` by default. Product CLI commands use `gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after the five debug services are running.
+`Axnoded: Debug daemon` registers `axern-dev-node` with the standalone `controld` at `127.0.0.1:24000` by default. Product CLI commands use `gatewayd`'s control edge at `127.0.0.1:25000`, so workloads can be placed after the four debug services are running.
 
 ## Gateway Run Smoke
 

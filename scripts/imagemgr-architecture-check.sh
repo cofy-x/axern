@@ -49,9 +49,7 @@ expected_top_level='runtime/imagemgr/api
 runtime/imagemgr/cmd
 runtime/imagemgr/configs
 runtime/imagemgr/docs
-runtime/imagemgr/imagefsd
 runtime/imagemgr/internal
-runtime/imagemgr/nydus
 runtime/imagemgr/oci
 runtime/imagemgr/pkg'
 
@@ -78,7 +76,6 @@ check_equals \
 	"$expected_internal_packages"
 
 expected_pkg_packages='runtime/imagemgr/pkg/asynclog
-runtime/imagemgr/pkg/cgroup
 runtime/imagemgr/pkg/diskusage
 runtime/imagemgr/pkg/imageregistry
 runtime/imagemgr/pkg/registryauth'
@@ -106,7 +103,7 @@ check_empty \
 
 check_empty \
 	"cmd/imagemgr must remain a thin entrypoint over internal/app" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/imagemgr/(api|imagefsd|nydus|oci|pkg)(/|\")' runtime/imagemgr/cmd/imagemgr ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/imagemgr/(api|oci|pkg)(/|\")' runtime/imagemgr/cmd/imagemgr ${production_go} || true"
 
 check_empty \
 	"API package must not import daemon composition root" \
@@ -114,15 +111,11 @@ check_empty \
 
 check_empty \
 	"API, app, cmd, and support packages must not open BoltDB directly" \
-	"rg -n '\"go\\.etcd\\.io/bbolt\"' runtime/imagemgr/api runtime/imagemgr/internal/app runtime/imagemgr/cmd runtime/imagemgr/imagefsd runtime/imagemgr/nydus runtime/imagemgr/pkg ${production_go} || true"
-
-check_empty \
-	"production source-type handling must use imagefsd constants" \
-	"rg -n 'SourceType:[[:space:]]*\"nydus\"|SourceType[[:space:]]*(==|!=)[[:space:]]*\"nydus\"|SourceType[[:space:]]*=[[:space:]]*\"nydus\"|case[[:space:]]+\"nydus\"|\"source_type\":[[:space:]]*\"nydus\"' runtime/imagemgr/api runtime/imagemgr/imagefsd ${production_go} || true"
+	"rg -n '\"go\\.etcd\\.io/bbolt\"' runtime/imagemgr/api runtime/imagemgr/internal/app runtime/imagemgr/cmd runtime/imagemgr/pkg ${production_go} || true"
 
 check_empty \
 	"domain packages must not import API adapters or daemon composition root" \
-	"rg -n '\"github\\.com/cofy-x/axern/runtime/imagemgr/(api|internal/app)(/|\")' runtime/imagemgr/imagefsd runtime/imagemgr/nydus runtime/imagemgr/oci ${production_go} || true"
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/imagemgr/(api|internal/app)(/|\")' runtime/imagemgr/oci ${production_go} || true"
 
 check_empty \
 	"pkg production code must remain support-level and must not import daemon internals" \

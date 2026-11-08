@@ -2,10 +2,17 @@
   "schema_version": 1,
   "platform": "linux/amd64",
   "base": {
-    "image": "docker.io/library/python:3.12.16-slim-bookworm@sha256:0f086103b026048cc50cb5da25ec435c023c5241a83fc44daea593377abc61c4",
-    "python_version": "3.12.16"
+    "image": "docker.io/library/python:3.12.16-slim-trixie@sha256:4840d514c583a4d3d8cad3940e68dee6f0f6f3635c12fcd0a3d74c21a5b93a54",
+    "python_version": "3.12.16",
+    "debian_version": "13"
   },
   "artifacts": {
+    "pip": {
+      "version": "26.3",
+      "url": "https://files.pythonhosted.org/packages/07/25/ee8c38ae72d66b844ce8eb9711ba905dba21ca1a8a0c960057c41cd23337/pip-26.3-py3-none-any.whl",
+      "sha256": "f3b60b20ffaadd4415ed7957212a38ac63fa4c5fa375bd0f4a797777940fad13",
+      "size": 1950951
+    },
     "claude-code": {
       "version": "2.1.319",
       "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.319.tgz",
@@ -21,16 +28,16 @@
       "size": 158448451
     },
     "node": {
-      "version": "24.16.0",
-      "url": "https://nodejs.org/dist/v24.16.0/node-v24.16.0-linux-x64.tar.xz",
-      "sha256": "d804845d34eddc21dc1092b519d643ef40b1f58ec5dec5c22b1f4bd8fabde6c9",
-      "size": 31428548
+      "version": "24.22.2",
+      "url": "https://nodejs.org/dist/v24.22.2/node-v24.22.2-linux-x64.tar.xz",
+      "sha256": "48cc0e21e048790e54c0cf5749c2725005313d652651c40b7a21feb9697aaf75",
+      "size": 32039312
     },
     "go": {
-      "version": "1.26.8",
-      "url": "https://go.dev/dl/go1.26.8.linux-amd64.tar.gz",
-      "sha256": "d0f743b33e8d8945e6b1f432edd15785c70507121d6e2a723b21285eddf8b57b",
-      "size": 66897291
+      "version": "1.26.10",
+      "url": "https://go.dev/dl/go1.26.10.linux-amd64.tar.gz",
+      "sha256": "ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5",
+      "size": 66936659
     },
     "codex": {
       "version": "0.167.0",

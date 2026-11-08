@@ -46,12 +46,11 @@
     "smoke:tunnel": "pnpm run build && node dist/smoke/tunnel.js"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.14.4",
-    "@grpc/proto-loader": "^0.8.0",
-    "tar-stream": "^3.2.0"
+    "@grpc/grpc-js": "^1.14.7",
+    "@grpc/proto-loader": "^0.8.1",
+    "tar-stream": "^3.2.2"
   },
   "devDependencies": {
-    "@types/node": "^25.6.0",
-    "@types/tar-stream": "^3.1.4"
+    "@types/node": "^25.9.9"
   }
 }

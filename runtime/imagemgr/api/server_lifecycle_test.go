@@ -9,12 +9,10 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 )
 
 func TestServeHTTPStopsAndRemovesSocketOnCancellation(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	tempDir, err := os.MkdirTemp("/tmp", "imagemgr-api-")
 	if err != nil {
 		t.Fatalf("create short socket directory: %v", err)
@@ -44,7 +42,7 @@ func TestServeHTTPStopsAndRemovesSocketOnCancellation(t *testing.T) {
 }
 
 func TestServeHTTPRefusesToReplaceRegularFile(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	socketPath := filepath.Join(t.TempDir(), "imagemgr.sock")
 	if err := os.WriteFile(socketPath, []byte("keep"), 0o600); err != nil {
 		t.Fatalf("write sentinel: %v", err)
@@ -63,13 +61,10 @@ func TestServeHTTPRefusesToReplaceRegularFile(t *testing.T) {
 func TestServeHTTPWaitsForActiveRequestsDuringShutdown(t *testing.T) {
 	requestStarted := make(chan struct{})
 	releaseRequest := make(chan struct{})
-	mgr := newMockManager()
-	mgr.listDaemonsFunc = func() []imagefsd.DaemonInfo {
+	handler := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		close(requestStarted)
 		<-releaseRequest
-		return nil
-	}
-	worker := mustNewHttpWorker(t, mgr)
+	})
 	tempDir, err := os.MkdirTemp("/tmp", "imagemgr-api-")
 	if err != nil {
 		t.Fatalf("create short socket directory: %v", err)
@@ -79,7 +74,7 @@ func TestServeHTTPWaitsForActiveRequestsDuringShutdown(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	serveDone := make(chan error, 1)
 	go func() {
-		serveDone <- worker.ServeHTTP(ctx, socketPath)
+		serveDone <- serveHTTP(ctx, socketPath, handler)
 	}()
 	waitForUnixSocket(t, socketPath)
 
@@ -91,7 +86,7 @@ func TestServeHTTPWaitsForActiveRequestsDuringShutdown(t *testing.T) {
 	}}
 	requestDone := make(chan error, 1)
 	go func() {
-		response, err := client.Get("http://imagemgr/list_daemons")
+		response, err := client.Get("http://imagemgr/active-request")
 		if err == nil {
 			_ = response.Body.Close()
 		}

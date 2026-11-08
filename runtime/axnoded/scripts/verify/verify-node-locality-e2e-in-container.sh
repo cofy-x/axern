@@ -6,11 +6,9 @@ AXNODED_SOCKET="${AXNODED_SOCKET:-/run/axnoded/axnoded.sock}"
 AXNODED_CONFORMANCE_SOCKET="${AXNODED_CONFORMANCE_SOCKET:-/run/axnoded/conformance.sock}"
 AXNODED_HTTP_URL="${AXNODED_HTTP_URL:-http://127.0.0.1:23001}"
 OCI_IMAGE_URL="${OCI_IMAGE_URL:?OCI_IMAGE_URL is required}"
-NYDUS_IMAGE_URL="${NYDUS_IMAGE_URL:?NYDUS_IMAGE_URL is required}"
 CREATE_SANDBOX_TIMEOUT="${CREATE_SANDBOX_TIMEOUT:-300s}"
 
 oci_container_id=""
-nydus_container_id=""
 inventory_file="/tmp/axnoded.locality.inventory.json"
 
 log_phase() {
@@ -50,9 +48,6 @@ dump_locality_context() {
 cleanup() {
   if [ -n "${oci_container_id}" ]; then
     verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${oci_container_id}" >/dev/null 2>&1 || true
-  fi
-  if [ -n "${nydus_container_id}" ]; then
-    verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${nydus_container_id}" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -158,7 +153,6 @@ wait_for_jq \
   '.version == "v1alpha2" and (.heat.locality | type == "array") and .sources.imagemgr.status == "ready" and .components.imagemgr.reachable == true'
 
 oci_locality_key="image:$(resolve_image_cache_key "${OCI_IMAGE_URL}")"
-nydus_locality_key="image:$(resolve_image_cache_key "${NYDUS_IMAGE_URL}")"
 
 log_phase "oci-start"
 oci_environment_id="locality-oci-$$"
@@ -178,25 +172,5 @@ wait_for_jq \
   40 \
   'any(.heat.locality[]?; .key == $locality_key and .mount_type == "oci" and .mounted == true and .retained_environment_count >= 1 and .retained_rootfs_count >= 1)' \
   --arg locality_key "${oci_locality_key}"
-
-log_phase "nydus-start"
-nydus_environment_id="locality-nydus-$$"
-nydus_container_id="$(start_container "nydus-start" "${nydus_environment_id}" "${NYDUS_IMAGE_URL}" "/tmp/locality-nydus.stdout" "/tmp/locality-nydus.stderr")"
-[ -n "${nydus_container_id}" ] || {
-  echo "Nydus locality start did not return a container id" >&2
-  exit 1
-}
-
-log_phase "nydus-heat-assert"
-fetch_axnoded_inventory "${inventory_file}"
-wait_for_jq \
-  "Nydus locality entry with daemon heat" \
-  "${inventory_file}" \
-  60 \
-  'any(.heat.locality[]?; .key == $locality_key and .mount_type == "nydus" and .mounted == true and .nydus_daemon_alive == true and .chunkdb_total_chunks >= 0 and .peer_healthy_count >= 0 and .peer_hinted_count >= 0)' \
-  --arg locality_key "${nydus_locality_key}"
-
-verify-cli -address "${AXNODED_CONFORMANCE_SOCKET}" -delete-allocation "${nydus_container_id}"
-nydus_container_id=""
 
 echo "verify_node_locality_e2e_ok=true"

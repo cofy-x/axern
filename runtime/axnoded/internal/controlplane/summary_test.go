@@ -35,8 +35,7 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 		RunningAllocationIDs: []string{"alloc-b", "alloc-a"},
 		ActiveAllocationIDs:  []string{"alloc-c", "alloc-b", "alloc-a"},
 	}
-	snapshot.Components.Imagemgr = nodeinventory.ImagemgrComponentInventory{Status: nodeinventory.StatusDegraded, Reachable: true, DaemonCount: 2, MountedImageCount: 3, ImportedImageCount: 4}
-	snapshot.Components.Imagefsd = nodeinventory.ImagefsdComponentInventory{Status: nodeinventory.StatusReady, Reachable: true, ChunkDBPresent: true, ChunkCount: 9, ChunkDBUsedBytes: 2048, ChunkDBUsagePercent: 80.5}
+	snapshot.Components.Imagemgr = nodeinventory.ImagemgrComponentInventory{Status: nodeinventory.StatusDegraded, Reachable: true, MountedImageCount: 3, ImportedImageCount: 4}
 	snapshot.Components.BPFNet = nodeinventory.BPFNetComponentInventory{Status: nodeinventory.StatusDisabled, Enabled: false, Ready: false, Mode: "iptables"}
 	snapshot.Storage = []nodeinventory.StorageInventoryEntry{
 		{
@@ -58,20 +57,13 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 		},
 	}
 	snapshot.Heat.Locality = []nodeinventory.LocalityHeatEntry{{
-		Key:                        "image:repo/app:latest",
-		RootfsType:                 "image",
-		MountType:                  "oci",
-		Mounted:                    true,
-		RetainedEnvironmentCount:   2,
-		RetainedRootfsCount:        3,
-		RunningContainerCount:      4,
-		NydusDaemonAlive:           true,
-		ChunkDBTotalChunks:         11,
-		ChunkDBUsedBytes:           4096,
-		ChunkDBRecentAccessAgeSecs: 7,
-		PeerHealthyCount:           5,
-		PeerUnhealthyCount:         1,
-		PeerHintedCount:            6,
+		Key:                      "image:repo/app:latest",
+		RootfsType:               "image",
+		MountType:                "oci",
+		Mounted:                  true,
+		RetainedEnvironmentCount: 2,
+		RetainedRootfsCount:      3,
+		RunningContainerCount:    4,
 	}}
 
 	summary := BuildNodeSummary(snapshot)
@@ -113,9 +105,6 @@ func TestBuildNodeSummaryMapsInventorySnapshot(t *testing.T) {
 	}
 	if summary.GetComponents().GetImagemgr().GetMountedImageCount() != 3 || summary.GetComponents().GetImagemgr().GetImportedImageCount() != 4 {
 		t.Fatalf("unexpected imagemgr image counts: %#v", summary.GetComponents().GetImagemgr())
-	}
-	if !summary.GetComponents().GetImagefsd().GetChunkdbPresent() || summary.GetComponents().GetImagefsd().GetChunkdbUsedBytes() != 2048 {
-		t.Fatalf("unexpected imagefsd summary: %#v", summary.GetComponents().GetImagefsd())
 	}
 	if len(summary.GetDiagnostics().GetStorage()) != 2 {
 		t.Fatalf("storage len = %d, want 2", len(summary.GetDiagnostics().GetStorage()))

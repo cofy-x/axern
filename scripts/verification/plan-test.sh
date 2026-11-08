@@ -35,6 +35,42 @@ assert_plan post-merge-workflow .github/workflows/post-merge-full.yml verify-fas
 assert_plan ci-workflow .github/workflows/ci.yml verify-fast-all,release-contract true true
 assert_plan build-cache scripts/dev-env/docker-build-cache.sh verify-fast-all,release-contract true true
 assert_plan full-gate scripts/verify-all.sh verify-fast-all,release-contract true true
+assert_plan release-gate scripts/verify-release.sh verify-fast-all,release-contract true true
+
+# A deleted file no longer exists for the classifier to inspect. Exercise real
+# Git history, index and working-tree diffs separately, without a paths fixture
+# or resetting any checkout. Planner output stays outside each temporary repo.
+for state in committed staged unstaged; do
+  fixture="${work_dir}/deletion-${state}"
+  mkdir -p "${fixture}/scripts/verification" "${fixture}/runtime/axnoded/internal/network"
+  cp "${PLAN}" "${fixture}/scripts/verification/plan.sh"
+  source_path=runtime/axnoded/internal/network/deletion.go
+  printf 'package network\n' >"${fixture}/${source_path}"
+  git -C "${fixture}" init --quiet
+  git -C "${fixture}" config user.name 'Axern Verification Fixture'
+  git -C "${fixture}" config user.email 'verification@example.invalid'
+  git -C "${fixture}" config commit.gpgsign false
+  git -C "${fixture}" config core.hooksPath /dev/null
+  git -C "${fixture}" add .
+  git -C "${fixture}" commit --quiet -m 'fixture baseline'
+  base="$(git -C "${fixture}" rev-parse HEAD)"
+  if [[ "${state}" == unstaged ]]; then
+    rm "${fixture}/${source_path}"
+  else
+    git -C "${fixture}" rm --quiet "${source_path}"
+    if [[ "${state}" == committed ]]; then
+      git -C "${fixture}" commit --quiet -m 'delete network source'
+    fi
+  fi
+  output="${work_dir}/deletion-${state}.out"
+  heavy="${work_dir}/deletion-${state}.github"
+  bash "${fixture}/scripts/verification/plan.sh" --base "${base}" --plan --github-output "${heavy}" >"${output}"
+  grep -Fx 'verification.paths=1' "${output}" >/dev/null
+  grep -Fx 'verification.fast=axnoded' "${output}" >/dev/null
+  grep -Fx 'verification.network_policy_linux=true' "${output}" >/dev/null
+  grep -Fx 'verification.release_contract=false' "${output}" >/dev/null
+  grep -Fx 'network_policy_linux=true' "${heavy}" >/dev/null
+done
 
 # Execute the actual group selection with an inert make function. This catches
 # a planner which prints the right scope but runs SDK or Docker checks anyway.

@@ -143,10 +143,6 @@ def main() -> None:
         require_toml_string(root, relative, "project", "license", "Apache-2.0")
         require_toml_string(root, relative, "project.urls", "Homepage")
         require_toml_string(root, relative, "project.urls", "Repository")
-    require_toml_string(root, "runtime/imagefsd/Cargo.toml", "package", "description")
-    require_toml_string(root, "runtime/imagefsd/Cargo.toml", "package", "license", "Apache-2.0")
-    require_toml_string(root, "runtime/imagefsd/Cargo.toml", "package", "repository")
-    require_toml_string(root, "runtime/imagefsd/Cargo.toml", "package", "homepage")
 
     print("open_source_public_surface=passed")
 

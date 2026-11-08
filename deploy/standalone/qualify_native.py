@@ -8,6 +8,7 @@ import base64
 import hashlib
 import http.server
 import ipaddress
+import importlib.util
 import json
 import os
 import pathlib
@@ -17,7 +18,20 @@ import subprocess
 import threading
 import time
 
-import native_install as installer
+# These fixed packaged siblings are source-only, including under Python -I.
+# Never load or write unmanifested bytecode in the immutable release directory.
+_installer_path = pathlib.Path(__file__).resolve().with_name('native_install.py')
+if _installer_path.is_symlink() or not _installer_path.is_file():
+    raise ImportError('the matching native_install.py qualification tool is required')
+_installer_spec = importlib.util.spec_from_file_location('native_install', _installer_path)
+installer = importlib.util.module_from_spec(_installer_spec)
+exec(compile(_installer_path.read_bytes(), str(_installer_path), 'exec'), installer.__dict__)
+_network_path = pathlib.Path(__file__).resolve().with_name('qualify_network.py')
+if _network_path.is_symlink() or not _network_path.is_file():
+    raise ImportError('the matching qualify_network.py qualification tool is required')
+_network_spec = importlib.util.spec_from_file_location('qualify_network', _network_path)
+_network = importlib.util.module_from_spec(_network_spec)
+exec(compile(_network_path.read_bytes(), str(_network_path), 'exec'), _network.__dict__)
 
 MIB = 1 << 20
 TERMINAL = {'succeeded', 'failed', 'cancelled'}
@@ -231,7 +245,7 @@ class Runner:
         self.report['environment_id'] = self.environment_id
 
     def ensure_serving(self):
-        self.command(['python3', self.root / 'libexec/axern/native_install.py', 'start'], timeout=190)
+        self.command(['python3', '-I', self.root / 'libexec/axern/native_install.py', 'start'], timeout=190)
 
     def start_case(self, name, argv, network_policy=None, memory_bytes=256*MIB, storage_bytes=128*MIB):
         require(not any(case['name'] == name for case in self.cases), 'duplicate qualification case')
@@ -569,8 +583,7 @@ def main():
         if args.cases in ('all', 'storage'):
             qualify_storage(runner)
         if args.cases in ('all', 'network'):
-            from qualify_network import qualify_network
-            qualify_network(runner, args.fixture_ip)
+            _network.qualify_network(runner, args.fixture_ip)
         runner.report['passed'] = True
     except Exception as error:
         runner.report['error'] = str(error)

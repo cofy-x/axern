@@ -16,6 +16,16 @@ root = pathlib.Path(sys.argv[1])
 release = (root / ".github/workflows/release.yml").read_text()
 homebrew = (root / ".github/workflows/homebrew.yml").read_text()
 ci = (root / ".github/workflows/ci.yml").read_text()
+security = (root / ".github/workflows/security.yml").read_text()
+
+for source in (ci, release):
+    if "uses: ./.github/workflows/security.yml" not in source:
+        raise SystemExit("CI and Release must call the shared dependency security audit")
+validate = release.split("  validate:\n", 1)[1].split("\n  artifacts:\n", 1)[0]
+if "needs: security" not in validate:
+    raise SystemExit("release validation must wait for the dependency security audit")
+if "make security-check" not in security or "workflow_call:" not in security or "schedule:" not in security:
+    raise SystemExit("security audit must run the canonical scanner gate in CI, releases and weekly")
 
 for relative in (
     "scripts/release/sdk_publication_readiness.py",
