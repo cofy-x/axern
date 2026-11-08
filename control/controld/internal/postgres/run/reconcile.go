@@ -160,6 +160,17 @@ func (s *Store) CompleteAllocationReleaseAcknowledgement(ctx context.Context, al
 		if err := pgallocation.RequireReconcileClaim(ctx, tx, allocationID, claimOwner, allocationkernel.ReconcileIntentEnsureAbsent, now); err != nil {
 			return err
 		}
+		// RELEASED is irreversible. Observing it while holding the existing
+		// queue claim needs no additional Allocation lock or lock order.
+		var state string
+		if err := tx.QueryRow(ctx, `SELECT lifecycle_state FROM allocations WHERE allocation_id=$1`, strings.TrimSpace(allocationID)).Scan(&state); errors.Is(err, pgx.ErrNoRows) {
+			return allocationkernel.ErrReconcileClaimLost
+		} else if err != nil {
+			return err
+		}
+		if state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String() {
+			return grpcstatus.Error(codes.FailedPrecondition, "allocation cleanup must complete before release acknowledgement")
+		}
 		tag, err := tx.Exec(ctx, `DELETE FROM allocation_reconcile_queue WHERE allocation_id=$1 AND claim_owner=$2`, strings.TrimSpace(allocationID), strings.TrimSpace(claimOwner))
 		if err != nil {
 			return err

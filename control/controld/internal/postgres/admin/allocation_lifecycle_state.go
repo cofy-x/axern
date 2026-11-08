@@ -42,7 +42,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, now
 				SELECT r.status FROM runs r
 				WHERE r.run_id = a.run_id
 				LIMIT 1
-			), '')
+			), ''), r.workspace_binding <> '{}'::jsonb
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
@@ -68,6 +68,7 @@ func lockLifecycleRetry(ctx context.Context, tx pgx.Tx, allocationID string, now
 		&clearanceInput.HasActiveAccessGrant,
 		&clearanceInput.HasActiveTunnelSession,
 		&clearanceInput.RunStatus,
+		&clearanceInput.HasPendingWorkspaceAcknowledgement,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, grpcstatus.Errorf(codes.NotFound, "allocation lifecycle retry %q not found", allocationID)

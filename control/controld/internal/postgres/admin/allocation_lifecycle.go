@@ -130,6 +130,9 @@ func (s *Store) ClearAllocationLifecycleRetry(ctx context.Context, req allocatio
 		if allocationkernel.ParseLifecycleState(locked.AllocationState) != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
 			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared while allocation lifecycle state is %s", req.AllocationID, locked.AllocationState)
 		}
+		if !locked.Item.Clearable {
+			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation lifecycle retry %q cannot be cleared: %s", req.AllocationID, locked.Item.ClearBlockedReason)
+		}
 		if err := requireNoActiveAllocationCleanupState(ctx, tx, req.AllocationID, now); err != nil {
 			return err
 		}

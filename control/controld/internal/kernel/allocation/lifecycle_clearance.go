@@ -14,6 +14,8 @@ type LifecycleRetryClearanceInput struct {
 	RunStatus              string
 	HasActiveAccessGrant   bool
 	HasActiveTunnelSession bool
+	// Derived from the canonical Run binding while its release retry exists.
+	HasPendingWorkspaceAcknowledgement bool
 }
 
 type LifecycleRetryClearance struct {
@@ -31,6 +33,9 @@ func EvaluateLifecycleRetryClearance(in LifecycleRetryClearanceInput) LifecycleR
 	}
 	if in.HasActiveTunnelSession {
 		return blockedLifecycleRetryClearance("active tunnel sessions")
+	}
+	if in.HasPendingWorkspaceAcknowledgement {
+		return blockedLifecycleRetryClearance("Workspace release acknowledgement is pending")
 	}
 	return evaluateRunLifecycleRetryClearance(in)
 }

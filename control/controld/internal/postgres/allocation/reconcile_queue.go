@@ -313,7 +313,7 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 				SELECT r.status FROM runs r
 				WHERE r.run_id = a.run_id
 				LIMIT 1
-			), '')
+			), ''), r.workspace_binding <> '{}'::jsonb
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
@@ -356,7 +356,7 @@ func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocatio
 				SELECT r.status FROM runs r
 				WHERE r.run_id = a.run_id
 				LIMIT 1
-			), '')
+			), ''), r.workspace_binding <> '{}'::jsonb
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
@@ -404,6 +404,7 @@ func scanLifecycleRetryRows(rows pgx.Rows, now time.Time) ([]allocationkernel.Li
 			&clearanceInput.HasActiveAccessGrant,
 			&clearanceInput.HasActiveTunnelSession,
 			&clearanceInput.RunStatus,
+			&clearanceInput.HasPendingWorkspaceAcknowledgement,
 		); err != nil {
 			return nil, err
 		}
