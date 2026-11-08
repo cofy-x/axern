@@ -17,15 +17,24 @@ CLI、SDK 和服务端必须使用一致的构建版本。原生主机需要明�
 
 `axern server` 管理当前 Linux 主机上的原生安装，`axern dev` 管理独立的 Compose 开发实例。API Context 选择 Workspace 和 Run 请求的服务端，不改变 `server` 管理的主机。
 
+创建 Workspace 或 Run 前，应用 Namespace 必须已经存在。原生初始化会创建管理员并准入 Node，不会创建应用 Namespace。全新原生安装在管理员 Shell 中使用匹配的已安装 CLI：
+
+```bash
+source /etc/axern/client.env
+/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern namespace create default
+```
+
+如果 Namespace 已存在，用 `axern namespace get default` 验证即可，无需再次创建。后续 API 命令统一使用已加载的连接设置；若使用已保存的 API Context，则先执行 `axern --context <name> namespace get default`，并在后续 API 命令中指定相同的 `--context <name>`。以下示例明确选择 `default` Namespace。
+
 ## 创建和选择数据
 
 使用安装配置中已准入的 Node ID：
 
 ```bash
-axern workspace create --node node-personal-01 --capacity 1Gi --inodes 100000
-axern workspace list
+axern workspace create --namespace default --node node-personal-01 --capacity 1Gi --inodes 100000
+axern workspace list --namespace default
 axern workspace get <workspace-id>
-axern run --workspace <workspace-id> --limit-memory 512Mi python:3.12-slim -- \
+axern run --namespace default --workspace <workspace-id> --limit-memory 512Mi python:3.12-slim -- \
   python -c 'from pathlib import Path; Path("/workspace/note.txt").write_text("retained work\n")'
 ```
 
@@ -40,15 +49,15 @@ from axern_sdk import AxernClient, Sandbox
 
 client = AxernClient.from_context("/absolute/path/to/config.json")
 workspace = client.create_workspace(
-    node_id="node-personal-01", capacity_bytes=1024**3, inode_limit=100000,
+    namespace="default", node_id="node-personal-01", capacity_bytes=1024**3, inode_limit=100000,
 )
 client.wait_workspace_ready(workspace.id)
 
-with Sandbox(client=client, image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as first:
+with Sandbox(client=client, namespace="default", image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as first:
     first.write_text("/workspace/note.txt", "retained work\n")
 
 client.wait_workspace_ready(workspace.id)
-with Sandbox(client=client, image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as second:
+with Sandbox(client=client, namespace="default", image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as second:
     assert second.read_text("/workspace/note.txt") == "retained work\n"
 
 client.close()

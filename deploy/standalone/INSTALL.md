@@ -93,6 +93,8 @@ Full stop waits for the target and every owned service's stop job before the fin
 
 The generated `/etc/axern/client.env` points the CLI at the authenticated gateway using the initial administrator credential. It is root-readable. In an administrator shell, source that file and use the packaged CLI to inspect nodes and run a workload. This does not modify an existing user context or change `axern dev` behavior. Treat the private PKI and encryption material as installation authority; never share it with sandbox workloads.
 
+Native bootstrap admits the Node and creates the administrator, but does not create an application Namespace. Create `default` once before the first Environment, Run or Workspace operation; if it already exists, verify it with `namespace get default`. The examples explicitly select it with `--namespace default`. Remote clients must use a context and credential for this same gateway and an authorized existing Namespace.
+
 The start readiness check uses that initial credential by default. After rotating or revoking it, supply both `AXERN_TLS_CERT` and `AXERN_TLS_KEY` for a valid replacement administrator; a partial override is rejected before services start. The installation still selects its own local gateway, CA and server identity. Authentication or authorization failure is reported immediately instead of being retried as missing capability evidence. For example:
 
 ```bash
@@ -104,8 +106,9 @@ sudo env AXERN_TLS_CERT=/absolute/path/to/current-admin.crt \
 ```bash
 source /etc/axern/client.env
 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern admin node list
+/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern namespace create default
 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern run \
-  --request-memory 256Mi --limit-memory 256Mi \
+  --namespace default --request-memory 256Mi --limit-memory 256Mi \
   IMAGE_REFERENCE -- /bin/sh -c 'printf "native sandbox ready\n"'
 ```
 

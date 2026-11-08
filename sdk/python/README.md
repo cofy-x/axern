@@ -397,7 +397,16 @@ stdout/stderr use the same node-local retention lifecycle and have a combined 64
 
 ## Native Workspace Qualification
 
-Run the bounded public-API probe against an exclusive native installation with XFS project quota enabled. Supply the candidate SDK, an immutable OCI image containing Python 3, an explicit Node ID and a new evidence directory:
+Run the bounded public-API probe against an exclusive native installation with XFS project quota enabled. Supply the candidate SDK, an immutable OCI image containing Python 3, an explicit Node ID and a new evidence directory.
+
+The probe uses the existing `default` Namespace and never creates it. Native bootstrap does not create an application Namespace. On a fresh native host, prepare it once in an administrator shell using the matching installed CLI:
+
+```bash
+source /etc/axern/client.env
+/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern namespace create default
+```
+
+For an existing installation, verify `axern namespace get default` instead. If using a saved API context, specify `axern --context <name> namespace get default`; that context and the probe's transport JSON must target the same gateway with credentials authorized for `default`.
 
 ```bash
 uv run --package axern-sdk python sdk/python/tests/e2e/workspace_smoke.py \

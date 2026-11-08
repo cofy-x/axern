@@ -17,15 +17,24 @@ Follow the [native installation guide](https://github.com/cofy-x/axern/blob/main
 
 `axern server` operates the installed Linux host. `axern dev` manages a separate Compose development instance. API contexts select the endpoint used by Workspace and Run operations; they do not select the host for `server` commands.
 
+An application Namespace must exist before creating a Workspace or Run. Native bootstrap creates the administrator and admits the Node, but does not create an application Namespace. On a fresh native installation, use the matching installed CLI in an administrator shell:
+
+```bash
+source /etc/axern/client.env
+/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern namespace create default
+```
+
+For an existing Namespace, verify it with `axern namespace get default` instead of creating it again. Use the installed connection settings consistently, or use a saved API context with `axern --context <name> namespace get default` and the same `--context <name>` for subsequent API commands. The examples below explicitly select the `default` Namespace.
+
 ## Create and select data
 
 Use the admitted Node ID from your installation configuration:
 
 ```bash
-axern workspace create --node node-personal-01 --capacity 1Gi --inodes 100000
-axern workspace list
+axern workspace create --namespace default --node node-personal-01 --capacity 1Gi --inodes 100000
+axern workspace list --namespace default
 axern workspace get <workspace-id>
-axern run --workspace <workspace-id> --limit-memory 512Mi python:3.12-slim -- \
+axern run --namespace default --workspace <workspace-id> --limit-memory 512Mi python:3.12-slim -- \
   python -c 'from pathlib import Path; Path("/workspace/note.txt").write_text("retained work\n")'
 ```
 
@@ -40,15 +49,15 @@ from axern_sdk import AxernClient, Sandbox
 
 client = AxernClient.from_context("/absolute/path/to/config.json")
 workspace = client.create_workspace(
-    node_id="node-personal-01", capacity_bytes=1024**3, inode_limit=100000,
+    namespace="default", node_id="node-personal-01", capacity_bytes=1024**3, inode_limit=100000,
 )
 client.wait_workspace_ready(workspace.id)
 
-with Sandbox(client=client, image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as first:
+with Sandbox(client=client, namespace="default", image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as first:
     first.write_text("/workspace/note.txt", "retained work\n")
 
 client.wait_workspace_ready(workspace.id)
-with Sandbox(client=client, image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as second:
+with Sandbox(client=client, namespace="default", image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as second:
     assert second.read_text("/workspace/note.txt") == "retained work\n"
 
 client.close()
