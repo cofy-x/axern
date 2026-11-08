@@ -83,7 +83,7 @@ for contract in ("name: Release Contracts", "actionlint .github/workflows/*.yml"
 for workflow, source in (("ci", ci), ("release", release)):
     for job in re.split(r"(?m)^  [a-z][a-z0-9-]*:\n", source)[1:]:
         invocation = re.search(r"make release-(?:check|build)", job)
-        if invocation and "apt-get install --no-install-recommends --yes ripgrep" not in job[:invocation.start()]:
+        if invocation and "apt-get -o Acquire::Retries=0 install --no-install-recommends --yes ripgrep" not in job[:invocation.start()]:
             raise SystemExit(f"{workflow} release contract job must install ripgrep before architecture checks")
 PY
 

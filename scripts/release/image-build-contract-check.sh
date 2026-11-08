@@ -77,6 +77,26 @@ if 'PYTHON_RUNTIME_IMAGE_REF="$(import_oci_image_to_node' not in cli_e2e:
     raise SystemExit("CLI E2E must execute the immutable image returned by node import")
 
 node_runtime_dockerfile = (root / "deploy/images/lib/node-runtime-base.Dockerfile").read_text()
+runtime_system = node_runtime_dockerfile.split(" AS node-runtime-system\n", 1)[1].split("\nFROM ", 1)[0]
+runtime_final = node_runtime_dockerfile.split("FROM node-runtime-system AS node-runtime-base-final\n", 1)[1]
+for development_dependency in ("linux-tools", "erofs-utils", "git \\", "/usr/local/go"):
+    if development_dependency in runtime_system or development_dependency in runtime_final:
+        raise SystemExit(f"production node runtime inherits development dependency: {development_dependency}")
+for image_path in (
+    "deploy/images/lib/node-runtime-base.Dockerfile",
+    "deploy/images/controld/Dockerfile",
+    "deploy/images/gatewayd/Dockerfile",
+    "runtime/axnoded/docker/verify/Dockerfile",
+    "runtime/axnoded/docker/benchmark/Dockerfile",
+):
+    recipe = (root / image_path).read_text()
+    if "ARG APT_REFRESH_EPOCH=source" not in recipe or 'test -n "${APT_REFRESH_EPOCH}"' not in recipe:
+        raise SystemExit(f"Ubuntu image has no bounded package refresh: {image_path}")
+    for line in recipe.splitlines():
+        if "apt-get " in line and "Acquire::Retries=0" not in line:
+            raise SystemExit(f"Ubuntu bootstrap permits unsafe package download retry: {image_path}")
+    if "upgrade -y --no-install-recommends" not in recipe:
+        raise SystemExit(f"Ubuntu image does not apply signed package upgrades: {image_path}")
 for retired in ("imagefsd", "nydus", "RUST_IMAGE", "CARGO_"):
     if retired in node_runtime_dockerfile:
         raise SystemExit(f"node release image includes a retired runtime dependency: {retired}")
@@ -163,6 +183,9 @@ for contract in (
     'mode="${2:-push}"',
     'AXERN_DOCKER_PUSH_AFTER_BUILD=0',
     'AXERN_NODE_RUNTIME_BASE_CACHE_BACKEND=gha',
+    'export VERIFY_DOCKER_PULL=true',
+    'AXERN_APT_REFRESH_EPOCH="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"',
+    'AXERN_APT_REFRESH_EPOCH="$(date -u +%Y%m%dT%H%M%SZ)-$$"',
 ):
     if contract not in release_builder:
         raise SystemExit(f"release architecture build contract is missing: {contract}")

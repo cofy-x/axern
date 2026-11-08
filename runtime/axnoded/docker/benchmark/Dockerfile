@@ -65,6 +65,7 @@ FROM ${BASE_IMAGE} AS benchmark-base
 COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
 
 ARG APT_MIRROR_SOURCE=archive
+ARG APT_REFRESH_EPOCH=source
 ARG PERF_KERNEL_RELEASE=
 ARG RUNSC_SOURCE=remote
 ARG RUNSC_CACHE_ARCH=aarch64
@@ -90,8 +91,10 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
+    test -n "${APT_REFRESH_EPOCH}" && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 upgrade -y --no-install-recommends && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
     bash \
     bzip2 \
     busybox-static \
@@ -114,7 +117,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fi; \
     done && \
     if [ -n "${kernel_tools}" ]; then \
-      apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y ${kernel_tools}; \
+      apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends ${kernel_tools}; \
     fi && \
     perf_bin="" && \
     if [ -x "/usr/lib/linux-tools/${kernel_release}/perf" ]; then \

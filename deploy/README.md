@@ -14,6 +14,8 @@ Local surface:
 
 Image packaging lives under `deploy/images/`.
 
+Serving images contain the Axern services, selected gVisor runtime and host utilities needed for execution and enforcement. The node image excludes the Go SDK, Git and kernel analysis tools. Development tools belong in verification images; tools used by Agents belong in their [workload images](../images/agents/README.md).
+
 The local deploy image flow uses a shared node-runtime base image under `deploy/images/lib/`, then produces separate final images for:
 
 - local deployment (`axern/local-node-all-in-one:dev`)

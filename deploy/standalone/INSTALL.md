@@ -8,10 +8,12 @@ Use a native amd64 or arm64 host matching the archive, systemd 254 or newer, cgr
 
 The installer requires an unused sandbox address range, unused service ports and exclusive ownership of `sandbox0`. It never formats disks or changes forwarding configuration. Kernel/runtime capability checks must pass before the node becomes ready; there is no development enforcement bypass.
 
-Install the host packages using the operating system package manager:
+Apply the distribution's security updates before installation, then install the host packages. Disable download retries during package-manager bootstrap so an older client cannot use an unsafe redirected retry path:
 
 ```bash
-sudo apt-get install postgresql-16 python3 curl ca-certificates busybox-static erofs-utils iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
+sudo apt-get -o Acquire::Retries=0 update
+sudo apt-get -o Acquire::Retries=0 upgrade --yes
+sudo apt-get -o Acquire::Retries=0 install --no-install-recommends postgresql-16 python3 curl ca-certificates busybox-static erofs-utils iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
 ```
 
 Existing PostgreSQL clusters are not adopted or modified. Axern initializes its own cluster on loopback port `25432` with generated credentials. Internal service ports are `24000`, `24001`, `24002`, `24100`, `24010` and `23001`; the authenticated gateway uses `25000`, and its health listener uses `25080`. These service listeners bind to loopback. Egress enforcement separately owns node-local listeners that receive sandbox traffic. Imagemgr manages OCI image extraction and read-only mounts.

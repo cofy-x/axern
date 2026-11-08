@@ -490,6 +490,7 @@ build_verify_image() {
     --build-arg BASE_IMAGE="${BASE_IMAGE}"
     --build-arg NODE_RUNTIME_BASE_IMAGE="${NODE_RUNTIME_BASE_IMAGE_TAG}"
     --build-arg APT_MIRROR_SOURCE="${apt_mirror_source}"
+    --build-arg APT_REFRESH_EPOCH="${AXERN_APT_REFRESH_EPOCH:-source}"
     --build-arg GOPROXY="${GOPROXY}"
     --build-arg GOSUMDB="${GOSUMDB}"
     --build-arg RUNSC_SOURCE="${RUNSC_SOURCE}"
@@ -524,7 +525,19 @@ build_verify_image() {
     build_args=(--platform "${VERIFY_DOCKER_PLATFORM}" "${build_args[@]}")
   fi
   if [ "${VERIFY_DOCKER_PULL:-false}" = "true" ]; then
-    build_args=(--pull "${build_args[@]}")
+    if [ "${VERIFY_DOCKER_VARIANT}" = "full" ]; then
+      # Refresh external inputs without making Docker resolve the local-only
+      # serving parent through a registry in the child build.
+      for external_image in "${GO_IMAGE}" "${BASE_IMAGE}"; do
+        if [ -n "${VERIFY_DOCKER_PLATFORM}" ]; then
+          docker pull --platform "${VERIFY_DOCKER_PLATFORM}" "${external_image}" || return $?
+        else
+          docker pull "${external_image}" || return $?
+        fi
+      done
+    else
+      build_args=(--pull "${build_args[@]}")
+    fi
   fi
 
   if [ "${VERIFY_DOCKER_VARIANT}" = "full" ]; then
@@ -571,6 +584,7 @@ build_node_runtime_base_image() {
     --build-arg GO_IMAGE="${GO_IMAGE}"
     --build-arg BASE_IMAGE="${BASE_IMAGE}"
     --build-arg APT_MIRROR_SOURCE="${apt_mirror_source}"
+    --build-arg APT_REFRESH_EPOCH="${AXERN_APT_REFRESH_EPOCH:-source}"
     --build-arg GOPROXY="${GOPROXY}"
     --build-arg GOSUMDB="${GOSUMDB}"
     --build-arg RUNSC_SOURCE="${RUNSC_SOURCE}"

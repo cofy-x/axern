@@ -2,19 +2,11 @@ ARG GO_IMAGE=golang:1.26.10
 ARG BASE_IMAGE=ubuntu:24.04
 FROM ${GO_IMAGE} AS golang-dist
 
-FROM ${BASE_IMAGE} AS node-runtime-base-build
+FROM ${BASE_IMAGE} AS node-runtime-system
 
 ARG APT_MIRROR_SOURCE=archive
-ARG GOPROXY=https://proxy.golang.org,direct
-ARG GOSUMDB=sum.golang.org
-ARG RUNSC_SOURCE=remote
-ARG RUNSC_CACHE_ARCH=aarch64
+ARG APT_REFRESH_EPOCH=source
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PATH=/usr/local/go/bin:${PATH}
-ENV GOPROXY=${GOPROXY}
-ENV GOSUMDB=${GOSUMDB}
-ENV GOMODCACHE=/go/pkg/mod
-ENV GOCACHE=/root/.cache/go-build
 
 RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
     if [ -f /etc/apt/sources.list ]; then cp /etc/apt/sources.list /etc/apt/sources.list.backup; fi && \
@@ -36,28 +28,44 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
+    test -n "${APT_REFRESH_EPOCH}" && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 upgrade -y --no-install-recommends && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
     bash \
-    bzip2 \
     busybox-static \
     ca-certificates \
     curl \
     e2fsprogs \
-    erofs-utils \
-    git \
     iproute2 \
     iptables \
     nftables \
     jq \
     kmod \
-    linux-tools-common \
-    linux-tools-generic \
     procps \
-    python3 \
     util-linux \
     xfsprogs \
+    && find /usr -xdev -type f -perm /6000 -exec chmod a-s {} + \
     && rm -rf /var/lib/apt/lists/partial
+
+FROM node-runtime-system AS node-runtime-base-build
+
+ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
+ARG RUNSC_SOURCE=remote
+ARG RUNSC_CACHE_ARCH=aarch64
+ENV PATH=/usr/local/go/bin:${PATH}
+ENV GOPROXY=${GOPROXY}
+ENV GOSUMDB=${GOSUMDB}
+ENV GOMODCACHE=/go/pkg/mod
+ENV GOCACHE=/root/.cache/go-build
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
+      bzip2 erofs-utils git python3 && \
+    rm -rf /var/lib/apt/lists/partial
 
 COPY --from=golang-dist /usr/local/go /usr/local/go
 
@@ -138,18 +146,18 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p /out && \
     cd /workspace/runtime/axnoded && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/axnoded ./cmd/axnoded && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axnoded ./cmd/axnoded && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axern-sandboxd ./cmd/axern-sandboxd && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/memory-hog ./cmd/memory-hog && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/axctl ./axctl && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/axctl ./axctl && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egress-probe ./cmd/egress-probe && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-probe ./cmd/dns-probe && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/dns-fixture ./cmd/dns-fixture && \
     cd /workspace/runtime/egressd && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressd ./cmd/egressd && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/egressdctl ./cmd/egressdctl && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egressd ./cmd/egressd && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/egressdctl ./cmd/egressdctl && \
     cd /workspace/runtime/tunneld && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/node-tunneld ./cmd/node-tunneld && \
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/node-tunneld ./cmd/node-tunneld && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/tunnel-agent ./cmd/tunnel-agent && \
     cd /workspace/network/bpfnet && \
     GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/bpfnetctl ./cmd/bpfnetctl
@@ -171,9 +179,9 @@ COPY sdk/go/ /workspace/sdk/go/
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
     mkdir -p /out && \
-    GOTOOLCHAIN=local GOFLAGS= go build -o /out/imagemgr ./cmd/imagemgr
+    GOTOOLCHAIN=local GOFLAGS= CGO_ENABLED=0 go build -o /out/imagemgr ./cmd/imagemgr
 
-FROM node-runtime-base-build AS node-runtime-base-final
+FROM node-runtime-base-build AS node-runtime-fixtures
 WORKDIR /workspace
 
 COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
@@ -197,6 +205,16 @@ RUN mkdir -p \
     rm -f /tmp/axern-memory-hog && \
     ln -s busybox /opt/axern/runtime-selftest/rootfs/bin/sh && \
     ln -s busybox /opt/axern/runtime-selftest/rootfs/bin/sleep
+
+FROM node-runtime-system AS node-runtime-base-final
+WORKDIR /workspace
+
+COPY --from=node-runtime-base-build /usr/local/bin/runsc /usr/local/bin/runsc
+COPY --from=node-runtime-base-build /usr/local/bin/gvisor-bin/ /usr/local/bin/gvisor-bin/
+COPY --from=node-runtime-base-build /usr/local/share/axern/gvisor.lock /usr/local/share/axern/gvisor.lock
+COPY --from=node-runtime-base-build /usr/local/share/axern/gvisor-selected.lock.json /usr/local/share/axern/gvisor-selected.lock.json
+COPY --from=node-runtime-fixtures /usr/share/axnoded/fixtures/ /usr/share/axnoded/fixtures/
+COPY --from=node-runtime-fixtures /opt/axern/runtime-selftest/ /opt/axern/runtime-selftest/
 
 COPY runtime/axnoded/scripts/ /workspace/scripts/
 COPY deploy/images/lib/node-all-in-one-entrypoint.sh /usr/local/bin/node-all-in-one-entrypoint

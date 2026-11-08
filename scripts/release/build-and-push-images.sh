@@ -36,6 +36,14 @@ export AXERN_TARGET_GOARCH="${arch}"
 export DOCKER_DEFAULT_PLATFORM="linux/${arch}"
 export VERIFY_DOCKER_PLATFORM="linux/${arch}"
 export RUNSC_SOURCE=remote
+export VERIFY_DOCKER_PULL=true
+# Refresh signed distro packages once per release attempt while retaining the
+# compiler/module caches and sharing the same refresh across that attempt.
+if [ -n "${GITHUB_RUN_ID:-}" ]; then
+  export AXERN_APT_REFRESH_EPOCH="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT:-1}"
+else
+  export AXERN_APT_REFRESH_EPOCH="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+fi
 if [ "${mode}" = "push" ]; then
   export AXERN_DOCKER_PUSH_AFTER_BUILD=1
 else
@@ -56,6 +64,7 @@ bash "${AXERN_ROOT}/scripts/dev-env/build-images.sh"
 duration_seconds="$(( $(date +%s) - started_at ))"
 printf 'release_image_arch=%s\n' "${arch}"
 printf 'release_image_mode=%s\n' "${mode}"
+printf 'release_package_refresh_epoch=%s\n' "${AXERN_APT_REFRESH_EPOCH}"
 printf 'release_image_duration_seconds=%s\n' "${duration_seconds}"
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
   printf '| **Total** | **%s** |\n' "${duration_seconds}" >> "${GITHUB_STEP_SUMMARY}"

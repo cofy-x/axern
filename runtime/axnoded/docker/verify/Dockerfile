@@ -125,6 +125,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
 
 FROM ${BASE_IMAGE} AS verify-rootfs
 ARG APT_MIRROR_SOURCE=archive
+ARG APT_REFRESH_EPOCH=source
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN case "${APT_MIRROR_SOURCE}" in \
@@ -143,8 +144,10 @@ RUN case "${APT_MIRROR_SOURCE}" in \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
+    test -n "${APT_REFRESH_EPOCH}" && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 upgrade -y --no-install-recommends && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
     bash \
     busybox-static \
     ca-certificates \
@@ -162,8 +165,19 @@ RUN mkdir -p /opt/sample-rootfs/bin /opt/sample-rootfs/dev /opt/sample-rootfs/pr
 
 FROM ${NODE_RUNTIME_BASE_IMAGE}
 ARG AXERN_GIT_REVISION
+ARG APT_REFRESH_EPOCH=source
 LABEL org.opencontainers.image.revision="${AXERN_GIT_REVISION}"
+ENV PATH=/usr/local/go/bin:${PATH}
 WORKDIR /workspace
+
+# Development helpers belong to this verification image, never the serving base.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    test -n "${APT_REFRESH_EPOCH}" && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends git python3 && \
+    rm -rf /var/lib/apt/lists/partial
+COPY --from=golang-dist /usr/local/go /usr/local/go
 
 COPY --from=axnoded-verify-builder /out/verify-cli /usr/local/bin/verify-cli
 COPY --from=axnoded-verify-builder /out/verify-startup /usr/local/bin/verify-startup

@@ -35,8 +35,8 @@ jobs:
           cache: false
       - name: Install architecture check dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ripgrep
+          sudo apt-get -o Acquire::Retries=0 update
+          sudo apt-get -o Acquire::Retries=0 install --no-install-recommends --yes ripgrep
       - name: Validate release contract
         run: make release-check
 
@@ -72,8 +72,8 @@ jobs:
           path: dist/local-image-lock
       - name: Install architecture check dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ripgrep
+          sudo apt-get -o Acquire::Retries=0 update
+          sudo apt-get -o Acquire::Retries=0 install --no-install-recommends --yes ripgrep
       - name: Build CLI and Helm artifacts
         env:
           AXERN_LOCAL_IMAGE_LOCK_FILE: ${{ github.workspace }}/dist/local-image-lock/images.lock

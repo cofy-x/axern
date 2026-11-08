@@ -20,6 +20,9 @@ docker() {
     return 0
   fi
   printf '%s\n' "$*" >> "${calls_file}"
+  if [ "${1:-}" = pull ]; then
+    return "${MOCK_PULL_STATUS:-0}"
+  fi
   if [[ "$*" == *--cache-to* ]]; then
     return "${MOCK_EXPORT_STATUS:-0}"
   fi
@@ -120,12 +123,54 @@ source "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
 VERIFY_DOCKER_VARIANT=full
 VERIFY_DOCKER_PLATFORM=linux/amd64
 NODE_RUNTIME_BASE_IMAGE_TAG=axern/local-node-runtime-base:dev
+AXERN_APT_REFRESH_EPOCH=release-test-1
 build_verify_image archive
 assert_contains "image inspect axern/local-node-runtime-base:dev"
 assert_contains "build --platform linux/amd64 -f"
 assert_contains "--build-arg RUNSC_SOURCE=remote"
+assert_contains "--build-arg APT_REFRESH_EPOCH=release-test-1"
 if grep -Fq "buildx build" "${calls_file}"; then
   echo "local-parent build unexpectedly used an isolated Buildx image store" >&2
+  exit 1
+fi
+
+: > "${calls_file}"
+VERIFY_DOCKER_PULL=true build_verify_image archive
+assert_contains "pull --platform linux/amd64 ${GO_IMAGE}"
+assert_contains "pull --platform linux/amd64 ${BASE_IMAGE}"
+if grep -Eq '^build .*--pull' "${calls_file}"; then
+  echo "verification child must not pull its local-only serving parent" >&2
+  exit 1
+fi
+if grep -Fq "pull --platform linux/amd64 ${NODE_RUNTIME_BASE_IMAGE_TAG}" "${calls_file}"; then
+  echo "verification tried to pull the local-only serving parent" >&2
+  exit 1
+fi
+
+for pull_platform in linux/amd64 ''; do
+  : > "${calls_file}"
+  # ensure_verify_image invokes this function in an if condition, which
+  # suppresses errexit inside its entire call tree.
+  if VERIFY_DOCKER_PLATFORM="${pull_platform}" VERIFY_DOCKER_PULL=true MOCK_PULL_STATUS=17 build_verify_image archive; then
+    echo "failed external pull unexpectedly allowed a cached verification build" >&2
+    exit 1
+  else
+    pull_status=$?
+  fi
+  [ "${pull_status}" = 17 ]
+  assert_contains "pull "
+  if grep -Eq '^(build |buildx build )' "${calls_file}"; then
+    echo "verification child built after its required external pull failed" >&2
+    exit 1
+  fi
+done
+
+: > "${calls_file}"
+VERIFY_DOCKER_PULL=true build_node_runtime_base_image archive
+assert_contains "--pull"
+assert_contains "--build-arg APT_REFRESH_EPOCH=release-test-1"
+if grep -Fq -- '--no-cache' "${calls_file}"; then
+  echo "release package refresh must preserve unrelated build caches" >&2
   exit 1
 fi
 

@@ -82,8 +82,8 @@ jobs:
 
       - name: Install host utilities
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep jq
+          sudo apt-get -o Acquire::Retries=0 update
+          sudo apt-get -o Acquire::Retries=0 install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep jq
 
       - name: Initialize evidence
         run: |
