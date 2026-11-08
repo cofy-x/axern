@@ -13,6 +13,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/ocihost"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 )
 
 var _ contract.SandboxRuntime = &RunscServiceHandler{}
@@ -23,7 +24,6 @@ type RunscServiceHandler struct {
 	common                            *ocihost.Common
 	ignoreCgroups                     bool
 	nativeRecovery                    bool
-	allowSUID                         bool
 	guestTaskLimit                    int64
 	hostTaskLimit                     int64
 	filestoreDir                      string
@@ -54,7 +54,7 @@ func (r *RunscServiceHandler) ConfigurationDigest() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.nativeRecovery, r.allowSUID, r.ephemeralStorageDefaultLimitBytes, r.guestTaskLimit, r.hostTaskLimit})
+	payload, err := json.Marshal([]any{loaderDigest, r.ignoreCgroups, r.nativeRecovery, wire.ProcessSecurityProfile, r.ephemeralStorageDefaultLimitBytes, r.guestTaskLimit, r.hostTaskLimit})
 	if err != nil {
 		return "", err
 	}
@@ -70,9 +70,6 @@ func (r *RunscServiceHandler) lifecycleArgs(args ...string) []string {
 	base := make([]string, 0, len(args)+2)
 	if r.ignoreCgroups {
 		base = append(base, "--ignore-cgroups")
-	}
-	if r.allowSUID {
-		base = append(base, "--allow-suid")
 	}
 	base = append(base, args...)
 	return base

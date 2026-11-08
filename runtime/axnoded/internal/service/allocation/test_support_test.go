@@ -77,7 +77,8 @@ func newTestAllocationControllerWithResources(t *testing.T, runscHandler contrac
 			return err == nil
 		},
 	})
-	controller := NewController(Options{
+	var controller *Controller
+	controller = NewController(Options{
 		Config: cfg,
 		Store:  dbStore,
 		ContainerManager: func() *container.Manager {
@@ -86,8 +87,16 @@ func newTestAllocationControllerWithResources(t *testing.T, runscHandler contrac
 		RunscHandler:     runscHandler,
 		EnvironmentCache: environmentCache,
 		Networking:       networking,
-		PreActivationCapabilityGate: func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error {
-			return nil
+		PreActivationCapabilityGate: func(ctx context.Context, _ *runtime.StartRequest, handler contract.AllocationRuntime, id string) error {
+			manifest, err := handler.AllocationEnforcementManifest(ctx, id)
+			if err != nil {
+				return err
+			}
+			keys, err := RequiredEnforcementKeys(manifest, controller.CapabilityRequirements(id))
+			if err != nil {
+				return err
+			}
+			return controller.StoreVerifiedEnforcementManifest(id, manifest, keys, time.Now().UTC())
 		},
 	})
 	retentionTTL, err := time.ParseDuration(config.DefaultIdleEnvironmentRetentionTTL)

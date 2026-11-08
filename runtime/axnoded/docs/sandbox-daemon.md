@@ -4,6 +4,10 @@
 
 OCI runtimes still own lifecycle, isolation, namespaces, cgroups, mounts, and runtime boundaries. Axern-owned sandbox-local operations should converge on sandboxd instead of OCI runtime `exec`.
 
+The managed Linux execution profile always sets `no_new_privileges`. Axern resolves each typed non-root Exec/PTY user before launching the process, clears supplementary groups and all five Linux capability sets, and verifies the child credentials and kernel controls before executing caller code. An explicit primary GID remains caller-selected. The static injected daemon uses a fixed internal child entrypoint; caller environment data crosses that root bootstrap only through a sealed anonymous descriptor and becomes the target environment after privilege reduction.
+
+The daemon socket is root-owned with mode `0600` before any workload starts. A non-root guest process cannot use it to request root execution. Authenticated host APIs may still request explicit guest-root setup. Guest root remains trusted within its Sandbox and can create descendants; Unix users are not independent Sandbox isolation boundaries. Workspace persistence does not preserve or upgrade a process privilege profile. Recovery requires both the immutable desired process profile and the durable observation of a matching guest Ready response. A pre-start enforcement check cannot supply the Ready observation. Older or unconfirmed live executions remain unavailable while retaining their existing execution and storage cleanup obligations.
+
 ## Principles
 
 - `axnoded` is the trusted broker. Sandboxd is never exposed directly to SDKs, users, service routing, host ports, tunnels, or external networks.
@@ -56,7 +60,8 @@ Daemon process:
   cwd:  /
 
 Supervised user process:
-  argv/cwd/env/user/terminal: restored from axern-entrypoint.json
+  argv/cwd/env: restored from axern-entrypoint.json
+  user: root (0:0), terminal: false
 ```
 
 Bundle-local daemon state lives under `bundle/axern/sandboxd` and is mounted in the guest at `/mnt` using these stable guest paths:
@@ -89,7 +94,8 @@ Entrypoint metadata is strict structured JSON:
 
 Rules:
 
-- Preserve args, cwd, env, user, and terminal intent only when sandboxd can faithfully enforce them.
+- The current primary entrypoint supports root (`0:0`) and `terminal: false`. Omitting these default fields is allowed; other identities, unsupported user attributes, terminal requests, unknown fields, and trailing JSON are rejected.
+- Preserve args, cwd, and env without silently dropping requested behavior. Typed Exec/PTY requests provide separate per-process user selection.
 - Keep daemon runtime configuration separate from user process env.
 - Fail container creation clearly when daemon injection, metadata generation, or private mount setup cannot be completed.
 

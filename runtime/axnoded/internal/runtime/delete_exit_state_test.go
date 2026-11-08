@@ -68,8 +68,8 @@ func TestRunscForceDeleteStopsForegroundRunBeforeDeletingState(t *testing.T) {
 	}
 
 	want := [][]string{
-		{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "--allow-suid", "kill", "alloc-a", "KILL"},
-		{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "--allow-suid", "delete", "--force", "alloc-a"},
+		{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "kill", "alloc-a", "KILL"},
+		{"--root", filepath.Join(rootDir, config.RuntimeNameRunsc), "delete", "--force", "alloc-a"},
 	}
 	if got := recorder.Args(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("runtime commands = %#v, want %#v", got, want)

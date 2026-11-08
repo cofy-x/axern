@@ -11,6 +11,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/durablefile"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -21,6 +22,7 @@ func writeRuntimeEnforcementManifest(bundlePath, runtimeName, filestoreDir strin
 		return fmt.Errorf("runtime enforcement manifest requires bundle, runtime, and request")
 	}
 	manifest := &apipb.AllocationEnforcementManifest{
+		ProcessSecurityProfile:     wire.ProcessSecurityProfile,
 		MemoryLimitBytes:           options.MemoryLimitBytes,
 		EphemeralStorageLimitBytes: request.GetEphemeralStorageLimitBytes(),
 		CgroupPath:                 options.CgroupPath, RuntimeCgroupPath: options.RuntimeCgroupPath,

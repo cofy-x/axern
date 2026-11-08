@@ -36,9 +36,9 @@ func TestPostgresAdminRetiresIdleNodeAndFencesReporter(t *testing.T) {
 	if err != nil || len(audit.GetEvents()) != 1 {
 		t.Fatalf("ListAdminAuditEvents() = %+v, %v", audit, err)
 	}
-	_, err = app.NodeV1Handler().ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now.Add(2 * time.Hour))})
+	_, err = app.NodeV1Handler().PublishNodeSnapshot(context.Background(), &nodev1.PublishNodeSnapshotRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now.Add(2 * time.Hour))})
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
-		t.Fatalf("ReportNode(retired) error = %v", err)
+		t.Fatalf("PublishNodeSnapshot(retired) error = %v", err)
 	}
 }
 
@@ -119,7 +119,7 @@ func TestPostgresAdminRevokesBusyNodeWithoutReleasingAllocation(t *testing.T) {
 	if state != "ALLOCATION_LIFECYCLE_STATE_ACTIVE" {
 		t.Fatal("revocation forged runtime cleanup")
 	}
-	if _, err := app.NodeV1Handler().ReportNode(ctx, &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now)}); grpcstatus.Code(err) != codes.FailedPrecondition {
+	if _, err := app.NodeV1Handler().PublishNodeSnapshot(ctx, &nodev1.PublishNodeSnapshotRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now)}); grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("revoked report: %v", err)
 	}
 	audit, err := app.AdminV1Handler().ListAdminAuditEvents(ctx, &adminv1.ListAdminAuditEventsRequest{Filter: &adminv1.AdminAuditEventFilter{Operation: adminv1.AdminAuditOperation_ADMIN_AUDIT_OPERATION_REVOKE_NODE, TargetType: adminv1.AdminAuditTargetType_ADMIN_AUDIT_TARGET_TYPE_NODE, TargetID: "node-a"}})

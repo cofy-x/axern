@@ -172,7 +172,6 @@ describe_step() {
     axnoded-verify-node-locality-e2e) echo "Run axnoded locality signals E2E" ;;
     axnoded-verify-node-warm-pool-e2e) echo "Run axnoded warm-pool E2E" ;;
     axnoded-verify-node-oci-e2e) echo "Run axnoded OCI image E2E" ;;
-    axnoded-verify-node-nydus-e2e) echo "Run axnoded Nydus image E2E" ;;
     *)
       echo "Unknown step: $1" >&2
       exit 1
@@ -279,9 +278,6 @@ run_step() {
     axnoded-verify-node-oci-e2e)
       run_cmd make -C runtime/axnoded verify-node-oci-e2e
       ;;
-    axnoded-verify-node-nydus-e2e)
-      run_cmd make -C runtime/axnoded verify-node-nydus-e2e
-      ;;
     *)
       echo "Unknown step: $1" >&2
       exit 1
@@ -332,7 +328,6 @@ steps+=(
   axnoded-verify-node-locality-e2e
   axnoded-verify-node-warm-pool-e2e
   axnoded-verify-node-oci-e2e
-  axnoded-verify-node-nydus-e2e
 )
 
 if [ "${bootstrap_first}" = true ]; then

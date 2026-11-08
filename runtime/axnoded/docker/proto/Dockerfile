@@ -1,4 +1,4 @@
-FROM golang:1.26.8
+FROM golang:1.26.10
 
 ENV DEBIAN_FRONTEND=noninteractive \
     GOPATH=/tmp/gopath \
@@ -10,8 +10,9 @@ ARG PROTOC_GEN_GO_VERSION=v1.36.3
 ARG PROTOC_GEN_GO_GRPC_VERSION=v1.3.0
 ARG GO_FIX_ACRONYM_VERSION=v0.3.0
 
-RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
+RUN apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 upgrade -y --no-install-recommends && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 

@@ -23,6 +23,9 @@ export async function* directoryArchiveChunks(
   producer.catch((error: unknown) => pack.destroy(error instanceof Error ? error : new Error(String(error))));
   try {
     for await (const chunk of pack) {
+      if (!(chunk instanceof Uint8Array)) {
+        throw new Error("archive encoder returned a non-binary chunk");
+      }
       yield* splitChunk(Buffer.from(chunk), chunkSize);
     }
     await producer;
@@ -143,7 +146,7 @@ async function addDirectoryEntries(pack: tar.Pack, root: string, current: string
   }
 }
 
-function entryHeader(pack: tar.Pack, header: tar.Headers): Promise<void> {
+function entryHeader(pack: tar.Pack, header: Partial<tar.Header> & Pick<tar.Header, "name">): Promise<void> {
   return new Promise((resolve, reject) => {
     pack.entry(header, (error) => {
       if (error) {

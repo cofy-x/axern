@@ -7,8 +7,11 @@ import copy
 import concurrent.futures
 import io
 import json
+import marshal
+import importlib.util
 import pathlib
 import struct
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -34,11 +37,19 @@ class NativeRuntimeTest(unittest.TestCase):
             path = self.stage / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(header if name in runtime.EXECUTABLES else b"fixture")
-        self.gvisor_digest = runtime.file_digest(self.stage / "runtime/gvisor.tar.bz2", "sha512")
+        self.gvisor_digest = "c" * 128
         lock = ("AXERN_GVISOR_RELEASE=20261102.0\n"
                 f"AXERN_GVISOR_COMMIT={'a' * 40}\n"
                 f"AXERN_GVISOR_SHA512_AMD64={self.gvisor_digest}\n")
         (self.stage / "share/axern/gvisor.lock").write_text(lock)
+        self.selected_lock = {
+            "schema": runtime.gvisor_payload.SCHEMA, "profile": runtime.gvisor_payload.PROFILE,
+            "release": "20261102.0", "commit": "a" * 40,
+            "architectures": {arch: {"archive_sha512": self.gvisor_digest, "members": {
+                name: {"size": 64, "mode": 0o755, "sha256": runtime.file_digest(self.stage / ("runtime/gvisor/" + name))}
+                for name in runtime.gvisor_payload.MEMBERS}} for arch in ("amd64", "arm64")},
+        }
+        self.write_selected_lock()
         (self.stage / "requirements.json").write_bytes(runtime.json_bytes(runtime.REQUIREMENTS))
         (self.stage / "share/axern/registry_auths.json").write_bytes(b"{}\n")
         self.metadata = {
@@ -46,6 +57,36 @@ class NativeRuntimeTest(unittest.TestCase):
             "build_host": {"profile": runtime.REQUIREMENTS["profile"], "libc": ["glibc", "2.39"]},
             "gvisor": runtime.parse_lock(lock, "amd64"),
         }
+
+    def write_selected_lock(self):
+        (self.stage / "share/axern/gvisor-selected.lock.json").write_bytes(runtime.json_bytes(self.selected_lock))
+
+    def test_generated_service_flags_match_the_executable_help_contract(self):
+        installer_path = runtime.ROOT / 'deploy/standalone/native_install.py'
+        spec = importlib.util.spec_from_file_location('native_install', installer_path)
+        installer = importlib.util.module_from_spec(spec)
+        exec(compile(installer_path.read_bytes(), str(installer_path), 'exec'), installer.__dict__)
+        units = installer.service_units(self.stage, {
+            'node_id': 'node-build-check', 'memory_budget_bytes': 4 * 1024**3,
+            'service_memory_budget_bytes': 1024**3, 'max_instances': 8,
+        })
+        unit_name = installer.unit_name('imagemgr')
+        image_unit = {unit_name: units[unit_name]}
+        executable = self.stage / 'bin/imagemgr'
+        # An independent daemon fixture declares its interface and rejects any
+        # invocation that could start a service. In particular it has no node_id.
+        executable.write_text('#!/bin/sh\n'
+            '[ "$#" = 1 ] && [ "$1" = -help ] || exit 99\n'
+            'printf "Usage of imagemgr:\\n  -root string\\n  -registry_auths_path string\\n  -http_sock string\\n"\n'
+            'exit 2\n')
+        executable.chmod(0o755)
+        runtime.verify_service_flags(self.stage, image_unit)
+        unsupported = {unit_name: units[unit_name].replace('"-root"', '"-retired-flag"')}
+        with self.assertRaisesRegex(runtime.BundleError, 'unsupported native service flags.*retired-flag'):
+            runtime.verify_service_flags(self.stage, unsupported)
+        executable.write_text('#!/bin/sh\nprintf "unexpected startup failure\\n"\nexit 1\n')
+        with self.assertRaisesRegex(runtime.BundleError, 'cannot inspect native service flags'):
+            runtime.verify_service_flags(self.stage, image_unit)
 
     def package(self) -> str:
         return runtime.create_bundle(self.stage, self.archive, self.metadata, 1234567890)
@@ -65,6 +106,38 @@ class NativeRuntimeTest(unittest.TestCase):
         altered = self.rewrite(transform)
         with self.assertRaises(runtime.BundleError):
             runtime.verify_bundle(altered, runtime.file_digest(altered))
+
+    def test_packaged_staging_and_install_helpers_load_under_isolated_python(self):
+        scripts = self.root / 'release/libexec/axern'
+        scripts.mkdir(parents=True)
+        for name in ('native_runtime.py', 'native_install.py', 'gvisor_payload.py'):
+            source = runtime.ROOT / runtime.SOURCE_FILES['libexec/axern/' + name]
+            shutil.copyfile(source, scripts / name)
+        for name in ('native_runtime.py', 'native_install.py'):
+            with self.subTest(helper=name):
+                result = subprocess.run([sys.executable, '-I', str(scripts / name), '--help'],
+                    cwd=self.root, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn('usage:', result.stdout)
+        self.assertFalse((scripts / '__pycache__').exists(), 'bootstrap must not mutate the immutable payload')
+        # A timestamp-valid stale cache must never substitute for checked source.
+        selector = scripts / 'gvisor_payload.py'
+        code = compile('raise RuntimeError("inert stale bytecode must never run")', str(selector), 'exec')
+        stale = importlib.util.MAGIC_NUMBER + struct.pack('<III', 0, int(selector.stat().st_mtime), selector.stat().st_size) + marshal.dumps(code)
+        cache = pathlib.Path(importlib.util.cache_from_source(str(selector)))
+        cache.parent.mkdir()
+        cache.write_bytes(stale)
+        for name in ('native_runtime.py', 'native_install.py'):
+            with self.subTest(helper=name, cache='untrusted-bytecode'):
+                result = subprocess.run([sys.executable, '-I', str(scripts / name), '--help'],
+                    cwd=self.root, capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(cache.read_bytes(), stale)
+        (scripts / 'gvisor_payload.py').unlink()
+        result = subprocess.run([sys.executable, '-I', str(scripts / 'native_runtime.py'), '--help'],
+            cwd=self.root, capture_output=True, text=True, timeout=10)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('matching gvisor_payload.py staging tool is required', result.stderr)
 
     def test_roundtrip_and_deterministic_packaging(self) -> None:
         checksum = self.package()
@@ -95,6 +168,9 @@ class NativeRuntimeTest(unittest.TestCase):
             path.write_bytes(header)
         lock = self.stage / "share/axern/gvisor.lock"
         lock.write_text(lock.read_text().replace("SHA512_AMD64", "SHA512_ARM64"))
+        for name, record in self.selected_lock["architectures"]["arm64"]["members"].items():
+            record["sha256"] = runtime.file_digest(self.stage / ("runtime/gvisor/" + name))
+        self.write_selected_lock()
         self.metadata["architecture"] = "arm64"
         self.assertEqual(runtime.verify_bundle(self.archive, self.package())["architecture"], "arm64")
 
@@ -122,8 +198,8 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assertEqual(self.archive.read_bytes(), b"keep me")
 
     def test_gvisor_pin_mismatch_does_not_publish(self) -> None:
-        (self.stage / "runtime/gvisor.tar.bz2").write_bytes(b"different upstream archive")
-        with self.assertRaisesRegex(runtime.BundleError, "gVisor archive"):
+        (self.stage / "runtime/gvisor/runsc").write_bytes((self.stage / "runtime/gvisor/runsc").read_bytes() + b"changed")
+        with self.assertRaisesRegex(runtime.BundleError, "selected gVisor payload"):
             self.package()
         self.assertFalse(self.archive.exists())
 
@@ -280,6 +356,126 @@ class NativeRuntimeTest(unittest.TestCase):
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
             self.assertEqual(sum(executor.map(lambda _: attempt(), range(2))), 1)
         self.assertEqual((destination / 'bin/axern').read_bytes(), (self.stage / 'bin/axern').read_bytes())
+
+
+class SelectedGVisorTest(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = pathlib.Path(self.temporary.name)
+        self.archive = self.root / 'input.tar.bz2'
+        self.destination = self.root / 'selected'
+        self.header = bytearray(64)
+        self.header[:7] = b'\x7fELF\x02\x01\x01'
+        struct.pack_into('<HH', self.header, 16, 2, 62)
+        self.payloads = {name: bytes(self.header) + name.encode() for name in runtime.gvisor_payload.UPSTREAM_MEMBERS}
+        self.members = {name: {'size': len(self.payloads[name]), 'mode': 0o755,
+            'sha256': runtime.hashlib.sha256(self.payloads[name]).hexdigest()} for name in runtime.gvisor_payload.MEMBERS}
+
+    def prepare_archive(self, alter=None):
+        entries = []
+        for name, data in sorted(self.payloads.items()):
+            entry = tarfile.TarInfo(name)
+            entry.size, entry.mode = len(data), 0o755
+            entries.append((entry, data))
+        if alter:
+            entries = alter(entries)
+        with tarfile.open(self.archive, 'w:bz2') as output:
+            for entry, data in entries:
+                output.addfile(entry, io.BytesIO(data) if entry.isfile() else None)
+        return {'release': '20261102.0', 'commit': 'a' * 40,
+                'archive_sha512': runtime.file_digest(self.archive, 'sha512')}
+
+    def test_authenticates_complete_input_but_only_delivers_selected_profile(self):
+        upstream = self.prepare_archive()
+        runtime.gvisor_payload.extract_archive(self.archive, self.destination, self.members, 'amd64', upstream)
+        runtime.gvisor_payload.verify_tree(self.destination, self.members, 'amd64')
+        self.assertEqual({path.relative_to(self.destination).as_posix() for path in self.destination.rglob('*') if path.is_file()}, runtime.gvisor_payload.MEMBERS)
+        for absent in ('containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer', 'gvisor-bin/runsc-metric-server', 'gvisor.tar.bz2'):
+            self.assertFalse((self.destination / absent).exists())
+
+    def test_rejects_input_checksum_before_publication(self):
+        upstream = self.prepare_archive()
+        upstream['archive_sha512'] = '0' * 128
+        with self.assertRaisesRegex(runtime.gvisor_payload.PayloadError, 'SHA512'):
+            runtime.gvisor_payload.extract_archive(self.archive, self.destination, self.members, 'amd64', upstream)
+        self.assertFalse(self.destination.exists())
+
+    def test_rejects_wrong_selected_member_even_with_new_authenticated_input(self):
+        self.payloads['runsc'] += b'changed after lock derivation'
+        upstream = self.prepare_archive()
+        with self.assertRaises(runtime.gvisor_payload.PayloadError):
+            runtime.gvisor_payload.extract_archive(self.archive, self.destination, self.members, 'amd64', upstream)
+        self.assertFalse(self.destination.exists())
+
+    def test_rejects_duplicate_traversal_link_device_and_unknown_members(self):
+        for variant in ('duplicate', 'traversal', 'symlink', 'device', 'unknown', 'wrong-arch'):
+            with self.subTest(variant=variant):
+                def alter(entries):
+                    entry = copy.copy(entries[-1][0])
+                    data = entries[-1][1]
+                    if variant == 'duplicate':
+                        return entries + [(entry, data)]
+                    if variant == 'traversal':
+                        entry.name = '../outside'
+                    elif variant == 'unknown':
+                        entry.name = 'unused-extra'
+                    elif variant in ('symlink', 'device'):
+                        entry.type = tarfile.SYMTYPE if variant == 'symlink' else tarfile.CHRTYPE
+                        entry.size, entry.linkname = 0, '/etc/invalid'
+                    else:
+                        data = bytearray(data)
+                        struct.pack_into('<H', data, 18, 183)
+                    return entries[:-1] + [(entry, data)]
+                upstream = self.prepare_archive(alter)
+                with self.assertRaises(runtime.gvisor_payload.PayloadError):
+                    runtime.gvisor_payload.extract_archive(self.archive, self.destination, self.members, 'amd64', upstream)
+                self.assertFalse(self.destination.exists())
+                self.assertFalse((self.root / 'outside').exists())
+
+    def test_repository_lock_is_consistent_for_both_shipping_architectures(self):
+        source = runtime.ROOT / 'runtime/axnoded'
+        for arch in runtime.gvisor_payload.MACHINES:
+            upstream = runtime.gvisor_payload.upstream_lock(source / 'gvisor.lock', arch)
+            selected = runtime.gvisor_payload.parse_selected((source / 'gvisor-selected.lock.json').read_bytes(), arch, upstream)
+            self.assertEqual(set(selected), runtime.gvisor_payload.MEMBERS)
+
+    def test_every_delivery_recipe_uses_selected_verification_without_cache_copy_layers(self):
+        for relative in ('deploy/images/lib/node-runtime-base.Dockerfile',
+                         'runtime/axnoded/docker/benchmark/Dockerfile', 'docker/devbox/Dockerfile'):
+            with self.subTest(recipe=relative):
+                text = (runtime.ROOT / relative).read_text()
+                self.assertNotIn('COPY runtime/axnoded/.cache/gvisor/', text)
+                for retired in ('containerd-shim-runsc-v1', 'checkpointgofer', 'runsc-metric-server'):
+                    self.assertNotIn(retired, text)
+                self.assertIn('gvisor-selected.lock.json', text)
+                self.assertIn('gvisor_payload.py extract', text)
+                if relative != 'docker/devbox/Dockerfile':
+                    self.assertIn('source=runtime/axnoded/.cache/gvisor,target=/opt/gvisor-cache,readonly', text)
+                    self.assertIn('gvisor_payload.py copy', text)
+
+    def test_cache_copy_revalidates_bytes_modes_and_rejects_retired_files(self):
+        upstream = self.prepare_archive()
+        runtime.gvisor_payload.extract_archive(self.archive, self.destination, self.members, 'amd64', upstream)
+        for variant in ('modified', 'mode', 'root-mode', 'directory-mode', 'retired'):
+            with self.subTest(variant=variant):
+                target = self.destination / 'runsc'
+                if variant == 'modified':
+                    target.write_bytes(self.payloads['runsc'] + b'changed')
+                elif variant == 'mode':
+                    target.chmod(0o644)
+                elif variant == 'root-mode':
+                    self.destination.chmod(0o777)
+                elif variant == 'directory-mode':
+                    (self.destination / 'gvisor-bin').chmod(0o777)
+                else:
+                    (self.destination / 'containerd-shim-runsc-v1').write_bytes(b'not shipped')
+                with self.assertRaises(runtime.gvisor_payload.PayloadError):
+                    runtime.gvisor_payload.copy_tree(self.destination, self.root / ('copy-' + variant), self.members, 'amd64')
+                target.write_bytes(self.payloads['runsc'])
+                target.chmod(0o755)
+                self.destination.chmod(0o755)
+                (self.destination / 'gvisor-bin').chmod(0o755)
 
 
 if __name__ == "__main__":

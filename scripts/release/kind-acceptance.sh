@@ -118,7 +118,6 @@ if [ -n "${image_tag_suffix}" ]; then
   )
 fi
 if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then
-  registry_proxy_url="${release_https_proxy:-${release_http_proxy}}"
   helm_no_proxy="${release_no_proxy//,/\\,}"
   helm_args+=(
     --set-string "proxyEnv.HTTP_PROXY=${release_http_proxy}"
@@ -127,8 +126,6 @@ if [ -n "${release_http_proxy}" ] || [ -n "${release_https_proxy}" ]; then
     --set-string "proxyEnv.http_proxy=${release_http_proxy}"
     --set-string "proxyEnv.https_proxy=${release_https_proxy}"
     --set-string "proxyEnv.no_proxy=${helm_no_proxy}"
-    --set-string "proxyEnv.REGISTRY_PROXY_URL=${registry_proxy_url}"
-    --set-string "proxyEnv.REGISTRY_NO_PROXY=${helm_no_proxy}"
   )
 fi
 if [ -n "${AXERN_REGISTRY_USERNAME:-}" ] && [ -n "${AXERN_REGISTRY_PASSWORD:-}" ]; then

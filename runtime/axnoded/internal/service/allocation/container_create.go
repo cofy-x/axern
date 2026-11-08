@@ -92,6 +92,9 @@ func (h *Controller) createAllocation(
 	if err := h.containers().StoreMetadata(resource.ID, metaData); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("persist activated container metadata: %w", err))
 	}
+	if err := h.StoreGuestProcessProfileVerified(resource.ID, options.EnforcementManifest); err != nil {
+		return response, "", cleanupPrepared(err)
+	}
 	if err := h.registerCreatedContainerLifecycle(ctx, resource.ID, metaData, allocationRuntime); err != nil {
 		return response, "", cleanupPrepared(fmt.Errorf("register activated container monitor: %w", err))
 	}

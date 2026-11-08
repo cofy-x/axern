@@ -154,26 +154,29 @@ func (m Manager) installedHelper() (string, error) {
 			Size   int64  `json:"size"`
 		} `json:"files"`
 	}
-	if err := json.Unmarshal(manifestBytes, &manifest); err != nil || manifest.Schema != "axern.native-runtime.v2" || manifest.OS != "linux" || identity.SourceRevision == "" || manifest.SourceRevision != identity.SourceRevision {
+	if err := json.Unmarshal(manifestBytes, &manifest); err != nil || manifest.Schema != "axern.native-runtime.v3" || manifest.OS != "linux" || identity.SourceRevision == "" || manifest.SourceRevision != identity.SourceRevision {
 		return "", fmt.Errorf("installed server manifest does not match its identity")
 	}
 	helper := filepath.Join(release, helperRelativePath)
-	data, err := m.ownedFile(helper, 1024*1024)
-	if err != nil {
-		return "", fmt.Errorf("read installed server helper: %w", err)
-	}
-	checksum := sha256.Sum256(data)
-	matches := 0
-	for _, entry := range manifest.Files {
-		if entry.Path == helperRelativePath {
-			if !digestPattern.MatchString(entry.SHA256) || entry.SHA256 != hex.EncodeToString(checksum[:]) || entry.Size != int64(len(data)) {
-				return "", fmt.Errorf("installed server helper differs from its manifest")
-			}
-			matches++
+	// Verify the exact native bootstrap tools before Python can import them.
+	for _, relative := range []string{helperRelativePath, "libexec/axern/native_runtime.py", "libexec/axern/gvisor_payload.py"} {
+		data, err := m.ownedFile(filepath.Join(release, relative), 1024*1024)
+		if err != nil {
+			return "", fmt.Errorf("read installed server bootstrap tool: %w", err)
 		}
-	}
-	if matches != 1 {
-		return "", fmt.Errorf("installed server manifest must identify exactly one lifecycle helper")
+		checksum := sha256.Sum256(data)
+		matches := 0
+		for _, entry := range manifest.Files {
+			if entry.Path == relative {
+				if !digestPattern.MatchString(entry.SHA256) || entry.SHA256 != hex.EncodeToString(checksum[:]) || entry.Size != int64(len(data)) {
+					return "", fmt.Errorf("installed server bootstrap tool differs from its manifest: %s", relative)
+				}
+				matches++
+			}
+		}
+		if matches != 1 {
+			return "", fmt.Errorf("installed server manifest must identify exactly one bootstrap tool: %s", relative)
+		}
 	}
 	return helper, nil
 }

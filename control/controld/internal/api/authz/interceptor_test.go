@@ -191,7 +191,7 @@ func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 
 func TestNodeControlRequiresNodeWorkloadIdentity(t *testing.T) {
 	i := &Interceptor{cluster: "cluster.test", requireActiveNode: func(context.Context, string) error { return nil }}
-	method := "/axern.private.control.node.v1.NodeControl/ReportNode"
+	method := "/axern.private.control.node.v1.NodeControl/PublishNodeSnapshot"
 	called := false
 	handler := func(context.Context, any) (any, error) {
 		called = true
@@ -202,7 +202,7 @@ func TestNodeControlRequiresNodeWorkloadIdentity(t *testing.T) {
 		t.Fatalf("unverified node called=%v code=%v", called, status.Code(err))
 	}
 	ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: tlsState("node-one")}})
-	_, err = i.Unary(ctx, &nodev1.ReportNodeRequest{NodeID: "node-one"}, &grpc.UnaryServerInfo{FullMethod: method}, handler)
+	_, err = i.Unary(ctx, &nodev1.PublishNodeSnapshotRequest{NodeID: "node-one"}, &grpc.UnaryServerInfo{FullMethod: method}, handler)
 	if err != nil || !called {
 		t.Fatalf("verified node called=%v err=%v", called, err)
 	}
@@ -257,7 +257,7 @@ func TestNodeControlRejectsCrossNodeExpiredAndRetiredAuthority(t *testing.T) {
 			})
 			ctx := peer.NewContext(context.Background(), &peer.Peer{AuthInfo: credentials.TLSInfo{State: state}})
 			called := false
-			_, err := i.Unary(ctx, &nodev1.ReportNodeRequest{NodeID: requestID}, &grpc.UnaryServerInfo{FullMethod: "/axern.private.control.node.v1.NodeControl/ReportNode"}, func(context.Context, any) (any, error) { called = true; return nil, nil })
+			_, err := i.Unary(ctx, &nodev1.PublishNodeSnapshotRequest{NodeID: requestID}, &grpc.UnaryServerInfo{FullMethod: "/axern.private.control.node.v1.NodeControl/PublishNodeSnapshot"}, func(context.Context, any) (any, error) { called = true; return nil, nil })
 			if err == nil || called {
 				t.Fatal("invalid Node authority reached handler")
 			}

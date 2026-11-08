@@ -179,11 +179,10 @@ func testInventory() *inventoryResponse {
 		},
 		MountedImages: []mountedImageDetail{
 			{
-				ImageURL:      "redis:7",
-				CacheKey:      "redis:7",
-				MountType:     "nydus",
-				MountPath:     "/var/lib/imagemgr/nydus/redis",
-				NydusImageURL: "redis:7-nydus",
+				ImageURL:  "redis:7",
+				CacheKey:  "redis:7",
+				MountType: "oci",
+				MountPath: "/var/lib/imagemgr/oci/mounts/redis/merged",
 			},
 			{
 				ImageURL:  "python:3.12-slim",

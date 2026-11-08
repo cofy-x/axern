@@ -1,6 +1,7 @@
 # Axern production gVisor source and release artifact lock.
 # Build images source this file; keep it parseable as POSIX shell assignments.
-# The tag, source commit and complete release archives are pinned together.
+# The tag, source commit and complete build-input archives are pinned together.
+# Shipped files are the direct-runsc profile in gvisor-selected.lock.json.
 AXERN_GVISOR_RELEASE=20261102.0
 AXERN_GVISOR_TAG=release-20261102.0
 AXERN_GVISOR_TAG_OBJECT=2cc7c1fd9dfde4f44d4abce810d8579f409322a9

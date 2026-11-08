@@ -21,7 +21,7 @@ API contexts select the endpoint for execution requests. They do not turn `serve
 
 ## Compose source development
 
-Use Go 1.26.8, Make and Docker Compose v2 on macOS or Linux. At least 4 CPU cores, 8 GiB memory and 20 GiB free disk are recommended. From the source repository root:
+Use Go 1.26.10, Make and Docker Compose v2 on macOS or Linux. At least 4 CPU cores, 8 GiB memory and 20 GiB free disk are recommended. From the source repository root:
 
 ```bash
 make quickstart-source

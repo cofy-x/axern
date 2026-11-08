@@ -19,18 +19,8 @@ AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES="${AXNODED_FILESTORE_LOOPBACK_SIZE_BYTES:-
 AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES="${AXNODED_FILESTORE_SYSTEM_RESERVE_BYTES:-67108864}"
 AXNODED_EPHEMERAL_STORAGE_DEFAULT_LIMIT_BYTES="${AXNODED_EPHEMERAL_STORAGE_DEFAULT_LIMIT_BYTES:-268435456}"
 AXNODED_ROOTFS_SNAPSHOT_REPOSITORY="${AXNODED_ROOTFS_SNAPSHOT_REPOSITORY:-}"
-REGISTRY_PROXY_URL="${REGISTRY_PROXY_URL:-}"
-REGISTRY_PROXY_HEALTH_URL="${REGISTRY_PROXY_HEALTH_URL:-}"
-REGISTRY_BLOB_URL_SCHEME="${REGISTRY_BLOB_URL_SCHEME:-https}"
-REGISTRY_PROXY_FALLBACK="${REGISTRY_PROXY_FALLBACK:-true}"
-REGISTRY_PROXY_CA_CERT="${REGISTRY_PROXY_CA_CERT:-}"
 REGISTRY_MIRROR_URL="${REGISTRY_MIRROR_URL:-}"
-NYDUS_READAHEAD_WORKERS="${NYDUS_READAHEAD_WORKERS:-0}"
-NYDUS_READAHEAD_WINDOW_BYTES="${NYDUS_READAHEAD_WINDOW_BYTES:-33554432}"
-NYDUS_DECODED_CACHE_BYTES="${NYDUS_DECODED_CACHE_BYTES:-8388608}"
 REGISTRY_AUTHS_SOURCE="${REGISTRY_AUTHS_SOURCE:-}"
-IMAGEFSD_CHUNK_SERVER_SOCK="${IMAGEFSD_CHUNK_SERVER_SOCK:-}"
-IMAGEFSD_CHUNK_SERVER_LISTEN_PORT="${IMAGEFSD_CHUNK_SERVER_LISTEN_PORT:-9876}"
 NAT_BACKEND="${NAT_BACKEND:-iptables}"
 AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL="${AXNODED_IDLE_ENVIRONMENT_RETENTION_TTL:-5m}"
 AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX="${AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX:-8}"
@@ -68,21 +58,14 @@ AXNODED_ROOT="/var/lib/axnoded"
 IMAGEMGR_ROOT="/var/lib/imagemgr"
 EGRESSD_ROOT="/var/lib/egressd"
 AXNODED_CONFIG="${AXNODED_ROOT}/node-config.toml"
-NYDUS_TEMPLATE="/tmp/imagemgr-nydus-template.json"
 REGISTRY_AUTHS="/tmp/imagemgr-registry-auths.json"
 AXNODED_LOG="/var/log/axnoded/axnoded.log"
-IMAGEFSD_CHUNK_DB_DIR="${IMAGEMGR_ROOT}/chunk_db"
-IMAGEFSD_LOG="${IMAGEMGR_ROOT}/logs/imagefsd.log"
-if [ -z "${IMAGEFSD_CHUNK_SERVER_SOCK}" ]; then
-  IMAGEFSD_CHUNK_SERVER_SOCK="${IMAGEFSD_CHUNK_DB_DIR}/chunkserver.sock"
-fi
 
 mkdir -p \
   "$(dirname "${IMAGEMGR_SOCKET}")" \
   "$(dirname "${EGRESSD_SOCKET}")" \
   "$(dirname "${AXNODED_SOCKET}")" \
   "$(dirname "${AXNODED_TUNNEL_SOCKET}")" \
-  "$(dirname "${IMAGEFSD_CHUNK_SERVER_SOCK}")" \
   "${AXNODED_ROOT}/root" \
   "${AXNODED_ROOT}/store" \
   "${AXNODED_ROOT}/rootfs" \
@@ -216,63 +199,8 @@ options = $(toml_array_from_csv "${AXNODED_DNS_OPTIONS}")
 [plugin.runtime.runsc]
 binary = "/usr/local/bin/runsc"
 
-[plugin.runtime.runsc.options]
-allow_suid = true
 
 EOF
-
-case "${REGISTRY_PROXY_FALLBACK}" in
-  true|false) ;;
-  *)
-    echo "REGISTRY_PROXY_FALLBACK must be true or false" >&2
-    exit 1
-    ;;
-esac
-
-if [ -n "${REGISTRY_PROXY_URL}" ]; then
-  case "${REGISTRY_BLOB_URL_SCHEME}" in
-    http|https) ;;
-    *)
-      echo "REGISTRY_BLOB_URL_SCHEME must be http or https when REGISTRY_PROXY_URL is set" >&2
-      exit 1
-      ;;
-  esac
-fi
-if [ -n "${REGISTRY_PROXY_CA_CERT}" ] && [ ! -r "${REGISTRY_PROXY_CA_CERT}" ]; then
-  echo "REGISTRY_PROXY_CA_CERT is not readable: ${REGISTRY_PROXY_CA_CERT}" >&2
-  exit 1
-fi
-
-jq -n \
-  --arg proxy_url "${REGISTRY_PROXY_URL}" \
-  --arg proxy_health_url "${REGISTRY_PROXY_HEALTH_URL}" \
-  --arg blob_url_scheme "${REGISTRY_BLOB_URL_SCHEME}" \
-  --arg proxy_ca_cert "${REGISTRY_PROXY_CA_CERT}" \
-  --argjson proxy_fallback "${REGISTRY_PROXY_FALLBACK}" \
-  '{
-    type: "registry",
-    registry: {
-      scheme: "https",
-      host: "registry.invalid",
-      repo: "placeholder/image",
-      auth: "",
-      skip_verify: false,
-      timeout: 30,
-      connect_timeout: 5,
-      retry_limit: 3
-    }
-  }
-  | if $proxy_url == "" then . else
-      .registry.blob_url_scheme = $blob_url_scheme
-      | if $proxy_ca_cert == "" then . else
-          .registry.ca_cert_files = [$proxy_ca_cert]
-        end
-      | .registry.proxy = {
-          url: $proxy_url,
-          ping_url: $proxy_health_url,
-          fallback: $proxy_fallback
-        }
-    end' > "${NYDUS_TEMPLATE}"
 
 if [ -n "${REGISTRY_AUTHS_SOURCE}" ] && [ -s "${REGISTRY_AUTHS_SOURCE}" ]; then
   cp "${REGISTRY_AUTHS_SOURCE}" "${REGISTRY_AUTHS}"
@@ -283,24 +211,12 @@ EOF
 fi
 chmod 600 "${REGISTRY_AUTHS}"
 
-/usr/local/bin/imagefsd --verbose serve-chunk \
-  --chunk-db-dir "${IMAGEFSD_CHUNK_DB_DIR}" \
-  --listen-port "${IMAGEFSD_CHUNK_SERVER_LISTEN_PORT}" \
-  --chunk-server-sock "${IMAGEFSD_CHUNK_SERVER_SOCK}" \
-  --log-file "${IMAGEFSD_LOG}" &
-IMAGEFSD_PID=$!
 
 /usr/local/bin/imagemgr \
   -root "${IMAGEMGR_ROOT}" \
-  -node_id "${AXNODED_CONTROL_PLANE_NODE_ID}" \
-  -imagefsd_bin /usr/local/bin/imagefsd \
-  -nydus_template "${NYDUS_TEMPLATE}" \
   -registry_auths_path "${REGISTRY_AUTHS}" \
 	-registry_mirror_url "${REGISTRY_MIRROR_URL}" \
 	-snapshot_repository "${AXNODED_ROOTFS_SNAPSHOT_REPOSITORY}" \
-  -nydus_readahead_workers "${NYDUS_READAHEAD_WORKERS}" \
-  -nydus_readahead_window_bytes "${NYDUS_READAHEAD_WINDOW_BYTES}" \
-  -nydus_decoded_cache_bytes "${NYDUS_DECODED_CACHE_BYTES}" \
   -http_sock "${IMAGEMGR_SOCKET}" \
   -debug &
 IMAGEMGR_PID=$!
@@ -324,7 +240,6 @@ cleanup() {
   stop_child "${AXNODED_PID:-}"
   stop_child "${EGRESSD_PID:-}"
   stop_child "${IMAGEMGR_PID:-}"
-  stop_child "${IMAGEFSD_PID:-}"
 }
 trap cleanup EXIT
 
@@ -360,7 +275,6 @@ wait_node_dependency() {
 
 wait_node_dependency imagemgr "${IMAGEMGR_PID}" curl -fsS --unix-socket "${IMAGEMGR_SOCKET}" http://unix/inventory
 wait_node_dependency egressd "${EGRESSD_PID}" /usr/local/bin/egressdctl -socket "${EGRESSD_SOCKET}" health
-wait_node_dependency imagefsd "${IMAGEFSD_PID}" /usr/local/bin/imagefsd stats-locality --chunk-db-dir "${IMAGEFSD_CHUNK_DB_DIR}" --chunk-server-sock "${IMAGEFSD_CHUNK_SERVER_SOCK}"
 
 axnoded_args=(
   -root "${AXNODED_ROOT}"
@@ -403,7 +317,7 @@ for _ in $(seq 1 40); do
       NODE_TUNNELD_SUPERVISOR_PID=""
     fi
     echo "node_all_in_one_ready=true"
-    wait -n "${IMAGEFSD_PID}" "${IMAGEMGR_PID}" "${EGRESSD_PID}" "${AXNODED_PID}"
+    wait -n "${IMAGEMGR_PID}" "${EGRESSD_PID}" "${AXNODED_PID}"
     exit $?
   fi
   sleep 1

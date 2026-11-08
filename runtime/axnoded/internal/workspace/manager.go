@@ -104,10 +104,15 @@ type platform interface {
 type Manager struct {
 	rootMu  sync.Mutex
 	locksMu sync.Mutex
-	locks   map[string]*sync.Mutex
+	locks   map[string]*workspaceLock
 	mu      sync.Mutex
 	options Options
 	os      platform
+}
+
+type workspaceLock struct {
+	mu   sync.Mutex
+	refs int
 }
 
 var identityName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
@@ -766,14 +771,25 @@ func rootFingerprint(inode uint64, filesystem, epoch string) string {
 func (m *Manager) lockWorkspace(id string) func() {
 	m.locksMu.Lock()
 	if m.locks == nil {
-		m.locks = make(map[string]*sync.Mutex)
+		m.locks = make(map[string]*workspaceLock)
 	}
 	lock := m.locks[id]
 	if lock == nil {
-		lock = &sync.Mutex{}
+		lock = &workspaceLock{}
 		m.locks[id] = lock
 	}
+	// Waiting callers retain the same entry before joining its mutex. Removing
+	// a key while a waiter exists could create two simultaneous owner lanes.
+	lock.refs++
 	m.locksMu.Unlock()
-	lock.Lock()
-	return lock.Unlock
+	lock.mu.Lock()
+	return func() {
+		lock.mu.Unlock()
+		m.locksMu.Lock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(m.locks, id)
+		}
+		m.locksMu.Unlock()
+	}
 }

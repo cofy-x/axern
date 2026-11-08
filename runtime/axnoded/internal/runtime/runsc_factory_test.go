@@ -33,8 +33,7 @@ func TestRunscConfigurationBelongsToLoadedHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	allow := true
-	cfg := config.RuntimeInstanceConfig{Binary: "/usr/bin/runsc", Options: config.RuntimeOptions{AllowSUID: &allow}}
+	cfg := config.RuntimeInstanceConfig{Binary: "/usr/bin/runsc"}
 	handler, err := NewRunscServiceHandler(config.Config{RootDir: root}, cfg, loader)
 	if err != nil {
 		t.Fatal(err)
@@ -44,7 +43,7 @@ func TestRunscConfigurationBelongsToLoadedHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	allow = false
+	cfg.Binary = "/unloaded/runsc"
 	if err := os.WriteFile(filepath.Join(root, "runsc-config.json"), []byte(`{"process":{"env":["TERM=xterm"]}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +51,7 @@ func TestRunscConfigurationBelongsToLoadedHandler(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before != after || !handler.allowSUID {
+	if before != after || handler.common.Binary() != "/usr/bin/runsc" {
 		t.Fatal("unloaded configuration changed handler policy or evidence")
 	}
 }

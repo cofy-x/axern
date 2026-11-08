@@ -30,7 +30,6 @@ Axern keeps four first-class language workspaces. Their configuration files are 
 | Language   | Manager       | Configuration         |
 | :--------- | :------------ | :-------------------- |
 | Go         | Go workspaces | `go.work`             |
-| Rust       | Cargo         | `Cargo.toml`          |
 | TypeScript | pnpm          | `pnpm-workspace.yaml` |
 | Python     | uv            | `pyproject.toml`      |
 

@@ -263,18 +263,26 @@ def load_release(release, expected_archive):
     release = release.resolve(strict=True)
     manifest = json.loads((release / 'manifest.json').read_text())
     # This happens outside startup timing and deliberately warms payload pages.
+    required_sources = {'libexec/axern/' + name + '.py' for name in
+                        ('native_install', 'gvisor_payload', 'qualify_native', 'qualify_network')}
+    seen_sources = set()
     for entry in manifest['files']:
         path = release / entry['path']
         require(path.resolve() == path and path.is_relative_to(release) and path.is_file(), 'invalid installed payload path')
         with path.open('rb') as stream:
             digest = hashlib.file_digest(stream, 'sha256').hexdigest()
         require(digest == entry['sha256'], 'installed payload hash differs from the manifest')
+        if entry['path'] in required_sources:
+            require(entry['path'] not in seen_sources, 'duplicate native measurement source')
+            seen_sources.add(entry['path'])
+    require(seen_sources == required_sources, 'native measurement sources are missing from the manifest')
     modules = []
     for name in ('native_install', 'qualify_native'):
         spec = importlib.util.spec_from_file_location(name, release / 'libexec/axern' / (name + '.py'))
         module = importlib.util.module_from_spec(spec)
-        sys.modules[name] = module
-        spec.loader.exec_module(module)
+        # Execute only the fixed source just verified above, ignoring .pyc caches.
+        path = release / 'libexec/axern' / (name + '.py')
+        exec(compile(path.read_bytes(), str(path), 'exec'), module.__dict__)
         modules.append(module)
     installer, qualifier = modules
     installed = installer.verify_installed()
@@ -283,7 +291,7 @@ def load_release(release, expected_archive):
 
 
 def measure(runner, installer, qualifier, scenario):
-    helper = ['python3', runner.root / 'libexec/axern/native_install.py']
+    helper = ['python3', '-I', runner.root / 'libexec/axern/native_install.py']
     units = [installer.unit_name(name) for name in installer.SERVICES]
 
     def unit_snapshot(active=True, timeout=30):

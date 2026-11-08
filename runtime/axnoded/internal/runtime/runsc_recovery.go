@@ -24,6 +24,12 @@ func (r *RunscServiceHandler) PauseContainer(ctx context.Context, options contra
 }
 
 func (r *RunscServiceHandler) ResumeContainer(ctx context.Context, options contract.HandlerOptions) error {
+	if !options.GuestProcessProfileVerified {
+		return fmt.Errorf("allocation has no observed guest process profile; stop and recreate its execution")
+	}
+	if err := r.verifyManagedProcessPolicy(ctx, options.ContainerID, options.EnforcementManifest); err != nil {
+		return err
+	}
 	return r.transitionRecoveryState(ctx, options.ContainerID, "resume", contract.ContainerStatusPaused, contract.ContainerStatusRunning)
 }
 

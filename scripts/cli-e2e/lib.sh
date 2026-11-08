@@ -159,7 +159,6 @@ dump_logs() {
   docker logs "${NODE_CONTAINER_NAME}" >&2 || true
   dump_node_control_plane_route
   dump_node_log_tail "axnoded" "/var/log/axnoded/axnoded.log" 160
-  dump_node_log_tail "imagefsd" "/var/lib/imagemgr/logs/imagefsd.log" 80
   dump_node_log_tail "imagemgr" "/var/lib/imagemgr/logs/imagemgr.log" 120
   dump_node_log_tail "node-tunneld" "/var/log/axnoded/node-tunneld.log" 120
 }

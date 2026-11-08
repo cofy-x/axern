@@ -8,21 +8,23 @@ Use a native amd64 or arm64 host matching the archive, systemd 254 or newer, cgr
 
 The installer requires an unused sandbox address range, unused service ports and exclusive ownership of `sandbox0`. It never formats disks or changes forwarding configuration. Kernel/runtime capability checks must pass before the node becomes ready; there is no development enforcement bypass.
 
-Install the host packages using the operating system package manager:
+Apply the distribution's security updates before installation, then install the host packages. Disable download retries during package-manager bootstrap so an older client cannot use an unsafe redirected retry path:
 
 ```bash
-sudo apt-get install postgresql-16 python3 curl ca-certificates busybox-static erofs-utils iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
+sudo apt-get -o Acquire::Retries=0 update
+sudo apt-get -o Acquire::Retries=0 upgrade --yes
+sudo apt-get -o Acquire::Retries=0 install --no-install-recommends postgresql-16 python3 curl ca-certificates busybox-static erofs-utils iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
 ```
 
-Existing PostgreSQL clusters are not adopted or modified. Axern initializes its own cluster on loopback port `25432` with generated credentials. Internal service ports are `24000`, `24001`, `24002`, `24100`, `24010` and `23001`; the authenticated gateway uses `25000`, and its health listener uses `25080`. These service listeners bind to loopback. Egress enforcement separately owns node-local listeners that receive sandbox traffic. Imagemgr runs in OCI-only mode without Nydus/imagefsd or a chunk server.
+Existing PostgreSQL clusters are not adopted or modified. Axern initializes its own cluster on loopback port `25432` with generated credentials. Internal service ports are `24000`, `24001`, `24002`, `24100`, `24010` and `23001`; the authenticated gateway uses `25000`, and its health listener uses `25080`. These service listeners bind to loopback. Egress enforcement separately owns node-local listeners that receive sandbox traffic. Imagemgr manages OCI image extraction and read-only mounts.
 
 ## Stage And Install
 
-Obtain the archive and standalone `native_runtime.py` tool from the same trusted source revision. Supply the archive SHA-256 from trusted build/release metadata. The staging command snapshots and verifies the download, materializes only the closed payload inventory, and atomically publishes a new directory. It rejects existing destinations and symlinked paths.
+Obtain the archive and the same-revision staging tools, `native_runtime.py` and `gvisor_payload.py`, from trusted source. Keep both tools together in a private directory; the stager imports its sibling verifier even under isolated Python. The archive also includes both tools under `libexec/axern`. Supply the archive SHA-256 from trusted build/release metadata. The staging command snapshots and verifies the download, materializes only the closed payload inventory, and atomically publishes a new directory. It rejects existing destinations and symlinked paths.
 
 ```bash
 sudo install -d -m 0755 /opt/axern/releases
-sudo python3 native_runtime.py stage /absolute/path/to/runtime.tar.gz \
+sudo python3 -I /absolute/path/to/staging-tools/native_runtime.py stage /absolute/path/to/runtime.tar.gz \
   --sha256 TRUSTED_ARCHIVE_SHA256 \
   --destination /opt/axern/releases/TRUSTED_ARCHIVE_SHA256
 ```
@@ -68,7 +70,7 @@ The native profile fixes each Allocation at 256 guest tasks and 1024 host tasks.
 
 Systemd gives axnoded `max_instances * 1024 + 512` host tasks, reserves another 1024 for supporting services, and caps the enclosing Axern slice at their sum. With the example configuration these ceilings are 8704, 1024 and 9728 respectively. They are ceilings rather than capacity reservations: memory and host-wide limits may constrain actual concurrency. Qualify these budgets with representative workloads before relying on the experimental profile for sustained serving.
 
-The installer generates private PostgreSQL, encryption and enrollment secrets; initializes deployment PKI using the existing workload authority implementation; and prepares the full locked gVisor runtime and capability fixtures. The control service receives the signer, while gateway and relay receive only their own workload identities. Public services run under separate unprivileged accounts. Node execution, image mounting, egress enforcement and the node tunnel connector retain their required host privileges. Secret values are not placed in systemd command lines.
+The installer generates private PostgreSQL, encryption and enrollment secrets; initializes deployment PKI using the existing workload authority implementation; and prepares the selected, locked direct-runsc runtime and capability fixtures. The runtime contains `runsc` plus its four required helpers, verified against the architecture-specific selected-member lock with their relative layout preserved. The upstream input archive, containerd shim, checkpoint-gofer and standalone metric-server are not installed. See the [payload contract](README.md#payload-contract) for the exact inventory and integrity boundary. The control service receives the signer, while gateway and relay receive only their own workload identities. Public services run under separate unprivileged accounts. Node execution, image mounting, egress enforcement and the node tunnel connector retain their required host privileges. Secret values are not placed in systemd command lines.
 
 History retention runs as a background task in `controld`, sharing its database pool and supervised shutdown. Its [retention policy](../../control/controld/README.md#run) belongs to the control service; no separate retention service, account or database credential is required.
 

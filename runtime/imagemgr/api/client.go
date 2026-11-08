@@ -10,8 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"time"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 )
 
 type HttpClient struct {
@@ -108,37 +106,6 @@ func (c *HttpClient) ImportOCI(imageRef string, archive io.Reader) (*OCIImportRe
 		return nil, fmt.Errorf("canonical_ref, immutable_ref, or content_digest not found in response")
 	}
 	return &result, nil
-}
-
-func (c *HttpClient) CleanupDaemon(req *CleanupDaemonRequest) error {
-	body, _ := json.Marshal(req)
-	resp, err := c.clt.Post("http://unix/cleanup_daemon", "application/json", bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("failed to cleanup daemon: %s, err: %v", req.DaemonID, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		errMsg, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("failed to cleanup daemon: %s, err: %s", req.DaemonID, string(errMsg))
-	}
-	return nil
-}
-
-func (c *HttpClient) ListDaemons() ([]imagefsd.DaemonInfo, error) {
-	resp, err := c.clt.Get("http://unix/list_daemons")
-	if err != nil {
-		return nil, fmt.Errorf("failed to list daemons, err: %v", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		errMsg, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to list daemons, err: %s", string(errMsg))
-	}
-	var daemons []imagefsd.DaemonInfo
-	if err = json.NewDecoder(resp.Body).Decode(&daemons); err != nil {
-		return nil, fmt.Errorf("invalid reply body format: %v", err)
-	}
-	return daemons, nil
 }
 
 func (c *HttpClient) ListMountedOCIImages() ([]string, error) {

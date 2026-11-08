@@ -46,7 +46,7 @@ func validateOCIOnly(tx *bolt.Tx) error {
 			return fmt.Errorf("invalid persisted mount %q: %w", key, err)
 		}
 		if record.MountType != "oci" {
-			return fmt.Errorf("persisted mount %q has type %q; Nydus disabled requires only OCI resources", key, record.MountType)
+			return fmt.Errorf("persisted mount %q has type %q; retired or unsupported image format; only OCI resources are accepted", key, record.MountType)
 		}
 		if record.CacheKey != string(key) || record.ImageURL == "" || record.MountPoint == "" || record.NydusImageURL != "" {
 			return fmt.Errorf("invalid persisted OCI mount identity %q", key)

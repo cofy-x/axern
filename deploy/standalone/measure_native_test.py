@@ -3,6 +3,12 @@
 
 import base64
 import json
+import hashlib
+import importlib.util
+import marshal
+import shutil
+import struct
+import sys
 import pathlib
 import subprocess
 import tempfile
@@ -35,6 +41,46 @@ def log_event(value, **extra):
 
 
 class MeasurementTests(unittest.TestCase):
+    def test_fixed_release_sources_ignore_valid_bytecode_caches_under_isolated_python(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            scripts = root / 'release/libexec/axern'
+            scripts.mkdir(parents=True)
+            source = pathlib.Path(measure.__file__).resolve().parent
+            for name in ('qualify_native.py', 'qualify_network.py'):
+                shutil.copyfile(source / name, scripts / name)
+            shutil.copyfile(source.parents[1] / 'runtime/axnoded/gvisor_payload.py', scripts / 'gvisor_payload.py')
+            # This inert installer stands in for host identity reads only.
+            (scripts / 'native_install.py').write_text('def verify_installed():\n    return {"archive_sha256": "' + 'a'*64 + '"}\n')
+            entries = [{'path': 'libexec/axern/' + path.name,
+                        'sha256': hashlib.sha256(path.read_bytes()).hexdigest()} for path in sorted(scripts.glob('*.py'))]
+            manifest = root / 'release/manifest.json'
+            manifest.write_text(json.dumps({'files': entries}))
+            code = ('import pathlib, runpy; scope = runpy.run_path(' + repr(str(source / 'measure_native.py')) + '); '
+                    'installer, qualifier, installed, manifest = scope["load_release"](pathlib.Path(' + repr(str(root / 'release')) + '), ' + repr('a'*64) + '); '
+                    'assert installed["archive_sha256"] == ' + repr('a'*64) + '; print("source-only measurement bootstrap")')
+            command = [sys.executable, '-I', '-c', code]
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse((scripts / '__pycache__').exists())
+            snapshots = {}
+            for path in scripts.glob('*.py'):
+                inert = compile('raise RuntimeError("inert stale measurement bytecode")', str(path), 'exec')
+                stale = importlib.util.MAGIC_NUMBER + struct.pack('<III', 0, int(path.stat().st_mtime), path.stat().st_size) + marshal.dumps(inert)
+                cache = pathlib.Path(importlib.util.cache_from_source(str(path)))
+                cache.parent.mkdir(exist_ok=True)
+                cache.write_bytes(stale)
+                snapshots[cache] = stale
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual({path: path.read_bytes() for path in snapshots}, snapshots)
+            self.assertEqual(set((scripts / '__pycache__').iterdir()), set(snapshots))
+            # A source excluded from the manifest must not become executable.
+            manifest.write_text(json.dumps({'files': entries[:-1]}))
+            result = subprocess.run(command, cwd=root, capture_output=True, text=True, timeout=10)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('measurement sources are missing', result.stderr)
+
     def test_systemd_active_is_separate_from_helper_return_and_inactive_is_allowed_only_before(self):
         value = unit()
         self.assertEqual(measure.parse_units(units_text(value), [value['Id']])[value['Id']], value)

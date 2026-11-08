@@ -19,31 +19,31 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func TestReportNodeRequiresRuntimeSlotContract(t *testing.T) {
+func TestPublishNodeSnapshotRequiresRuntimeSlotContract(t *testing.T) {
 	server := New(Dependencies{})
 
-	_, err := server.ReportNode(context.Background(), &controlnodev1.ReportNodeRequest{
+	_, err := server.PublishNodeSnapshot(context.Background(), &controlnodev1.PublishNodeSnapshotRequest{
 		NodeID: "node-a", NodeTarget: "127.0.0.1:25000",
 		Summary: &controlnodev1.NodeSummary{Pools: &controlnodev1.PoolsSummary{}},
 	})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("ReportNode() error = %v, want InvalidArgument", err)
+		t.Fatalf("PublishNodeSnapshot() error = %v, want InvalidArgument", err)
 	}
 	if got := grpcstatus.Convert(err).Message(); got != "summary.pools.runtime_slots is required" {
-		t.Fatalf("ReportNode() error message = %q", got)
+		t.Fatalf("PublishNodeSnapshot() error message = %q", got)
 	}
 }
 
-func TestReportNodeRequiresReachableNodeTarget(t *testing.T) {
+func TestPublishNodeSnapshotRequiresReachableNodeTarget(t *testing.T) {
 	server := New(Dependencies{})
-	request := &controlnodev1.ReportNodeRequest{
+	request := &controlnodev1.PublishNodeSnapshotRequest{
 		NodeID:  "node-a",
 		Summary: &controlnodev1.NodeSummary{Pools: &controlnodev1.PoolsSummary{RuntimeSlots: &controlnodev1.PoolState{}}},
 	}
 	for _, target := range []string{"", "node-a", "node-a:0", "node-a:65536"} {
 		request.NodeTarget = target
-		if _, err := server.ReportNode(context.Background(), request); grpcstatus.Code(err) != codes.InvalidArgument {
-			t.Fatalf("ReportNode(node_target=%q) error = %v, want InvalidArgument", target, err)
+		if _, err := server.PublishNodeSnapshot(context.Background(), request); grpcstatus.Code(err) != codes.InvalidArgument {
+			t.Fatalf("PublishNodeSnapshot(node_target=%q) error = %v, want InvalidArgument", target, err)
 		}
 	}
 }
@@ -54,19 +54,19 @@ func (s executionAuthorityReporterStub) Report(context.Context, nodekernel.Repor
 	return append([]string(nil), s.allocationIDs...), nil
 }
 
-func TestReportNodeReturnsCompleteExecutionAuthoritySnapshot(t *testing.T) {
+func TestPublishNodeSnapshotReturnsCompleteExecutionAuthoritySnapshot(t *testing.T) {
 	server := New(Dependencies{
 		Reporter: executionAuthorityReporterStub{allocationIDs: []string{"alloc-a", "alloc-b"}},
 		Now:      time.Now,
 	})
-	response, err := server.ReportNode(context.Background(), &controlnodev1.ReportNodeRequest{
+	response, err := server.PublishNodeSnapshot(context.Background(), &controlnodev1.PublishNodeSnapshotRequest{
 		NodeID: "node-a", NodeTarget: "127.0.0.1:25000",
 		Summary: &controlnodev1.NodeSummary{
 			Pools: &controlnodev1.PoolsSummary{RuntimeSlots: &controlnodev1.PoolState{}},
 		},
 	})
 	if err != nil {
-		t.Fatalf("ReportNode() error = %v", err)
+		t.Fatalf("PublishNodeSnapshot() error = %v", err)
 	}
 	if len(response.GetExecutionLeases()) != 2 {
 		t.Fatalf("execution leases = %#v", response.GetExecutionLeases())
@@ -234,7 +234,7 @@ func TestMemoryNodeStoreRejectsIdentityBeforeAdmission(t *testing.T) {
 		NodeID: "node-unknown", Summary: controldtest.ReadySummary(now), Now: now,
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
-		t.Fatalf("ReportNode() error = %v, want PermissionDenied", err)
+		t.Fatalf("PublishNodeSnapshot() error = %v, want PermissionDenied", err)
 	}
 }
 

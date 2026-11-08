@@ -40,12 +40,12 @@ func TestDropPageCacheRequestValidation(t *testing.T) {
 func TestUniqueMountedImageMatchesAnyExactIdentity(t *testing.T) {
 	inventory := &inventoryResponse{MountedImages: []mountedImageDetail{
 		{ImageURL: "registry.example/oci@sha256:aaa", CacheKey: "oci-cache", MountType: "oci", MountPath: "/oci"},
-		{ImageURL: "registry.example/base@sha256:bbb", NydusImageURL: "registry.example/nydus@sha256:ccc", MountType: "nydus", MountPath: "/nydus"},
+		{ImageURL: "registry.example/base@sha256:bbb", CacheKey: "base-cache", MountType: "oci", MountPath: "/base"},
 	}}
 	for _, ref := range []string{
 		"registry.example/oci@sha256:aaa",
 		"oci-cache",
-		"registry.example/nydus@sha256:ccc",
+		"base-cache",
 	} {
 		mount, err := uniqueMountedImage(inventory, ref)
 		if err != nil {

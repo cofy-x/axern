@@ -30,7 +30,7 @@ const (
 	allocationLifecycleReportStagePersistStatus    = "persist_status"
 )
 
-func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRequest) (*controlnodev1.ReportNodeResponse, error) {
+func (s *Server) PublishNodeSnapshot(ctx context.Context, req *controlnodev1.PublishNodeSnapshotRequest) (*controlnodev1.PublishNodeSnapshotResponse, error) {
 	nodeID := strings.TrimSpace(req.GetNodeID())
 	ctx, span := sdkobs.Start(ctx, ctrlobs.SpanNodeReport, attribute.String(sdkobs.AttrNodeID, nodeID))
 	defer span.End()
@@ -73,7 +73,7 @@ func (s *Server) ReportNode(ctx context.Context, req *controlnodev1.ReportNodeRe
 		return nil, grpcstatus.Errorf(codes.Internal, "persist node report: %v", err)
 	}
 	span.SetAttributes(attribute.String(sdkobs.AttrResult, "ok"))
-	response := &controlnodev1.ReportNodeResponse{}
+	response := &controlnodev1.PublishNodeSnapshotResponse{}
 	for _, allocationID := range allocationIDs {
 		response.ExecutionLeases = append(response.ExecutionLeases, &controlnodev1.AllocationExecutionLease{
 			AllocationID: allocationID,

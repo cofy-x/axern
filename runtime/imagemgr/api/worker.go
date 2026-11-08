@@ -2,43 +2,23 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	"golang.org/x/sync/singleflight"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
-	"github.com/cofy-x/axern/runtime/imagemgr/nydus"
 	"github.com/cofy-x/axern/runtime/imagemgr/oci"
 	"github.com/cofy-x/axern/runtime/imagemgr/pkg/imageregistry"
 )
 
 const DefaultHttpSockPath = "/var/run/imagemgr.sock"
 
-// daemonIDSchemaVersion binds daemon identities to the current imagefsd config schema.
-const daemonIDSchemaVersion = "v3"
-
-func generateNydusID(imageURL string) string {
-	cs := sha256.Sum256([]byte(daemonIDSchemaVersion + ":nydus:" + imageURL))
-	return hex.EncodeToString(cs[:])
-}
-
 // HttpWorkerConfig holds the configuration for creating an HttpWorker.
 type HttpWorkerConfig struct {
-	LifecycleContext context.Context
-	// DisableNydus explicitly selects OCI-only serving; the zero value preserves Nydus support.
-	DisableNydus       bool
-	Manager            imagefsd.Manager
+	LifecycleContext   context.Context
 	OCIManager         *oci.Manager
-	NydusClient        *nydus.RegistryClient
-	NydusSuffix        string
-	RegistryProxyURL   string
 	MountStore         *mountstore.Store
 	Registry           *imageregistry.Client
 	SnapshotRepository string
@@ -46,19 +26,8 @@ type HttpWorkerConfig struct {
 
 func NewHttpWorker(cfg *HttpWorkerConfig) (*HttpWorker, error) {
 	if cfg.MountStore != nil {
-		if cfg.DisableNydus {
-			if err := cfg.MountStore.ValidateOCIOnly(); err != nil {
-				return nil, fmt.Errorf("cannot start with Nydus disabled: %w", err)
-			}
-		}
-		records, err := cfg.MountStore.List()
-		if err != nil {
-			return nil, fmt.Errorf("read persisted mount records: %w", err)
-		}
-		for _, record := range records {
-			if MountType(record.MountType) != MountTypeOCI && MountType(record.MountType) != MountTypeNydus {
-				return nil, fmt.Errorf("invalid persisted mount type %q", record.MountType)
-			}
+		if err := cfg.MountStore.ValidateOCIOnly(); err != nil {
+			return nil, fmt.Errorf("retired or invalid image authority: %w", err)
 		}
 	}
 	lifecycleCtx := cfg.LifecycleContext
@@ -79,13 +48,7 @@ func NewHttpWorker(cfg *HttpWorkerConfig) (*HttpWorker, error) {
 	}
 	w := &HttpWorker{
 		lifecycleCtx:       lifecycleCtx,
-		disableNydus:       cfg.DisableNydus,
-		mgr:                cfg.Manager,
 		ociMgr:             cfg.OCIManager,
-		nydusClient:        cfg.NydusClient,
-		nydusSuffix:        cfg.NydusSuffix,
-		registryProxyURL:   cfg.RegistryProxyURL,
-		nydusCache:         newNydusImageCache(),
 		mountStore:         cfg.MountStore,
 		registry:           cfg.Registry,
 		snapshotRepository: snapshotRepository,
@@ -121,21 +84,14 @@ func prepareRootfsSnapshotStaging(ociRoot string) (string, error) {
 
 type HttpWorker struct {
 	lifecycleCtx       context.Context
-	disableNydus       bool
-	mgr                imagefsd.Manager
 	ociMgr             *oci.Manager
-	nydusClient        *nydus.RegistryClient
-	nydusSuffix        string
-	registryProxyURL   string
-	nydusCache         *nydusImageCache
 	mountStore         *mountstore.Store
 	registry           *imageregistry.Client
 	snapshotRepository string
 	snapshotStagingDir string
 
-	nydusDetectSF singleflight.Group
-	mountLocksMu  sync.Mutex
-	mountLocks    map[string]*mountLock
+	mountLocksMu sync.Mutex
+	mountLocks   map[string]*mountLock
 }
 
 type mountLock struct {

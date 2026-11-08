@@ -14,6 +14,8 @@ require_cmd docker
 begin_named_lock "images-build"
 trap 'end_named_lock "images-build"' EXIT
 
+external_base_args=(--pull="${VERIFY_DOCKER_PULL:-false}")
+
 image_scope="${AXERN_LOCAL_IMAGE_SCOPE:-all}"
 build_node_runtime_base=false
 build_control_stack=false
@@ -63,7 +65,7 @@ report_image_build_phase() {
 
 if [ "${build_node_runtime_base}" = "true" ]; then
   phase_started_at="$(date +%s)"
-  build_node_runtime_base_image "${APT_MIRROR_SOURCE}" "${CARGO_REGISTRY_SOURCE}"
+  build_node_runtime_base_image "${APT_MIRROR_SOURCE}"
   push_image_after_build "${NODE_RUNTIME_BASE_IMAGE_TAG}"
   report_image_build_phase "node-runtime-base" "${phase_started_at}"
 fi
@@ -120,15 +122,19 @@ fi
 if [ "${build_control_stack}" = "true" ]; then
   phase_started_at="$(date +%s)"
   axern_docker_build \
+    "${external_base_args[@]}" \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/controld/Dockerfile" \
     --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
+    --build-arg "APT_REFRESH_EPOCH=${AXERN_APT_REFRESH_EPOCH:-source}" \
     -t "${CONTROLD_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
   push_image_after_build "${CONTROLD_IMAGE}"
 
   axern_docker_build \
+    "${external_base_args[@]}" \
     -f "${AXERN_DEV_ENV_ROOT}/deploy/images/gatewayd/Dockerfile" \
     --build-arg "APT_MIRROR_BASE_URL=${APT_MIRROR_BASE_URL:-}" \
+    --build-arg "APT_REFRESH_EPOCH=${AXERN_APT_REFRESH_EPOCH:-source}" \
     -t "${GATEWAYD_IMAGE}" \
     "${AXERN_DEV_ENV_ROOT}"
   push_image_after_build "${GATEWAYD_IMAGE}"

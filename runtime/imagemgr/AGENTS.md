@@ -6,9 +6,9 @@
 
 ## Ownership Boundaries
 
-- Imagemgr orchestrates mounts but does not own OCI extraction, imagefsd data, or registry behavior.
-- Route ordinary OCI images through the OCI path and Nydus images through imagefsd unless an explicit capability requires another design.
-- Socket, request, authentication, work-directory, and launch changes are contracts with axnoded and the Linux stack. Keep persistence out of API types and mount policy out of callers.
+- Keep one OCI image path. `api` owns mount requests and resource leases; `oci` owns extraction, overlay mounts and backend recovery; registry transport and authentication belong in their support packages.
+- Reject unsupported image formats and retained authority before recovery. Do not reinterpret them as ordinary OCI data or discard ownership records to make startup succeed.
+- Socket, request, authentication and work-directory changes are contracts with axnoded and the Linux stack. Keep persistence out of API types and mount policy out of callers.
 
 ## Validation
 

@@ -55,9 +55,9 @@ func (m *Manager) fetchImageWithCacheKey(ctx context.Context, imageURL, dockerCo
 		err error
 	)
 	if dockerConfigJSON != "" {
-		img, err = m.registry.FetchImageWithFallbackWithDockerConfigJSON(ctx, imageURL, m.proxy, dockerConfigJSON)
+		img, err = m.registry.FetchImageWithFallbackWithDockerConfigJSON(ctx, imageURL, "", dockerConfigJSON)
 	} else {
-		img, err = m.registry.FetchImageWithFallback(ctx, imageURL, m.proxy)
+		img, err = m.registry.FetchImageWithFallback(ctx, imageURL, "")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch OCI image %s: %w", imageURL, err)

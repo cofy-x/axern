@@ -3,7 +3,9 @@ FROM scratch AS runtime-cache
 FROM ${BASE_IMAGE} AS base
 
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends bash ca-certificates git libstdc++6 ripgrep \
+    && find /usr -xdev -type f -perm /6000 -exec chmod a-s {} + \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 1000 agent \
     && useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash agent \
@@ -11,6 +13,8 @@ RUN apt-get update \
     && chown 1000:1000 /workspace \
     && dpkg-query -W -f='${Package}\t${Version}\n' > /usr/local/share/axern/agent-images/base-packages.tsv
 COPY versions.lock.json install.py /usr/local/share/axern/agent-images/
+RUN --mount=type=bind,from=runtime-cache,target=/runtime-cache \
+    python3 /usr/local/share/axern/agent-images/install.py base
 ENV HOME=/home/agent
 USER 1000:1000
 WORKDIR /workspace
@@ -20,6 +24,7 @@ FROM base AS toolchain
 USER root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential pkg-config \
+    && find /usr -xdev -type f -perm /6000 -exec chmod a-s {} + \
     && rm -rf /var/lib/apt/lists/* \
     && dpkg-query -W -f='${Package}\t${Version}\n' > /usr/local/share/axern/agent-images/toolchain-packages.tsv
 RUN --mount=type=bind,from=runtime-cache,target=/runtime-cache \

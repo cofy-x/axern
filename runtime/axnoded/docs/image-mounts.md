@@ -43,7 +43,6 @@ Axern does not merge operating-system ABIs. A tool image that relies on task lib
 - `controld` persists and propagates normalized image mount specs.
 - `axnoded` validates targets, persists live-container image ownership, restores it after restart, and reconciles its complete desired lease set.
 - `imagemgr` owns durable mount leases, image rootfs resolution, final release retry, and mounted rootfs lifetime.
-- `imagefsd` remains the read-only image data plane for formats that need it.
 
 The OCI mount shape is:
 

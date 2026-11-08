@@ -156,6 +156,9 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			}
 		}
 	}
+	if err := startplan.CleanupResolvedSecretFiles(h.config.RootDir, containerID); err != nil {
+		return fmt.Errorf("retire failed-start secret files: %w", err)
+	}
 	if h.allocationHasEgressPolicy(containerID) {
 		if err := h.deleteEgressPolicy(ctx, containerID); err != nil {
 			return fmt.Errorf("retire failed-start egress policy: %w", err)
@@ -218,6 +221,9 @@ func (h *Controller) existingActiveStartResponse(ctx context.Context, request *r
 	if ct.Status != nil && ct.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED {
 		return startErrorResponse(fmt.Sprintf("allocation %s already exists in terminal state", containerID)), true, errord.ErrAlreadyExists
 	}
+	if !h.GuestProcessProfileVerified(containerID) {
+		return nil, true, fmt.Errorf("allocation %s has no observed guest process profile: %w", containerID, errord.ErrFailedPrecondition)
+	}
 	resp := startSuccessResponse(containerID)
 	return resp, true, nil
 }
@@ -250,6 +256,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 	resourceReserved := false
 	egressPrepared := false
 	var reservedResource container.OccupiedResource
+	var secretCleanup func() error
 	defer func() {
 		recorder.Finish(result)
 		if succeeded {
@@ -262,6 +269,12 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, fmt.Errorf("ordered failed-start cleanup: %w", err))
 			}
 			return
+		}
+		if secretCleanup != nil {
+			if err := secretCleanup(); err != nil {
+				returnErr = errors.Join(returnErr, errRuntimeCleanupPending, fmt.Errorf("retire failed-start secret files: %w", err))
+				return
+			}
 		}
 		if egressPrepared {
 			cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -304,15 +317,11 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed egress policy admission: %v", err)), err
 	}
-	secretMounts, secretCleanup, err := startplan.MaterializeResolvedSecretFiles(request)
+	var secretMounts []*runtime.Mount
+	secretMounts, secretCleanup, err = startplan.MaterializeResolvedSecretFiles(h.config.RootDir, request)
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to materialize secrets: %v", err)), err
+		return startErrorResponse(fmt.Sprintf("Failed to materialize secrets: %v", err)), errors.Join(err, errRuntimeCleanupPending)
 	}
-	defer func() {
-		if !succeeded {
-			secretCleanup()
-		}
-	}()
 	imageMounts, imageMountCleanup, err := h.resolveImageMounts(request)
 	if err != nil {
 		return startErrorResponse(fmt.Sprintf("Failed to resolve image mounts: %v", err)), err
@@ -466,7 +475,7 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	// Runtime deletion releases the secret bind mounts. Remove their host-side
 	// plaintext before retiring the allocation's durable recovery state, so a
 	// cleanup failure remains retryable through the same Allocation identity.
-	if err := startplan.CleanupResolvedSecretFiles(request.ID); err != nil {
+	if err := startplan.CleanupResolvedSecretFiles(h.config.RootDir, request.ID); err != nil {
 		return new(runtime.DeleteResponse), fmt.Errorf("cleanup allocation secret files: %w", err)
 	}
 	if h.allocationHasEgressPolicy(request.ID) {

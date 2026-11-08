@@ -154,7 +154,6 @@ func retryableRejectionReason(reason placementkernel.RejectionReason) bool {
 		placementkernel.RejectionReasonStaleSummary,
 		placementkernel.RejectionReasonAxnodedNotReady,
 		placementkernel.RejectionReasonImagemgrUnavailable,
-		placementkernel.RejectionReasonImagefsdUnavailable,
 		placementkernel.RejectionReasonNodeMemorySystemReserveExhausted,
 		placementkernel.RejectionReasonNodeMemoryBudgetUnavailable:
 		return true

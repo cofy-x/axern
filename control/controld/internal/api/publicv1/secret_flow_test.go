@@ -95,8 +95,8 @@ func TestCreateEnvironmentWithRegistryCredentialUsesDockerConfigSecret(t *testin
 	now := time.Now().UTC()
 	admitTestNode(t, service, "node-registry-ref")
 
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-registry-ref", NodeTarget: "127.0.0.1:25002", Summary: controldtest.ReadySummary(now)}); err != nil {
-		t.Fatalf("ReportNode() error = %v", err)
+	if _, err := node.PublishNodeSnapshot(context.Background(), &nodev1.PublishNodeSnapshotRequest{NodeID: "node-registry-ref", NodeTarget: "127.0.0.1:25002", Summary: controldtest.ReadySummary(now)}); err != nil {
+		t.Fatalf("PublishNodeSnapshot() error = %v", err)
 	}
 
 	secretResp, err := public.CreateSecret(context.Background(), &secretv1.CreateSecretRequest{
@@ -170,8 +170,8 @@ func TestRequiredRunSecretReferenceEndsWithRunLifecycle(t *testing.T) {
 	now := time.Now().UTC()
 	admitTestNode(t, service, "node-secret-ref")
 
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-secret-ref", NodeTarget: "127.0.0.1:25001", Summary: controldtest.ReadySummary(now)}); err != nil {
-		t.Fatalf("ReportNode() error = %v", err)
+	if _, err := node.PublishNodeSnapshot(context.Background(), &nodev1.PublishNodeSnapshotRequest{NodeID: "node-secret-ref", NodeTarget: "127.0.0.1:25001", Summary: controldtest.ReadySummary(now)}); err != nil {
+		t.Fatalf("PublishNodeSnapshot() error = %v", err)
 	}
 	secretResp, err := public.CreateSecret(context.Background(), &secretv1.CreateSecretRequest{
 		Namespace: "default",

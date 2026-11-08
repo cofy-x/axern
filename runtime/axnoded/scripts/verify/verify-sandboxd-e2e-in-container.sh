@@ -14,7 +14,7 @@ cleanup() {
 trap cleanup EXIT
 
 go test ./cmd/axern-sandboxd/...
-go build -o "${tmpdir}/axern-sandboxd" ./cmd/axern-sandboxd
+CGO_ENABLED=0 go build -o "${tmpdir}/axern-sandboxd" ./cmd/axern-sandboxd
 
 cat >"${tmpdir}/unixget.go" <<'GO'
 package main

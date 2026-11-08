@@ -13,7 +13,7 @@ import (
 func TestMaterializeSandboxdInjectionRewritesProcessAndWritesEntrypoint(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	ociSpec := &spec.Spec{
@@ -67,7 +67,7 @@ func TestMaterializeSandboxdInjectionRewritesProcessAndWritesEntrypoint(t *testi
 	binaryPath := filepath.Join(bundleDir, sandboxdBundleMetadataDir, sandboxdBundleBinaryName)
 	if data, err := os.ReadFile(binaryPath); err != nil {
 		t.Fatalf("read sandboxd binary: %v", err)
-	} else if string(data) != "sandboxd" {
+	} else if !reflect.DeepEqual(data, staticSandboxdFixture()) {
 		t.Fatalf("sandboxd binary content = %q", string(data))
 	}
 	if info, err := os.Stat(binaryPath); err != nil {
@@ -89,7 +89,7 @@ func TestMaterializeSandboxdInjectionFailsWhenBinaryMissing(t *testing.T) {
 func TestMaterializeSandboxdInjectionRejectsNonRootProcessUser(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
@@ -106,7 +106,7 @@ func TestMaterializeSandboxdInjectionRejectsNonRootProcessUser(t *testing.T) {
 func TestMaterializeSandboxdInjectionRejectsAdditionalGids(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
@@ -123,7 +123,7 @@ func TestMaterializeSandboxdInjectionRejectsAdditionalGids(t *testing.T) {
 func TestMaterializeSandboxdInjectionRejectsUsername(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
@@ -137,10 +137,17 @@ func TestMaterializeSandboxdInjectionRejectsUsername(t *testing.T) {
 	}
 }
 
+func TestMaterializeSandboxdInjectionRejectsUnsupportedUserUmask(t *testing.T) {
+	umask := uint32(0o022)
+	if err := validateSandboxdSupportedUser(spec.User{Umask: &umask}); err == nil {
+		t.Fatal("unsupported primary user umask was silently ignored")
+	}
+}
+
 func TestMaterializeSandboxdInjectionRejectsTerminalProcess(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
@@ -157,7 +164,7 @@ func TestMaterializeSandboxdInjectionRejectsTerminalProcess(t *testing.T) {
 func TestMaterializeSandboxdInjectionRejectsMountDestinationConflict(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{
@@ -175,7 +182,7 @@ func TestMaterializeSandboxdInjectionAllowsWorkloadRuntimeStateMounts(t *testing
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	ociSpec := &spec.Spec{
@@ -197,7 +204,7 @@ func TestMaterializeSandboxdInjectionDoesNotCreateMissingEnvironmentMountpoint(t
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -217,7 +224,7 @@ func TestMaterializeSandboxdInjectionDefersEnvironmentMountpointTypeValidation(t
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(rootfsDir, "mnt"), []byte("not-dir"), 0644); err != nil {
@@ -237,7 +244,7 @@ func TestMaterializeSandboxdInjectionUsesExistingReadonlyEnvironmentMountpoint(t
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Mkdir(filepath.Join(rootfsDir, "mnt"), 0755); err != nil {
@@ -257,7 +264,7 @@ func TestMaterializeSandboxdInjectionDefersReadonlyMissingMountpointToProjection
 	bundleDir := t.TempDir()
 	rootfsDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -273,7 +280,7 @@ func TestMaterializeSandboxdInjectionDefersReadonlyMissingMountpointToProjection
 func TestMaterializeSandboxdInjectionRejectsNestedMountDestinationConflict(t *testing.T) {
 	bundleDir := t.TempDir()
 	hostBinary := filepath.Join(bundleDir, "host-sandboxd")
-	if err := os.WriteFile(hostBinary, []byte("sandboxd"), 0755); err != nil {
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
 		t.Fatal(err)
 	}
 	err := materializeSandboxdInjection(bundleDir, &spec.Spec{

@@ -2,7 +2,6 @@ package oci
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,16 +31,6 @@ const (
 	diskUsageGCStop  = 0.75
 )
 
-// Config holds the OCI configuration parsed from config file.
-type Config struct {
-	Proxy *ProxyConfig `json:"proxy,omitempty"`
-}
-
-// ProxyConfig mirrors imagefsd.ProxyConfig for config parsing.
-type ProxyConfig struct {
-	Url string `json:"url"`
-}
-
 // Manager manages local OCI layer extraction and readonly overlay mounts.
 type Manager struct {
 	root       string
@@ -50,7 +39,6 @@ type Manager struct {
 	mountsDir  string
 	importsDir string
 	supportDir string
-	proxy      string
 
 	registry *imageregistry.Client
 	store    *metadataStore
@@ -124,7 +112,7 @@ type MountResult struct {
 
 // NewManager creates a new OCI manager.
 // sharedRegistryClient is optional. If nil, an anonymous registry client is used.
-func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...*imageregistry.Client) (*Manager, error) {
+func NewManager(rootWorkDir string, sharedRegistryClient ...*imageregistry.Client) (*Manager, error) {
 	root := filepath.Join(rootWorkDir, "oci")
 	layersDir := filepath.Join(root, "layers")
 	chainsDir := filepath.Join(root, "lowerdirs")
@@ -132,18 +120,6 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 	importsDir := filepath.Join(root, "imports")
 	supportDir := filepath.Join(root, "support", "fs")
 	dbPath := filepath.Join(root, "metadata.db")
-
-	var proxy string
-	if cfgTempPath != "" {
-		cfg, err := loadConfig(cfgTempPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load config: %w", err)
-		}
-		if cfg.Proxy != nil {
-			proxy = cfg.Proxy.Url
-			logrus.Infof("OCI manager HTTP proxy: %s", proxy)
-		}
-	}
 
 	if err := os.MkdirAll(root, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create OCI state root %s: %w", root, err)
@@ -186,13 +162,13 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 	}
 
 	mgr := &Manager{
-		root:          root,
-		layersDir:     layersDir,
-		chainsDir:     chainsDir,
-		mountsDir:     mountsDir,
-		importsDir:    importsDir,
-		supportDir:    supportDir,
-		proxy:         proxy,
+		root:       root,
+		layersDir:  layersDir,
+		chainsDir:  chainsDir,
+		mountsDir:  mountsDir,
+		importsDir: importsDir,
+		supportDir: supportDir,
+
 		registry:      registryClient,
 		store:         store,
 		containers:    make(map[string]*ContainerInfo),
@@ -225,22 +201,6 @@ func NewManager(rootWorkDir string, cfgTempPath string, sharedRegistryClient ...
 	return mgr, nil
 }
 
-// loadConfig loads the configuration from the given file path.
-func loadConfig(cfgPath string) (*Config, error) {
-	file, err := os.Open(cfgPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open config file: %w", err)
-	}
-	defer file.Close()
-
-	var cfg Config
-	if err = json.NewDecoder(file).Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-	return &cfg, nil
-}
-
-// MountImage pulls and extracts OCI layers, then mounts a readonly overlay rootfs.
 func (m *Manager) MountImage(imageURL string) (*MountResult, error) {
 	return m.MountImageWithContext(context.Background(), imageURL)
 }

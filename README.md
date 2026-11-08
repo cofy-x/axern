@@ -41,7 +41,7 @@ The default collaboration pattern is independent writable working directories, c
 
 For Linux single-host serving, build and stage a coherent native archive using the [installation guide](./deploy/standalone/INSTALL.md). Operate the installed server with `axern server start`, `status`, `logs` and `stop`. API contexts select remote execution services; they do not change the host managed by `server`.
 
-This source tree introduces a coordinated protocol change. Build the CLI, services and SDKs from the same revision; a source version does not establish published package availability. For repository development on Linux or a macOS Linux VM, use Go 1.26.8, Make and Docker Compose v2:
+This source tree introduces a coordinated protocol change. Build the CLI, services and SDKs from the same revision; a source version does not establish published package availability. For repository development on Linux or a macOS Linux VM, use Go 1.26.10, Make and Docker Compose v2:
 
 ```bash
 make quickstart-source
@@ -65,7 +65,7 @@ For repository development, `make verify-changed` is the normal fast feedback en
 
 - **Execution for your agent system:** compose isolated agent tasks through the same Run execution model while keeping planning, memory, and collaboration in your application.
 - **Durable control plane:** PostgreSQL-backed intent, placement, leases, allocation-scoped status, health, and cleanup state remain authoritative across process or node restarts.
-- **One production runtime:** runsc workloads use the same public APIs; OCI and Nydus image paths converge at the node runtime.
+- **One production runtime:** runsc workloads use the same public APIs; OCI images provide reproducible rootfs inputs.
 - **Real data-plane access:** process streams, files, archives, SSH-compatible terminals, and reverse TCP tunnels are explicit allocation capabilities.
 - **A focused direction:** prioritize simpler single-host deployment and persistent working data; existing Compose, kind, and Helm deployment contracts remain documented while that work is implemented.
 
@@ -79,7 +79,7 @@ flowchart LR
     Gateway --> Node["axnoded\nsandbox execution"]
     Control --> Node
     Node --> Egress["egressd\ntrusted egress policy enforcement"]
-    Node --> Image["imagemgr\nOCI; optional Nydus/imagefsd"]
+    Node --> Image["imagemgr\nOCI image mounts"]
     Node --> Runtime["runsc sandboxes"]
 ```
 

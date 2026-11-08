@@ -1,6 +1,7 @@
 package sandboxd
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -72,11 +73,34 @@ func loadEntrypoint(path string) (workload.Entrypoint, error) {
 	if err != nil {
 		return workload.Entrypoint{}, fmt.Errorf("read entrypoint metadata: %w", err)
 	}
-	var entrypoint workload.Entrypoint
-	if err := json.Unmarshal(data, &entrypoint); err != nil {
+	// The current producer preserves only a root, non-terminal primary
+	// entrypoint. Reject behavior we cannot faithfully restore rather than
+	// silently running a requested identity with daemon/root privileges.
+	var metadata *struct {
+		Args []string `json:"args"`
+		Cwd  string   `json:"cwd"`
+		Env  []string `json:"env"`
+		User *struct {
+			UID uint32 `json:"uid"`
+			GID uint32 `json:"gid"`
+		} `json:"user"`
+		Terminal bool `json:"terminal"`
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&metadata); err != nil {
 		return workload.Entrypoint{}, fmt.Errorf("parse entrypoint metadata: %w", err)
 	}
-	return entrypoint, nil
+	if metadata == nil {
+		return workload.Entrypoint{}, fmt.Errorf("entrypoint metadata must be an object")
+	}
+	if decoder.Decode(new(any)) != io.EOF {
+		return workload.Entrypoint{}, fmt.Errorf("entrypoint metadata must contain exactly one object")
+	}
+	if metadata.Terminal || (metadata.User != nil && (metadata.User.UID != 0 || metadata.User.GID != 0)) {
+		return workload.Entrypoint{}, fmt.Errorf("entrypoint metadata supports only root, non-terminal primary processes")
+	}
+	return workload.Entrypoint{Args: metadata.Args, Cwd: metadata.Cwd, Env: metadata.Env}, nil
 }
 
 func validateEntrypoint(entrypoint workload.Entrypoint) error {

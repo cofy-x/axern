@@ -39,7 +39,8 @@ func TestExecProcessFromSpecOverridesArgsAndTerminal(t *testing.T) {
 		assert.Equal(t, []string{"A=1"}, process.Env)
 		assert.EqualValues(t, 1000, process.User.UID)
 		if assert.NotNil(t, process.Capabilities) {
-			assert.Equal(t, []string{"CAP_NET_RAW"}, process.Capabilities.Bounding)
+			assert.Empty(t, process.Capabilities.Bounding)
+			assert.True(t, process.NoNewPrivileges)
 		}
 		assert.Len(t, process.Rlimits, 1)
 	}
@@ -161,4 +162,37 @@ func writeUserDatabase(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return rootfs
+}
+
+func TestExecResolvedIdentityNeverInheritsRootPrivileges(t *testing.T) {
+	for _, user := range []string{"1000:1000", "1000:0", ""} {
+		uid := uint32(0)
+		if user == "" {
+			uid = 1000
+		}
+		source := &spec.Spec{Process: &spec.Process{User: spec.User{UID: uid, GID: 0, AdditionalGids: []uint32{0, 44}},
+			Capabilities: &spec.LinuxCapabilities{Bounding: []string{"CAP_CHOWN"}, Effective: []string{"CAP_CHOWN"}, Permitted: []string{"CAP_CHOWN"}, Inheritable: []string{"CAP_CHOWN"}, Ambient: []string{"CAP_CHOWN"}}}}
+		result, err := ExecProcessFromSpec(source, []string{"/bin/true"}, nil, "", user, false)
+		assert.NoError(t, err)
+		if assert.NotNil(t, result) {
+			assert.EqualValues(t, 1000, result.User.UID)
+			if user == "1000:0" {
+				assert.EqualValues(t, 0, result.User.GID)
+			}
+			assert.Empty(t, result.User.AdditionalGids)
+			assert.True(t, result.NoNewPrivileges)
+			assert.Empty(t, result.Capabilities.Bounding)
+			assert.Empty(t, result.Capabilities.Effective)
+			assert.Empty(t, result.Capabilities.Permitted)
+			assert.Empty(t, result.Capabilities.Inheritable)
+			assert.Empty(t, result.Capabilities.Ambient)
+		}
+		assert.False(t, source.Process.NoNewPrivileges)
+		assert.NotEmpty(t, source.Process.Capabilities.Bounding, "source projection is not repaired or mutated")
+	}
+	root := &spec.Spec{Process: &spec.Process{Capabilities: &spec.LinuxCapabilities{Bounding: []string{"CAP_CHOWN"}, Effective: []string{"CAP_CHOWN"}, Permitted: []string{"CAP_CHOWN"}}}}
+	result, err := ExecProcessFromSpec(root, []string{"/bin/chown"}, nil, "", "0:0", false)
+	assert.NoError(t, err)
+	assert.True(t, result.NoNewPrivileges)
+	assert.Equal(t, root.Process.Capabilities, result.Capabilities)
 }

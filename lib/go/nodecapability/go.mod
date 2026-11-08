@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/lib/go/nodecapability
 
-go 1.26.8
+go 1.26.10
 
 require (
 	github.com/cofy-x/axern/sdk/go v0.0.0

@@ -41,19 +41,16 @@ local_no_proxy_entries() {
 }
 
 k8s_proxy_env_args() {
-  local http_proxy https_proxy no_proxy registry_proxy_url
+  local http_proxy https_proxy no_proxy
   http_proxy="$(container_proxy_url "${HTTP_PROXY:-${http_proxy:-}}")"
   https_proxy="$(container_proxy_url "${HTTPS_PROXY:-${https_proxy:-}}")"
   no_proxy="$(append_no_proxy_entries "${NO_PROXY:-${no_proxy:-}}" "$(local_no_proxy_entries k8s)")"
-  registry_proxy_url="${https_proxy:-${http_proxy}}"
   printf -- "--from-literal=HTTP_PROXY=%s\n" "${http_proxy}"
   printf -- "--from-literal=HTTPS_PROXY=%s\n" "${https_proxy}"
   printf -- "--from-literal=NO_PROXY=%s\n" "${no_proxy}"
   printf -- "--from-literal=http_proxy=%s\n" "${http_proxy}"
   printf -- "--from-literal=https_proxy=%s\n" "${https_proxy}"
   printf -- "--from-literal=no_proxy=%s\n" "${no_proxy}"
-  printf -- "--from-literal=REGISTRY_PROXY_URL=%s\n" "${registry_proxy_url}"
-  printf -- "--from-literal=REGISTRY_NO_PROXY=%s\n" "${no_proxy}"
   printf -- "--from-literal=CONTROLD_INSECURE_REGISTRIES=%s\n" "${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST}"
   printf -- "--from-literal=IMAGEMGR_INSECURE_REGISTRIES=%s\n" "${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST}"
 }
@@ -61,13 +58,12 @@ k8s_proxy_env_args() {
 write_compose_env() {
   local secrets_master_key
   secrets_master_key="$(cat "$(secrets_master_key_file compose)")"
-  local container_http_proxy container_https_proxy container_no_proxy registry_proxy_url
+  local container_http_proxy container_https_proxy container_no_proxy
   local axnoded_dns_nameservers axnoded_node_id
   local tunneld_runtime_uid tunneld_runtime_gid
   container_http_proxy="$(container_proxy_url "${HTTP_PROXY:-${http_proxy:-}}")"
   container_https_proxy="$(container_proxy_url "${HTTPS_PROXY:-${https_proxy:-}}")"
   container_no_proxy="$(append_no_proxy_entries "${NO_PROXY:-${no_proxy:-}}" "$(local_no_proxy_entries compose)")"
-  registry_proxy_url="${container_https_proxy:-${container_http_proxy}}"
   axnoded_dns_nameservers="${AXNODED_DNS_NAMESERVERS:-}"
   axnoded_node_id="${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}"
   tunneld_runtime_uid="$(id -u)"
@@ -98,7 +94,6 @@ AXNODED_CONTROL_PLANE_NODE_ID=${axnoded_node_id}
 CONTAINER_HTTP_PROXY=${container_http_proxy}
 CONTAINER_HTTPS_PROXY=${container_https_proxy}
 CONTAINER_NO_PROXY=${container_no_proxy}
-REGISTRY_PROXY_URL=${registry_proxy_url}
 CONTROLD_INSECURE_REGISTRIES=${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST}
 IMAGEMGR_INSECURE_REGISTRIES=${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST}
 AXNODED_DNS_NAMESERVERS=${axnoded_dns_nameservers}
@@ -520,9 +515,9 @@ def dedupe_csv(raw: str) -> str:
     return ",".join(values)
 
 data = payload.get("data") or {}
-for key in ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "REGISTRY_PROXY_URL", "REGISTRY_NO_PROXY"):
+for key in ("HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY"):
     value = data.get(key, "")
-    if key in {"NO_PROXY", "REGISTRY_NO_PROXY"}:
+    if key == "NO_PROXY":
         value = dedupe_csv(value)
     print(f"{key.lower()}={value}")
 '
@@ -543,7 +538,6 @@ emit_node_summary_status() {
     echo "running_containers=0"
     echo "mounted_images=0"
     echo "imagemgr_ready_nodes=0"
-    echo "imagefsd_ready_nodes=0"
     return 0
   fi
   printf '%s' "${body}" | python3 -c '
@@ -568,7 +562,6 @@ active_allocation_ids = 0
 running_containers = 0
 mounted_images = 0
 imagemgr_ready_nodes = 0
-imagefsd_ready_nodes = 0
 
 for node in nodes:
     if node.get("fresh"):
@@ -579,13 +572,10 @@ for node in nodes:
     components = summary.get("components") or {}
     axnoded = components.get("axnoded") or {}
     imagemgr = components.get("imagemgr") or {}
-    imagefsd = components.get("imagefsd") or {}
     if axnoded.get("ready") and axnoded.get("state") == 1:
         axnoded_ready_nodes += 1
     if imagemgr.get("reachable") and imagemgr.get("state") == 1:
         imagemgr_ready_nodes += 1
-    if imagefsd.get("reachable") and imagefsd.get("state") == 1:
-        imagefsd_ready_nodes += 1
     pools = summary.get("pools") or {}
     interface_pool = pools.get("interface") or {}
     cgroup_pool = pools.get("cgroup") or {}
@@ -619,7 +609,6 @@ print(f"active_allocation_ids={active_allocation_ids}")
 print(f"running_containers={running_containers}")
 print(f"mounted_images={mounted_images}")
 print(f"imagemgr_ready_nodes={imagemgr_ready_nodes}")
-print(f"imagefsd_ready_nodes={imagefsd_ready_nodes}")
 '
 }
 

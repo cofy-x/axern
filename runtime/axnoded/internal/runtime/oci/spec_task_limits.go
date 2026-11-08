@@ -17,13 +17,8 @@ func (p ExecutionProfile) applyTaskLimits(ociSpec *spec.Spec) error {
 	if p.GuestTaskLimit == 0 {
 		return nil
 	}
-	if ociSpec.Process != nil && ociSpec.Process.Capabilities != nil {
-		caps := ociSpec.Process.Capabilities
-		for _, set := range [][]string{caps.Bounding, caps.Effective, caps.Permitted, caps.Inheritable, caps.Ambient} {
-			if slices.Contains(set, "CAP_SYS_ADMIN") {
-				return fmt.Errorf("task limits require an OCI process without CAP_SYS_ADMIN")
-			}
-		}
+	if err := p.validateTaskLimitCapabilities(ociSpec); err != nil {
+		return err
 	}
 	for _, mount := range ociSpec.Mounts {
 		if strings.HasPrefix(path.Clean(mount.Destination), guestCgroupMountPath+"/") {
@@ -50,5 +45,22 @@ func (p ExecutionProfile) applyTaskLimits(ociSpec *spec.Spec) error {
 		Source:      "cgroup2",
 		Options:     []string{"ro", "nosuid", "noexec", "nodev"},
 	})
+	return nil
+}
+
+// Reject unsafe source/template capabilities before normalization, and reject
+// unsafe trusted-profile capabilities again after applying the baseline.
+func (p ExecutionProfile) validateTaskLimitCapabilities(ociSpec *spec.Spec) error {
+	if p.GuestTaskLimit == 0 {
+		return nil
+	}
+	if ociSpec.Process != nil && ociSpec.Process.Capabilities != nil {
+		caps := ociSpec.Process.Capabilities
+		for _, set := range [][]string{caps.Bounding, caps.Effective, caps.Permitted, caps.Inheritable, caps.Ambient} {
+			if slices.Contains(set, "CAP_SYS_ADMIN") {
+				return fmt.Errorf("task limits require an OCI process without CAP_SYS_ADMIN")
+			}
+		}
+	}
 	return nil
 }

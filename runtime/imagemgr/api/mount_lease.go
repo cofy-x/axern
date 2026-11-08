@@ -41,7 +41,7 @@ func (w *HttpWorker) ReconcileMountLeases(ctx context.Context, req *ReconcileMou
 		if _, ok := desired[lease.ID]; ok {
 			unlock := w.lockMount(lease.MountKey)
 			_, record, err := w.existingLease(lease.ID)
-			if err == nil && record != nil && w.disableNydus {
+			if err == nil && record != nil {
 				err = w.validateMountType(record)
 			}
 			if err == nil {
@@ -142,10 +142,8 @@ func (w *HttpWorker) releaseLease(leaseID string, unmount func(*mountstore.Recor
 	if err != nil || lease == nil {
 		return err
 	}
-	if w.disableNydus {
-		if err := w.validateMountType(record); err != nil {
-			return err
-		}
+	if err := w.validateMountType(record); err != nil {
+		return err
 	}
 	count, err := w.mountStore.LeaseCount(lease.MountKey)
 	if err != nil {
@@ -200,10 +198,8 @@ func (w *HttpWorker) retryReleasingMount(ctx context.Context, candidate mountsto
 	if err != nil || lease == nil || record == nil || !lease.Releasing || lease.MountKey != candidate.MountKey {
 		return
 	}
-	if w.disableNydus {
-		if err := w.validateMountType(record); err != nil {
-			return
-		}
+	if err := w.validateMountType(record); err != nil {
+		return
 	}
 	count, err := w.mountStore.LeaseCount(lease.MountKey)
 	if err != nil {

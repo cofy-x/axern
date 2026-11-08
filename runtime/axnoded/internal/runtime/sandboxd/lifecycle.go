@@ -58,6 +58,8 @@ func (c *Client) WaitReady(ctx context.Context, timeout, pollInterval time.Durat
 			lastErr = fmt.Errorf("sandboxd diagnostics ready response was false")
 		case diagnostics.ProtocolVersion != wire.ProtocolVersion:
 			lastErr = fmt.Errorf("sandboxd diagnostics protocol version = %d, want %d", diagnostics.ProtocolVersion, wire.ProtocolVersion)
+		case diagnostics.ProcessSecurityProfile != wire.ProcessSecurityProfile:
+			return wire.ReadySnapshot{}, fmt.Errorf("sandboxd managed-process privilege policy is missing or incompatible")
 		default:
 			return readySnapshotFromDiagnostics(diagnostics), nil
 		}
@@ -75,7 +77,7 @@ func (c *Client) WaitReady(ctx context.Context, timeout, pollInterval time.Durat
 
 func readySnapshotFromDiagnostics(diagnostics wire.DiagnosticsResponse) wire.ReadySnapshot {
 	return wire.ReadySnapshot{
-		Ready:  wire.ReadyResponse{ProtocolVersion: diagnostics.ProtocolVersion, Ready: diagnostics.Ready},
+		Ready:  wire.ReadyResponse{ProtocolVersion: diagnostics.ProtocolVersion, Ready: diagnostics.Ready, ProcessSecurityProfile: diagnostics.ProcessSecurityProfile},
 		Status: diagnostics.Status,
 		Capabilities: wire.CapabilitiesResponse{
 			ProtocolVersion: diagnostics.ProtocolVersion,

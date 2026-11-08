@@ -18,7 +18,7 @@ func TestValidateOwnerRequiresReconcileScope(t *testing.T) {
 }
 
 func TestReleaseScanCannotDeleteRetainedLease(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
 	if _, err := worker.mountStore.Acquire(record, "lease", "axnoded"); err != nil {
 		t.Fatal(err)
@@ -41,7 +41,7 @@ func TestReleaseScanCannotDeleteRetainedLease(t *testing.T) {
 }
 
 func TestReleaseRetryDropsOnlyRetiringSharedLease(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
 	for _, id := range []string{"retiring", "active"} {
 		if _, err := worker.mountStore.Acquire(record, id, "axnoded"); err != nil {
@@ -60,8 +60,8 @@ func TestReleaseRetryDropsOnlyRetiringSharedLease(t *testing.T) {
 	}
 }
 
-func TestReleaseRetryRecordsAttemptBeforeUnmount(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+func TestReleaseRetryPreservesUnknownFormatWithoutMutation(t *testing.T) {
+	worker := mustNewHttpWorker(t)
 	// An unsupported backend fails deterministically without kernel side effects.
 	record := &mountstore.Record{CacheKey: "invalid", MountType: "invalid", MountPoint: "/mnt/invalid"}
 	if _, err := worker.mountStore.Acquire(record, "lease", "axnoded"); err != nil {
@@ -72,13 +72,13 @@ func TestReleaseRetryRecordsAttemptBeforeUnmount(t *testing.T) {
 	}
 	worker.reconcileReleasingMounts(t.Context())
 	lease, err := worker.mountStore.GetLease("lease")
-	if err != nil || lease == nil || !lease.Releasing || lease.Attempts != 2 || lease.LastError == "" {
+	if err != nil || lease == nil || !lease.Releasing || lease.Attempts != 1 {
 		t.Fatalf("release retry diagnostics = %+v, err=%v", lease, err)
 	}
 }
 
 func TestReleaseLeaseOnlyUnmountsFinalConsumer(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
 	if _, err := worker.mountStore.Acquire(record, "lease-1", "test"); err != nil {
 		t.Fatal(err)
@@ -103,7 +103,7 @@ func TestReleaseLeaseOnlyUnmountsFinalConsumer(t *testing.T) {
 }
 
 func TestReleaseFailureRemainsDurableAndRetryable(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
 	if _, err := worker.mountStore.Acquire(record, "lease-1", "test"); err != nil {
 		t.Fatal(err)
@@ -124,24 +124,8 @@ func TestReleaseFailureRemainsDurableAndRetryable(t *testing.T) {
 	}
 }
 
-func TestReleaseTreatsAlreadyAbsentNydusResourceAsComplete(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
-	record := &mountstore.Record{CacheKey: "nydus:image", ImageURL: "image", NydusImageURL: "image", MountType: string(MountTypeNydus), MountPoint: "/mnt/image"}
-	if _, err := worker.mountStore.Acquire(record, "lease-1", "test"); err != nil {
-		t.Fatal(err)
-	}
-	if err := worker.releaseLease("lease-1", func(record *mountstore.Record) error {
-		return worker.unmountNydusResource(context.Background(), record.NydusImageURL)
-	}); err != nil {
-		t.Fatal(err)
-	}
-	if lease, _ := worker.mountStore.GetLease("lease-1"); lease != nil {
-		t.Fatalf("lease remains after idempotent resource release: %+v", lease)
-	}
-}
-
 func TestReconcileMountLeasesRemovesOnlyStaleOwnerLeases(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	record := &mountstore.Record{CacheKey: "image:a", ImageURL: "image:a", MountType: string(MountTypeOCI), MountPoint: "/mnt/a"}
 	for _, item := range []struct{ id, owner string }{{"keep", "axnoded"}, {"stale", "axnoded"}, {"other", "operator"}} {
 		if _, err := worker.mountStore.Acquire(record, item.id, item.owner); err != nil {
@@ -169,18 +153,8 @@ func TestReconcileMountLeasesRemovesOnlyStaleOwnerLeases(t *testing.T) {
 	}
 }
 
-func TestNydusRoutesShareCanonicalResourceIdentity(t *testing.T) {
-	record := newNydusMountRecord(&OCIMountRequest{ImageURL: "registry.example/app:latest"}, "registry.example/app:latest-nydus", "/mnt/nydus")
-	if got, want := record.CacheKey, "nydus:registry.example/app:latest-nydus"; got != want {
-		t.Fatalf("Nydus resource key = %q, want %q", got, want)
-	}
-	if got, want := record.ImageURL, record.NydusImageURL; got != want {
-		t.Fatalf("Nydus resource image = %q, want canonical image %q", got, want)
-	}
-}
-
 func TestOCIInventoryRejectsInvalidLeaseResources(t *testing.T) {
-	worker := mustNewHttpWorker(t, newMockManager())
+	worker := mustNewHttpWorker(t)
 	record := &mountstore.Record{CacheKey: "invalid:a", MountType: "invalid", MountPoint: "/mnt/invalid"}
 	if _, err := worker.mountStore.Acquire(record, "invalid-lease", "test"); err != nil {
 		t.Fatal(err)

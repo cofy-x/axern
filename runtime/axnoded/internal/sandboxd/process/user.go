@@ -4,17 +4,19 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
+
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/proc"
 )
 
 type processUser struct {
-	uid    uint32
-	gid    uint32
-	groups []uint32
-	name   string
-	home   string
-	shell  string
+	uid   uint32
+	gid   uint32
+	name  string
+	home  string
+	shell string
 }
 
 type passwdEntry struct {
@@ -26,9 +28,8 @@ type passwdEntry struct {
 }
 
 type groupEntry struct {
-	name    string
-	gid     uint32
-	members []string
+	name string
+	gid  uint32
 }
 
 func resolveProcessUser(spec string) (processUser, bool, error) {
@@ -66,9 +67,6 @@ func resolveProcessUser(spec string) (processUser, bool, error) {
 			}
 			resolved.gid = gid
 		}
-		if groupErr == nil {
-			resolved.groups = supplementaryGroups(resolved.name, groups)
-		}
 		return resolved, true, nil
 	}
 
@@ -92,9 +90,6 @@ func resolveProcessUser(spec string) (processUser, bool, error) {
 			return processUser{}, false, err
 		}
 		resolved.gid = gid
-	}
-	if groupErr == nil {
-		resolved.groups = supplementaryGroups(resolved.name, groups)
 	}
 	return resolved, true, nil
 }
@@ -176,11 +171,7 @@ func parseGroups(data []byte) []groupEntry {
 		if err != nil {
 			continue
 		}
-		var members []string
-		if len(fields) > 3 && fields[3] != "" {
-			members = strings.Split(fields[3], ",")
-		}
-		out = append(out, groupEntry{name: fields[0], gid: uint32(gid), members: members})
+		out = append(out, groupEntry{name: fields[0], gid: uint32(gid)})
 	}
 	return out
 }
@@ -231,18 +222,9 @@ func findPasswdByName(entries []passwdEntry, name string) (passwdEntry, bool) {
 	return passwdEntry{}, false
 }
 
-func supplementaryGroups(name string, groups []groupEntry) []uint32 {
-	if name == "" {
-		return nil
+func prepareProcessUser(cmd *exec.Cmd, user processUser, hasUser bool) (func(), error) {
+	if !hasUser || user.uid == 0 {
+		return func() {}, nil
 	}
-	var out []uint32
-	for _, group := range groups {
-		for _, member := range group.members {
-			if member == name {
-				out = append(out, group.gid)
-				break
-			}
-		}
-	}
-	return out
+	return proc.PrepareUnprivilegedCommand(cmd, user.uid, user.gid)
 }

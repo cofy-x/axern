@@ -38,7 +38,7 @@ func TestPlatformPolicyAgainstRunscSample(t *testing.T) {
 	sample.Process.Terminal = false // previous deployment policy
 	root := t.TempDir()
 	binaryPath := filepath.Join(root, "sandboxd")
-	if err := os.WriteFile(binaryPath, []byte("test binary"), 0700); err != nil {
+	if err := os.WriteFile(binaryPath, staticSandboxdFixture(), 0700); err != nil {
 		t.Fatal(err)
 	}
 	loader, err := NewBundleLoader(filepath.Join(root, "bundles"))

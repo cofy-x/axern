@@ -106,11 +106,10 @@ wait_for_jq \
   "axnoded inventory initial ready snapshot" \
   "${axnoded_inventory}" \
   20 \
-  '.version == "v1alpha2" and .node.name != "" and (.heat.locality | type == "array") and .sources.axnoded.status == "ready" and .components.axnoded.ready == true and .components.imagemgr.reachable == true and .components.axnoded.running_containers == 0 and .pools.cgroup.capacity >= 0 and .pools.interface.capacity >= 0'
+  '.version == "v1alpha3" and .node.name != "" and (.heat.locality | type == "array") and .sources.axnoded.status == "ready" and .components.axnoded.ready == true and .components.imagemgr.reachable == true and .components.axnoded.running_containers == 0 and .pools.cgroup.capacity >= 0 and .pools.interface.capacity >= 0'
 
 fetch_imagemgr_inventory "${imagemgr_inventory}"
-jq -e 'has("mounted_images") and (.mounted_images | type == "array")' "${imagemgr_inventory}" >/dev/null
-jq -e 'has("daemons") and (.daemons | type == "array")' "${imagemgr_inventory}" >/dev/null
+jq -e '(.mounted_images | type == "array") and all(.mounted_images[]; .mount_type == "oci") and (if has("imported_images") then (.imported_images | type == "array") else true end) and (has("daemons") | not)' "${imagemgr_inventory}" >/dev/null
 
 metricsz_wait_platform_capability_available "PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT"
 
@@ -194,14 +193,19 @@ wait_for_jq \
   60 \
   'any(.mounted_images[]?; .image_url == $image_url)' \
   --arg image_url "${IMAGE_URL}"
+locality_key="$(jq -er \
+  --arg image_url "${IMAGE_URL}" \
+  '.mounted_images[] | select(.image_url == $image_url and .mount_type == "oci") | .cache_key | select(type == "string" and length > 0) | "image:" + .' \
+  "${imagemgr_inventory}")"
 
 fetch_axnoded_inventory "${axnoded_inventory}"
 wait_for_jq \
   "axnoded inventory to report mounted image heat" \
   "${axnoded_inventory}" \
   60 \
-  '.components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == ("image:" + $image_url) and .mounted == true and .mount_type == "oci")' \
-  --arg image_url "${IMAGE_URL}"
+  '.components.imagemgr.mounted_image_count >= 1 and (.heat.mounted_image_urls | index($image_url) != null) and any(.heat.locality[]?; .key == $locality_key and .mounted == true and .mount_type == "oci")' \
+  --arg image_url "${IMAGE_URL}" \
+  --arg locality_key "${locality_key}"
 
 umount_body="$(mktemp)"
 status="$(post_imagemgr /oci_umount "${payload}" "${umount_body}")"

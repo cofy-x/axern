@@ -18,7 +18,6 @@ const (
 	RejectionReasonStaleSummary
 	RejectionReasonAxnodedNotReady
 	RejectionReasonImagemgrUnavailable
-	RejectionReasonImagefsdUnavailable
 	RejectionReasonNodeDraining
 	RejectionReasonNodeDisabled
 	RejectionReasonNodeSelectorMismatch
@@ -45,7 +44,6 @@ var rejectionReasonNames = [...]string{
 	"stale_summary",
 	"axnoded_not_ready",
 	"imagemgr_unavailable",
-	"imagefsd_unavailable",
 	"node_draining",
 	"node_disabled",
 	"node_selector_mismatch",
@@ -60,18 +58,14 @@ var rejectionReasonNames = [...]string{
 }
 
 type Rank struct {
-	MountedMatch               bool
-	RetainedRootfsCount        int32
-	RetainedEnvironmentCount   int32
-	NydusDaemonAlive           bool
-	ChunkDBRecentAccessAgeSecs int64
-	PeerHealthyCount           int64
-	PeerHintedCount            int64
-	IdlePoolReady              bool
-	RuntimeSlotOccupancy       int64
-	ChargedCPUMilli            int64
-	ChargedMemoryBytes         int64
-	ChargedEphemeralBytes      int64
+	MountedMatch             bool
+	RetainedRootfsCount      int32
+	RetainedEnvironmentCount int32
+	IdlePoolReady            bool
+	RuntimeSlotOccupancy     int64
+	ChargedCPUMilli          int64
+	ChargedMemoryBytes       int64
+	ChargedEphemeralBytes    int64
 }
 
 type Evaluation struct {
@@ -141,25 +135,6 @@ func (r *Rank) GetRetainedEnvironmentCount() int32 {
 		return 0
 	}
 	return r.RetainedEnvironmentCount
-}
-func (r *Rank) GetNydusDaemonAlive() bool { return r != nil && r.NydusDaemonAlive }
-func (r *Rank) GetChunkDBRecentAccessAgeSecs() int64 {
-	if r == nil {
-		return 0
-	}
-	return r.ChunkDBRecentAccessAgeSecs
-}
-func (r *Rank) GetPeerHealthyCount() int64 {
-	if r == nil {
-		return 0
-	}
-	return r.PeerHealthyCount
-}
-func (r *Rank) GetPeerHintedCount() int64 {
-	if r == nil {
-		return 0
-	}
-	return r.PeerHintedCount
 }
 func (r *Rank) GetIdlePoolReady() bool { return r != nil && r.IdlePoolReady }
 func (r *Rank) GetRuntimeSlotOccupancy() int64 {

@@ -161,8 +161,9 @@ setup_e2e_environment() {
     --volume "${cert_dir}/ca.crt:/shared/certs/ca.crt:ro" \
     -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
     -e "AXNODED_GRPC_ADDRESS=0.0.0.0:${NODE_GRPC_ADDRESS##*:}" \
-    -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
-    -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
+    -e "HTTP_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "HTTPS_PROXY=${REGISTRY_PROXY_URL}" \
+    -e "NO_PROXY=${REGISTRY_NO_PROXY}" \
     -e "AXNODED_HTTP_ADDRESS=${NODE_HTTP_ADDRESS}" \
     -e "AXNODED_NETWORK_IP_RANGE=${AXNODED_NETWORK_IP_RANGE}" \
     -e "AXNODED_MAX_INSTANCE_NUM=32" \

@@ -196,8 +196,8 @@ func TestParseProcessUsersAndGroups(t *testing.T) {
 		t.Fatalf("entry = %#v", entry)
 	}
 	groups := parseGroups([]byte("users:x:100:axern,other\nwheel:x:10:root\n"))
-	if got := supplementaryGroups("axern", groups); !reflect.DeepEqual(got, []uint32{100}) {
-		t.Fatalf("supplementary groups = %#v, want [100]", got)
+	if gid, err := resolveGroupID("users", groups, nil); err != nil || gid != 100 {
+		t.Fatalf("explicit group resolution = %d, %v", gid, err)
 	}
 }
 

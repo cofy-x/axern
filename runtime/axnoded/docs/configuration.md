@@ -164,7 +164,7 @@ The default, sample, packaged, and devbox configurations use gVisor (`runsc`) as
 | `binary`                       | Runtime binary path, such as `/usr/local/bin/runsc`. |
 | `[plugin.runtime.runsc.options]` | runsc-specific options.                              |
 
-There is no per-runtime cgroup fallback. In `required` mode cgroup controller writes, limit readback, and runtime host-PID attribution are fail-closed. For `runsc`, `options.allow_suid = true` maps to `runsc --allow-suid` so setuid tools inside Axern-maintained images, such as `sudo`, can elevate privileges within the sandbox.
+There is no per-runtime cgroup fallback. In `required` mode cgroup controller writes, limit readback, and runtime host-PID attribution are fail-closed. Every managed process uses `no_new_privileges`; setuid/setgid files and file capabilities cannot grant additional privilege. Axern-managed requests for a non-root UID receive empty bounding, effective, permitted, inheritable and ambient capability sets, without implicit supplementary groups. Explicit root execution retains the managed baseline for caller-authorized setup such as ownership changes. There is no configuration or request switch that relaxes this policy.
 
 See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROFS lower, ephemeral-storage backing, quota, and cleanup contract.
 
@@ -185,7 +185,7 @@ See [rootfs-storage.md](rootfs-storage.md) for the system-file, projection, EROF
 | --------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
 | axnoded will not start            | top-level paths, runtime binaries, filestore | axnoded startup logs, path permissions, `runsc --version`.                     |
 | node never appears in `controld`  | control plane                                            | `control_plane_target`, node auth/TLS, heartbeat metrics, controld logs.       |
-| image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs, imagefsd logs. |
+| image-backed rootfs fails         | runtime image manager                                    | `image_manager_enabled`, `image_manager_socket`, imagemgr logs. |
 | sandbox has no egress             | network                                                  | `nat_backend`, `ip_range`, `sandbox0`, iptables/bpfnet logs.                   |
 | start is slow after burst         | resource pool                                            | idle gauges, `miss_sync_create`, reconcile interval, cache sizes.              |
 | delete leaves resources behind    | resource/runtime paths                                   | typed resource ledgers, storeDir, cleanup logs, GC queue metric.                |

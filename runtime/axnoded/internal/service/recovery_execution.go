@@ -122,7 +122,7 @@ func (h *sandboxService) resumeRecoveredSandbox(ctx context.Context, id string, 
 	}
 	resumeCtx, cancel := context.WithDeadline(ctx, deadline)
 	defer cancel()
-	if err := h.runscHandler.ResumeContainer(resumeCtx, contract.HandlerOptions{ContainerID: id}); err != nil {
+	if err := h.runscHandler.ResumeContainer(resumeCtx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: controller.EnforcementManifest(id), GuestProcessProfileVerified: controller.GuestProcessProfileVerified(id)}); err != nil {
 		return fmt.Errorf("resume recovered allocation %s: %w", id, err)
 	}
 	return nil

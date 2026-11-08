@@ -99,10 +99,8 @@ func writeFakeSandboxdBinary(t *testing.T, rootDir string) string {
 		t.Fatalf("mkdir bin dir: %v", err)
 	}
 	binPath := filepath.Join(binDir, "axern-sandboxd")
-	script := `#!/bin/sh
-exit 0
-`
-	if err := os.WriteFile(binPath, []byte(script), 0755); err != nil {
+	script := staticSandboxdFixture()
+	if err := os.WriteFile(binPath, script, 0755); err != nil {
 		t.Fatalf("write fake sandboxd binary: %v", err)
 	}
 	t.Setenv("AXERN_SANDBOXD_BINARY", binPath)

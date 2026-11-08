@@ -2,21 +2,11 @@ package api
 
 import (
 	"fmt"
-
-	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 )
-
-type MountInfo struct {
-	MountPath      string          `json:"mount_path"`
-	MountPoint     string          `json:"mount_point,omitempty"`
-	Env            []string        `json:"env,omitempty"`
-	ImageConfig    *ImageConfig    `json:"image_config,omitempty"`
-	ImmutableMount *ImmutableMount `json:"immutable_mount,omitempty"`
-}
 
 // ImmutableMount is the source-owned effective lower contract returned with
 // every mounted rootfs lease. Runtime projection consumes this descriptor and
-// never reverse-engineers OCI, Nydus, or future EROFS implementations.
+// never reverse-engineers backend filesystem details.
 type ImmutableMount struct {
 	Identity           string   `json:"identity"`
 	EffectiveRoot      string   `json:"effective_root"`
@@ -37,47 +27,21 @@ type ImageConfig struct {
 type MountType string
 
 const (
-	MountTypeOCI   MountType = "oci"
-	MountTypeNydus MountType = "nydus"
+	MountTypeOCI MountType = "oci"
 )
 
-// MountedImageDetail is returned by /list_oci_mount_details for both OCI and
-// Nydus-backed image mounts.
+// MountedImageDetail is returned by /list_oci_mount_details.
 type MountedImageDetail struct {
-	ImageURL      string    `json:"image_url"`
-	CacheKey      string    `json:"cache_key,omitempty"`
-	MountType     MountType `json:"mount_type"`
-	NydusImageURL string    `json:"nydus_image_url,omitempty"`
-	MountPath     string    `json:"mount_path"`
-	LeaseCount    int       `json:"lease_count"`
-}
-
-type ImageLocalityEntry struct {
-	Key                        string    `json:"key"`
-	MountType                  MountType `json:"mount_type"`
-	ImageURL                   string    `json:"image_url,omitempty"`
-	NydusImageURL              string    `json:"nydus_image_url,omitempty"`
-	MountPath                  string    `json:"mount_path,omitempty"`
-	Mounted                    bool      `json:"mounted"`
-	DaemonID                   string    `json:"daemon_id,omitempty"`
-	DaemonAlive                bool      `json:"daemon_alive"`
-	ChunkDBTotalChunks         int64     `json:"chunkdb_total_chunks"`
-	ChunkDBUsedBytes           int64     `json:"chunkdb_used_bytes"`
-	ChunkDBRecentAccessAgeSecs int64     `json:"chunkdb_recent_access_age_secs"`
-	PeerHealthyCount           int64     `json:"peer_healthy_count"`
-	PeerUnhealthyCount         int64     `json:"peer_unhealthy_count"`
-	PeerHintedCount            int64     `json:"peer_hinted_count"`
+	ImageURL   string    `json:"image_url"`
+	CacheKey   string    `json:"cache_key,omitempty"`
+	MountType  MountType `json:"mount_type"`
+	MountPath  string    `json:"mount_path"`
+	LeaseCount int       `json:"lease_count"`
 }
 
 type InventoryResponse struct {
-	ImagefsdEnabled bool                   `json:"imagefsd_enabled"`
-	MountedImages   []MountedImageDetail   `json:"mounted_images"`
-	ImportedImages  []ImportedImageDetail  `json:"imported_images,omitempty"`
-	Locality        []ImageLocalityEntry   `json:"locality"`
-	Daemons         []imagefsd.DaemonInfo  `json:"daemons"`
-	ChunkDB         *imagefsd.ChunkDBStats `json:"chunkdb,omitempty"`
-	ChunkDBError    string                 `json:"chunkdb_error,omitempty"`
-	LocalityError   string                 `json:"locality_error,omitempty"`
+	MountedImages  []MountedImageDetail  `json:"mounted_images"`
+	ImportedImages []ImportedImageDetail `json:"imported_images,omitempty"`
 }
 
 type ReconcileMountLeasesRequest struct {
@@ -108,6 +72,7 @@ type OCIResolveResponse struct {
 }
 
 type ImportedImageDetail struct {
+	CacheKey       string `json:"cache_key"`
 	ImageRef       string `json:"image_ref"`
 	ContentDigest  string `json:"content_digest"`
 	ArchiveDigest  string `json:"archive_digest"`
@@ -146,32 +111,4 @@ type OCIUmountRequest struct {
 
 func (req *OCIUmountRequest) String() string {
 	return fmt.Sprintf("(%s)", req.ImageURL)
-}
-
-// NydusMountRequest is used to request mounting a Nydus image
-type NydusMountRequest struct {
-	ImageURL         string `json:"image_url"`
-	MountPoint       string `json:"mount_point,omitempty"`
-	DockerConfigJSON string `json:"docker_config_json,omitempty"`
-	LeaseID          string `json:"lease_id"`
-	Owner            string `json:"owner,omitempty"`
-}
-
-func (req *NydusMountRequest) String() string {
-	return fmt.Sprintf("(%s, %s)", req.ImageURL, req.MountPoint)
-}
-
-// NydusUmountRequest is used to request unmounting a Nydus image
-type NydusUmountRequest struct {
-	ImageURL string `json:"image_url"`
-	LeaseID  string `json:"lease_id"`
-}
-
-func (req *NydusUmountRequest) String() string {
-	return fmt.Sprintf("(%s)", req.ImageURL)
-}
-
-// CleanupDaemonRequest is used to request cleanup of a daemon
-type CleanupDaemonRequest struct {
-	DaemonID string `json:"daemon_id"`
 }

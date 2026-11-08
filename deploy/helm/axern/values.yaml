@@ -261,19 +261,7 @@ node:
   registryAuth:
     existingSecret: ""
     dockerConfigKey: .dockerconfigjson
-  imageDistribution:
-    nydus:
-      decodedCacheBytes: "8388608"
-    dragonfly:
-      enabled: false
-      proxyURL: ""
-      healthURL: ""
-      blobURLScheme: https
-      proxyFallback: true
-      proxyCAConfigMap: ""
-      proxyCACertKey: ca.crt
-      readaheadWorkers: 0
-      readaheadWindowBytes: "33554432"
+  registryMirrorURL: ""
 
 gatewayd:
   replicas: 1

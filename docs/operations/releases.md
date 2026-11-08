@@ -4,17 +4,19 @@ Axern releases one coherent version across the CLI, Helm chart, platform images,
 
 ## Prepare
 
-Update `VERSION`, package metadata, the chart version, chart `appVersion`, and default Axern image tags together. Runtime binaries embedded in node and development images are pinned with architecture-specific digests in `runtime/axnoded/runtime-tools.sh`; update that single contract deliberately, never by switching a release build to a rolling `latest` URL. Then run:
+Update `VERSION`, package metadata, the chart version, chart `appVersion`, and default Axern image tags together. Runtime binaries embedded in node and development images use architecture-specific digests from `runtime/axnoded/gvisor.lock`, consumed by `runtime-tools.sh`; update that contract deliberately, never by switching a release build to a rolling `latest` URL. With the repository toolchains, Docker, Helm, Syft and Gitleaks available, run:
 
 ```bash
-make release-check
-make release-build
-make sdk-contract-verify
-make sdk-artifact-verify
-make open-source-check
+make verify-release
 ```
 
-Confirm that user-facing commands, capability descriptions, and upgrade guidance match the release. Update the Simplified Chinese counterpart of each changed English page in `apps/docs` in the same release. Check the [storage contract](../architecture/storage-architecture.md) before advertising persistence or migration support. Run `make docs-verify` before tagging.
+The ordered local gate runs `verify-full` once, checks dependencies through `security-check`, builds CLI archives, the Helm package, source SBOMs and checksums through `release-build` (including `release-check`), audits the exported source, runs the complete SDK contract and clean-consumer artifact checks, then verifies the documentation site. Full regression checks generated protobuf output before compilation. The gate stops on the first failure. `make verify-release ARGS=--list` prints the owners without running them; suite and range options are rejected. Use `verify-full` for scoped diagnosis, then run the complete release gate before tagging. CI supplies the immutable candidate image lock when building publication-bound CLI archives.
+
+Confirm that user-facing commands, capability descriptions, and upgrade guidance match the release. Update the Simplified Chinese counterpart of each changed English page in `apps/docs` in the same release. Check the [storage contract](../architecture/storage-architecture.md) before advertising persistence or migration support.
+
+The local gate does not qualify a deployed native archive or persistent Workspace recovery. Native archives remain experimental, source-built and outside automated publication. Qualify the frozen complete archive on a fresh host using the [native acceptance matrix](../../deploy/standalone/QUALIFICATION.md), [public Workspace probe](../../sdk/python/README.md#native-workspace-qualification) and the lifecycle and ownership checks required by the changed boundary. Supported native archive upgrades, coordinated backup/restore and migration remain unavailable; rebuilding an initialized database or replacing individual payload binaries is not a qualification path.
+
+Review the actual candidate OCI image inventories separately from the source SBOMs: source dependency checks do not inspect installed distribution packages or final image layers. Release image builds refresh external base images and signed distribution packages once per workflow attempt while retaining compiler caches. Serving images exclude build toolchains and kernel analysis tools; verification and Agent workload images own their respective development tools.
 
 The GitHub `sdk-release` environment is the deployment boundary for SDK registries. PyPI trusts the `Release` workflow for `axern-sdk` and npm trusts the same workflow for `@cofy-x/axern-sdk`; both use GitHub OIDC and must not use long-lived publish tokens. Configure the npm trusted publisher for repository `cofy-x/axern`, workflow `release.yml`, environment `sdk-release`, and allow `npm publish`. The npm organization and initial public package must exist before its trusted publisher can be registered. Bootstrap a validated prerelease (for example `X.Y.Z-bootstrap.0` under the `next` dist-tag) interactively with 2FA from a temporary clean export; do not consume the final version. Then configure trust and remove the bootstrap credential before creating the release tags. npm generates provenance automatically for subsequent public OIDC publishes.
 
@@ -44,7 +46,7 @@ The directory-prefixed Go tag is required by Go's multi-module repository versio
 3. builds per-architecture platform and runtime images;
 4. generates SPDX and CycloneDX source SBOMs plus unified checksums;
 5. installs the candidate CLI, chart, and amd64 images into a fresh kind cluster and executes a real sandbox Run before any final version is used;
-6. installs the candidate CLI from release archives on Linux amd64 and arm64, then verifies `local up`, a foreground Run, retained data, and reset without using repository deployment assets;
+6. installs the candidate CLI from release archives on Linux amd64 and arm64, then verifies `dev up`, foreground Runs, rootfs snapshot branching, Compose configuration retention across down/up, and development reset without using repository deployment assets; this does not qualify persistent Workspaces;
 7. generates and validates the four-platform Homebrew formula against the candidate release checksums;
 8. installs the candidate Python wheel, npm tarball, and standalone Go module in clean consumers, then uses every SDK to create a `runsc` Sandbox, execute Python, and prove through `axern run get` that the CLI observes the same owning Run;
 9. publishes `axern-sdk` to PyPI and `@cofy-x/axern-sdk` to npm with trusted publishing;

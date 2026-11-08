@@ -76,26 +76,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.hostIP
-            {{- if .Values.node.imageDistribution.dragonfly.enabled }}
             - name: REGISTRY_MIRROR_URL
-              value: {{ required "node.imageDistribution.dragonfly.proxyURL is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyURL | quote }}
-            - name: REGISTRY_PROXY_URL
-              value: {{ required "node.imageDistribution.dragonfly.proxyURL is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyURL | quote }}
-            - name: REGISTRY_PROXY_HEALTH_URL
-              value: {{ required "node.imageDistribution.dragonfly.healthURL is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.healthURL | quote }}
-            - name: REGISTRY_BLOB_URL_SCHEME
-              value: {{ required "node.imageDistribution.dragonfly.blobURLScheme is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.blobURLScheme | quote }}
-            - name: REGISTRY_PROXY_FALLBACK
-              value: {{ .Values.node.imageDistribution.dragonfly.proxyFallback | quote }}
-            - name: REGISTRY_PROXY_CA_CERT
-              value: {{ printf "/registry-proxy-ca/%s" (required "node.imageDistribution.dragonfly.proxyCACertKey is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyCACertKey) | quote }}
-            - name: NYDUS_READAHEAD_WORKERS
-              value: {{ .Values.node.imageDistribution.dragonfly.readaheadWorkers | quote }}
-            - name: NYDUS_READAHEAD_WINDOW_BYTES
-              value: {{ .Values.node.imageDistribution.dragonfly.readaheadWindowBytes | quote }}
-            {{- end }}
-            - name: NYDUS_DECODED_CACHE_BYTES
-              value: {{ .Values.node.imageDistribution.nydus.decodedCacheBytes | quote }}
+              value: {{ .Values.node.registryMirrorURL | quote }}
             - name: AXNODED_SOCKET
               value: /shared/run/axnoded.sock
             - name: AXNODED_TUNNEL_SOCKET
@@ -195,11 +177,6 @@ spec:
               mountPath: /registry-auth
               readOnly: true
             {{- end }}
-            {{- if .Values.node.imageDistribution.dragonfly.enabled }}
-            - name: registry-proxy-ca
-              mountPath: /registry-proxy-ca
-              readOnly: true
-            {{- end }}
       volumes:
         - name: certs
           secret:
@@ -237,14 +214,6 @@ spec:
             items:
               - key: {{ .Values.node.registryAuth.dockerConfigKey | quote }}
                 path: {{ .Values.node.registryAuth.dockerConfigKey | quote }}
-        {{- end }}
-        {{- if .Values.node.imageDistribution.dragonfly.enabled }}
-        - name: registry-proxy-ca
-          configMap:
-            name: {{ required "node.imageDistribution.dragonfly.proxyCAConfigMap is required when Dragonfly is enabled" .Values.node.imageDistribution.dragonfly.proxyCAConfigMap | quote }}
-            items:
-              - key: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
-                path: {{ .Values.node.imageDistribution.dragonfly.proxyCACertKey | quote }}
         {{- end }}
 
 {{- end }}

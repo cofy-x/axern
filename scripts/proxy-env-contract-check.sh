@@ -10,7 +10,6 @@ source "${AXERN_ROOT}/scripts/dev-env/platform.sh"
 bash -n \
   "${AXERN_ROOT}/scripts/proxy-env.sh" \
   "${AXERN_ROOT}/scripts/dev-env/platform.sh" \
-  "${AXERN_ROOT}/scripts/dev-env/build-nydus-builder-image.sh" \
   "${AXERN_ROOT}/scripts/devbox/devbox.sh" \
   "${AXERN_ROOT}/scripts/release/kind-acceptance.sh" \
   "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
@@ -56,6 +55,9 @@ test "$(append_no_proxy_entries 'localhost,.svc' '.svc,10.0.0.0/8')" = 'localhos
 (
   export REGISTRY_PROXY_URL=''
   export REGISTRY_NO_PROXY=''
+  # Proxy normalization requires no local runtime download or Docker inspection.
+  export RUNSC_SOURCE=remote
+  export RUNSC_CACHE_ARCH=x86_64
   # shellcheck source=../runtime/axnoded/scripts/lib/verify-docker-common.sh
   source "${AXERN_ROOT}/runtime/axnoded/scripts/lib/verify-docker-common.sh"
   resolve_docker_daemon_proxy() { return 0; }
@@ -86,8 +88,6 @@ required = (
     'proxyEnv.http_proxy=',
     'proxyEnv.https_proxy=',
     'proxyEnv.no_proxy=',
-    'proxyEnv.REGISTRY_PROXY_URL=',
-    'proxyEnv.REGISTRY_NO_PROXY=',
 )
 harness = release_harness.read_text()
 for value in required:
@@ -104,7 +104,6 @@ for function_name in ("resolve_build_http_proxy", "resolve_build_https_proxy"):
 
 policy_paths = (
     root / "scripts/dev-env/platform.sh",
-    root / "scripts/dev-env/build-nydus-builder-image.sh",
     root / "scripts/devbox/devbox.sh",
     root / "runtime/axnoded/scripts/lib/verify-docker-common.sh",
 )

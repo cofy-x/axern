@@ -94,6 +94,7 @@ func (s *metadataStore) listImports() ([]*ImportedImageRecord, error) {
 
 func joinImportedRecord(imageURL string, content *importedContentRecord) *ImportedImageRecord {
 	return &ImportedImageRecord{
+		CacheKey: importedCacheKey(content.ContentDigest),
 		ImageURL: imageURL, ContentDigest: content.ContentDigest,
 		ArchivePath: content.ArchivePath, ArchiveDigest: content.ArchiveDigest,
 		PlatformOS: content.PlatformOS, PlatformArch: content.PlatformArch,

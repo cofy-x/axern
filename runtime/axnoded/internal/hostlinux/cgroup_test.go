@@ -3,6 +3,7 @@ package hostlinux
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	goruntime "runtime"
 	"strings"
 	"testing"
@@ -135,7 +136,15 @@ func TestUpdateCgroup(t *testing.T) {
 		t.Fatalf("load cgroup driver: %v", err)
 	}
 
-	const cgroupPath = "test-update-cgroup"
+	cgroupPath, err := driver.ResolveRoot(filepath.Base(filepath.Dir(t.TempDir())))
+	if err != nil {
+		t.Fatalf("resolve test cgroup inside delegation: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := driver.Remove(cgroupPath); err != nil {
+			t.Errorf("remove test cgroup: %v", err)
+		}
+	})
 	if err := UpdateCgroup(cgroupPath, nil); err != nil {
 		t.Fatalf("UpdateCgroup(nil) error = %v", err)
 	}
@@ -150,9 +159,6 @@ func TestUpdateCgroup(t *testing.T) {
 	if cgroup == nil {
 		t.Skip("cgroup driver did not return a cgroup handle in this environment")
 	}
-	defer func() {
-		_ = cgroup.Delete()
-	}()
 
 	resource := runtimeapi.LinuxContainerResources{
 		CpuShares:          128,

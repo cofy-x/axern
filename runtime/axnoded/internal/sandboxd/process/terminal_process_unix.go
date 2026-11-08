@@ -10,6 +10,11 @@ import (
 )
 
 func startTerminalProcess(cmd *exec.Cmd, size *pty.Winsize, user processUser, hasUser bool) (*os.File, error) {
+	cleanup, err := prepareProcessUser(cmd, user, hasUser)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
 	ptm, pts, err := pty.Open()
 	if err != nil {
 		return nil, err

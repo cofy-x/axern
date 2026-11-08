@@ -39,7 +39,7 @@ var DropPageCacheCmd = cli.Command{
 	Name:  "drop-page-cache",
 	Usage: "Evict and verify a regular-file range from one mounted image",
 	Flags: []cli.Flag{
-		cli.StringFlag{Name: "ref", Usage: "Exact mounted image, Nydus, or cache reference"},
+		cli.StringFlag{Name: "ref", Usage: "Exact mounted OCI image or cache reference"},
 		cli.StringFlag{Name: "path", Usage: "Absolute regular-file path inside the image"},
 		cli.Int64Flag{Name: "offset", Usage: "Byte offset aligned to the host page size"},
 		cli.Int64Flag{Name: "length", Usage: "Positive byte length, at most 1 GiB"},
@@ -156,7 +156,7 @@ func uniqueMountedImage(inventory *inventoryResponse, imageRef string) (mountedI
 		if strings.TrimSpace(mount.MountPath) == "" || strings.TrimSpace(mount.MountType) == "" {
 			continue
 		}
-		if mount.ImageURL == imageRef || mount.NydusImageURL == imageRef || mount.CacheKey == imageRef {
+		if mount.ImageURL == imageRef || mount.CacheKey == imageRef {
 			matches = append(matches, mount)
 		}
 	}

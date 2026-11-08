@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -20,9 +18,7 @@ import (
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/cofy-x/axern/lib/go/observability/logrusotel"
 	"github.com/cofy-x/axern/runtime/imagemgr/api"
-	"github.com/cofy-x/axern/runtime/imagemgr/imagefsd"
 	"github.com/cofy-x/axern/runtime/imagemgr/internal/mountstore"
-	"github.com/cofy-x/axern/runtime/imagemgr/nydus"
 	"github.com/cofy-x/axern/runtime/imagemgr/oci"
 	"github.com/cofy-x/axern/runtime/imagemgr/pkg/imageregistry"
 )
@@ -31,56 +27,25 @@ import (
 func Run(args []string) error {
 	flags := flag.NewFlagSet("imagemgr", flag.ContinueOnError)
 	rootWorkDir := flags.String("root", ".", "The root directory of the imagemgr workspace.")
-	nodeID := flags.String("node_id", "", "Stable control-plane node ID attached to imagefsd metrics.")
-	imagefsdBinPath := flags.String("imagefsd_bin", "/usr/local/bin/imagefsd",
-		"imagefsd binary path.")
-	nydusTemplate := flags.String("nydus_template", "", "Path to the Nydus backend configuration template file.")
-	enableNydus := flags.Bool("enable_nydus", true, "Enable Nydus routing and imagefsd; disable for OCI-only serving.")
 	debug := flags.Bool("debug", false, "Output debug info or not.")
 	httpSockPath := flags.String("http_sock", api.DefaultHttpSockPath, "Http api socket path")
-	nydusSuffix := flags.String("nydus_suffix", "", "Tag suffix to try when detecting Nydus images (e.g., '-nydus')")
 	registryAuthsPath := flags.String("registry_auths_path", "", "Path to registry authentication credentials file (registry_auths.json)")
 	snapshotRepository := flags.String("snapshot_repository", "", "Platform-owned OCI repository for immutable Allocation rootfs snapshots")
-	registryMirrorURL := flags.String("registry_mirror_url", "", "Dynamic registry mirror origin used for OCI pulls and Nydus bootstrap fetches")
+	registryMirrorURL := flags.String("registry_mirror_url", "", "Dynamic registry mirror origin used for OCI pulls")
 	enableTracing := flags.Bool("enable_tracing", false, "Enable OpenTelemetry tracing for mount/unmount operations")
-	cgroupMemoryLimitStr := flags.String("cgroup_memory_limit", "0", "Memory limit for imagefsd cgroup, e.g. 512MiB, 2GiB, or raw bytes (0 = no limit)")
-	nydusReadaheadWorkers := flags.Int("nydus_readahead_workers", 0, "Background workers for demand-triggered Nydus cache readahead (0 disables readahead)")
-	nydusReadaheadWindowBytes := flags.Int("nydus_readahead_window_bytes", 32*1024*1024, "Maximum bytes scheduled after a foreground Nydus read")
-	nydusDecodedCacheBytes := flags.Int("nydus_decoded_cache_bytes", 8*1024*1024, "Per-mount byte limit for decoded Nydus chunks")
 
 	if err := flags.Parse(args); err != nil {
 		return err
 	}
-	if strings.TrimSpace(*nodeID) == "" {
-		return fmt.Errorf("node_id is required")
-	}
+
 	if repository := strings.TrimSpace(*snapshotRepository); repository != "" {
 		if _, err := name.NewRepository(repository, name.WeakValidation); err != nil {
 			return fmt.Errorf("invalid snapshot_repository %q: %w", repository, err)
 		}
 	}
 
-	cgroupMemoryLimit, err := parseMemorySize(*cgroupMemoryLimitStr)
-	if err != nil {
-		return fmt.Errorf("invalid cgroup_memory_limit %q: %w", *cgroupMemoryLimitStr, err)
-	}
-	if *nydusReadaheadWorkers < 0 {
-		return fmt.Errorf("nydus_readahead_workers must not be negative")
-	}
-	if *nydusReadaheadWindowBytes < 0 {
-		return fmt.Errorf("nydus_readahead_window_bytes must not be negative")
-	}
-	if *nydusDecodedCacheBytes < 0 {
-		return fmt.Errorf("nydus_decoded_cache_bytes must not be negative")
-	}
-	if !*enableNydus {
-		// Inspect retained authority before either backend starts recovery or GC.
-		if err := mountstore.ValidateOCIOnlyFile(filepath.Join(*rootWorkDir, "resource_leases.db")); err != nil {
-			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
-		}
-		if err := imagefsd.ValidateDisabled(*rootWorkDir); err != nil {
-			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
-		}
+	if err := validateRetiredImageState(*rootWorkDir); err != nil {
+		return err
 	}
 
 	logLevel := logrus.InfoLevel
@@ -122,7 +87,7 @@ func Run(args []string) error {
 		}
 	}()
 
-	// OCI and Nydus share one authenticated transport and connection pool.
+	// OCI pulls and snapshots share one authenticated transport and connection pool.
 	sharedRegistryClient, err := imageregistry.NewClient(
 		*registryAuthsPath,
 		imageregistry.WithRegistryMirror(*registryMirrorURL),
@@ -140,46 +105,15 @@ func Run(args []string) error {
 		return fmt.Errorf("open mount store: %w", err)
 	}
 	defer mountStore.Close()
-	if !*enableNydus {
-		if err := mountStore.ValidateOCIOnly(); err != nil {
-			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
-		}
-		if err := imagefsd.ValidateDisabled(*rootWorkDir); err != nil {
-			return fmt.Errorf("cannot start with Nydus disabled: %w", err)
-		}
+	if err := mountStore.ValidateOCIOnly(); err != nil {
+		return fmt.Errorf("retired or invalid image authority: %w", err)
 	}
-
-	var mgr imagefsd.Manager
-	var nydusClient *nydus.RegistryClient
-	ociTemplate := ""
-	registryProxyURL := ""
-	if *enableNydus {
-		nydusClient = nydus.NewRegistryClientFromShared(sharedRegistryClient)
-		mgr, err = imagefsd.NewManager(&imagefsd.ManagerConfig{
-			Context:                   ctx,
-			NodeID:                    *nodeID,
-			Root:                      *rootWorkDir,
-			NydusCfgPath:              *nydusTemplate,
-			BinPath:                   *imagefsdBinPath,
-			NydusClient:               nydusClient,
-			RegistryAuthsPath:         *registryAuthsPath,
-			CgroupMemoryLimit:         cgroupMemoryLimit,
-			NydusReadaheadWorkers:     *nydusReadaheadWorkers,
-			NydusReadaheadWindowBytes: *nydusReadaheadWindowBytes,
-			NydusDecodedCacheBytes:    *nydusDecodedCacheBytes,
-		})
-		if err != nil {
-			return fmt.Errorf("create imagefsd manager: %w", err)
-		}
-		ociTemplate = *nydusTemplate
-		registryProxyURL, err = registryProxyURLFromTemplate(*nydusTemplate)
-		if err != nil {
-			return err
-		}
+	if err := validateRetiredDaemonState(*rootWorkDir); err != nil {
+		return err
 	}
 
 	// initialize OCI manager (local layer extraction + overlay mount)
-	ociMgr, err := oci.NewManager(*rootWorkDir, ociTemplate, sharedRegistryClient)
+	ociMgr, err := oci.NewManager(*rootWorkDir, sharedRegistryClient)
 	if err != nil {
 		return fmt.Errorf("create oci manager: %w", err)
 	}
@@ -187,12 +121,7 @@ func Run(args []string) error {
 
 	worker, err := api.NewHttpWorker(&api.HttpWorkerConfig{
 		LifecycleContext:   ctx,
-		DisableNydus:       !*enableNydus,
-		Manager:            mgr,
 		OCIManager:         ociMgr,
-		NydusClient:        nydusClient,
-		NydusSuffix:        *nydusSuffix,
-		RegistryProxyURL:   registryProxyURL,
 		MountStore:         mountStore,
 		Registry:           sharedRegistryClient,
 		SnapshotRepository: *snapshotRepository,
@@ -207,66 +136,35 @@ func Run(args []string) error {
 	return nil
 }
 
-func registryProxyURLFromTemplate(templatePath string) (string, error) {
-	if templatePath == "" {
-		return "", nil
+func validateRetiredImageState(root string) error {
+	if err := mountstore.ValidateOCIOnlyFile(filepath.Join(root, "resource_leases.db")); err != nil {
+		return fmt.Errorf("retired or invalid image authority: %w", err)
 	}
-	var cfg imagefsd.BackendConfig
-	if err := cfg.LoadTemplate(templatePath); err != nil {
-		return "", fmt.Errorf("load registry proxy config: %w", err)
-	}
-	if cfg.Registry == nil || cfg.Registry.Proxy == nil {
-		return "", nil
-	}
-	return cfg.Registry.Proxy.Url, nil
+	return validateRetiredDaemonState(root)
 }
 
-// parseMemorySize parses a human-readable memory size string (e.g. "5GiB",
-// "64MiB", "1024KiB", "512MB", "2GB") into bytes. Plain numeric strings
-// are treated as raw byte values.
-func parseMemorySize(s string) (int64, error) {
-	s = strings.TrimSpace(s)
-	if s == "" || s == "0" {
-		return 0, nil
+// Retired state is inspected before recovery, logging or cache initialization.
+// Its contents may still own mounts or bytes; absence is never cleanup proof.
+func validateRetiredDaemonState(root string) error {
+	for _, name := range []string{"daemon_configs", "daemons", "chunk_db", "image_metas"} {
+		path := filepath.Join(root, name)
+		info, err := os.Lstat(path)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("inspect retired image state: %w", err)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("retired image state %s requires explicit operator resolution", name)
+		}
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return fmt.Errorf("read retired image state: %w", err)
+		}
+		if len(entries) != 0 {
+			return fmt.Errorf("retired image state %s requires explicit operator resolution", name)
+		}
 	}
-
-	// Pure numeric value: treat as raw bytes
-	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
-		return n, nil
-	}
-
-	re := regexp.MustCompile(`(?i)^(\d+(?:\.\d+)?)\s*(B|KiB|MiB|GiB|TiB|KB|MB|GB|TB)$`)
-	m := re.FindStringSubmatch(s)
-	if m == nil {
-		return 0, fmt.Errorf("unsupported format, use e.g. 512MiB, 2GiB, or plain bytes")
-	}
-
-	val, err := strconv.ParseFloat(m[1], 64)
-	if err != nil {
-		return 0, err
-	}
-
-	var multiplier float64
-	switch strings.ToUpper(m[2]) {
-	case "B":
-		multiplier = 1
-	case "KIB":
-		multiplier = 1024
-	case "MIB":
-		multiplier = 1024 * 1024
-	case "GIB":
-		multiplier = 1024 * 1024 * 1024
-	case "TIB":
-		multiplier = 1024 * 1024 * 1024 * 1024
-	case "KB":
-		multiplier = 1000
-	case "MB":
-		multiplier = 1000 * 1000
-	case "GB":
-		multiplier = 1000 * 1000 * 1000
-	case "TB":
-		multiplier = 1000 * 1000 * 1000 * 1000
-	}
-
-	return int64(val * multiplier), nil
+	return nil
 }

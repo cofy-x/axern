@@ -16,9 +16,10 @@ var (
 
 // Record is the durable mount resource. CacheKey is its identity.
 type Record struct {
-	CacheKey      string `json:"cache_key"`
-	ImageURL      string `json:"image_url"`
-	MountType     string `json:"mount_type"`
+	CacheKey  string `json:"cache_key"`
+	ImageURL  string `json:"image_url"`
+	MountType string `json:"mount_type"`
+	// Retired discriminator is retained solely to reject old authority without adopting it.
 	NydusImageURL string `json:"nydus_image_url,omitempty"`
 	MountPoint    string `json:"mount_point"`
 }

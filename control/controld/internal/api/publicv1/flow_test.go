@@ -167,8 +167,8 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	node := app.NodeV1Handler()
 	admitTestNode(t, app, "node-a")
 
-	if _, err := node.ReportNode(context.Background(), &nodev1.ReportNodeRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now)}); err != nil {
-		t.Fatalf("ReportNode() error = %v", err)
+	if _, err := node.PublishNodeSnapshot(context.Background(), &nodev1.PublishNodeSnapshotRequest{NodeID: "node-a", NodeTarget: "127.0.0.1:25000", Summary: controldtest.ReadySummary(now)}); err != nil {
+		t.Fatalf("PublishNodeSnapshot() error = %v", err)
 	}
 	envResp, err := public.CreateEnvironment(context.Background(), &environmentv1.CreateEnvironmentRequest{
 		Spec: &environmentv1.EnvironmentSpec{Namespace: "default", Image: &environmentv1.EnvironmentImageSource{Ref: "docker.io/library/nginx:1.27"}},

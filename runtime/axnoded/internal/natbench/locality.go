@@ -76,24 +76,11 @@ func RankLocalityEntries(entries []nodeinventory.LocalityHeatEntry) []nodeinvent
 			return a.RetainedRootfsCount > b.RetainedRootfsCount
 		case a.RetainedEnvironmentCount != b.RetainedEnvironmentCount:
 			return a.RetainedEnvironmentCount > b.RetainedEnvironmentCount
-		case a.NydusDaemonAlive != b.NydusDaemonAlive:
-			return a.NydusDaemonAlive
-		case localityAgeSortValue(a.ChunkDBRecentAccessAgeSecs) != localityAgeSortValue(b.ChunkDBRecentAccessAgeSecs):
-			return localityAgeSortValue(a.ChunkDBRecentAccessAgeSecs) < localityAgeSortValue(b.ChunkDBRecentAccessAgeSecs)
-		case a.PeerHealthyCount != b.PeerHealthyCount:
-			return a.PeerHealthyCount > b.PeerHealthyCount
-		case a.PeerHintedCount != b.PeerHintedCount:
-			return a.PeerHintedCount > b.PeerHintedCount
+		case a.RunningContainerCount != b.RunningContainerCount:
+			return a.RunningContainerCount > b.RunningContainerCount
 		default:
 			return a.Key < b.Key
 		}
 	})
 	return ranked
-}
-
-func localityAgeSortValue(age int64) int64 {
-	if age <= 0 {
-		return int64(^uint64(0) >> 1)
-	}
-	return age
 }

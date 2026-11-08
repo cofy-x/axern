@@ -43,7 +43,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 Linux 单机 serving 按[安装指南](./deploy/standalone/INSTALL.md)构建并安装完整的原生归档，通过 `axern server start`、`status`、`logs` 和 `stop` 管理。API Context 选择远程执行服务，不改变 `server` 管理的当前主机。
 
-当前源码包含需要一起升级的协议变更。CLI、服务和 SDK 必须来自同一版本；源码版本不代表安装包已经发布。Linux 或 macOS Linux VM 中的源码开发需要 Go 1.26.8、Make 和 Docker Compose v2：
+当前源码包含需要一起升级的协议变更。CLI、服务和 SDK 必须来自同一版本；源码版本不代表安装包已经发布。Linux 或 macOS Linux VM 中的源码开发需要 Go 1.26.10、Make 和 Docker Compose v2：
 
 ```bash
 make quickstart-source
@@ -67,7 +67,7 @@ make axern-cli-build
 
 - **服务你的 Agent 系统：** 通过同一套 Run 执行模型组合隔离任务，规划、记忆和协作逻辑由你的应用负责。
 - **持久化控制平面：** 以 PostgreSQL 为后端的意图、放置、租约、Allocation 级状态、健康和清理信息，在进程或节点重启后依然保持权威。
-- **单一生产运行时：** runsc 工作负载使用相同的公共 API；OCI 与 Nydus 镜像路径在节点运行时汇聚。
+- **单一生产运行时：** runsc 工作负载使用相同的公共 API；OCI 镜像提供可复现的根文件系统输入。
 - **真实的数据面访问：** 进程流、文件、归档、SSH 兼容终端和反向 TCP 隧道都是 allocation 的显式能力。
 - **聚焦的演进方向：** 优先简化单机部署并支持持久工作数据；这些能力实现期间，现有 Compose、kind 和 Helm 部署契约仍有文档说明。
 
@@ -81,7 +81,7 @@ flowchart LR
     Gateway --> Node["axnoded\n沙箱执行"]
     Control --> Node
     Node --> Egress["egressd\n可信出站策略执行"]
-    Node --> Image["imagemgr\nOCI；可选 Nydus/imagefsd"]
+    Node --> Image["imagemgr\nOCI 镜像挂载"]
     Node --> Runtime["runsc 沙箱"]
 ```
 

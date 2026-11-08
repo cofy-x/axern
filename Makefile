@@ -7,7 +7,6 @@ PNPM ?= pnpm
 GOROOT ?= $(shell go env GOROOT)
 GO ?= $(GOROOT)/bin/go
 UV ?= uv
-CARGO ?= cargo
 DEVBOX ?= $(ROOTDIR)/scripts/devbox/devbox.sh
 DEVBOX_PLATFORM ?= linux/arm64
 DEVBOX_IMAGE ?= axern-devbox:latest-arm64

@@ -1,4 +1,4 @@
-FROM golang:1.26.8
+FROM golang:1.26.10
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG CILIUM_EBPF_VERSION=v0.22.0

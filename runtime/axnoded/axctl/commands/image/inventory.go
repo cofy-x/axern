@@ -11,14 +11,14 @@ import (
 )
 
 type mountedImageDetail struct {
-	ImageURL      string `json:"image_url"`
-	CacheKey      string `json:"cache_key,omitempty"`
-	MountType     string `json:"mount_type"`
-	NydusImageURL string `json:"nydus_image_url,omitempty"`
-	MountPath     string `json:"mount_path"`
+	ImageURL  string `json:"image_url"`
+	CacheKey  string `json:"cache_key,omitempty"`
+	MountType string `json:"mount_type"`
+	MountPath string `json:"mount_path"`
 }
 
 type importedImageDetail struct {
+	CacheKey       string `json:"cache_key,omitempty"`
 	ImageRef       string `json:"image_ref"`
 	ContentDigest  string `json:"content_digest"`
 	ArchiveDigest  string `json:"archive_digest"`
@@ -38,7 +38,6 @@ type imageRow struct {
 	Mounted        bool   `json:"mounted"`
 	MountType      string `json:"mount_type"`
 	MountPath      string `json:"mount_path"`
-	NydusImageURL  string `json:"nydus_image_url"`
 	ContentDigest  string `json:"content_digest"`
 	ArchiveDigest  string `json:"archive_digest"`
 	Platform       string `json:"platform"`
@@ -66,6 +65,7 @@ func buildImageRows(inventory *inventoryResponse) []imageRow {
 		}
 		row := imageRowForRef(byRef, imported.ImageRef)
 		row.Imported = true
+		row.CacheKey = imported.CacheKey
 		row.ContentDigest = imported.ContentDigest
 		row.ArchiveDigest = imported.ArchiveDigest
 		row.Platform = imported.Platform
@@ -80,7 +80,6 @@ func buildImageRows(inventory *inventoryResponse) []imageRow {
 		row.Mounted = true
 		row.MountType = mounted.MountType
 		row.MountPath = mounted.MountPath
-		row.NydusImageURL = mounted.NydusImageURL
 		row.CacheKey = mounted.CacheKey
 	}
 
@@ -162,21 +161,19 @@ func renderImageInspect(w io.Writer, row imageRow) {
 	fmt.Fprintf(w, "Mount Type: %s\n", emptyDash(row.MountType))
 	fmt.Fprintf(w, "Mount Path: %s\n", emptyDash(row.MountPath))
 	fmt.Fprintf(w, "Cache Key: %s\n", emptyDash(row.CacheKey))
-	fmt.Fprintf(w, "Nydus Image Ref: %s\n", emptyDash(row.NydusImageURL))
 }
 
 func renderMountsTable(w io.Writer, mounts []mountedImageDetail) {
 	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
-	fmt.Fprintln(tw, "REF\tMOUNT TYPE\tCACHE KEY\tMOUNT PATH\tNYDUS REF")
+	fmt.Fprintln(tw, "REF\tMOUNT TYPE\tCACHE KEY\tMOUNT PATH")
 	for _, mount := range mounts {
 		fmt.Fprintf(
 			tw,
-			"%s\t%s\t%s\t%s\t%s\n",
+			"%s\t%s\t%s\t%s\n",
 			mount.ImageURL,
 			emptyDash(mount.MountType),
 			emptyDash(shortIdentity(mount.CacheKey)),
 			emptyDash(mount.MountPath),
-			emptyDash(mount.NydusImageURL),
 		)
 	}
 	_ = tw.Flush()

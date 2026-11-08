@@ -10,6 +10,10 @@ permissions:
   contents: read
 
 jobs:
+  security:
+    name: Security
+    uses: ./.github/workflows/security.yml
+
   change-scope:
     name: Change Scope
     runs-on: ubuntu-latest
@@ -48,7 +52,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache: false
 
       - name: Install source-audit tools
@@ -103,7 +107,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache: false
 
       - name: Set up Helm
@@ -116,8 +120,8 @@ jobs:
 
       - name: Install architecture check dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes ripgrep
+          sudo apt-get -o Acquire::Retries=0 update
+          sudo apt-get -o Acquire::Retries=0 install --no-install-recommends --yes ripgrep
 
       - name: Validate workflows and release contracts
         run: |
@@ -136,7 +140,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache-dependency-path: |
             apps/cli/go.sum
             control/controld/go.sum
@@ -159,8 +163,8 @@ jobs:
 
       - name: Install architecture and protobuf dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep jq
+          sudo apt-get -o Acquire::Retries=0 update
+          sudo apt-get -o Acquire::Retries=0 install --no-install-recommends --yes libprotobuf-dev protobuf-compiler ripgrep jq
 
       - name: Verify Go architecture boundaries
         run: |
@@ -210,41 +214,6 @@ jobs:
         if: needs.change-scope.outputs.network_policy_linux == 'true'
         run: make axnoded-verify-network-policy-linux-matrix
 
-  rust:
-    name: Rust
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
-        with:
-          components: rustfmt
-
-      - name: Cache Cargo
-        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-
-
-      - name: Bootstrap Rust dependencies
-        run: make bootstrap-rust
-
-      - name: Build Rust workspace
-        run: make build-rust
-
-      - name: Test Rust workspace
-        run: make test-rust
-
-      - name: Lint Rust workspace
-        run: make lint-rust
-
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
@@ -255,7 +224,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22.16.0"
+          node-version: "24.22.2"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
@@ -278,13 +247,13 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: "1.26.8"
+          go-version: "1.26.10"
           cache: false
 
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "24.16.0"
+          node-version: "24.22.2"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
@@ -315,7 +284,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22.16.0"
+          node-version: "24.22.2"
 
       - name: Set up pnpm
         uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6

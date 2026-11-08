@@ -42,7 +42,7 @@ func parseFlags() verifyStartupConfig {
 	flag.StringVar(&cfg.mountType, "mount-type", "local", "mount type label for the scenario")
 	flag.StringVar(&cfg.rootfsSrc, "rootfs-src", "local", "rootfs source: local or image")
 	flag.StringVar(&cfg.rootfsPath, "rootfs", "/opt/sample-rootfs", "LOCAL rootfs path")
-	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI/Nydus image URL for rootfs-src=image")
+	flag.StringVar(&cfg.imageURL, "image-url", "", "OCI image URL for rootfs-src=image")
 	flag.StringVar(&cfg.stdoutDir, "stdout-dir", "/tmp/startup-matrix-stdout", "directory for startup sample stdout files")
 	flag.StringVar(&cfg.stderrDir, "stderr-dir", "/tmp/startup-matrix-stderr", "directory for startup sample stderr files")
 	flag.BoolVar(&cfg.omitStdio, "omit-stdio", false, "omit explicit stdout/stderr paths to exercise runtime-provided defaults")

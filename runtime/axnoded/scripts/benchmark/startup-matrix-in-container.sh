@@ -58,24 +58,6 @@ case "${STARTUP_MATRIX_SCENARIO}" in
         ;;
     esac
     ;;
-  runsc-nydus)
-    runtime_name="runsc"
-    mount_type="nydus"
-    rootfs_src="image"
-    argv_json='["/bin/sh","-c","/usr/sbin/nginx -v >/tmp/startup-matrix-nginx-version 2>&1; sleep 1"]'
-    case "${VERIFY_DOCKER_PLATFORM}" in
-      linux/amd64)
-        image_url="ghcr.io/dragonflyoss/image-service/nginx@sha256:e263899b73cfecb68980fbe396dbac8dbabd108397786bed8b423c496500a2a7"
-        ;;
-      linux/arm64 | linux/arm64/v8)
-        image_url="ghcr.io/dragonflyoss/image-service/nginx@sha256:02cde82e5688297fdc6e011b4a4a5535ee106a3d39ecdef8005b45244e39ede2"
-        ;;
-      *)
-        echo "unsupported VERIFY_DOCKER_PLATFORM for startup matrix nydus scenario: ${VERIFY_DOCKER_PLATFORM}" >&2
-        exit 1
-        ;;
-    esac
-    ;;
   *)
     echo "unsupported STARTUP_MATRIX_SCENARIO: ${STARTUP_MATRIX_SCENARIO}" >&2
     exit 1

@@ -72,6 +72,7 @@ type OciMountTxnRecord struct {
 
 // ImportedImageRecord is the current immutable content selected by a mutable ref.
 type ImportedImageRecord struct {
+	CacheKey        string
 	ImageURL        string `json:"image_url"`
 	ContentDigest   string `json:"content_digest"`
 	ArchivePath     string `json:"archive_path"`

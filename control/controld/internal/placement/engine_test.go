@@ -64,8 +64,6 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 	localOnly := readySummary(now)
 	localOnly.Components.Imagemgr.State = nodev1.ComponentState_COMPONENT_STATE_DISABLED
 	localOnly.Components.Imagemgr.Reachable = false
-	localOnly.Components.Imagefsd.State = nodev1.ComponentState_COMPONENT_STATE_DISABLED
-	localOnly.Components.Imagefsd.Reachable = false
 
 	snapshot := nodekernel.Snapshot{
 		Records: []*nodekernel.Record{
@@ -84,18 +82,6 @@ func TestPlanComponentGatingByMountType(t *testing.T) {
 	}
 	assertRejectedReasons(t, rejected[0], "local-node", placementkernel.RejectionReasonImagemgrUnavailable)
 
-	eligible, rejected = engine.Plan(snapshot, &placementkernel.Request{
-		RootfsKey:  "image:repo/app:nydus",
-		RootfsType: nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:  nodev1.MountType_MOUNT_TYPE_NYDUS,
-	}, now)
-	if len(eligible) != 1 || eligible[0].GetNodeID() != "remote-node" {
-		t.Fatalf("expected only remote node to be eligible for nydus: %#v %#v", eligible, rejected)
-	}
-	assertRejectedReasons(t, rejected[0], "local-node",
-		placementkernel.RejectionReasonImagemgrUnavailable,
-		placementkernel.RejectionReasonImagefsdUnavailable,
-	)
 }
 
 func TestEROFSLocalityRequiresObservedCompatibility(t *testing.T) {
@@ -133,27 +119,21 @@ func TestPlanSortsByFixedTuple(t *testing.T) {
 
 	hot := readySummary(now)
 	hot.Locality = []*nodev1.LocalitySummary{{
-		Key:                        "image:repo/app:latest",
-		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:                  nodev1.MountType_MOUNT_TYPE_OCI,
-		Mounted:                    true,
-		RetainedRootfsCount:        2,
-		RetainedEnvironmentCount:   1,
-		ChunkdbRecentAccessAgeSecs: 5,
-		PeerHealthyCount:           3,
-		PeerHintedCount:            2,
+		Key:                      "image:repo/app:latest",
+		RootfsType:               nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
+		MountType:                nodev1.MountType_MOUNT_TYPE_OCI,
+		Mounted:                  true,
+		RetainedRootfsCount:      2,
+		RetainedEnvironmentCount: 1,
 	}}
 	warm := readySummary(now)
 	warm.Locality = []*nodev1.LocalitySummary{{
-		Key:                        "image:repo/app:latest",
-		RootfsType:                 nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
-		MountType:                  nodev1.MountType_MOUNT_TYPE_OCI,
-		Mounted:                    false,
-		RetainedRootfsCount:        1,
-		RetainedEnvironmentCount:   1,
-		ChunkdbRecentAccessAgeSecs: 20,
-		PeerHealthyCount:           1,
-		PeerHintedCount:            1,
+		Key:                      "image:repo/app:latest",
+		RootfsType:               nodev1.RootfsType_ROOTFS_TYPE_IMAGE,
+		MountType:                nodev1.MountType_MOUNT_TYPE_OCI,
+		Mounted:                  false,
+		RetainedRootfsCount:      1,
+		RetainedEnvironmentCount: 1,
 	}}
 
 	eligible, _ := engine.Plan(nodekernel.Snapshot{
@@ -408,10 +388,6 @@ func readySummary(collectedAt time.Time) *nodev1.NodeSummary {
 				Ready: true,
 			},
 			Imagemgr: &nodev1.ImagemgrSummary{
-				State:     nodev1.ComponentState_COMPONENT_STATE_READY,
-				Reachable: true,
-			},
-			Imagefsd: &nodev1.ImagefsdSummary{
 				State:     nodev1.ComponentState_COMPONENT_STATE_READY,
 				Reachable: true,
 			},

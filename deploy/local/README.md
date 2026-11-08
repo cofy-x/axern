@@ -44,12 +44,6 @@ Registry defaults:
 - `LOCAL_REGISTRY_HOST=localhost:5001`
 - `LOCAL_REGISTRY_CLUSTER_HOST=host.docker.internal:5001`
 
-Nydus smoke defaults are repo-managed and self-contained:
-
-- `make local-compose-nydus-smoke` and `make kind-axern-nydus-smoke` build a local Nydus image into the registry when it is missing.
-- The default source image is the explicit `NYDUS_SOURCE_IMAGE` test fixture.
-- Set `NYDUS_TEST_IMAGE` only when intentionally validating a custom or production-built Nydus image.
-
 Useful status commands:
 
 ```bash
@@ -135,20 +129,15 @@ Image-backed Run checks are intentionally separate because registry-first paths 
 ```bash
 make local-compose-registry-image-smoke
 make local-compose-image-mount-smoke
-make local-compose-nydus-smoke
 make kind-axern-registry-image-smoke
-make kind-axern-nydus-smoke
 ```
 
 - `local-compose-registry-image-smoke` pushes a local runtime image into the repo-managed local registry and starts an Axern run from the registry ref through the compose node runtime path.
 - `local-compose-image-mount-smoke` pushes a task image and a tiny reusable image bundle into the repo-managed local registry, starts an Axern run with `--image-mount`, and verifies the mounted bundle is executable and read-only.
 - `kind-axern-registry-image-smoke` pushes a local runtime image into the repo-managed local registry and starts an Axern run from the registry ref.
-- `local-compose-nydus-smoke` and `kind-axern-nydus-smoke` validate Axern's own Nydus path with a repo-built local Nydus image by default: `registry source image -> nydus builder -> registry Nydus image -> imagemgr -> imagefsd -> axnoded -> sandbox`.
-- The Nydus smoke does not install or test the Kubernetes `nydus-snapshotter` path.
 
-The local node-all-in-one image starts `imagefsd serve-chunk` alongside `imagemgr`. Its Unix socket lives at `/var/lib/imagemgr/chunk_db/chunkserver.sock`, so `imagemgr /inventory` can report chunkdb/locality state without degrading `imagefsd` readiness.
 
-The node entrypoint probes imagemgr inventory, egressd health, and imagefsd locality over their real APIs before starting axnoded. Socket files can survive a crash and are not readiness evidence. Dependency checks have bounded calls and fail when the owned child exits or the startup deadline expires.
+The node entrypoint probes imagemgr inventory and egressd health over their real APIs before starting axnoded. Socket files can survive a crash and are not readiness evidence. Dependency checks have bounded calls and fail when the owned child exits or the startup deadline expires.
 
 Refresh verification can opt into those broader checks:
 
@@ -157,13 +146,11 @@ COMPOSE_REFRESH_TUNNEL_E2E=1 make local-compose-refresh-verify
 COMPOSE_REFRESH_TUNNEL_BENCHMARK=1 make local-compose-refresh-verify
 COMPOSE_REFRESH_IMAGE_SERVICE_SMOKE=1 make local-compose-refresh-verify
 LOCAL_COMPOSE_REGISTRY_IMAGE_SMOKE=1 make local-compose-refresh-verify
-LOCAL_COMPOSE_AXERN_NYDUS_SMOKE=1 make local-compose-refresh-verify
 KIND_REFRESH_TUNNEL_E2E=1 make kind-refresh-verify
 KIND_REFRESH_TUNNEL_RELAY_E2E=1 make kind-refresh-verify
 KIND_REFRESH_TUNNEL_MULTIRELAY_E2E=1 make kind-refresh-verify
 KIND_REFRESH_IMAGE_SERVICE_SMOKE=1 make kind-refresh-verify
 KIND_REFRESH_REGISTRY_IMAGE_SMOKE=1 make kind-refresh-verify
-KIND_REFRESH_AXERN_NYDUS_SMOKE=1 make kind-refresh-verify
 ```
 
 `make local-truth-verify` is the clean full pass and runs the tunnel e2e, benchmark, relay registry, and multi-relay checks by default after rebuilding local images and resetting compose/kind.
@@ -192,29 +179,6 @@ make registry-image-push IMAGE=myapp:dev
 ```
 
 The push target is `localhost:5001/...` from the host. The script also prints the `host.docker.internal:5001/...` ref used by Axern runtime containers and kind pods.
-
-To build the repo-managed local Nydus smoke image without running a smoke:
-
-```bash
-make registry-up
-make nydus-builder-image
-make registry-nydus-image-build
-```
-
-Defaults and overrides:
-
-- `NYDUS_SOURCE_IMAGE=python:3.12-slim`
-- `NYDUS_LOCAL_IMAGE=localhost:5001/axern/nydus-smoke:dev`
-- `NYDUS_IMAGE_REBUILD=1` forces conversion when the target already exists.
-- Explicit `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` values are propagated to the Nydus builder image build. Axern does not probe or select a host proxy.
-- For offline or unstable networks, place upstream release archives under `deploy/images/nydus-builder/cache/` using their original filenames, for example `nydus-static-v2.4.0-linux-arm64.tgz` and `buildkit-v0.24.0.linux-arm64.tar.gz`.
-
-The repo-managed builder is the default smoke fixture path, so Axern's local runtime verification does not require an external build service or another kind cluster. Validate production-built Nydus images, including images produced by Kova or another build pipeline, explicitly:
-
-```bash
-NYDUS_TEST_IMAGE=<registry/ref:tag-or-digest> make local-compose-nydus-smoke
-NYDUS_TEST_IMAGE=<registry/ref:tag-or-digest> make kind-axern-nydus-smoke
-```
 
 Axern builds and publishes only platform images. Workload images are caller-owned explicit inputs. Targeted E2E checks may build narrowly scoped test fixtures and import them into the node-local `imagemgr` cache; those fixtures are neither preloaded nor release artifacts. Compose keeps the image cache in a Docker-managed Linux volume so extracted OCI layer ownership stays faithful to image metadata.
 

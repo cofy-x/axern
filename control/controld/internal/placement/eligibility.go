@@ -76,7 +76,6 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *placementkernel.Evalua
 	}
 
 	imagemgrReady := imagemgrUsable(summary)
-	imagefsdReady := imagefsdUsable(summary)
 	mountType := input.Request.GetMountType()
 	if locality.GetMountType() == nodev1.MountType_MOUNT_TYPE_EROFS {
 		mountType = nodev1.MountType_MOUNT_TYPE_EROFS
@@ -87,17 +86,9 @@ func (e *Engine) evaluateCandidate(input CandidateInput) *placementkernel.Evalua
 		if !imagemgrReady {
 			reasons = append(reasons, placementkernel.RejectionReasonImagemgrUnavailable)
 		}
-	case nodev1.MountType_MOUNT_TYPE_NYDUS:
-		if !imagemgrReady {
-			reasons = append(reasons, placementkernel.RejectionReasonImagemgrUnavailable)
-		}
-		if !imagefsdReady {
-			reasons = append(reasons, placementkernel.RejectionReasonImagefsdUnavailable)
-		}
 	default:
 		reasons = append(reasons,
 			placementkernel.RejectionReasonImagemgrUnavailable,
-			placementkernel.RejectionReasonImagefsdUnavailable,
 		)
 	}
 	if derivationErr != nil && requiresNodeDataplane(input.Request) {

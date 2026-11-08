@@ -41,7 +41,7 @@ if grep -Eq '^[[:space:]]+pull_request:' "${WORKFLOW}"; then
   exit 1
 fi
 
-if grep -Eq '^[[:space:]]+(APT_MIRROR_SOURCE|CARGO_REGISTRY_SOURCE|GOPROXY):' "${WORKFLOW}"; then
+if grep -Eq '^[[:space:]]+(APT_MIRROR_SOURCE|GOPROXY):' "${WORKFLOW}"; then
   echo "hosted regression must use upstream defaults, not regional mirrors" >&2
   exit 1
 fi

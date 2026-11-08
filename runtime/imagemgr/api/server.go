@@ -113,51 +113,6 @@ func (w *HttpWorker) prepareHttp() *http.ServeMux {
 		}
 		writeJSON(writer, http.StatusOK, response)
 	})
-	mux.HandleFunc("/nydus_mount", func(writer http.ResponseWriter, request *http.Request) {
-		if !requireMethod(writer, request, http.MethodPost, "nydus_mount only supports post method") {
-			return
-		}
-		var req NydusMountRequest
-		if !decodeJSONBody(writer, request, &req, "invalid nydus mount request format") {
-			return
-		}
-		op, request := startAPIOperation(request, imgobs.SpanNydusMount, "nydus_mount", attribute.String(sdkobs.AttrImageRef, req.ImageURL))
-		var opErr error
-		defer func() { op.End(opErr) }()
-		start := time.Now()
-		info, err := w.MountNydus(request.Context(), &req)
-		logAPICall("nydus_mount", start, err)
-		if err != nil {
-			opErr = err
-			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to mount nydus image, err = %s", err))
-			return
-		}
-		op.SetHTTPStatusCode(http.StatusOK)
-		writeJSON(writer, http.StatusOK, info)
-	})
-
-	mux.HandleFunc("/nydus_umount", func(writer http.ResponseWriter, request *http.Request) {
-		if !requireMethod(writer, request, http.MethodPost, "nydus_umount only supports post method") {
-			return
-		}
-		var req NydusUmountRequest
-		if !decodeJSONBody(writer, request, &req, "invalid nydus unmount request format") {
-			return
-		}
-		op, request := startAPIOperation(request, imgobs.SpanNydusUnmount, "nydus_unmount", attribute.String(sdkobs.AttrImageRef, req.ImageURL))
-		var opErr error
-		defer func() { op.End(opErr) }()
-		start := time.Now()
-		info, err := w.UnmountNydus(request.Context(), &req)
-		logAPICall("nydus_umount", start, err)
-		if err != nil {
-			opErr = err
-			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to unmount nydus image, err = %s", err))
-			return
-		}
-		op.SetHTTPStatusCode(http.StatusOK)
-		writeJSON(writer, http.StatusOK, info)
-	})
 
 	mux.HandleFunc("/oci_mount", func(writer http.ResponseWriter, request *http.Request) {
 		if !requireMethod(writer, request, http.MethodPost, "oci_mount only supports post method") {
@@ -262,38 +217,6 @@ func (w *HttpWorker) prepareHttp() *http.ServeMux {
 		writeJSON(writer, http.StatusOK, resp)
 	})
 
-	mux.HandleFunc("/cleanup_daemon", func(writer http.ResponseWriter, request *http.Request) {
-		if !requireMethod(writer, request, http.MethodPost, "cleanup_daemon only supports post method") {
-			return
-		}
-		var req CleanupDaemonRequest
-		if !decodeJSONBody(writer, request, &req, "invalid cleanup daemon request format") {
-			return
-		}
-		start := time.Now()
-		err := w.CleanupDaemon(&req)
-		logAPICall("cleanup_daemon", start, err)
-		if err != nil {
-			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to cleanup daemon, err = %s", err))
-			return
-		}
-		writeText(writer, http.StatusOK, "ok")
-	})
-
-	mux.HandleFunc("/list_daemons", func(writer http.ResponseWriter, request *http.Request) {
-		if !requireMethod(writer, request, http.MethodGet, "list_daemons only supports GET method") {
-			return
-		}
-		start := time.Now()
-		daemons, err := w.ListDaemons()
-		logAPICall("list_daemons", start, err)
-		if err != nil {
-			writeText(writer, http.StatusInternalServerError, fmt.Sprintf("failed to list daemons, err = %s", err))
-			return
-		}
-		writeJSON(writer, http.StatusOK, daemons)
-	})
-
 	mux.HandleFunc("/list_oci_mounts", func(writer http.ResponseWriter, request *http.Request) {
 		if !requireMethod(writer, request, http.MethodGet, "list_oci_mounts only supports GET method") {
 			return
@@ -345,10 +268,13 @@ func (w *HttpWorker) prepareHttp() *http.ServeMux {
 }
 
 func (w *HttpWorker) ServeHTTP(ctx context.Context, sockPath string) error {
+	return serveHTTP(ctx, sockPath, w.prepareHttp())
+}
+
+func serveHTTP(ctx context.Context, sockPath string, handler http.Handler) error {
 	if sockPath == "" {
 		return fmt.Errorf("empty socket path")
 	}
-	mux := w.prepareHttp()
 	info, err := os.Lstat(sockPath)
 	if err == nil {
 		if info.Mode()&os.ModeSocket == 0 {
@@ -369,7 +295,7 @@ func (w *HttpWorker) ServeHTTP(ctx context.Context, sockPath string) error {
 		_ = os.Remove(sockPath)
 	}()
 	server := http.Server{
-		Handler: sdkobs.HTTPHandler(mux, imgobs.SpanHTTP),
+		Handler: sdkobs.HTTPHandler(handler, imgobs.SpanHTTP),
 	}
 	serveStopped := make(chan struct{})
 	shutdownResult := make(chan error, 1)

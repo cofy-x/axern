@@ -30,7 +30,7 @@ AXNODED_DIR := runtime/axnoded
 	axnoded-verify-node-locality-e2e \
 	axnoded-verify-node-warm-pool-e2e \
 	axnoded-verify-node-oci-e2e \
-	axnoded-verify-node-nydus-e2e \
+	 \
 	axnoded-verify-docker-runsc \
 	axnoded-verify-docker-runsc-ebpf \
 	axnoded-verify-docker-runsc-debug \
@@ -123,9 +123,6 @@ axnoded-verify-node-warm-pool-e2e: ## Run the axnoded node all-in-one warm pool 
 
 axnoded-verify-node-oci-e2e: ## Run the axnoded node all-in-one OCI end-to-end verification
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-oci-e2e)
-
-axnoded-verify-node-nydus-e2e: ## Run the axnoded node all-in-one Nydus end-to-end verification
-	@$(call run_subsystem_make,$(AXNODED_DIR),verify-node-nydus-e2e)
 
 axnoded-verify-docker-runsc: ## Run axnoded privileged Docker verification against runsc
 	@$(call run_subsystem_make,$(AXNODED_DIR),verify-docker-runsc)

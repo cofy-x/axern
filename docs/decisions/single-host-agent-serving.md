@@ -48,6 +48,6 @@ Retaining personal work introduces stateful maintenance obligations. Supported u
 
 Keep one execution chain and one state owner while reducing installation and operational complexity. Components may be combined, localized or removed with their affected callers and contracts; preserve privilege separation and failure behavior rather than a fixed module list.
 
-OCI is the native image path. Kubernetes deployments and Nydus/image-cache optimizations remain optional and need a concrete workload to justify maintenance or expansion. Cloud accounts, regional orchestration, high availability, worker planning and model policy stay outside the serving core.
+OCI is the image path. Kubernetes deployments and additional image-cache optimization need a concrete workload to justify maintenance or expansion. Cloud accounts, regional orchestration, high availability, worker planning and model policy stay outside the serving core.
 
 Revisit a component boundary when actual operation exposes avoidable configuration, resource cost or fault-recovery problems. Revisit a deferred scaling or storage feature when a real workload demonstrates the need. The gVisor-only choice remains a product constraint.

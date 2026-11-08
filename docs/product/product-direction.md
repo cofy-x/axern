@@ -43,6 +43,6 @@ Multiple workers use independent writable directories, immutable common referenc
 | Images | Shared toolchains, official Agent installation layers, version/source locks and local build/check commands | Project-specific customization, build-service orchestration, registry credentials and publication |
 | Operations | Native installation/lifecycle and diagnostics; planned supported-version upgrades and coordinated backup/restore | Cloud accounts, cluster provisioning, high availability and regional deployment |
 
-Kubernetes and Nydus are optional implemented paths outside the native serving default. Cluster expansion, distributed image/storage optimization and transparent process snapshots require demonstrated single-host needs. Additional execution runtimes are outside the product scope.
+OCI is the sole image path; Kubernetes is an optional deployment outside the native serving default. Cluster expansion, distributed image/storage optimization and transparent process snapshots require demonstrated single-host needs. Additional execution runtimes are outside the product scope.
 
 A feature belongs in Axern when it serves isolated execution or retained execution data, has one explicit state owner, and defines authorization, capacity, cleanup and recovery. A new public resource must have an independent identity and lifetime that existing resources cannot safely express. Workflow meaning and provider-specific behavior remain in callers.

@@ -29,7 +29,7 @@ def load_lock(path=ROOT / 'versions.lock.json'):
         raise ValueError('base image must have an immutable SHA-256 reference')
     for record in lock['artifacts'].values():
         url = urlsplit(record['url'])
-        if url.scheme != 'https' or url.hostname not in ('go.dev', 'nodejs.org', 'registry.npmjs.org', 'raw.githubusercontent.com') or url.username or url.password or url.port or url.query or url.fragment:
+        if url.scheme != 'https' or url.hostname not in ('go.dev', 'nodejs.org', 'registry.npmjs.org', 'raw.githubusercontent.com', 'files.pythonhosted.org') or url.username or url.password or url.port or url.query or url.fragment:
             raise ValueError('runtime sources must be public HTTPS URLs')
         if not record.get('version') or not record.get('size', 0) > 0:
             raise ValueError('runtime source version and exact size are required')
@@ -111,6 +111,24 @@ def prepare_cache(source, destination, lock):
             shutil.copyfile(candidate, destination / candidate.name)
 
 
+def strip_node_package_managers(root):
+    modules = root / 'lib/node_modules'
+    if modules.exists():
+        for package in modules.iterdir():
+            if package.name not in ('npm', 'corepack') or package.is_symlink() or not package.is_dir():
+                raise ValueError('unexpected bundled Node package: ' + package.name)
+            shutil.rmtree(package)
+        modules.rmdir()
+    for name in ('npm', 'npx', 'corepack', 'pnpm', 'pnpx', 'yarn', 'yarnpkg'):
+        launcher = root / 'bin' / name
+        if launcher.exists() or launcher.is_symlink():
+            if launcher.is_dir() and not launcher.is_symlink():
+                raise ValueError('unexpected Node manager launcher directory: ' + name)
+            launcher.unlink()
+    if {path.name for path in (root / 'bin').iterdir()} != {'node'}:
+        raise ValueError('Node runtime must expose only the node executable')
+
+
 def install(target, lock):
     if tuple(map(int, lock['base']['python_version'].split('.'))) != sys.version_info[:3]:
         raise ValueError('base Python version does not match the image lock')
@@ -125,11 +143,15 @@ def install(target, lock):
             extract_source(archive, destination)
             return destination
 
-        if target == 'toolchain':
+        if target == 'base':
+            wheel = fetch_source(records['pip'], scratch / archive_name(records['pip']))
+            subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '--no-cache-dir', str(wheel)], check=True)
+        elif target == 'toolchain':
             shutil.move(unpack('go') / 'go', '/usr/local/go')
-            shutil.move(unpack('node') / ('node-v' + records['node']['version'] + '-linux-x64'), '/opt/node')
-            for name in ('node', 'npm', 'npx'):
-                (Path('/usr/local/bin') / name).symlink_to(Path('/opt/node/bin') / name)
+            node = unpack('node') / ('node-v' + records['node']['version'] + '-linux-x64')
+            strip_node_package_managers(node)
+            shutil.move(node, '/opt/node')
+            Path('/usr/local/bin/node').symlink_to('/opt/node/bin/node')
             for name in ('go', 'gofmt'):
                 (Path('/usr/local/bin') / name).symlink_to(Path('/usr/local/go/bin') / name)
         elif target == 'claude-code':
@@ -147,12 +169,12 @@ def install(target, lock):
                     shutil.copyfile(source, Path('/opt/codex') / archive_name(records[name]))
             Path('/usr/local/bin/codex').symlink_to('/opt/codex/vendor/x86_64-unknown-linux-musl/bin/codex')
         else:
-            raise ValueError('only toolchain and Agent stages install artifacts')
+            raise ValueError('unsupported image installation stage')
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('target', choices=TARGETS[1:])
+    parser.add_argument('target', choices=TARGETS)
     args = parser.parse_args()
     install(args.target, load_lock())
 

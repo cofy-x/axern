@@ -15,11 +15,9 @@ VERIFY_DOCKER_PLATFORM="${VERIFY_DOCKER_PLATFORM:-$(resolve_verify_docker_platfo
 case "${VERIFY_DOCKER_PLATFORM}" in
   linux/amd64)
     default_oci_image="docker.io/library/busybox@sha256:b8d1827e38a1d49cd17217efd7b07d689e4ea1744e39c7dcbb95533d175bea65"
-    default_nydus_image="ghcr.io/dragonflyoss/image-service/nginx@sha256:e263899b73cfecb68980fbe396dbac8dbabd108397786bed8b423c496500a2a7"
     ;;
   linux/arm64 | linux/arm64/v8)
     default_oci_image="docker.io/library/busybox@sha256:c4e5b27bf840ba1ebd5568b6b914f6926f3559b2ad4f505b1f37aae483b907d6"
-    default_nydus_image="ghcr.io/dragonflyoss/image-service/nginx@sha256:02cde82e5688297fdc6e011b4a4a5535ee106a3d39ecdef8005b45244e39ede2"
     ;;
   *)
     echo "unsupported VERIFY_DOCKER_PLATFORM for locality e2e: ${VERIFY_DOCKER_PLATFORM}" >&2
@@ -28,17 +26,9 @@ case "${VERIFY_DOCKER_PLATFORM}" in
 esac
 
 OCI_IMAGE_URL="${OCI_TEST_IMAGE:-${default_oci_image}}"
-if [ -n "${NYDUS_TEST_IMAGE:-}" ]; then
-  NYDUS_IMAGE_URL="${NYDUS_TEST_IMAGE}"
-  NYDUS_TEST_IMAGE_SOURCE="${NYDUS_TEST_IMAGE_SOURCE:-registry}"
-else
-  NYDUS_IMAGE_URL="${default_nydus_image}"
-fi
 
 prepare_oci_test_image_source "${OCI_IMAGE_URL}"
 OCI_IMAGE_URL="${PREPARED_OCI_TEST_IMAGE}"
-prepare_nydus_test_image_source "${NYDUS_IMAGE_URL}"
-NYDUS_IMAGE_URL="${PREPARED_NYDUS_TEST_IMAGE}"
 
 export VERIFY_DOCKER_PLATFORM
 
@@ -65,8 +55,9 @@ docker run -d \
   --platform "${VERIFY_DOCKER_PLATFORM}" \
   -e "IMAGEMGR_SOCKET=${IMAGEMGR_SOCKET}" \
   -e "AXNODED_SOCKET=${AXNODED_SOCKET}" \
-  -e "REGISTRY_PROXY_URL=${REGISTRY_PROXY_URL}" \
-  -e "REGISTRY_NO_PROXY=${REGISTRY_NO_PROXY}" \
+  -e "HTTP_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "HTTPS_PROXY=${REGISTRY_PROXY_URL}" \
+  -e "NO_PROXY=${REGISTRY_NO_PROXY}" \
   -e "IMAGEMGR_INSECURE_REGISTRIES=${OCI_TEST_INSECURE_REGISTRIES}" \
   -e "AXNODED_HTTP_ADDRESS=${AXNODED_HTTP_ADDRESS}" \
   "${IMAGE_TAG}" \
@@ -97,7 +88,6 @@ if ! docker exec \
   -e "AXNODED_HTTP_URL=${AXNODED_HTTP_URL}" \
   -e "CREATE_SANDBOX_TIMEOUT=${CREATE_SANDBOX_TIMEOUT}" \
   -e "OCI_IMAGE_URL=${OCI_IMAGE_URL}" \
-  -e "NYDUS_IMAGE_URL=${NYDUS_IMAGE_URL}" \
   "${NODE_CONTAINER_NAME}" \
   /bin/bash /workspace/scripts/verify/verify-node-locality-e2e-in-container.sh; then
   dump_logs

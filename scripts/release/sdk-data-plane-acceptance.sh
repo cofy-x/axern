@@ -130,7 +130,7 @@ mkdir -p "${go_dir}"
 cat > "${go_dir}/go.mod" <<EOF
 module example.com/axern-sdk-data-plane-acceptance
 
-go 1.26.8
+go 1.26.10
 
 require github.com/cofy-x/axern/sdk/go v${version}
 ${go_replace}

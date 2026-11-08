@@ -15,6 +15,7 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	environmentcache "github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
 	runtimecontract "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -91,8 +92,9 @@ func (h *Controller) ResolvedEnvironmentID(allocationID string) string {
 
 // RecoveryRecords is the validated node-local recovery view. Intents contains
 // every durable create intent. EnforcementVerified is the subset whose
-// runtime enforcement manifest crossed the create-before-start barrier and may
-// therefore recover a running or terminal runtime container.
+// runtime enforcement manifest crossed the create-before-start barrier.
+// Live recovery separately requires the observed post-start guest Ready fact;
+// terminal cleanup continues to use the original enforcement authority.
 type RecoveryRecords struct {
 	Intents             map[string]struct{}
 	EnforcementVerified map[string]struct{}
@@ -652,6 +654,61 @@ func (h *Controller) StoreVerifiedEnforcementManifest(allocationID string, manif
 	h.stateLocked(allocationID).record = desired
 	h.stateMu.Unlock()
 	return nil
+}
+
+// StoreGuestProcessProfileVerified records the successful post-start Ready
+// observation. The caller owns the lifecycle lane and calls this only after
+// StartPreparedContainer has confirmed the canonical guest implementation.
+// Desired pre-start policy alone never supplies this observed fact.
+func (h *Controller) StoreGuestProcessProfileVerified(allocationID string, manifest *apipb.AllocationEnforcementManifest) error {
+	allocationID = strings.TrimSpace(allocationID)
+	unlock := h.recordMutationLocks.Lock(allocationID)
+	defer unlock()
+	h.stateMu.RLock()
+	current := h.allocationStates[allocationID]
+	var desired *apipb.AllocationState
+	if current != nil {
+		desired = cloneAllocationRecord(current.record)
+	}
+	h.stateMu.RUnlock()
+	if desired == nil || allocationID == "" || desired.GetAllocationID() != allocationID {
+		return errors.New("guest Ready requires exact allocation ownership")
+	}
+	if err := rejectTerminatedActivation(desired); err != nil {
+		return err
+	}
+	if desired.GetNodeID() != "" && desired.GetExecutionLeaseExpiresAtUnixNano() <= time.Now().UnixNano() {
+		return fmt.Errorf("allocation %q execution lease expired before guest Ready: %w", allocationID, errord.ErrFailedPrecondition)
+	}
+	if manifest == nil || manifest.GetProcessSecurityProfile() != wire.ProcessSecurityProfile || !proto.Equal(desired.GetEnforcementManifest(), manifest) {
+		return errors.New("guest Ready does not match the immutable allocation process policy")
+	}
+	desired.GuestProcessProfileVerified = true
+	if err := h.persistAllocationRecord(desired); err != nil {
+		return fmt.Errorf("persist observed guest process profile: %w", err)
+	}
+	h.stateMu.Lock()
+	h.stateLocked(allocationID).record = desired
+	h.stateMu.Unlock()
+	return nil
+}
+
+// GuestProcessProfileVerified reads the existing observation before or after
+// allocation restoration. Missing/old records are never upgraded from config.
+func (h *Controller) GuestProcessProfileVerified(allocationID string) bool {
+	allocationID = strings.TrimSpace(allocationID)
+	h.stateMu.RLock()
+	if state := h.allocationStates[allocationID]; state != nil && state.record != nil {
+		verified := state.record.GetGuestProcessProfileVerified()
+		h.stateMu.RUnlock()
+		return verified
+	}
+	h.stateMu.RUnlock()
+	if allocationID == "" || h.store == nil {
+		return false
+	}
+	var record apipb.AllocationState
+	return h.store.GetRecord(config.AllocationStateBucket, allocationID, &record) == nil && record.GetAllocationID() == allocationID && record.GetGuestProcessProfileVerified()
 }
 
 func verifiedEnforcementManifest(manifest *apipb.AllocationEnforcementManifest, verified []*capabilityv1.CapabilityKey, dependencies []*capabilityv1.CapabilityRequirement, observedAt, now time.Time) (*apipb.AllocationEnforcementManifest, error) {

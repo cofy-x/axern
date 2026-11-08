@@ -1,4 +1,4 @@
-ARG GO_IMAGE=golang:1.26.8
+ARG GO_IMAGE=golang:1.26.10
 ARG BASE_IMAGE=ubuntu:24.04
 ARG GOPROXY=https://proxy.golang.org,direct
 ARG GOSUMDB=sum.golang.org
@@ -26,7 +26,7 @@ COPY lib/go/networkpolicy/go.mod lib/go/networkpolicy/go.sum /workspace/lib/go/n
 COPY lib/go/observability/go.mod lib/go/observability/go.sum /workspace/lib/go/observability/
 COPY sdk/go/go.mod sdk/go/go.sum /workspace/sdk/go/
 RUN cat > /workspace/go.work <<'EOF'
-go 1.26.8
+go 1.26.10
 
 use (
 	./internal/proto
@@ -65,6 +65,7 @@ FROM ${BASE_IMAGE} AS benchmark-base
 COPY --from=axnoded-builder /out/memory-hog /tmp/axern-memory-hog
 
 ARG APT_MIRROR_SOURCE=archive
+ARG APT_REFRESH_EPOCH=source
 ARG PERF_KERNEL_RELEASE=
 ARG RUNSC_SOURCE=remote
 ARG RUNSC_CACHE_ARCH=aarch64
@@ -90,8 +91,10 @@ RUN APT_SOURCE="${APT_MIRROR_SOURCE}"; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update && \
-    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y \
+    test -n "${APT_REFRESH_EPOCH}" && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 update && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 upgrade -y --no-install-recommends && \
+    apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
     bash \
     bzip2 \
     busybox-static \
@@ -103,6 +106,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     linux-tools-common \
     linux-tools-generic \
     procps \
+    python3 \
     util-linux && \
     kernel_release="${PERF_KERNEL_RELEASE}" && \
     if [ -z "${kernel_release}" ]; then kernel_release="$(uname -r)"; fi && \
@@ -113,7 +117,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       fi; \
     done && \
     if [ -n "${kernel_tools}" ]; then \
-      apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y ${kernel_tools}; \
+      apt-get -o Acquire::Retries=0 -o Acquire::http::Timeout=30 install -y --no-install-recommends ${kernel_tools}; \
     fi && \
     perf_bin="" && \
     if [ -x "/usr/lib/linux-tools/${kernel_release}/perf" ]; then \
@@ -128,32 +132,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     fi && \
     rm -rf /var/lib/apt/lists/partial
 
-COPY runtime/axnoded/.cache/gvisor/ /opt/gvisor-cache/
 COPY runtime/axnoded/runtime-tools.sh /usr/local/share/axern/runtime-tools.sh
 COPY runtime/axnoded/gvisor.lock /usr/local/share/axern/gvisor.lock
+COPY runtime/axnoded/gvisor-selected.lock.json runtime/axnoded/gvisor_payload.py /usr/local/share/axern/
 
-RUN set -eux; \
+# The local cache is a read-only build input, never a final-image layer.
+RUN --mount=type=bind,source=runtime/axnoded/.cache/gvisor,target=/opt/gvisor-cache,readonly \
+    set -eux; \
     . /usr/local/share/axern/runtime-tools.sh; \
     ARCH="$(dpkg --print-architecture)"; \
-    case "$ARCH" in \
-      amd64) GV_ARCH="x86_64"; GVISOR_SHA512="${AXERN_GVISOR_SHA512_AMD64}" ;; \
-      arm64) GV_ARCH="aarch64"; GVISOR_SHA512="${AXERN_GVISOR_SHA512_ARM64}" ;; \
-      *) echo "unsupported arch: $ARCH" >&2; exit 1 ;; \
-    esac; \
-    mkdir -p /tmp/gvisor; \
+    case "$ARCH" in amd64) GV_ARCH="x86_64" ;; arm64) GV_ARCH="aarch64" ;; *) exit 1 ;; esac; \
     if [ "${RUNSC_SOURCE}" = "local" ]; then \
-      cp -a "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}/." /tmp/gvisor/; \
-    else \
+      python3 /usr/local/share/axern/gvisor_payload.py copy --arch "$ARCH" \
+        --lock /usr/local/share/axern/gvisor-selected.lock.json --upstream-lock /usr/local/share/axern/gvisor.lock \
+        --source "/opt/gvisor-cache/${RUNSC_CACHE_ARCH}" --destination /tmp/gvisor; \
+    elif [ "${RUNSC_SOURCE}" = "remote" ]; then \
       URL="https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${GV_ARCH}/gvisor.tar.bz2"; \
       curl --retry 5 --retry-all-errors --retry-delay 2 --connect-timeout 10 --max-time 900 -fsSLo /tmp/gvisor.tar.bz2 "${URL}"; \
-      printf '%s  %s\n' "${GVISOR_SHA512}" /tmp/gvisor.tar.bz2 | sha512sum -c -; \
-      tar -xjf /tmp/gvisor.tar.bz2 -C /tmp/gvisor; \
-    fi; \
+      python3 /usr/local/share/axern/gvisor_payload.py extract --arch "$ARCH" \
+        --lock /usr/local/share/axern/gvisor-selected.lock.json --upstream-lock /usr/local/share/axern/gvisor.lock \
+        --source /tmp/gvisor.tar.bz2 --destination /tmp/gvisor; \
+    else echo "unsupported RUNSC_SOURCE" >&2; exit 1; fi; \
     install -m 0755 /tmp/gvisor/runsc /usr/local/bin/runsc; \
-    if [ -f /tmp/gvisor/containerd-shim-runsc-v1 ]; then install -m 0755 /tmp/gvisor/containerd-shim-runsc-v1 /usr/local/bin/containerd-shim-runsc-v1; fi; \
-    for COMPONENT in checkpointgofer gvisor-proc-umounter gvisor_sentry runsc-fd-parking; do test -x "/tmp/gvisor/gvisor-bin/$COMPONENT"; done; \
-    mkdir -p /usr/local/bin/gvisor-bin; \
-    cp -a /tmp/gvisor/gvisor-bin/. /usr/local/bin/gvisor-bin/; \
+    cp -a /tmp/gvisor/gvisor-bin /usr/local/bin/gvisor-bin; \
     /usr/local/bin/runsc --version | grep -F "${AXERN_GVISOR_TAG}"; \
     rm -rf /tmp/gvisor /tmp/gvisor.tar.bz2
 

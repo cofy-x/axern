@@ -129,7 +129,7 @@ Rootfs sealing is a separate cleanup barrier for explicitly requested successful
 | Public resources, binding, charge, grants, requirements, and lifecycle | `controld` / PostgreSQL | Gateway cache or node recovery files |
 | ExecutionLease receipt deadline | axnoded Allocation recovery record | Access-grant cache or OCI metadata |
 | Runtime, mount, network, cleanup, and sealed output | axnoded node-local state | Cross-node product truth |
-| Image cache and read-only mounts | imagemgr / imagefsd | Run status or writable workspace truth |
+| Image cache and read-only mounts | imagemgr | Run status or writable workspace truth |
 | Streams, PTY, SSH, and live connections | Node and gateway transient state | Durable result or authorization |
 | Long-term output bytes | Caller-owned storage | PostgreSQL or bounded node retention |
 

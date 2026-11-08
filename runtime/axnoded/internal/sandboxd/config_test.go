@@ -65,22 +65,46 @@ func TestParseConfigLoadsEntrypointJSON(t *testing.T) {
 	}
 }
 
-func TestParseConfigIgnoresFutureEntrypointJSONFields(t *testing.T) {
-	dir := t.TempDir()
-	entrypointPath := filepath.Join(dir, "entrypoint.json")
-	if err := os.WriteFile(entrypointPath, []byte(`{"args":["/bin/echo","ok"],"user":{"uid":1000},"terminal":true}`), 0600); err != nil {
-		t.Fatal(err)
+func TestParseConfigAcceptsSupportedRootEntrypointMetadata(t *testing.T) {
+	for _, identity := range []string{"", `,"user":{"uid":0,"gid":0},"terminal":false`} {
+		dir := t.TempDir()
+		entrypointPath := filepath.Join(dir, "entrypoint.json")
+		if err := os.WriteFile(entrypointPath, []byte(`{"args":["/bin/echo","ok"],"cwd":"/workspace","env":["INERT=value"]`+identity+`}`), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := ParseConfig([]string{"--socket", filepath.Join(dir, "sandboxd.sock"), "--entrypoint-json", entrypointPath}, &bytes.Buffer{})
+		if err != nil {
+			t.Fatalf("supported root metadata rejected: %v", err)
+		}
+		if !reflect.DeepEqual(cfg.Entrypoint.Args, []string{"/bin/echo", "ok"}) || cfg.Entrypoint.Cwd != "/workspace" || !reflect.DeepEqual(cfg.Entrypoint.Env, []string{"INERT=value"}) {
+			t.Fatalf("entrypoint contract changed: %#v", cfg.Entrypoint)
+		}
 	}
+}
 
-	cfg, err := ParseConfig([]string{
-		"--socket", filepath.Join(dir, "sandboxd.sock"),
-		"--entrypoint-json", entrypointPath,
-	}, &bytes.Buffer{})
-	if err != nil {
-		t.Fatalf("ParseConfig() error = %v", err)
-	}
-	if !reflect.DeepEqual(cfg.Entrypoint.Args, []string{"/bin/echo", "ok"}) {
-		t.Fatalf("entrypoint args = %#v", cfg.Entrypoint.Args)
+func TestParseConfigRejectsUnsupportedEntrypointMetadata(t *testing.T) {
+	for name, data := range map[string]string{
+		"nonroot uid":      `{"args":["/bin/echo","ok"],"user":{"uid":1000}}`,
+		"nonroot gid":      `{"args":["/bin/echo","ok"],"user":{"gid":1000}}`,
+		"extra groups":     `{"args":["/bin/echo","ok"],"user":{"additionalGids":[0]}}`,
+		"username":         `{"args":["/bin/echo","ok"],"user":{"username":"root"}}`,
+		"umask":            `{"args":["/bin/echo","ok"],"user":{"umask":18}}`,
+		"terminal":         `{"args":["/bin/echo","ok"],"terminal":true}`,
+		"unknown behavior": `{"args":["/bin/echo","ok"],"privileged":true}`,
+		"second object":    `{"args":["/bin/echo","ok"]}{"user":{"uid":1000}}`,
+		"trailing data":    `{"args":["/bin/echo","ok"]} invalid`,
+		"null object":      `null`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			entrypointPath := filepath.Join(dir, "entrypoint.json")
+			if err := os.WriteFile(entrypointPath, []byte(data), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := ParseConfig([]string{"--socket", filepath.Join(dir, "sandboxd.sock"), "--entrypoint-json", entrypointPath}, &bytes.Buffer{}); err == nil {
+				t.Fatal("unsupported entrypoint behavior was accepted")
+			}
+		})
 	}
 }
 

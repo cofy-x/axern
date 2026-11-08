@@ -11,9 +11,8 @@ For local compose and kind commands, see [Local Troubleshooting](../../deploy/lo
 | `controld` | process stdout/stderr | node observation ingest, heartbeat freshness, placement rejections, allocation dispatch, Run/Allocation state, gateway and tunnel target resolution |
 | `axnoded` | `/var/log/axnoded/axnoded.log` | control-plane report failures, lifecycle RPCs, sandbox create/delete, OCI bundle generation, runtime command failures, cgroup setup, network setup |
 | `node-tunneld` | `/var/log/axnoded/node-tunneld.log` | node-local tunnel agent restarts, Allocation authority validation, machine-only tunnel socket access, relay connection failures |
-| `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | image import, `/oci_mount`, `/nydus_mount`, overlay mount, Nydus bootstrap fetch, imagefsd daemon launch |
+| `imagemgr` | `/var/lib/imagemgr/logs/imagemgr.log` | OCI image import, `/oci_mount`, extraction, overlay mounts and lease cleanup |
 | `egressd` | process stdout/stderr | policy prepare/delete fencing, persistent recovery, orphan reconciliation, enforcement health |
-| `imagefsd mount daemon` | `/var/lib/imagemgr/daemons/<daemon-id>/daemon.log` | Nydus image read path, backend fetches, cache/chunk behavior, FUSE mount daemon internals |
 | `gatewayd` | process stdout/stderr | gateway route resolution, upstream connection failures, HTTP proxying, terminal and SSH forwarding |
 | `tunneld` | process stdout/stderr | relay selection, peer/session pairing, relay drain behavior |
 | `controld-migrate` | job/process stdout/stderr | Postgres schema migration failures |
@@ -31,7 +30,7 @@ These paths are inside the node runtime environment, such as the compose `node` 
 | `/run/imagemgr/imagemgr.sock`       | axnoded-to-imagemgr image rootfs API socket                  |
 | `/run/egressd/egressd.sock`         | axnoded-to-egressd policy lifecycle API socket               |
 | `/var/lib/axnoded`                  | axnoded runtime state, store, rootfs, filestore              |
-| `/var/lib/imagemgr`                 | imagemgr state, logs, mount records, imagefsd daemon dirs    |
+| `/var/lib/imagemgr`                 | imagemgr state, logs, OCI cache and mount records    |
 | `/var/lib/egressd`                  | egressd authoritative prepared policy records                |
 | `/var/log/axnoded/axnoded.log`      | axnoded daemon log                                           |
 | `/var/log/axnoded/node-tunneld.log` | node-tunneld supervisor log                                  |
@@ -68,8 +67,7 @@ The generated config is root-only and does not contain bootstrap tokens. Keep th
 | `controld`     | node observation, placement, allocation dispatch, gateway/tunnel resolution                                          |
 | `axnoded`      | node lifecycle, sandbox creation, runtime bundle, allocation-local writable storage, cgroup/network, root-only operator and separate machine tunnel socket |
 | `egressd`      | node-local egress policy persistence, recovery, reconciliation, and host enforcement                                 |
-| `imagemgr`     | image import, image-backed rootfs orchestration, OCI overlay, Nydus daemon lifecycle                                 |
-| `imagefsd`     | read-only image data, cache, chunk DB, mount daemon internals                                                        |
+| `imagemgr`     | OCI import, image-backed rootfs orchestration, overlay mounts and lease cleanup                                 |
 | `gatewayd`     | Allocation-bound process, file, archive, terminal, SSH, Tunnel, and sandbox forwarding after target resolution       |
 | `tunneld`      | relay-side tunnel session pairing                                                                                    |
 | `node-tunneld` | node-local tunnel agent launch and exact Allocation validation                                                       |

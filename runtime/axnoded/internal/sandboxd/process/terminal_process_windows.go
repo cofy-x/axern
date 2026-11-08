@@ -9,7 +9,12 @@ import (
 	"github.com/creack/pty"
 )
 
-func startTerminalProcess(cmd *exec.Cmd, size *pty.Winsize, _ processUser, _ bool) (*os.File, error) {
+func startTerminalProcess(cmd *exec.Cmd, size *pty.Winsize, user processUser, hasUser bool) (*os.File, error) {
+	cleanup, err := prepareProcessUser(cmd, user, hasUser)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	cmd.Stdin = nil

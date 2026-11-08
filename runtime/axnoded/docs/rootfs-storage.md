@@ -1,6 +1,6 @@
 # Runtime Rootfs And Writable Storage Contract
 
-Axern treats the lower rootfs as immutable input. It may be a directory, an existing OverlayFS view, Nydus, or EROFS. Runtime behavior is selected from OCI semantics, the source-owned immutable mount descriptor, and runtime policy; it is not selected by an image-product type switch.
+Axern treats the lower rootfs as immutable input. It may be a directory, an existing OverlayFS view, or EROFS. Runtime behavior is selected from OCI semantics, the source-owned immutable mount descriptor, and runtime policy; it is not selected by an image-product type switch.
 
 ## Three independent boundaries
 
@@ -16,7 +16,7 @@ Default hosts contain IPv4 and IPv6 localhost entries and map the effective host
 
 ## Immutable mount hand-off and projection
 
-Imagemgr owns image representation, the effective immutable mount, its opaque identity, and its lease. Every image mount response returns one bounded, flat descriptor containing the effective root, filesystem diagnostics, exact ordered OverlayFS lower paths when projection needs them, readonly state, source-owned identity, and lease ID. OCI, Nydus, and future EROFS details stop at this boundary. The projection provider validates and consumes the descriptor; it does not parse image metadata or reverse-engineer mountinfo to rediscover image layers. Local developer rootfs sources are described once by their source adapter using the same contract.
+Imagemgr owns image representation, the effective immutable mount, its opaque identity, and its lease. Every image mount response returns one bounded, flat descriptor containing the effective root, filesystem diagnostics, exact ordered OverlayFS lower paths when projection needs them, readonly state, source-owned identity, and lease ID. OCI extraction and future filesystem representation details stop at this boundary. The projection provider validates and consumes the descriptor; it does not parse image metadata or reverse-engineer mountinfo to rediscover image layers. Local developer rootfs sources are described once by their source adapter using the same contract.
 
 `projection.json` records this descriptor only for lifecycle correlation. Imagemgr and its lease reconciliation own lower health and identity changes; projection reconciliation owns the host OverlayFS mount, placeholder upper, and work directory. This prevents projection from becoming a second image manager. Unsafe or non-canonical lower paths and mount-option encoding are rejected before an OverlayFS mount.
 
@@ -40,6 +40,12 @@ The immutable runsc launch-enforcement manifest records the exact overlay argume
 
 The node-local Allocation charge ledger is fsync/rename durable and checks both committed requests and live `statfs` availability after the system reserve. AllocationState, the Allocation charge ledger, the projection manifest, and runtime inventory provide restart inputs; OCI annotations are not an ownership or recovery source. Compressed EROFS copy-up is charged by actual upper usage; lower compressed size is not a capacity estimate.
 
+## Private Secret Files
+
+Resolved Secret files are materialized under the configured node root in `allocation-secrets/<allocation-key>`. The storage parent and Allocation directory remain node-owned `0700`; descriptor-relative operations reject symlinks, unsafe ownership, replaced directories and unexpected mounts. Guest target paths do not select host paths. Files preserve the explicitly granted read-only mode independently of the service umask and enter the sandbox through read-only bind projections.
+
+Existing plaintext is never replaced by an admission replay. Runtime deletion must release its mounts before normal or failed-start cleanup removes the private files. A cleanup failure retains the Allocation admission for retry. Secret storage does not use a global temporary directory, and restart cleanup uses the same configured node root.
+
 ## Managed Workspace Storage
 
 An optional Workspace bind at `/workspace` retains bytes independently of the disposable root overlay. The node consumes a typed, immutable control-plane binding containing Workspace/Namespace/Node identities, granted byte/inode limits, storage identity and writer generation. It rejects overlapping mounts or Secret-file projections and does not combine Workspace use with rootfs-snapshot publication. The node resolves the source from its private ownership records rather than accepting a public host path.
@@ -51,6 +57,8 @@ Attach, live enforcement audit and recovery verify the exact data inode, current
 The normal runtime cleanup barrier stops Sentry and Gofer, removes runtime mounts/projections, retires image handles and resource claims, and atomically records the matching Workspace release receipt before discarding the Allocation admission record. A terminal workload or expired lease alone does not transfer the writer. Acknowledging an old receipt only prunes that receipt and cannot change a newer writer.
 
 Explicit Workspace deletion requires a detached owner, durably records deletion intent, walks through pinned directory descriptors without following symlinks or crossing a mount, and confirms zero project block/inode use after filesystem synchronization. Open-unlinked files or uncertain cleanup retain the charge. Recursive deletion serializes only its own Workspace; unrelated live writer verification does not wait behind that tree walk.
+
+Retired Workspace ownership records remain as delayed-command fences. The experimental profile does not qualify unlimited Workspace create/delete churn or automated metadata compaction; retained metadata requires planned capacity and an explicit maintenance contract.
 
 ## Readiness, observed capability, and cleanup
 

@@ -24,22 +24,17 @@ func (p OciBaselinePolicy) apply(ociSpec *spec.Spec) {
 	}
 	p.ensureCapabilities(ociSpec.Process)
 	p.ensureNoFileLimit(ociSpec.Process)
+	EnforceProcessSecurity(ociSpec.Process)
 }
 
 func (p OciBaselinePolicy) ensureCapabilities(process *spec.Process) {
-	if process.Capabilities == nil {
-		process.Capabilities = &spec.LinuxCapabilities{}
-	}
-	sets := []*[]string{
-		&process.Capabilities.Bounding,
-		&process.Capabilities.Effective,
-		&process.Capabilities.Inheritable,
-		&process.Capabilities.Permitted,
-	}
-	for _, capName := range p.Capabilities {
-		for _, target := range sets {
-			*target = appendUnique(*target, capName)
-		}
+	// The trusted profile owns the root capability ceiling. Never adopt
+	// additional capabilities from a damaged or previously prepared base spec.
+	process.Capabilities = &spec.LinuxCapabilities{
+		Bounding:    append([]string(nil), p.Capabilities...),
+		Effective:   append([]string(nil), p.Capabilities...),
+		Inheritable: append([]string(nil), p.Capabilities...),
+		Permitted:   append([]string(nil), p.Capabilities...),
 	}
 }
 

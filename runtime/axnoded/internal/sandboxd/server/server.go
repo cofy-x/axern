@@ -90,7 +90,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		writeMethodNotAllowed(w)
 		return
 	}
-	writeJSON(w, http.StatusOK, wire.ReadyResponse{ProtocolVersion: wire.ProtocolVersion, Ready: true})
+	writeJSON(w, http.StatusOK, wire.ReadyResponse{ProtocolVersion: wire.ProtocolVersion, Ready: true, ProcessSecurityProfile: wire.ProcessSecurityProfile})
 }
 
 func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
@@ -154,20 +154,21 @@ func (s *Server) handleDiagnostics(w http.ResponseWriter, r *http.Request) {
 		computerUse = &wireStatus
 	}
 	writeJSON(w, http.StatusOK, wire.DiagnosticsResponse{
-		ProtocolVersion: wire.ProtocolVersion,
-		GeneratedAt:     time.Now().UTC(),
-		Ready:           true,
-		Detail:          detail,
-		Status:          wireStatus(s.state.Status()),
-		Capabilities:    providerSnapshot.Capabilities,
-		Providers:       wireProviders(providerSnapshot.Providers),
-		ProviderSummary: wireProviderSummary(providerSnapshot.Summary),
-		ProcessSummary:  processSummary,
-		FileLimits:      fileLimits,
-		Processes:       processes,
-		Ports:           ports,
-		Mounts:          mounts,
-		ComputerUse:     computerUse,
+		ProcessSecurityProfile: wire.ProcessSecurityProfile,
+		ProtocolVersion:        wire.ProtocolVersion,
+		GeneratedAt:            time.Now().UTC(),
+		Ready:                  true,
+		Detail:                 detail,
+		Status:                 wireStatus(s.state.Status()),
+		Capabilities:           providerSnapshot.Capabilities,
+		Providers:              wireProviders(providerSnapshot.Providers),
+		ProviderSummary:        wireProviderSummary(providerSnapshot.Summary),
+		ProcessSummary:         processSummary,
+		FileLimits:             fileLimits,
+		Processes:              processes,
+		Ports:                  ports,
+		Mounts:                 mounts,
+		ComputerUse:            computerUse,
 	})
 }
 

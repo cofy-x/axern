@@ -1,7 +1,10 @@
+//go:build linux
+
 package startplan
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	runtime "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
@@ -18,7 +21,9 @@ func TestMaterializeResolvedSecretFilesUsesAllocationScopedPrivatePath(t *testin
 			Mode:    0o400,
 		}},
 	}
-	mounts, cleanup, err := MaterializeResolvedSecretFiles(request)
+	root := t.TempDir()
+	mounts, _, err := MaterializeResolvedSecretFiles(root, request)
+	cleanup := func() { require.NoError(t, CleanupResolvedSecretFiles(root, request.GetAllocationID())) }
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
 	require.Len(t, mounts, 1)
@@ -27,6 +32,7 @@ func TestMaterializeResolvedSecretFilesUsesAllocationScopedPrivatePath(t *testin
 	require.NoError(t, err)
 	assert.Equal(t, []byte("secret"), content)
 	assert.NotContains(t, mounts[0].GetSource(), request.GetAllocationID())
+	assert.Equal(t, filepath.Join(root, secretStorageName), filepath.Dir(filepath.Dir(mounts[0].GetSource())))
 
 	cleanup()
 	_, err = os.Stat(mounts[0].GetSource())
@@ -41,14 +47,15 @@ func TestCleanupResolvedSecretFilesUsesMaterializationPath(t *testing.T) {
 			Content: []byte("sensitive"),
 		}},
 	}
-	mounts, _, err := MaterializeResolvedSecretFiles(request)
+	root := t.TempDir()
+	mounts, _, err := MaterializeResolvedSecretFiles(root, request)
 	if err != nil {
 		t.Fatalf("MaterializeResolvedSecretFiles() error = %v", err)
 	}
 	if len(mounts) != 1 {
 		t.Fatalf("mount count = %d, want 1", len(mounts))
 	}
-	if err := CleanupResolvedSecretFiles(request.GetAllocationID()); err != nil {
+	if err := CleanupResolvedSecretFiles(root, request.GetAllocationID()); err != nil {
 		t.Fatalf("CleanupResolvedSecretFiles() error = %v", err)
 	}
 	if _, err := os.Stat(mounts[0].GetSource()); !os.IsNotExist(err) {
@@ -66,7 +73,7 @@ func TestMaterializeResolvedSecretFilesRejectsUnsafeOrDuplicateTargets(t *testin
 		{{Path: "/run/secrets/token", Content: []byte("secret"), Mode: 0o600}},
 		{nil},
 	} {
-		_, _, err := MaterializeResolvedSecretFiles(&runtime.StartRequest{AllocationID: "alloc-safe", SecretFiles: files})
+		_, _, err := MaterializeResolvedSecretFiles(t.TempDir(), &runtime.StartRequest{AllocationID: "alloc-safe", SecretFiles: files})
 		assert.Error(t, err)
 	}
 }

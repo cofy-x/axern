@@ -81,7 +81,7 @@ func TestExtractionFormatRejectsUnversionedRecordsBeforeMountRecovery(t *testing
 			if err := db.Close(); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := NewManager(work, ""); err == nil || !strings.Contains(err.Error(), "unversioned") {
+			if _, err := NewManager(work); err == nil || !strings.Contains(err.Error(), "unversioned") {
 				t.Fatalf("NewManager() = %v, want unversioned cache rejection", err)
 			}
 			if _, err := os.Stat(filepath.Join(root, "support")); !os.IsNotExist(err) {

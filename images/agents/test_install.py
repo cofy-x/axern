@@ -5,6 +5,7 @@ import hashlib
 import io
 import json
 from pathlib import Path
+import sys
 import tarfile
 import tempfile
 import unittest
@@ -51,6 +52,14 @@ class SourceTests(unittest.TestCase):
             with patch.object(install, 'urlopen', return_value=io.BytesIO(b'too long')):
                 with self.assertRaisesRegex(ValueError, 'exceeds its locked size'):
                     install.fetch_source(record(b'x'), root / 'output', root / 'missing')
+
+    def test_base_rejects_corrupt_pip_wheel_before_running_the_installer(self):
+        lock = {'base': {'python_version': '.'.join(map(str, sys.version_info[:3]))},
+                'artifacts': {'pip': record(b'right')}}
+        with patch.object(install, 'urlopen', return_value=io.BytesIO(b'wrong')), patch.object(install.subprocess, 'run') as process:
+            with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
+                install.install('base', lock)
+            process.assert_not_called()
 
     def test_cache_symlinks_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -116,6 +125,41 @@ class LockTests(unittest.TestCase):
 
     def test_unrecognized_distribution_host_is_rejected(self):
         self.rejected_lock(lambda lock: lock['artifacts']['go'].update(url='https://unexpected.invalid/archive.tgz'))
+
+
+class NodeRuntimeTests(unittest.TestCase):
+    def fixture(self, root):
+        (root / 'bin').mkdir()
+        (root / 'bin/node').write_bytes(b'runtime')
+        (root / 'include/node').mkdir(parents=True)
+        (root / 'include/node/node.h').write_bytes(b'headers')
+        (root / 'LICENSE').write_bytes(b'upstream license')
+        for name in ('npm', 'corepack'):
+            directory = root / 'lib/node_modules' / name
+            directory.mkdir(parents=True)
+            (directory / 'bundled-dependency.js').write_bytes(b'old dependency')
+        for name in ('npm', 'npx', 'corepack', 'pnpm', 'pnpx', 'yarn', 'yarnpkg'):
+            (root / 'bin' / name).symlink_to('../lib/node_modules/corepack/bin/' + name)
+
+    def test_managers_and_their_vendors_are_absent_while_runtime_inputs_survive(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture(root)
+            install.strip_node_package_managers(root)
+            self.assertEqual({p.name for p in (root / 'bin').iterdir()}, {'node'})
+            self.assertFalse((root / 'lib/node_modules').exists())
+            self.assertEqual((root / 'bin/node').read_bytes(), b'runtime')
+            self.assertEqual((root / 'include/node/node.h').read_bytes(), b'headers')
+            self.assertEqual((root / 'LICENSE').read_bytes(), b'upstream license')
+
+    def test_unrecognized_bundle_or_executable_requires_recipe_review(self):
+        for added in ('bin/new-manager', 'lib/node_modules/new-package'):
+            with self.subTest(added=added), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                self.fixture(root)
+                (root / added).write_bytes(b'unrecognized')
+                with self.assertRaises(ValueError):
+                    install.strip_node_package_managers(root)
 
 
 class ExtractionTests(unittest.TestCase):

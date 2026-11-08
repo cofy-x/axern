@@ -23,7 +23,7 @@ func TestWaitForSandboxdReadyDoesNotPersistRuntimeProjection(t *testing.T) {
 	shutdown := serveUnixAt(t, socketPath, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/diagnostics":
-			fmt.Fprint(w, `{"protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running"}},"capabilities":["health","status","supervisor"]}`)
+			fmt.Fprint(w, `{"processSecurityProfile":"no-new-privileges-empty-nonroot-capabilities-v1","protocolVersion":1,"ready":true,"status":{"daemonPid":7,"uptimeSeconds":1,"socketPath":"/mnt/axern-sandboxd.sock","userProcess":{"state":"running"}},"capabilities":["health","status","supervisor"]}`)
 		default:
 			http.NotFound(w, r)
 		}
