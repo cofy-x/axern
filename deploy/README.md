@@ -14,6 +14,8 @@ Local surface:
 
 Image packaging lives under `deploy/images/`.
 
+The coordinated development delivery includes the four Axern service images plus PostgreSQL and Registry images. Their pinned upstream source, toolchain and package refresh recipes live under `deploy/images/postgres` and `deploy/images/registry`; the release lock binds every final image to immutable bytes. Native installation continues to use its documented host PostgreSQL requirement.
+
 Serving images contain the Axern services, selected gVisor runtime and host utilities needed for execution and enforcement. The node image excludes the Go SDK, Git and kernel analysis tools. Development tools belong in verification images; tools used by Agents belong in their [workload images](../images/agents/README.md).
 
 The local deploy image flow uses a shared node-runtime base image under `deploy/images/lib/`, then produces separate final images for:

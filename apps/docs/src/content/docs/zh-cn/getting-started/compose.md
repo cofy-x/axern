@@ -17,11 +17,7 @@ axern dev status
 
 重复执行是幂等的，不会删除 PostgreSQL、对象、运行时和身份数据。如果已有其他当前 Context，`dev up` 会保留它；使用 `--use` 显式切换。
 
-可观测组件默认关闭，需要时显式启用：
-
-```bash
-axern dev up --profile observability
-```
+遥测导出默认关闭。需要时配置可从 Docker 容器访问的、由运维者管理的 OTLP 接收端；详见 [Compose 开发参考](/zh-cn/guides/local/)。
 
 ## 诊断和日志
 

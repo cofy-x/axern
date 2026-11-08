@@ -37,16 +37,18 @@ proxyEnv:
 
 observability:
   enabled: false
+  # Operator-owned backends require qualified, digest-pinned image references.
   resourceAttributes: deployment.environment=kubernetes
   metricExportIntervalMilliseconds: 15000
   otlp:
     endpoint: ""
-    insecure: true
+    insecure: false
   collector:
     replicas: 1
     image:
-      repository: otel/opentelemetry-collector-contrib
-      tag: 0.150.1
+      repository: ""
+      tag: ""
+      digest: ""
       pullPolicy: ""
     service:
       type: ClusterIP
@@ -67,8 +69,9 @@ observability:
   prometheus:
     replicas: 1
     image:
-      repository: prom/prometheus
-      tag: v3.12.0
+      repository: ""
+      tag: ""
+      digest: ""
       pullPolicy: ""
     retention: 15d
     scrapeInterval: 10s
@@ -90,8 +93,9 @@ observability:
   tempo:
     replicas: 1
     image:
-      repository: grafana/tempo
-      tag: 2.10.5
+      repository: ""
+      tag: ""
+      digest: ""
       pullPolicy: ""
     retention: 168h
     persistence:
@@ -109,8 +113,9 @@ observability:
   loki:
     replicas: 1
     image:
-      repository: grafana/loki
-      tag: 3.7.2
+      repository: ""
+      tag: ""
+      digest: ""
       pullPolicy: ""
     retention: 168h
     persistence:
@@ -128,8 +133,9 @@ observability:
   grafana:
     replicas: 1
     image:
-      repository: grafana/grafana
-      tag: 13.0.2
+      repository: ""
+      tag: ""
+      digest: ""
       pullPolicy: ""
     admin:
       existingSecret: ""
@@ -176,8 +182,8 @@ postgres:
   passwordKey: password
   dsnKey: dsn
   image:
-    repository: postgres
-    tag: 16-alpine
+    repository: ghcr.io/cofy-x/axern/postgres
+    tag: v0.13.0
     pullPolicy: ""
   database: axern
   username: postgres

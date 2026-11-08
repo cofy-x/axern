@@ -43,7 +43,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 Linux 单机 serving 按[安装指南](./deploy/standalone/INSTALL.md)构建并安装完整的原生归档，通过 `axern server start`、`status`、`logs` 和 `stop` 管理。API Context 选择远程执行服务，不改变 `server` 管理的当前主机。
 
-当前源码包含需要一起升级的协议变更。CLI、服务和 SDK 必须来自同一版本；源码版本不代表安装包已经发布。Linux 或 macOS Linux VM 中的源码开发需要 Go 1.26.10、Make 和 Docker Compose v2：
+CLI、服务和 SDK 必须来自同一个配套 Release 或源码版本。Linux 或 macOS Linux VM 中的源码开发需要 Go 1.26.10、Make 和 Docker Compose v2：
 
 ```bash
 make quickstart-source

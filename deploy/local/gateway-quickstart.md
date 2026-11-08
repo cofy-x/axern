@@ -59,11 +59,4 @@ The product contract is identical in both environments. Only the local endpoint 
 
 ## Observability
 
-Compose and kind start the local OpenTelemetry stack by default. To disable it for a leaner run:
-
-```bash
-OTEL=0 make local-compose-up
-OTEL=0 make kind-up
-```
-
-For Compose, Grafana LGTM listens on `http://127.0.0.1:13000`; for kind it listens on `http://127.0.0.1:13001`. Filter by low-cardinality component data, then use Run ID, Allocation ID, node ID, and tunnel session ID only in logs or bounded diagnostic queries where supported.
+Compose and kind leave telemetry export disabled by default. Configure `AXERN_OTEL_ENABLED=true` and an explicit `OTEL_EXPORTER_OTLP_ENDPOINT` for an operator-owned receiver reachable from the containers or Pods. See [Contributor Local Deployment](README.md#telemetry) for transport settings. Filter by low-cardinality component data, then use Run ID, Allocation ID, node ID, and tunnel session ID only in logs or bounded diagnostic queries where supported.

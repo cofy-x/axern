@@ -16,9 +16,10 @@ const (
 )
 
 type Metadata struct {
-	Version                    string    `json:"version"`
-	ComposeProject             string    `json:"compose_project"`
-	AppliedBundleDigest        string    `json:"applied_bundle_digest,omitempty"`
+	Version             string `json:"version"`
+	ComposeProject      string `json:"compose_project"`
+	AppliedBundleDigest string `json:"applied_bundle_digest,omitempty"`
+	// Profile is read only to retire telemetry from previously materialized deployments.
 	Profile                    string    `json:"profile,omitempty"`
 	ExternalInsecureRegistries []string  `json:"external_insecure_registries,omitempty"`
 	CreatedAt                  time.Time `json:"created_at"`
@@ -35,7 +36,6 @@ type Status struct {
 	State                      string         `json:"state"`
 	CLIVersion                 string         `json:"cli_version"`
 	StackVersion               string         `json:"stack_version,omitempty"`
-	Profile                    string         `json:"profile,omitempty"`
 	DataPath                   string         `json:"data_path"`
 	DiskAllocatedBytes         int64          `json:"disk_allocated_bytes"`
 	DiskUsagePartial           bool           `json:"disk_usage_partial,omitempty"`
@@ -73,7 +73,6 @@ type DoctorOptions struct {
 }
 
 type UpOptions struct {
-	Profile                    string
 	Use                        bool
 	ReadinessTimeout           time.Duration
 	ExternalInsecureRegistries []string

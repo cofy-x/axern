@@ -20,6 +20,23 @@ test "$(container_proxy_url 'https://proxy.example.test:8443')" = 'https://proxy
 test "$(append_no_proxy_entries 'localhost,.svc' '.svc,10.0.0.0/8')" = 'localhost,.svc,10.0.0.0/8'
 
 (
+  unset AXERN_OTEL_ENABLED OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_INSECURE
+  configure_external_telemetry
+  test "${AXERN_OTEL_ENABLED}" = false
+  test -z "${OTEL_EXPORTER_OTLP_ENDPOINT}"
+  test "${OTEL_EXPORTER_OTLP_INSECURE}" = false
+  AXERN_OTEL_ENABLED=true
+  if configure_external_telemetry >/dev/null 2>&1; then
+    echo "enabled exporter accepted an implicit receiver" >&2
+    exit 1
+  fi
+  OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example:4317
+  configure_external_telemetry
+  test "${OTEL_EXPORTER_OTLP_ENDPOINT}" = https://telemetry.example:4317
+  test "${OTEL_EXPORTER_OTLP_INSECURE}" = false
+)
+
+(
   export HTTP_PROXY='http://127.0.0.1:18080'
   export HTTPS_PROXY='http://localhost:18080'
   configure_kind_proxy >/dev/null

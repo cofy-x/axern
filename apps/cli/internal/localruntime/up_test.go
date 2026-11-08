@@ -47,7 +47,7 @@ func TestUpRetriesUnappliedBundleAfterMaterialization(t *testing.T) {
 			root := t.TempDir()
 			runner := &bundleRetryRunner{failPull: true}
 			manager := &Manager{Version: "dev", Dir: filepath.Join(root, "local"), ConfigPath: filepath.Join(root, "config.json"), Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
-			if err := manager.materialize("", nil); err != nil {
+			if err := manager.materialize(nil); err != nil {
 				t.Fatal(err)
 			}
 			oldCompose := append(bytes.Clone(localbundle.Compose), []byte("\n  obsolete-worker:\n    image: example.invalid/worker:dev\n")...)

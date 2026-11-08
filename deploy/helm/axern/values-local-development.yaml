@@ -1,5 +1,10 @@
 # Source-development overrides. Build the images with `make local-images-build`
 # before installing the chart with this file.
+postgres:
+  image:
+    repository: axern/local-postgres
+    tag: dev
+
 controld:
   image:
     repository: axern/local-controld

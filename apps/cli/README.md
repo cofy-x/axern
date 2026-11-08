@@ -29,6 +29,8 @@ These commands stream host-tool output and accept table output only. `--timeout`
 
 `axern dev` manages the Docker Compose development stack. Its product-owned context is named `local`, and its existing data path, Compose project and registry network retain their own identities. Development image loading and DNS checks belong to this stack. `dev reset` explicitly deletes this development installation and its data; it does not manage native serving storage.
 
+Telemetry export is optional and uses an operator-owned receiver. Start or reconcile the development stack with `AXERN_OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example:4317 axern dev up`; repeat these environment settings on later `up` calls to retain export. An HTTPS endpoint uses TLS; an explicit `http://` URL or `OTEL_EXPORTER_OTLP_INSECURE=true` selects plaintext and should only address a trusted receiver reachable from Docker containers. The CLI does not host telemetry backends or expose telemetry listener ports.
+
 ## Contexts
 
 The default context file is `~/.config/axern/config.json`. Override it with `--config` or `AXERN_CONFIG`; select a context with `--context` or `AXERN_CONTEXT`.
@@ -216,6 +218,8 @@ go vet ./apps/cli/...
 make axern-cli-check-architecture
 make local-compose-refresh-verify
 ```
+
+The bounded Compose migration check uses a preloaded fixture image and an isolated temporary project: `AXERN_COMPOSE_MIGRATION_TEST_IMAGE=python:3.12-alpine go test ./apps/cli/internal/localruntime -run '^TestRetireBundledTelemetryCompose$' -count=1`. It verifies that retiring telemetry preserves the three core containers and retained volume data across a subsequent stop/start, then removes only its own fixture.
 
 See [tunnel usage](./docs/tunnel.md) and the [resource model](../../docs/architecture/resource-model.md) for deeper product contracts.
 

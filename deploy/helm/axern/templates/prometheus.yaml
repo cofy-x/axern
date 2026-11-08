@@ -32,7 +32,7 @@ spec:
       securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
       containers:
         - name: prometheus
-          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.prometheus.image) | quote }}
+          image: {{ include "axern.observabilityImage" (dict "name" "prometheus" "image" .Values.observability.prometheus.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.prometheus.image) }}
           args:
             - --config.file=/etc/prometheus/prometheus.yaml

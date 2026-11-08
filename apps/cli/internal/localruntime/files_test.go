@@ -57,19 +57,12 @@ func TestLocalBundleChangesRequireReconfiguration(t *testing.T) {
 		data []byte
 	}{
 		{name: "removed Compose service", path: "compose.yaml", data: append(bytes.Clone(localbundle.Compose), []byte("\n  obsolete-worker:\n    image: example.invalid/worker:dev\n")...)},
-		{name: "changed collector", path: "otel-collector.yaml", data: []byte("receivers: {}\n")},
 		{name: "missing Compose", path: "compose.yaml"},
-		{name: "missing collector", path: "otel-collector.yaml"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			manager := &Manager{Dir: t.TempDir()}
-			for path, data := range map[string][]byte{
-				manager.composePath():                             localbundle.Compose,
-				filepath.Join(manager.Dir, "otel-collector.yaml"): localbundle.CollectorConfig,
-			} {
-				if err := os.WriteFile(path, data, 0o600); err != nil {
-					t.Fatal(err)
-				}
+			if err := os.WriteFile(manager.composePath(), localbundle.Compose, 0o600); err != nil {
+				t.Fatal(err)
 			}
 			if manager.localBundleChanged() {
 				t.Fatal("current embedded bundle requires reconfiguration")
@@ -206,7 +199,7 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := manager.writeEnv("", []string{"forge-seed-registry:5000"}); err != nil {
+			if err := manager.writeEnv([]string{"forge-seed-registry:5000"}); err != nil {
 				t.Fatal(err)
 			}
 			envData, err := os.ReadFile(filepath.Join(dir, "compose.env"))
@@ -216,7 +209,7 @@ func TestWriteEnvGeneratesAndRepairsSecretsMasterKey(t *testing.T) {
 			if !bytes.Contains(envData, []byte(`AXNODED_DNS_NAMESERVERS="192.0.2.53"`)) {
 				t.Fatalf("compose env does not contain resolved workload DNS: %q", envData)
 			}
-			for _, contract := range []string{`REGISTRY_IMAGE="registry:2"`, `CONTROLD_INSECURE_REGISTRIES="registry:5000,forge-seed-registry:5000"`, `CONTAINER_NO_PROXY="localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,registry,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,forge-seed-registry"`} {
+			for _, contract := range []string{`REGISTRY_IMAGE="ghcr.io/cofy-x/axern/registry:dev"`, `CONTROLD_INSECURE_REGISTRIES="registry:5000,forge-seed-registry:5000"`, `CONTAINER_NO_PROXY="localhost,127.0.0.1,::1,host.docker.internal,controld,gatewayd,tunneld,node,postgres,registry,.svc,.cluster.local,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,forge-seed-registry"`} {
 				if !bytes.Contains(envData, []byte(contract)) {
 					t.Fatalf("compose env does not contain %s: %q", contract, envData)
 				}

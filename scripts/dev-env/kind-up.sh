@@ -15,15 +15,14 @@ begin_env_lock kind
 trap 'end_env_lock kind' EXIT
 
 ensure_state_dirs
+ensure_local_images
 bash "${AXERN_ROOT}/scripts/dev-env/registry-up.sh" >/dev/null
 ensure_kind_cluster
 
 export KUBECONFIG="$(k8s_kubeconfig_file)"
 
-ensure_host_image "${POSTGRES_IMAGE}"
-load_image_to_cluster "${POSTGRES_IMAGE}"
-
-AXERN_LOCAL_RUNTIME_NODE="${AXERN_LOCAL_RUNTIME_NODE:-${K8S_CLUSTER_NAME}-worker}" \
+AXERN_SKIP_LOCAL_IMAGES_BUILD=1 \
+  AXERN_LOCAL_RUNTIME_NODE="${AXERN_LOCAL_RUNTIME_NODE:-${K8S_CLUSTER_NAME}-worker}" \
   bash "${AXERN_ROOT}/scripts/dev-env/k8s-up.sh"
 echo "kind_up_ok=true"
 echo "kubeconfig=$(k8s_kubeconfig_file)"

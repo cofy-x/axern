@@ -17,11 +17,7 @@ axern dev status
 
 Starting again is idempotent. Existing PostgreSQL, runtime, and identity data is preserved. If another context is already selected, `dev up` does not replace it; use `axern dev up --use` when you want to switch.
 
-Enable optional local telemetry explicitly:
-
-```bash
-axern dev up --profile observability
-```
+Telemetry export is disabled by default. Configure an operator-owned OTLP receiver reachable from Docker containers when needed; see the [Compose development reference](/guides/local/).
 
 ## Diagnose and read logs
 

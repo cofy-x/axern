@@ -3,33 +3,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-check_same_file() {
-  local source_file="$1"
-  local copied_file="$2"
-  if cmp -s "${source_file}" "${copied_file}"; then
-    return 0
-  fi
-  echo "Grafana asset copy is out of sync:" >&2
-  echo "  source: ${source_file#${ROOT_DIR}/}" >&2
-  echo "  copy:   ${copied_file#${ROOT_DIR}/}" >&2
-  echo "Update the Helm chart copy from the local Grafana asset." >&2
-  return 1
-}
-
-check_same_file \
-  "${ROOT_DIR}/deploy/local/grafana/provisioning/dashboards/axern.yaml" \
-  "${ROOT_DIR}/deploy/helm/axern/files/grafana/provisioning/dashboards/axern.yaml"
-
-if ! grep -q 'allowUiUpdates: false' "${ROOT_DIR}/deploy/local/grafana/provisioning/dashboards/axern.yaml"; then
+if ! grep -q 'allowUiUpdates: false' "${ROOT_DIR}/deploy/helm/axern/files/grafana/provisioning/dashboards/axern.yaml"; then
   echo "Provisioned Grafana dashboards must be managed from source" >&2
   exit 1
 fi
 
 dashboard_mount_path="/var/lib/grafana/dashboards/axern"
 for asset in \
-  "${ROOT_DIR}/deploy/local/grafana/provisioning/dashboards/axern.yaml" \
-  "${ROOT_DIR}/deploy/local/compose/docker-compose.yml" \
-  "${ROOT_DIR}/deploy/local/k8s/otel.yaml" \
+  "${ROOT_DIR}/deploy/helm/axern/files/grafana/provisioning/dashboards/axern.yaml" \
   "${ROOT_DIR}/deploy/helm/axern/templates/grafana.yaml"
 do
   if ! grep -q "${dashboard_mount_path}" "${asset}"; then
@@ -38,24 +19,12 @@ do
   fi
 done
 
-check_same_file \
-  "${ROOT_DIR}/deploy/local/grafana/dashboards/axern-core.json" \
-  "${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/axern-core.json"
-
-check_same_file \
-  "${ROOT_DIR}/deploy/local/grafana/dashboards/axern-node-resources.json" \
-  "${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/axern-node-resources.json"
-
-check_same_file \
-  "${ROOT_DIR}/deploy/local/grafana/dashboards/axern-image-distribution.json" \
-  "${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/axern-image-distribution.json"
-
 for dashboard in \
   axern-core.json \
   axern-node-resources.json \
   axern-image-distribution.json
 do
-  dashboard_path="${ROOT_DIR}/deploy/local/grafana/dashboards/${dashboard}"
+  dashboard_path="${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/${dashboard}"
   if ! jq -e '
     (.timepicker.refresh_intervals | index("5s")) != null and
     (.panels | length) > 0 and
@@ -77,9 +46,9 @@ do
   fi
 done
 
-core_dashboard="${ROOT_DIR}/deploy/local/grafana/dashboards/axern-core.json"
-node_dashboard="${ROOT_DIR}/deploy/local/grafana/dashboards/axern-node-resources.json"
-image_distribution_dashboard="${ROOT_DIR}/deploy/local/grafana/dashboards/axern-image-distribution.json"
+core_dashboard="${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/axern-core.json"
+node_dashboard="${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/axern-node-resources.json"
+image_distribution_dashboard="${ROOT_DIR}/deploy/helm/axern/files/grafana/dashboards/axern-image-distribution.json"
 
 if ! grep -q 'job=\\"dragonfly-seed-client\\"' "${image_distribution_dashboard}"; then
   echo "Grafana image distribution dashboard must query the centralized Seed Client job" >&2
@@ -153,7 +122,7 @@ do
   fi
 done
 
-if grep -q 'axern_controld_creatable_instances_current' "${ROOT_DIR}"/deploy/local/grafana/dashboards/*.json; then
+if grep -q 'axern_controld_creatable_instances_current' "${ROOT_DIR}"/deploy/helm/axern/files/grafana/dashboards/*.json; then
   echo "Grafana dashboards must not restore the fixed-shape creatable instances metric" >&2
   exit 1
 fi

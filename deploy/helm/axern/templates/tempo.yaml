@@ -29,7 +29,7 @@ spec:
       securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
       containers:
         - name: tempo
-          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.tempo.image) | quote }}
+          image: {{ include "axern.observabilityImage" (dict "name" "tempo" "image" .Values.observability.tempo.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.tempo.image) }}
           args: [-config.file=/etc/tempo/tempo.yaml]
           ports:

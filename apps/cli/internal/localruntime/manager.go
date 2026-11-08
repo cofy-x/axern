@@ -27,6 +27,7 @@ import (
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"golang.org/x/term"
+	"gopkg.in/yaml.v3"
 )
 
 type Runner interface {
@@ -266,9 +267,6 @@ func normalizeVersion(value string) string {
 func (m *Manager) Path() string { return m.Dir }
 
 func (m *Manager) Up(ctx context.Context, options UpOptions) error {
-	if options.Profile != "" && options.Profile != "default" && options.Profile != "observability" {
-		return fmt.Errorf("local profile must be default or observability")
-	}
 	release, err := m.lock()
 	if err != nil {
 		return err
@@ -278,27 +276,24 @@ func (m *Manager) Up(ctx context.Context, options UpOptions) error {
 }
 
 func (m *Manager) up(ctx context.Context, options UpOptions) error {
+	if _, err := localTelemetryEnv(); err != nil {
+		return err
+	}
 	existing, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && existing.Version != m.Version {
 		return fmt.Errorf("local stack version %s does not match CLI version %s; local state is disposable, run `axern dev reset --force` and then `axern dev up`", existing.Version, m.Version)
 	} else if metadataErr != nil && !errors.Is(metadataErr, os.ErrNotExist) {
 		return metadataErr
 	}
-	if metadataErr == nil && options.Profile == "" {
-		options.Profile = existing.Profile
-	}
 	externalRegistries, err := resolveExternalRegistryPolicy(existing.ExternalInsecureRegistries, metadataErr == nil, options)
 	if err != nil {
 		return err
 	}
-	if options.Profile == "default" {
-		options.Profile = ""
-	}
 	registryPolicyChanged := metadataErr == nil && !slices.Equal(externalRegistries, existing.ExternalInsecureRegistries)
 	bundleDigest := localBundleDigest()
-	if metadataErr == nil && existing.AppliedBundleDigest == bundleDigest && options.Profile == existing.Profile && !registryPolicyChanged && !m.localBundleChanged() {
+	if metadataErr == nil && existing.AppliedBundleDigest == bundleDigest && existing.Profile == "" && !registryPolicyChanged && !m.localBundleChanged() && !m.localTelemetryConfigurationChanged() {
 		if status, statusErr := m.Status(ctx); statusErr == nil && status.State == "running" && m.localNodeReady(ctx, &http.Client{Timeout: 3 * time.Second}) {
-			dnsCheck := m.probeNodeDNS(ctx, options.Profile, defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
+			dnsCheck := m.probeNodeDNS(ctx, "", defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
 			networkExists, networkErr := m.inspectRegistryNetwork(ctx)
 			registryConfigurationChanged := m.localRegistryConfigurationChanged(externalRegistries) || networkErr != nil || !networkExists
 			if (dnsCheck.Status == checkPass || dnsCheck.Status == checkWarn) && !registryConfigurationChanged {
@@ -320,31 +315,28 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if err := m.ensureRegistryNetwork(ctx); err != nil {
 		return err
 	}
-	if err := m.materialize(options.Profile, externalRegistries); err != nil {
-		return err
-	}
-	if metadataErr == nil && existing.Profile == "observability" && options.Profile == "" {
-		if err := m.composeRun(ctx, existing.Profile, "rm", "-sf", "otel-collector", "otel-lgtm"); err != nil {
-			return fmt.Errorf("disable observability profile: %w", err)
+	if metadataErr == nil && existing.Profile == "observability" {
+		if err := m.retireBundledTelemetry(ctx); err != nil {
+			return err
 		}
 	}
+	if err := m.materialize(externalRegistries); err != nil {
+		return err
+	}
 	fmt.Fprintln(m.Stderr, "Starting Axern dev services...")
-	if err := m.pullPlatformImages(ctx, options.Profile); err != nil {
+	if err := m.pullPlatformImages(ctx, ""); err != nil {
 		return err
 	}
-	if err := m.composeRun(ctx, options.Profile, "up", "-d", "postgres"); err != nil {
+	if err := m.composeRun(ctx, "", "up", "-d", "postgres"); err != nil {
 		return err
 	}
-	_ = m.composeRun(ctx, options.Profile, "rm", "-sf", "controld-migrate", "controld-access-bootstrap")
-	if err := m.composeRun(ctx, options.Profile, "up", "--force-recreate", "--exit-code-from", "controld-access-bootstrap", "controld-access-bootstrap"); err != nil {
+	_ = m.composeRun(ctx, "", "rm", "-sf", "controld-migrate", "controld-access-bootstrap")
+	if err := m.composeRun(ctx, "", "up", "--force-recreate", "--exit-code-from", "controld-access-bootstrap", "controld-access-bootstrap"); err != nil {
 		return err
 	}
 	services := []string{"controld", "tunneld", "node", "gatewayd"}
-	if options.Profile == "observability" {
-		services = append(services, "otel-lgtm", "otel-collector")
-	}
 	args := append([]string{"up", "-d", "--remove-orphans"}, services...)
-	if err := m.composeRun(ctx, options.Profile, args...); err != nil {
+	if err := m.composeRun(ctx, "", args...); err != nil {
 		return err
 	}
 	readinessTimeout := options.ReadinessTimeout
@@ -352,10 +344,10 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		readinessTimeout = DefaultReadinessTimeout
 	}
 	if err := m.waitReady(ctx, readinessTimeout); err != nil {
-		m.printStartupDiagnostics(options.Profile)
+		m.printStartupDiagnostics("")
 		return err
 	}
-	dnsCheck := m.probeNodeDNS(ctx, options.Profile, defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
+	dnsCheck := m.probeNodeDNS(ctx, "", defaultLocalDNSProbeName, defaultLocalDNSProbeTimeout)
 	if dnsCheck.Status == checkFail {
 		return localDNSReadinessError(dnsCheck)
 	}
@@ -367,7 +359,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	if metadataErr == nil && existing.ComposeProject != "" {
 		composeProject = existing.ComposeProject
 	}
-	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, AppliedBundleDigest: bundleDigest, Profile: options.Profile, ExternalInsecureRegistries: externalRegistries, UpdatedAt: time.Now().UTC()}
+	metadata := Metadata{Version: m.Version, ComposeProject: composeProject, AppliedBundleDigest: bundleDigest, ExternalInsecureRegistries: externalRegistries, UpdatedAt: time.Now().UTC()}
 	if metadataErr == nil {
 		metadata.CreatedAt = existing.CreatedAt
 	}
@@ -399,24 +391,43 @@ func (m *Manager) localDNSConfigurationChanged() bool {
 }
 
 func (m *Manager) localBundleChanged() bool {
-	for path, desired := range map[string][]byte{
-		m.composePath(): localbundle.Compose,
-		filepath.Join(m.Dir, "otel-collector.yaml"): localbundle.CollectorConfig,
-	} {
-		materialized, err := os.ReadFile(path)
-		if err != nil || !bytes.Equal(materialized, desired) {
-			return true
-		}
-	}
-	return false
+	materialized, err := os.ReadFile(m.composePath())
+	return err != nil || !bytes.Equal(materialized, localbundle.Compose)
 }
 
 func localBundleDigest() string {
-	// Hash each asset first so their boundary remains unambiguous.
-	compose := sha256.Sum256(localbundle.Compose)
-	collector := sha256.Sum256(localbundle.CollectorConfig)
-	digest := sha256.Sum256(append(compose[:], collector[:]...))
-	return fmt.Sprintf("%x", digest)
+	return fmt.Sprintf("%x", sha256.Sum256(localbundle.Compose))
+}
+
+// Retire only the former CLI-owned telemetry services, while their materialized
+// Compose and environment still describe them. A failed later start may leave
+// old metadata with the new bundle, so missing retired services are a no-op.
+func (m *Manager) retireBundledTelemetry(ctx context.Context) error {
+	data, err := os.ReadFile(m.composePath())
+	if err != nil {
+		return fmt.Errorf("read previous development bundle: %w", err)
+	}
+	var bundle struct {
+		Services map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal(data, &bundle); err != nil {
+		return fmt.Errorf("read previous development services: %w", err)
+	}
+	args := []string{"rm", "-sf"}
+	for _, service := range []string{"otel-collector", "otel-lgtm"} {
+		if _, exists := bundle.Services[service]; exists {
+			args = append(args, service)
+		}
+	}
+	if len(args) > 2 {
+		if err := m.composeRun(ctx, "observability", args...); err != nil {
+			return fmt.Errorf("retire managed telemetry services: %w", err)
+		}
+	}
+	if err := os.Remove(filepath.Join(m.Dir, "otel-collector.yaml")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove retired collector configuration: %w", err)
+	}
+	return nil
 }
 
 func (m *Manager) localRegistryConfigurationChanged(externalRegistries []string) bool {
@@ -691,7 +702,7 @@ func (m *Manager) Status(ctx context.Context) (Status, error) {
 	status := Status{State: "not-initialized", CLIVersion: m.Version, DataPath: m.Dir, GatewayHTTPURL: fmt.Sprintf("http://127.0.0.1:%d", GatewayHTTPPort), GatewayTarget: fmt.Sprintf("127.0.0.1:%d", GatewayControlPort), RegistryNetwork: RegistryNetworkName, Ports: map[string]int{"gateway_grpc": GatewayControlPort, "gateway_http": GatewayHTTPPort, "gateway_ssh": GatewaySSHPort, "control_http": 24101, "postgres": 25432}}
 	metadata, err := loadMetadata(m.metadataPath())
 	if err == nil {
-		status.StackVersion, status.Profile = metadata.Version, metadata.Profile
+		status.StackVersion = metadata.Version
 		status.ExternalInsecureRegistries = append([]string(nil), metadata.ExternalInsecureRegistries...)
 		status.State = "stopped"
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -937,7 +948,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 	return report
 }
 
-func (m *Manager) materialize(profile string, externalRegistries []string) error {
+func (m *Manager) materialize(externalRegistries []string) error {
 	for _, dir := range []string{m.Dir, filepath.Join(m.Dir, "data", "postgres"), filepath.Join(m.Dir, "data", "axnoded"), filepath.Join(m.Dir, "run"), filepath.Join(m.Dir, "certs"), filepath.Join(m.Dir, "ssh")} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
@@ -952,13 +963,14 @@ func (m *Manager) materialize(profile string, externalRegistries []string) error
 	if err := writeAtomic(m.composePath(), localbundle.Compose, 0o644); err != nil {
 		return err
 	}
-	if err := writeAtomic(filepath.Join(m.Dir, "otel-collector.yaml"), localbundle.CollectorConfig, 0o644); err != nil {
-		return err
-	}
-	return m.writeEnv(profile, externalRegistries)
+	return m.writeEnv(externalRegistries)
 }
 
-func (m *Manager) writeEnv(profile string, externalRegistries []string) error {
+func (m *Manager) writeEnv(externalRegistries []string) error {
+	telemetry, err := localTelemetryEnv()
+	if err != nil {
+		return err
+	}
 	dnsNameservers, err := localDNSNameservers()
 	if err != nil {
 		return fmt.Errorf("configure local workload DNS: %w", err)
@@ -997,18 +1009,17 @@ func (m *Manager) writeEnv(profile string, externalRegistries []string) error {
 	noProxy := strings.Join(noProxyValues, ",")
 	httpProxy := containerProxy(os.Getenv("HTTP_PROXY"))
 	httpsProxy := containerProxy(os.Getenv("HTTPS_PROXY"))
-	otelEnabled, otelEndpoint := "false", ""
-	if profile == "observability" {
-		otelEnabled, otelEndpoint = "true", "http://otel-collector:4317"
-	}
 	values := map[string]string{
 		"AXERN_LOCAL_DIR": m.Dir, "POSTGRES_IMAGE": images["POSTGRES_IMAGE"], "REGISTRY_IMAGE": images["REGISTRY_IMAGE"], "POSTGRES_PASSWORD": secretValues["postgres"],
 		"CONTROLD_IMAGE": images["CONTROLD_IMAGE"], "TUNNELD_IMAGE": images["TUNNELD_IMAGE"], "GATEWAYD_IMAGE": images["GATEWAYD_IMAGE"], "NODE_ALL_IN_ONE_IMAGE": images["NODE_ALL_IN_ONE_IMAGE"],
-		"OTEL_COLLECTOR_IMAGE": images["OTEL_COLLECTOR_IMAGE"], "OTEL_LGTM_IMAGE": images["OTEL_LGTM_IMAGE"], "AXERN_SECRETS_MASTER_KEY": secretValues["master"],
-		"CONTAINER_HTTP_PROXY": httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "CONTROLD_INSECURE_REGISTRIES": effectiveInsecureRegistries(externalRegistries), "OTEL_ENABLED": otelEnabled, "OTEL_EXPORTER_OTLP_ENDPOINT": otelEndpoint,
+		"AXERN_SECRETS_MASTER_KEY": secretValues["master"],
+		"CONTAINER_HTTP_PROXY":     httpProxy, "CONTAINER_HTTPS_PROXY": httpsProxy, "CONTAINER_NO_PROXY": noProxy, "CONTROLD_INSECURE_REGISTRIES": effectiveInsecureRegistries(externalRegistries),
 		"AXNODED_CONTROL_PLANE_NODE_ID": LocalNodeID,
 		"AXNODED_DNS_NAMESERVERS":       strings.Join(dnsNameservers, ","),
-		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432", "OTEL_GRPC_PORT": "4317", "OTEL_HTTP_PORT": "4318", "LGTM_UI_PORT": "13000",
+		"LOCAL_UID":                     strconv.Itoa(os.Getuid()), "LOCAL_GID": strconv.Itoa(os.Getgid()), "CONTROLD_HTTP_PORT": "24101", "GATEWAY_CONTROL_PORT": strconv.Itoa(GatewayControlPort), "GATEWAY_HTTP_PORT": strconv.Itoa(GatewayHTTPPort), "GATEWAY_SSH_PORT": strconv.Itoa(GatewaySSHPort), "POSTGRES_PORT": "25432",
+	}
+	for key, value := range telemetry {
+		values[key] = value
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {

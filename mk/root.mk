@@ -89,6 +89,10 @@ security-check: ## Audit all locked Go, npm and Python dependencies; unavailable
 	GO="$(GO)" PNPM="$(PNPM)" UV="$(UV)" python3 $(ROOTDIR)/scripts/security-check.py $(ARGS)
 
 release-check: ## Verify release versions and package contracts
+	@for dependency in postgres registry; do \
+		python3 $(ROOTDIR)/deploy/images/$$dependency/build.py --check && \
+		python3 -m unittest discover -s $(ROOTDIR)/deploy/images/$$dependency -p 'test_*.py' || exit 1; \
+	done
 	python3 -m unittest discover -s $(ROOTDIR)/scripts -p test_security_check.py
 	$(MAKE) verification-plan-contract
 	$(MAKE) native-runtime-check
@@ -100,6 +104,8 @@ release-check: ## Verify release versions and package contracts
 	python3 $(ROOTDIR)/scripts/verification/network-policy-readiness-test.py
 	bash $(ROOTDIR)/scripts/verification/architecture-source-test.sh
 	bash $(ROOTDIR)/scripts/release/image-build-contract-check.sh
+	bash $(ROOTDIR)/scripts/release/build-local-image-lock-test.sh
+	bash $(ROOTDIR)/scripts/release/check-public-images-test.sh
 	bash $(ROOTDIR)/scripts/proxy-env-contract-check.sh
 	bash $(ROOTDIR)/scripts/dev-env/hermetic-dns-contract-check.sh
 	bash $(ROOTDIR)/scripts/release/publication-contract-check.sh

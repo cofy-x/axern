@@ -16,6 +16,7 @@ if [ -z "${k8s_runtime_node}" ]; then
   fi
 fi
 kubectl get node "${k8s_runtime_node}" -o name >/dev/null
+configure_external_telemetry
 begin_env_lock "${K8S_ENV_NAME}"
 trap 'end_env_lock "${K8S_ENV_NAME}"' EXIT
 
@@ -65,26 +66,14 @@ kubectl -n "${K8S_NAMESPACE}" create configmap local-proxy-env \
   --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl apply -f "${DEPLOY_ROOT}/k8s/postgres.yaml"
-if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-  kubectl -n "${K8S_NAMESPACE}" create configmap grafana-dashboard-provisioning \
-    --from-file=axern.yaml="${DEPLOY_ROOT}/grafana/provisioning/dashboards/axern.yaml" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  kubectl -n "${K8S_NAMESPACE}" create configmap grafana-dashboards \
-    --from-file=axern-core.json="${DEPLOY_ROOT}/grafana/dashboards/axern-core.json" \
-    --from-file=axern-node-resources.json="${DEPLOY_ROOT}/grafana/dashboards/axern-node-resources.json" \
-    --from-file=axern-image-distribution.json="${DEPLOY_ROOT}/grafana/dashboards/axern-image-distribution.json" \
-    --dry-run=client -o yaml | kubectl apply -f -
-  kubectl apply -f "${DEPLOY_ROOT}/k8s/otel.yaml"
-  kubectl -n "${K8S_NAMESPACE}" set image deployment/otel-collector \
-    otel-collector="${OTEL_COLLECTOR_IMAGE}" >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set image deployment/otel-lgtm \
-    otel-lgtm="${OTEL_LGTM_IMAGE}" >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/otel-collector deployment/otel-lgtm >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" delete deployment/jaeger service/jaeger --ignore-not-found >/dev/null
-else
-  kubectl delete -f "${DEPLOY_ROOT}/k8s/otel.yaml" --ignore-not-found >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" delete deployment/jaeger service/jaeger --ignore-not-found >/dev/null
-fi
+kubectl -n "${K8S_NAMESPACE}" set image deployment/postgres postgres="${POSTGRES_IMAGE}" >/dev/null
+# Retire only the former source-managed telemetry demo in this development
+# namespace. Helm deployments and operator-owned backend data are separate.
+kubectl -n "${K8S_NAMESPACE}" delete \
+  deployment/otel-collector deployment/otel-lgtm \
+  service/otel-collector service/otel-lgtm \
+  configmap/otel-collector-config configmap/grafana-dashboard-provisioning configmap/grafana-dashboards \
+  --ignore-not-found >/dev/null
 kubectl -n "${K8S_NAMESPACE}" rollout status deployment/postgres --timeout=180s >/dev/null
 # Retention now runs inside controld. Remove the obsolete local deployment
 # before starting its replacement in this managed namespace.
@@ -112,39 +101,13 @@ kubectl apply -f "${DEPLOY_ROOT}/k8s/gatewayd.yaml"
 kubectl -n "${K8S_NAMESPACE}" set env deployment/controld \
 	CONTROLD_TUNNEL_RELAYS="default,127.0.0.1:${K8S_GATEWAY_LOCAL_CONTROL_PORT},tunneld.${K8S_NAMESPACE}.svc.cluster.local:24100,1,false" >/dev/null
 
-if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-  kubectl -n "${K8S_NAMESPACE}" set env deployment/controld \
-    AXERN_OTEL_ENABLED=true \
-    OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.axern-local.svc.cluster.local:4317 \
-    OTEL_EXPORTER_OTLP_INSECURE=true \
-    OTEL_RESOURCE_ATTRIBUTES=deployment.environment="${K8S_ENV_NAME}" >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set env deployment/gatewayd \
-    AXERN_OTEL_ENABLED=true \
-    OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.axern-local.svc.cluster.local:4317 \
-    OTEL_EXPORTER_OTLP_INSECURE=true \
-    OTEL_RESOURCE_ATTRIBUTES=deployment.environment="${K8S_ENV_NAME}" >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set env daemonset/node-all-in-one \
-    AXERN_OTEL_ENABLED=true \
-    OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector.axern-local.svc.cluster.local:4317 \
-    OTEL_EXPORTER_OTLP_INSECURE=true \
-    OTEL_RESOURCE_ATTRIBUTES=deployment.environment="${K8S_ENV_NAME}" >/dev/null
-else
-  kubectl -n "${K8S_NAMESPACE}" set env deployment/controld \
-    AXERN_OTEL_ENABLED=false \
-    OTEL_EXPORTER_OTLP_ENDPOINT- \
-    OTEL_EXPORTER_OTLP_INSECURE- \
-    OTEL_RESOURCE_ATTRIBUTES- >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set env deployment/gatewayd \
-    AXERN_OTEL_ENABLED=false \
-    OTEL_EXPORTER_OTLP_ENDPOINT- \
-    OTEL_EXPORTER_OTLP_INSECURE- \
-    OTEL_RESOURCE_ATTRIBUTES- >/dev/null
-  kubectl -n "${K8S_NAMESPACE}" set env daemonset/node-all-in-one \
-    AXERN_OTEL_ENABLED=false \
-    OTEL_EXPORTER_OTLP_ENDPOINT- \
-    OTEL_EXPORTER_OTLP_INSECURE- \
-    OTEL_RESOURCE_ATTRIBUTES- >/dev/null
-fi
+for workload in deployment/controld deployment/gatewayd daemonset/node-all-in-one; do
+  kubectl -n "${K8S_NAMESPACE}" set env "${workload}" \
+    AXERN_OTEL_ENABLED="${AXERN_OTEL_ENABLED}" \
+    OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT}" \
+    OTEL_EXPORTER_OTLP_INSECURE="${OTEL_EXPORTER_OTLP_INSECURE}" \
+    OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=${K8S_ENV_NAME}}" >/dev/null
+done
 
 kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/controld >/dev/null
 kubectl -n "${K8S_NAMESPACE}" rollout restart deployment/gatewayd >/dev/null

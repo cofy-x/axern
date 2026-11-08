@@ -145,7 +145,7 @@ axern context import-kubernetes local \
 - **Secret：** 用 `secrets.existingSecret` 提供 master key；用 `postgres.existingSecret` 提供数据库凭据；用 `node.enrollment.existingSecret` 为每个已准入 Node ID 提供独立一次性注册 token。在把 DaemonSet 调度到新的 Kubernetes Node 前，先加入对应的 `nodeID` key，并通过管理 API 准入该身份。
 - **持久存储：** 设置 `postgres.persistence.enabled=true` 并搭配拓扑感知的 `ReadWriteOnce` StorageClass；不要在 `emptyDir` 回退上运行持久环境。
 - **调度：** 为 `scheduling.platform`、`scheduling.observability` 和 `scheduling.runtime` 配置专用节点池标签和对应的 `NoSchedule` Taint。
-- **可观测：** 内置的 Prometheus、Tempo、Loki、Grafana 栈是持久的但单副本；在 `observability` 下规划保留周期和存储容量。
+- **可观测：** 设置 `observability.otlp.endpoint=https://telemetry.example:4317` 并保留 `observability.enabled=false`，即可向运维者管理的接收端导出，无需后端工作负载或 PVC。默认使用 TLS，显式的 `http://` Endpoint 表示明文传输。用 `observability.enabled=true` 启用可选 Chart 后端栈时，必须为 Collector、Prometheus、Tempo、Loki、Grafana 分别提供经验证的完整仓库地址和 `sha256` 镜像 Digest。显式规划保留周期和存储容量，停用前先保留或迁移 PVC 数据。
 
 :::caution[1.0 前的安全边界]
 

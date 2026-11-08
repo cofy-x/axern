@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "base_image": "docker.io/library/postgres:16.15-alpine3.24@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139",
+  "go_version": "go1.26.10",
+  "gosu": {
+    "version": "1.20",
+    "commit": "29b939aa5bd4dc588af765b8248f6e39150d2565",
+    "url": "https://codeload.github.com/tianon/gosu/tar.gz/29b939aa5bd4dc588af765b8248f6e39150d2565",
+    "sha256": "2b70da8a5480fafedc16bb1fc91b572f064d03df736cbd91a616af2f1b66ab51",
+    "size": 18160
+  }
+}

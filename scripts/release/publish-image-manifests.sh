@@ -25,6 +25,8 @@ inspect_digest() {
 
 lock_key() {
   case "$1" in
+    postgres) printf '%s\n' POSTGRES_IMAGE ;;
+    registry) printf '%s\n' REGISTRY_IMAGE ;;
     controld) printf '%s\n' CONTROLD_IMAGE ;;
     tunneld) printf '%s\n' TUNNELD_IMAGE ;;
     gatewayd) printf '%s\n' GATEWAYD_IMAGE ;;
@@ -33,7 +35,7 @@ lock_key() {
   esac
 }
 
-for image in controld tunneld gatewayd node-all-in-one; do
+for image in postgres registry controld tunneld gatewayd node-all-in-one; do
   target="${AXERN_RELEASE_REGISTRY}/${image}:${tag}"
   key="$(lock_key "${image}")"
   locked_ref="$(awk -F '=' -v key="${key}" '$1 == key { print $2 }' "${lock_file}")"
