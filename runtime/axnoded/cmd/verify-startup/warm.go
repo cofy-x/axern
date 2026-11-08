@@ -118,7 +118,7 @@ func startAndDelete(clients *verifyutil.NodeClients, rootfsConfig *verifyutil.Ro
 	}
 	rootfsConfig.Apply(spec)
 
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(sandboxID), spec)
+	handle, err := verifyutil.AdmitAllocation(startCtx, clients, verifyutil.NewSandboxID(sandboxID), spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}

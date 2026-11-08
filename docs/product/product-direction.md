@@ -8,9 +8,9 @@ Make it practical to run independent agent workers on one Linux host, inspect th
 
 ## Current Capabilities
 
-The execution model is `Environment -> Run -> Allocation -> runsc sandbox`. SDKs expose Sandbox as a facade over that chain. Current capabilities include processes, files, terminals, SSH, reverse Tunnels, read-only image mounts, bounded declared outputs and successful-Run rootfs sealing into an immutable Environment. Writable files remain Allocation-local; caller export/restore is not a native persistent Workspace.
+The execution model is `Environment -> Run -> Allocation -> runsc sandbox`. SDKs expose Sandbox as a facade over that chain. Current capabilities include processes, files, terminals, SSH, reverse Tunnels, read-only image mounts, bounded declared outputs and successful-Run rootfs sealing into an immutable Environment. Without an explicit Workspace, writable files remain Allocation-local. An experimental managed Workspace retains files independently, enforces block/inode limits, and permits one Allocation writer at a time.
 
-The [native Linux installation](../../deploy/standalone/INSTALL.md) provides an experimental source-built archive and systemd lifecycle with required resource/network enforcement and OCI image management. [Compose](../../deploy/local/README.md) is the separate development profile. Persistent Workspace, authenticated previews, retained-result handoff and supported stateful upgrades/backup remain planned; their design does not make those APIs available.
+The [native Linux installation](../../deploy/standalone/INSTALL.md) provides an experimental source-built archive and systemd lifecycle with required resource/network enforcement and OCI image management. [Compose](../../deploy/local/README.md) is the separate development profile. Experimental Workspaces require XFS project accounting and hard enforcement. Authenticated previews, retained-result handoff and supported stateful upgrades/backup remain planned. Native lifecycle uses `axern server`; `axern dev` manages the separate Compose development instance.
 
 ## Principles
 
@@ -26,7 +26,7 @@ The [native Linux installation](../../deploy/standalone/INSTALL.md) provides an 
 | Concept | Owner and lifetime |
 | --- | --- |
 | Image | Immutable runtime, tools and reference inputs addressed by digest. Environments resolve those inputs and policy; read-only ImageMounts add content. Axern maintains [workload image recipes](../../images/agents/README.md), shared toolchain versions and local build/check commands. Registry operation and retention remain operator responsibilities. |
-| Workspace | Planned namespace-scoped retained data, independent of execution. The first contract has one enforced writer, retained capacity, explicit authorization and deletion; no public attachment API exists yet. |
+| Workspace | Experimental namespace-scoped retained data on one bound Node, independent of execution. One fenced writer, retained block/inode capacity, explicit authorization and deletion. |
 | Sandbox | SDK/runtime view of one Run and Allocation, including its filesystem and processes. A replacement execution receives new identities. |
 | AgentSession | Caller-owned conversation, configuration, model policy, planning and coordination. Axern can execute its worker and carry files without interpreting session meaning. |
 
@@ -37,7 +37,7 @@ Multiple workers use independent writable directories, immutable common referenc
 | Area | Axern responsibility | Caller or operator responsibility |
 | --- | --- | --- |
 | Execution | Admission, limits, cancellation, cleanup and observable recovery through Environment, Run and Allocation | Tasks, planning, Agent roles, orchestration and semantic retries |
-| Work data | Allocation-local files and outputs; planned managed host-local Workspace | Agent memory and session meaning, result/Git merging, distributed storage and long-term external publication |
+| Work data | Allocation-local files and outputs; experimental managed host-local Workspace | Agent memory and session meaning, result/Git merging, distributed storage and long-term external publication |
 | Interaction | Process, terminal, file, log, SSH and reverse Tunnel access; planned authenticated previews | IDE/dashboard products, application rollout, replicas and route orchestration |
 | Authority | Principal/Namespace authorization, Secret projection, execution authority and resource accounting | Human approval policy, model budgets, provider accounts and event integrations |
 | Images | Shared toolchains, official Agent installation layers, version/source locks and local build/check commands | Project-specific customization, build-service orchestration, registry credentials and publication |

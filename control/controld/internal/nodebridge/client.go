@@ -15,6 +15,9 @@ import (
 )
 
 type LifecycleClient interface {
+	ProvisionWorkspace(context.Context, string, *privatenodev1.ProvisionWorkspaceRequest) (*privatenodev1.ProvisionWorkspaceResponse, error)
+	InspectWorkspace(context.Context, string, *privatenodev1.InspectWorkspaceRequest) (*privatenodev1.InspectWorkspaceResponse, error)
+	DeleteWorkspace(context.Context, string, *privatenodev1.DeleteWorkspaceRequest) (*privatenodev1.DeleteWorkspaceResponse, error)
 	CreateAllocation(context.Context, string, *privatenodev1.CreateAllocationRequest) (*privatenodev1.CreateAllocationResponse, error)
 	DeleteAllocation(context.Context, string, *privatenodev1.DeleteAllocationRequest) (*privatenodev1.DeleteAllocationResponse, error)
 	AcknowledgeAllocationRelease(context.Context, string, *privatenodev1.AcknowledgeAllocationReleaseRequest) (*privatenodev1.AcknowledgeAllocationReleaseResponse, error)
@@ -51,7 +54,7 @@ func (c *GRPCClient) CreateAllocation(ctx context.Context, target string, req *p
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.CreateAllocation(ctx, req)
+	resp, err := client.AdmitAllocation(ctx, req)
 	if err != nil {
 		c.discardRecoverableConn(nodeEndpoint{target, req.GetNodeID()}, conn, err)
 		return nil, err

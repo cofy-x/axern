@@ -57,3 +57,18 @@ func TestPrepareListRejectsInvalidSort(t *testing.T) {
 		t.Fatal("PrepareList returned nil error, want invalid sort")
 	}
 }
+
+func TestPersistentStorageAndInodePressureAreVisibleWithoutExecutionUsage(t *testing.T) {
+	quotas := []*quotav1.NamespaceQuota{
+		{Namespace: "detached-bytes", PersistentStorageBytesLimit: wrapperspb.Int64(100), UsedPersistentStorageBytes: 90},
+		{Namespace: "detached-inodes", PersistentStorageInodesLimit: wrapperspb.Int64(100), UsedPersistentStorageInodes: 95},
+		{Namespace: "unlimited"},
+	}
+	got, err := PrepareList(quotas, ListOptions{ConstrainedOnly: true, PressureOnly: true, Sort: "pressure"})
+	if err != nil || len(got) != 2 || got[0].GetNamespace() != "detached-inodes" {
+		t.Fatalf("persistent pressure lost: %v, %v", got, err)
+	}
+	if got := quotaUsagePercent(8_000_000_000_000_000_000, wrapperspb.Int64(9_000_000_000_000_000_000)); got != 88 {
+		t.Fatalf("capacity percentage overflowed: %d", got)
+	}
+}

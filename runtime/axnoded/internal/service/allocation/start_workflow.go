@@ -116,6 +116,10 @@ func (h *Controller) cleanupPersistedFailedStart(ctx context.Context, containerI
 }
 
 func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, containerID string, reserved container.OccupiedResource, persistedRecovery bool) error {
+	workspaceBinding, err := h.PersistedWorkspaceBinding(containerID)
+	if err != nil {
+		return err
+	}
 	var resource container.OccupiedResource
 	resourceKnown := false
 	if _, err := h.containers().Get(containerID); err == nil {
@@ -157,13 +161,35 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 			return fmt.Errorf("retire failed-start egress policy: %w", err)
 		}
 	}
-	if err := h.releaseAllocationState(containerID, persistedRecovery); err != nil {
-		return fmt.Errorf("release failed-start allocation state: %w", err)
-	}
+	h.retireAllocationImages(containerID)
 	if resourceKnown {
 		if err := h.finalizeFailedContainerDelete(containerID, resource); err != nil {
 			return fmt.Errorf("finalize failed-start resources: %w", err)
 		}
+	}
+	if workspaceBinding != nil {
+		if err := h.verifyWorkspaceRuntimeAbsence(ctx, containerID); err != nil {
+			return err
+		}
+		if !resourceKnown {
+			if err := h.cleanupAbsentWorkspaceRuntime(ctx, containerID); err != nil {
+				return err
+			}
+			var err error
+			resource, err = h.containers().CollectResourceByID(containerID)
+			if err != nil {
+				return err
+			}
+			if err := h.finalizeFailedContainerDelete(containerID, resource); err != nil {
+				return err
+			}
+		}
+		if _, err := h.releaseWorkspace(&runtime.DeleteRequest{ID: containerID, Workspace: workspaceBinding}); err != nil {
+			return err
+		}
+	}
+	if err := h.releaseAllocationState(containerID, persistedRecovery); err != nil {
+		return fmt.Errorf("release failed-start allocation state: %w", err)
 	}
 	return nil
 }
@@ -211,6 +237,10 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 	}
 	if resp, ok, err := h.existingActiveStartResponse(ctx, request); ok {
 		return resp, err
+	}
+	workspaceMount, err := h.workspaceMount(request)
+	if err != nil {
+		return nil, err
 	}
 
 	recorder := NewStartMetricsRecorder(h.startMetricSink, config.RuntimeNameRunsc, RootfsTypeFromResolvedEnvironment(request.Environment))
@@ -288,6 +318,9 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		return startErrorResponse(fmt.Sprintf("Failed to resolve image mounts: %v", err)), err
 	}
 	runtimeRequest := proto.Clone(request).(*runtime.StartRequest)
+	if workspaceMount != nil {
+		runtimeRequest.Mounts = append(runtimeRequest.Mounts, workspaceMount)
+	}
 	runtimeRequest.Mounts = append(runtimeRequest.Mounts, secretMounts...)
 	runtimeRequest.Mounts = append(runtimeRequest.Mounts, imageMounts...)
 	defer func() {
@@ -350,6 +383,22 @@ func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.Dele
 
 func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	response := new(runtime.DeleteResponse)
+	if err := h.verifyCleanupWorkspace(request); err != nil {
+		return response, err
+	}
+	if receipt, found, err := h.workspaceCleanupReceipt(request); err != nil {
+		return response, err
+	} else if found {
+		h.retireAllocationImages(request.GetID())
+		if err := h.releaseAllocationState(request.GetID(), true); err != nil {
+			return response, err
+		}
+		response.WorkspaceCleanup = receipt
+		return response, nil
+	}
+	if err := h.beginWorkspaceCleanup(request); err != nil {
+		return response, err
+	}
 	if outputSealing := request.GetOutputSealing(); outputSealing != nil {
 		expiry := time.Unix(0, outputSealing.GetExpiresAtUnixNano()).UTC()
 		if outputSealing.GetExpiresAtUnixNano() <= 0 {
@@ -402,6 +451,18 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	if err != nil && !runtimeAbsent {
 		return new(runtime.DeleteResponse), err
 	}
+	if request.GetWorkspace() != nil && runtimeAbsent {
+		if err := h.verifyWorkspaceRuntimeAbsence(ctx, request.GetID()); err != nil {
+			return response, err
+		}
+		if err := h.cleanupAbsentWorkspaceRuntime(ctx, request.GetID()); err != nil {
+			return response, err
+		}
+		resource, err = h.containers().CollectResourceByID(request.GetID())
+		if err != nil {
+			return response, err
+		}
+	}
 	// Runtime deletion releases the secret bind mounts. Remove their host-side
 	// plaintext before retiring the allocation's durable recovery state, so a
 	// cleanup failure remains retryable through the same Allocation identity.
@@ -413,9 +474,7 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 			return new(runtime.DeleteResponse), err
 		}
 	}
-	if err := h.releaseAllocationState(request.ID, false); err != nil {
-		return new(runtime.DeleteResponse), err
-	}
+	h.retireAllocationImages(request.ID)
 	finalize := h.finalizeContainerDelete
 	if runtimeAbsent {
 		// A missing manager/runtime record is the explicit idempotent-delete
@@ -425,6 +484,14 @@ func (h *Controller) deleteAllocationWithLifecycleHeld(ctx context.Context, requ
 	}
 	if err := finalize(request.ID, resource); err != nil {
 		return new(runtime.DeleteResponse), err
+	}
+	if receipt, err := h.releaseWorkspace(request); err != nil {
+		return response, err
+	} else {
+		response.WorkspaceCleanup = receipt
+	}
+	if err := h.releaseAllocationState(request.ID, false); err != nil {
+		return response, err
 	}
 	return response, nil
 }

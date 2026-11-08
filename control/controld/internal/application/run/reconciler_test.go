@@ -3,6 +3,7 @@ package apprun
 import (
 	"context"
 	"errors"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"testing"
 	"time"
 
@@ -346,7 +347,7 @@ func (f *fakeReconcileStore) CompleteAllocationStart(_ context.Context, allocati
 	return nil
 }
 
-func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID, _ string, _ *allocationkernel.RootfsSnapshotResult, _ time.Time) error {
+func (f *fakeReconcileStore) CompleteAllocationRelease(_ context.Context, allocationID, _ string, _ *allocationkernel.ReleaseResult, _ time.Time) error {
 	f.completedAllocationID = allocationID
 	return nil
 }
@@ -418,7 +419,7 @@ type fakeReconcileLifecycle struct {
 	createObservedCancellation bool
 }
 
-func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string, _ []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error) {
+func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string, _ *runv1.Run, _ *environmentv1.Environment, _ string, _ []*capabilityv1.CapabilityRequirement, _ *nodelifecyclev1.WorkspaceBinding) (*capabilityv1.CapabilityConditionSet, error) {
 	f.created++
 	f.createDeadline, f.createHasDeadline = ctx.Deadline()
 	if f.waitForCancellation {
@@ -429,7 +430,7 @@ func (f *fakeReconcileLifecycle) CreateAllocation(ctx context.Context, _ string,
 	return &capabilityv1.CapabilityConditionSet{}, f.createErr
 }
 
-func (f *fakeReconcileLifecycle) DeleteAllocation(ctx context.Context, _, _, _ string, _ *allocationkernel.OutputSealing, snapshot *allocationkernel.RootfsSnapshotSealing) (*allocationkernel.RootfsSnapshotResult, error) {
+func (f *fakeReconcileLifecycle) DeleteAllocation(ctx context.Context, _, _, _ string, _ *allocationkernel.OutputSealing, snapshot *allocationkernel.RootfsSnapshotSealing, _ *nodelifecyclev1.WorkspaceBinding) (*allocationkernel.ReleaseResult, error) {
 	f.deleted++
 	f.deleteDeadline, f.deleteHasDeadline = ctx.Deadline()
 	if snapshot != nil && f.snapshotDeleteErr != nil {
@@ -438,6 +439,6 @@ func (f *fakeReconcileLifecycle) DeleteAllocation(ctx context.Context, _, _, _ s
 	return nil, f.deleteErr
 }
 
-func (f *fakeReconcileLifecycle) AcknowledgeAllocationRelease(context.Context, string, string, string) error {
+func (f *fakeReconcileLifecycle) AcknowledgeAllocationRelease(context.Context, string, string, string, *nodelifecyclev1.WorkspaceBinding) error {
 	return nil
 }

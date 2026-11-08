@@ -102,7 +102,7 @@ type EnvironmentClient interface {
 }
 
 type RunClient interface {
-	CreateRun(context.Context, *runv1.CreateRunRequest, ...grpc.CallOption) (*runv1.CreateRunResponse, error)
+	AdmitRun(context.Context, *runv1.CreateRunRequest, ...grpc.CallOption) (*runv1.CreateRunResponse, error)
 	GetRun(context.Context, *runv1.GetRunRequest, ...grpc.CallOption) (*runv1.GetRunResponse, error)
 	WatchRun(context.Context, *runv1.WatchRunRequest, ...grpc.CallOption) (runv1.RunControl_WatchRunClient, error)
 	ListRuns(context.Context, *runv1.ListRunsRequest, ...grpc.CallOption) (*runv1.ListRunsResponse, error)

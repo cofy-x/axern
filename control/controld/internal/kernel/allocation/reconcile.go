@@ -2,6 +2,7 @@ package allocationkernel
 
 import (
 	"errors"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"time"
 
 	"github.com/cofy-x/axern/lib/go/executionlease"
@@ -34,6 +35,7 @@ const (
 )
 
 type ReconcileItem struct {
+	Workspace               *nodelifecyclev1.WorkspaceBinding
 	OutputExpiresAt         *time.Time
 	AllocationID            string
 	RunID                   string
@@ -56,6 +58,11 @@ type ReconcileItem struct {
 type RootfsSnapshotSealing struct {
 	BaseImageRef         string
 	RegistryCredentialID string
+}
+
+type ReleaseResult struct {
+	RootfsSnapshot   *RootfsSnapshotResult
+	WorkspaceCleanup *nodelifecyclev1.WorkspaceCleanupReceipt
 }
 
 type RootfsSnapshotResult struct {

@@ -128,6 +128,15 @@ func TestEvaluateLifecycleRetryClearance(t *testing.T) {
 			blockedFor: "run status is RUN_STATUS_RUNNING",
 		},
 		{
+			name: "Workspace acknowledgement blocks terminal allocation",
+			in: LifecycleRetryClearanceInput{
+				AllocationState:                    commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),
+				RunStatus:                          runv1.RunStatus_RUN_STATUS_CANCELLED.String(),
+				HasPendingWorkspaceAcknowledgement: true,
+			},
+			blockedFor: "Workspace release acknowledgement is pending",
+		},
+		{
 			name: "terminal run is clearable",
 			in: LifecycleRetryClearanceInput{
 				AllocationState: commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String(),

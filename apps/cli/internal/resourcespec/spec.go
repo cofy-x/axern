@@ -42,6 +42,7 @@ type Metadata struct {
 }
 
 type Spec struct {
+	WorkspaceID           string            `json:"workspace_id,omitempty" yaml:"workspace_id,omitempty"`
 	Source                Source            `json:"source" yaml:"source"`
 	Command               Command           `json:"command,omitempty" yaml:"command,omitempty"`
 	ExtensionCapabilities map[string]string `json:"extension_capabilities,omitempty" yaml:"extension_capabilities,omitempty"`

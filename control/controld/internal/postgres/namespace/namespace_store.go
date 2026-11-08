@@ -160,6 +160,7 @@ func ensureNamespaceDeletable(ctx context.Context, q queryer, namespace string) 
 		query string
 		args  []any
 	}{
+		{name: "retained Workspaces", query: `SELECT EXISTS(SELECT 1 FROM workspaces WHERE namespace=$1 AND status<>'WORKSPACE_STATUS_DELETED')`},
 		{
 			name: "resource-owning allocations",
 			query: `SELECT EXISTS (

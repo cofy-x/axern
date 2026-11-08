@@ -11,6 +11,7 @@ import (
 
 func (s *Store) ResolveResourceNamespace(ctx context.Context, resourceType, resourceID string) (string, error) {
 	queries := map[string]string{
+		"workspace":   `SELECT namespace FROM workspaces WHERE workspace_id=$1`,
 		"environment": `SELECT namespace FROM environments WHERE environment_id=$1`,
 		"run":         `SELECT namespace FROM runs WHERE run_id=$1`,
 		"secret":      `SELECT namespace FROM secrets WHERE secret_id=$1`,

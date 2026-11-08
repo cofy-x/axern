@@ -1,6 +1,6 @@
 # Contributor Local Deployment
 
-These repository workflows are for Axern contributors building the current checkout. Product users should install the release CLI and run `axern local up`; they do not need this directory, Make, or source-built images.
+These repository workflows are for Axern contributors building the current checkout. Product users should install the release CLI and run `axern dev up`; they do not need this directory, Make, or source-built images.
 
 This directory contains the repo-supported local truth environments:
 
@@ -10,13 +10,13 @@ This directory contains the repo-supported local truth environments:
 - `otel/`: optional local OpenTelemetry/LGTM config
 - `state/`: generated local PKI, CLI env files, SSH keys, and runtime state
 
-The source Compose workflow owns the `axern-source` Docker Compose project. The released CLI owns the separate `axern-local` project and its state under the platform application-data directory. Public commands such as `axern run`, `axern ssh`, and `axern tunnel` can use either configured context, but `axern local ...` manages only the released-CLI instance and must not be mixed with this source workflow.
+The source Compose workflow owns the `axern-source` Docker Compose project. The released CLI owns the separate `axern-local` project and its state under the platform application-data directory. Public commands such as `axern run`, `axern ssh`, and `axern tunnel` can use either configured context, but `axern dev ...` manages only the released-CLI instance and must not be mixed with this source workflow.
 
 For gateway, terminal, and SSH examples, see [Gateway Quickstart](gateway-quickstart.md).
 
 ## Deployment Scope
 
-Linux single-host serving is the product's deployment direction; macOS supports clients and local development with the Linux runtime inside a VM. The current `axern local up` and source Compose workflows run multiple services, including PostgreSQL. They remain development environments rather than the planned serving package described in [Single-Host Agent Serving](../../docs/decisions/single-host-agent-serving.md).
+Linux single-host serving is the product's deployment direction; macOS supports clients and local development with the Linux runtime inside a VM. The current `axern dev up` and source Compose workflows run multiple services, including PostgreSQL. They remain development environments rather than the planned serving package described in [Single-Host Agent Serving](../../docs/decisions/single-host-agent-serving.md).
 
 Both Compose workflows use machine-local development identities and loopback public listeners. Their node configuration sets `AXNODED_CGROUP_ENFORCEMENT=disabled_dev`, so successful local execution does not qualify production CPU and memory enforcement. Keep runtime isolation, resource qualification, and deployment readiness distinct; use the [verification tiers](../../docs/verification/local-full-verification.md) for the applicable Linux checks.
 

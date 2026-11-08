@@ -10,7 +10,7 @@ const sidebar = [
     items: [
       { label: 'Overview', translations: { 'zh-CN': '产品概览' }, link: '/' },
       { label: 'Quick Start', translations: { 'zh-CN': '快速开始' }, link: '/getting-started/' },
-      { label: 'Local Axern', translations: { 'zh-CN': 'Local Axern' }, link: '/getting-started/compose/' },
+      { label: 'Compose Development', translations: { 'zh-CN': 'Compose 开发' }, link: '/getting-started/compose/' },
       { label: 'Kubernetes Install', translations: { 'zh-CN': 'Kubernetes 安装' }, link: '/getting-started/kubernetes/' },
     ],
   },
@@ -23,7 +23,7 @@ const sidebar = [
         translations: { 'zh-CN': '工具' },
         items: [
           { label: 'Axern CLI', translations: { 'zh-CN': 'Axern CLI' }, link: '/guides/cli/' },
-          { label: 'Local Axern Reference', translations: { 'zh-CN': 'Local Axern 参考' }, link: '/guides/local/' },
+          { label: 'Development Reference', translations: { 'zh-CN': '开发命令参考' }, link: '/guides/local/' },
           { label: 'Upgrades and Versioning', translations: { 'zh-CN': '升级与版本' }, link: '/guides/upgrades/' },
         ],
       },
@@ -46,6 +46,7 @@ const sidebar = [
         translations: { 'zh-CN': '数据与配置' },
         items: [
           { label: 'Environments and Quota', translations: { 'zh-CN': '环境与配额' }, link: '/guides/environments/' },
+          { label: 'Workspaces', translations: { 'zh-CN': 'Workspace' }, link: '/guides/workspaces/' },
           { label: 'Secrets', translations: { 'zh-CN': 'Secret' }, link: '/guides/secrets/' },
         ],
       },

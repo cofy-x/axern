@@ -11,7 +11,8 @@ import (
 
 func BuildNodeSummary(snapshot nodeinventory.NodeInventorySnapshot) *nodev1.NodeSummary {
 	summary := &nodev1.NodeSummary{
-		CollectedAt: timestamppb.New(snapshot.Node.CollectedAt),
+		CollectedAt:      timestamppb.New(snapshot.Node.CollectedAt),
+		WorkspaceStorage: cloneWorkspaceStorage(snapshot.Node.WorkspaceStorage),
 		Pools: &nodev1.PoolsSummary{
 			RuntimeSlots: &nodev1.PoolState{
 				Using:       int32(snapshot.Pools.RuntimeSlots.Using),
@@ -222,4 +223,11 @@ func mountTypeToProto(mountType string) nodev1.MountType {
 	default:
 		return nodev1.MountType_MOUNT_TYPE_UNSPECIFIED
 	}
+}
+
+func cloneWorkspaceStorage(in *nodev1.WorkspaceStorage) *nodev1.WorkspaceStorage {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*nodev1.WorkspaceStorage)
 }

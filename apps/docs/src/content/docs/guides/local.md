@@ -1,9 +1,9 @@
 ---
-title: Local Axern Reference
+title: Compose Development Reference
 description: Requirements, lifecycle, storage, version replacement, and troubleshooting for Local Axern.
 ---
 
-`axern local` manages one machine-level instance named `local`. Its deployment assets and service versions come from the installed CLI; source checkout files are never consulted. Release binaries embed a verified multi-architecture image digest lock, so local startup does not resolve mutable service tags.
+`axern dev` manages one machine-level instance named `local`. Its deployment assets and service versions come from the installed CLI; source checkout files are never consulted. Release binaries embed a verified multi-architecture image digest lock, so local startup does not resolve mutable service tags.
 
 This page is the complete reference. For a guided first run, start with [Local Axern](/getting-started/compose/).
 
@@ -15,18 +15,18 @@ Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Wo
 
 ## Commands
 
-| Command                        | Behavior                                                                                                        |
+| Command | Behavior |
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `axern local up`               | Preflight, materialize, start, wait for health, and configure the `local` context                               |
-| `axern local image load IMAGE` | Stream a host Docker image into the local node; `--pull` fetches it first                                       |
-| `axern local status`           | Show versions, health endpoints, data path, context, and allocated host disk use                                |
-| `axern local logs [component]` | Read aggregate or component logs; supports `--follow`, `--tail`, and `--since`                                  |
-| `axern local doctor`           | Perform read-only host, Docker, port, version, health, and Node DNS checks; `--probe` also verifies sandbox DNS |
-| `axern local down`             | Remove containers and network while preserving data                                                             |
-| `axern local reset`            | Permanently delete data and identity material                                                                   |
-| `axern local path`             | Print the effective local data directory                                                                        |
+| `axern dev up` | Preflight, materialize, start, wait for health, and configure the `local` context |
+| `axern dev image load IMAGE` | Stream a host Docker image into the local node; `--pull` fetches it first |
+| `axern dev status` | Show versions, health endpoints, data path, context, and allocated host disk use |
+| `axern dev logs [component]` | Read aggregate or component logs; supports `--follow`, `--tail`, and `--since` |
+| `axern dev doctor` | Perform read-only host, Docker, port, version, health, and Node DNS checks; `--probe` also verifies sandbox DNS |
+| `axern dev down` | Remove containers and network while preserving data |
+| `axern dev reset` | Permanently delete data and identity material |
+| `axern dev path` | Print the effective local data directory |
 
-Use `axern local up --profile observability` to enable local telemetry and `axern local up --profile default` to return to the core profile. Omitting the flag preserves the instance's current profile.
+Use `axern dev up --profile observability` to enable local telemetry and `axern dev up --profile default` to return to the core profile. Omitting the flag preserves the instance's current profile.
 
 Image loading is local-only. It saves the immutable host image ID, validates its platform against the running node image, and streams it directly into the node without a host-side archive. Rebuilding the same mutable tag moves new allocations to the new manifest generation; running allocations retain their leased generation. The `local` CLI context records only the current mutable tag pointer and submits its immutable digest to the control plane, so creating a Run from a loaded image does not contact an external registry.
 
@@ -51,57 +51,57 @@ All host listeners bind only to `127.0.0.1`.
 | `24101` | Control-plane HTTP                             |
 | `25432` | PostgreSQL                                     |
 
-The observability profile additionally uses `4317`, `4318`, and `13000`. Ports are fixed; resolve any conflicting listener before rerunning `axern local doctor`.
+The observability profile additionally uses `4317`, `4318`, and `13000`. Ports are fixed; resolve any conflicting listener before rerunning `axern dev doctor`.
 
 ## Context behavior
 
-`local up` creates or updates a context named `local` with absolute paths to the generated mTLS and SSH identity. It selects that context only when no context is active. Use `--use` to switch explicitly. Existing non-local contexts are preserved.
+`dev up` creates or updates a context named `local` with absolute paths to the generated mTLS and SSH identity. It selects that context only when no context is active. Use `--use` to switch explicitly. Existing non-local contexts are preserved.
 
 ## Proxy behavior
 
 The runner passes `HTTP_PROXY` and `HTTPS_PROXY` into containers and rewrites loopback proxy hosts to `host.docker.internal`. Internal Axern service names, loopback, private networks, and cluster-local names are included in `NO_PROXY`. If image pulls fail, first confirm Docker itself is configured for your network, then run:
 
 ```bash
-axern local doctor
-axern local logs node --tail 200
+axern dev doctor
+axern dev logs node --tail 200
 ```
 
 ## Workload DNS
 
-On native Linux, `local up` snapshots the first resolver file that contains usable non-loopback addresses. It checks `/etc/resolv.conf` first and falls back to `/run/systemd/resolve/resolv.conf`, so a systemd-resolved loopback stub is never propagated into a nested sandbox. On Docker Desktop, axnoded derives the effective non-loopback resolver from the Node container because that VM-local configuration is authoritative. Docker's container-local loopback resolver is never copied into a sandbox.
+On native Linux, `dev up` snapshots the first resolver file that contains usable non-loopback addresses. It checks `/etc/resolv.conf` first and falls back to `/run/systemd/resolve/resolv.conf`, so a systemd-resolved loopback stub is never propagated into a nested sandbox. On Docker Desktop, axnoded derives the effective non-loopback resolver from the Node container because that VM-local configuration is authoritative. Docker's container-local loopback resolver is never copied into a sandbox.
 
-`axern local doctor` validates the resolver configuration actually applied to an initialized stack (`runtime_dns_config`) and queries each effective resolver directly from the running Node container (`runtime_dns_node`). `local up` performs the Node query before reporting ready; a missing or completely unreachable resolver set is a required failure, while a partially reachable set is reported as degraded. Both checks use a 15-second timeout by default; change it with `--check-timeout`.
+`axern dev doctor` validates the resolver configuration actually applied to an initialized stack (`runtime_dns_config`) and queries each effective resolver directly from the running Node container (`runtime_dns_node`). `dev up` performs the Node query before reporting ready; a missing or completely unreachable resolver set is a required failure, while a partially reachable set is reported as degraded. Both checks use a 15-second timeout by default; change it with `--check-timeout`.
 
 To verify the same DNS materialization through a real `runsc` OCI sandbox, run:
 
 ```bash
-axern local doctor --probe --image python:3.12-slim
+axern dev doctor --probe --image python:3.12-slim
 ```
 
 The sandbox check (`runtime_dns_sandbox`) uses the public Namespace, Secret, Environment, and Run APIs. Cleanup cancels an active Run, then deletes the Environment, Secret, and Namespace in dependency order after success, failure, timeout, or cancellation. The terminal Run remains as normal control-plane history. The default query is the project-controlled absolute name `axern.cofy-x.space.`. Managed-network users can select a private name with `--dns-query-name`; the value is injected through the temporary Secret and is not returned in doctor JSON details or Run arguments.
 
 The probe always connects to the product-owned `local` context and ignores a currently selected remote context. Explicit remote endpoint or TLS overrides are rejected. Sandbox execution defaults to five minutes; adjust it with `--probe-timeout`. An explicit `--image` is required; sandbox-only options require `--probe`. A cleanup failure is a required failure and should be remediated by inspecting probe-labeled local resources before retrying.
 
-The image must be available to the local stack; use `axern local image load python:3.12-slim --pull` first if needed. The source-free release gate runs this probe on native Linux amd64 and arm64. That result does not qualify Docker Desktop, VPN or split-DNS behavior on another host. Validate those environments with the same probe and a name served by the intended resolver.
+The image must be available to the local stack; use `axern dev image load python:3.12-slim --pull` first if needed. The source-free release gate runs this probe on native Linux amd64 and arm64. That result does not qualify Docker Desktop, VPN or split-DNS behavior on another host. Validate those environments with the same probe and a name served by the intended resolver.
 
 VPNs and managed networks sometimes require a resolver that is not visible in the Node container's effective configuration. Set an explicit comma-separated list before starting or recreating the local stack:
 
 ```bash
-AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern local up
+AXERN_LOCAL_DNS_NAMESERVERS=10.0.0.53,10.0.0.54 axern dev up
 ```
 
-Values must be IP addresses reachable from Docker workloads. Loopback, unspecified, empty, and hostname values are rejected. After changing resolver settings, rerun `axern local up`; it recreates the local services only when the desired resolver snapshot differs from the applied configuration.
+Values must be IP addresses reachable from Docker workloads. Loopback, unspecified, empty, and hostname values are rejected. After changing resolver settings, rerun `axern dev up`; it recreates the local services only when the desired resolver snapshot differs from the applied configuration.
 
 ## Version changes
 
-`local up` never silently changes a stack version. Local state has no migration compatibility contract: a mismatch leaves status, logs, doctor, and down available and instructs you to run `axern local reset --force`, followed by `axern local up`. Export any outputs you need before resetting.
+`dev up` never silently changes a stack version. Local state has no migration compatibility contract: a mismatch leaves status, logs, doctor, and down available and instructs you to run `axern dev reset --force`, followed by `axern dev up`. Export any outputs you need before resetting.
 
 ## Uninstall
 
 Stop and delete the local instance before uninstalling the CLI if you no longer need its data:
 
 ```bash
-axern local reset
+axern dev reset
 brew uninstall axern
 ```
 

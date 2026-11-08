@@ -2,6 +2,7 @@ package apprun
 
 import (
 	"context"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"strings"
 	"time"
 
@@ -31,9 +32,9 @@ type CandidateSelector interface {
 }
 
 type AllocationLifecycle interface {
-	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error)
-	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing, rootfsSnapshot *allocationkernel.RootfsSnapshotSealing) (*allocationkernel.RootfsSnapshotResult, error)
-	AcknowledgeAllocationRelease(ctx context.Context, target, allocationID, nodeID string) error
+	CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement, workspace *nodelifecyclev1.WorkspaceBinding) (*capabilityv1.CapabilityConditionSet, error)
+	DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing, rootfsSnapshot *allocationkernel.RootfsSnapshotSealing, workspace *nodelifecyclev1.WorkspaceBinding) (*allocationkernel.ReleaseResult, error)
+	AcknowledgeAllocationRelease(ctx context.Context, target, allocationID, nodeID string, workspace *nodelifecyclev1.WorkspaceBinding) error
 }
 
 type AuthoritativeStore interface {
@@ -73,6 +74,7 @@ func (p authoritativeRunAccess) CreateRun(ctx context.Context, params runkernel.
 	}
 	run, err := p.store.AdmitRun(ctx, runkernel.AdmitRunParams{
 		Namespace:   namespace,
+		WorkspaceID: params.WorkspaceID,
 		Environment: env,
 		Config:      normalizedConfig,
 		Labels:      params.Labels,

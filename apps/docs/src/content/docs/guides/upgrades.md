@@ -29,8 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh \
 The CLI never silently changes a running local stack and does not carry local database migrations across versions. Export required outputs, then rebuild the local instance explicitly:
 
 ```bash
-axern local reset --force
-axern local up
+axern dev reset --force
+axern dev up
 ```
 
 This deliberately replaces local data and identity material. See the [Local Axern reference](/guides/local/) for the full lifecycle.

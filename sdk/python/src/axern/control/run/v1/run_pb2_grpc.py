@@ -34,8 +34,8 @@ class RunControlStub:
         Args:
             channel: A grpc.Channel.
         """
-        self.CreateRun = channel.unary_unary(
-                '/axern.control.run.v1.RunControl/CreateRun',
+        self.AdmitRun = channel.unary_unary(
+                '/axern.control.run.v1.RunControl/AdmitRun',
                 request_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.CreateRunRequest.SerializeToString,
                 response_deserializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.CreateRunResponse.FromString,
                 _registered_method=True)
@@ -64,8 +64,10 @@ class RunControlStub:
 class RunControlServicer:
     """Missing associated documentation comment in .proto file."""
 
-    def CreateRun(self, request, context):
-        """Missing associated documentation comment in .proto file."""
+    def AdmitRun(self, request, context):
+        """The changed method name makes required Workspace intent non-ignorable by
+        older servers; high-level clients retain their CreateRun operation.
+        """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -97,8 +99,8 @@ class RunControlServicer:
 
 def add_RunControlServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'CreateRun': grpc.unary_unary_rpc_method_handler(
-                    servicer.CreateRun,
+            'AdmitRun': grpc.unary_unary_rpc_method_handler(
+                    servicer.AdmitRun,
                     request_deserializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.CreateRunRequest.FromString,
                     response_serializer=axern_dot_control_dot_run_dot_v1_dot_run__pb2.CreateRunResponse.SerializeToString,
             ),
@@ -134,7 +136,7 @@ class RunControl:
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
-    def CreateRun(request,
+    def AdmitRun(request,
             target,
             options=(),
             channel_credentials=None,
@@ -147,7 +149,7 @@ class RunControl:
         return grpc.experimental.unary_unary(
             request,
             target,
-            '/axern.control.run.v1.RunControl/CreateRun',
+            '/axern.control.run.v1.RunControl/AdmitRun',
             axern_dot_control_dot_run_dot_v1_dot_run__pb2.CreateRunRequest.SerializeToString,
             axern_dot_control_dot_run_dot_v1_dot_run__pb2.CreateRunResponse.FromString,
             options,

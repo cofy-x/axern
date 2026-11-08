@@ -177,6 +177,14 @@ message LocalitySummary {
   string environment_id = 15;
 }
 
+message WorkspaceStorage {
+  int64 capacity_bytes = 1;
+  int64 inode_capacity = 2;
+  string storage_identity = 3;
+  bool ready = 4;
+  string message = 5;
+}
+
 message NodeSummary {
   // Ordering applies to the complete atomic observation, not to one payload
   // such as capabilities. A node process chooses a fresh instance identity and
@@ -195,6 +203,7 @@ message NodeSummary {
   axern.control.common.v1.ResourceQuantity allocatable = 11;
   NodeMemoryBudget memory_budget = 12;
   NodeDiagnostics diagnostics = 13;
+  WorkspaceStorage workspace_storage = 14;
 }
 
 message ReportNodeRequest {

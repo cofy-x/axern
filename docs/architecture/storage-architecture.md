@@ -1,14 +1,16 @@
 # Storage Architecture
 
-The current implementation separates durable control state from Allocation-local writable files. It does not yet provide a persistent Workspace resource or durable output-storage service.
+Axern separates durable control state, optional managed Workspace data, Allocation-local writable files and bounded outputs. Workspace is an experimental retained-data resource; bounded output retention is not a general durable output-storage service.
 
-Persistent Workspace support follows the planned [single-writer Workspace contract](../decisions/single-writer-workspaces.md) within the [single-host serving direction](../decisions/single-host-agent-serving.md). The ownership, retention, and cleanup rules below describe current behavior; a writable sandbox directory or published rootfs result does not provide that planned Workspace contract.
+Managed Workspaces follow the [single-writer contract](../decisions/single-writer-workspaces.md) within the [single-host serving direction](../decisions/single-host-agent-serving.md). They require explicit XFS project-quota enforcement and remain host-local; supported backup, upgrade and replacement-host restore are not established.
 
 ## Data Ownership And Lifetime
 
 | Data | Owner and location | Lifetime |
 | --- | --- | --- |
 | Workload intent, declared-output specification, Allocations and their resource charges, placement, access grants, TunnelSessions, and Run result metadata | `controld` and PostgreSQL | Durable control state; contains no stdout or declared-output bytes |
+| Managed Workspace identity, capacity and attachment generation | `controld` and PostgreSQL | Independent of Run/Allocation; retained charge ends only after confirmed explicit deletion |
+| Workspace files and project quotas | `axnoded`, on its configured XFS filesystem | Retained across cleaned execution replacement; missing or replaced storage is unavailable |
 | Writable sandbox rootfs and Allocation-local workspace | `axnoded` and node-local runtime filestore | One Allocation; no persistence promise across Allocation replacement or node loss |
 | Sealed stdout/stderr and bounded declared outputs | `axnoded` node-local retention | Read-only through the Run output deadline; survives runtime cleanup and node-process restart, not node-disk loss |
 | Published rootfs result | Operator-configured OCI repository; referenced by a derived Environment | Content-addressed and reusable across fresh Allocations; physical retention and unreferenced-blob GC are registry policy |
@@ -17,13 +19,23 @@ Persistent Workspace support follows the planned [single-writer Workspace contra
 
 PostgreSQL is the only authoritative central state backend. Unselected bytes disappear with Allocation cleanup. Selected declared outputs and bounded logs are sealed before runtime deletion and remain readable only until the immutable output deadline. An explicitly requested successful rootfs result is instead published as an immutable OCI image and referenced by a normal Environment. Downloaded outputs belong to the caller or an upper-layer system. Object storage is never authoritative execution state or a writable POSIX working directory for an Allocation, and Axern does not define a generic public Artifact or Snapshot root.
 
+## Managed Workspaces
+
+Create provisions an authorized, Namespace-scoped Workspace on an explicit Node, with finite block and inode hard limits. PostgreSQL retains the granted capacity while provisioning, attached, detached, unavailable or deleting. A durable reconciliation intent retries provisioning and deletion. Namespace deletion and Node retirement reject outstanding retained-data obligations.
+
+Run admission locks Namespace, Node and Workspace, rechecks the current actor, and freezes the sole writer generation with the new Run, Allocation and create intent. The node verifies its private owner record, stable filesystem/directory identity and effective project quota before mounting `/workspace`. Image mounts, Secret projections and other mounts cannot overlap that target. The public API never accepts host paths or exposes quota identifiers or private owner records.
+
+Cancellation retains the data. Writer release requires exact runtime, Sentry/Gofer and mount cleanup, a durable matching generation receipt and Allocation `RELEASED`. Terminal Run status, lease expiry and an RPC timeout cannot transfer ownership. Delayed requests cannot affect a newer generation. SDK readiness waiters observe both `READY` data and an empty attachment; they do not reserve a writer.
+
+Delete rejects active attachments, records intent, and verifies only the owned data tree. Capacity remains charged through partial cleanup and unavailable disks. A missing retained directory is not recreated, and guest-created symlinks or unexpected mounts cannot redirect deletion. Rootfs publication cannot be combined with a Workspace in this profile; declared output capture remains a separate bounded handoff operation.
+
 ## Allocation-Local Filesystems
 
 `axnoded` resolves an immutable image rootfs, prepares the allocation-private writable view, and tracks runtime, image, and workspace ownership. Read-only image mounts and runtime-owned bind mounts use the same target validation, conflict checks, and Allocation cleanup boundary.
 
 Writable rootfs storage still requires node-local Allocation charge and runsc hard enforcement. The charged scope is the runsc file-backed root overlay, including metadata, copy-up, and whiteouts; image caches, logs, and process output streams do not silently become part of that charge. See [Resource Model](resource-model.md) and the [node rootfs storage contract](../../runtime/axnoded/docs/rootfs-storage.md).
 
-A replacement Allocation starts from immutable inputs, not from a previous writable directory. Process restart may recover an existing Allocation when its runtime and ownership records remain intact; this does not promise file retention after node loss or Allocation replacement. Declare bounded file or tar outputs before Run admission when a recovering caller must download them after termination; export them to caller-owned durable storage before expiry. The limits and ownership rules are defined in the [Stable Domain Model](../product/domain-model.md).
+A replacement Allocation starts from immutable image inputs and a fresh writable rootfs. An explicitly selected Workspace supplies retained files at `/workspace`; otherwise no writable directory is inherited. Process restart may recover an existing Allocation when its runtime and ownership records remain intact; this does not preserve Allocation-local files after node loss or Allocation replacement. Declare bounded file or tar outputs before Run admission when a recovering caller must download them after termination; export them to caller-owned durable storage before expiry. The limits and ownership rules are defined in the [Stable Domain Model](../product/domain-model.md).
 
 ## Recovery And Cleanup
 
@@ -39,7 +51,7 @@ The preserved implementation boundaries are `runtime/axnoded/internal/nodestate`
 
 ## Rebuild Boundary
 
-During pre-stable development, protobuf, initial schema, node state, SDKs, and deployment manifests change as one coordinated contract. Rebuild the local PostgreSQL database and generated node state when that contract changes instead of adding dual schema paths or reinterpretation logic.
+Protobuf, schema, node state, SDKs and deployment manifests change as one coordinated contract. Workspace metadata is introduced by a forward SQL migration that retains existing control state. Retained bytes and ownership must never be handled through development database reset or cache rebuilding. Native archive replacement is not a supported upgrade procedure; preserve the complete installation until a versioned maintenance protocol is qualified.
 
 After Axern establishes a stable external storage contract, its production upgrade policy must define versioned backup, migration, rollback, and deprecation behavior explicitly.
 

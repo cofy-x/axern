@@ -27,7 +27,7 @@ func TestCapabilityReconcileDoesNotPersistWorkBeforeLaunchVerification(t *testin
 	const allocationID = "alloc-preactivation-reconcile"
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)
 	requirements := []*capabilityv1.CapabilityRequirement{{Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP}}
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, requirements, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, requirements, nil, nil, nil))
 	var before apipb.AllocationState
 	require.NoError(t, store.GetRecord(config.AllocationStateBucket, allocationID, &before))
 
@@ -60,7 +60,7 @@ func TestStoreVerifiedEnforcementManifestRejectsTerminationIntent(t *testing.T) 
 	store := storetest.NewMockStore()
 	fixture := newTestAllocationControllerWithStore(t, &runtimeSpyHandler{name: "runsc"}, store)
 	const allocationID = "alloc-terminated-before-verification"
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil, nil))
 	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired"))
 	now := time.Now().UTC()
 	err := fixture.controller.StoreVerifiedEnforcementManifest(allocationID, &apipb.AllocationEnforcementManifest{
@@ -84,7 +84,7 @@ func TestStartAllocationRejectsTerminationIntentBeforeSideEffects(t *testing.T) 
 			handler := &runtimeSpyHandler{name: "runsc"}
 			fixture := newTestAllocationController(t, handler)
 			const allocationID = "alloc-terminated-before-create"
-			require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil))
+			require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil, nil))
 			require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired"))
 			request := &apipb.StartRequest{AllocationID: allocationID, Environment: testResolvedEnvironment(t, "environment-terminated-before-create")}
 			var err error
@@ -109,7 +109,7 @@ func TestActiveAllocationReplayRejectsTerminationIntent(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
 	fixture := newTestAllocationController(t, handler)
 	const allocationID = "alloc-terminated-replay"
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil, nil))
 	now := time.Now().UTC()
 	require.NoError(t, fixture.controller.StoreVerifiedEnforcementManifest(allocationID, &apipb.AllocationEnforcementManifest{
 		BundlePath: filepath.Join(fixture.controller.config.RootDir, "containers", allocationID), CreatedAtUnixNano: now.UnixNano(),
@@ -187,7 +187,7 @@ func TestAllocationActivationRejectsTerminationPersistedInsideGate(t *testing.T)
 	handler := &activationFenceRuntime{runtimeSpyHandler: &runtimeSpyHandler{name: "runsc"}}
 	fixture := newTestAllocationController(t, handler)
 	const allocationID = "alloc-terminated-before-activation"
-	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil, nil))
 	fixture.controller.preActivationCapabilityGate = func(_ context.Context, _ *apipb.StartRequest, _ contract.AllocationRuntime, id string) error {
 		return fixture.controller.MarkTerminationIntentWithLifecycleHeld(id, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired")
 	}
@@ -201,7 +201,7 @@ func TestExpirySelectionRechecksRenewalBeforeRecordingTermination(t *testing.T) 
 	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
 	const id = "alloc-renewed-behind-start"
 	now := time.Now().UTC()
-	require.NoError(t, fixture.controller.StoreAllocationIntent(id, "node-a", activationFenceDigest, now.Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, fixture.controller.StoreAllocationIntent(id, "node-a", activationFenceDigest, now.Add(time.Minute), nil, nil, nil, nil, nil))
 	selectedAt := now.Add(2 * time.Minute)
 	require.Contains(t, fixture.controller.ExpiredExecutionLeaseAllocationIDs(selectedAt), id)
 	// An already received grant wins the record transaction before the

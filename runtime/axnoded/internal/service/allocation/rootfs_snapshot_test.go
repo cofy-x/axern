@@ -47,7 +47,7 @@ func TestRootfsSnapshotReceiptMakesDeleteRetryIdempotent(t *testing.T) {
 	const baseRef = "registry.local/base@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a",
 		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", time.Now().Add(time.Minute),
-		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}))
+		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}, nil))
 	fixture.controller.stateMu.Lock()
 	record := fixture.controller.allocationStates[allocationID].record
 	record.Environment = &apipb.ResolvedEnvironment{Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_IMAGE, Source: &apipb.RootfsConfig_ImageUrl{ImageUrl: baseRef}}}
@@ -79,7 +79,7 @@ func TestRootfsSnapshotAcceptsEquivalentRepositoryAliases(t *testing.T) {
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a",
 		"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", time.Now().Add(time.Minute),
-		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}))
+		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}, nil))
 	fixture.controller.stateMu.Lock()
 	record := fixture.controller.allocationStates[allocationID].record
 	record.Environment = &apipb.ResolvedEnvironment{Rootfs: &apipb.RootfsConfig{
@@ -104,7 +104,7 @@ func TestRootfsSnapshotRejectsContractMismatch(t *testing.T) {
 	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
 	require.NoError(t, fixture.controller.StoreAllocationIntent("allocation-snapshot", "node-a",
 		"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", time.Now().Add(time.Minute),
-		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}))
+		&commonv1.ResourceSpec{Limits: &commonv1.ResourceQuantity{EphemeralStorageBytes: 1 << 20}}, nil, nil, &commonv1.RootfsSnapshot{}, nil))
 	fixture.controller.stateMu.Lock()
 	fixture.controller.allocationStates["allocation-snapshot"].record.Environment = &apipb.ResolvedEnvironment{Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_IMAGE, Source: &apipb.RootfsConfig_ImageUrl{ImageUrl: "registry.local/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}}
 	fixture.controller.stateMu.Unlock()

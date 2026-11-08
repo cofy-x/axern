@@ -1,6 +1,6 @@
 # Native Linux Installation
 
-The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. It does not implement upgrades, data migration, backup/restore or persistent Workspace semantics.
+The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. It does not implement archive upgrades or supported backup/restore. Experimental Workspaces require the explicit XFS quota settings below.
 
 ## Host Prerequisites
 
@@ -42,12 +42,25 @@ Create a JSON configuration with all fields below. These values illustrate the c
 }
 ```
 
+To enable experimental Workspaces, use XFS with project accounting and enforcement enabled (`prjquota` in the persistent mount configuration), and add both optional settings to this JSON:
+
+```json
+{
+  "workspace_capacity_bytes": 2147483648,
+  "workspace_inode_capacity": 200000
+}
+```
+
+These fields extend the complete configuration above; they are not a standalone configuration. The byte budget is positive and 512-byte aligned, and the inode budget is positive. Enabling Workspaces requires at least 1 GiB of operator storage reserve. The installer subtracts the full Workspace budget from ephemeral-rootfs capacity in addition to that reserve. Quotas cap allocation; they do not reserve physical blocks against image caches, PostgreSQL or other host writers.
+
+The installer creates the private Workspace root only during installation. Start and recovery reject absent or replaced retained storage. The node verifies effective XFS limits before advertising support; mount options alone cannot establish enforcement. Keep the dedicated mount available across host startup. Leave both settings absent for ephemeral-only serving on ext4 or XFS.
+
 ```bash
 sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py \
   install --config /absolute/path/to/native.json
 ```
 
-Installation owns `/etc/axern`, `/var/lib/axern`, its runtime paths below `/opt/axern`, the `axern-native-*` service units, `axern.slice`, `axern-services.slice` and dedicated `axern-*` service accounts. Existing unrelated configuration, data, accounts and units cause installation to fail. An interrupted installation can resume with the same payload and configuration; conflicting files fail explicitly rather than being overwritten. A different payload or configuration is rejected because this candidate has no supported upgrade contract.
+Installation owns `/etc/axern`, `/var/lib/axern`, its runtime paths below `/opt/axern`, the `axern-native-*` service units, `axern.slice`, `axern-services.slice` and dedicated `axern-*` service accounts. Existing unrelated configuration, data, accounts and units cause installation to fail. An interrupted installation can resume with the same payload and configuration; conflicting files fail explicitly rather than being overwritten. After completion, missing PostgreSQL identity or managed data directories are rejected before initialization or repair. A missing completion marker cannot turn a bootstrapped database into a first installation. A different payload or configuration is rejected because this candidate has no supported upgrade contract.
 
 The image cache has an explicit extraction format under `/var/lib/axern/imagemgr/oci/metadata.db`. An incompatible or unversioned nonempty cache is rejected before recovery, rather than recursively changing permissions or silently reusing it. Preserve that cache and `/var/lib/axern/imagemgr/resource_leases.db` for operator resolution using the matching runtime; see [image-cache ownership](../../runtime/imagemgr/docs/architecture.md#guest-metadata-and-cache-format). Cache replacement is not an ordinary start/stop operation, an installation upgrade or permission to clear the data filesystem.
 
@@ -61,13 +74,13 @@ History retention runs as a background task in `controld`, sharing its database 
 
 ## Operate
 
-Use the helper in the installed release directory:
+Use the CLI in the installed release directory. It verifies installation ownership and payload identity, then delegates lifecycle operations to the installed helper:
 
 ```bash
-sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py start
-sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py status
-sudo journalctl -u axern-native-axnoded.service -n 100 --no-pager
-sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py stop
+sudo /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern server start
+sudo /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern server status
+sudo /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern server logs axnoded --tail 100
+sudo /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern server stop
 ```
 
 Start enables `axern-native.target` for subsequent boots. Database creation, migrations and initial administrator/node admission complete before the control plane starts. Dependency probes use real APIs, not socket-file existence. Start checks every required service individually before and after waiting for a fresh node summary and network, memory and storage enforcement evidence through the authenticated gateway. The packaged CLI applies the canonical capability freshness and dependency checks, including evidence from the current boot. All required observations and their dependencies must also be newer than the current node daemon's start time; a previous daemon's still-fresh snapshot cannot satisfy this barrier. Start rechecks the systemd invocation before reporting readiness. After a host reboot or node restart, invoke start again to wait for this admission barrier; an active systemd target alone is not proof that node observations have reached the controller. A failed daemon restarts independently; the runtime continues to own allocation and enforcement recovery. Every service checks the installation and data filesystem/directory identity before startup. Missing or replaced data fails explicitly instead of creating an empty replacement installation.
@@ -78,7 +91,9 @@ The installer enables `native_recovery = true` together with required cgroup enf
 
 Full stop waits for the target and every owned service's stop job before the final node-cgroup termination check. It retains configuration, database, node identity and runtime storage. Stop does not clear prior unit failures; inspect service status and the journal to diagnose them. It does not disable boot startup or promise that workload processes survive a full stop or reboot. Recovery uses the existing Run and Allocation contract. To prevent startup after reboot, explicitly disable `axern-native.target` through systemd.
 
-The generated `/etc/axern/client.env` points the CLI at the authenticated gateway using the initial administrator credential. It is root-readable. In an administrator shell, source that file and use the packaged CLI to inspect nodes and run a workload. This does not modify an existing user context or change `axern local` behavior. Treat the private PKI and encryption material as installation authority; never share it with sandbox workloads.
+The generated `/etc/axern/client.env` points the CLI at the authenticated gateway using the initial administrator credential. It is root-readable. In an administrator shell, source that file and use the packaged CLI to inspect nodes and run a workload. This does not modify an existing user context or change `axern dev` behavior. Treat the private PKI and encryption material as installation authority; never share it with sandbox workloads.
+
+Native bootstrap admits the Node and creates the administrator, but does not create an application Namespace. Create `default` once before the first Environment, Run or Workspace operation; if it already exists, verify it with `namespace get default`. The examples explicitly select it with `--namespace default`. Remote clients must use a context and credential for this same gateway and an authorized existing Namespace.
 
 The start readiness check uses that initial credential by default. After rotating or revoking it, supply both `AXERN_TLS_CERT` and `AXERN_TLS_KEY` for a valid replacement administrator; a partial override is rejected before services start. The installation still selects its own local gateway, CA and server identity. Authentication or authorization failure is reported immediately instead of being retried as missing capability evidence. For example:
 
@@ -91,12 +106,13 @@ sudo env AXERN_TLS_CERT=/absolute/path/to/current-admin.crt \
 ```bash
 source /etc/axern/client.env
 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern admin node list
+/opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern namespace create default
 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/bin/axern run \
-  --request-memory 256Mi --limit-memory 256Mi \
+  --namespace default --request-memory 256Mi --limit-memory 256Mi \
   IMAGE_REFERENCE -- /bin/sh -c 'printf "native sandbox ready\n"'
 ```
 
-Renew service certificates explicitly using `native_install.py renew-services`. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. An expired initial administrator does not prevent service renewal, and renewal does not restore revoked administrator authorization. Use a valid replacement administrator for readiness checks and administrative API access. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.
+Renew service certificates explicitly using the installed CLI’s `server renew-services` command. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. An expired initial administrator does not prevent service renewal, and renewal does not restore revoked administrator authorization. Use a valid replacement administrator for readiness checks and administrative API access. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.
 
 Qualify a complete archive on a disposable fresh installation with the opt-in [memory, storage and network acceptance matrix](QUALIFICATION.md). Serving readiness alone does not run or replace that matrix.
 

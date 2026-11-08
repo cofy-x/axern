@@ -43,7 +43,7 @@ func TestBridgeDoesNotRecapSnapshotStreamingWithOrdinaryCleanupTimeout(t *testin
 	defer cancel()
 	wantDeadline, _ := ctx.Deadline()
 
-	if _, err := bridge.DeleteAllocation(ctx, "node-a:24010", "alloc-a", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{BaseImageRef: "registry.example/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}); err != nil {
+	if _, err := bridge.DeleteAllocation(ctx, "node-a:24010", "alloc-a", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{BaseImageRef: "registry.example/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
 	}
 	if !client.deleteHasDeadline || !client.deleteDeadline.Equal(wantDeadline) {
@@ -327,14 +327,14 @@ func TestFormatCreateAllocationErrorExplainsReadonlyRootfsTarget(t *testing.T) {
 
 func TestDeleteAllocationTreatsNodeNotFoundAsReleased(t *testing.T) {
 	bridge := New(&captureLifecycleClient{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
-	if _, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil, nil); err != nil {
+	if _, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil, nil, nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v, want nil for node not found", err)
 	}
 }
 
 func TestDeleteAllocationFailsSnapshotWhenNodeRecoveryStateIsMissing(t *testing.T) {
 	bridge := New(&captureLifecycleClient{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, Config{})
-	_, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{BaseImageRef: "registry.example/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	_, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-missing", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{BaseImageRef: "registry.example/base@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}, nil)
 	if grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("DeleteAllocation() code = %s, want FailedPrecondition", grpcstatus.Code(err))
 	}
@@ -345,7 +345,7 @@ func TestDeleteAllocationUsesGraceTimeout(t *testing.T) {
 	bridge := New(client, Config{})
 	declared := []*commonv1.DeclaredOutput{{Path: "/tmp/output.patch", Format: commonv1.DeclaredOutputFormat_DECLARED_OUTPUT_FORMAT_FILE}}
 	expiresAt := time.Now().Add(time.Hour)
-	if _, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", &allocationkernel.OutputSealing{ExpiresAt: expiresAt, Outputs: declared}, nil); err != nil {
+	if _, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", &allocationkernel.OutputSealing{ExpiresAt: expiresAt, Outputs: declared}, nil, nil); err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
 	}
 	if client.lastDelete.GetTimeoutSeconds() != 10 {
@@ -372,7 +372,7 @@ func TestDeleteAllocationResolvesSnapshotCredentialAndReturnsImmutableResult(t *
 	result, err := bridge.DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", nil, &allocationkernel.RootfsSnapshotSealing{
 		BaseImageRef:         "registry.example/base@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		RegistryCredentialID: "secret-registry",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("DeleteAllocation() error = %v", err)
 	}
@@ -383,7 +383,7 @@ func TestDeleteAllocationResolvesSnapshotCredentialAndReturnsImmutableResult(t *
 	if request.GetBaseRegistryCredential().GetDockerConfigJson() == "" {
 		t.Fatal("snapshot registry credential was not resolved")
 	}
-	if result == nil || result.ImageRef != client.deleteResp.GetRootfsSnapshot().GetImageRef() {
+	if result == nil || result.RootfsSnapshot.ImageRef != client.deleteResp.GetRootfsSnapshot().GetImageRef() {
 		t.Fatalf("snapshot result = %#v", result)
 	}
 }
@@ -396,6 +396,21 @@ func TestAllocationDeletedUsesNodeStatus(t *testing.T) {
 	}
 	if !deleted {
 		t.Fatal("AllocationDeleted() = false, want true for node not found")
+	}
+}
+
+func TestWorkspaceCleanupCannotUseMissingRuntimeAsReceipt(t *testing.T) {
+	binding := &privatenodev1.WorkspaceBinding{Spec: &privatenodev1.WorkspaceSpec{WorkspaceID: "workspace-a", NodeID: "node-a"}, StorageIdentity: "owned-a", Generation: 1, Target: "/workspace"}
+	for _, client := range []*captureLifecycleClient{{deleteErr: grpcstatus.Error(codes.NotFound, "not found")}, {}, {deleteResp: &privatenodev1.DeleteAllocationResponse{WorkspaceCleanup: &privatenodev1.WorkspaceCleanupReceipt{WorkspaceID: "workspace-a", AllocationID: "alloc-a", Generation: 2, StorageIdentity: "owned-a"}}}} {
+		_, err := New(client, Config{}).DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", nil, nil, binding)
+		if grpcstatus.Code(err) != codes.FailedPrecondition {
+			t.Fatalf("ambiguous cleanup accepted: %v", err)
+		}
+	}
+	client := &captureLifecycleClient{deleteResp: &privatenodev1.DeleteAllocationResponse{WorkspaceCleanup: &privatenodev1.WorkspaceCleanupReceipt{WorkspaceID: "workspace-a", AllocationID: "alloc-a", Generation: 1, StorageIdentity: "owned-a"}}}
+	result, err := New(client, Config{}).DeleteAllocation(context.Background(), "node-a:24010", "alloc-a", "node-a", nil, nil, binding)
+	if err != nil || result.WorkspaceCleanup.GetGeneration() != 1 {
+		t.Fatalf("exact cleanup rejected: %+v %v", result, err)
 	}
 }
 
@@ -461,4 +476,14 @@ func protoCloneCreateAllocationRequest(in *privatenodev1.CreateAllocationRequest
 		return nil
 	}
 	return proto.Clone(in).(*privatenodev1.CreateAllocationRequest)
+}
+
+func (c *captureLifecycleClient) ProvisionWorkspace(context.Context, string, *privatenodev1.ProvisionWorkspaceRequest) (*privatenodev1.ProvisionWorkspaceResponse, error) {
+	return nil, grpcstatus.Error(codes.Unimplemented, "not configured")
+}
+func (c *captureLifecycleClient) InspectWorkspace(context.Context, string, *privatenodev1.InspectWorkspaceRequest) (*privatenodev1.InspectWorkspaceResponse, error) {
+	return nil, grpcstatus.Error(codes.Unimplemented, "not configured")
+}
+func (c *captureLifecycleClient) DeleteWorkspace(context.Context, string, *privatenodev1.DeleteWorkspaceRequest) (*privatenodev1.DeleteWorkspaceResponse, error) {
+	return nil, grpcstatus.Error(codes.Unimplemented, "not configured")
 }

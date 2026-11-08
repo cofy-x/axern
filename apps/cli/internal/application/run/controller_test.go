@@ -233,7 +233,7 @@ type fakeRunClient struct {
 	watchBlocks    bool
 }
 
-func (f *fakeRunClient) CreateRun(_ context.Context, req *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
+func (f *fakeRunClient) AdmitRun(_ context.Context, req *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
 	f.createRequest = req
 	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-1"}}, nil
 }
@@ -304,4 +304,15 @@ func (f *fakeEnvironmentClient) GetEnvironment(context.Context, *environmentv1.G
 
 func (f *fakeEnvironmentClient) ListEnvironments(context.Context, *environmentv1.ListEnvironmentsRequest, ...grpc.CallOption) (*environmentv1.ListEnvironmentsResponse, error) {
 	return &environmentv1.ListEnvironmentsResponse{}, nil
+}
+
+func TestCreateCarriesRequiredWorkspaceToAdmission(t *testing.T) {
+	runs := &fakeRunClient{}
+	_, err := New(runs).Create(t.Context(), CreateParams{Namespace: "default", EnvironmentID: "env-existing", WorkspaceID: "ws-retained"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runs.createRequest.GetWorkspaceID() != "ws-retained" {
+		t.Fatalf("Workspace intent lost before admission: %v", runs.createRequest)
+	}
 }

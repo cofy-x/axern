@@ -115,3 +115,19 @@ func TestTerminalWorkloadExitError(t *testing.T) {
 		})
 	}
 }
+
+func TestWorkspaceSelectionIsPreservedAndConflictsWithFileOverride(t *testing.T) {
+	options := createOptions{namespace: "default", environmentID: "env-existing", workspaceID: "ws-retained"}
+	cmd := Command(command.Runtime{})
+	params, err := options.params(cmd)
+	if err != nil || params.WorkspaceID != "ws-retained" {
+		t.Fatalf("Workspace flag lost: %+v, %v", params, err)
+	}
+	options.file = "run.yaml"
+	if err := cmd.Flags().Set("workspace", "ws-other"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := options.params(cmd); err == nil || !strings.Contains(err.Error(), "--workspace") {
+		t.Fatalf("Workspace override accepted with a file: %v", err)
+	}
+}

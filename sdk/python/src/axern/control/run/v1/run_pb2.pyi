@@ -3,6 +3,7 @@ import datetime
 from axern.control.common.v1 import common_pb2 as _common_pb2
 from axern.control.capability.v1 import capability_pb2 as _capability_pb2
 from axern.control.environment.v1 import environment_pb2 as _environment_pb2
+from axern.control.workspace.v1 import workspace_pb2 as _workspace_pb2
 from google.protobuf import timestamp_pb2 as _timestamp_pb2
 from google.protobuf.internal import containers as _containers
 from google.protobuf.internal import enum_type_wrapper as _enum_type_wrapper
@@ -62,7 +63,7 @@ class RootfsSnapshotResult(_message.Message):
     def __init__(self, status: _Optional[_Union[RootfsSnapshotStatus, str]] = ..., environment_id: _Optional[str] = ..., image_ref: _Optional[str] = ..., image_descriptor: _Optional[_Union[_environment_pb2.OciImageDescriptor, _Mapping]] = ..., platform_os: _Optional[str] = ..., platform_arch: _Optional[str] = ..., platform_variant: _Optional[str] = ..., message: _Optional[str] = ...) -> None: ...
 
 class Run(_message.Message):
-    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "message", "diagnostic_code", "capability_conditions", "environment_spec", "resolved_environment_spec", "output_expires_at", "rootfs_snapshot")
+    __slots__ = ("id", "namespace", "environment_id", "allocation_id", "status", "config", "labels", "version", "created_at", "updated_at", "exit_code", "message", "diagnostic_code", "capability_conditions", "environment_spec", "resolved_environment_spec", "output_expires_at", "rootfs_snapshot", "workspace_attachment")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -88,6 +89,7 @@ class Run(_message.Message):
     RESOLVED_ENVIRONMENT_SPEC_FIELD_NUMBER: _ClassVar[int]
     OUTPUT_EXPIRES_AT_FIELD_NUMBER: _ClassVar[int]
     ROOTFS_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
+    WORKSPACE_ATTACHMENT_FIELD_NUMBER: _ClassVar[int]
     id: str
     namespace: str
     environment_id: str
@@ -106,7 +108,8 @@ class Run(_message.Message):
     resolved_environment_spec: _environment_pb2.ResolvedEnvironmentSpec
     output_expires_at: _timestamp_pb2.Timestamp
     rootfs_snapshot: RootfsSnapshotResult
-    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., environment_spec: _Optional[_Union[_environment_pb2.EnvironmentSpec, _Mapping]] = ..., resolved_environment_spec: _Optional[_Union[_environment_pb2.ResolvedEnvironmentSpec, _Mapping]] = ..., output_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., rootfs_snapshot: _Optional[_Union[RootfsSnapshotResult, _Mapping]] = ...) -> None: ...
+    workspace_attachment: _workspace_pb2.WorkspaceAttachment
+    def __init__(self, id: _Optional[str] = ..., namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., allocation_id: _Optional[str] = ..., status: _Optional[_Union[RunStatus, str]] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., version: _Optional[int] = ..., created_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., updated_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., exit_code: _Optional[int] = ..., message: _Optional[str] = ..., diagnostic_code: _Optional[_Union[_common_pb2.WorkloadDiagnosticCode, str]] = ..., capability_conditions: _Optional[_Union[_capability_pb2.CapabilityConditionSet, _Mapping]] = ..., environment_spec: _Optional[_Union[_environment_pb2.EnvironmentSpec, _Mapping]] = ..., resolved_environment_spec: _Optional[_Union[_environment_pb2.ResolvedEnvironmentSpec, _Mapping]] = ..., output_expires_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., rootfs_snapshot: _Optional[_Union[RootfsSnapshotResult, _Mapping]] = ..., workspace_attachment: _Optional[_Union[_workspace_pb2.WorkspaceAttachment, _Mapping]] = ...) -> None: ...
 
 class RunListFilter(_message.Message):
     __slots__ = ("namespace", "statuses", "labels", "cursor", "page_size")
@@ -130,7 +133,7 @@ class RunListFilter(_message.Message):
     def __init__(self, namespace: _Optional[str] = ..., statuses: _Optional[_Iterable[_Union[RunStatus, str]]] = ..., labels: _Optional[_Mapping[str, str]] = ..., cursor: _Optional[str] = ..., page_size: _Optional[int] = ...) -> None: ...
 
 class CreateRunRequest(_message.Message):
-    __slots__ = ("namespace", "environment_id", "config", "labels")
+    __slots__ = ("namespace", "environment_id", "config", "labels", "workspace_id")
     class LabelsEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -142,11 +145,13 @@ class CreateRunRequest(_message.Message):
     ENVIRONMENT_ID_FIELD_NUMBER: _ClassVar[int]
     CONFIG_FIELD_NUMBER: _ClassVar[int]
     LABELS_FIELD_NUMBER: _ClassVar[int]
+    WORKSPACE_ID_FIELD_NUMBER: _ClassVar[int]
     namespace: str
     environment_id: str
     config: _common_pb2.ExecutionConfig
     labels: _containers.ScalarMap[str, str]
-    def __init__(self, namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ...) -> None: ...
+    workspace_id: str
+    def __init__(self, namespace: _Optional[str] = ..., environment_id: _Optional[str] = ..., config: _Optional[_Union[_common_pb2.ExecutionConfig, _Mapping]] = ..., labels: _Optional[_Mapping[str, str]] = ..., workspace_id: _Optional[str] = ...) -> None: ...
 
 class CreateRunResponse(_message.Message):
     __slots__ = ("run",)

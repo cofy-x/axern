@@ -93,10 +93,22 @@ func (h *sandboxService) resumeRecoveredSandbox(ctx context.Context, id string, 
 	if err != nil {
 		return err
 	}
+	stopped := false
+	if !terminated {
+		// Terminal Workspace/snapshot runtimes remain until ordered control-plane
+		// cleanup. A fresh runsc inventory can still label their dead Sentry as
+		// paused after a whole-server stop; that projection cannot authorize resume.
+		stopped, err = h.runscHandler.VerifySandboxStopped(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: controller.EnforcementManifest(id)})
+		if err != nil {
+			return fmt.Errorf("verify allocation %s before resume: %w", id, err)
+		}
+	}
 	if terminated {
 		if err := h.runscHandler.KillSandbox(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: controller.EnforcementManifest(id)}); err != nil {
 			return fmt.Errorf("fail-stop allocation %s before resume: %w", id, err)
 		}
+	}
+	if terminated || stopped {
 		state.Status = contract.ContainerStatusExited
 		state.InitProcessPid = 0
 		if err := h.recoverTerminalRuntimeCheckpoints(ctx, runtimeInventory{id: state}); err != nil {

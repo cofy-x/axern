@@ -5,7 +5,7 @@ description: 通过 Axern 公开 API 管理 Context 并运行隔离工作负载�
 
 `axern` 是面向资源和交互式开发的产品 CLI。它通过 `gatewayd` 访问公开 API，从不直连节点或数据库内部。
 
-![Axern CLI 命令概览](/terminal/axern.gif)
+![Axern CLI 命令概览](/terminal/axern.svg)
 
 ## 确认当前 Context
 
@@ -17,7 +17,7 @@ axern context current
 本机场景推荐的路径会为你创建并管理 Context：
 
 ```bash
-axern local up
+axern dev up
 ```
 
 Helm 安装则需要保持 Gateway port-forward，并导入部署方管理的管理员 mTLS 身份。SSH 是可选能力且默认 Chart 关闭，因此基础 CLI 路径只需转发控制端口：

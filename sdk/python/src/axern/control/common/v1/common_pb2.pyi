@@ -52,6 +52,7 @@ class WorkloadDiagnosticCode(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_TERMINATED: _ClassVar[WorkloadDiagnosticCode]
     WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_CLEANUP: _ClassVar[WorkloadDiagnosticCode]
+    WORKLOAD_DIAGNOSTIC_CODE_ALLOCATION_CLEANUP_REQUESTED: _ClassVar[WorkloadDiagnosticCode]
 NETWORK_MODE_UNSPECIFIED: NetworkMode
 NETWORK_MODE_DEFAULT: NetworkMode
 NETWORK_MODE_ISOLATED: NetworkMode
@@ -82,6 +83,7 @@ WORKLOAD_DIAGNOSTIC_CODE_MEMORY_LIMIT_EXCEEDED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_TERMINATED: WorkloadDiagnosticCode
 WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_CLEANUP: WorkloadDiagnosticCode
+WORKLOAD_DIAGNOSTIC_CODE_ALLOCATION_CLEANUP_REQUESTED: WorkloadDiagnosticCode
 
 class ResourceQuantity(_message.Message):
     __slots__ = ("cpu_milli", "memory_bytes", "ephemeral_storage_bytes")

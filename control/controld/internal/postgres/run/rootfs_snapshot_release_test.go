@@ -74,7 +74,7 @@ func TestCompleteAllocationReleasePublishesSnapshotAndSchedulesAcknowledgement(t
 		},
 		PlatformOS: "linux", PlatformArch: "arm64",
 	}
-	if err := store.CompleteAllocationRelease(ctx, "alloc-snapshot-release", "worker-a", result, now.Add(time.Second)); err != nil {
+	if err := store.CompleteAllocationRelease(ctx, "alloc-snapshot-release", "worker-a", &allocationkernel.ReleaseResult{RootfsSnapshot: result}, now.Add(time.Second)); err != nil {
 		t.Fatalf("CompleteAllocationRelease() error = %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestSnapshotFinalResultCannotBeOverwritten(t *testing.T) {
 			now := time.Date(2026, 9, 19, 9, 0, 0, 0, time.UTC)
 			insertFinalSnapshotReleaseFixture(t, db.Pool(), now, finalStatus)
 
-			err := store.CompleteAllocationRelease(context.Background(), "alloc-final-snapshot", "worker-a", result, now.Add(time.Second))
+			err := store.CompleteAllocationRelease(context.Background(), "alloc-final-snapshot", "worker-a", &allocationkernel.ReleaseResult{RootfsSnapshot: result}, now.Add(time.Second))
 			if grpcstatus.Code(err) != codes.FailedPrecondition {
 				t.Fatalf("CompleteAllocationRelease() error = %v, want FailedPrecondition", err)
 			}
@@ -156,7 +156,7 @@ func TestSnapshotEnvironmentIdentityConflictRollsBackRelease(t *testing.T) {
 		},
 		PlatformOS: "linux", PlatformArch: "arm64",
 	}
-	if err := store.CompleteAllocationRelease(context.Background(), "alloc-final-snapshot", "worker-a", result, now.Add(time.Second)); err == nil {
+	if err := store.CompleteAllocationRelease(context.Background(), "alloc-final-snapshot", "worker-a", &allocationkernel.ReleaseResult{RootfsSnapshot: result}, now.Add(time.Second)); err == nil {
 		t.Fatal("CompleteAllocationRelease() succeeded with conflicting derived Environment")
 	}
 	var lifecycle, snapshotStatus string

@@ -60,6 +60,7 @@ func (a *App) buildAPIs() {
 		Environments: profile.public.environments,
 		Secrets:      profile.public.secrets,
 		Runs:         profile.public.runs,
+		Workspaces:   a.workspaceService,
 		Tunnels:      a.tunnelPG,
 		Namespaces:   a.namespacePG,
 		Quotas:       a.namespacePG,

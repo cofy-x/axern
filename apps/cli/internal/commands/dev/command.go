@@ -1,4 +1,4 @@
-package local
+package dev
 
 import (
 	"bufio"
@@ -17,7 +17,7 @@ import (
 )
 
 func Command(runtime command.Runtime, version string) *cobra.Command {
-	root := &cobra.Command{Use: "local", Short: "Run Axern locally with Docker"}
+	root := &cobra.Command{Use: "dev", Short: "Manage the Docker Compose development stack"}
 	root.AddCommand(
 		upCommand(runtime, version), statusCommand(runtime, version), logsCommand(runtime, version),
 		doctorCommand(runtime, version), downCommand(runtime, version), resetCommand(runtime, version),
@@ -186,16 +186,16 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 				return command.Usage(fmt.Errorf("--image is required with --probe"))
 			}
 			if runtime.HasExplicitConnectionOverride() {
-				return command.Usage(fmt.Errorf("explicit remote connection options cannot be used with local doctor --probe"))
+				return command.Usage(fmt.Errorf("explicit remote connection options cannot be used with dev doctor --probe"))
 			}
 			options.SandboxProbe = func(ctx context.Context) applocal.Check {
 				connection, resolveErr := runtime.ResolveNamedConnection(applocal.ContextName)
 				if resolveErr != nil {
-					return applocal.Check{Name: "runtime_dns_sandbox", Status: "fail", Code: "runtime_dns_sandbox_probe_failed", Message: "the product-owned local context is unavailable", Remediation: "run `axern local up` and retry"}
+					return applocal.Check{Name: "runtime_dns_sandbox", Status: "fail", Code: "runtime_dns_sandbox_probe_failed", Message: "the product-owned local context is unavailable", Remediation: "run `axern dev up` and retry"}
 				}
 				session, openErr := connection.Open(ctx)
 				if openErr != nil {
-					return applocal.Check{Name: "runtime_dns_sandbox", Status: "fail", Code: "runtime_dns_sandbox_probe_failed", Message: "the local control plane could not be reached", Remediation: "inspect `axern local status` and retry"}
+					return applocal.Check{Name: "runtime_dns_sandbox", Status: "fail", Code: "runtime_dns_sandbox_probe_failed", Message: "the local control plane could not be reached", Remediation: "inspect `axern dev status` and retry"}
 				}
 				defer session.Close()
 				check := appdoctor.DNSProbe(ctx, &appdoctor.Session{
@@ -236,7 +236,7 @@ func doctorCommand(runtime command.Runtime, version string) *cobra.Command {
 
 func renderLocalDoctorTable(cmd *cobra.Command, report applocal.DoctorReport) {
 	w := cmd.OutOrStdout()
-	fmt.Fprintf(w, "Axern local doctor: %s\n", report.Status)
+	fmt.Fprintf(w, "Axern dev doctor: %s\n", report.Status)
 	fmt.Fprintf(w, "Mode: %s\n\n", strings.ReplaceAll(report.Mode, "_", "-"))
 	rows := make([][]string, 0, len(report.Checks))
 	for _, check := range report.Checks {
@@ -273,9 +273,9 @@ func resetCommand(runtime command.Runtime, version string) *cobra.Command {
 			if !terminal(os.Stdin) {
 				return command.Usage(fmt.Errorf("--force is required when stdin is not a terminal"))
 			}
-			fmt.Fprint(cmd.ErrOrStderr(), "Type local to permanently delete all Axern local data: ")
+			fmt.Fprint(cmd.ErrOrStderr(), "Type dev to permanently delete the Axern development data: ")
 			value, _ := bufio.NewReader(os.Stdin).ReadString('\n')
-			if strings.TrimSpace(value) != applocal.ContextName {
+			if strings.TrimSpace(value) != "dev" {
 				return fmt.Errorf("reset cancelled")
 			}
 		}

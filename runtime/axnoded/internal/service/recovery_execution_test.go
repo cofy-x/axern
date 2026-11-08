@@ -8,9 +8,12 @@ import (
 	"testing"
 	"time"
 
+	lifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	nodecontrol "github.com/cofy-x/axern/runtime/axnoded/internal/controlplane"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/environmentcache"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/nodestate"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -30,6 +33,7 @@ type recoveryRuntime struct {
 	pauseHook               func(string)
 	workloadStops           int
 	kernelStopped           bool
+	kernelStopErr           error
 }
 
 func (r *recoveryRuntime) ListContainers(context.Context, contract.HandlerOptions) ([]*contract.UnionContainerState, error) {
@@ -273,7 +277,7 @@ func TestShutdownPausesBeforeCancelingLeaseWatchdog(t *testing.T) {
 func (r *recoveryRuntime) VerifySandboxStopped(context.Context, contract.HandlerOptions) (bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	return r.kernelStopped, nil
+	return r.kernelStopped, r.kernelStopErr
 }
 
 func TestDeadPausedRuntimeIsRecoveredBeforeItsLeaseExpires(t *testing.T) {
@@ -293,6 +297,74 @@ func TestDeadPausedRuntimeIsRecoveredBeforeItsLeaseExpires(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, apipb.ContainerState_CONTAINER_EXITED, item.Status.Get().State())
 	require.Nil(t, item.Status.Get().ExitCode)
+}
+
+func TestResumeRetainedDeadPausedWorkspaceKeepsOrderedCleanupOwnership(t *testing.T) {
+	r := newRecoveryRuntime()
+	r.states["allocation"] = contract.ContainerStatusPaused
+	r.kernelStopped = true
+	s := newRecoveryTestService(t, r)
+	db, err := nodestate.Open(filepath.Join(t.TempDir(), "state.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, db.Close()) })
+	s.store = db
+	s.allocations = nil
+	s.configureAllocationController()
+	s.allocationLifecycleOutbox = nodecontrol.NewAllocationLifecycleOutbox(db)
+	record := persistRecoveryAllocation(t, s, "allocation", time.Now().Add(time.Minute))
+	record.Workspace = &lifecyclev1.WorkspaceBinding{
+		Spec:            &lifecyclev1.WorkspaceSpec{WorkspaceID: "workspace-retained", Namespace: "default", NodeID: "node-a", CapacityBytes: 8 << 20, InodeLimit: 128, StorageRootIdentity: "root-stable"},
+		StorageIdentity: "data-stable", Generation: 4, Target: "/workspace",
+	}
+	require.NoError(t, s.store.PutRecord(config.AllocationStateBucket, "allocation", record))
+
+	// The first startup pass sees a dead paused runtime. Workspace ownership
+	// deliberately retains its OCI artifact until controld's exact Delete.
+	inventory, err := s.collectRuntimeInventory(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, s.stopUnauthorizedRecoveredSandboxes(t.Context(), inventory))
+	require.NoError(t, s.recoverTerminalRuntimeCheckpoints(t.Context(), inventory))
+	require.NoError(t, s.cleanupTerminalRuntimeContainers(t.Context(), inventory))
+	require.Equal(t, contract.ContainerStatusPaused, r.states["allocation"], "host termination leaves stale persisted OCI status")
+	retained, err := inventory.retainedForRecovery(s.allocationController())
+	require.NoError(t, err)
+	require.Contains(t, retained, "allocation")
+
+	// Run recollects OCI inventory. It must revalidate kernel death and replay
+	// the terminal path instead of trying an impossible paused-runtime resume.
+	s.executionLeaseCancel = func() {}
+	for range 2 {
+		require.NoError(t, s.resumeRecoveredSandboxes(t.Context()))
+	}
+	require.Empty(t, r.resumed)
+	require.Empty(t, r.killed, "already confirmed death never authorizes another signal")
+	item, err := s.containerManager.Get("allocation")
+	require.NoError(t, err)
+	require.Equal(t, apipb.ContainerState_CONTAINER_EXITED, item.Status.Get().State())
+	require.Nil(t, item.Status.Get().ExitCode, "a server stop cannot invent the guest exit code")
+	var after apipb.AllocationState
+	require.NoError(t, s.store.GetRecord(config.AllocationStateBucket, "allocation", &after))
+	require.True(t, proto.Equal(record, &after), "terminal recovery must retain the writer and immutable binding until exact cleanup")
+	observations, err := s.allocationLifecycleOutbox.Replay()
+	require.NoError(t, err)
+	require.Len(t, observations, 1, "terminal recovery must durably deliver the ordinary lifecycle observation")
+	require.Equal(t, "allocation", observations[0].GetAllocationID())
+}
+
+func TestResumeRejectsAmbiguousKernelIdentityBeforeActivation(t *testing.T) {
+	r := newRecoveryRuntime()
+	r.states["allocation"] = contract.ContainerStatusPaused
+	r.kernelStopErr = errors.New("empty workload cgroup retains or reuses its recorded Sentry PID")
+	s := newRecoveryTestService(t, r)
+	record := persistRecoveryAllocation(t, s, "allocation", time.Now().Add(time.Minute))
+	require.NoError(t, s.allocations.RestoreAllocationState(map[string]struct{}{"allocation": {}}))
+	s.executionLeaseCancel = func() {}
+	require.ErrorIs(t, s.resumeRecoveredSandboxes(t.Context()), r.kernelStopErr)
+	require.Empty(t, r.resumed)
+	require.Empty(t, r.killed)
+	var after apipb.AllocationState
+	require.NoError(t, s.store.GetRecord(config.AllocationStateBucket, "allocation", &after))
+	require.True(t, proto.Equal(record, &after), "ambiguous ownership must remain charged for inspection")
 }
 
 func TestExecutionLeaseWatchdogSurvivesCanceledServeContextUntilExplicitStop(t *testing.T) {

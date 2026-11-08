@@ -29,8 +29,8 @@ curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh \
 CLI 不会静默改变运行中的本地栈，也不为本地数据库提供跨版本迁移兼容。先导出需要保留的输出，再显式重建：
 
 ```bash
-axern local reset --force
-axern local up
+axern dev reset --force
+axern dev up
 ```
 
 该操作会替换本地数据和身份材料；完整生命周期见 [Local Axern 参考](/zh-cn/guides/local/)。

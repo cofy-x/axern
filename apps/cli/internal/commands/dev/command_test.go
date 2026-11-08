@@ -1,4 +1,4 @@
-package local
+package dev
 
 import (
 	"bytes"
@@ -11,12 +11,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func TestLocalLifecycleSurface(t *testing.T) {
+func TestDevelopmentLifecycleSurface(t *testing.T) {
 	cmd := Command(command.Runtime{}, "1.2.3")
 	for _, name := range []string{"up", "status", "logs", "doctor", "down", "reset", "path", "image"} {
 		found, _, err := cmd.Find([]string{name})
 		if err != nil || found == cmd {
-			t.Fatalf("local subcommand %q is missing: %v", name, err)
+			t.Fatalf("dev subcommand %q is missing: %v", name, err)
 		}
 	}
 	doctor, _, err := cmd.Find([]string{"doctor"})
@@ -25,7 +25,7 @@ func TestLocalLifecycleSurface(t *testing.T) {
 	}
 	for _, name := range []string{"probe", "dns-query-name", "check-timeout", "probe-timeout", "image"} {
 		if doctor.Flags().Lookup(name) == nil {
-			t.Fatalf("local doctor flag --%s is missing", name)
+			t.Fatalf("dev doctor flag --%s is missing", name)
 		}
 	}
 	up, _, err := cmd.Find([]string{"up"})
@@ -34,25 +34,25 @@ func TestLocalLifecycleSurface(t *testing.T) {
 	}
 	waitTimeout := up.Flags().Lookup("wait-timeout")
 	if waitTimeout == nil {
-		t.Fatal("local up flag --wait-timeout is missing")
+		t.Fatal("dev up flag --wait-timeout is missing")
 	}
 	if waitTimeout.DefValue != applocal.DefaultReadinessTimeout.String() {
 		t.Fatalf("--wait-timeout default = %q, want %q", waitTimeout.DefValue, applocal.DefaultReadinessTimeout)
 	}
 	for _, name := range []string{"insecure-registry", "clear-insecure-registries"} {
 		if up.Flags().Lookup(name) == nil {
-			t.Fatalf("local up flag --%s is missing", name)
+			t.Fatalf("dev up flag --%s is missing", name)
 		}
 	}
 }
 
-func TestLocalUpRejectsNonPositiveReadinessTimeout(t *testing.T) {
+func TestDevelopmentUpRejectsNonPositiveReadinessTimeout(t *testing.T) {
 	runtime := command.Runtime{Options: &command.Options{}}
 	cmd := upCommand(runtime, "1.2.3")
 	cmd.SetArgs([]string{"--wait-timeout", "0s"})
 	err := cmd.Execute()
 	if err == nil || !strings.Contains(err.Error(), "--wait-timeout must be positive") {
-		t.Fatalf("local up error = %v", err)
+		t.Fatalf("dev up error = %v", err)
 	}
 
 	if applocal.DefaultReadinessTimeout <= 3*time.Minute {
@@ -74,7 +74,7 @@ func TestRenderLocalDoctorTableIncludesStableContractFields(t *testing.T) {
 	})
 	output := buffer.String()
 	for _, value := range []string{
-		"Axern local doctor: degraded", "Mode: read-only", "CHECK", "STATUS", "CODE", "LATENCY",
+		"Axern dev doctor: degraded", "Mode: read-only", "CHECK", "STATUS", "CODE", "LATENCY",
 		"runtime_dns_node", "warn", "runtime_dns_node_partial", "17ms", "repair the resolver set",
 	} {
 		if !strings.Contains(output, value) {

@@ -9,6 +9,8 @@ export type {
   AxernClientOptions,
   CreateEnvironmentOptions,
   CreateRunOptions,
+  CreateWorkspaceOptions,
+  Workspace,
   DeclaredOutput,
   DeclaredOutputFormat,
   ListOptions,

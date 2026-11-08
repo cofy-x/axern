@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package axern.control.workspace.v1;
+
+option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1;workspacev1";
+
+import "google/protobuf/timestamp.proto";
+
+enum WorkspaceStatus {
+  WORKSPACE_STATUS_UNSPECIFIED = 0;
+  WORKSPACE_STATUS_PROVISIONING = 1;
+  WORKSPACE_STATUS_READY = 2;
+  WORKSPACE_STATUS_UNAVAILABLE = 3;
+  WORKSPACE_STATUS_DELETING = 4;
+  WORKSPACE_STATUS_DELETED = 5;
+}
+
+// Workspace is retained data bound to one Node, independently of execution.
+// Host paths, quota identifiers and private ownership records are never public.
+message Workspace {
+  string id = 1;
+  string namespace = 2;
+  string node_id = 3;
+  WorkspaceStatus status = 4;
+  int64 capacity_bytes = 5;
+  int64 inode_limit = 6;
+  int64 generation = 7;
+  string attached_allocation_id = 8;
+  int64 used_bytes = 9;
+  int64 used_inodes = 10;
+  string message = 11;
+  map<string, string> labels = 12;
+  google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+// An attachment is immutable admission authority for one Run/Allocation.
+message WorkspaceAttachment {
+  string workspace_id = 1;
+  string node_id = 2;
+  int64 generation = 3;
+  string target = 4;
+}
+
+message CreateWorkspaceRequest {
+  string namespace = 1;
+  string node_id = 2;
+  int64 capacity_bytes = 3;
+  int64 inode_limit = 4;
+  map<string, string> labels = 5;
+}
+
+message CreateWorkspaceResponse { Workspace workspace = 1; }
+message GetWorkspaceRequest { string workspace_id = 1; }
+message GetWorkspaceResponse { Workspace workspace = 1; }
+message ListWorkspacesRequest {
+  string namespace = 1;
+  string cursor = 2;
+  int32 page_size = 3;
+}
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+  string next_cursor = 2;
+}
+message DeleteWorkspaceRequest { string workspace_id = 1; }
+message DeleteWorkspaceResponse { Workspace workspace = 1; }
+
+service WorkspaceControl {
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse) {}
+  rpc GetWorkspace(GetWorkspaceRequest) returns (GetWorkspaceResponse) {}
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse) {}
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse) {}
+}

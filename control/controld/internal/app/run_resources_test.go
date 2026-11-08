@@ -32,7 +32,7 @@ func TestPostgresRunResourceNormalizationPlacementAndAllocationCharges(t *testin
 	controldtest.SetReadySummaryMemory(small, 1<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, small)
 
-	_, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})
@@ -51,7 +51,7 @@ func TestPostgresRunResourceNormalizationPlacementAndAllocationCharges(t *testin
 
 	large := controldtest.ReadySummary(now.Add(time.Second))
 	reportReadyNodeSummary(t, app, "node-a", now.Add(time.Second), large)
-	defaulted, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	defaulted, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})
@@ -72,7 +72,7 @@ func TestPostgresRunResourceNormalizationPlacementAndAllocationCharges(t *testin
 	}
 	assertActiveAllocationCharge(t, app, defaulted.GetRun().GetAllocationID(), executionkernel.DefaultCPUMilli, executionkernel.DefaultMemoryBytes)
 
-	requestOnly, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	requestOnly, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -96,7 +96,7 @@ func TestPostgresRunResourceNormalizationPlacementAndAllocationCharges(t *testin
 	}
 	assertActiveAllocationCharge(t, app, requestOnly.GetRun().GetAllocationID(), 250, 128<<20)
 
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -130,7 +130,7 @@ func TestPostgresRunAdmissionBalancesStalePlacementSnapshots(t *testing.T) {
 		reportReadyNodeSummary(t, app, nodeID, now, summary)
 	}
 	for range 4 {
-		if _, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+		if _, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 			EnvironmentID: env.GetID(),
 			Config: &commonv1.ExecutionConfig{
 				Argv: []string{"/bin/sleep", "60"},
@@ -187,7 +187,7 @@ func TestPostgresResourceCPUOvercommitAdmission(t *testing.T) {
 	controldtest.SetReadySummaryMemory(summary, 8<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
-	first, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	first, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -202,7 +202,7 @@ func TestPostgresResourceCPUOvercommitAdmission(t *testing.T) {
 	}
 	assertActiveAllocationCharge(t, app, first.GetRun().GetAllocationID(), 900, 128<<20)
 
-	second, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	second, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -217,7 +217,7 @@ func TestPostgresResourceCPUOvercommitAdmission(t *testing.T) {
 	}
 	assertActiveAllocationCharge(t, app, second.GetRun().GetAllocationID(), 900, 128<<20)
 
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -256,7 +256,7 @@ func TestPostgresResourceMemoryDoesNotOvercommit(t *testing.T) {
 	controldtest.SetReadySummaryMemory(summary, 512<<20)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
-	_, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -270,7 +270,7 @@ func TestPostgresResourceMemoryDoesNotOvercommit(t *testing.T) {
 		t.Fatalf("CreateRun(first memory charge) error = %v", err)
 	}
 
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -307,7 +307,7 @@ func TestAllocationResourceChargeIsHeldThroughReleasing(t *testing.T) {
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
 	create := func(cpu int64) (*runv1.CreateRunResponse, error) {
-		return public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+		return public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 			EnvironmentID: env.GetID(),
 			Config: &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}, Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{
 				CpuMilli: cpu, MemoryBytes: 128 << 20,
@@ -367,7 +367,7 @@ func TestRunAdmissionRollsBackBindingAndChargeWhenIntentInsertFails(t *testing.T
 		_, _ = app.db.Pool().Exec(context.Background(), `DROP FUNCTION IF EXISTS fail_allocation_intent_insert()`)
 	})
 
-	_, err := app.PublicV1Handler().CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err := app.PublicV1Handler().AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{Argv: []string{"true"}, Resources: &commonv1.ResourceSpec{Requests: &commonv1.ResourceQuantity{
 			CpuMilli: 500, MemoryBytes: 128 << 20,
@@ -411,7 +411,7 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 	controldtest.SetReadySummaryMemory(summary, 8<<30)
 	reportReadyNodeSummary(t, app, "node-a", now, summary)
 
-	first, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	first, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -426,7 +426,7 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 	}
 	assertActiveAllocationCharge(t, app, first.GetRun().GetAllocationID(), 800, 256<<20)
 
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -448,7 +448,7 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 		}
 	}
 
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},

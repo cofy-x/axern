@@ -137,7 +137,7 @@ func TestImageLoadReportsRecoverableIncompleteManagedConfiguration(t *testing.T)
 	manager := &Manager{Dir: dir, Runner: runner, Stdout: io.Discard, Stderr: io.Discard}
 
 	_, err := manager.ImageLoad(t.Context(), "demo:dev", ImageLoadOptions{})
-	if err == nil || !strings.Contains(err.Error(), "run `axern local up` to rebuild it") {
+	if err == nil || !strings.Contains(err.Error(), "run `axern dev up` to rebuild it") {
 		t.Fatalf("ImageLoad() error = %v", err)
 	}
 }

@@ -15,6 +15,7 @@ import (
 	appaccess "github.com/cofy-x/axern/control/controld/internal/application/access"
 	appnode "github.com/cofy-x/axern/control/controld/internal/application/node"
 	apprun "github.com/cofy-x/axern/control/controld/internal/application/run"
+	appworkspace "github.com/cofy-x/axern/control/controld/internal/application/workspace"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
@@ -33,6 +34,7 @@ import (
 	pgrun "github.com/cofy-x/axern/control/controld/internal/postgres/run"
 	pgsecret "github.com/cofy-x/axern/control/controld/internal/postgres/secret"
 	pgtunnel "github.com/cofy-x/axern/control/controld/internal/postgres/tunnel"
+	pgworkspace "github.com/cofy-x/axern/control/controld/internal/postgres/workspace"
 	sdkobs "github.com/cofy-x/axern/lib/go/observability"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/credentials"
@@ -80,20 +82,21 @@ type App struct {
 	imageResolver            environmentkernel.ImageResolver
 	resourcePolicy           resourcekernel.AdmissionPolicy
 
-	db              *postgres.DB
-	adminPG         *pgadmin.Store
-	accessPG        *pgaccess.Store
-	accessControl   *appaccess.Service
-	runStore        *pgrun.Store
-	namespacePG     *pgnamespace.Store
-	secretDB        *pgsecret.Store
-	tunnelPG        *pgtunnel.Store
-	reconcileCtx    context.Context
-	cancelReconcile context.CancelFunc
-	stopCh          chan struct{}
-	stopOnce        sync.Once
-	wg              sync.WaitGroup
-	metrics         []sdkobs.ObservableRegistration
+	db               *postgres.DB
+	adminPG          *pgadmin.Store
+	accessPG         *pgaccess.Store
+	accessControl    *appaccess.Service
+	runStore         *pgrun.Store
+	workspaceService *appworkspace.Service
+	namespacePG      *pgnamespace.Store
+	secretDB         *pgsecret.Store
+	tunnelPG         *pgtunnel.Store
+	reconcileCtx     context.Context
+	cancelReconcile  context.CancelFunc
+	stopCh           chan struct{}
+	stopOnce         sync.Once
+	wg               sync.WaitGroup
+	metrics          []sdkobs.ObservableRegistration
 
 	reconcileHealth *reconcilekernel.HealthTracker
 	runReconciler   apprun.Reconciler
@@ -237,6 +240,7 @@ func (a *App) configureDependencies(cfg Config) error {
 		SecretValues:        a.secretDB,
 		RegistryCredentials: a.secretDB,
 	})
+	a.workspaceService = appworkspace.New(pgworkspace.NewStore(db, a.heartbeatFreshnessWindow, a.summaryFreshnessWindow), a.nodeLifecycle)
 	a.runReconciler = apprun.NewReconciler(a.runStore, a.nodeBridge, "controld-"+uuid.NewString(), func() time.Time { return a.now() })
 	return nil
 }

@@ -57,7 +57,7 @@ func TestCreateRunRejectsRemovedEnvironment(t *testing.T) {
 	if _, err := public.DeleteEnvironment(context.Background(), &environmentv1.DeleteEnvironmentRequest{EnvironmentID: created.GetEnvironment().GetID()}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
 	if grpcstatus.Code(err) != codes.NotFound {
 		t.Fatalf("CreateRun() code = %v, want NotFound", grpcstatus.Code(err))
 	}
@@ -71,7 +71,7 @@ func TestCreateRunRejectsEnvironmentFromAnotherNamespace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{Namespace: "team-b", EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{Namespace: "team-b", EnvironmentID: created.GetEnvironment().GetID(), Config: &commonv1.ExecutionConfig{Argv: []string{"true"}}})
 	if grpcstatus.Code(err) != codes.InvalidArgument {
 		t.Fatalf("CreateRun() code = %v, want InvalidArgument", grpcstatus.Code(err))
 	}
@@ -176,7 +176,7 @@ func TestRunLeaseAndAllocationLifecycleStateFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateEnvironment() error = %v", err)
 	}
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: envResp.GetEnvironment().GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/true"}},
 	})
@@ -229,7 +229,7 @@ func TestRunAllowsImageDefaultArgv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateEnvironment() error = %v", err)
 	}
-	_, err = public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	_, err = public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: envResp.GetEnvironment().GetID(),
 		Config:        &commonv1.ExecutionConfig{},
 	})

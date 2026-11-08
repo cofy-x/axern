@@ -42,7 +42,7 @@ func TestPostgresAdminFailRunCreateLifecycleRetry(t *testing.T) {
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})
@@ -124,7 +124,7 @@ func TestPostgresAdminClearAllocationLifecycleRetryRequiresTerminalCleanup(t *te
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})

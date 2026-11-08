@@ -4,7 +4,7 @@
 
 ## Product Boundary
 
-- `axern` manages contexts, namespaces, environments, runs, quotas, secrets, tunnels, SSH sessions, interactive terminals, and audited admin workflows.
+- `axern` manages contexts, namespaces, environments, Workspaces, runs, quotas, secrets, tunnels, SSH sessions, interactive terminals, and audited admin workflows.
 - SDKs are the explicit programmatic interface.
 
 The command path is:
@@ -12,6 +12,22 @@ The command path is:
 ```text
 cliapp -> commands -> application -> public SDK clients -> gatewayd
 ```
+
+## Host Services And Development
+
+`axern server` operates an already installed native Linux server on the current host. It delegates start, full stop, status and service certificate renewal to the installation's verified helper. The CLI checks the installation identity, private path ownership and helper manifest before execution; the helper remains the owner of readiness, systemd and runtime shutdown. A selected API context never selects the host for these operations, and explicit API connection flags are rejected. Native archive verification and initial installation are documented in [Native Installation](../../deploy/standalone/INSTALL.md).
+
+```bash
+sudo axern server start
+sudo axern server status
+sudo axern server logs axnoded --tail 100
+sudo axern server renew-services
+sudo axern server stop
+```
+
+These commands stream host-tool output and accept table output only. `--timeout` bounds the operation; stopping preserves configuration, database and retained data. `server` has no reset operation and never falls back to Docker or a VM.
+
+`axern dev` manages the Docker Compose development stack. Its product-owned context is named `local`, and its existing data path, Compose project and registry network retain their own identities. Development image loading and DNS checks belong to this stack. `dev reset` explicitly deletes this development installation and its data; it does not manage native serving storage.
 
 ## Contexts
 
@@ -52,8 +68,11 @@ axern context import-kubernetes local --namespace axern-system --current
 axern doctor
 axern doctor --probe
 
-axern local up
-axern local status
+axern dev up
+axern dev status
+axern workspace create --node node-personal --capacity 1Gi --inodes 100000
+axern workspace list --namespace default
+axern run --workspace <workspace-id> --limit-memory 512Mi python:3.12-slim -- python -c 'print("retained work")'
 axern run --file run.yaml
 axern run python:3.12-slim -- python -c 'print("hello")'
 axern run --detach python:3.12-slim -- python -c 'print("later")'
@@ -75,9 +94,22 @@ axern admin principal list
 axern admin role-binding list --namespace default
 ```
 
-`quota get` includes quota, usage, and admission signals.
+`quota get` includes quota, usage, and admission signals. Retained Workspace capacity uses separate `--persistent-storage` and `--persistent-inodes` limits in `quota set`, and remains charged while data exists even without a running Allocation.
 
 Generate completion with `axern completion bash|zsh|fish`.
+
+## Persistent Workspaces
+
+Workspace creation requires an explicit Node and finite, 512-byte-aligned byte capacity and finite inode limits. By default the command waits up to two minutes for managed data readiness; `--wait-timeout` selects that bound and the overall `--timeout` also applies. Use `--wait=false` to return the provisioning state immediately. Polling observes the same Workspace and never retries creation.
+
+```bash
+axern workspace get <workspace-id>
+axern run --workspace <workspace-id> --limit-memory 512Mi IMAGE -- /bin/sh -c 'printf "saved\n" > /workspace/result.txt'
+axern run --workspace <workspace-id> --limit-memory 512Mi IMAGE -- cat /workspace/result.txt
+axern workspace delete <workspace-id>
+```
+
+The Workspace is mounted at `/workspace`; clients cannot select a source host path or mount target. The writer is released only after exact Allocation cleanup. A finished Run can therefore still block the next writer while cleanup is pending. Workspace deletion rejects an attached writer and retains charge until managed data removal is acknowledged. `get` and `list` show retained capacity, lifecycle, attachment and generation separately from Run execution state. Node availability, XFS project-quota enforcement and the documented backup/restore limits remain part of the experimental storage contract.
 
 ## Platform Doctor
 
@@ -93,12 +125,12 @@ The probe creates an Environment from the explicit OCI image passed with `--imag
 
 ## Local DNS Doctor
 
-`axern local doctor` uses the same `status`, `mode`, and stable check result shape as the platform doctor. On native Linux, initialization snapshots the first resolver file that contains usable non-loopback addresses, falling back from the systemd-resolved stub to `/run/systemd/resolve/resolv.conf`; Docker Desktop keeps Node-derived resolver discovery. While the stack is running, the doctor queries every effective resolver directly from the Node container. `axern local up` performs the same Node check before reporting ready. These checks are read-only.
+`axern dev doctor` uses the same `status`, `mode`, and stable check result shape as the platform doctor. On native Linux, initialization snapshots the first resolver file that contains usable non-loopback addresses, falling back from the systemd-resolved stub to `/run/systemd/resolve/resolv.conf`; Docker Desktop keeps Node-derived resolver discovery. While the stack is running, the doctor queries every effective resolver directly from the Node container. `axern dev up` performs the same Node check before reporting ready. These checks are read-only.
 
 Use the explicit probe to verify the normal Environment and Run path in a real OCI sandbox:
 
 ```bash
-axern local doctor --probe
+axern dev doctor --probe
 ```
 
 The default query is `axern.cofy-x.space.`. Use `--dns-query-name` for a managed or private domain. The override is stored in a temporary Secret and is not included in Run arguments, doctor JSON details, or probe output. The probe creates a temporary Namespace, Secret, Environment, and Run. Cleanup cancels an active Run, then deletes the Environment, Secret, and Namespace even after failure or cancellation; the terminal Run remains as normal control-plane history. The probe always uses the product-owned `local` context, regardless of the currently selected context.
@@ -110,20 +142,20 @@ Read-only checks default to 15 seconds (`--check-timeout`); sandbox execution de
 The local runtime uses HTTPS for workload registries by default. A trusted development registry that only serves plain HTTP must be authorized explicitly by exact host and optional port:
 
 ```bash
-axern local up --insecure-registry forge-seed-registry:5000
+axern dev up --insecure-registry forge-seed-registry:5000
 ```
 
-Repeat `--insecure-registry` to replace the complete external allowlist. Omitting the flag preserves the current policy; remove it explicitly with `axern local up --clear-insecure-registries`. Schemes, paths, credentials, wildcards, queries, fragments, commas, and more than 16 external hosts are rejected. A single-label Docker DNS alias requires an explicit port so OCI reference parsing cannot mistake it for a Docker Hub namespace. The built-in `registry:5000` remains platform-managed and cannot be configured as an external host.
+Repeat `--insecure-registry` to replace the complete external allowlist. Omitting the flag preserves the current policy; remove it explicitly with `axern dev up --clear-insecure-registries`. Schemes, paths, credentials, wildcards, queries, fragments, commas, and more than 16 external hosts are rejected. A single-label Docker DNS alias requires an explicit port so OCI reference parsing cannot mistake it for a Docker Hub namespace. The built-in `registry:5000` remains platform-managed and cannot be configured as an external host.
 
 Transport authorization does not create network reachability. Both `controld` and `node` must reach the registry through the exact configured hostname. For a container-only registry, the CLI creates the external Docker network `axern-local-registry` and attaches only those two consumers; the registry owner can attach its container with the hostname used by the immutable image reference. For example:
 
 ```bash
-axern local up
+axern dev up
 docker network connect --alias forge-seed-registry axern-local-registry forge-seed-loop-registry
-axern local up --insecure-registry forge-seed-registry:5000
+axern dev up --insecure-registry forge-seed-registry:5000
 ```
 
-`axern local status` reports the registry network and normalized external hosts. `axern local doctor` fails when persisted policy, generated configuration, or the registry network is missing or inconsistent. Attaching a registry to this network grants that trusted development container network reachability to the local control and node containers; this contract is for machine-local development, not shared or production deployment.
+`axern dev status` reports the registry network and normalized external hosts. `axern dev doctor` fails when persisted policy, generated configuration, or the registry network is missing or inconsistent. Attaching a registry to this network grants that trusted development container network reachability to the local control and node containers; this contract is for machine-local development, not shared or production deployment.
 
 ## Resource Spec
 
@@ -143,7 +175,7 @@ spec:
   resources: {}
 ```
 
-`spec.source` selects exactly one existing environment or OCI image. Unknown fields, conflicting sources, invalid quantities, invalid probes, and a kind that does not match the command are rejected.
+Add `spec.workspace_id: <workspace-id>` to select retained working data for the Run, together with a positive `spec.resources.limits.memory` value. `spec.source` selects exactly one existing environment or OCI image. Unknown fields, conflicting sources, invalid quantities, invalid probes, and a kind that does not match the command are rejected.
 
 When `--file` is used, resource-definition flags cannot be mixed with the spec. Context, output, detach, and timeout flags remain operational overrides.
 
@@ -191,7 +223,7 @@ See [tunnel usage](./docs/tunnel.md) and the [resource model](../../docs/archite
 
 `axern admin pki bootstrap --directory <private-directory> --cluster <trust-domain>` initializes local signing authority and service identities without contacting a cluster. Publish the public/role material and the separate controld-only signer as described in the [Kubernetes guide](../docs/src/content/docs/getting-started/kubernetes.md). The command never generates Node keys; `--renew-services` explicitly renews service certificates without replacing CA or administrator identity.
 
-Admit each Node with `axern admin node admit <node-id> --enrollment-token-file <file> --operator-reason <reason>`. Registration consumes that token for one CSR within one hour. Normal node calls authenticate the node-owned certificate and automatic renewal keeps the same Node identity. The old credential flag and shared Node certificate are removed; internal Proto changes require matching node/control images and a rebuilt local database.
+Admit each Node with `axern admin node admit <node-id> --enrollment-token-file <file> --operator-reason <reason>`. Registration consumes that token for one CSR within one hour. Normal node calls authenticate the node-owned certificate and automatic renewal keeps the same Node identity. Use node, control, CLI and SDK artifacts from a coherent version. Native installation and maintenance must follow the [installation guide](../../deploy/standalone/INSTALL.md); this experimental profile does not provide archive upgrades or permit rebuilding an initialized database beneath retained data.
 
 Node revocation withdraws authority without declaring resources cleaned; safe retirement remains blocked until execution and access obligations converge. Use `node list --status revoked` and `admin audit list --operation revoke-node` for incident diagnosis. Node identity is explicit and independent of the Kubernetes hostname.
 

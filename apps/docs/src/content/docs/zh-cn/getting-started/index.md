@@ -1,68 +1,42 @@
 ---
 title: 快速开始
-description: 无需克隆源码，在本机安装 Axern 并运行第一个隔离命令。
+description: 从一致的源码构建启动 Axern，并选择原生 serving 或 Compose 开发路径。
 ---
 
-无需克隆仓库，也无需安装 Go、Node.js、Helm、`kubectl`、Make 或 OpenSSL，即可在本机运行完整 Axern。
+Axern 的当前源码包含需要一起更新的 CLI、服务和 SDK 协议。源码版本不代表安装包已经发布；请使用同一构建版本，不要将旧发布版客户端与当前服务混用。
 
-本指南使用 Docker Compose 开发配置。原生 Linux 单机 serving 请参阅仓库的[实验安装指南](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md)，其中定义源码构建归档、主机要求和 systemd 生命周期。
+## Linux 单机 serving
 
-## 环境要求
+按仓库的[原生安装指南](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md)构建并安装完整归档。安装目标不需要源码、编译器、Docker 或 Kubernetes。启用持久 Workspace 时，需要独立 XFS 数据挂载、项目配额和明确的容量预算。
 
-- amd64 或 arm64 的 macOS/Linux
-- Docker Desktop，或 Docker Engine + Compose v2
-- 建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘
-
-## 1. 安装 CLI
+安装后，通过归档内的 CLI 管理当前主机：
 
 ```bash
-brew install cofy-x/tap/axern
+sudo /opt/axern/releases/<archive-sha256>/bin/axern server start
+sudo /opt/axern/releases/<archive-sha256>/bin/axern server status
+sudo /opt/axern/releases/<archive-sha256>/bin/axern server logs axnoded
 ```
 
-不使用 Homebrew 时：
+API Context 选择后续执行请求的服务端。它不会把 `server` 命令变成远程主机管理。
+
+## Compose 源码开发
+
+需要 Go 1.26.8、Make，以及 macOS/Linux 上的 Docker Compose v2。建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘。在源码仓库根目录运行：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
+make quickstart-source
+make axern-cli-build
+./bin/axern context list
 ```
 
-安装器会下载 GitHub Release、严格校验 `checksums.txt`，并默认安装到用户可写目录。可用 `AXERN_VERSION` 和 `AXERN_INSTALL_DIR` 覆盖默认值。
+该路径构建当前源码服务镜像并执行 Compose smoke。连接和 Context 说明见[本地部署入口](https://github.com/cofy-x/axern/blob/main/deploy/local/README.md)。开发栈和原生 serving 是不同安装，不共享数据。
 
-## 2. 启动 Local Axern
+发布版 CLI 的内置开发 bundle 使用 `axern dev up|status|logs|down`，需要匹配的服务镜像；它不会读取当前源码构建。完整参考见 [Compose 开发](/zh-cn/getting-started/compose/)。
 
-```bash
-axern local up
-```
+## 使用执行与保留数据
 
-该命令会检查 Docker 和主机环境，只启动核心服务，等待 Gateway 与节点运行时健康，然后创建 `local` Context。宿主 Docker 镜像不会隐式共享给节点；先导入首个工作负载所需镜像：
+- [Run](/zh-cn/guides/run/) 创建执行、查询状态和读取有界日志。
+- [Workspace](/zh-cn/guides/workspaces/) 在旧写入者完成清理后，从新 Run 继续使用保留文件。
+- [SDK](/zh-cn/sdk/) 提供 Go、Python 同步／异步和 TypeScript 接口。
 
-```bash
-axern local image load python:3.12-slim --pull
-```
-
-## 3. 运行命令
-
-```bash
-axern run python:3.12-slim -- python -c 'print("hello from axern")'
-```
-
-Axern 会把 stdout 和 stderr 实时写入终端，并返回远端命令的真实退出码。每次执行同时会创建可查询的持久 Run 记录：
-
-```bash
-axern run list
-axern run logs <run-id>
-```
-
-Run 状态会持久保存；stdout/stderr 与显式声明的文件或目录 tar 会在 runtime 清理前封存在节点，并从开始清理起保留 15 分钟。它们可跨 axnoded 重启，但不能跨节点磁盘丢失；调用方必须把已接受的字节复制到自己的持久存储。Axern 不提供持久 Workspace 或通用对象存储。
-
-## 下一步
-
-- 在 [Local Axern](/zh-cn/getting-started/compose/) 中学习启动、停止、诊断、重置和升级。
-- 在 [Run](/zh-cn/guides/run/) 中定义可复用、可评审的执行。
-- 查看完整的 [`axern local` 参考](/zh-cn/guides/local/)。
-- 集群部署及其运维配置见 [Kubernetes 安装](/zh-cn/getting-started/kubernetes/)。
-
-:::caution[本地开发边界]
-
-本地栈只在 `127.0.0.1` 上公开端口，并为单机开发生成身份材料。不要把它直接暴露为共享或生产服务。
-
-:::
+不选择 Workspace 时，可写文件属于当前 Allocation。封存日志和声明输出在清理开始 15 分钟后过期。Workspace 有独立容量和删除语义；受支持的备份、升级与替换主机恢复仍未完成验收。

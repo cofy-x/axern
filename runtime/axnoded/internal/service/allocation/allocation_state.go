@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"math"
 	"sort"
 	"strings"
@@ -49,7 +50,7 @@ func cloneAllocationRecord(record *apipb.AllocationState) *apipb.AllocationState
 }
 
 func allocationRecordEmpty(record *apipb.AllocationState) bool {
-	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetExecutionLeaseExpiresAtUnixNano() == 0 && record.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && record.GetTerminationMessage() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && len(record.GetDeclaredOutputs()) == 0 && record.GetRootfsSnapshot() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
+	return record == nil || (record.GetNodeID() == "" && record.GetAllocationRequestDigest() == "" && record.GetExecutionLeaseExpiresAtUnixNano() == 0 && record.GetTerminationDiagnosticCode() == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED && record.GetTerminationMessage() == "" && record.GetEnvironment() == nil && record.GetResources() == nil && len(record.GetImageMountUrls()) == 0 && len(record.GetCapabilityRequirements()) == 0 && len(record.GetDeclaredOutputs()) == 0 && record.GetRootfsSnapshot() == nil && record.GetWorkspace() == nil && record.GetEnforcementManifest() == nil && record.GetCapabilityReconcile() == nil)
 }
 
 func (h *Controller) HasAllocation(allocationID string) bool {
@@ -137,7 +138,7 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 // StoreAllocationIntent persists the immutable node execution contract as the
 // first create side effect. Node observations, effective runtime projection,
 // and conditions are rebuildable and are never copied into this record.
-func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, executionLeaseExpiresAt time.Time, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement, declaredOutputs []*commonv1.DeclaredOutput, rootfsSnapshot *commonv1.RootfsSnapshot) error {
+func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest string, executionLeaseExpiresAt time.Time, resourceSpec *commonv1.ResourceSpec, requirements []*capabilityv1.CapabilityRequirement, declaredOutputs []*commonv1.DeclaredOutput, rootfsSnapshot *commonv1.RootfsSnapshot, workspace *nodelifecyclev1.WorkspaceBinding) error {
 	allocationID = strings.TrimSpace(allocationID)
 	nodeID = strings.TrimSpace(nodeID)
 	if allocationID == "" || !validStartRequestDigest(requestDigest) {
@@ -165,6 +166,14 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	}
 	if currentNodeID := desired.GetNodeID(); currentNodeID != "" && currentNodeID != nodeID {
 		return fmt.Errorf("allocation node binding conflicts with durable contract")
+	}
+	if workspace != nil {
+		if nodeID == "" || workspace.GetSpec().GetNodeID() != nodeID {
+			return errors.New("Workspace requires exact admitted Node identity")
+		}
+		desired.Workspace = proto.Clone(workspace).(*nodelifecyclev1.WorkspaceBinding)
+	} else {
+		desired.Workspace = nil
 	}
 	desired.NodeID = nodeID
 	desired.CapabilityRequirements = cloneCapabilityRequirements(requirements)
@@ -960,6 +969,29 @@ func (h *Controller) releaseAllocationState(allocationID string, persistedRecove
 	return nil
 }
 
+// Drop only live image handles while retaining the immutable admission fence.
+// The durable record is removed after all resources and the Workspace writer
+// receipt have committed, so a delayed Admit cannot revive an old execution.
+func (h *Controller) retireAllocationImages(allocationID string) {
+	unlock := h.recordMutationLocks.Lock(allocationID)
+	defer unlock()
+	h.stateMu.Lock()
+	state := h.allocationStates[allocationID]
+	var runtime *environmentcache.PreparedEnvironment
+	var roots []*environmentcache.RootFS
+	if state != nil {
+		runtime = state.runtime
+		roots = state.imageMountRoots
+		state.runtime = nil
+		state.imageMountRoots = nil
+	}
+	h.stateMu.Unlock()
+	if runtime != nil {
+		runtime.DecRef()
+	}
+	releaseImageMountRoots(roots)
+}
+
 func (h *Controller) loadAllocationStates(runtimeInventory map[string]struct{}) error {
 	records := make(map[string][]byte)
 	if err := h.store.ForEachRecord(config.AllocationStateBucket, func(key string, value []byte) error {
@@ -1013,6 +1045,9 @@ func (h *Controller) loadAllocationStates(runtimeInventory map[string]struct{}) 
 func (h *Controller) restoreAllocationState(record *apipb.AllocationState) (*allocationState, error) {
 	state := &allocationState{record: cloneAllocationRecord(record)}
 	var recoveryErr error
+	if err := h.restoreWorkspace(record); err != nil {
+		return state, fmt.Errorf("verify retained Workspace: %w", err)
+	}
 	if err := validateRecoveredCapabilityState(record, time.Now().UTC()); err != nil {
 		recoveryErr = errors.Join(recoveryErr, err)
 	}

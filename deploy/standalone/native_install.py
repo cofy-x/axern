@@ -36,6 +36,7 @@ SERVICES = ('postgres', 'bootstrap', 'controld', 'tunneld', 'imagemgr', 'egressd
 USERS = ('postgres', 'control', 'tunnel', 'gateway')
 PORTS = (25432, 24000, 24001, 24002, 24100, 24010, 23001, 25000, 25080)
 SETTINGS = {'node_id', 'memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'sandbox_cidr', 'dns_nameservers', 'max_instances'}
+WORKSPACE_SETTINGS = {'workspace_capacity_bytes', 'workspace_inode_capacity'}
 GUEST_TASK_LIMIT = 256
 HOST_TASK_LIMIT = 1024
 NODE_TASK_RESERVE = 512
@@ -70,8 +71,18 @@ def unique_object(pairs) -> dict:
 
 
 def validate_settings(value: dict) -> dict:
-    if set(value) != SETTINGS:
+    if set(value) not in (SETTINGS, SETTINGS | WORKSPACE_SETTINGS):
         raise InstallError('configuration must contain exactly the documented settings')
+    if WORKSPACE_SETTINGS <= set(value):
+        for name in WORKSPACE_SETTINGS:
+            if type(value[name]) is not int or not 0 < value[name] < 2**63:
+                raise InstallError(f'{name} must be a positive int64 integer')
+        if value['workspace_capacity_bytes'] % 512:
+            raise InstallError('workspace_capacity_bytes must be aligned to 512 bytes')
+        if type(value['storage_reserve_bytes']) is not int or value['storage_reserve_bytes'] < 1024**3:
+            raise InstallError('Workspaces require at least 1 GiB of operator storage reserve')
+        if value['storage_reserve_bytes'] + value['workspace_capacity_bytes'] >= 2**63:
+            raise InstallError('combined storage reserve exceeds int64 capacity')
     if not isinstance(value['node_id'], str) or not re.fullmatch(r'[a-z][a-z0-9-]{2,62}', value['node_id']):
         raise InstallError('invalid explicit node_id')
     for name in ('memory_budget_bytes', 'service_memory_budget_bytes', 'memory_reserve_bytes', 'storage_reserve_bytes', 'max_instances'):
@@ -470,7 +481,10 @@ guest_task_limit = {GUEST_TASK_LIMIT}
 host_task_limit = {HOST_TASK_LIMIT}
 filestore_mode = "existing"
 filestore_dir = "{DATA}"
-filestore_system_reserve_bytes = {settings['storage_reserve_bytes']}
+filestore_system_reserve_bytes = {settings['storage_reserve_bytes'] + settings.get('workspace_capacity_bytes', 0)}
+workspace_root = "{str(DATA / 'workspaces') if 'workspace_capacity_bytes' in settings else ''}"
+workspace_capacity_bytes = {settings.get('workspace_capacity_bytes', 0)}
+workspace_inode_capacity = {settings.get('workspace_inode_capacity', 0)}
 ephemeral_storage_default_limit_bytes = 268435456
 [plugin.runtime.dns]
 nameservers = {json.dumps(settings['dns_nameservers'])}
@@ -479,6 +493,22 @@ binary = "{OPT}/gvisor/runsc"
 [plugin.runtime.runsc.options]
 allow_suid = true
 '''
+
+
+def verify_workspace_filesystem(settings: dict, filesystem: str, first_install: bool) -> None:
+    if 'workspace_capacity_bytes' not in settings:
+        return
+    if filesystem != 'xfs':
+        raise InstallError('persistent Workspaces require XFS with project quota enforcement')
+    options = subprocess.check_output(
+        ['findmnt', '-no', 'OPTIONS', '--mountpoint', str(DATA)], text=True, timeout=5).strip().split(',')
+    if not {'prjquota', 'pquota'}.intersection(options):
+        raise InstallError('mount the Workspace data filesystem with prjquota before installation')
+    if first_install:
+        facts = os.statvfs(DATA)
+        required = settings['workspace_capacity_bytes'] + settings['storage_reserve_bytes'] + 268435456
+        if required > facts.f_bavail * facts.f_frsize:
+            raise InstallError('data filesystem cannot cover Workspace capacity, operator reserve and an ephemeral allocation')
 
 
 def preflight(settings: dict, first_install: bool) -> None:
@@ -501,6 +531,7 @@ def preflight(settings: dict, first_install: bool) -> None:
     fs = mount.stdout.strip()
     if fs not in ('ext4', 'xfs'):
         raise InstallError('the data path must be on ext4 or XFS')
+    verify_workspace_filesystem(settings, fs, first_install)
     if first_install:
         network = ipaddress.ip_interface(settings['sandbox_cidr']).network
         routes = json.loads(subprocess.check_output(['ip', '-j', '-4', 'route', 'show', 'table', 'all']))
@@ -587,6 +618,32 @@ def prepare_runtime() -> None:
         raise InstallError('unexpected existing runtime fixture path')
 
 
+def verify_completed_installation_data(settings: dict, checksum: str) -> None:
+    marker = ETC / 'installed'
+    completed = marker.exists() or marker.is_symlink()
+    bootstrap = ETC / 'private/database-bootstrapped'
+    if not completed:
+        if bootstrap.exists() or bootstrap.is_symlink():
+            raise InstallError('initialized database has lost its installation marker; restore the owned installation')
+        return
+    info = marker.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+            or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o644
+            or marker.read_text() != checksum + '\n'):
+        raise InstallError('completed installation marker differs; restore the owned installation')
+    directories = ['postgres', 'postgres/base', 'postgres/global', 'postgres/pg_wal',
+                   'axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd']
+    if 'workspace_capacity_bytes' in settings:
+        directories.append('workspaces')
+    for relative in directories:
+        path = DATA / relative
+        if path.is_symlink() or not path.is_dir():
+            raise InstallError(f'completed installation data is missing or replaced: {relative}; restore its backup')
+    version = DATA / 'postgres/PG_VERSION'
+    if version.is_symlink() or not version.is_file() or version.read_text().strip() != '16':
+        raise InstallError('initialized PostgreSQL identity is missing or incompatible; restore its backup')
+
+
 def install(settings: dict) -> None:
     receipt = read_json(ROOT / 'stage-receipt.json')
     checksum = receipt.get('archive_sha256', '')
@@ -632,6 +689,9 @@ def install(settings: dict) -> None:
         identity['data_identity'] = data_identity()
         if read_json(existing) != identity:
             raise InstallError('installation identity/configuration differs; upgrades and data adoption are not supported by this candidate')
+    # A completed installation is not a creation intent. Only an unfinished
+    # installation may initialize absent data; never turn loss into empty state.
+    verify_completed_installation_data(settings, checksum)
     for name in USERS:
         account = 'axern-' + name
         try:
@@ -644,6 +704,11 @@ def install(settings: dict) -> None:
         safe_directory(ETC / directory, 0o700 if directory == 'private' else 0o755)
     for directory in ('axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd'):
         safe_directory(DATA / directory)
+    if 'workspace_capacity_bytes' in settings:
+        workspace_root = DATA / 'workspaces'
+        if (ETC / 'installed').exists() and not workspace_root.exists():
+            raise InstallError('retained Workspace root is missing; restore the owned storage')
+        safe_directory(workspace_root, 0o700)
     secret_path = ETC / 'private/secrets.json'
     if not secret_path.exists():
         if (ETC / 'installed').exists():

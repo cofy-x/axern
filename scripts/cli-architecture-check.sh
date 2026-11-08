@@ -44,6 +44,7 @@ apps/cli/internal/localruntime
 apps/cli/internal/output
 apps/cli/internal/parse
 apps/cli/internal/resourcespec
+apps/cli/internal/serverruntime
 apps/cli/internal/tunnelrelay'
 
 check_equals \
@@ -58,7 +59,8 @@ apps/cli/internal/application/namespace
 apps/cli/internal/application/quota
 apps/cli/internal/application/run
 apps/cli/internal/application/secret
-apps/cli/internal/application/tunnel'
+apps/cli/internal/application/tunnel
+apps/cli/internal/application/workspace'
 
 check_equals \
 	"application packages must be explicit product use-case domains" \
@@ -67,16 +69,18 @@ check_equals \
 
 expected_command_packages='apps/cli/internal/commands/admin
 apps/cli/internal/commands/context
+apps/cli/internal/commands/dev
 apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
 apps/cli/internal/commands/identity
-apps/cli/internal/commands/local
 apps/cli/internal/commands/namespace
 apps/cli/internal/commands/quota
 apps/cli/internal/commands/run
 apps/cli/internal/commands/secret
+apps/cli/internal/commands/server
 apps/cli/internal/commands/ssh
-apps/cli/internal/commands/tunnel'
+apps/cli/internal/commands/tunnel
+apps/cli/internal/commands/workspace'
 
 check_equals \
 	"command packages must mirror the public CLI command surface" \

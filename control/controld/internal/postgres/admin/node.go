@@ -202,6 +202,7 @@ func requireNodeRetirementClear(ctx context.Context, tx pgx.Tx, req adminkernel.
 		query string
 		args  []any
 	}{
+		{"retained Workspace(s)", `SELECT COUNT(*) FROM workspaces WHERE node_id=$1 AND status<>'WORKSPACE_STATUS_DELETED'`, []any{req.NodeID}},
 		{"unreleased allocation(s)", `SELECT COUNT(*) FROM allocations WHERE node_id = $1 AND lifecycle_state <> $2`, []any{req.NodeID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED.String()}},
 		{"active allocation access grant(s)", `SELECT COUNT(*) FROM allocation_access_grants WHERE node_id = $1 AND revoked = FALSE AND expires_at > $2`, []any{req.NodeID, req.Now}},
 		{"active tunnel session(s)", `SELECT COUNT(*) FROM tunnel_sessions t JOIN allocations a ON a.allocation_id = t.allocation_id WHERE a.node_id = $1 AND t.status IN ($2, $3, $4)`, []any{req.NodeID, tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_PENDING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_RUNNING.String(), tunnelv1.TunnelSessionStatus_TUNNEL_SESSION_STATUS_DEGRADED.String()}},

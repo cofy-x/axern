@@ -63,6 +63,9 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		return nil, errord.ToGRPC(err)
 	}
 	if controller.VerifiedEnforcementManifest(request.GetAllocationID()) != nil {
+		if err := controller.VerifyWorkspaceAttachment(request.GetAllocationID()); err != nil {
+			return nil, h.scheduleCapabilityTermination(request.GetAllocationID(), err)
+		}
 		if controller.AllocationRequestDigest(request.GetAllocationID()) != requestDigest {
 			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))
 		}
@@ -96,7 +99,10 @@ func (h *sandboxService) start(ctx context.Context, request *runtime.StartReques
 		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted, request.GetDeclaredOutputs(), request.GetRootfsSnapshot())
+	if err := controller.CheckWorkspaceAdmission(request); err != nil {
+		return nil, errord.ToGRPC(fmt.Errorf("Workspace admission unavailable: %w", errord.ErrFailedPrecondition))
+	}
+	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted, request.GetDeclaredOutputs(), request.GetRootfsSnapshot(), request.GetWorkspace())
 	if err != nil {
 		op.SetErrorStatus("persist allocation capability requirements failed")
 		return nil, err

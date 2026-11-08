@@ -261,8 +261,8 @@ docs-verify: ## Build and fully verify the publishable Axern documentation site
 docs-layout-check: docs-build ## Run headless-Chrome layout smoke checks on the built docs site
 	$(PNPM) --filter @cofy-x/axern-docs run check:layout
 
-docs-assets: axern-cli-build ## Regenerate Axern documentation terminal recordings
-	bash $(ROOTDIR)/apps/docs/scripts/generate-terminal-assets.sh
+docs-assets: axern-cli-build ## Regenerate the documentation CLI command reference
+	python3 $(ROOTDIR)/apps/docs/scripts/generate-cli-reference.py
 
 docs-social-card: ## Regenerate the public social preview from its SVG source
 	$(PNPM) --filter @cofy-x/axern-docs run generate:social-card

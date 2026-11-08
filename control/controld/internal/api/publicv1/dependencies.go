@@ -11,6 +11,7 @@ import (
 	namespacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/namespace/v1"
 	quotav1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/quota/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 )
 
 type Environments interface {
@@ -45,7 +46,15 @@ type Quotas interface {
 	Unset(ctx context.Context, namespace string, now time.Time) (*quotav1.NamespaceQuota, error)
 }
 
+type Workspaces interface {
+	CreateWorkspace(context.Context, *workspacev1.CreateWorkspaceRequest, time.Time) (*workspacev1.Workspace, error)
+	GetWorkspace(context.Context, string) (*workspacev1.Workspace, error)
+	ListWorkspaces(context.Context, *workspacev1.ListWorkspacesRequest) ([]*workspacev1.Workspace, string, error)
+	DeleteWorkspace(context.Context, string, time.Time) (*workspacev1.Workspace, error)
+}
+
 type Dependencies struct {
+	Workspaces   Workspaces
 	Now          func() time.Time
 	Environments Environments
 	Secrets      Secrets

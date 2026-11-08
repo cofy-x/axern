@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"os"
 	"strings"
 	"sync"
@@ -65,6 +66,7 @@ type AxnodedSourceOptions struct {
 	NodeState                string
 	NodeLabels               map[string]string
 	CapabilitySnapshot       capabilitySnapshotFunc
+	WorkspaceStorage         func() *nodev1.WorkspaceStorage
 	LoadBPFNet               func(string) (bpfnet.Status, error)
 	StorageTargets           []StorageTarget
 	StatFS                   statfsFunc
@@ -105,6 +107,7 @@ type AxnodedSource struct {
 	nodeState                string
 	nodeLabels               map[string]string
 	capabilitySnapshot       capabilitySnapshotFunc
+	workspaceStorage         func() *nodev1.WorkspaceStorage
 	loadBPFNet               func(string) (bpfnet.Status, error)
 	storageTargets           []StorageTarget
 	statFS                   statfsFunc
@@ -166,6 +169,7 @@ func NewAxnodedSource(opts AxnodedSourceOptions) *AxnodedSource {
 		nodeState:                opts.NodeState,
 		nodeLabels:               cloneStringMap(opts.NodeLabels),
 		capabilitySnapshot:       opts.CapabilitySnapshot,
+		workspaceStorage:         opts.WorkspaceStorage,
 		loadBPFNet:               loadBPFNet,
 		storageTargets:           normalizeStorageTargets(opts.StorageTargets),
 		statFS:                   defaultStatFS(opts.StatFS),

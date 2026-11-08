@@ -23,7 +23,7 @@ class _RunStub:
     def __init__(self) -> None:
         self.request: run_pb2.CreateRunRequest | None = None
 
-    def CreateRun(self, request, timeout=None):
+    def AdmitRun(self, request, timeout=None):
         del timeout
         self.request = request
         return run_pb2.CreateRunResponse(run=run_pb2.Run(id="run-1"))
@@ -33,7 +33,7 @@ class _AsyncRunStub:
     def __init__(self) -> None:
         self.request: run_pb2.CreateRunRequest | None = None
 
-    async def CreateRun(self, request, timeout=None):
+    async def AdmitRun(self, request, timeout=None):
         del timeout
         self.request = request
         return run_pb2.CreateRunResponse(run=run_pb2.Run(id="run-1"))

@@ -125,6 +125,22 @@ Useful symptoms:
 
 Environment retention is keyed by the resolved execution specification, so namespace, Environment, Run, and Allocation identity do not duplicate the same prepared rootfs entry. It retains only reusable immutable rootfs and OCI bundle-template inputs. OCI create is always Allocation-owned because the container ID, cgroup, network, storage charge, evidence, and cleanup record cannot be safely rebound to a future Allocation.
 
+### Managed Workspace Storage
+
+Persistent Workspace storage is disabled unless all three runtime settings are supplied. It requires Linux, `cgroup_enforcement = "required"`, an existing root-owned `0700` directory on XFS, and both project-quota accounting and enforcement enabled. Native installation prepares the directory only during the explicit installation intent; node startup never creates a missing retained root. Workspace Runs require a finite positive memory limit so cleanup retains exact Sentry/Gofer kernel ownership.
+
+| Key | Meaning |
+| --- | --- |
+| `workspace_root` | Managed parent of private Workspace data directories; no public API accepts a source host path. |
+| `workspace_capacity_bytes` | Finite retained block-capacity budget, in positive multiples of 512 bytes. Detached, unavailable and deleting Workspaces remain charged. |
+| `workspace_inode_capacity` | Finite retained inode-capacity budget, independent of the byte budget. |
+
+The root must be separate from `rootDir/workspace-owners`, which holds root-private ownership records, the monotonic project allocator and acknowledged-generation fences. Each newly provisioned guest data root uses UID/GID `1000:1000` and mode `0770`; these guest-visible permissions are mutable file metadata, not ownership evidence. Trusted records are never inside the guest bind.
+
+When Workspace and ephemeral filestore roots share a filesystem, `filestore_system_reserve_bytes` must exclude the entire configured Workspace byte budget plus at least 1 GiB of operator reserve from ephemeral admission. A separate Workspace filesystem also retains at least 1 GiB of operator reserve. Provisioning checks live available space; reopening existing data does not require its already-granted capacity to remain free. Quota ceilings do not reserve physical blocks, and unrelated host writers can still cause explicit filesystem-full errors.
+
+Managed Workspaces are experimental. The configured filesystem and private metadata must remain together with the database and Node authority. A supported cold-backup/replacement-host restore protocol is not available; ordinary attach never accepts copied, replaced or missing storage as the original data.
+
 ### Runtime DNS
 
 `[plugin.runtime.dns]` controls resolver files materialized into OCI bundles. When `nameservers` is empty, axnoded derives usable resolvers from the node. If the node exposes only loopback resolvers or no usable resolver, axnoded owns an inert `/etc/resolv.conf` for the sandbox instead of blocking OCI creation or inventing a public fallback. Resolver-independent workloads continue to run; DNS diagnostics and domain-policy forwarding remain unavailable until the node has a verified upstream resolver.

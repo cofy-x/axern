@@ -71,3 +71,16 @@ func TestCommandTreeHasNoInheritedFlagConflicts(t *testing.T) {
 	}
 	visit(New("test"))
 }
+
+func TestCommandTreeSeparatesServingAndDevelopment(t *testing.T) {
+	root := New("test")
+	for _, name := range []string{"server", "dev", "workspace"} {
+		cmd, _, err := root.Find([]string{name})
+		if err != nil || cmd == root {
+			t.Fatalf("missing %s command: %v", name, err)
+		}
+	}
+	if cmd, _, _ := root.Find([]string{"local"}); cmd != root {
+		t.Fatal("obsolete local command remains")
+	}
+}

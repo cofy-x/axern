@@ -9,6 +9,7 @@ import (
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
@@ -16,6 +17,7 @@ import (
 )
 
 type AllocationRecord struct {
+	Workspace              *nodelifecyclev1.WorkspaceBinding
 	AllocationID           string
 	NodeID                 string
 	NodeTarget             string
@@ -44,6 +46,7 @@ type CreateEnvironmentParams struct {
 }
 
 type CreateParams struct {
+	WorkspaceID   string
 	Namespace     string
 	EnvironmentID string
 	Config        *commonv1.ExecutionConfig
@@ -54,6 +57,7 @@ type CreateParams struct {
 // is part of the same admission decision, so it stays in this object instead of
 // trailing as another positional argument.
 type AdmitRunParams struct {
+	WorkspaceID string
 	Namespace   string
 	Environment *environmentv1.Environment
 	Config      *commonv1.ExecutionConfig
@@ -76,7 +80,7 @@ type AllocationReporter interface {
 type ReconcileStore interface {
 	LoadStartAllocation(ctx context.Context, allocationID string) (*StartAllocation, error)
 	CompleteAllocationStart(ctx context.Context, allocationID, claimOwner string, conditions *capabilityv1.CapabilityConditionSet, now time.Time) error
-	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, snapshot *allocationkernel.RootfsSnapshotResult, now time.Time) error
+	CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, snapshot *allocationkernel.ReleaseResult, now time.Time) error
 	CompleteAllocationReleaseAcknowledgement(ctx context.Context, allocationID, claimOwner string, now time.Time) error
 	MarkRootfsSnapshotFailed(ctx context.Context, allocationID, claimOwner, message string, now time.Time) error
 	MarkAllocationCreateFailed(ctx context.Context, allocationID, claimOwner string, message string, now time.Time) (*runv1.Run, error)

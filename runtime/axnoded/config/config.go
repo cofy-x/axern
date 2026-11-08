@@ -64,6 +64,9 @@ func (c Config) Validate() error {
 	if err := c.RuntimeConfig.ValidateTaskLimits(); err != nil {
 		return err
 	}
+	if err := c.RuntimeConfig.ValidateWorkspaceStorage(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.PluginConfig.RuntimeConfig.RootfsSnapshotRepository) != "" && !c.PluginConfig.RuntimeConfig.ImageManagerEnabledValue() {
 		return fmt.Errorf("rootfs_snapshot_repository requires image_manager_enabled")
 	}
@@ -112,6 +115,12 @@ type RuntimeConfig struct {
 	FilestoreLoopbackImage      string `toml:"filestore_loopback_image" json:"filestoreLoopbackImage"`
 	FilestoreLoopbackSizeBytes  int64  `toml:"filestore_loopback_size_bytes" json:"filestoreLoopbackSizeBytes"`
 	FilestoreSystemReserveBytes int64  `toml:"filestore_system_reserve_bytes" json:"filestoreSystemReserveBytes"`
+
+	// Workspace storage is an optional, separately charged XFS project-quota
+	// root. The directory is operator-created; daemon restart never creates it.
+	WorkspaceRoot          string `toml:"workspace_root" json:"workspaceRoot"`
+	WorkspaceCapacityBytes int64  `toml:"workspace_capacity_bytes" json:"workspaceCapacityBytes"`
+	WorkspaceInodeCapacity int64  `toml:"workspace_inode_capacity" json:"workspaceInodeCapacity"`
 
 	// EphemeralStorageDefaultLimitBytes is the required development-phase hard
 	// size passed to runsc's file-backed root overlay.

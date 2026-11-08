@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	"io"
 	"time"
@@ -102,6 +103,10 @@ type AllocationTunnelService interface {
 }
 
 type NodeLifecycleService interface {
+	ProvisionWorkspace(context.Context, *nodelifecyclev1.ProvisionWorkspaceRequest) (*nodelifecyclev1.ProvisionWorkspaceResponse, error)
+	InspectWorkspace(context.Context, *nodelifecyclev1.InspectWorkspaceRequest) (*nodelifecyclev1.InspectWorkspaceResponse, error)
+	DeleteWorkspace(context.Context, *nodelifecyclev1.DeleteWorkspaceRequest) (*nodelifecyclev1.DeleteWorkspaceResponse, error)
+	AcknowledgeWorkspaceCleanup(string, *nodelifecyclev1.WorkspaceCleanupReceipt) error
 	Start(context.Context, *runtime.StartRequest) (*runtime.StartResponse, error)
 	Delete(context.Context, *runtime.DeleteRequest) (*runtime.DeleteResponse, error)
 	StartControlPlaneAllocation(context.Context, string, *runtime.StartRequest) (*runtime.StartResponse, error)

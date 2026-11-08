@@ -108,3 +108,13 @@ func (f *FakeNodeLifecycleClient) GetAllocationLifecycle(ctx context.Context, ta
 func (f *FakeNodeLifecycleClient) Close() error {
 	return nil
 }
+
+func (f *FakeNodeLifecycleClient) ProvisionWorkspace(context.Context, string, *privatenodev1.ProvisionWorkspaceRequest) (*privatenodev1.ProvisionWorkspaceResponse, error) {
+	return nil, grpcstatus.Error(codes.Unimplemented, "not configured")
+}
+func (f *FakeNodeLifecycleClient) InspectWorkspace(context.Context, string, *privatenodev1.InspectWorkspaceRequest) (*privatenodev1.InspectWorkspaceResponse, error) {
+	return nil, grpcstatus.Error(codes.Unimplemented, "not configured")
+}
+func (f *FakeNodeLifecycleClient) DeleteWorkspace(context.Context, string, *privatenodev1.DeleteWorkspaceRequest) (*privatenodev1.DeleteWorkspaceResponse, error) {
+	return nil, grpcstatus.Error(codes.Unimplemented, "not configured")
+}

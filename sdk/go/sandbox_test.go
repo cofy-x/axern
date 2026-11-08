@@ -653,7 +653,7 @@ func (f *fakeAxernServer) DeleteEnvironment(context.Context, *environmentv1.Dele
 	return &environmentv1.DeleteEnvironmentResponse{Environment: &environmentv1.Environment{ID: "env-1"}}, nil
 }
 
-func (f *fakeAxernServer) CreateRun(_ context.Context, request *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
+func (f *fakeAxernServer) AdmitRun(_ context.Context, request *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
 	f.createRunRequest = request
 	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-1", AllocationID: "alloc-1"}}, nil
 }

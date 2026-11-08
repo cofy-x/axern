@@ -167,4 +167,7 @@ enum WorkloadDiagnosticCode {
   WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED = 10;
   WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_TERMINATED = 11;
   WORKLOAD_DIAGNOSTIC_CODE_OPERATOR_FORCE_CLEANUP = 12;
+  // Trusted lifecycle cleanup withdraws activation authority without claiming
+  // lease expiry, enforcement loss or operator intervention.
+  WORKLOAD_DIAGNOSTIC_CODE_ALLOCATION_CLEANUP_REQUESTED = 13;
 }

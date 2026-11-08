@@ -27,6 +27,55 @@ DAEMON_GENERATION = ('1' * 32, '2026-11-06T14:34:14.110196Z')
 
 
 class InstallerTest(unittest.TestCase):
+    def test_completed_installation_never_initializes_missing_data(self):
+        checksum = 'a' * 64
+        with tempfile.TemporaryDirectory() as temporary:
+            root = pathlib.Path(temporary)
+            etc, data = root / 'etc', root / 'data'
+            etc.mkdir()
+            data.mkdir()
+            with mock.patch.object(installer, 'ETC', etc), mock.patch.object(installer, 'DATA', data):
+                # No completion marker permits an interrupted first install.
+                installer.verify_completed_installation_data(SETTINGS, checksum)
+                (etc / 'installed').write_text(checksum + '\n')
+                (etc / 'installed').chmod(0o644)
+                required = ['postgres', 'postgres/base', 'postgres/global', 'postgres/pg_wal',
+                            'axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd']
+                for name in required:
+                    (data / name).mkdir(parents=True, exist_ok=True)
+                (data / 'postgres/PG_VERSION').write_text('16\n')
+                installer.verify_completed_installation_data(SETTINGS, checksum)
+                workspace_settings = {**SETTINGS, 'workspace_capacity_bytes': 1024**3, 'workspace_inode_capacity': 10000}
+                with self.assertRaises(installer.InstallError):
+                    installer.verify_completed_installation_data(workspace_settings, checksum)
+                self.assertFalse((data / 'workspaces').exists())
+                (data / 'workspaces').mkdir()
+                installer.verify_completed_installation_data(workspace_settings, checksum)
+                for name in ('postgres/base', 'axnoded/store', 'imagemgr'):
+                    path = data / name
+                    parked = data / (path.name + '-parked')
+                    path.rename(parked)
+                    with self.subTest(name=name), self.assertRaises(installer.InstallError):
+                        installer.verify_completed_installation_data(SETTINGS, checksum)
+                    self.assertFalse(path.exists(), 'validation must never recreate missing initialized state')
+                    path.symlink_to(parked, target_is_directory=True)
+                    with self.assertRaises(installer.InstallError):
+                        installer.verify_completed_installation_data(SETTINGS, checksum)
+                    path.unlink()
+                    parked.rename(path)
+                (data / 'postgres/PG_VERSION').unlink()
+                with self.assertRaises(installer.InstallError):
+                    installer.verify_completed_installation_data(SETTINGS, checksum)
+                self.assertFalse((data / 'postgres/PG_VERSION').exists())
+
+    def test_missing_completion_marker_cannot_reclassify_initialized_database_as_first_install(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            etc = pathlib.Path(temporary)
+            (etc / 'private').mkdir()
+            (etc / 'private/database-bootstrapped').write_text('initialized\n')
+            with mock.patch.object(installer, 'ETC', etc), self.assertRaises(installer.InstallError):
+                installer.verify_completed_installation_data(SETTINGS, 'a' * 64)
+
     def test_pinned_runtime_preserves_new_sidecar_and_rejects_incomplete_layouts(self):
         members = ['runsc', 'containerd-shim-runsc-v1', 'gvisor-bin/checkpointgofer',
                    'gvisor-bin/gvisor-sentry-prewarmer', 'gvisor-bin/gvisor-proc-umounter',
@@ -263,6 +312,34 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(value['plugin']['runtime']['filestore_dir'], str(installer.DATA))
         self.assertEqual(value['plugin']['resource']['memory_system_reserve_bytes'], 1024**3)
         self.assertEqual(value['plugin']['runtime']['dns']['nameservers'], ['10.0.2.3'])
+
+    def test_workspace_budget_is_reserved_from_ephemeral_capacity(self):
+        settings = {**SETTINGS, 'workspace_capacity_bytes': 2 * 1024**3, 'workspace_inode_capacity': 10000}
+        runtime = tomllib.loads(installer.node_config(installer.validate_settings(settings)))['plugin']['runtime']
+        self.assertEqual(runtime['workspace_root'], str(installer.DATA / 'workspaces'))
+        self.assertEqual(runtime['workspace_capacity_bytes'], 2 * 1024**3)
+        self.assertEqual(runtime['workspace_inode_capacity'], 10000)
+        self.assertEqual(runtime['filestore_system_reserve_bytes'], 3 * 1024**3)
+        for change in ({'workspace_inode_capacity': 0}, {'workspace_capacity_bytes': True}, {'workspace_capacity_bytes': 513},
+                       {'workspace_capacity_bytes': 2**63}, {'storage_reserve_bytes': 1}):
+            with self.subTest(change=change), self.assertRaises(installer.InstallError):
+                installer.validate_settings({**settings, **change})
+        with self.assertRaises(installer.InstallError):
+            installer.validate_settings({**SETTINGS, 'workspace_capacity_bytes': 1024**3})
+
+    def test_workspace_filesystem_prerequisites_fail_before_installation(self):
+        settings = {**SETTINGS, 'workspace_capacity_bytes': 2 * 1024**3, 'workspace_inode_capacity': 10000}
+        with self.assertRaisesRegex(installer.InstallError, 'require XFS'):
+            installer.verify_workspace_filesystem(settings, 'ext4', True)
+        with mock.patch.object(installer.subprocess, 'check_output', return_value='rw,noatime\n'):
+            with self.assertRaisesRegex(installer.InstallError, 'prjquota'):
+                installer.verify_workspace_filesystem(settings, 'xfs', True)
+        with mock.patch.object(installer.subprocess, 'check_output', return_value='rw,prjquota\n'), \
+                mock.patch.object(installer.os, 'statvfs', return_value=mock.Mock(f_bavail=1, f_frsize=4096)) as facts:
+            with self.assertRaisesRegex(installer.InstallError, 'cannot cover'):
+                installer.verify_workspace_filesystem(settings, 'xfs', True)
+            installer.verify_workspace_filesystem(settings, 'xfs', False)
+            self.assertEqual(facts.call_count, 1, 'existing retained data must not require the whole budget free again')
 
     def test_unit_privileges_and_data_guard(self):
         units = installer.service_units(pathlib.Path('/opt/axern/releases/test'), SETTINGS)

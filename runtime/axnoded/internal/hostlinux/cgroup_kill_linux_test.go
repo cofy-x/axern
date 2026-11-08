@@ -4,9 +4,13 @@ package hostlinux
 
 import (
 	"os"
+	"os/exec"
+	"path/filepath"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestKillRunscCgroupRejectsIncompleteIdentityBeforeSideEffects(t *testing.T) {
@@ -33,6 +37,24 @@ func TestStoppedCgroupCannotTreatReusedRecordedPIDAsExit(t *testing.T) {
 	stopped, err = recordedSentryGone(1 << 30)
 	require.NoError(t, err)
 	require.True(t, stopped)
+}
+
+func TestEmptyCgroupCannotRetireAnUnrelatedLiveRecordedPID(t *testing.T) {
+	process := exec.Command("sleep", "30")
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		_ = process.Process.Kill()
+		_ = process.Wait()
+	})
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "cgroup.events"), []byte("populated 0\nfrozen 0\n"), 0o600))
+	fd, err := unix.Open(dir, unix.O_DIRECTORY|unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, unix.Close(fd)) })
+	stopped, err := cgroupStoppedAt(fd, process.Process.Pid)
+	require.ErrorContains(t, err, "retains or reuses")
+	require.False(t, stopped)
+	require.NoError(t, process.Process.Signal(syscall.Signal(0)), "a cached PID must never authorize a signal or cleanup")
 }
 
 func TestStoppedCgroupRejectsCrossBootAutomaticRecovery(t *testing.T) {

@@ -158,7 +158,7 @@ func TestCapabilityFailStopCannotAcknowledgeBehindActivationFence(t *testing.T) 
 	service := newTestService(t, &runtimeSpyHandler{name: "runsc"})
 	const id = "allocation-fail-stop-activation-fence"
 	now := time.Now().UTC()
-	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil, nil))
 	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, nil, now))
 	unlock := service.allocations.LockAllocationLifecycle(id)
 	require.NoError(t, service.allocations.BeginCapabilityTerminationWithLifecycleHeld(id, errors.New("test enforcement loss")))
@@ -193,7 +193,7 @@ func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) 
 	now := time.Now().UTC()
 	key := capabilitycontract.PlatformKey(capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_STRICT_EGRESS_ENFORCEMENT)
 	requirements := []*capabilityv1.CapabilityRequirement{{Key: key, LossPolicy: capabilityv1.CapabilityLossPolicy_CAPABILITY_LOSS_POLICY_FAIL_STOP}}
-	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, requirements, nil, nil))
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, requirements, nil, nil, nil))
 	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, []*capabilityv1.CapabilityKey{key}, now))
 	require.NoError(t, service.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{}))
 	markTestContainerRunning(t, service, id)
@@ -253,7 +253,7 @@ func TestCapabilityEvaluationAckCancellationPreservesIntent(t *testing.T) {
 	service := newTestService(t, handler)
 	const id = "allocation-cancel-evaluation-ack"
 	now := time.Now().UTC()
-	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil, nil))
 	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, nil, now))
 	require.NoError(t, service.allocations.MergeCapabilityReconcile(id))
 	pending := service.allocations.CapabilityReconcileState(id)
@@ -328,7 +328,7 @@ func TestCapabilityFailStopRetainsIntentWithoutVerifiedRuntimeAbsence(t *testing
 			}
 			service := newTestService(t, handler)
 			now := time.Now().UTC()
-			require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil))
+			require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil, nil))
 			require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, nil, now))
 			require.NoError(t, service.allocations.BeginCapabilityTermination(id, errors.New("test enforcement loss")))
 			_, err := service.containerManager.Get(id)
@@ -362,7 +362,7 @@ func TestCapabilityFailStopRetainsIntentWithoutVerifiedRuntimeAbsence(t *testing
 func TestCapabilityReconcileRejectsRuntimeWithoutLaunchVerification(t *testing.T) {
 	service := newTestService(t, &runtimeSpyHandler{name: "runsc"})
 	const id = "allocation-missing-launch-verification"
-	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil))
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil, nil))
 	require.NoError(t, service.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{}))
 	markTestContainerRunning(t, service, id)
 	_, set, err := service.ReconcileAllocationCapabilities(t.Context(), id)
@@ -378,7 +378,7 @@ func TestCapabilityReconcileDoesNotFailStopWorkloadCompletedDuringVerification(t
 	service.capabilityManager = manager
 	const id = "allocation-completed-during-verification"
 	now := time.Now().UTC()
-	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, dependencies, nil, nil))
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, dependencies, nil, nil, nil))
 	manifest, err := handler.AllocationEnforcementManifest(t.Context(), id)
 	require.NoError(t, err)
 	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, manifest, []*capabilityv1.CapabilityKey{dependencies[0].GetKey()}, now))

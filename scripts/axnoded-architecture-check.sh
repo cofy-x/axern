@@ -76,12 +76,17 @@ runtime/axnoded/internal/resources
 runtime/axnoded/internal/runtime
 runtime/axnoded/internal/sandboxd
 runtime/axnoded/internal/service
-runtime/axnoded/internal/storetest'
+runtime/axnoded/internal/storetest
+runtime/axnoded/internal/workspace'
 
 check_equals \
 	"axnoded internal top-level packages must stay intentional" \
 	"source_children runtime/axnoded/internal" \
 	"$expected_internal_packages"
+
+check_empty \
+	"managed Workspace storage must not depend on lifecycle orchestration or transport" \
+	"rg -n '\"github\\.com/cofy-x/axern/runtime/axnoded/internal/(app|api|service|container|resources|environmentcache|runtime|controlplane)(/|\")' runtime/axnoded/internal/workspace ${production_go} || true"
 
 expected_service_subpackages='runtime/axnoded/internal/service/allocation
 runtime/axnoded/internal/service/allocationoutput

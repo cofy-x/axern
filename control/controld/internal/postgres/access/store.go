@@ -234,6 +234,14 @@ func (s *Store) GrantBinding(ctx context.Context, actorID, principalID string, s
 		return accesskernel.Binding{}, fmt.Errorf("%w: valid scope type is required", accesskernel.ErrInvalidArgument)
 	}
 	err := s.withAudit(ctx, actorID, "role_binding.grant", "role_binding", b.ID, now, func(tx pgx.Tx) error {
+		if b.Scope == accesskernel.ScopeNamespace {
+			var namespace string
+			if err := tx.QueryRow(ctx, `SELECT namespace FROM namespaces WHERE namespace=$1 AND deleted_at IS NULL FOR KEY SHARE`, b.Namespace).Scan(&namespace); errors.Is(err, pgx.ErrNoRows) {
+				return accesskernel.ErrNotFound
+			} else if err != nil {
+				return err
+			}
+		}
 		var active bool
 		if err := tx.QueryRow(ctx, `SELECT status='active' FROM principals WHERE principal_id=$1 FOR UPDATE`, principalID).Scan(&active); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
@@ -243,14 +251,6 @@ func (s *Store) GrantBinding(ctx context.Context, actorID, principalID string, s
 		}
 		if !active {
 			return fmt.Errorf("%w: principal is disabled", accesskernel.ErrFailedPrecondition)
-		}
-		if b.Scope == accesskernel.ScopeNamespace {
-			var namespace string
-			if err := tx.QueryRow(ctx, `SELECT namespace FROM namespaces WHERE namespace=$1 FOR KEY SHARE`, b.Namespace).Scan(&namespace); errors.Is(err, pgx.ErrNoRows) {
-				return accesskernel.ErrNotFound
-			} else if err != nil {
-				return err
-			}
 		}
 		_, err := tx.Exec(ctx, `INSERT INTO role_bindings(binding_id,principal_id,scope_type,namespace,role,created_by_principal_id,created_at) VALUES($1,$2,$3,NULLIF($4,''),$5,$6,$7)`, b.ID, b.PrincipalID, b.Scope, b.Namespace, b.Role, b.CreatedByPrincipalID, b.CreatedAt)
 		return err

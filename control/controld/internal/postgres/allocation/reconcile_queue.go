@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"strings"
 	"time"
 
@@ -59,7 +60,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 				COALESCE(r.environment_spec#>>'{image,ref}', '') AS base_image_ref,
 				COALESCE(r.resolved_environment_spec#>>'{imageDescriptor,digest}', '') AS base_image_digest,
 				COALESCE(r.environment_spec#>>'{image,registryCredentialId}', '') AS registry_credential_id,
-				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.claim_expires_at, '-infinity'::timestamptz)) AS eligible_at, a.output_expires_at,
+				GREATEST(q.next_run_at, q.updated_at, COALESCE(q.claim_expires_at, '-infinity'::timestamptz)) AS eligible_at, a.output_expires_at,r.workspace_binding,
 				ROW_NUMBER() OVER (PARTITION BY a.node_id ORDER BY q.next_run_at ASC, q.allocation_id ASC) AS node_rank
 			FROM allocation_reconcile_queue q
 			JOIN allocations a ON a.allocation_id = q.allocation_id
@@ -70,7 +71,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		), candidates AS (
 			SELECT r.allocation_id, r.run_id, r.environment_id, r.lifecycle_state, r.node_id, r.node_target,
 				r.reconcile_attempts, r.last_error, r.next_run_at, r.capability_requirements, r.declared_outputs,
-				r.rootfs_snapshot_requested, r.base_image_ref, r.base_image_digest, r.registry_credential_id, r.eligible_at, r.output_expires_at
+				r.rootfs_snapshot_requested, r.base_image_ref, r.base_image_digest, r.registry_credential_id, r.eligible_at, r.output_expires_at,r.workspace_binding
 			FROM ranked r
 			JOIN allocation_reconcile_queue q ON q.allocation_id = r.allocation_id
 			ORDER BY r.node_rank ASC, r.next_run_at ASC, r.allocation_id ASC
@@ -86,7 +87,7 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 		)
 		SELECT c.allocation_id, c.run_id, c.environment_id, c.lifecycle_state, c.node_id, c.node_target,
 			c.reconcile_attempts, c.last_error, c.next_run_at, c.capability_requirements, c.declared_outputs,
-			c.rootfs_snapshot_requested, c.base_image_ref, c.base_image_digest, c.registry_credential_id, c.eligible_at, c.output_expires_at
+			c.rootfs_snapshot_requested, c.base_image_ref, c.base_image_digest, c.registry_credential_id, c.eligible_at, c.output_expires_at,c.workspace_binding
 		FROM candidates c
 		JOIN claimed USING (allocation_id)
 		ORDER BY c.allocation_id ASC
@@ -98,10 +99,17 @@ func ClaimDueReconcileItems(ctx context.Context, queryer reconcileQueryer, owner
 	out := make([]allocationkernel.ReconcileItem, 0)
 	for rows.Next() {
 		item := allocationkernel.ReconcileItem{ClaimOwner: owner}
-		var dependenciesJSON, declaredOutputsJSON []byte
+		var dependenciesJSON, declaredOutputsJSON, workspaceJSON []byte
 		var lifecycleState, baseImageDigest string
-		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &declaredOutputsJSON, &item.RootfsSnapshotRequested, &item.BaseImageRef, &baseImageDigest, &item.RegistryCredentialID, &item.EligibleAt, &item.OutputExpiresAt); err != nil {
+		if err := rows.Scan(&item.AllocationID, &item.RunID, &item.EnvironmentID, &lifecycleState, &item.NodeID, &item.NodeTarget, &item.ReconcileAttempts, &item.LastReconcileError, &item.NextRunAt, &dependenciesJSON, &declaredOutputsJSON, &item.RootfsSnapshotRequested, &item.BaseImageRef, &baseImageDigest, &item.RegistryCredentialID, &item.EligibleAt, &item.OutputExpiresAt, &workspaceJSON); err != nil {
 			return nil, err
+		}
+		binding := &nodelifecyclev1.WorkspaceBinding{}
+		if err := protojson.Unmarshal(workspaceJSON, binding); err != nil {
+			return nil, err
+		}
+		if binding.GetSpec() != nil {
+			item.Workspace = binding
 		}
 		if item.RootfsSnapshotRequested {
 			immutableRef, digestErr := rootfsSnapshotBaseImageRef(item.BaseImageRef, baseImageDigest)
@@ -305,7 +313,7 @@ func ListLifecycleRetries(ctx context.Context, queryer reconcileQueryer, filter 
 				SELECT r.status FROM runs r
 				WHERE r.run_id = a.run_id
 				LIMIT 1
-			), '')
+			), ''), r.workspace_binding <> '{}'::jsonb
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
@@ -348,7 +356,7 @@ func LoadLifecycleRetry(ctx context.Context, queryer reconcileQueryer, allocatio
 				SELECT r.status FROM runs r
 				WHERE r.run_id = a.run_id
 				LIMIT 1
-			), '')
+			), ''), r.workspace_binding <> '{}'::jsonb
 		FROM allocation_reconcile_queue q
 		JOIN allocations a ON a.allocation_id = q.allocation_id
 		JOIN runs r ON r.run_id = a.run_id
@@ -396,6 +404,7 @@ func scanLifecycleRetryRows(rows pgx.Rows, now time.Time) ([]allocationkernel.Li
 			&clearanceInput.HasActiveAccessGrant,
 			&clearanceInput.HasActiveTunnelSession,
 			&clearanceInput.RunStatus,
+			&clearanceInput.HasPendingWorkspaceAcknowledgement,
 		); err != nil {
 			return nil, err
 		}

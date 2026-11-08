@@ -41,18 +41,24 @@ type NamespaceQuotaEventJSON struct {
 }
 
 type NamespaceQuotaJSON struct {
-	Namespace                      string `json:"namespace"`
-	CPUMilliLimit                  *int64 `json:"cpu_milli_limit,omitempty"`
-	MemoryBytesLimit               *int64 `json:"memory_bytes_limit,omitempty"`
-	UsedCPUMilli                   int64  `json:"used_cpu_milli"`
-	UsedMemoryBytes                int64  `json:"used_memory_bytes"`
-	AvailableCPUMilli              *int64 `json:"available_cpu_milli,omitempty"`
-	AvailableMemoryBytes           *int64 `json:"available_memory_bytes,omitempty"`
-	EphemeralStorageBytesLimit     *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
-	UsedEphemeralStorageBytes      int64  `json:"used_ephemeral_storage_bytes"`
-	AvailableEphemeralStorageBytes *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
-	CreatedAt                      string `json:"created_at,omitempty"`
-	UpdatedAt                      string `json:"updated_at,omitempty"`
+	PersistentStorageBytesLimit      *int64 `json:"persistent_storage_bytes_limit,omitempty"`
+	PersistentStorageInodesLimit     *int64 `json:"persistent_storage_inodes_limit,omitempty"`
+	UsedPersistentStorageBytes       int64  `json:"used_persistent_storage_bytes"`
+	UsedPersistentStorageInodes      int64  `json:"used_persistent_storage_inodes"`
+	AvailablePersistentStorageBytes  *int64 `json:"available_persistent_storage_bytes,omitempty"`
+	AvailablePersistentStorageInodes *int64 `json:"available_persistent_storage_inodes,omitempty"`
+	Namespace                        string `json:"namespace"`
+	CPUMilliLimit                    *int64 `json:"cpu_milli_limit,omitempty"`
+	MemoryBytesLimit                 *int64 `json:"memory_bytes_limit,omitempty"`
+	UsedCPUMilli                     int64  `json:"used_cpu_milli"`
+	UsedMemoryBytes                  int64  `json:"used_memory_bytes"`
+	AvailableCPUMilli                *int64 `json:"available_cpu_milli,omitempty"`
+	AvailableMemoryBytes             *int64 `json:"available_memory_bytes,omitempty"`
+	EphemeralStorageBytesLimit       *int64 `json:"ephemeral_storage_bytes_limit,omitempty"`
+	UsedEphemeralStorageBytes        int64  `json:"used_ephemeral_storage_bytes"`
+	AvailableEphemeralStorageBytes   *int64 `json:"available_ephemeral_storage_bytes,omitempty"`
+	CreatedAt                        string `json:"created_at,omitempty"`
+	UpdatedAt                        string `json:"updated_at,omitempty"`
 }
 
 func PrintNamespaceQuotaJSON(w io.Writer, quota *quotav1.NamespaceQuota) error {
@@ -112,18 +118,24 @@ func NewNamespaceQuotaJSON(quota *quotav1.NamespaceQuota) *NamespaceQuotaJSON {
 		return nil
 	}
 	return &NamespaceQuotaJSON{
-		Namespace:                      quota.GetNamespace(),
-		CPUMilliLimit:                  optionalWrapperInt64(quota.GetCpuMilliLimit()),
-		MemoryBytesLimit:               optionalWrapperInt64(quota.GetMemoryBytesLimit()),
-		UsedCPUMilli:                   quota.GetUsedCpuMilli(),
-		UsedMemoryBytes:                quota.GetUsedMemoryBytes(),
-		AvailableCPUMilli:              optionalWrapperInt64(quota.GetAvailableCpuMilli()),
-		AvailableMemoryBytes:           optionalWrapperInt64(quota.GetAvailableMemoryBytes()),
-		EphemeralStorageBytesLimit:     optionalWrapperInt64(quota.GetEphemeralStorageBytesLimit()),
-		UsedEphemeralStorageBytes:      quota.GetUsedEphemeralStorageBytes(),
-		AvailableEphemeralStorageBytes: optionalWrapperInt64(quota.GetAvailableEphemeralStorageBytes()),
-		CreatedAt:                      FormatProtoTimestamp(quota.GetCreatedAt()),
-		UpdatedAt:                      FormatProtoTimestamp(quota.GetUpdatedAt()),
+		Namespace:                        quota.GetNamespace(),
+		PersistentStorageBytesLimit:      optionalWrapperInt64(quota.GetPersistentStorageBytesLimit()),
+		PersistentStorageInodesLimit:     optionalWrapperInt64(quota.GetPersistentStorageInodesLimit()),
+		UsedPersistentStorageBytes:       quota.GetUsedPersistentStorageBytes(),
+		UsedPersistentStorageInodes:      quota.GetUsedPersistentStorageInodes(),
+		AvailablePersistentStorageBytes:  optionalWrapperInt64(quota.GetAvailablePersistentStorageBytes()),
+		AvailablePersistentStorageInodes: optionalWrapperInt64(quota.GetAvailablePersistentStorageInodes()),
+		CPUMilliLimit:                    optionalWrapperInt64(quota.GetCpuMilliLimit()),
+		MemoryBytesLimit:                 optionalWrapperInt64(quota.GetMemoryBytesLimit()),
+		UsedCPUMilli:                     quota.GetUsedCpuMilli(),
+		UsedMemoryBytes:                  quota.GetUsedMemoryBytes(),
+		AvailableCPUMilli:                optionalWrapperInt64(quota.GetAvailableCpuMilli()),
+		AvailableMemoryBytes:             optionalWrapperInt64(quota.GetAvailableMemoryBytes()),
+		EphemeralStorageBytesLimit:       optionalWrapperInt64(quota.GetEphemeralStorageBytesLimit()),
+		UsedEphemeralStorageBytes:        quota.GetUsedEphemeralStorageBytes(),
+		AvailableEphemeralStorageBytes:   optionalWrapperInt64(quota.GetAvailableEphemeralStorageBytes()),
+		CreatedAt:                        FormatProtoTimestamp(quota.GetCreatedAt()),
+		UpdatedAt:                        FormatProtoTimestamp(quota.GetUpdatedAt()),
 	}
 }
 

@@ -131,7 +131,7 @@ func NewSandboxID(prefix string) string {
 	return fmt.Sprintf("axctl-%s-%s", base, uuid.NewString()[:8])
 }
 
-func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID string, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
+func AdmitAllocation(ctx context.Context, clients *NodeClients, sandboxID string, spec *privatenodev1.ResolvedExecutionConfig) (*SandboxHandle, error) {
 	if sandboxID == "" {
 		sandboxID = NewSandboxID("verify")
 	}
@@ -143,7 +143,7 @@ func CreateAllocation(ctx context.Context, clients *NodeClients, sandboxID strin
 		AllocationID: sandboxID,
 		Config:       preparedSpec,
 	}
-	resp, err := clients.Lifecycle.CreateAllocation(ctx, req)
+	resp, err := clients.Lifecycle.AdmitAllocation(ctx, req)
 	if err != nil {
 		return nil, err
 	}

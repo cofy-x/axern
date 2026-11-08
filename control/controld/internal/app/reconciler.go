@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"time"
 
 	reconcilekernel "github.com/cofy-x/axern/control/controld/internal/kernel/reconcile"
@@ -10,6 +11,7 @@ import (
 
 func (a *App) startReconciler() {
 	a.startPeriodicReconciler()
+	a.startWorkspaceReconciler()
 	if a.retentionConfig.Enabled {
 		a.startRetentionWorker(a.retentionConfig.Interval)
 	}
@@ -141,4 +143,29 @@ func logReconcileError(component string, err error) {
 		return
 	}
 	logrus.WithError(err).WithField("component", component).Warn("background reconcile failed")
+}
+
+func (a *App) startWorkspaceReconciler() {
+	if a.workspaceService == nil {
+		return
+	}
+	a.wg.Add(1)
+	go func() {
+		defer a.wg.Done()
+		owner := "workspace-" + uuid.NewString()
+		for a.backgroundReconcileContext().Err() == nil {
+			worked, err := a.workspaceService.ReconcileOne(a.backgroundReconcileContext(), owner, a.now())
+			logReconcileError("workspace", err)
+			if worked && err == nil {
+				continue
+			}
+			timer := time.NewTimer(a.reconcileInterval)
+			select {
+			case <-timer.C:
+			case <-a.backgroundReconcileContext().Done():
+				timer.Stop()
+				return
+			}
+		}
+	}()
 }

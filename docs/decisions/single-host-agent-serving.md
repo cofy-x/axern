@@ -23,12 +23,12 @@ flowchart TB
     Public --> Executor["Privileged local execution boundary"]
     Control --> Executor
     Executor --> Runtime["gVisor / runsc"]
-    Executor --> Data["Managed host-local Workspace - planned"]
+    Executor --> Data["Managed host-local Workspace"]
 ```
 
 These labels describe responsibilities, not a required daemon count. The installation manages one public endpoint/configuration surface, PostgreSQL and the local execution helpers it needs. Component and transport layout belongs to the runtime architecture. Consolidation must preserve authorization, stream behavior, revocation, cleanup and useful failure diagnosis.
 
-Axern owns execution facts: admission, exact execution identity, resource charge, access and cleanup. The planned Workspace adds retained-data facts under the same control authority. The caller owns task completion, model choice, worker configuration, conversation state, approvals, semantic retries, result merging and external effects.
+Axern owns execution facts: admission, exact execution identity, resource charge, access and cleanup. Workspace adds retained-data facts under the same control authority. The caller owns task completion, model choice, worker configuration, conversation state, approvals, semantic retries, result merging and external effects.
 
 A worker's complete harness belongs inside its Sandbox when its files, background jobs and tool processes require that boundary. Redirecting shell commands alone cannot isolate other host-side operations. Adapters define the worker protocol and credential/model transport; Axern does not interpret an Agent's private session format.
 
@@ -36,7 +36,7 @@ A worker's complete harness belongs inside its Sandbox when its files, backgroun
 
 ## Retained Data
 
-Image supplies immutable tools and inputs; Environment supplies their public execution-input identity and policy. Workspace is the planned independently retained data identity, while a new execution always creates a new Run and Allocation. No Workspace reference redirects an old process, file, terminal, SSH or Tunnel handle to a replacement execution.
+Image supplies immutable tools and inputs; Environment supplies their public execution-input identity and policy. Workspace is the independently retained data identity, while a new execution always creates a new Run and Allocation. No Workspace reference redirects an old process, file, terminal, SSH or Tunnel handle to a replacement execution.
 
 The [single-writer Workspace decision](single-writer-workspaces.md) owns attachment, retained capacity, fencing, deletion, storage identity and cold-restore requirements. Its first contract is one managed host-local writer, not a distributed or shared multi-writer volume. Unknown cleanup cannot transfer writer authority, and lease expiry alone cannot prove the old writer is gone.
 

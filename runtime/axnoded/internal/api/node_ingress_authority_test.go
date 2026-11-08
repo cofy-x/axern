@@ -22,7 +22,7 @@ func TestNodeIngressAuthoritySeparatesControlAndGatewayServices(t *testing.T) {
 		method   string
 		wantCode codes.Code
 	}{
-		{name: "controld lifecycle", identity: "controld", method: "/axern.private.node.lifecycle.v1.NodeLifecycle/CreateAllocation", wantCode: codes.OK},
+		{name: "controld lifecycle", identity: "controld", method: "/axern.private.node.lifecycle.v1.NodeLifecycle/AdmitAllocation", wantCode: codes.OK},
 		{name: "gateway sandbox", identity: "gatewayd", method: "/axern.node.sandbox.v1.NodeSandbox/Process", wantCode: codes.OK},
 		{name: "gateway cannot mutate lifecycle", identity: "gatewayd", method: "/axern.private.node.lifecycle.v1.NodeLifecycle/DeleteAllocation", wantCode: codes.PermissionDenied},
 		{name: "controld cannot access sandbox", identity: "controld", method: "/axern.node.sandbox.v1.NodeSandbox/Exec", wantCode: codes.PermissionDenied},

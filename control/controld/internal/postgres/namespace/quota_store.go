@@ -56,9 +56,11 @@ func (s *Store) Set(ctx context.Context, namespace string, limits *quotav1.Names
 			SET cpu_milli_limit = $2,
 			    memory_bytes_limit = $3,
 			    ephemeral_storage_bytes_limit = $4,
-			    updated_at = $5
+			    persistent_storage_bytes_limit=$5,
+                persistent_storage_inodes_limit=$6,
+                updated_at = $7
 			WHERE namespace = $1
-		`, normalized, nullableLimit(limits.GetCpuMilli()), nullableLimit(limits.GetMemoryBytes()), nullableLimit(limits.GetEphemeralStorageBytes()), now); err != nil {
+		`, normalized, nullableLimit(limits.GetCpuMilli()), nullableLimit(limits.GetMemoryBytes()), nullableLimit(limits.GetEphemeralStorageBytes()), nullableLimit(limits.GetPersistentStorageBytes()), nullableLimit(limits.GetPersistentStorageInodes()), now); err != nil {
 			return nil, fmt.Errorf("set namespace quota: %w", err)
 		}
 		return queryQuota(ctx, tx, normalized)
@@ -76,6 +78,8 @@ func (s *Store) Unset(ctx context.Context, namespace string, now time.Time) (*qu
 			SET cpu_milli_limit = NULL,
 			    memory_bytes_limit = NULL,
 			    ephemeral_storage_bytes_limit = NULL,
+                persistent_storage_bytes_limit=NULL,
+                persistent_storage_inodes_limit=NULL,
 			    updated_at = $2
 			WHERE namespace = $1
 	`, normalized, now); err != nil {
@@ -119,31 +123,39 @@ type quotaScanner interface {
 
 func scanQuota(row quotaScanner) (*quotav1.NamespaceQuota, error) {
 	var (
-		namespace             string
-		cpuLimit              sql.NullInt64
-		memoryLimit           sql.NullInt64
-		ephemeralStorageLimit sql.NullInt64
-		usedCPU               int64
-		usedMemory            int64
-		usedEphemeralStorage  int64
-		createdAt, updatedAt  time.Time
+		namespace                                 string
+		cpuLimit                                  sql.NullInt64
+		memoryLimit                               sql.NullInt64
+		ephemeralStorageLimit                     sql.NullInt64
+		persistentByteLimit, persistentInodeLimit sql.NullInt64
+		usedPersistentBytes, usedPersistentInodes int64
+		usedCPU                                   int64
+		usedMemory                                int64
+		usedEphemeralStorage                      int64
+		createdAt, updatedAt                      time.Time
 	)
-	if err := row.Scan(&namespace, &cpuLimit, &memoryLimit, &ephemeralStorageLimit, &usedCPU, &usedMemory, &usedEphemeralStorage, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&namespace, &cpuLimit, &memoryLimit, &ephemeralStorageLimit, &usedCPU, &usedMemory, &usedEphemeralStorage, &createdAt, &updatedAt, &persistentByteLimit, &persistentInodeLimit, &usedPersistentBytes, &usedPersistentInodes); err != nil {
 		return nil, err
 	}
 	return &quotav1.NamespaceQuota{
-		Namespace:                      namespace,
-		CpuMilliLimit:                  optionalInt64(cpuLimit),
-		MemoryBytesLimit:               optionalInt64(memoryLimit),
-		UsedCpuMilli:                   usedCPU,
-		UsedMemoryBytes:                usedMemory,
-		AvailableCpuMilli:              optionalAvailable(cpuLimit, usedCPU),
-		AvailableMemoryBytes:           optionalAvailable(memoryLimit, usedMemory),
-		EphemeralStorageBytesLimit:     optionalInt64(ephemeralStorageLimit),
-		UsedEphemeralStorageBytes:      usedEphemeralStorage,
-		AvailableEphemeralStorageBytes: optionalAvailable(ephemeralStorageLimit, usedEphemeralStorage),
-		CreatedAt:                      timestamppb.New(createdAt),
-		UpdatedAt:                      timestamppb.New(updatedAt),
+		Namespace:                        namespace,
+		PersistentStorageBytesLimit:      optionalInt64(persistentByteLimit),
+		PersistentStorageInodesLimit:     optionalInt64(persistentInodeLimit),
+		UsedPersistentStorageBytes:       usedPersistentBytes,
+		UsedPersistentStorageInodes:      usedPersistentInodes,
+		AvailablePersistentStorageBytes:  optionalAvailable(persistentByteLimit, usedPersistentBytes),
+		AvailablePersistentStorageInodes: optionalAvailable(persistentInodeLimit, usedPersistentInodes),
+		CpuMilliLimit:                    optionalInt64(cpuLimit),
+		MemoryBytesLimit:                 optionalInt64(memoryLimit),
+		UsedCpuMilli:                     usedCPU,
+		UsedMemoryBytes:                  usedMemory,
+		AvailableCpuMilli:                optionalAvailable(cpuLimit, usedCPU),
+		AvailableMemoryBytes:             optionalAvailable(memoryLimit, usedMemory),
+		EphemeralStorageBytesLimit:       optionalInt64(ephemeralStorageLimit),
+		UsedEphemeralStorageBytes:        usedEphemeralStorage,
+		AvailableEphemeralStorageBytes:   optionalAvailable(ephemeralStorageLimit, usedEphemeralStorage),
+		CreatedAt:                        timestamppb.New(createdAt),
+		UpdatedAt:                        timestamppb.New(updatedAt),
 	}, nil
 }
 
@@ -157,7 +169,8 @@ func quotaSelectSQL(where string) string {
 		       COALESCE(usage.memory_bytes, 0) AS used_memory_bytes,
 		       COALESCE(usage.ephemeral_storage_request_bytes, 0) AS used_ephemeral_storage_bytes,
 		       q.created_at,
-		       q.updated_at
+		       q.updated_at,q.persistent_storage_bytes_limit,q.persistent_storage_inodes_limit,
+               COALESCE(persistent.capacity_bytes,0),COALESCE(persistent.inode_limit,0)
 		FROM namespace_resource_quotas q
 		JOIN namespaces n ON n.namespace = q.namespace AND n.deleted_at IS NULL
 		LEFT JOIN (
@@ -170,6 +183,7 @@ func quotaSelectSQL(where string) string {
 			WHERE a.lifecycle_state <> 'ALLOCATION_LIFECYCLE_STATE_RELEASED'
 			GROUP BY r.namespace
 		) usage ON usage.namespace = q.namespace
+        LEFT JOIN (SELECT namespace,SUM(capacity_bytes) AS capacity_bytes,SUM(inode_limit) AS inode_limit FROM workspaces WHERE status<>'WORKSPACE_STATUS_DELETED' GROUP BY namespace) persistent ON persistent.namespace=q.namespace
 		` + where + `
 	`
 }

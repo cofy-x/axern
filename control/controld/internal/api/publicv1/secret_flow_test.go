@@ -133,7 +133,7 @@ func TestCreateEnvironmentWithRegistryCredentialUsesDockerConfigSecret(t *testin
 	if _, err := public.DeleteSecret(context.Background(), &secretv1.DeleteSecretRequest{SecretID: secretID}); grpcstatus.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("DeleteSecret(referenced) code = %v, want %v: %v", grpcstatus.Code(err), codes.FailedPrecondition, err)
 	}
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: envResp.GetEnvironment().GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/true"}},
 	})
@@ -197,7 +197,7 @@ func TestRequiredRunSecretReferenceEndsWithRunLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateEnvironment() error = %v", err)
 	}
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: envResp.GetEnvironment().GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/true"},

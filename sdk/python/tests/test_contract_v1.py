@@ -12,6 +12,7 @@ import grpc
 from axern_sdk._internal.errors import sandbox_rpc_error
 from axern_sdk._internal.resources import cpu_milli, memory_bytes
 from axern_sdk.client import AxernClient
+from axern_sdk.async_client import AsyncAxernClient
 from axern_sdk.context import load_context
 from axern_sdk.errors import (
     SandboxCancelledError,
@@ -104,6 +105,10 @@ class ContractV1Test(unittest.TestCase):
             "environment_delete": "delete_environment",
             "run_create": "create_run",
             "run_cancel": "cancel_run",
+            "workspace_create": "create_workspace",
+            "workspace_get": "get_workspace",
+            "workspace_list": "list_workspaces",
+            "workspace_delete": "delete_workspace",
         }
         sandbox_methods = {
             "lifecycle_start": "start",
@@ -117,6 +122,7 @@ class ContractV1Test(unittest.TestCase):
             "archive_download": "download_dir",
         }
         assert_methods(self, contract["client"], AxernClient, client_methods)
+        assert_methods(self, contract["client"], AsyncAxernClient, client_methods)
         assert_methods(self, [item for item in contract["sandbox"] if item != "tunnel"], Sandbox, sandbox_methods)
         assert_methods(
             self,

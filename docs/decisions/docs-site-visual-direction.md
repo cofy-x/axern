@@ -8,8 +8,8 @@ The Axern documentation site presents the product as a self-hosted execution pla
 
 - Lead with self-hosted agent execution and the product outcome, then provide the current local path to a working sandbox. Show real SDK and CLI usage immediately after the hero, and route readers into the documentation by intent (quickstart, SDK, and self-hosting) rather than by marketing narrative.
 - Use a compact grid, square borders, high-contrast controls, and a small set of reusable spacing and color tokens.
-- Use code, terminal recordings, and runtime state as the primary product imagery.
-- Use the homepage live execution deck to combine runtime events, isolation, lifecycle, and output in one observable surface. Keep terminal recordings with the code or guide they substantiate.
+- Use code, source-generated command references and runtime state as the primary product imagery.
+- Use the homepage live execution deck to combine runtime events, isolation, lifecycle, and output in one observable surface. Keep command references with the code or guide they substantiate.
 - Keep the category headline stable while user-selectable Sandbox and Concurrent Runs scenes explain the execution modes. The selected mode may replay its internal lifecycle, but the page does not switch modes without user input. Both scenes use `runsc`, the sole packaged production runtime; do not present unsupported runtimes as production choices.
 - Represent the Agent Sandbox as a horizontal, nested execution chamber. Keep `runsc` attached to the outer isolation boundary while code and process activity remain inside the inner execution layer.
 - Use WebGL only as progressive enhancement. It must remain subtle, pause when hidden, respect reduced motion, and never carry essential information.
