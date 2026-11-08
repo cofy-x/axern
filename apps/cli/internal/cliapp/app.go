@@ -7,16 +7,18 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/command"
 	admincmd "github.com/cofy-x/axern/apps/cli/internal/commands/admin"
 	contextcmd "github.com/cofy-x/axern/apps/cli/internal/commands/context"
+	devcmd "github.com/cofy-x/axern/apps/cli/internal/commands/dev"
 	doctorcmd "github.com/cofy-x/axern/apps/cli/internal/commands/doctor"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
 	identitycmd "github.com/cofy-x/axern/apps/cli/internal/commands/identity"
-	localcmd "github.com/cofy-x/axern/apps/cli/internal/commands/local"
 	namespacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/namespace"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/quota"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/run"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/secret"
+	servercmd "github.com/cofy-x/axern/apps/cli/internal/commands/server"
 	sshcmd "github.com/cofy-x/axern/apps/cli/internal/commands/ssh"
 	tunnelcmd "github.com/cofy-x/axern/apps/cli/internal/commands/tunnel"
+	workspacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/workspace"
 	"github.com/cofy-x/axern/apps/cli/internal/config"
 	"github.com/spf13/cobra"
 )
@@ -29,7 +31,7 @@ func New(version string) *cobra.Command {
 	options := &command.Options{ConfigPath: configPath, Output: "table"}
 	root := &cobra.Command{
 		Use:           "axern",
-		Short:         "Manage Axern resources and interactive development workflows",
+		Short:         "Manage Axern execution, workspaces, and host services",
 		Version:       version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -67,7 +69,9 @@ func New(version string) *cobra.Command {
 		contextcmd.Command(runtime),
 		admincmd.Command(runtime),
 		identitycmd.Command(runtime),
-		localcmd.Command(runtime, version),
+		devcmd.Command(runtime, version),
+		servercmd.Command(runtime),
+		workspacecmd.Command(runtime),
 		environment.Command(runtime),
 		namespacecmd.Command(runtime),
 		secret.Command(runtime),

@@ -57,5 +57,5 @@ install -m 0755 "${temporary}/axern" "${install_dir}/axern"
 echo "Installed axern ${tag} to ${install_dir}/axern"
 case ":${PATH}:" in
   *":${install_dir}:"*) ;;
-  *) echo "Add ${install_dir} to PATH before running: axern local up" ;;
+  *) echo "Add ${install_dir} to PATH before running: axern --help" ;;
 esac

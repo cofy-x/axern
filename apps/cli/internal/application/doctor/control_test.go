@@ -394,7 +394,7 @@ type fakeRunClient struct {
 	exitCode      *int32
 }
 
-func (f *fakeRunClient) CreateRun(_ context.Context, request *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
+func (f *fakeRunClient) AdmitRun(_ context.Context, request *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
 	f.createCalls++
 	f.createRequest = request
 	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-probe", Status: runv1.RunStatus_RUN_STATUS_RUNNING}}, nil

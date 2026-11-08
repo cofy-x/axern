@@ -40,6 +40,18 @@ The immutable runsc launch-enforcement manifest records the exact overlay argume
 
 The node-local Allocation charge ledger is fsync/rename durable and checks both committed requests and live `statfs` availability after the system reserve. AllocationState, the Allocation charge ledger, the projection manifest, and runtime inventory provide restart inputs; OCI annotations are not an ownership or recovery source. Compressed EROFS copy-up is charged by actual upper usage; lower compressed size is not a capacity estimate.
 
+## Managed Workspace Storage
+
+An optional Workspace bind at `/workspace` retains bytes independently of the disposable root overlay. The node consumes a typed, immutable control-plane binding containing Workspace/Namespace/Node identities, granted byte/inode limits, storage identity and writer generation. It rejects overlapping mounts or Secret-file projections and does not combine Workspace use with rootfs-snapshot publication. The node resolves the source from its private ownership records rather than accepting a public host path.
+
+The managed root is an existing private XFS directory with project accounting and enforcement enabled. Provisioning assigns a unique project ID, inherited assignment, finite block and inode hard limits, and verifies kernel readback before availability is acknowledged. Trusted owner records live outside the guest-writable tree. Persistent identity uses the filesystem identity, owned inode and a durably recorded random owner epoch; current device and mount IDs fence each open operation without becoming a per-boot data identity. Reinitializing an empty root after metadata loss creates a new epoch and rejects every former storage grant; a nonempty root without its ownership record remains unavailable.
+
+Attach, live enforcement audit and recovery verify the exact data inode, current root/mount relationship, inherited project assignment and quota limits. Missing or replaced data is unavailable and is never recreated by those operations. Writer generations remain fenced after release; cleanup intent also withdraws a delayed create that never reached node admission.
+
+The normal runtime cleanup barrier stops Sentry and Gofer, removes runtime mounts/projections, retires image handles and resource claims, and atomically records the matching Workspace release receipt before discarding the Allocation admission record. A terminal workload or expired lease alone does not transfer the writer. Acknowledging an old receipt only prunes that receipt and cannot change a newer writer.
+
+Explicit Workspace deletion requires a detached owner, durably records deletion intent, walks through pinned directory descriptors without following symlinks or crossing a mount, and confirms zero project block/inode use after filesystem synchronization. Open-unlinked files or uncertain cleanup retain the charge. Recursive deletion serializes only its own Workspace; unrelated live writer verification does not wait behind that tree walk.
+
 ## Readiness, observed capability, and cleanup
 
 Filestore readiness requires a real OverlayFS probe and, when available, an EROFS copy-up probe using the production upper filesystem. Runtime-specific hard-limit capabilities require separate conformance sandboxes and per-Allocation verification. Provider ownership, evidence validity, and loss policy are defined in [Observed Capability Providers](../../../docs/architecture/observed-capability-providers.md); commands and coverage belong in [Verification](verification.md).

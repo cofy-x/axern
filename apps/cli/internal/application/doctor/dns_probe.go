@@ -94,7 +94,7 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 	}
 
 	if probeCode == "" {
-		response, err := session.Run.CreateRun(probeCtx, &runv1.CreateRunRequest{
+		response, err := session.Run.AdmitRun(probeCtx, &runv1.CreateRunRequest{
 			Namespace:     namespace,
 			EnvironmentID: environmentID,
 			Config: &commonv1.ExecutionConfig{
@@ -128,7 +128,7 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 		return failedCheck("runtime_dns_sandbox", "runtime_dns_sandbox_cleanup_failed", "sandbox DNS probe resource cleanup did not complete", "inspect resources associated with the local DNS doctor probe", started)
 	}
 	if probeCode != "" {
-		return failedCheck("runtime_dns_sandbox", probeCode, probeMessage, "inspect `axern local logs node` and verify AXERN_LOCAL_DNS_NAMESERVERS before retrying", started)
+		return failedCheck("runtime_dns_sandbox", probeCode, probeMessage, "inspect `axern dev logs node` and verify AXERN_LOCAL_DNS_NAMESERVERS before retrying", started)
 	}
 	return passedCheck("runtime_dns_sandbox", "runtime_dns_sandbox_resolved", "isolated sandbox resolved the configured DNS query", started)
 }

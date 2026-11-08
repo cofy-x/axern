@@ -28,6 +28,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxcontrol"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxtarget"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/workspace"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -55,6 +56,8 @@ type sandboxService struct {
 	processController *process.Controller
 	sandboxController *sandboxcontrol.Controller
 	allocations       *allocation.Controller
+	workspaceOnce     sync.Once
+	workspaces        *workspace.Manager
 
 	nodeInventorySource       *nodeinventory.AxnodedSource
 	inventoryCollector        *nodeinventory.Collector
@@ -609,6 +612,13 @@ func (h *sandboxService) cleanupTerminalRuntimeContainers(ctx context.Context, i
 		if pending {
 			continue
 		}
+		workspacePending, err := h.allocationController().WorkspacePending(id)
+		if err != nil {
+			return err
+		}
+		if workspacePending {
+			continue
+		}
 		options, err := h.runtimeCleanupOptions(ctx, id)
 		if err != nil {
 			return err
@@ -641,7 +651,11 @@ func (i runtimeInventory) retainedForRecovery(controller *allocation.Controller)
 		if err != nil {
 			return nil, fmt.Errorf("classify retained rootfs snapshot %s: %w", id, err)
 		}
-		if state.Status != contract.ContainerStatusExited || pending {
+		workspacePending, err := controller.WorkspacePending(id)
+		if err != nil {
+			return nil, err
+		}
+		if state.Status != contract.ContainerStatusExited || pending || workspacePending {
 			result[id] = state
 		}
 	}

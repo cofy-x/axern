@@ -47,7 +47,7 @@ func (c Control) probe(ctx context.Context, session *Session) Check {
 	runID := ""
 	probeErr := error(nil)
 
-	runResponse, err := session.Run.CreateRun(probeCtx, &runv1.CreateRunRequest{
+	runResponse, err := session.Run.AdmitRun(probeCtx, &runv1.CreateRunRequest{
 		Namespace:     c.options.Namespace,
 		EnvironmentID: environmentID,
 		Config: &commonv1.ExecutionConfig{

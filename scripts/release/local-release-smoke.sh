@@ -12,8 +12,8 @@ cleanup() {
   if [[ -n "${external_registry_tag}" ]]; then
     docker image rm "${external_registry_tag}" >/dev/null 2>&1 || true
   fi
-  AXERN_HOME="${smoke_root}" "${cli}" local down >/dev/null 2>&1 || true
-  AXERN_HOME="${smoke_root}" "${cli}" local reset --force >/dev/null 2>&1 || true
+  AXERN_HOME="${smoke_root}" "${cli}" dev down >/dev/null 2>&1 || true
+  AXERN_HOME="${smoke_root}" "${cli}" dev reset --force >/dev/null 2>&1 || true
 }
 
 diagnostics() {
@@ -24,8 +24,8 @@ diagnostics() {
       sed -n '1,240p' "${smoke_root}/${output}" >&2
     fi
   done
-  echo "--- local status ---" >&2
-  AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s local status >&2 || true
+  echo "--- dev status ---" >&2
+  AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s dev status >&2 || true
   echo "--- local capability snapshot ---" >&2
   curl --fail --silent --show-error --max-time 10 http://127.0.0.1:24101/nodesz >&2 || true
   echo >&2
@@ -37,8 +37,8 @@ diagnostics() {
     echo "--- axnoded log ---" >&2
     docker exec "${node_container}" sh -c 'tail -n 500 /var/log/axnoded/axnoded.log' >&2 || true
   fi
-  echo "--- local logs ---" >&2
-  AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s local logs --tail 200 >&2 || true
+  echo "--- dev logs ---" >&2
+  AXERN_HOME="${smoke_root}" "${cli}" --config "${smoke_root}/config.json" --timeout 30s dev logs --tail 200 >&2 || true
 }
 
 on_exit() {
@@ -55,10 +55,10 @@ export AXERN_HOME="${smoke_root}"
 config="${smoke_root}/config.json"
 common=(--config "${config}" --timeout 10m)
 
-"${cli}" "${common[@]}" local up --use
-"${cli}" "${common[@]}" local status --output json | grep -q '"state": "running"'
-"${cli}" "${common[@]}" local image load python:3.12-slim --pull
-"${cli}" "${common[@]}" local doctor --probe --image python:3.12-slim --output json >"${smoke_root}/dns-doctor.json"
+"${cli}" "${common[@]}" dev up --use
+"${cli}" "${common[@]}" dev status --output json | grep -q '"state": "running"'
+"${cli}" "${common[@]}" dev image load python:3.12-slim --pull
+"${cli}" "${common[@]}" dev doctor --probe --image python:3.12-slim --output json >"${smoke_root}/dns-doctor.json"
 python3 - "${smoke_root}/dns-doctor.json" <<'PY'
 import json
 import sys
@@ -115,14 +115,14 @@ fi
 external_image_ref="forge-seed-registry:5000/axern/external-registry-smoke@${external_registry_digest}"
 external_tag_ref="forge-seed-registry:5000/axern/external-registry-smoke:dev"
 
-"${cli}" "${common[@]}" local up --use --insecure-registry forge-seed-registry:5000
-"${cli}" "${common[@]}" local status --output json | python3 -c 'import json,sys; value=json.load(sys.stdin); assert value["registry_network"] == "axern-local-registry"; assert value["external_insecure_registries"] == ["forge-seed-registry:5000"]'
+"${cli}" "${common[@]}" dev up --use --insecure-registry forge-seed-registry:5000
+"${cli}" "${common[@]}" dev status --output json | python3 -c 'import json,sys; value=json.load(sys.stdin); assert value["registry_network"] == "axern-local-registry"; assert value["external_insecure_registries"] == ["forge-seed-registry:5000"]'
 set +e
-"${cli}" "${common[@]}" local doctor --output json >"${smoke_root}/external-doctor.json"
+"${cli}" "${common[@]}" dev doctor --output json >"${smoke_root}/external-doctor.json"
 doctor_status=$?
 set -e
 if [[ "${doctor_status}" -ne 0 && "${doctor_status}" -ne 1 ]]; then
-  echo "local doctor failed while checking the external registry contract" >&2
+  echo "dev doctor failed while checking the external registry contract" >&2
   exit 1
 fi
 python3 - "${smoke_root}/external-doctor.json" <<'PY'
@@ -213,7 +213,7 @@ if [[ "${run_status}" -ne 7 ]]; then
   echo "foreground Run returned ${run_status}, want workload exit code 7" >&2
   exit 1
 fi
-"${cli}" "${common[@]}" local down
-"${cli}" "${common[@]}" local up --use
-"${cli}" "${common[@]}" local status --output json | python3 -c 'import json,sys; assert json.load(sys.stdin)["external_insecure_registries"] == ["forge-seed-registry:5000"]'
-"${cli}" "${common[@]}" local reset --force
+"${cli}" "${common[@]}" dev down
+"${cli}" "${common[@]}" dev up --use
+"${cli}" "${common[@]}" dev status --output json | python3 -c 'import json,sys; assert json.load(sys.stdin)["external_insecure_registries"] == ["forge-seed-registry:5000"]'
+"${cli}" "${common[@]}" dev reset --force

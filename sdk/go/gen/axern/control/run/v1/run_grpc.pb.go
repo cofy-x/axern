@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	RunControl_CreateRun_FullMethodName = "/axern.control.run.v1.RunControl/CreateRun"
+	RunControl_AdmitRun_FullMethodName  = "/axern.control.run.v1.RunControl/AdmitRun"
 	RunControl_GetRun_FullMethodName    = "/axern.control.run.v1.RunControl/GetRun"
 	RunControl_WatchRun_FullMethodName  = "/axern.control.run.v1.RunControl/WatchRun"
 	RunControl_ListRuns_FullMethodName  = "/axern.control.run.v1.RunControl/ListRuns"
@@ -30,7 +30,9 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type RunControlClient interface {
-	CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error)
+	// The changed method name makes required Workspace intent non-ignorable by
+	// older servers; high-level clients retain their CreateRun operation.
+	AdmitRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error)
 	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*GetRunResponse, error)
 	WatchRun(ctx context.Context, in *WatchRunRequest, opts ...grpc.CallOption) (RunControl_WatchRunClient, error)
 	ListRuns(ctx context.Context, in *ListRunsRequest, opts ...grpc.CallOption) (*ListRunsResponse, error)
@@ -45,9 +47,9 @@ func NewRunControlClient(cc grpc.ClientConnInterface) RunControlClient {
 	return &runControlClient{cc}
 }
 
-func (c *runControlClient) CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error) {
+func (c *runControlClient) AdmitRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*CreateRunResponse, error) {
 	out := new(CreateRunResponse)
-	err := c.cc.Invoke(ctx, RunControl_CreateRun_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, RunControl_AdmitRun_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +119,9 @@ func (c *runControlClient) CancelRun(ctx context.Context, in *CancelRunRequest, 
 // All implementations must embed UnimplementedRunControlServer
 // for forward compatibility
 type RunControlServer interface {
-	CreateRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error)
+	// The changed method name makes required Workspace intent non-ignorable by
+	// older servers; high-level clients retain their CreateRun operation.
+	AdmitRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error)
 	GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error)
 	WatchRun(*WatchRunRequest, RunControl_WatchRunServer) error
 	ListRuns(context.Context, *ListRunsRequest) (*ListRunsResponse, error)
@@ -129,8 +133,8 @@ type RunControlServer interface {
 type UnimplementedRunControlServer struct {
 }
 
-func (UnimplementedRunControlServer) CreateRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateRun not implemented")
+func (UnimplementedRunControlServer) AdmitRun(context.Context, *CreateRunRequest) (*CreateRunResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AdmitRun not implemented")
 }
 func (UnimplementedRunControlServer) GetRun(context.Context, *GetRunRequest) (*GetRunResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRun not implemented")
@@ -157,20 +161,20 @@ func RegisterRunControlServer(s grpc.ServiceRegistrar, srv RunControlServer) {
 	s.RegisterService(&RunControl_ServiceDesc, srv)
 }
 
-func _RunControl_CreateRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _RunControl_AdmitRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateRunRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(RunControlServer).CreateRun(ctx, in)
+		return srv.(RunControlServer).AdmitRun(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: RunControl_CreateRun_FullMethodName,
+		FullMethod: RunControl_AdmitRun_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(RunControlServer).CreateRun(ctx, req.(*CreateRunRequest))
+		return srv.(RunControlServer).AdmitRun(ctx, req.(*CreateRunRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -258,8 +262,8 @@ var RunControl_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*RunControlServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateRun",
-			Handler:    _RunControl_CreateRun_Handler,
+			MethodName: "AdmitRun",
+			Handler:    _RunControl_AdmitRun_Handler,
 		},
 		{
 			MethodName: "GetRun",

@@ -1,10 +1,9 @@
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 
 const required = [
   ['../public/favicon.svg', 100],
   ['../public/social-card.png', 10_000],
-  ['../public/terminal/axern.gif', 10_000],
-  ['../vhs/axern.tape', 100],
+  ['../public/terminal/axern.svg', 1_000],
 ];
 
 for (const [relativePath, minimumBytes] of required) {
@@ -12,24 +11,6 @@ for (const [relativePath, minimumBytes] of required) {
   const info = await stat(url);
   if (!info.isFile() || info.size < minimumBytes) {
     throw new Error(`${relativePath} must be a file of at least ${minimumBytes} bytes`);
-  }
-}
-
-const recordings = [
-  ['axern', 960, 600],
-];
-
-for (const [name, expectedWidth, expectedHeight] of recordings) {
-  const gif = await readFile(new URL(`../public/terminal/${name}.gif`, import.meta.url));
-  if (gif.subarray(0, 6).toString('ascii') !== 'GIF89a') {
-    throw new Error(`${name}.gif is not a GIF89a recording`);
-  }
-  const width = gif.readUInt16LE(6);
-  const height = gif.readUInt16LE(8);
-  if (width !== expectedWidth || height !== expectedHeight) {
-    throw new Error(
-      `${name}.gif must be ${expectedWidth}x${expectedHeight}, found ${width}x${height}`,
-    );
   }
 }
 

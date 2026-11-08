@@ -138,16 +138,16 @@ func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageL
 	}
 	if _, err := loadMetadata(m.metadataPath()); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, fmt.Errorf("Axern local is not initialized; run `axern local up` before loading images; `axern local image load` only manages the CLI-owned local stack")
+			return nil, fmt.Errorf("Axern dev is not initialized; run `axern dev up` before loading images; `axern dev image load` only manages the CLI-owned local stack")
 		}
-		return nil, fmt.Errorf("read Axern local metadata: %w", err)
+		return nil, fmt.Errorf("read Axern dev metadata: %w", err)
 	}
 	for _, path := range []string{m.envPath(), m.composePath()} {
 		if _, err := os.Stat(path); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("Axern local managed configuration is incomplete; run `axern local up` to rebuild it")
+				return nil, fmt.Errorf("Axern dev managed configuration is incomplete; run `axern dev up` to rebuild it")
 			}
-			return nil, fmt.Errorf("inspect Axern local state: %w", err)
+			return nil, fmt.Errorf("inspect Axern dev state: %w", err)
 		}
 	}
 	if options.Pull {
@@ -165,7 +165,7 @@ func (m *Manager) ImageLoad(ctx context.Context, imageRef string, options ImageL
 	}
 	nodeImageID := strings.TrimSpace(string(nodeImageIDBytes))
 	if nodeImageID == "" {
-		return nil, fmt.Errorf("local node is not running; run `axern local up`")
+		return nil, fmt.Errorf("local node is not running; run `axern dev up`")
 	}
 	node, err := m.inspectDockerImage(ctx, nodeImageID)
 	if err != nil {
@@ -280,7 +280,7 @@ func (m *Manager) Up(ctx context.Context, options UpOptions) error {
 func (m *Manager) up(ctx context.Context, options UpOptions) error {
 	existing, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && existing.Version != m.Version {
-		return fmt.Errorf("local stack version %s does not match CLI version %s; local state is disposable, run `axern local reset --force` and then `axern local up`", existing.Version, m.Version)
+		return fmt.Errorf("local stack version %s does not match CLI version %s; local state is disposable, run `axern dev reset --force` and then `axern dev up`", existing.Version, m.Version)
 	} else if metadataErr != nil && !errors.Is(metadataErr, os.ErrNotExist) {
 		return metadataErr
 	}
@@ -315,7 +315,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 		}
 	}
 	if report := m.doctor(ctx, false, DoctorOptions{}, doctorDNSConfigDesired); report.Status == doctorFailed {
-		return fmt.Errorf("local prerequisites are not ready; run `axern local doctor`")
+		return fmt.Errorf("local prerequisites are not ready; run `axern dev doctor`")
 	}
 	if err := m.ensureRegistryNetwork(ctx); err != nil {
 		return err
@@ -328,7 +328,7 @@ func (m *Manager) up(ctx context.Context, options UpOptions) error {
 			return fmt.Errorf("disable observability profile: %w", err)
 		}
 	}
-	fmt.Fprintln(m.Stderr, "Starting Axern local services...")
+	fmt.Fprintln(m.Stderr, "Starting Axern dev services...")
 	if err := m.pullPlatformImages(ctx, options.Profile); err != nil {
 		return err
 	}
@@ -513,10 +513,10 @@ func (m *Manager) printStartupDiagnostics(profile string) {
 }
 
 func (m *Manager) printReady() {
-	fmt.Fprintln(m.Stdout, "Axern local is ready.")
+	fmt.Fprintln(m.Stdout, "Axern dev is ready.")
 	fmt.Fprintf(m.Stdout, "Gateway:   http://127.0.0.1:%d/healthz\n", GatewayHTTPPort)
 	fmt.Fprintln(m.Stdout, "Context:   local")
-	fmt.Fprintln(m.Stdout, "Next:      axern local image load python:3.12-slim --pull")
+	fmt.Fprintln(m.Stdout, "Next:      axern dev image load python:3.12-slim --pull")
 	fmt.Fprintln(m.Stdout, "Then:      axern run python:3.12-slim -- python -c 'print(\"hello from axern\")'")
 }
 
@@ -531,7 +531,7 @@ func (m *Manager) Down(ctx context.Context) error {
 
 func (m *Manager) down(ctx context.Context, removeVolumes bool) error {
 	if _, err := os.Stat(m.envPath()); errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintln(m.Stdout, "Axern local is not initialized.")
+		fmt.Fprintln(m.Stdout, "Axern dev is not initialized.")
 		return nil
 	}
 	metadata, _ := loadMetadata(m.metadataPath())
@@ -543,7 +543,7 @@ func (m *Manager) down(ctx context.Context, removeVolumes bool) error {
 		return err
 	}
 	if !removeVolumes {
-		fmt.Fprintf(m.Stdout, "Axern local stopped. Data retained at %s\n", m.Dir)
+		fmt.Fprintf(m.Stdout, "Axern dev stopped. Data retained at %s\n", m.Dir)
 	}
 	return nil
 }
@@ -568,7 +568,7 @@ func (m *Manager) Reset(ctx context.Context) error {
 	if err := m.removeContext(); err != nil {
 		return err
 	}
-	fmt.Fprintln(m.Stdout, "Axern local data was removed and cannot be recovered.")
+	fmt.Fprintln(m.Stdout, "Axern dev data was removed and cannot be recovered.")
 	return nil
 }
 
@@ -842,7 +842,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 	}
 	metadata, metadataErr := loadMetadata(m.metadataPath())
 	if metadataErr == nil && metadata.Version != m.Version {
-		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern local reset --force` and then `axern local up`")
+		add("stack_version", false, "stack_version_compatible", "stack_version_incompatible", fmt.Sprintf("local stack is %s and CLI is %s", metadata.Version, m.Version), "run `axern dev reset --force` and then `axern dev up`")
 	} else {
 		add("stack_version", true, "stack_version_compatible", "stack_version_incompatible", "local stack version is compatible", "")
 	}
@@ -854,7 +854,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 		if !registryPolicyOK {
 			message = "persisted and materialized insecure registry policies do not match"
 		}
-		add("registry_policy", registryPolicyOK, "registry_policy_consistent", "registry_policy_inconsistent", message, "run `axern local up` with the intended registry policy")
+		add("registry_policy", registryPolicyOK, "registry_policy_consistent", "registry_policy_inconsistent", message, "run `axern dev up` with the intended registry policy")
 		if dockerErr == nil {
 			networkExists, networkErr := m.inspectRegistryNetwork(ctx)
 			networkOK := networkErr == nil && networkExists
@@ -862,7 +862,7 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 			if !networkOK {
 				networkMessage = "the local registry network is missing or conflicts with the required local bridge"
 			}
-			add("registry_network", networkOK, "registry_network_available", "registry_network_unavailable", networkMessage, "remove the conflicting network if necessary, then run `axern local up` to recreate the local registry network")
+			add("registry_network", networkOK, "registry_network_available", "registry_network_unavailable", networkMessage, "remove the conflicting network if necessary, then run `axern dev up` to recreate the local registry network")
 		}
 	}
 	stackRunning := false
@@ -874,16 +874,16 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 		if !identityOK {
 			identityMessage = "local certificate or SSH identity material is missing or invalid"
 		}
-		add("local_identity", identityOK, "local_identity_valid", "local_identity_invalid", identityMessage, "restore the identity directory from backup or run `axern local reset`")
+		add("local_identity", identityOK, "local_identity_valid", "local_identity_invalid", identityMessage, "restore the identity directory from backup or run `axern dev reset`")
 		if inspectRuntime && dockerErr == nil {
 			status, statusErr := m.Status(ctx)
 			switch {
 			case statusErr != nil:
-				add("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_unavailable", "local component status could not be inspected", "run `axern local status` and inspect Docker Compose logs")
+				add("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_unavailable", "local component status could not be inspected", "run `axern dev status` and inspect Docker Compose logs")
 			case status.State == "stopped":
-				advise("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_stopped", "local services are stopped", "run `axern local up`")
+				advise("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_stopped", "local services are stopped", "run `axern dev up`")
 			case status.State != "running":
-				add("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_unhealthy", "one or more local components are not healthy", "run `axern local status` and `axern local logs`")
+				add("stack_runtime", false, "stack_runtime_healthy", "stack_runtime_unhealthy", "one or more local components are not healthy", "run `axern dev status` and `axern dev logs`")
 			default:
 				stackRunning = true
 				add("stack_runtime", true, "stack_runtime_healthy", "stack_runtime_unhealthy", "all local components are healthy", "")
@@ -897,13 +897,13 @@ func (m *Manager) doctor(ctx context.Context, inspectRuntime bool, options Docto
 				if !gatewayOK {
 					gatewayMessage = "local gateway health endpoint is not reachable"
 				}
-				add("gateway_connectivity", gatewayOK, "gateway_connectivity_reachable", "gateway_connectivity_unreachable", gatewayMessage, "inspect `axern local logs gatewayd` and verify local firewall settings")
+				add("gateway_connectivity", gatewayOK, "gateway_connectivity_reachable", "gateway_connectivity_unreachable", gatewayMessage, "inspect `axern dev logs gatewayd` and verify local firewall settings")
 				nodeOK, nodeReason := m.nodeReadiness(ctx, &http.Client{Timeout: 3 * time.Second}, m.doctorNodeID(), localDefaultWorkloadCapabilities)
 				nodeMessage := "local node has reported fresh heartbeat and inventory"
 				if !nodeOK {
 					nodeMessage = nodeReason
 				}
-				add("node_observation", nodeOK, "node_observation_healthy", "node_observation_unhealthy", nodeMessage, "inspect `axern local logs node` and `axern local logs controld`")
+				add("node_observation", nodeOK, "node_observation_healthy", "node_observation_unhealthy", nodeMessage, "inspect `axern dev logs node` and `axern dev logs controld`")
 			}
 		}
 	}
@@ -1113,7 +1113,7 @@ func (m *Manager) waitReady(ctx context.Context, timeout time.Duration) error {
 		case <-time.After(time.Second):
 		}
 	}
-	return fmt.Errorf("Axern local did not become healthy within %s: %s", timeout, lastNodeReason)
+	return fmt.Errorf("Axern dev did not become healthy within %s: %s", timeout, lastNodeReason)
 }
 
 func (m *Manager) localNodeReady(ctx context.Context, client *http.Client) bool {
@@ -1278,7 +1278,7 @@ func (m *Manager) lock() (func(), error) {
 		_ = os.Remove(path)
 		return m.lock()
 	}
-	return nil, fmt.Errorf("another axern local operation is running")
+	return nil, fmt.Errorf("another axern dev operation is running")
 }
 
 func (m *Manager) metadataPath() string { return filepath.Join(m.Dir, "metadata.json") }
@@ -1296,7 +1296,7 @@ func directoryAllocatedSize(root string) (int64, bool, error) {
 			}
 			// Runtime state is intentionally owned by root inside the privileged
 			// node container. Disk usage is a diagnostic projection and must not
-			// make `local status` unavailable when that state cannot be traversed
+			// make `dev status` unavailable when that state cannot be traversed
 			// by the host user.
 			if errors.Is(err, os.ErrPermission) {
 				partial = true

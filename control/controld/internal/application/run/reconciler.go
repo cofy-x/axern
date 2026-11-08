@@ -167,7 +167,7 @@ func (r *reconciler) reconcileStart(ctx context.Context, item allocationkernel.R
 	if start == nil || start.Run == nil || start.Environment == nil || start.Allocation == nil || runkernel.IsTerminal(start.Run.GetStatus()) {
 		return r.store.CompleteAllocationStart(ctx, item.AllocationID, item.ClaimOwner, nil, r.now().UTC())
 	}
-	conditions, err := r.lifecycle.CreateAllocation(ctx, start.Allocation.NodeTarget, start.Run, start.Environment, start.Allocation.NodeID, start.Allocation.CapabilityRequirements)
+	conditions, err := r.lifecycle.CreateAllocation(ctx, start.Allocation.NodeTarget, start.Run, start.Environment, start.Allocation.NodeID, start.Allocation.CapabilityRequirements, start.Allocation.Workspace)
 	if err != nil {
 		actionNow := r.now().UTC()
 		if req, ok := allocationkernel.ScheduleCreateRetryRequest(item.AllocationID, item.ReconcileAttempts, err.Error(), actionNow); ok {
@@ -184,25 +184,26 @@ func (r *reconciler) reconcileStart(ctx context.Context, item allocationkernel.R
 
 func (r *reconciler) reconcileDeleteRetry(ctx context.Context, item allocationkernel.ReconcileItem) error {
 	if item.LifecycleState == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
-		if err := r.lifecycle.AcknowledgeAllocationRelease(ctx, item.NodeTarget, item.AllocationID, item.NodeID); err != nil {
+		if err := r.lifecycle.AcknowledgeAllocationRelease(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.Workspace); err != nil {
 			actionNow := r.now().UTC()
 			updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, err.Error(), actionNow), item.ClaimOwner, actionNow)
 			return claimedUpdateError(updated, scheduleErr)
 		}
 		return r.store.CompleteAllocationReleaseAcknowledgement(ctx, item.AllocationID, item.ClaimOwner, r.now().UTC())
 	}
-	snapshot, err := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest(), item.RootfsSnapshotSealingRequest())
+	snapshot, err := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest(), item.RootfsSnapshotSealingRequest(), item.Workspace)
 	if err != nil {
 		actionNow := r.now().UTC()
 		if item.RootfsSnapshotRequested && (rootfsSnapshotFailureIsPermanent(err) || (rootfsSnapshotPublicationRetry(err) && allocationkernel.RootfsSnapshotRetryExhausted(item.ReconcileAttempts))) {
 			if markErr := r.store.MarkRootfsSnapshotFailed(ctx, item.AllocationID, item.ClaimOwner, rootfsSnapshotFailureMessage(err), actionNow); markErr != nil {
 				return markErr
 			}
-			if _, cleanupErr := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest(), nil); cleanupErr != nil {
+			release, cleanupErr := r.lifecycle.DeleteAllocation(ctx, item.NodeTarget, item.AllocationID, item.NodeID, item.OutputSealingRequest(), nil, item.Workspace)
+			if cleanupErr != nil {
 				updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, cleanupErr.Error(), actionNow), item.ClaimOwner, actionNow)
 				return claimedUpdateError(updated, scheduleErr)
 			}
-			return r.store.CompleteAllocationRelease(ctx, item.AllocationID, item.ClaimOwner, nil, actionNow)
+			return r.store.CompleteAllocationRelease(ctx, item.AllocationID, item.ClaimOwner, release, actionNow)
 		}
 		updated, scheduleErr := r.store.ScheduleClaimedReconcile(ctx, allocationkernel.ScheduleDeleteRetryRequest(item.AllocationID, err.Error(), actionNow), item.ClaimOwner, actionNow)
 		return claimedUpdateError(updated, scheduleErr)

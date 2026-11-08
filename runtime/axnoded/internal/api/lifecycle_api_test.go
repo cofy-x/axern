@@ -58,7 +58,7 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 	t.Parallel()
 
 	server := NewNodeLifecycleServer(&fakeNodeLifecycleService{startResponseID: "container-alias"}, "node-a")
-	_, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	_, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "alloc-123",
 		NodeID:                   "node-a",
 		ExecutionLeaseTtlSeconds: 30,
@@ -67,7 +67,7 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 		},
 	})
 	if grpcstatus.Code(err) != codes.Internal {
-		t.Fatalf("CreateAllocation() code = %v, want internal", grpcstatus.Code(err))
+		t.Fatalf("AdmitAllocation() code = %v, want internal", grpcstatus.Code(err))
 	}
 }
 
@@ -76,36 +76,36 @@ func TestNodeLifecycleCreateAllocationRequiresLeaseOnlyForControlPlaneBinding(t 
 
 	localService := &fakeNodeLifecycleService{}
 	localServer := NewLocalNodeLifecycleServer(localService, "node-a")
-	if _, err := localServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	if _, err := localServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID: "local-conformance",
 		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	}); err != nil {
-		t.Fatalf("local CreateAllocation() error = %v", err)
+		t.Fatalf("local AdmitAllocation() error = %v", err)
 	}
-	if _, err := localServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	if _, err := localServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "local-with-lease",
 		ExecutionLeaseTtlSeconds: 30,
 		Config:                   &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	}); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("local CreateAllocation() with lease code = %v, want invalid argument", grpcstatus.Code(err))
+		t.Fatalf("local AdmitAllocation() with lease code = %v, want invalid argument", grpcstatus.Code(err))
 	}
 
 	boundServer := NewNodeLifecycleServer(&fakeNodeLifecycleService{}, "node-a")
-	if _, err := boundServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	if _, err := boundServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID: "remote-without-binding",
 		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	}); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("remote CreateAllocation() without binding code = %v, want invalid argument", grpcstatus.Code(err))
+		t.Fatalf("remote AdmitAllocation() without binding code = %v, want invalid argument", grpcstatus.Code(err))
 	}
 	for _, ttl := range []int64{0, 31} {
-		_, err := boundServer.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+		_, err := boundServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 			AllocationID:             "bound-invalid-lease",
 			NodeID:                   "node-a",
 			ExecutionLeaseTtlSeconds: ttl,
 			Config:                   &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 		})
 		if grpcstatus.Code(err) != codes.InvalidArgument {
-			t.Fatalf("bound CreateAllocation() ttl %d code = %v, want invalid argument", ttl, grpcstatus.Code(err))
+			t.Fatalf("bound AdmitAllocation() ttl %d code = %v, want invalid argument", ttl, grpcstatus.Code(err))
 		}
 	}
 }
@@ -115,12 +115,12 @@ func TestLocalNodeLifecycleCannotOperateControlPlaneAllocation(t *testing.T) {
 	service := &fakeNodeLifecycleService{controlPlaneIDs: map[string]bool{"alloc-bound": true}}
 	server := NewLocalNodeLifecycleServer(service, "node-a")
 
-	_, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	_, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID: "alloc-bound",
 		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
-		t.Fatalf("CreateAllocation() code = %v, want permission denied", grpcstatus.Code(err))
+		t.Fatalf("AdmitAllocation() code = %v, want permission denied", grpcstatus.Code(err))
 	}
 	if _, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{AllocationID: "alloc-bound"}); grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("DeleteAllocation() code = %v, want permission denied", grpcstatus.Code(err))
@@ -185,7 +185,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	server := NewNodeLifecycleServer(fakeService, "node-a")
 
-	resp, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	resp, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "alloc-123",
 		NodeID:                   "node-a",
 		ExecutionLeaseTtlSeconds: 30,
@@ -217,7 +217,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("CreateAllocation() error = %v", err)
+		t.Fatalf("AdmitAllocation() error = %v", err)
 	}
 	if resp.GetAllocationID() != "alloc-123" {
 		t.Fatalf("allocation response = %#v", resp)
@@ -270,7 +270,7 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 	fakeService := &fakeNodeLifecycleService{}
 	server := NewNodeLifecycleServer(fakeService, "node-a")
 
-	_, err := server.CreateAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	_, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "alloc-image-default",
 		NodeID:                   "node-a",
 		ExecutionLeaseTtlSeconds: 30,
@@ -280,7 +280,7 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("CreateAllocation() error = %v", err)
+		t.Fatalf("AdmitAllocation() error = %v", err)
 	}
 	if len(fakeService.startRequests) != 1 {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))

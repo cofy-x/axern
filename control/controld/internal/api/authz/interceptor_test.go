@@ -21,6 +21,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -128,6 +129,7 @@ func TestEveryRegisteredPublicMethodHasExplicitPolicy(t *testing.T) {
 		&identityv1.IdentityControl_ServiceDesc, &namespacev1.NamespaceControl_ServiceDesc,
 		&quotav1.QuotaControl_ServiceDesc, &runv1.RunControl_ServiceDesc,
 		&secretv1.SecretControl_ServiceDesc, &tunnelv1.TunnelControl_ServiceDesc,
+		&workspacev1.WorkspaceControl_ServiceDesc,
 	}
 	for _, service := range services {
 		for _, method := range service.Methods {

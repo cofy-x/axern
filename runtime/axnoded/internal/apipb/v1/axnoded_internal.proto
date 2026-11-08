@@ -7,6 +7,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 import "axern/control/environment/v1/environment.proto";
 import "axern/control/capability/v1/capability.proto";
 import "axern/control/common/v1/common.proto";
+import "axern/private/node/lifecycle/v1/lifecycle.proto";
 import "google/protobuf/timestamp.proto";
 
 enum RootfsSrcType {
@@ -122,6 +123,7 @@ message AllocationState {
   string termination_message = 12;
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 13;
   axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 14;
+  axern.private.node.lifecycle.v1.WorkspaceBinding workspace = 15;
 }
 
 // RootfsSnapshotReceipt is the minimal durable response retained after runtime

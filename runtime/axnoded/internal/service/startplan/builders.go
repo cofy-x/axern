@@ -116,6 +116,9 @@ func ValidateStartRequest(request *runtime.StartRequest) error {
 	case request.Environment.Rootfs == nil:
 		return errord.ErrInvalidArgument
 	}
+	if err := validateWorkspace(request); err != nil {
+		return err
+	}
 	if credential := strings.TrimSpace(request.GetRegistryCredential().GetDockerConfigJson()); credential != "" {
 		var dockerConfig map[string]json.RawMessage
 		if err := json.Unmarshal([]byte(credential), &dockerConfig); err != nil || dockerConfig == nil {

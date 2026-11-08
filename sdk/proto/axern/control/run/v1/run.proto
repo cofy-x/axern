@@ -7,6 +7,7 @@ option go_package = "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1;run
 import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
 import "axern/control/environment/v1/environment.proto";
+import "axern/control/workspace/v1/workspace.proto";
 import "google/protobuf/timestamp.proto";
 
 enum RunStatus {
@@ -64,6 +65,7 @@ message Run {
   // Node-local stdout/stderr availability deadline; node loss may make bytes unavailable earlier.
   google.protobuf.Timestamp output_expires_at = 17;
   RootfsSnapshotResult rootfs_snapshot = 18;
+  axern.control.workspace.v1.WorkspaceAttachment workspace_attachment = 19;
 }
 
 message RunListFilter {
@@ -79,6 +81,7 @@ message CreateRunRequest {
   string environment_id = 2;
   axern.control.common.v1.ExecutionConfig config = 3;
   map<string, string> labels = 4;
+  string workspace_id = 5;
 }
 
 message CreateRunResponse {
@@ -120,7 +123,9 @@ message CancelRunResponse {
 }
 
 service RunControl {
-  rpc CreateRun(CreateRunRequest) returns (CreateRunResponse) {}
+  // The changed method name makes required Workspace intent non-ignorable by
+  // older servers; high-level clients retain their CreateRun operation.
+  rpc AdmitRun(CreateRunRequest) returns (CreateRunResponse) {}
   rpc GetRun(GetRunRequest) returns (GetRunResponse) {}
   rpc WatchRun(WatchRunRequest) returns (stream WatchRunResponse) {}
   rpc ListRuns(ListRunsRequest) returns (ListRunsResponse) {}

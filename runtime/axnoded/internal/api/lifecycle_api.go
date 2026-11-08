@@ -37,6 +37,10 @@ type serviceLike interface {
 	IsControlPlaneAllocation(string) bool
 	List(context.Context, *runtimev1.ListContainersRequest) (*runtimev1.ListContainersResponse, error)
 	ReconcileAllocationCapabilities(context.Context, string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error)
+	ProvisionWorkspace(context.Context, *nodelifecyclev1.ProvisionWorkspaceRequest) (*nodelifecyclev1.ProvisionWorkspaceResponse, error)
+	InspectWorkspace(context.Context, *nodelifecyclev1.InspectWorkspaceRequest) (*nodelifecyclev1.InspectWorkspaceResponse, error)
+	DeleteWorkspace(context.Context, *nodelifecyclev1.DeleteWorkspaceRequest) (*nodelifecyclev1.DeleteWorkspaceResponse, error)
+	AcknowledgeWorkspaceCleanup(string, *nodelifecyclev1.WorkspaceCleanupReceipt) error
 }
 
 const (
@@ -70,7 +74,7 @@ func NewLocalNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1
 	}
 }
 
-func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
+func (s *nodeLifecycleServer) AdmitAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
 	totalStarted := time.Now()
 	runtimeClass := "runsc"
 	var resultErr error
@@ -82,6 +86,9 @@ func (s *nodeLifecycleServer) CreateAllocation(ctx context.Context, req *nodelif
 		resultErr = grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 		recordLifecycleStage(lifecycleOperationCreate, lifecycleStageValidateRequest, runtimeClass, stageStarted, resultErr)
 		return nil, resultErr
+	}
+	if s.allowLocal && req.GetConfig().GetWorkspace() != nil {
+		return nil, grpcstatus.Error(codes.PermissionDenied, "conformance cannot attach a persistent Workspace")
 	}
 	requestNodeID := strings.TrimSpace(req.GetNodeID())
 	leaseTTL := time.Duration(req.GetExecutionLeaseTtlSeconds()) * time.Second
@@ -206,7 +213,7 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageValidateRequest, "", stageStarted, nil)
 	stageStarted = time.Now()
-	deleteRequest := &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds()}
+	deleteRequest := &runtimev1.DeleteRequest{ID: req.GetAllocationID(), Timeout: req.GetTimeoutSeconds(), Workspace: cloneWorkspaceBinding(req.GetWorkspace())}
 	if outputSealing := req.GetOutputSealing(); outputSealing != nil {
 		deleteRequest.OutputSealing = &runtimev1.OutputSealingRequest{
 			ExpiresAtUnixNano: outputSealing.GetExpiresAtUnixNano(),
@@ -231,6 +238,9 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 	}
 	if err != nil {
 		if allocationDeleteNotFound(err) {
+			if req.GetWorkspace() != nil {
+				return nil, grpcstatus.Error(codes.FailedPrecondition, "Workspace cleanup requires an exact durable receipt")
+			}
 			recordLifecycleStage(lifecycleOperationDelete, lifecycleStageServiceDelete, "", stageStarted, nil)
 			return &nodelifecyclev1.DeleteAllocationResponse{}, nil
 		}
@@ -246,7 +256,10 @@ func (s *nodeLifecycleServer) DeleteAllocation(ctx context.Context, req *nodelif
 		return nil, err
 	}
 	recordLifecycleStage(lifecycleOperationDelete, lifecycleStageConfirmDeleted, "", stageStarted, nil)
-	result := &nodelifecyclev1.DeleteAllocationResponse{}
+	if req.GetWorkspace() != nil && response.GetWorkspaceCleanup() == nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "Workspace cleanup receipt is missing")
+	}
+	result := &nodelifecyclev1.DeleteAllocationResponse{WorkspaceCleanup: response.GetWorkspaceCleanup()}
 	if snapshot := response.GetRootfsSnapshot(); snapshot != nil {
 		result.RootfsSnapshot = &nodelifecyclev1.RootfsSnapshotSealingResult{
 			ImageRef: snapshot.GetImageRef(), ImageDescriptor: cloneOCIImageDescriptor(snapshot.GetImageDescriptor()),
@@ -269,6 +282,14 @@ func (s *nodeLifecycleServer) AcknowledgeAllocationRelease(_ context.Context, re
 	}
 	if err := s.svc.AcknowledgeControlPlaneAllocationRelease(allocationID, nodeID); err != nil {
 		return nil, err
+	}
+	if receipt := req.GetWorkspaceCleanup(); receipt != nil {
+		if receipt.GetAllocationID() != allocationID {
+			return nil, grpcstatus.Error(codes.InvalidArgument, "Workspace receipt Allocation does not match acknowledgement")
+		}
+		if err := s.svc.AcknowledgeWorkspaceCleanup(nodeID, receipt); err != nil {
+			return nil, err
+		}
 	}
 	return &nodelifecyclev1.AcknowledgeAllocationReleaseResponse{}, nil
 }
@@ -377,6 +398,7 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 		CapabilityRequirements: cloneCapabilityRequirements(spec.GetCapabilityRequirements()),
 		DeclaredOutputs:        cloneDeclaredOutputs(spec.GetDeclaredOutputs()),
 		RootfsSnapshot:         cloneRootfsSnapshot(spec.GetRootfsSnapshot()),
+		Workspace:              cloneWorkspaceBinding(spec.GetWorkspace()),
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(
 			spec.GetExtensionCapabilityRequirements(),
 		),
@@ -605,4 +627,11 @@ func cloneResolvedSecretFiles(in []*nodelifecyclev1.ResolvedSecretFile) []*runti
 		out = append(out, &runtimev1.ResolvedSecretFile{Path: item.GetPath(), Content: append([]byte(nil), item.GetContent()...), Mode: item.GetMode()})
 	}
 	return out
+}
+
+func cloneWorkspaceBinding(in *nodelifecyclev1.WorkspaceBinding) *nodelifecyclev1.WorkspaceBinding {
+	if in == nil {
+		return nil
+	}
+	return proto.Clone(in).(*nodelifecyclev1.WorkspaceBinding)
 }

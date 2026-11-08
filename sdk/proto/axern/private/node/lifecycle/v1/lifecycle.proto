@@ -37,11 +37,57 @@ message RegistryCredential {
 }
 
 service NodeLifecycle {
-  rpc CreateAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
+  rpc AdmitAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
   rpc DeleteAllocation(DeleteAllocationRequest) returns (DeleteAllocationResponse) {}
   rpc AcknowledgeAllocationRelease(AcknowledgeAllocationReleaseRequest) returns (AcknowledgeAllocationReleaseResponse) {}
   rpc GetAllocationLifecycle(GetAllocationLifecycleRequest) returns (GetAllocationLifecycleResponse) {}
+  rpc ProvisionWorkspace(ProvisionWorkspaceRequest) returns (ProvisionWorkspaceResponse) {}
+  rpc InspectWorkspace(InspectWorkspaceRequest) returns (InspectWorkspaceResponse) {}
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse) {}
 }
+
+message WorkspaceSpec {
+  string workspace_id = 1;
+  string namespace = 2;
+  string node_id = 3;
+  int64 capacity_bytes = 4;
+  int64 inode_limit = 5;
+  string storage_root_identity = 6;
+}
+
+message WorkspaceBinding {
+  WorkspaceSpec spec = 1;
+  string storage_identity = 2;
+  int64 generation = 3;
+  string target = 4;
+}
+
+message WorkspaceCleanupReceipt {
+  string workspace_id = 1;
+  string allocation_id = 2;
+  int64 generation = 3;
+  string storage_identity = 4;
+}
+
+message ProvisionWorkspaceRequest { WorkspaceSpec spec = 1; }
+message ProvisionWorkspaceResponse {
+  string storage_identity = 1;
+  int64 used_bytes = 2;
+  int64 used_inodes = 3;
+}
+message InspectWorkspaceRequest {
+  WorkspaceSpec spec = 1;
+  string storage_identity = 2;
+}
+message InspectWorkspaceResponse {
+  int64 used_bytes = 1;
+  int64 used_inodes = 2;
+}
+message DeleteWorkspaceRequest {
+  WorkspaceSpec spec = 1;
+  string storage_identity = 2;
+}
+message DeleteWorkspaceResponse {}
 
 message ResolvedExecutionConfig {
   string environment_id = 1;
@@ -67,6 +113,7 @@ message ResolvedExecutionConfig {
   repeated axern.control.capability.v1.CapabilityRequirement capability_requirements = 21;
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 22;
   axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 23;
+  WorkspaceBinding workspace = 24;
 }
 
 message CreateAllocationRequest {
@@ -108,15 +155,18 @@ message DeleteAllocationRequest {
   int64 timeout_seconds = 3;
   OutputSealingRequest output_sealing = 4;
   RootfsSnapshotSealingRequest rootfs_snapshot_sealing = 5;
+  WorkspaceBinding workspace = 6;
 }
 
 message DeleteAllocationResponse {
   RootfsSnapshotSealingResult rootfs_snapshot = 1;
+  WorkspaceCleanupReceipt workspace_cleanup = 2;
 }
 
 message AcknowledgeAllocationReleaseRequest {
   string allocation_id = 1;
   string node_id = 2;
+  WorkspaceCleanupReceipt workspace_cleanup = 3;
 }
 
 message AcknowledgeAllocationReleaseResponse {}

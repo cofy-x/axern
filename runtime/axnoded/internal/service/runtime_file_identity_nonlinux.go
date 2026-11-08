@@ -2,7 +2,12 @@
 
 package service
 
-import "os"
+import (
+	"os"
+	"time"
+)
+
+func runtimeFileMetadataCacheable(os.FileInfo, time.Time) bool { return false }
 
 // Production conformance runs on Linux. Other hosts retain a conservative
 // cache for unit tests and local tooling; replacement, size, mode, or mtime

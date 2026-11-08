@@ -97,3 +97,18 @@ func TestRenderNamespaceQuotaEventUsesExistingEnvironmentIdentity(t *testing.T) 
 		t.Fatalf("event output contains removed pseudo-Run identity:\n%s", out.String())
 	}
 }
+
+func TestRetainedQuotaIsVisibleSeparatelyFromEphemeralStorage(t *testing.T) {
+	quota := &quotav1.NamespaceQuota{Namespace: "retained", PersistentStorageBytesLimit: wrapperspb.Int64(1 << 30), UsedPersistentStorageBytes: 1 << 29, PersistentStorageInodesLimit: wrapperspb.Int64(1000), UsedPersistentStorageInodes: 900}
+	var out bytes.Buffer
+	RenderNamespaceQuota(&out, quota)
+	for _, text := range []string{"Persistent Storage Limit: 1GiB", "Persistent Storage Used: 512MiB", "Persistent Inodes Used: 900"} {
+		if !strings.Contains(out.String(), text) {
+			t.Fatalf("retained capacity missing %q: %s", text, out.String())
+		}
+	}
+	value := NewNamespaceQuotaJSON(quota)
+	if value.UsedPersistentStorageBytes != 1<<29 || value.UsedPersistentStorageInodes != 900 || *value.PersistentStorageInodesLimit != 1000 {
+		t.Fatalf("retained quota JSON omitted: %+v", value)
+	}
+}

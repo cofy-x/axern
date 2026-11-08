@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	pgworkspace "github.com/cofy-x/axern/control/controld/internal/postgres/workspace"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	"strings"
 	"time"
 
@@ -21,16 +23,22 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, snapshot *allocationkernel.RootfsSnapshotResult, now time.Time) error {
+func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, claimOwner string, release *allocationkernel.ReleaseResult, now time.Time) error {
 	allocationID = strings.TrimSpace(allocationID)
+	var snapshot *allocationkernel.RootfsSnapshotResult
+	var receipt *nodelifecyclev1.WorkspaceCleanupReceipt
+	if release != nil {
+		snapshot = release.RootfsSnapshot
+		receipt = release.WorkspaceCleanup
+	}
 	return s.withTx(ctx, func(tx pgx.Tx) error {
 		var stateText, runID, namespace, runStatus string
-		var configJSON, resolvedEnvironmentJSON, currentSnapshotJSON []byte
+		var configJSON, resolvedEnvironmentJSON, currentSnapshotJSON, workspaceJSON []byte
 		if err := tx.QueryRow(ctx, `
-			SELECT a.lifecycle_state, r.run_id, r.namespace, r.status, r.config, r.resolved_environment_spec, r.rootfs_snapshot_result
+			SELECT a.lifecycle_state, r.run_id, r.namespace, r.status, r.config, r.resolved_environment_spec, r.rootfs_snapshot_result,r.workspace_binding
 			FROM allocations a JOIN runs r ON r.run_id = a.run_id
 			WHERE a.allocation_id = $1 FOR UPDATE OF a, r
-		`, allocationID).Scan(&stateText, &runID, &namespace, &runStatus, &configJSON, &resolvedEnvironmentJSON, &currentSnapshotJSON); errors.Is(err, pgx.ErrNoRows) {
+		`, allocationID).Scan(&stateText, &runID, &namespace, &runStatus, &configJSON, &resolvedEnvironmentJSON, &currentSnapshotJSON, &workspaceJSON); errors.Is(err, pgx.ErrNoRows) {
 			return grpcstatus.Errorf(codes.NotFound, "allocation %q not found", allocationID)
 		} else if err != nil {
 			return fmt.Errorf("lock allocation release: %w", err)
@@ -43,7 +51,18 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 			state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASED {
 			return grpcstatus.Errorf(codes.FailedPrecondition, "allocation %q cannot be released from lifecycle state %s", allocationID, stateText)
 		}
+		var binding *nodelifecyclev1.WorkspaceBinding
+		decoded := &nodelifecyclev1.WorkspaceBinding{}
+		if err := protojson.Unmarshal(workspaceJSON, decoded); err != nil {
+			return err
+		}
+		if decoded.GetSpec() != nil {
+			binding = decoded
+		}
 		if state == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING {
+			if err := pgworkspace.ReleaseWriter(ctx, tx, binding, allocationID, receipt, now); err != nil {
+				return err
+			}
 			if _, err := tx.Exec(ctx, `
 			UPDATE allocations
 			SET lifecycle_state = $2, updated_at = $3
@@ -56,7 +75,7 @@ func (s *Store) CompleteAllocationRelease(ctx context.Context, allocationID, cla
 		if err := protojson.Unmarshal(configJSON, config); err != nil {
 			return fmt.Errorf("decode released run config: %w", err)
 		}
-		keepForAcknowledgement := false
+		keepForAcknowledgement := binding != nil
 		currentSnapshot := &runv1.RootfsSnapshotResult{}
 		if err := protojson.Unmarshal(currentSnapshotJSON, currentSnapshot); err != nil {
 			return fmt.Errorf("decode current rootfs snapshot result: %w", err)

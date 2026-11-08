@@ -34,6 +34,7 @@ type NodeResourceQuantity struct {
 }
 
 type NodeInfo struct {
+	WorkspaceStorage   *nodev1.WorkspaceStorage         `json:"workspace_storage,omitempty"`
 	NodeID             string                           `json:"node_id"`
 	Name               string                           `json:"name"`
 	CollectedAt        time.Time                        `json:"collected_at"`

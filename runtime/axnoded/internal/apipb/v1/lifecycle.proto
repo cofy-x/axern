@@ -7,6 +7,7 @@ option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;a
 import "internal/apipb/v1/axnoded_internal.proto";
 import "axern/control/common/v1/common.proto";
 import "axern/control/capability/v1/capability.proto";
+import "axern/private/node/lifecycle/v1/lifecycle.proto";
 
 message StartRequest {
   ResolvedEnvironment environment = 1;
@@ -27,6 +28,7 @@ message StartRequest {
   int64 execution_lease_ttl_seconds = 16;
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 17;
   axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 18;
+  axern.private.node.lifecycle.v1.WorkspaceBinding workspace = 19;
 }
 
 message RegistryCredential {
@@ -64,10 +66,12 @@ message DeleteRequest {
   int64 timeout = 2;
   OutputSealingRequest output_sealing = 3;
   RootfsSnapshotSealingRequest rootfs_snapshot_sealing = 4;
+  axern.private.node.lifecycle.v1.WorkspaceBinding workspace = 5;
 }
 
 message DeleteResponse {
   RootfsSnapshotSealingResult rootfs_snapshot = 1;
+  axern.private.node.lifecycle.v1.WorkspaceCleanupReceipt workspace_cleanup = 2;
 }
 
 message KillRequest {

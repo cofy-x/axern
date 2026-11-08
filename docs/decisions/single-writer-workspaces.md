@@ -2,7 +2,7 @@
 
 ## Status And Decision
 
-This is the design boundary for the first persistent Workspace implementation. Workspace APIs, persistent mounts and the storage enforcement described here are not currently available. The implemented storage behavior remains defined by [Storage Architecture](../architecture/storage-architecture.md). No client may infer support from this document or send a field that an older server could silently ignore.
+This decision defines experimental managed Workspaces: independent identity and retained capacity, one fenced writer, and node-managed XFS project quotas. The implemented behavior is defined by [Storage Architecture](../architecture/storage-architecture.md). The creation protocol uses required admission RPCs; an older server rejects it before creating an ephemeral execution. Supported upgrades, cold backup and replacement-host restore remain unqualified; this feature does not promise durability against host or disk loss.
 
 A Workspace is namespace-scoped retained data on one managed Linux host. PostgreSQL owns its identity, lifecycle, capacity charge and attachment authority; axnoded owns the bytes, enforced quota and mount observations. Environment remains immutable input, and execution remains `Environment -> Run -> Allocation`. Agent tasks, configuration, conversations, approvals and semantic retries stay in the caller.
 

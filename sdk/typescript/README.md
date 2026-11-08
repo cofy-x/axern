@@ -64,6 +64,12 @@ try {
 }
 ```
 
+## Managed Workspaces
+
+`createWorkspace`, `getWorkspace`, `listWorkspaces` and `deleteWorkspace` expose experimental retained data on a configured XFS Node. Use `workspaceId` and a finite `limitMemory` such as `"512Mi"` when creating a Sandbox or Run. Capacity inputs accept safe integer numbers, bigint or exact decimal int64 strings; returned int64 Workspace values remain strings.
+
+`waitWorkspaceReady(id)` observes ready data with no attached writer. It does not reserve an attachment or retry mutations. Close the previous Sandbox, wait for confirmed cleanup, then create a fresh Run/Allocation with the same Workspace. Closing a Sandbox never deletes its Workspace. See the [Workspace guide](../../apps/docs/src/content/docs/guides/workspaces.md) for the full example, quota and maintenance boundaries.
+
 ## Network Policies
 
 Omitting `networkPolicy` requests unrestricted networking. Strict policies are fail-closed; `denyDns` only refuses matching traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved addresses.

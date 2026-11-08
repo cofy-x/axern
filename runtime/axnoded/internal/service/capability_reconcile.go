@@ -189,6 +189,9 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 				if capabilityAuditShard(allocationID) != currentAuditShard {
 					continue
 				}
+				if h.auditWorkspaceAttachment(allocationID) {
+					continue
+				}
 				keys := periodicCapabilityAuditKeys(dependencies)
 				if len(keys) == 0 {
 					continue
@@ -642,4 +645,18 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 		h.startCapabilityReconcileWorker(allocationID)
 	}
 	return dependencies, set, nil
+}
+
+func (h *sandboxService) auditWorkspaceAttachment(allocationID string) bool {
+	controller := h.allocationController()
+	if controller.WorkspaceBinding(allocationID) == nil {
+		return false
+	}
+	unlock := controller.LockAllocationLifecycle(allocationID)
+	defer unlock()
+	if err := controller.VerifyWorkspaceAttachment(allocationID); err != nil {
+		_ = h.scheduleCapabilityTermination(allocationID, err)
+		return true
+	}
+	return false
 }

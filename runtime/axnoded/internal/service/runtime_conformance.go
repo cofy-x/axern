@@ -88,16 +88,21 @@ func (c *runtimeFileDigestCache) Digest(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	cacheable := runtimeFileMetadataCacheable(info, time.Now())
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if cached, ok := c.entries[path]; ok && runtimeFileMetadataEqual(cached.info, info) {
+	if cached, ok := c.entries[path]; ok && cacheable && runtimeFileMetadataEqual(cached.info, info) {
 		return cached.digest, nil
 	}
 	digest, err := digestFile(path)
 	if err != nil {
 		return "", err
 	}
-	c.entries[path] = runtimeFileDigestEntry{info: info, digest: digest}
+	if cacheable {
+		c.entries[path] = runtimeFileDigestEntry{info: info, digest: digest}
+	} else {
+		delete(c.entries, path)
+	}
 	return digest, nil
 }
 

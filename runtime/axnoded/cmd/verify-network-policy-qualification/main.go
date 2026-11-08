@@ -330,7 +330,7 @@ func runSandboxSample(cfg config, clients *verifyutil.NodeClients, policy *commo
 	}
 	startCtx, cancelStart := context.WithTimeout(context.Background(), cfg.startupTimeout)
 	started := time.Now()
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, id, spec)
+	handle, err := verifyutil.AdmitAllocation(startCtx, clients, id, spec)
 	startMS := milliseconds(time.Since(started))
 	cancelStart()
 	if err != nil {

@@ -2,6 +2,7 @@ package quota
 
 import (
 	"fmt"
+	"math/bits"
 	"sort"
 	"strings"
 
@@ -75,11 +76,11 @@ func quotaUpdatedUnix(quota *quotav1.NamespaceQuota) int64 {
 }
 
 func quotaConstrained(quota *quotav1.NamespaceQuota) bool {
-	return quota.GetCpuMilliLimit() != nil || quota.GetMemoryBytesLimit() != nil || quota.GetEphemeralStorageBytesLimit() != nil
+	return quota.GetCpuMilliLimit() != nil || quota.GetMemoryBytesLimit() != nil || quota.GetEphemeralStorageBytesLimit() != nil || quota.GetPersistentStorageBytesLimit() != nil || quota.GetPersistentStorageInodesLimit() != nil
 }
 
 func quotaUsed(quota *quotav1.NamespaceQuota) bool {
-	return quota.GetUsedCpuMilli() > 0 || quota.GetUsedMemoryBytes() > 0 || quota.GetUsedEphemeralStorageBytes() > 0
+	return quota.GetUsedCpuMilli() > 0 || quota.GetUsedMemoryBytes() > 0 || quota.GetUsedEphemeralStorageBytes() > 0 || quota.GetUsedPersistentStorageBytes() > 0 || quota.GetUsedPersistentStorageInodes() > 0
 }
 
 func quotaPressurePercent(quota *quotav1.NamespaceQuota) int64 {
@@ -87,6 +88,8 @@ func quotaPressurePercent(quota *quotav1.NamespaceQuota) int64 {
 		quotaUsagePercent(quota.GetUsedCpuMilli(), quota.GetCpuMilliLimit()),
 		quotaUsagePercent(quota.GetUsedMemoryBytes(), quota.GetMemoryBytesLimit()),
 		quotaUsagePercent(quota.GetUsedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
+		quotaUsagePercent(quota.GetUsedPersistentStorageBytes(), quota.GetPersistentStorageBytesLimit()),
+		quotaUsagePercent(quota.GetUsedPersistentStorageInodes(), quota.GetPersistentStorageInodesLimit()),
 	)
 }
 
@@ -94,9 +97,10 @@ func quotaUsagePercent(used int64, limit *wrapperspb.Int64Value) int64 {
 	if limit == nil || limit.GetValue() <= 0 || used <= 0 {
 		return 0
 	}
-	percent := (used * 100) / limit.GetValue()
-	if percent > 100 {
+	if used >= limit.GetValue() {
 		return 100
 	}
-	return percent
+	hi, lo := bits.Mul64(uint64(used), 100)
+	percent, _ := bits.Div64(hi, lo, uint64(limit.GetValue()))
+	return int64(percent)
 }

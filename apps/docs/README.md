@@ -34,13 +34,13 @@ The social preview is generated from the editable SVG source. Regenerate its che
 make docs-social-card
 ```
 
-Regenerate the terminal GIFs from their checked-in VHS tapes with:
+Regenerate the CLI command reference from the freshly built source CLI with:
 
 ```bash
 make docs-assets
 ```
 
-The recordings show help from the freshly built source CLI, not deployed workloads or performance evidence. Keep each scene short enough to read without clipped or wrapped flags, clear the terminal between scenes, and exclude local configuration paths. Run `make docs-verify` after recording finishes, then inspect the resulting GIFs; asset checks validate file structure, not the meaning or legibility of terminal output. The root README uses a static execution-model SVG and these same CLI recordings rather than a separate simulated terminal animation.
+The generated SVG uses actual command help and requires only Python's standard library. It shows command groups, not a deployed workload or performance measurement. Run `make docs-verify` after changing the reference.
 
 ## Publication
 

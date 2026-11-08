@@ -46,6 +46,7 @@ export interface SandboxOptions {
   client: AxernClient;
   image?: string;
   environmentId?: string;
+  workspaceId?: string;
   namespace?: string;
   argv?: string[];
   env?: Record<string, string>;
@@ -71,6 +72,8 @@ export interface SandboxState {
   runId: string;
   allocationId: string;
   startedAt: Date;
+  workspaceId?: string;
+  workspaceGeneration?: string;
 }
 
 export interface SandboxMetadata extends SandboxState {
@@ -131,6 +134,7 @@ export class Sandbox {
       const run = await this.client.createRun({
         namespace: this.options.namespace,
         environmentId,
+        workspaceId: this.options.workspaceId,
         argv: this.options.argv ?? defaultSandboxArgv,
         env: this.options.env,
         cwd: this.options.cwd,
@@ -151,10 +155,13 @@ export class Sandbox {
         this.options.readyTimeoutMs ?? 180_000,
         (runId, signal) => this.client.watchRun(runId, { signal }),
       );
+      const workspaceAttachment = runningRun.workspace_attachment as Record<string, unknown> | undefined;
       this.currentState = {
         environmentId,
         runId: this.runId,
         allocationId: String(runningRun.allocation_id ?? ""),
+        workspaceId: String(workspaceAttachment?.workspace_id ?? ""),
+        workspaceGeneration: String(workspaceAttachment?.generation ?? "0"),
         startedAt: new Date(),
       };
       this.currentMetadata = sandboxMetadata(this.options, this.currentState);

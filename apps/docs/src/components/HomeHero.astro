@@ -109,7 +109,7 @@ await sandbox.close();`,
     id: 'cli',
     label: 'CLI',
     language: 'cli',
-    code: `axern local up
+    code: `axern dev up
 axern run python:3.12-slim -- python -c 'print(42)'`,
   },
 ].map((example) => ({ ...example, highlighted: highlightCode(example.code, example.language) }));

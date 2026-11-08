@@ -56,7 +56,7 @@ func TestPostgresRunStaleNodeHeartbeatFailsRunThenReleasesAllocation(t *testing.
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -103,7 +103,7 @@ func TestPostgresRunStartCreateFailureRetriesBeforeFailing(t *testing.T) {
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -174,7 +174,7 @@ func TestPostgresRunCreateRetryExhaustionReleasesAllocation(t *testing.T) {
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})
@@ -217,7 +217,7 @@ func TestPostgresRunCancelAtomicallyReplacesCreateIntentWithDeleteIntent(t *test
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})
@@ -264,7 +264,7 @@ func TestPostgresAllocationReconcileClaimHasSingleOwnerAndExpires(t *testing.T) 
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := app.PublicV1Handler().CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := app.PublicV1Handler().AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/true"}},
 	})
@@ -348,7 +348,7 @@ func TestPostgresAllocationIntentChangeFencesClaimBeforeCleanup(t *testing.T) {
 	app.now = func() time.Time { return now }
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := app.PublicV1Handler().CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := app.PublicV1Handler().AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config:        &commonv1.ExecutionConfig{Argv: []string{"/bin/sleep", "60"}},
 	})
@@ -395,7 +395,7 @@ func TestPostgresRunCancelDeleteRetryEventuallyReleasesAllocationResources(t *te
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -460,7 +460,7 @@ func TestPostgresRunKernelCancelRevokesAccessGrantAndReleasesAllocationResources
 	public := app.PublicV1Handler()
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},
@@ -545,7 +545,7 @@ func TestPostgresRunStartingAllocationInActiveInventoryDoesNotFail(t *testing.T)
 
 	registerReadyNode(t, app, "node-a", now)
 	env := createDefaultEnvironment(t, app)
-	runResp, err := public.CreateRun(context.Background(), &runv1.CreateRunRequest{
+	runResp, err := public.AdmitRun(context.Background(), &runv1.CreateRunRequest{
 		EnvironmentID: env.GetID(),
 		Config: &commonv1.ExecutionConfig{
 			Argv: []string{"/bin/sleep", "60"},

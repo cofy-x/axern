@@ -30,6 +30,9 @@ var (
 )
 
 func (s *AxnodedSource) collectAxnodedInventory(now time.Time, snapshot *NodeInventorySnapshot) bool {
+	if s.workspaceStorage != nil {
+		snapshot.Node.WorkspaceStorage = s.workspaceStorage()
+	}
 	allContainers := s.container.List()
 	runningContainers := make([]*container.Container, 0)
 	for _, c := range allContainers {

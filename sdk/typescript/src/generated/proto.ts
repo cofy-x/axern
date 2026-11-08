@@ -22,6 +22,7 @@ const defaultProtoRootCandidates = [
 const protoFiles = [
   "axern/control/environment/v1/environment.proto",
   "axern/control/run/v1/run.proto",
+  "axern/control/workspace/v1/workspace.proto",
   "axern/control/tunnel/v1/tunnel.proto",
   "axern/node/sandbox/v1/node.proto",
   "axern/tunnel/v1/tunnel.proto",

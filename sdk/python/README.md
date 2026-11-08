@@ -82,9 +82,25 @@ with Sandbox(
 
 `NetworkPolicy.allow_domains("example.com", "*.example.com")` is strict: only HTTP/HTTPS traffic whose controlled DNS result and HTTP Host or TLS SNI match is allowed. Use `NetworkPolicy.strict(..., cidr_rules=(CIDRRule(...),))` for explicit TCP/UDP CIDR and port grants, and `NetworkPolicy.deny_all()` for no egress.
 
+## Managed Workspaces
+
+Create an experimental retained Workspace on a configured XFS Node, then pass `workspace_id` and a finite `limit_memory` to `Sandbox`. `AsyncAxernClient` and `AsyncSandbox` expose the same contract. The complete [Workspace guide](../../apps/docs/src/content/docs/guides/workspaces.md) covers configuration, fresh execution and deletion.
+
+```python
+workspace = client.create_workspace(
+    node_id="node-personal-01", capacity_bytes=1024**3, inode_limit=100000,
+)
+client.wait_workspace_ready(workspace.id)
+with Sandbox(client=client, image="python:3.12-slim", workspace_id=workspace.id, limit_memory="512Mi") as sandbox:
+    sandbox.write_text("/workspace/note.txt", "retained work\n")
+client.wait_workspace_ready(workspace.id)
+```
+
+The waiter observes ready data with no attached writer; it does not reserve an attachment or retry mutations. Closing a Sandbox preserves the Workspace. Reuse requires a new Run/Allocation; old handles remain stale. Delete explicitly with `delete_workspace`, then observe `deleted`. Backup, supported upgrades and replacement-host restore remain outside the experimental contract.
+
 ## Allocation-Local Files
 
-Writable files belong to the sandbox allocation and are not preserved across replacement or node loss. Use the file APIs while the sandbox is alive and explicitly download or publish outputs that must outlive it.
+Without a Workspace, writable files belong to the sandbox Allocation and are not preserved across replacement or node loss. Use the file APIs while the sandbox is alive and explicitly download or publish outputs that must outlive it.
 
 ```python
 from axern_sdk import Sandbox
@@ -378,3 +394,17 @@ fresh = client.create_run(
 The result is a normal Environment backed by a content-addressed OCI image, not a separate Snapshot object. Only writable rootfs changes are captured; bind and image mounts, Secret projections, kernel filesystems, active processes, sockets, and sessions are excluded. Failed or cancelled Runs produce no Environment. `Sandbox` does not expose this option because its close path cancels the long-lived Run.
 
 stdout/stderr use the same node-local retention lifecycle and have a combined 64 MiB readable limit. Python `exec()` collects at most 1 MiB per stream while continuing to drain the RPC and reports truncation; use `exec_stream()` or `process()` for larger output. `Sandbox.close()` requests Run cancellation and reports cleanup failures, but does not wait for the durable terminal state; call `wait_run()` explicitly when terminal confirmation matters.
+
+## Native Workspace Qualification
+
+Run the bounded public-API probe against an exclusive native installation with XFS project quota enabled. Supply the candidate SDK, an immutable OCI image containing Python 3, an explicit Node ID and a new evidence directory:
+
+```bash
+uv run --package axern-sdk python sdk/python/tests/e2e/workspace_smoke.py \
+  --transport-config /private/transport.json \
+  --node node-personal \
+  --image registry.example/python@sha256:IMMUTABLE_DIGEST \
+  --output-dir /private/new-workspace-result
+```
+
+The private transport JSON contains only `endpoint`, `tls_ca_cert`, `tls_cert`, `tls_key` and optional `tls_server_name`; certificate fields name files. The probe writes a private `report.json`, checks fresh execution identities, retained nonce/hash/hardlinks, writer and active-delete rejection, independent persistent charges, bounded block/inode exhaustion, explicit deletion and stale Allocation denial. It never invokes a model or executes downloaded data on the host. On failure it cancels only its labeled Runs and retains Workspace evidence. Public observations do not replace a host-kernel ownership audit or a consistent backup/restore qualification.

@@ -41,6 +41,7 @@ export interface CreateEnvironmentOptions {
 export interface CreateRunOptions {
   namespace?: string;
   environmentId: string;
+  workspaceId?: string;
   argv?: string[];
   env?: Record<string, string>;
   cwd?: string;
@@ -101,6 +102,52 @@ export interface ListResult<T> {
   nextCursor: string;
 }
 
+export interface CreateWorkspaceOptions {
+  namespace?: string;
+  nodeId: string;
+  capacityBytes: number | bigint | string;
+  inodeLimit: number | bigint | string;
+  labels?: Record<string, string>;
+}
+
+export interface Workspace {
+  id: string;
+  namespace: string;
+  nodeId: string;
+  status: "unspecified" | "provisioning" | "ready" | "unavailable" | "deleting" | "deleted";
+  capacityBytes: string;
+  inodeLimit: string;
+  generation: string;
+  attachedAllocationId: string;
+  usedBytes: string;
+  usedInodes: string;
+  message: string;
+  labels: Record<string, string>;
+}
+
+function positiveInt64(name: string, value: number | bigint | string): string {
+  if ((typeof value === "number" && !Number.isSafeInteger(value)) || !/^[0-9]+$/.test(String(value))) {
+    throw new Error(`${name} must be a positive int64 integer`);
+  }
+  const integer = BigInt(value);
+  if (integer <= 0n || integer > 9223372036854775807n) {
+    throw new Error(`${name} must be a positive int64 integer`);
+  }
+  return integer.toString();
+}
+
+function workspaceValue(value: Record<string, unknown>): Workspace {
+  const statuses: Workspace["status"][] = ["unspecified", "provisioning", "ready", "unavailable", "deleting", "deleted"];
+  return {
+    id: String(value.id ?? ""), namespace: String(value.namespace ?? ""), nodeId: String(value.node_id ?? ""),
+    status: statuses[Number(value.status ?? 0)] ?? "unspecified",
+    capacityBytes: String(value.capacity_bytes ?? "0"), inodeLimit: String(value.inode_limit ?? "0"),
+    generation: String(value.generation ?? "0"), attachedAllocationId: String(value.attached_allocation_id ?? ""),
+    usedBytes: String(value.used_bytes ?? "0"), usedInodes: String(value.used_inodes ?? "0"),
+    message: String(value.message ?? ""), labels: (value.labels ?? {}) as Record<string, string>,
+  };
+}
+
 export interface ExtensionCapability {
   name: string;
   value?: string;
@@ -123,6 +170,7 @@ export class AxernClient {
   private readonly controlOptions: grpc.ChannelOptions;
   private readonly environmentControl: grpc.Client;
   private readonly runControl: grpc.Client;
+  private readonly workspaceControl: grpc.Client;
   private readonly tunnelControl: grpc.Client;
   private readonly gatewayTransport: GatewayTransportOptions;
 
@@ -163,9 +211,11 @@ export class AxernClient {
       "EnvironmentControl",
     ]);
     const RunControl = serviceConstructor(["axern", "control", "run", "v1", "RunControl"]);
+    const WorkspaceControl = serviceConstructor(["axern", "control", "workspace", "v1", "WorkspaceControl"]);
     const TunnelControl = serviceConstructor(["axern", "control", "tunnel", "v1", "TunnelControl"]);
     this.environmentControl = new EnvironmentControl(this.endpoint, this.credentials, this.controlOptions);
     this.runControl = new RunControl(this.endpoint, this.credentials, this.controlOptions);
+    this.workspaceControl = new WorkspaceControl(this.endpoint, this.credentials, this.controlOptions);
     this.tunnelControl = new TunnelControl(this.endpoint, this.credentials, this.controlOptions);
   }
 
@@ -189,6 +239,7 @@ export class AxernClient {
   close(): void {
     this.environmentControl.close();
     this.runControl.close();
+    this.workspaceControl.close();
     this.tunnelControl.close();
   }
 
@@ -251,15 +302,89 @@ export class AxernClient {
     }
   }
 
+  async createWorkspace(options: CreateWorkspaceOptions): Promise<Workspace> {
+    const request = {
+      namespace: options.namespace ?? "default", node_id: required("nodeId", options.nodeId),
+      capacity_bytes: positiveInt64("capacityBytes", options.capacityBytes),
+      inode_limit: positiveInt64("inodeLimit", options.inodeLimit), labels: options.labels ?? {},
+    };
+    if (BigInt(request.capacity_bytes) % 512n !== 0n) {
+      throw new Error("capacityBytes must be 512-byte aligned");
+    }
+    try {
+      const response = await unary<typeof request, { workspace: Record<string, unknown> }>(
+        this.workspaceControl, "CreateWorkspace", request, 30_000,
+      );
+      return workspaceValue(response.workspace);
+    } catch (error) {
+      throw mapRpcError(error, "create workspace");
+    }
+  }
+
+  async getWorkspace(workspaceId: string, timeoutMs = 30_000): Promise<Workspace> {
+    try {
+      const response = await unary<{ workspace_id: string }, { workspace: Record<string, unknown> }>(
+        this.workspaceControl, "GetWorkspace", { workspace_id: required("workspaceId", workspaceId) }, timeoutMs,
+      );
+      return workspaceValue(response.workspace);
+    } catch (error) {
+      throw mapRpcError(error, "get workspace");
+    }
+  }
+
+  async listWorkspaces(options: ListOptions = {}): Promise<ListResult<Workspace>> {
+    try {
+      const response = await unary<Record<string, unknown>, { workspaces?: Record<string, unknown>[]; next_cursor?: string }>(
+        this.workspaceControl, "ListWorkspaces",
+        { namespace: options.namespace ?? "default", cursor: options.cursor ?? "", page_size: options.pageSize ?? 0 }, 30_000,
+      );
+      return { items: (response.workspaces ?? []).map(workspaceValue), nextCursor: response.next_cursor ?? "" };
+    } catch (error) {
+      throw mapRpcError(error, "list workspaces");
+    }
+  }
+
+  async deleteWorkspace(workspaceId: string): Promise<Workspace> {
+    try {
+      const response = await unary<{ workspace_id: string }, { workspace: Record<string, unknown> }>(
+        this.workspaceControl, "DeleteWorkspace", { workspace_id: required("workspaceId", workspaceId) }, 30_000,
+      );
+      return workspaceValue(response.workspace);
+    } catch (error) {
+      throw mapRpcError(error, "delete workspace");
+    }
+  }
+
+  /** Wait for ready data without a writer. This observation reserves no authority. */
+  async waitWorkspaceReady(workspaceId: string, timeoutMs = 120_000): Promise<Workspace> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        throw new SandboxTimeoutError("workspace provisioning timed out");
+      }
+      const workspace = await this.getWorkspace(workspaceId, Math.min(remaining, 30_000));
+      if (workspace.id !== workspaceId) {
+        throw new SandboxStateError("workspace readiness returned a different identity");
+      }
+      if (workspace.status === "ready" && workspace.attachedAllocationId === "") return workspace;
+      if (workspace.status !== "provisioning" && workspace.status !== "ready") {
+        throw new SandboxStateError(`workspace ${workspaceId} is unavailable: ${workspace.message}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, Math.min(200, remaining)));
+    }
+  }
+
   async createRun(options: CreateRunOptions): Promise<Record<string, unknown>> {
     const resources = buildResourceSpec(options);
     try {
       const response = await unary<Record<string, unknown>, { run: Record<string, unknown> }>(
         this.runControl,
-        "CreateRun",
+        "AdmitRun",
         {
           namespace: options.namespace ?? "default",
           environment_id: required("environmentId", options.environmentId),
+          workspace_id: options.workspaceId ?? "",
           config: {
             argv: options.argv ?? [],
             env: options.env ?? {},

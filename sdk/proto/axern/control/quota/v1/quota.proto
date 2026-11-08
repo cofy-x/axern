@@ -20,6 +20,12 @@ message NamespaceQuota {
   google.protobuf.Int64Value ephemeral_storage_bytes_limit = 10;
   int64 used_ephemeral_storage_bytes = 11;
   google.protobuf.Int64Value available_ephemeral_storage_bytes = 12;
+  google.protobuf.Int64Value persistent_storage_bytes_limit = 13;
+  google.protobuf.Int64Value persistent_storage_inodes_limit = 14;
+  int64 used_persistent_storage_bytes = 15;
+  int64 used_persistent_storage_inodes = 16;
+  google.protobuf.Int64Value available_persistent_storage_bytes = 17;
+  google.protobuf.Int64Value available_persistent_storage_inodes = 18;
 }
 
 enum NamespaceQuotaEventType {
@@ -75,6 +81,8 @@ message NamespaceQuotaLimits {
   google.protobuf.Int64Value cpu_milli = 1;
   google.protobuf.Int64Value memory_bytes = 2;
   google.protobuf.Int64Value ephemeral_storage_bytes = 3;
+  google.protobuf.Int64Value persistent_storage_bytes = 4;
+  google.protobuf.Int64Value persistent_storage_inodes = 5;
 }
 
 message SetNamespaceQuotaRequest {

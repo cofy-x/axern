@@ -264,6 +264,34 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(value['plugin']['resource']['memory_system_reserve_bytes'], 1024**3)
         self.assertEqual(value['plugin']['runtime']['dns']['nameservers'], ['10.0.2.3'])
 
+    def test_workspace_budget_is_reserved_from_ephemeral_capacity(self):
+        settings = {**SETTINGS, 'workspace_capacity_bytes': 2 * 1024**3, 'workspace_inode_capacity': 10000}
+        runtime = tomllib.loads(installer.node_config(installer.validate_settings(settings)))['plugin']['runtime']
+        self.assertEqual(runtime['workspace_root'], str(installer.DATA / 'workspaces'))
+        self.assertEqual(runtime['workspace_capacity_bytes'], 2 * 1024**3)
+        self.assertEqual(runtime['workspace_inode_capacity'], 10000)
+        self.assertEqual(runtime['filestore_system_reserve_bytes'], 3 * 1024**3)
+        for change in ({'workspace_inode_capacity': 0}, {'workspace_capacity_bytes': True}, {'workspace_capacity_bytes': 513},
+                       {'workspace_capacity_bytes': 2**63}, {'storage_reserve_bytes': 1}):
+            with self.subTest(change=change), self.assertRaises(installer.InstallError):
+                installer.validate_settings({**settings, **change})
+        with self.assertRaises(installer.InstallError):
+            installer.validate_settings({**SETTINGS, 'workspace_capacity_bytes': 1024**3})
+
+    def test_workspace_filesystem_prerequisites_fail_before_installation(self):
+        settings = {**SETTINGS, 'workspace_capacity_bytes': 2 * 1024**3, 'workspace_inode_capacity': 10000}
+        with self.assertRaisesRegex(installer.InstallError, 'require XFS'):
+            installer.verify_workspace_filesystem(settings, 'ext4', True)
+        with mock.patch.object(installer.subprocess, 'check_output', return_value='rw,noatime\n'):
+            with self.assertRaisesRegex(installer.InstallError, 'prjquota'):
+                installer.verify_workspace_filesystem(settings, 'xfs', True)
+        with mock.patch.object(installer.subprocess, 'check_output', return_value='rw,prjquota\n'), \
+                mock.patch.object(installer.os, 'statvfs', return_value=mock.Mock(f_bavail=1, f_frsize=4096)) as facts:
+            with self.assertRaisesRegex(installer.InstallError, 'cannot cover'):
+                installer.verify_workspace_filesystem(settings, 'xfs', True)
+            installer.verify_workspace_filesystem(settings, 'xfs', False)
+            self.assertEqual(facts.call_count, 1, 'existing retained data must not require the whole budget free again')
+
     def test_unit_privileges_and_data_guard(self):
         units = installer.service_units(pathlib.Path('/opt/axern/releases/test'), SETTINGS)
         for name in installer.SERVICES:

@@ -7,6 +7,7 @@ import (
 
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
+	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	placementkernel "github.com/cofy-x/axern/control/controld/internal/kernel/placement"
 	resourcekernel "github.com/cofy-x/axern/control/controld/internal/kernel/resource"
 	pgnamespace "github.com/cofy-x/axern/control/controld/internal/postgres/namespace"
@@ -27,11 +28,16 @@ type Admission struct {
 const maxAdmissionRejectionDetails = 5
 
 type AdmitCandidateRequest struct {
-	Namespace     string
-	EnvironmentID string
-	Candidates    []*placementkernel.Candidate
-	Config        *commonv1.ExecutionConfig
-	Now           time.Time
+	// LockExecutionOwnership runs after Namespace and Node locks and before
+	// the single fresh eligibility evaluation. The Run owner uses it to lock
+	// the selected Workspace and live Principal authority; ordinary admission
+	// has no additional ownership barrier.
+	LockExecutionOwnership func(map[string]*nodekernel.Record) error
+	Namespace              string
+	EnvironmentID          string
+	Candidates             []*placementkernel.Candidate
+	Config                 *commonv1.ExecutionConfig
+	Now                    time.Time
 }
 
 func NewAdmission(policy resourcekernel.AdmissionPolicy, evaluator placementkernel.Evaluator) Admission {
@@ -88,6 +94,11 @@ func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandi
 	recordResourceAdmissionStage(ctx, resourceAdmissionStageLockCandidates, stageStarted, err)
 	if err != nil {
 		return nil, err
+	}
+	if req.LockExecutionOwnership != nil {
+		if err := req.LockExecutionOwnership(locked); err != nil {
+			return nil, err
+		}
 	}
 	stageStarted = time.Now()
 	usage, err := activeCandidateAllocationUsage(ctx, tx, locked)

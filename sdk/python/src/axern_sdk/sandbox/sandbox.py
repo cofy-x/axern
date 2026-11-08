@@ -42,6 +42,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         image: str = "",
         registry_credential_id: str = "",
         environment_id: str = "",
+        workspace_id: str = "",
         namespace: str = "default",
         argv: list[str] | None = None,
         env: dict[str, str] | None = None,
@@ -74,6 +75,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         self._image = image
         self._registry_credential_id = registry_credential_id
         self._environment_id = environment_id
+        self._workspace_id = workspace_id
         self._namespace = namespace
         self._argv = list(argv or DEFAULT_SANDBOX_ARGV)
         self._env = dict(env or {})
@@ -142,6 +144,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         state = self.state
         return SandboxMetadata(
             environment_id=state.environment_id,
+            workspace_id=state.workspace_id,
+            workspace_generation=state.workspace_generation,
             run_id=state.run_id,
             allocation_id=state.allocation_id,
             tunnel_session_id=state.tunnel_session_id,
@@ -164,6 +168,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             environment_id = self._resolve_environment()
             run = self._client.create_run(
                 environment_id=environment_id,
+                workspace_id=self._workspace_id,
                 argv=self._argv,
                 env=self._env,
                 cwd=self._cwd,
@@ -229,6 +234,8 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                 allocation_id=run.allocation_id,
                 tunnel_session_id=tunnel_session_id,
                 bound_addr=bound_addr,
+                workspace_id=run.workspace_attachment.workspace_id,
+                workspace_generation=run.workspace_attachment.generation,
             )
             self._started_at_ns = time.time_ns()
             return self

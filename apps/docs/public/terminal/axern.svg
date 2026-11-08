@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 350" role="img" aria-labelledby="title">
+<title id="title">Axern CLI command groups</title>
+<rect width="1100" height="350" rx="8" fill="#101927"/>
+<g fill="#e6edf3" font-family="ui-monospace, monospace" font-size="16">
+<text x="28" y="38">Axern 0.13.0 · source CLI help</text>
+<text x="28" y="76" fill="#7dd3fc">$ axern --help</text>
+<text x="28" y="114" fill="#7dd3fc">dev</text>
+<text x="176" y="114">Manage the Docker Compose development stack</text>
+<text x="28" y="149" fill="#7dd3fc">run</text>
+<text x="176" y="149">Run a command in an isolated environment</text>
+<text x="28" y="184" fill="#7dd3fc">server</text>
+<text x="176" y="184">Operate the installed native Linux server</text>
+<text x="28" y="219" fill="#7dd3fc">ssh</text>
+<text x="176" y="219">Open an SSH-compatible terminal to an allocation</text>
+<text x="28" y="254" fill="#7dd3fc">tunnel</text>
+<text x="176" y="254">Manage allocation-scoped reverse TCP tunnels</text>
+<text x="28" y="289" fill="#7dd3fc">workspace</text>
+<text x="176" y="289">Manage retained single-writer working data</text>
+</g>
+</svg>

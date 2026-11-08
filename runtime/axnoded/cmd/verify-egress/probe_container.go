@@ -38,7 +38,7 @@ func startProbeContainer(clients *verifyutil.NodeClients, baseSpec *privatenodev
 	spec.StderrPath = stderrPath
 	startCtx, cancelStart := context.WithTimeout(context.Background(), startTimeout)
 	defer cancelStart()
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(environmentID), spec)
+	handle, err := verifyutil.AdmitAllocation(startCtx, clients, verifyutil.NewSandboxID(environmentID), spec)
 	if err != nil {
 		return nil, fmt.Errorf("create egress probe sandbox %s: %w", environmentID, err)
 	}

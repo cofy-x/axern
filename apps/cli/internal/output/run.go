@@ -16,6 +16,9 @@ func RenderRun(w io.Writer, run *runv1.Run) {
 	fmt.Fprintf(w, "ID: %s\n", run.GetID())
 	fmt.Fprintf(w, "Namespace: %s\n", run.GetNamespace())
 	fmt.Fprintf(w, "Environment ID: %s\n", run.GetEnvironmentID())
+	if attachment := run.GetWorkspaceAttachment(); attachment != nil {
+		fmt.Fprintf(w, "Workspace ID: %s\nWorkspace Generation: %d\nWorkspace Target: %s\n", attachment.GetWorkspaceID(), attachment.GetGeneration(), attachment.GetTarget())
+	}
 	if digest := run.GetResolvedEnvironmentSpec().GetImageDescriptor().GetDigest(); digest != "" {
 		fmt.Fprintf(w, "Environment Digest: %s\n", digest)
 	}

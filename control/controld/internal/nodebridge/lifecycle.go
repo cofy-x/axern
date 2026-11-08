@@ -64,7 +64,7 @@ func New(client LifecycleClient, cfg Config) *Bridge {
 	}
 }
 
-func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement) (*capabilityv1.CapabilityConditionSet, error) {
+func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1.Run, env *environmentv1.Environment, nodeID string, requirements []*capabilityv1.CapabilityRequirement, workspace *privatenodev1.WorkspaceBinding) (*capabilityv1.CapabilityConditionSet, error) {
 	callCtx, cancel := context.WithTimeout(ctx, b.createTimeout)
 	defer cancel()
 	stageStarted := time.Now()
@@ -79,6 +79,7 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	if err != nil {
 		return nil, err
 	}
+	req.Config.Workspace = workspace
 	stageStarted = time.Now()
 	resp, err := b.client.CreateAllocation(callCtx, target, req)
 	if err != nil {
@@ -89,7 +90,7 @@ func (b *Bridge) CreateAllocation(ctx context.Context, target string, run *runv1
 	return cloneCapabilityConditionSet(resp.GetCapabilityVerification()), nil
 }
 
-func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing, snapshot *allocationkernel.RootfsSnapshotSealing) (*allocationkernel.RootfsSnapshotResult, error) {
+func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID string, nodeID string, outputSealing *allocationkernel.OutputSealing, snapshot *allocationkernel.RootfsSnapshotSealing, workspace *privatenodev1.WorkspaceBinding) (*allocationkernel.ReleaseResult, error) {
 	var callCtx context.Context
 	var cancel context.CancelFunc
 	if snapshot != nil {
@@ -135,29 +136,39 @@ func (b *Bridge) DeleteAllocation(ctx context.Context, target, allocationID stri
 		TimeoutSeconds:        10,
 		OutputSealing:         sealingRequest,
 		RootfsSnapshotSealing: snapshotRequest,
+		Workspace:             workspace,
 	})
 	if grpcstatus.Code(err) == codes.NotFound {
-		if snapshot != nil {
-			return nil, grpcstatus.Error(codes.FailedPrecondition, "node no longer has the runtime or recovery state required to seal the rootfs snapshot")
+		if snapshot != nil || workspace != nil {
+			return nil, grpcstatus.Error(codes.FailedPrecondition, "node no longer has the runtime or recovery state required to prove requested cleanup")
 		}
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
+	release := &allocationkernel.ReleaseResult{WorkspaceCleanup: resp.GetWorkspaceCleanup()}
+	if workspace != nil {
+		receipt := release.WorkspaceCleanup
+		if receipt == nil || receipt.GetWorkspaceID() != workspace.GetSpec().GetWorkspaceID() || receipt.GetAllocationID() != allocationID || receipt.GetGeneration() != workspace.GetGeneration() || receipt.GetStorageIdentity() != workspace.GetStorageIdentity() {
+			return nil, grpcstatus.Error(codes.FailedPrecondition, "node did not confirm exact Workspace writer cleanup")
+		}
+	} else if release.WorkspaceCleanup != nil {
+		return nil, grpcstatus.Error(codes.FailedPrecondition, "unexpected Workspace cleanup receipt")
+	}
 	if result := resp.GetRootfsSnapshot(); result != nil {
-		return &allocationkernel.RootfsSnapshotResult{
+		release.RootfsSnapshot = &allocationkernel.RootfsSnapshotResult{
 			ImageRef: result.GetImageRef(), ImageDescriptor: cloneOCIImageDescriptor(result.GetImageDescriptor()),
 			PlatformOS: result.GetPlatformOS(), PlatformArch: result.GetPlatformArch(), PlatformVariant: result.GetPlatformVariant(),
-		}, nil
+		}
 	}
-	return nil, nil
+	return release, nil
 }
 
-func (b *Bridge) AcknowledgeAllocationRelease(ctx context.Context, target, allocationID, nodeID string) error {
+func (b *Bridge) AcknowledgeAllocationRelease(ctx context.Context, target, allocationID, nodeID string, workspace *privatenodev1.WorkspaceBinding) error {
 	callCtx, cancel := context.WithTimeout(ctx, b.operationTimeout)
 	defer cancel()
-	_, err := b.client.AcknowledgeAllocationRelease(callCtx, target, &privatenodev1.AcknowledgeAllocationReleaseRequest{AllocationID: allocationID, NodeID: nodeID})
+	_, err := b.client.AcknowledgeAllocationRelease(callCtx, target, &privatenodev1.AcknowledgeAllocationReleaseRequest{AllocationID: allocationID, NodeID: nodeID, WorkspaceCleanup: workspaceCleanupReceipt(workspace, allocationID)})
 	return err
 }
 
@@ -213,4 +224,11 @@ func nodeLifecycleErrorClass(err error) string {
 		return strings.ToLower(code.String())
 	}
 	return "error"
+}
+
+func workspaceCleanupReceipt(binding *privatenodev1.WorkspaceBinding, allocationID string) *privatenodev1.WorkspaceCleanupReceipt {
+	if binding == nil {
+		return nil
+	}
+	return &privatenodev1.WorkspaceCleanupReceipt{WorkspaceID: binding.GetSpec().GetWorkspaceID(), AllocationID: allocationID, Generation: binding.GetGeneration(), StorageIdentity: binding.GetStorageIdentity()}
 }

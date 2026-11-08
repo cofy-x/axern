@@ -113,6 +113,10 @@ test("shared common core surface", () => {
     environment_delete: "deleteEnvironment",
     run_create: "createRun",
     run_cancel: "cancelRun",
+    workspace_create: "createWorkspace",
+    workspace_get: "getWorkspace",
+    workspace_list: "listWorkspaces",
+    workspace_delete: "deleteWorkspace",
   });
   assertMethods(contract.sandbox.filter((operation) => operation !== "tunnel"), Sandbox.prototype, {
     lifecycle_start: "start",

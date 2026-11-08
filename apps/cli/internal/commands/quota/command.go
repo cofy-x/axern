@@ -2,6 +2,7 @@ package quota
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	appquota "github.com/cofy-x/axern/apps/cli/internal/application/quota"
@@ -70,10 +71,10 @@ func listCommand(runtime command.Runtime) *cobra.Command {
 }
 
 func setCommand(runtime command.Runtime) *cobra.Command {
-	var namespace, cpu, memory, ephemeralStorage string
+	var namespace, cpu, memory, ephemeralStorage, persistentStorage, persistentInodes string
 	cmd := &cobra.Command{Use: "set", Short: "Set namespace quota limits", Args: command.NoArgs, RunE: func(cmd *cobra.Command, _ []string) error {
-		if !cmd.Flags().Changed("cpu") && !cmd.Flags().Changed("memory") && !cmd.Flags().Changed("ephemeral-storage") {
-			return command.Usage(fmt.Errorf("cpu, memory, or ephemeral-storage is required"))
+		if !cmd.Flags().Changed("cpu") && !cmd.Flags().Changed("memory") && !cmd.Flags().Changed("ephemeral-storage") && !cmd.Flags().Changed("persistent-storage") && !cmd.Flags().Changed("persistent-inodes") {
+			return command.Usage(fmt.Errorf("a CPU, memory, ephemeral-storage or persistent-storage limit is required"))
 		}
 		cpuValue, err := optionalCPU(cpu)
 		if err != nil {
@@ -87,12 +88,20 @@ func setCommand(runtime command.Runtime) *cobra.Command {
 		if err != nil {
 			return command.Usage(err)
 		}
+		persistentStorageValue, err := optionalMemory(persistentStorage)
+		if err != nil {
+			return command.Usage(err)
+		}
+		persistentInodesValue, err := optionalInodes(persistentInodes)
+		if err != nil {
+			return command.Usage(err)
+		}
 		s, err := runtime.Open(cmd.Context())
 		if err != nil {
 			return err
 		}
 		defer s.Close()
-		resp, err := appquota.New(s.Clients.Quota).Set(s.Context, namespace, &quotav1.NamespaceQuotaLimits{CpuMilli: cpuValue, MemoryBytes: memoryValue, EphemeralStorageBytes: ephemeralStorageValue})
+		resp, err := appquota.New(s.Clients.Quota).Set(s.Context, namespace, &quotav1.NamespaceQuotaLimits{CpuMilli: cpuValue, MemoryBytes: memoryValue, EphemeralStorageBytes: ephemeralStorageValue, PersistentStorageBytes: persistentStorageValue, PersistentStorageInodes: persistentInodesValue})
 		if err != nil {
 			return err
 		}
@@ -103,6 +112,8 @@ func setCommand(runtime command.Runtime) *cobra.Command {
 	f.StringVar(&cpu, "cpu", "", "CPU limit or unlimited")
 	f.StringVar(&memory, "memory", "", "memory limit or unlimited")
 	f.StringVar(&ephemeralStorage, "ephemeral-storage", "", "node-local ephemeral storage limit or unlimited")
+	f.StringVar(&persistentStorage, "persistent-storage", "", "retained Workspace capacity limit or unlimited")
+	f.StringVar(&persistentInodes, "persistent-inodes", "", "retained Workspace inode limit or unlimited")
 	return cmd
 }
 
@@ -177,4 +188,15 @@ func renderQuota(runtime command.Runtime, cmd *cobra.Command, value *quotav1.Nam
 	}
 	output.RenderNamespaceQuota(cmd.OutOrStdout(), value)
 	return nil
+}
+
+func optionalInodes(value string) (*wrapperspb.Int64Value, error) {
+	if value = strings.TrimSpace(value); value == "" || strings.EqualFold(value, "unlimited") {
+		return nil, nil
+	}
+	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil || parsed < 0 {
+		return nil, fmt.Errorf("persistent-inodes must be a nonnegative integer or unlimited")
+	}
+	return wrapperspb.Int64(parsed), nil
 }

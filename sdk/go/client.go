@@ -11,6 +11,7 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"github.com/cofy-x/axern/sdk/go/internal/grpcclient"
 	"google.golang.org/grpc"
@@ -26,6 +27,7 @@ type Client struct {
 	relayOptions relayOptions
 	environments environmentv1.EnvironmentControlClient
 	runs         runv1.RunControlClient
+	workspaces   workspacev1.WorkspaceControlClient
 	tunnels      tunnelcontrolv1.TunnelControlClient
 	nodes        nodesandboxv1.NodeSandboxClient
 }
@@ -157,6 +159,7 @@ func NewClient(ctx context.Context, target string, options ...ClientOption) (*Cl
 		relayOptions: config.relayOptions,
 		environments: environmentv1.NewEnvironmentControlClient(conn),
 		runs:         runv1.NewRunControlClient(conn),
+		workspaces:   workspacev1.NewWorkspaceControlClient(conn),
 		tunnels:      tunnelcontrolv1.NewTunnelControlClient(conn),
 		nodes:        nodesandboxv1.NewNodeSandboxClient(conn),
 	}, nil

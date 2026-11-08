@@ -19,6 +19,8 @@ class SandboxState:
     allocation_id: str
     tunnel_session_id: str
     bound_addr: str
+    workspace_id: str = ""
+    workspace_generation: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +34,8 @@ class SandboxMetadata:
     bound_addr: str
     started_at_ns: int
     labels: dict[str, str]
+    workspace_id: str = ""
+    workspace_generation: int = 0
 
 
 def _validate_source(*, image: str, environment_id: str) -> None:

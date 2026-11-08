@@ -23,7 +23,7 @@ func runVerifySmoke(cfg verifySmokeConfig) error {
 
 	startCtx, cancelStart := context.WithTimeout(context.Background(), startTimeout)
 	defer cancelStart()
-	handle, err := verifyutil.CreateAllocation(startCtx, clients, verifyutil.NewSandboxID(cfg.environmentID), spec)
+	handle, err := verifyutil.AdmitAllocation(startCtx, clients, verifyutil.NewSandboxID(cfg.environmentID), spec)
 	if err != nil {
 		return fmt.Errorf("create sandbox: %w", err)
 	}

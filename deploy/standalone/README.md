@@ -2,7 +2,7 @@
 
 This directory owns the native Linux installation assets and operating instructions. The runtime archive contains Axern services, helpers, a pinned gVisor runtime and an experimental systemd installer. See [Native Installation](INSTALL.md) for prerequisites, configuration, startup, shutdown and identity renewal.
 
-The installation uses the existing `Environment -> Run -> Allocation` lifecycle, PostgreSQL authority and gVisor/runsc execution boundary. It requires a Linux host. It does not provision Lima, manage `axern local` contexts or implement persistent Workspace APIs.
+The installation uses the existing `Environment -> Run -> Allocation` lifecycle, PostgreSQL authority and gVisor/runsc execution boundary. It requires a Linux host. It does not provision Lima or manage `axern dev` contexts. Optional Workspace budgets require the explicit XFS project-quota profile in the installation guide.
 
 Use the opt-in [startup and idle measurement](MEASUREMENT.md) harness to record the installed candidate's startup phases, first workload output and cgroup/process resource footprint on an exclusive disposable host.
 

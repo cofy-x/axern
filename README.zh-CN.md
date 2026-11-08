@@ -14,11 +14,11 @@
   <a href="./README.md">English</a>
 </p>
 
-Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**，以开源、自托管方式提供。目前已通过 gVisor（runsc）提供隔离执行，持久 Workspace 资源仍在计划中。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 Allocation 范围的访问能力。gVisor/runsc 是唯一的长期执行后端。
+Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**，以开源、自托管方式提供。目前通过 gVisor（runsc）提供隔离执行，并提供实验性的单写者 Workspace。CLI 与 Go、Python、TypeScript SDK 暴露相同的公共 API，覆盖 Environment、Run、Sandbox 进程与文件、Tunnel、生命周期状态和 Allocation 范围的访问能力。gVisor/runsc 是唯一的长期执行后端。
 
 主要使用场景是在一台 Linux 主机上运行个人 Agent 系统：独立的 worker、可检查的执行状态、保留工作数据，以及较低的运维复杂度。Agent 的会话、配置、规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。它尚未纳入正式发布渠道，也不支持升级。Docker Compose 仍是本地开发路径。可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。它尚未纳入正式发布渠道，也不支持升级。Docker Compose 仍是本地开发路径。可选 Workspace 要求 XFS 项目配额；其他可写存储属于 Allocation。受支持的备份、恢复和升级仍未完成验收，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
@@ -27,58 +27,33 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 | 概念 | 职责与状态 |
 | --- | --- |
 | Image | 不可变的运行环境、工具和参考资料。Environment 解析执行输入与策略；只读 ImageMount 提供额外的镜像内容。 |
-| Workspace | **计划中：** 具有独立身份、授权、容量和删除语义的持久工作数据；首版目标是每个 Workspace 只有一个写入者。 |
+| Workspace | **实验性：** 绑定一个 Node、具有独立身份、授权、块数／inode 容量和显式删除语义的保留数据；每个 Workspace 只有一个受约束的写入者。 |
 | Sandbox | 一个 Run/Allocation 的运行时视图与 SDK 门面，提供进程和文件系统访问，不拥有持久 Agent 会话。 |
 | AgentSession | 调用方拥有的对话、配置、规划和协作状态；Axern 执行 worker，但不解释其会话语义。 |
 
-默认协作方式是独立的可写工作目录、共同的只读参考资料，以及由调用方明确发布、合并或交接的产物。目前可通过独立 Allocation、只读镜像挂载和调用方管理的导出／恢复实现这一方式。原生 Workspace 保留与同时多写的共享可写挂载尚未实现。
+默认协作方式是独立的可写工作目录、共同的只读参考资料，以及由调用方明确发布、合并或交接的产物。可以使用独立 Workspace 或 Allocation 临时目录、只读镜像挂载和明确的结果交接；同时多写的共享挂载不属于当前单写者契约。
 
 [Agent 工作负载镜像](./images/agents/README.md)复用基础系统和开发工具链，再分别加入官方 Claude Code 或 Codex 程序。通过 `make agent-images` 在本地构建；模型凭据、提供方选择、任务和会话策略由调用方在运行时配置。
 
 <p align="center">
-  <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="当前 axern CLI 帮助录制：本地执行、Run、SSH 和 Tunnel 命令">
+  <img src="./apps/docs/public/terminal/axern.svg" width="760" alt="当前 axern CLI 命令：原生服务、开发、Workspace 和执行">
 </p>
 
 ## 快速开始
 
-受支持的本地开发路径通过 Docker Compose 运行完整技术栈：Linux 上直接运行，macOS 上通过 Docker Desktop 的 Linux VM 运行。只需要 `axern` CLI 和 Docker Compose v2，不需要源码检出、Make、Helm 或任何语言工具链。两种情况下，gVisor 执行层都运行在 Linux 上。
+Linux 单机 serving 按[安装指南](./deploy/standalone/INSTALL.md)构建并安装完整的原生归档，通过 `axern server start`、`status`、`logs` 和 `stop` 管理。API Context 选择远程执行服务，不改变 `server` 管理的当前主机。
 
-```bash
-brew install cofy-x/tap/axern
-```
-
-没有 Homebrew 时，使用带校验和的独立安装脚本：
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
-```
-
-然后启动 Axern 并运行第一个工作负载：
-
-```bash
-axern local up
-axern local image load python:3.12-slim --pull
-axern run python:3.12-slim -- python -c 'print("hello from axern")'
-```
-
-`local up` 会启动 PostgreSQL 以及 Axern 的控制、隧道、节点和网关组件，等待就绪，并创建 `local` 上下文。`local image load` 会把选定的宿主 Docker 镜像直接流式导入本地节点，不生成中间归档文件：
-
-```bash
-axern context current
-axern run list
-axern local status
-axern local down
-```
-
-本地环境使用生成的开发凭据和回环监听地址，不要在共享或生产部署中复用它们。
-
-可信的本机 HTTP registry 可以通过重复的 `axern local up --insecure-registry host[:port]` 参数显式授权。control 和 node 容器必须都能通过这个完全一致的 hostname 访问 registry；仅容器可见的 registry 可以接入 `axern local status` 报告的 `axern-local-registry` Docker 网络。详见 [CLI 契约](./apps/cli/README.md#local-external-http-registries)。HTTPS 仍是默认策略，而且这个仅限本地环境的设置不属于 Environment specification。
-
-源码开发是独立的贡献者路径。它把当前检出构建为本地 `:dev` 镜像，并验证相同的公共契约：
+当前源码包含需要一起升级的协议变更。CLI、服务和 SDK 必须来自同一版本；源码版本不代表安装包已经发布。Linux 或 macOS Linux VM 中的源码开发需要 Go 1.26.8、Make 和 Docker Compose v2：
 
 ```bash
 make quickstart-source
+make axern-cli-build
+./bin/axern context list
 ```
+
+`quickstart-source` 构建当前服务镜像并验证 Compose 开发栈。打包的 Compose 生命周期命令为 `axern dev up|status|logs|down`，与原生 serving 分开，并保留已有机器本地数据和 Context 身份；发布版开发 bundle 需要对应的已发布服务镜像。详见 [CLI 契约](./apps/cli/README.md)。
+
+[Workspace 指南](./apps/docs/src/content/docs/zh-cn/guides/workspaces.md)说明如何在新 Run 中继续使用保留文件。不选择 Workspace 时仍可使用临时执行。Agent 程序、任务和会话恢复由上层调用方负责。
 
 仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；每个 `main` 提交都会启动绑定该提交的完整回归，PR 检查通过不代表后续回归已通过。发布或晋级前检查 [Post-Merge Full](https://github.com/cofy-x/axern/actions/workflows/post-merge-full.yml)，详见[验证层级](./docs/verification/local-full-verification.md)。
 

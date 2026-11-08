@@ -18,6 +18,7 @@ import (
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/rootfssnapshot"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/workspace"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/sirupsen/logrus"
@@ -29,6 +30,16 @@ type stateStore interface {
 	GetRecord(bucket, key string, value proto.Message) error
 	DeleteRecord(bucket, key string) error
 	ForEachRecord(bucket string, visit func(key string, value []byte) error) error
+}
+
+type workspaceStorage interface {
+	BeginCleanup(workspace.Binding, string) error
+	VerifyCleanupOwnership(workspace.Binding, string) error
+	Attach(workspace.Binding, string) (string, error)
+	CheckAttachment(workspace.Binding, string) error
+	VerifyAttachment(workspace.Binding, string) error
+	Release(workspace.Binding, string) (workspace.Receipt, error)
+	Receipt(workspace.Binding, string) (workspace.Receipt, bool, error)
 }
 
 type Options struct {
@@ -45,6 +56,7 @@ type Options struct {
 	PreActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	Egress                      egress.Manager
 	RootfsSnapshots             rootfssnapshot.Publisher
+	Workspaces                  workspaceStorage
 }
 
 type Controller struct {
@@ -63,6 +75,7 @@ type Controller struct {
 	preActivationCapabilityGate func(context.Context, *runtime.StartRequest, contract.AllocationRuntime, string) error
 	egress                      egress.Manager
 	rootfsSnapshots             rootfssnapshot.Publisher
+	workspaces                  workspaceStorage
 
 	stateMu          sync.RWMutex
 	allocationStates map[string]*allocationState
@@ -102,6 +115,7 @@ func NewController(options Options) *Controller {
 		preActivationCapabilityGate: options.PreActivationCapabilityGate,
 		egress:                      options.Egress,
 		rootfsSnapshots:             options.RootfsSnapshots,
+		workspaces:                  options.Workspaces,
 		allocationStates:            make(map[string]*allocationState),
 	}
 	if c.startMetricSink == nil {
@@ -164,6 +178,12 @@ func (c *Controller) Delete(ctx context.Context, request *runtime.DeleteRequest)
 func (c *Controller) DeleteControlPlane(ctx context.Context, request *runtime.DeleteRequest, nodeID string) (*runtime.DeleteResponse, error) {
 	unlockLifecycle := c.allocationLifecycleLocks.Lock(request.GetID())
 	defer unlockLifecycle()
+	if current := c.WorkspaceBinding(request.GetID()); current != nil && request.GetWorkspace() == nil {
+		return nil, fmt.Errorf("Workspace cleanup requires its frozen binding: %w", errord.ErrFailedPrecondition)
+	}
+	if request.GetWorkspace() != nil && request.GetWorkspace().GetSpec().GetNodeID() != nodeID {
+		return nil, fmt.Errorf("Workspace cleanup node identity mismatch: %w", errord.ErrFailedPrecondition)
+	}
 	if c.HasAllocation(request.GetID()) && !c.HasAdmittedAllocation(request.GetID()) {
 		return nil, fmt.Errorf("allocation %q has no admitted allocation record", request.GetID())
 	}

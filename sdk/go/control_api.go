@@ -44,6 +44,7 @@ type CreateEnvironmentOptions struct {
 type CreateRunOptions struct {
 	Namespace               string
 	EnvironmentID           string
+	WorkspaceID             string
 	Argv                    []string
 	Env                     map[string]string
 	Cwd                     string
@@ -92,9 +93,10 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 	if options.RootfsSnapshot {
 		rootfsSnapshot = &commonv1.RootfsSnapshot{}
 	}
-	response, err := c.runs.CreateRun(ctx, &runv1.CreateRunRequest{
+	response, err := c.runs.AdmitRun(ctx, &runv1.CreateRunRequest{
 		Namespace:     defaultString(options.Namespace, "default"),
 		EnvironmentID: options.EnvironmentID,
+		WorkspaceID:   options.WorkspaceID,
 		Config: &commonv1.ExecutionConfig{
 			Argv:                            append([]string(nil), options.Argv...),
 			Env:                             cloneMap(options.Env),

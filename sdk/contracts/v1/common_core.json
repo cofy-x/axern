@@ -3,7 +3,11 @@
     "environment_create",
     "environment_delete",
     "run_create",
-    "run_cancel"
+    "run_cancel",
+    "workspace_create",
+    "workspace_get",
+    "workspace_list",
+    "workspace_delete"
   ],
   "sandbox": [
     "lifecycle_start",

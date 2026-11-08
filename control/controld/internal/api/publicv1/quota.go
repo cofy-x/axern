@@ -136,6 +136,12 @@ func validateNamespaceQuotaLimits(limits *quotav1.NamespaceQuotaLimits) error {
 	if limits == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "limits is required")
 	}
+	if limits.GetPersistentStorageBytes() != nil && limits.GetPersistentStorageBytes().GetValue() < 0 {
+		return grpcstatus.Error(codes.InvalidArgument, "limits.persistent_storage_bytes must be >= 0")
+	}
+	if limits.GetPersistentStorageInodes() != nil && limits.GetPersistentStorageInodes().GetValue() < 0 {
+		return grpcstatus.Error(codes.InvalidArgument, "limits.persistent_storage_inodes must be >= 0")
+	}
 	if limits.GetCpuMilli() != nil && limits.GetCpuMilli().GetValue() < 0 {
 		return grpcstatus.Error(codes.InvalidArgument, "limits.cpu_milli must be >= 0")
 	}

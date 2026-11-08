@@ -3,6 +3,7 @@ package output
 import (
 	"fmt"
 	"io"
+	"math/bits"
 	"strconv"
 	"strings"
 
@@ -24,6 +25,8 @@ func RenderNamespaceQuota(w io.Writer, quota *quotav1.NamespaceQuota) {
 	fmt.Fprintf(w, "Ephemeral Storage Limit: %s\n", formatOptionalQuotaMemory(quota.GetEphemeralStorageBytesLimit()))
 	fmt.Fprintf(w, "Ephemeral Storage Used: %s\n", formatQuotaMemory(quota.GetUsedEphemeralStorageBytes()))
 	fmt.Fprintf(w, "Ephemeral Storage Available: %s\n", formatOptionalQuotaMemory(quota.GetAvailableEphemeralStorageBytes()))
+	fmt.Fprintf(w, "Persistent Storage Limit: %s\nPersistent Storage Used: %s\nPersistent Storage Available: %s\n", formatOptionalQuotaMemory(quota.GetPersistentStorageBytesLimit()), formatQuotaMemory(quota.GetUsedPersistentStorageBytes()), formatOptionalQuotaMemory(quota.GetAvailablePersistentStorageBytes()))
+	fmt.Fprintf(w, "Persistent Inodes Limit: %s\nPersistent Inodes Used: %d\nPersistent Inodes Available: %s\n", formatOptionalQuotaCount(quota.GetPersistentStorageInodesLimit()), quota.GetUsedPersistentStorageInodes(), formatOptionalQuotaCount(quota.GetAvailablePersistentStorageInodes()))
 }
 
 func RenderNamespaceQuotaTable(w io.Writer, quotas []*quotav1.NamespaceQuota) {
@@ -37,9 +40,11 @@ func RenderNamespaceQuotaTable(w io.Writer, quotas []*quotav1.NamespaceQuota) {
 			formatQuotaCPUUsage(quota.GetUsedCpuMilli(), quota.GetCpuMilliLimit()),
 			formatQuotaMemoryUsage(quota.GetUsedMemoryBytes(), quota.GetMemoryBytesLimit()),
 			formatQuotaMemoryUsage(quota.GetUsedEphemeralStorageBytes(), quota.GetEphemeralStorageBytesLimit()),
+			formatQuotaMemoryUsage(quota.GetUsedPersistentStorageBytes(), quota.GetPersistentStorageBytesLimit()),
+			formatQuotaUsage(strconv.FormatInt(quota.GetUsedPersistentStorageInodes(), 10), formatOptionalQuotaTableLimit(func(v int64) string { return strconv.FormatInt(v, 10) }, quota.GetPersistentStorageInodesLimit()), quota.GetUsedPersistentStorageInodes(), quota.GetPersistentStorageInodesLimit()),
 		})
 	}
-	RenderTable(w, []string{"NAMESPACE", "CPU", "MEMORY", "EPHEMERAL STORAGE"}, rows)
+	RenderTable(w, []string{"NAMESPACE", "CPU", "MEMORY", "EPHEMERAL STORAGE", "PERSISTENT STORAGE", "PERSISTENT INODES"}, rows)
 }
 
 func RenderNamespaceQuotaEventTable(w io.Writer, events []*quotav1.NamespaceQuotaEvent) {
@@ -113,9 +118,10 @@ func formatQuotaUsage(usedText, limitText string, used int64, limit *wrapperspb.
 	if limit.GetValue() <= 0 || used <= 0 {
 		return text + " (0%)"
 	}
-	percent := (used * 100) / limit.GetValue()
-	if percent > 100 {
-		percent = 100
+	percent := uint64(100)
+	if used < limit.GetValue() {
+		hi, lo := bits.Mul64(uint64(used), 100)
+		percent, _ = bits.Div64(hi, lo, uint64(limit.GetValue()))
 	}
 	return fmt.Sprintf("%s (%d%%)", text, percent)
 }
@@ -136,4 +142,11 @@ func formatQuotaMemory(bytes int64) string {
 		}
 	}
 	return fmt.Sprintf("%dB", bytes)
+}
+
+func formatOptionalQuotaCount(value *wrapperspb.Int64Value) string {
+	if value == nil {
+		return "unlimited"
+	}
+	return strconv.FormatInt(value.GetValue(), 10)
 }

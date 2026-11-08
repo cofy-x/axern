@@ -111,6 +111,12 @@ func main() {
 }
 ```
 
+## Managed Workspaces
+
+`CreateWorkspace`, `GetWorkspace`, `ListWorkspaces` and `DeleteWorkspace` manage experimental retained data on an explicitly configured XFS Node. Select the identity with `SandboxOptions.WorkspaceID` or `CreateRunOptions.WorkspaceID`, together with a finite `LimitMemory` such as `"512Mi"`.
+
+`WaitWorkspaceReady(ctx, id)` observes `READY` data and an empty writer attachment. It is bounded by the context or its default timeout and never reserves a writer. After closing the previous Sandbox, wait before starting a fresh Run using the same Workspace. Sandbox close preserves files and capacity; explicit Workspace deletion is separate. See the [Workspace guide](../../apps/docs/src/content/docs/guides/workspaces.md) for quota and maintenance boundaries.
+
 ## Network Policies
 
 Leaving `SandboxOptions.NetworkPolicy` nil requests unrestricted networking. Strict policies are fail-closed; DNS deny only refuses matching traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved addresses.

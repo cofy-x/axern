@@ -5,6 +5,7 @@ import (
 
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 )
 
 type RunListJSON struct {
@@ -17,6 +18,7 @@ type RunResponseJSON struct {
 }
 
 type RunJSON struct {
+	WorkspaceAttachment     *WorkspaceAttachmentJSON     `json:"workspace_attachment,omitempty"`
 	ID                      string                       `json:"id"`
 	Namespace               string                       `json:"namespace"`
 	EnvironmentID           string                       `json:"environment_id"`
@@ -73,6 +75,7 @@ func NewRunJSON(run *runv1.Run) *RunJSON {
 	}
 	return &RunJSON{
 		ID:                      run.GetID(),
+		WorkspaceAttachment:     newWorkspaceAttachmentJSON(run.GetWorkspaceAttachment()),
 		Namespace:               run.GetNamespace(),
 		EnvironmentID:           run.GetEnvironmentID(),
 		EnvironmentSpec:         newEnvironmentSpecJSON(run.GetEnvironmentSpec()),
@@ -97,4 +100,19 @@ func newRootfsSnapshotResultJSON(result *runv1.RootfsSnapshotResult) *RootfsSnap
 		return nil
 	}
 	return &RootfsSnapshotResultJSON{Status: result.GetStatus().String(), EnvironmentID: result.GetEnvironmentID(), ImageRef: result.GetImageRef(), Digest: result.GetImageDescriptor().GetDigest(), PlatformOS: result.GetPlatformOS(), PlatformArch: result.GetPlatformArch(), PlatformVariant: result.GetPlatformVariant(), Message: result.GetMessage()}
+}
+
+// WorkspaceAttachmentJSON identifies frozen authority, never a host path.
+type WorkspaceAttachmentJSON struct {
+	WorkspaceID string `json:"workspace_id"`
+	NodeID      string `json:"node_id"`
+	Generation  int64  `json:"generation"`
+	Target      string `json:"target"`
+}
+
+func newWorkspaceAttachmentJSON(value *workspacev1.WorkspaceAttachment) *WorkspaceAttachmentJSON {
+	if value == nil {
+		return nil
+	}
+	return &WorkspaceAttachmentJSON{WorkspaceID: value.GetWorkspaceID(), NodeID: value.GetNodeID(), Generation: value.GetGeneration(), Target: value.GetTarget()}
 }

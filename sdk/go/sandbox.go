@@ -17,6 +17,7 @@ type SandboxOptions struct {
 	Client                  *Client
 	Image                   string
 	EnvironmentID           string
+	WorkspaceID             string
 	Namespace               string
 	Argv                    []string
 	Env                     map[string]string
@@ -55,12 +56,14 @@ type Sandbox struct {
 
 // SandboxState is the lightweight runtime identity for a started sandbox.
 type SandboxState struct {
-	EnvironmentID   string
-	RunID           string
-	AllocationID    string
-	StartedAt       time.Time
-	TunnelSessionID string
-	BoundAddr       string
+	EnvironmentID       string
+	WorkspaceID         string
+	WorkspaceGeneration int64
+	RunID               string
+	AllocationID        string
+	StartedAt           time.Time
+	TunnelSessionID     string
+	BoundAddr           string
 }
 
 // NewSandbox constructs a sandbox handle. Call Start before using runtime APIs.
@@ -96,6 +99,7 @@ func (s *Sandbox) Start(ctx context.Context) error {
 	run, err := s.client.CreateRun(ctx, CreateRunOptions{
 		Namespace:               s.options.Namespace,
 		EnvironmentID:           environmentID,
+		WorkspaceID:             s.options.WorkspaceID,
 		Argv:                    sandboxArgv(s.options.Argv),
 		Env:                     s.options.Env,
 		Cwd:                     s.options.Cwd,
@@ -122,10 +126,12 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		return err
 	}
 	s.state = SandboxState{
-		EnvironmentID: environmentID,
-		RunID:         run.GetID(),
-		AllocationID:  run.GetAllocationID(),
-		StartedAt:     time.Now(),
+		EnvironmentID:       environmentID,
+		WorkspaceID:         run.GetWorkspaceAttachment().GetWorkspaceID(),
+		WorkspaceGeneration: run.GetWorkspaceAttachment().GetGeneration(),
+		RunID:               run.GetID(),
+		AllocationID:        run.GetAllocationID(),
+		StartedAt:           time.Now(),
 	}
 	s.started = true
 	return nil

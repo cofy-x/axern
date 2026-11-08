@@ -15,6 +15,7 @@ from axern.control.capability.v1 import capability_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
+from axern.control.workspace.v1 import workspace_pb2, workspace_pb2_grpc
 from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern.control.tunnel.v1 import tunnel_pb2, tunnel_pb2_grpc
 from axern_sdk._internal.channel import control_channel
@@ -199,6 +200,7 @@ class AxernClient:
         )
         self.environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
         self.runs = run_pb2_grpc.RunControlStub(self._channel)
+        self.workspaces = workspace_pb2_grpc.WorkspaceControlStub(self._channel)
         self.tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
 
     @classmethod
@@ -339,10 +341,116 @@ class AxernClient:
             ),
         )
 
+    def create_workspace(
+        self,
+        *,
+        node_id: str,
+        capacity_bytes: int,
+        inode_limit: int,
+        namespace: str = "default",
+        labels: dict[str, str] | None = None,
+        timeout: float | None = 30.0,
+    ) -> workspace_pb2.Workspace:
+        """Request retained capacity. Provisioning is asynchronous and never retried here."""
+        if not node_id or any(
+            type(value) is not int or value <= 0 or value >= 2**63
+            for value in (capacity_bytes, inode_limit)
+        ):
+            raise ValueError(
+                "node_id and positive int64 capacity_bytes/inode_limit are required"
+            )
+        if capacity_bytes % 512:
+            raise ValueError("capacity_bytes must be 512-byte aligned")
+        response = _control_rpc(
+            "create workspace",
+            lambda: self.workspaces.CreateWorkspace(
+                workspace_pb2.CreateWorkspaceRequest(
+                    namespace=namespace,
+                    node_id=node_id,
+                    capacity_bytes=capacity_bytes,
+                    inode_limit=inode_limit,
+                    labels=dict(labels or {}),
+                ),
+                timeout=timeout,
+            ),
+        )
+        return response.workspace
+
+    def get_workspace(
+        self, workspace_id: str, *, timeout: float | None = 30.0
+    ) -> workspace_pb2.Workspace:
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+        response = _control_rpc(
+            "get workspace",
+            lambda: self.workspaces.GetWorkspace(
+                workspace_pb2.GetWorkspaceRequest(workspace_id=workspace_id),
+                timeout=timeout,
+            ),
+        )
+        return response.workspace
+
+    def list_workspaces(
+        self,
+        *,
+        namespace: str = "default",
+        cursor: str = "",
+        page_size: int = 0,
+        timeout: float | None = 30.0,
+    ) -> workspace_pb2.ListWorkspacesResponse:
+        return _control_rpc(
+            "list workspaces",
+            lambda: self.workspaces.ListWorkspaces(
+                workspace_pb2.ListWorkspacesRequest(
+                    namespace=namespace, cursor=cursor, page_size=page_size
+                ),
+                timeout=timeout,
+            ),
+        )
+
+    def delete_workspace(
+        self, workspace_id: str, *, timeout: float | None = 30.0
+    ) -> workspace_pb2.Workspace:
+        """Record explicit deletion intent; capacity stays charged until cleanup is confirmed."""
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+        response = _control_rpc(
+            "delete workspace",
+            lambda: self.workspaces.DeleteWorkspace(
+                workspace_pb2.DeleteWorkspaceRequest(workspace_id=workspace_id),
+                timeout=timeout,
+            ),
+        )
+        return response.workspace
+
+    def wait_workspace_ready(
+        self, workspace_id: str, *, timeout: float = 120.0
+    ) -> workspace_pb2.Workspace:
+        """Wait for ready data without a writer; this observation reserves no authority."""
+        deadline = time.monotonic() + timeout
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise SandboxTimeoutError(
+                    "workspace provisioning timed out", operation="wait workspace"
+                )
+            workspace = self.get_workspace(workspace_id, timeout=min(remaining, 30.0))
+            if workspace.id != workspace_id:
+                raise SandboxLifecycleError("workspace readiness returned a different identity")
+            if workspace.status == workspace_pb2.WORKSPACE_STATUS_READY:
+                if not workspace.attached_allocation_id:
+                    return workspace
+            elif workspace.status != workspace_pb2.WORKSPACE_STATUS_PROVISIONING:
+                raise SandboxLifecycleError(
+                    f"workspace {workspace_id} is unavailable: {workspace.message}"
+                )
+            time.sleep(min(0.2, remaining))
+
     def create_run(
         self,
         *,
         environment_id: str,
+        workspace_id: str = "",
         argv: list[str] | None = None,
         namespace: str = "default",
         env: dict[str, str] | None = None,
@@ -372,10 +480,11 @@ class AxernClient:
         )
         response = _control_rpc(
             "create run",
-            lambda: self.runs.CreateRun(
+            lambda: self.runs.AdmitRun(
                 run_pb2.CreateRunRequest(
                     namespace=namespace,
                     environment_id=environment_id,
+                    workspace_id=workspace_id,
                     config=common_pb2.ExecutionConfig(
                         argv=list(argv or []),
                         env=dict(env or {}),

@@ -97,7 +97,7 @@ func (r Runtime) Open(ctx context.Context) (*controlv1.Session, error) {
 }
 
 // PinLocalEnvironmentImage replaces a mutable image ref with the immutable
-// generation selected by `axern local image load`. It is deliberately limited
+// generation selected by `axern dev image load`. It is deliberately limited
 // to the product-owned local context; remote contexts retain registry-backed
 // resolution and distribution semantics.
 func (r Runtime) PinLocalEnvironmentImage(spec *environmentv1.EnvironmentSpec) error {

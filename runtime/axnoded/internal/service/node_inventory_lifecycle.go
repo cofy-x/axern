@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	nodev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/node/v1"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
@@ -92,6 +93,7 @@ func (h *sandboxService) initNodeInventory() error {
 		NodeState:                h.config.PluginConfig.ControlPlaneNodeStateValue(),
 		NodeLabels:               h.config.PluginConfig.ControlPlaneNodeLabelsValue(),
 		CapabilitySnapshot:       h.currentCapabilitySnapshot,
+		WorkspaceStorage:         h.workspaceStorageObservation,
 		StorageTargets:           storageTargets,
 		RuntimeSlotCapacity:      h.config.PluginConfig.ResourceConfig.MaxInstanceNum,
 		MemoryBudgetEnabled:      true,
@@ -192,4 +194,16 @@ func nodeResourceProvider(cfg config.PluginConfig) (nodeinventory.NodeResourcePr
 	default:
 		return nodeinventory.NewHostNodeResourceProvider(), nil
 	}
+}
+
+func (h *sandboxService) workspaceStorageObservation() *nodev1.WorkspaceStorage {
+	m := h.workspaceStore()
+	if !m.Enabled() {
+		return &nodev1.WorkspaceStorage{Message: "disabled"}
+	}
+	capacity, err := m.Capacity()
+	if err != nil {
+		return &nodev1.WorkspaceStorage{Message: "managed storage unavailable"}
+	}
+	return &nodev1.WorkspaceStorage{Ready: true, StorageIdentity: capacity.Identity, CapacityBytes: capacity.Bytes, InodeCapacity: capacity.Inodes}
 }

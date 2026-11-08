@@ -90,7 +90,7 @@ func TestTerminalRuntimePendingRootfsSnapshotSurvivesNodeRestartCleanup(t *testi
 	service := runtimeInventoryTestService(t, handler)
 	const allocationID = "terminal-snapshot"
 	require.NoError(t, service.allocationController().StoreAllocationIntent(allocationID, "node-a",
-		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, &commonv1.RootfsSnapshot{}))
+		"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, &commonv1.RootfsSnapshot{}, nil))
 	inventory := runtimeInventory{allocationID: {ID: allocationID, Status: contract.ContainerStatusExited}}
 
 	require.NoError(t, service.cleanupTerminalRuntimeContainers(context.Background(), inventory))
@@ -184,7 +184,7 @@ func TestCleanupInterruptedAllocationStartWithoutRuntime(t *testing.T) {
 	controller := service.allocationController()
 	const allocationID = "interrupted-before-oci-create"
 	const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, &commonv1.RootfsSnapshot{}))
+	require.NoError(t, controller.StoreAllocationIntent(allocationID, "node-a", digest, time.Now().Add(time.Minute), nil, nil, nil, &commonv1.RootfsSnapshot{}, nil))
 	recovery, err := controller.InspectRecoveryRecords()
 	require.NoError(t, err)
 

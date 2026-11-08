@@ -192,3 +192,15 @@ func writeSpec(t *testing.T, dir, name, content string) string {
 	}
 	return path
 }
+
+func TestWorkspaceSelectionUsesDataIdentityAndRejectsMountPaths(t *testing.T) {
+	path := writeSpec(t, t.TempDir(), "run.json", `{"api_version":"axern/v1","kind":"Run","metadata":{},"spec":{"source":{"image":"example.test/runtime:latest"},"workspace_id":"ws-retained"}}`)
+	value, err := Load(path, KindRun)
+	if err != nil || value.Spec.WorkspaceID != "ws-retained" {
+		t.Fatalf("Workspace intent lost: %v, %v", value, err)
+	}
+	path = writeSpec(t, t.TempDir(), "run.json", `{"api_version":"axern/v1","kind":"Run","metadata":{},"spec":{"source":{"image":"example.test/runtime:latest"},"workspace_id":"ws-retained","workspace_path":"/host/data"}}`)
+	if _, err := Load(path, KindRun); err == nil {
+		t.Fatal("host mount selector accepted")
+	}
+}

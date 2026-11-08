@@ -1,68 +1,42 @@
 ---
 title: Quick Start
-description: Install Axern and run an isolated command locally without cloning source code.
+description: Start a coherent Axern source build and choose native serving or Compose development.
 ---
 
-Run a complete Axern stack on your machine without cloning the repository or installing Go, Node.js, Helm, `kubectl`, Make, or OpenSSL.
+The current source introduces a coordinated CLI, server and SDK protocol change. A source version does not establish published package availability. Use one matching build instead of mixing a previous release client with current services.
 
-This guide uses the Docker Compose development profile. For native Linux single-host serving, follow the repository's [experimental installation guide](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md), which defines the source-built archive, host requirements and systemd lifecycle.
+## Linux single-host serving
 
-## Prerequisites
+Build and install a complete archive using the repository's [native installation guide](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md). The target needs no source checkout, compiler, Docker or Kubernetes. Persistent Workspaces require a dedicated XFS data mount, project quotas and an explicit storage budget.
 
-- macOS or Linux on amd64 or arm64
-- Docker Desktop, or Docker Engine with Compose v2
-- At least 4 CPU cores, 8 GiB of memory, and 20 GiB of free disk space
-
-## 1. Install the CLI
+After installation, operate this host through the archive's CLI:
 
 ```bash
-brew install cofy-x/tap/axern
+sudo /opt/axern/releases/<archive-sha256>/bin/axern server start
+sudo /opt/axern/releases/<archive-sha256>/bin/axern server status
+sudo /opt/axern/releases/<archive-sha256>/bin/axern server logs axnoded
 ```
 
-If you do not use Homebrew:
+API contexts select the endpoint for execution requests. They do not turn `server` commands into remote host administration.
+
+## Compose source development
+
+Use Go 1.26.8, Make and Docker Compose v2 on macOS or Linux. At least 4 CPU cores, 8 GiB memory and 20 GiB free disk are recommended. From the source repository root:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
+make quickstart-source
+make axern-cli-build
+./bin/axern context list
 ```
 
-The installer downloads a GitHub Release archive, verifies it against `checksums.txt`, and installs into a user-writable directory. Set `AXERN_VERSION` or `AXERN_INSTALL_DIR` to override its defaults.
+This builds current source images and runs the Compose smoke. The [local deployment entrypoint](https://github.com/cofy-x/axern/blob/main/deploy/local/README.md) defines connection and context setup. The development stack and native serving installation have independent data.
 
-## 2. Start Local Axern
+A published CLI's embedded development bundle uses `axern dev up|status|logs|down` and needs matching published service images. It does not consume the source checkout's builds. See [Compose development](/getting-started/compose/) for that lifecycle.
 
-```bash
-axern local up
-```
+## Execute and retain work
 
-The command checks Docker and host resources, starts only the core services, waits until the gateway and runtime are healthy, and creates the `local` context. Host Docker images are not implicitly shared with the node; load the image used by the first workload:
+- [Runs](/guides/run/) create execution, expose state and provide bounded logs.
+- [Workspaces](/guides/workspaces/) retain files for a fresh Run after the old writer is confirmed cleaned up.
+- [SDKs](/sdk/) expose Go, Python sync/async and TypeScript APIs.
 
-```bash
-axern local image load python:3.12-slim --pull
-```
-
-## 3. Run a command
-
-```bash
-axern run python:3.12-slim -- python -c 'print("hello from axern")'
-```
-
-Axern streams the command's stdout and stderr to your terminal. The CLI exits with the command's real exit code. Every execution also creates a durable Run record that you can inspect later:
-
-```bash
-axern run list
-axern run logs <run-id>
-```
-
-Run status is durable. stdout/stderr and explicitly declared files or directory-as-tar outputs are sealed on the Node before runtime cleanup and remain readable for 15 minutes after cleanup starts. They survive axnoded restart, not Node-disk loss, and callers must copy accepted bytes to their own durable store. Axern does not provide a persistent workspace or general object store.
-
-## Next steps
-
-- Learn how to stop, diagnose, reset, and upgrade the stack in [Local Axern](/getting-started/compose/).
-- Define reusable, reviewable executions in [Runs](/guides/run/).
-- See the complete lifecycle reference in [`axern local`](/guides/local/).
-- Use [Kubernetes installation](/getting-started/kubernetes/) for a cluster deployment and its operator-owned configuration.
-
-:::caution[Local development boundary]
-
-The local stack binds public ports to `127.0.0.1` and generates a development identity for one machine. Do not expose it as a shared or production service.
-
-:::
+Without a Workspace, writable files belong to the current Allocation. Sealed logs and declared outputs expire 15 minutes after cleanup starts. Workspace capacity and deletion are independent; supported backup, upgrades and replacement-host restore remain unqualified.

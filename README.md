@@ -14,69 +14,44 @@
   <a href="./README.zh-CN.md">简体中文</a>
 </p>
 
-Axern is open-source, self-hosted infrastructure for **single-host agent execution and persistent workspaces**. Today it provides isolated execution through gVisor (`runsc`); persistent Workspace resources remain planned. The CLI and Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and Allocation-scoped access. gVisor/runsc is the sole long-term execution backend.
+Axern is open-source, self-hosted infrastructure for **single-host agent execution and persistent workspaces**. It provides isolated execution through gVisor (`runsc`) and experimental single-writer Workspace resources. The CLI and Go, Python, and TypeScript SDKs expose the same public APIs for Environments, Runs, sandbox processes and files, Tunnels, lifecycle state, and Allocation-scoped access. gVisor/runsc is the sole long-term execution backend.
 
 The primary use case is a personal agent system on one Linux host: independent workers, inspectable execution, retained working data, and a small operational surface. Agent sessions, configuration, planning, collaboration, and workflows belong to caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
 
-> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) provides a source-built runtime archive and managed systemd lifecycle. It is not yet a published release channel or a supported upgrade path. Docker Compose remains the local development path. Writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
+> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) provides a source-built runtime archive and managed systemd lifecycle. It is not yet a published release channel or a supported upgrade path. Docker Compose remains the local development path. Optional Workspace data requires XFS project quotas; other writable storage is Allocation-local. Supported backup/restore and upgrades remain unqualified, and sealed outputs expire 15 minutes after cleanup begins. Review the current deployment and storage boundaries before use.
 
 The durable chain is **Environment → Run → Allocation → runsc sandbox**. The following concepts describe how an agent system uses that chain; they do not introduce another execution lifecycle or an Axern Agent resource.
 
 | Concept | Responsibility and status |
 | --- | --- |
 | Image | Immutable runtime, tools, and reference inputs. Environments resolve execution inputs and policy; read-only ImageMounts provide additional image content. |
-| Workspace | **Planned:** retained working data with its own identity, authorization, capacity, and deletion. The first version targets one writer per Workspace. |
+| Workspace | **Experimental:** retained working data on one bound Node, with its own identity, authorization, block/inode capacity and explicit deletion. One fenced writer per Workspace. |
 | Sandbox | The running execution view and SDK facade over one Run/Allocation, including its processes and filesystem access. It does not own a persistent Agent session. |
 | AgentSession | Caller-owned conversation, configuration, planning, and coordination state; Axern executes the worker without interpreting that session. |
 
-The default collaboration pattern is independent writable working directories, common read-only references, and explicitly published results that the caller merges or hands off. Today this uses separate Allocations, read-only image mounts, and caller-managed export/restore. Native Workspace retention and simultaneous shared writable mounts remain unimplemented.
+The default collaboration pattern is independent writable working directories, common read-only references, and explicitly published results that the caller merges or hands off. Use separate Workspaces or Allocation-local directories, read-only image mounts, and explicit result handoff. Simultaneous shared writable mounts remain outside the single-writer contract.
 
 [Agent workload images](./images/agents/README.md) share a base and development toolchain, then add official Claude Code or Codex programs in separate layers. Build them locally with `make agent-images`; model credentials, provider selection, tasks and session policy remain runtime inputs owned by the caller.
 
 <p align="center">
-  <img src="./apps/docs/public/terminal/axern.gif" width="760" alt="Current axern CLI help recording: local execution, Run, SSH and Tunnel commands">
+  <img src="./apps/docs/public/terminal/axern.svg" width="760" alt="Current axern CLI command groups: server, development, Workspaces and execution">
 </p>
 
 ## Quickstart
 
-The supported local development path runs the complete stack with Docker Compose on Linux or through Docker Desktop's Linux VM on macOS. It needs only the `axern` CLI and Docker Compose v2 — no source checkout, Make, Helm, or language toolchains. gVisor execution runs on Linux in both cases.
+For Linux single-host serving, build and stage a coherent native archive using the [installation guide](./deploy/standalone/INSTALL.md). Operate the installed server with `axern server start`, `status`, `logs` and `stop`. API contexts select remote execution services; they do not change the host managed by `server`.
 
-```bash
-brew install cofy-x/tap/axern
-```
-
-Without Homebrew, use the standalone checksummed installer:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/cofy-x/axern/main/install.sh | sh
-```
-
-Then start Axern and run the first workload:
-
-```bash
-axern local up
-axern local image load python:3.12-slim --pull
-axern run python:3.12-slim -- python -c 'print("hello from axern")'
-```
-
-`local up` starts PostgreSQL and the Axern control, tunnel, node, and gateway components, waits for readiness, and creates the `local` context. `local image load` streams the selected host Docker image into that local node without a temporary archive:
-
-```bash
-axern context current
-axern run list
-axern local status
-axern local down
-```
-
-The local environment uses generated development credentials and loopback listeners. Do not reuse them in a shared or production deployment.
-
-Trusted machine-local HTTP registries can be authorized with repeatable `axern local up --insecure-registry host[:port]` flags. The registry must be reachable from both local control and node containers under that exact hostname; container-only registries can join the `axern-local-registry` Docker network reported by `axern local status`. See the [CLI contract](./apps/cli/README.md#local-external-http-registries). HTTPS remains the default, and this local-only setting is not part of an Environment specification.
-
-Source development is a separate contributor path. It builds the current checkout into local `:dev` images and exercises the same public contract:
+This source tree introduces a coordinated protocol change. Build the CLI, services and SDKs from the same revision; a source version does not establish published package availability. For repository development on Linux or a macOS Linux VM, use Go 1.26.8, Make and Docker Compose v2:
 
 ```bash
 make quickstart-source
+make axern-cli-build
+./bin/axern context list
 ```
+
+`quickstart-source` builds current service images and verifies the source Compose stack. The packaged Compose lifecycle is `axern dev up|status|logs|down`; it is separate from the installed server and retains the machine-local context/data identity. A published CLI's development bundle requires its matching published service images. See the [CLI contract](./apps/cli/README.md) for deployment commands and contexts.
+
+[Workspace usage](./apps/docs/src/content/docs/guides/workspaces.md) covers retained files through fresh Runs. Without a Workspace, existing ephemeral execution stays available. Agent programs, tasks and session recovery remain caller-owned.
 
 For repository development, `make verify-changed` is the normal fast feedback entrypoint. Linux correctness, full regression, and release qualification are separate tiers. Every `main` commit starts a commit-bound full regression; a green PR check does not imply that this later run has passed. Check [Post-Merge Full](https://github.com/cofy-x/axern/actions/workflows/post-merge-full.yml) before release or promotion; see the [verification tiers](./docs/verification/local-full-verification.md).
 
@@ -116,7 +91,7 @@ Public clients are available in Go, Python, and TypeScript under [`sdk/`](./sdk/
 
 Follow the [Kubernetes installation guide](./apps/docs/src/content/docs/getting-started/kubernetes.md) to provision signing material, supply qualified node memory reserves, bind explicit Node identities, install the control plane, and admit nodes before waiting for runtime readiness. SSH is optional and uses Principal Credentials. Do not skip the identity and admission steps by running a bare Helm install.
 
-Treat each Axern release as one coordinated CLI, SDK, chart, and runtime version. Review its [release notes](./docs/releases/) before upgrading and use artifacts only after publication completes; a source version is not proof of artifact availability. Terminal recordings show the current source CLI help, not a deployed workload or performance measurement.
+Treat each Axern release as one coordinated CLI, SDK, chart, and runtime version. Review its [release notes](./docs/releases/) before upgrading and use artifacts only after publication completes; a source version is not proof of artifact availability. The command overview is generated from source CLI help; it is not a deployed workload or performance measurement.
 
 ## Deployment
 

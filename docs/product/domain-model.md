@@ -4,7 +4,7 @@ This document defines Axern's stable product identities, lifecycle ownership, an
 
 ## Platform Boundary
 
-Axern is a self-hosted execution platform for AI agents with gVisor isolation. Caller workflows remain outside the Run and Allocation state machine. This document describes implemented public identities; the [Product Direction](product-direction.md) and [Single-Host Architecture Decision](../decisions/single-host-agent-serving.md) define the target for Linux standalone serving and a planned persistent Workspace, neither of which adds an API through documentation alone.
+Axern is a self-hosted execution platform for AI agents with gVisor isolation. Caller workflows remain outside the Run and Allocation state machine. This document describes implemented public identities; the [Product Direction](product-direction.md) and [Single-Host Architecture Decision](../decisions/single-host-agent-serving.md) define the single-host serving scope. Persistent Workspace is experimental and requires explicit storage enforcement; its backup and replacement-host restore guarantees remain outside the implemented maintenance contract.
 
 The only durable execution chain is:
 
@@ -21,6 +21,7 @@ Environment -> Run -> Allocation -> runsc sandbox
 | `Namespace` | Authorization, quota, query, and cleanup boundary | `controld` and PostgreSQL |
 | `Environment` | Immutable, rebuildable execution input | `controld`; image bytes remain in the image stack |
 | `Run` | One user-visible execution request and final result | `controld` and PostgreSQL |
+| `Workspace` | Retained namespace-scoped files and capacity on one bound Node, with one fenced writer | `controld` and PostgreSQL; managed bytes and quota at `axnoded` |
 | `Secret` | Encrypted namespace-scoped input referenced by execution | `controld` and PostgreSQL |
 | `Principal` | Stable human, workload, or administrative identity | `controld` and PostgreSQL |
 | `Credential` | Expiring and revocable authentication material | `controld` and PostgreSQL |
@@ -29,7 +30,7 @@ Environment -> Run -> Allocation -> runsc sandbox
 
 ### Namespace
 
-A Namespace scopes Environments, Runs, Secrets, quota policy, and retained metadata. Deletion rejects live dependent state and leaves an irreversible identity tombstone so a deleted name cannot acquire a new authorization identity. Namespace is not a Kubernetes namespace, cloud account, cluster, region, or billing object.
+A Namespace scopes Environments, Runs, Workspaces, Secrets, quota policy, and retained metadata. Deletion rejects live dependent state and leaves an irreversible identity tombstone so a deleted name cannot acquire a new authorization identity. Namespace is not a Kubernetes namespace, cloud account, cluster, region, or billing object.
 
 ### Environment
 
@@ -48,6 +49,12 @@ PLACED -> STARTING -> RUNNING
 Terminal state is irreversible. Axern does not replace a failed Allocation underneath a Run; another execution is a new Run and Allocation.
 
 Rootfs sealing is an optional Run finalization result independent from workload status. It begins only after a successful primary workload, preserves the Run's terminal result, and resolves to `ready` with a new Environment or `failed` with a stable diagnostic. It never turns a failed or cancelled Run into a reusable image.
+
+### Workspace
+
+A Workspace has an independent, never-reused identity, bound Node, retained block/inode charge and explicit deletion. Create provisions data asynchronously. A Run optionally freezes one Workspace attachment at `/workspace`; its generation binds exactly one Allocation. Stopping a Run retains files and charge. Another writer requires confirmed runtime, Gofer and mount cleanup plus the matching `RELEASED` receipt; lease expiry or terminal Run status alone cannot release it.
+
+The public lifecycle is `PROVISIONING -> READY | UNAVAILABLE -> DELETING -> DELETED`; attachment is a separate fact under the Workspace. `READY` does not mean unattached. Missing or replaced retained data is unavailable, never an empty successful recovery. Namespace deletion and Node retirement retain these data obligations. See the [single-writer decision](../decisions/single-writer-workspaces.md) for the storage, authority and maintenance boundaries.
 
 ### Secret
 
@@ -113,7 +120,7 @@ Run result is durable metadata: terminal status, exit-code knowledge, diagnostic
 
 Declared output sealing is a cleanup barrier, not an Artifact service. The node publishes one immutable, read-only manifest and retains available bytes for a bounded period; node-disk loss remains explicit, and the caller owns durable publication. Limits and recovery semantics are defined by the [storage lifetime contract](../architecture/storage-architecture.md).
 
-Rootfs sealing is a separate cleanup barrier for explicitly requested successful Runs. It exports the stopped Allocation's writable rootfs layer and combines it with the digest-pinned base into a content-addressed OCI image. Bind mounts, image mounts, Secret projections, kernel filesystems, processes, sockets, terminals, SSH, and Tunnel state are excluded. Controld atomically publishes the resulting ordinary Environment and Run snapshot result before acknowledging the node receipt. Axern stores no second snapshot identity or mutable workspace; registry retention and physical blob garbage collection remain operator policy.
+Rootfs sealing is a separate cleanup barrier for explicitly requested successful Runs. It exports the stopped Allocation's writable rootfs layer and combines it with the digest-pinned base into a content-addressed OCI image. Bind mounts, image mounts, Secret projections, kernel filesystems, processes, sockets, terminals, SSH, and Tunnel state are excluded. Controld atomically publishes the resulting ordinary Environment and Run snapshot result before acknowledging the node receipt. Rootfs publication stores no second snapshot identity; registry retention and physical blob garbage collection remain operator policy.
 
 ## Fact Ownership
 
@@ -134,7 +141,6 @@ Run and Allocation never double-own a fact: Run owns immutable execution intent 
 | --- | --- |
 | Service, Replica, Route, Rollout | External PaaS or application |
 | Function, Invoke, worker dispatch | Caller queue or workflow system |
-| Persistent Workspace | Not currently implemented; the [single-writer Workspace decision](../decisions/single-writer-workspaces.md) defines the planned independent data identity, attachment and restore boundary |
 | General or distributed Volume provisioning | External storage layer |
 | Dashboard, IDE, cluster, region, cloud account and image-build service orchestration | Composed product or deployment infrastructure |
 
@@ -148,7 +154,7 @@ Axern maintains [workload image recipes](../../images/agents/README.md), their s
 4. Resource charge ends only after confirmed required cleanup.
 5. ExecutionLease, access grants, SSH, and Tunnel authority are finite and Allocation-scoped.
 6. Missing identity, isolation, capability, network, mount, or resource enforcement fails closed.
-7. Node-local data is not described as durable without explicit delivery.
+7. Retained Workspace bytes keep their capacity charge and exclusive attachment authority independently of execution; backup and replacement-host recovery require an explicitly qualified maintenance protocol.
 8. Restart or partition cannot create two authoritative owners or revive terminal state.
 9. Cleanup is idempotent, owner-aware, and observable; unknown state is not safely released.
 10. Caller policy remains outside the Run/Allocation state machine.

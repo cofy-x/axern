@@ -64,12 +64,12 @@ func Command(runtime command.Runtime) *cobra.Command {
 }
 
 type createOptions struct {
-	file, namespace, environmentID, imageRef, credentialID, cwd, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
-	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                   []string
-	rootfsReadonly                                                                                                                                                bool
-	rootfsSnapshot                                                                                                                                                bool
-	detach                                                                                                                                                        bool
-	waitTimeout                                                                                                                                                   time.Duration
+	file, namespace, environmentID, workspaceID, imageRef, credentialID, cwd, requestCPU, requestMemory, requestEphemeralStorage, limitCPU, limitMemory, limitEphemeralStorage string
+	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                                []string
+	rootfsReadonly                                                                                                                                                             bool
+	rootfsSnapshot                                                                                                                                                             bool
+	detach                                                                                                                                                                     bool
+	waitTimeout                                                                                                                                                                time.Duration
 }
 
 func execute(runtime command.Runtime, cmd *cobra.Command, options *createOptions) error {
@@ -230,6 +230,7 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.StringArrayVar(&o.extensionCapabilities, "extension-capability", nil, "exact-match extension <dns-domain>/<name>[=value]; may be repeated")
 	f.StringArrayVar(&o.labels, "label", nil, "label key=value; may be repeated")
 	f.StringVar(&o.environmentID, "environment", "", "existing environment id")
+	f.StringVar(&o.workspaceID, "workspace", "", "persistent Workspace ID mounted at /workspace with exclusive write access")
 	f.StringVar(&o.credentialID, "registry-credential-id", "", "registry credential id")
 	f.BoolVar(&o.rootfsReadonly, "rootfs-readonly", false, "mount rootfs read-only")
 	f.BoolVar(&o.rootfsSnapshot, "snapshot-rootfs", false, "seal the successful writable rootfs as a new environment")
@@ -256,7 +257,7 @@ func (o createOptions) params(cmd *cobra.Command) (apprun.CreateParams, error) {
 		}
 		environmentID, environment := value.EnvironmentSpec()
 		execution, err := value.ExecutionConfig()
-		return apprun.CreateParams{Namespace: value.Metadata.Namespace, EnvironmentID: environmentID, Spec: environment, Config: execution, Labels: value.Metadata.Labels}, err
+		return apprun.CreateParams{Namespace: value.Metadata.Namespace, EnvironmentID: environmentID, WorkspaceID: value.Spec.WorkspaceID, Spec: environment, Config: execution, Labels: value.Metadata.Labels}, err
 	}
 	if o.environmentID != "" && (o.credentialID != "" || cmd.Flags().Changed("rootfs-readonly")) {
 		return apprun.CreateParams{}, fmt.Errorf("--registry-credential-id and --rootfs-readonly require an image")
@@ -269,7 +270,7 @@ func (o createOptions) params(cmd *cobra.Command) (apprun.CreateParams, error) {
 	if err != nil {
 		return apprun.CreateParams{}, err
 	}
-	return apprun.CreateParams{Namespace: o.namespace, EnvironmentID: o.environmentID, Spec: environment, Config: execution, Labels: parse.Labels(o.labels)}, nil
+	return apprun.CreateParams{Namespace: o.namespace, EnvironmentID: o.environmentID, WorkspaceID: o.workspaceID, Spec: environment, Config: execution, Labels: parse.Labels(o.labels)}, nil
 }
 
 func executionConfig(o createOptions) (*commonv1.ExecutionConfig, error) {
@@ -322,7 +323,7 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
+var runDefinitionFlags = []string{"namespace", "workspace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func logsCommand(runtime command.Runtime) *cobra.Command {
 	var follow bool

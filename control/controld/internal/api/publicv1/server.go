@@ -7,11 +7,13 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 )
 
 type Server struct {
 	environmentv1.UnimplementedEnvironmentControlServer
 	runv1.UnimplementedRunControlServer
+	workspacev1.UnimplementedWorkspaceControlServer
 	secretv1.UnimplementedSecretControlServer
 	tunnelv1.UnimplementedTunnelControlServer
 	namespacev1.UnimplementedNamespaceControlServer

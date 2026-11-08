@@ -3,6 +3,7 @@ package publicv1
 import (
 	"context"
 	"errors"
+	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
 	"strings"
 
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
@@ -14,10 +15,15 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *Server) CreateRun(ctx context.Context, req *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
+func (s *Server) AdmitRun(ctx context.Context, req *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
 	ctx, op := publicOps.Run(ctx, ctrlobs.SpanRunCreate, publicActionCreate, withEnvironmentID(req.GetEnvironmentID()))
 	var opErr error
 	defer func() { op.End(opErr) }()
+	if req.GetWorkspaceID() != "" {
+		if err := executionkernel.ValidateWorkspaceConfig(req.GetConfig()); err != nil {
+			return nil, err
+		}
+	}
 	if err := validateExecutionConfigSecretRefs(req.GetConfig()); err != nil {
 		opErr = err
 		return nil, err
@@ -44,6 +50,7 @@ func (s *Server) CreateRun(ctx context.Context, req *runv1.CreateRunRequest) (*r
 	}
 	run, err := s.deps.Runs.CreateRun(ctx, runkernel.CreateParams{
 		Namespace:     req.GetNamespace(),
+		WorkspaceID:   req.GetWorkspaceID(),
 		EnvironmentID: req.GetEnvironmentID(),
 		Config:        req.GetConfig(),
 		Labels:        req.GetLabels(),

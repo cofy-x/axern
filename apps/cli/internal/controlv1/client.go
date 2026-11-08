@@ -13,6 +13,7 @@ import (
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	secretv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/secret/v1"
 	tunnelv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 )
 
@@ -60,6 +61,7 @@ type Clients struct {
 	Identity         identityv1.IdentityControlClient
 	Environment      environmentv1.EnvironmentControlClient
 	Run              runv1.RunControlClient
+	Workspace        workspacev1.WorkspaceControlClient
 	Secret           secretv1.SecretControlClient
 	Tunnel           tunnelv1.TunnelControlClient
 	Namespace        namespacev1.NamespaceControlClient

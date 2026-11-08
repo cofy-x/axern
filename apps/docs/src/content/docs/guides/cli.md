@@ -5,7 +5,7 @@ description: Manage contexts and run isolated workloads through the Axern public
 
 `axern` is the product CLI for resources and interactive development. It talks to public APIs through `gatewayd`; it never connects directly to node or database internals.
 
-![Axern CLI command overview](/terminal/axern.gif)
+![Axern CLI command overview](/terminal/axern.svg)
 
 ## Confirm the current context
 
@@ -17,7 +17,7 @@ axern context current
 For a local machine, the recommended path creates and manages the context for you:
 
 ```bash
-axern local up
+axern dev up
 ```
 
 For a Helm installation, keep a gateway port-forward open and import the deployment-owned administrator mTLS identity. SSH is optional and disabled by the default chart values, so the basic CLI path only needs the control port:

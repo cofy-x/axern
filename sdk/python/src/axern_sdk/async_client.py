@@ -14,6 +14,7 @@ from google.protobuf import duration_pb2
 from axern.control.common.v1 import common_pb2
 from axern.control.environment.v1 import environment_pb2, environment_pb2_grpc
 from axern.control.run.v1 import run_pb2, run_pb2_grpc
+from axern.control.workspace.v1 import workspace_pb2, workspace_pb2_grpc
 from axern.node.sandbox.v1 import node_pb2, node_pb2_grpc
 from axern.control.tunnel.v1 import tunnel_pb2, tunnel_pb2_grpc
 from axern_sdk._internal.channel import async_control_channel
@@ -84,6 +85,7 @@ class AsyncAxernClient:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._environments: environment_pb2_grpc.EnvironmentControlStub | None = None
         self._runs: run_pb2_grpc.RunControlStub | None = None
+        self._workspaces: workspace_pb2_grpc.WorkspaceControlStub | None = None
         self._tunnels: tunnel_pb2_grpc.TunnelControlStub | None = None
 
     async def close(self) -> None:
@@ -94,6 +96,7 @@ class AsyncAxernClient:
             self._loop = None
             self._environments = None
             self._runs = None
+            self._workspaces = None
             self._tunnels = None
 
     async def __aenter__(self) -> "AsyncAxernClient":
@@ -156,6 +159,12 @@ class AsyncAxernClient:
         return self._runs
 
     @property
+    def workspaces(self) -> workspace_pb2_grpc.WorkspaceControlStub:
+        self._ensure_channel()
+        assert self._workspaces is not None
+        return self._workspaces
+
+    @property
     def tunnels(self) -> tunnel_pb2_grpc.TunnelControlStub:
         self._ensure_channel()
         assert self._tunnels is not None
@@ -175,6 +184,9 @@ class AsyncAxernClient:
                     self._channel
                 )
                 self._runs = run_pb2_grpc.RunControlStub(self._channel)
+                self._workspaces = workspace_pb2_grpc.WorkspaceControlStub(
+                    self._channel
+                )
                 self._tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
             return
         self._loop = loop
@@ -188,6 +200,7 @@ class AsyncAxernClient:
         )
         self._environments = environment_pb2_grpc.EnvironmentControlStub(self._channel)
         self._runs = run_pb2_grpc.RunControlStub(self._channel)
+        self._workspaces = workspace_pb2_grpc.WorkspaceControlStub(self._channel)
         self._tunnels = tunnel_pb2_grpc.TunnelControlStub(self._channel)
 
     def _gateway_transport(self) -> _GatewayTransport:
@@ -327,10 +340,118 @@ class AsyncAxernClient:
             )
             retry_delay = min(retry_delay * 2, _STREAM_RETRY_MAX_SECONDS)
 
+    async def create_workspace(
+        self,
+        *,
+        node_id: str,
+        capacity_bytes: int,
+        inode_limit: int,
+        namespace: str = "default",
+        labels: dict[str, str] | None = None,
+        timeout: float | None = 30.0,
+    ) -> workspace_pb2.Workspace:
+        """Request retained capacity. Provisioning is asynchronous and never retried here."""
+        if not node_id or any(
+            type(value) is not int or value <= 0 or value >= 2**63
+            for value in (capacity_bytes, inode_limit)
+        ):
+            raise ValueError(
+                "node_id and positive int64 capacity_bytes/inode_limit are required"
+            )
+        if capacity_bytes % 512:
+            raise ValueError("capacity_bytes must be 512-byte aligned")
+        response = await _control_rpc(
+            "create workspace",
+            self.workspaces.CreateWorkspace(
+                workspace_pb2.CreateWorkspaceRequest(
+                    namespace=namespace,
+                    node_id=node_id,
+                    capacity_bytes=capacity_bytes,
+                    inode_limit=inode_limit,
+                    labels=dict(labels or {}),
+                ),
+                timeout=timeout,
+            ),
+        )
+        return response.workspace
+
+    async def get_workspace(
+        self, workspace_id: str, *, timeout: float | None = 30.0
+    ) -> workspace_pb2.Workspace:
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+        response = await _control_rpc(
+            "get workspace",
+            self.workspaces.GetWorkspace(
+                workspace_pb2.GetWorkspaceRequest(workspace_id=workspace_id),
+                timeout=timeout,
+            ),
+        )
+        return response.workspace
+
+    async def list_workspaces(
+        self,
+        *,
+        namespace: str = "default",
+        cursor: str = "",
+        page_size: int = 0,
+        timeout: float | None = 30.0,
+    ) -> workspace_pb2.ListWorkspacesResponse:
+        return await _control_rpc(
+            "list workspaces",
+            self.workspaces.ListWorkspaces(
+                workspace_pb2.ListWorkspacesRequest(
+                    namespace=namespace, cursor=cursor, page_size=page_size
+                ),
+                timeout=timeout,
+            ),
+        )
+
+    async def delete_workspace(
+        self, workspace_id: str, *, timeout: float | None = 30.0
+    ) -> workspace_pb2.Workspace:
+        """Record explicit deletion intent; capacity stays charged until cleanup is confirmed."""
+        if not workspace_id:
+            raise ValueError("workspace_id is required")
+        response = await _control_rpc(
+            "delete workspace",
+            self.workspaces.DeleteWorkspace(
+                workspace_pb2.DeleteWorkspaceRequest(workspace_id=workspace_id),
+                timeout=timeout,
+            ),
+        )
+        return response.workspace
+
+    async def wait_workspace_ready(
+        self, workspace_id: str, *, timeout: float = 120.0
+    ) -> workspace_pb2.Workspace:
+        """Wait for ready data without a writer; this observation reserves no authority."""
+        deadline = asyncio.get_running_loop().time() + timeout
+        while True:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise SandboxTimeoutError(
+                    "workspace provisioning timed out", operation="wait workspace"
+                )
+            workspace = await self.get_workspace(
+                workspace_id, timeout=min(remaining, 30.0)
+            )
+            if workspace.id != workspace_id:
+                raise SandboxLifecycleError("workspace readiness returned a different identity")
+            if workspace.status == workspace_pb2.WORKSPACE_STATUS_READY:
+                if not workspace.attached_allocation_id:
+                    return workspace
+            elif workspace.status != workspace_pb2.WORKSPACE_STATUS_PROVISIONING:
+                raise SandboxLifecycleError(
+                    f"workspace {workspace_id} is unavailable: {workspace.message}"
+                )
+            await asyncio.sleep(min(0.2, remaining))
+
     async def create_run(
         self,
         *,
         environment_id: str,
+        workspace_id: str = "",
         argv: list[str] | None = None,
         namespace: str = "default",
         env: dict[str, str] | None = None,
@@ -360,10 +481,11 @@ class AsyncAxernClient:
         )
         response = await _control_rpc(
             "create run",
-            self.runs.CreateRun(
+            self.runs.AdmitRun(
                 run_pb2.CreateRunRequest(
                     namespace=namespace,
                     environment_id=environment_id,
+                    workspace_id=workspace_id,
                     config=common_pb2.ExecutionConfig(
                         argv=list(argv or []),
                         env=dict(env or {}),
