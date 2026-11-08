@@ -15,7 +15,7 @@ services:
       REGISTRY_STORAGE_DELETE_ENABLED: "true"
     volumes: ["snapshot-registry-data:/var/lib/registry"]
     healthcheck:
-      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:5000/v2/"]
+      test: ["CMD", "/bin/axern-registry-healthcheck"]
       interval: 1s
       timeout: 3s
       retries: 30
@@ -91,9 +91,9 @@ services:
       https_proxy: ${CONTAINER_HTTPS_PROXY}
       no_proxy: ${CONTAINER_NO_PROXY}
       CONTROLD_INSECURE_REGISTRIES: ${CONTROLD_INSECURE_REGISTRIES}
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      AXERN_OTEL_ENABLED: ${AXERN_OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
     command:
       - -enrollment-address
@@ -160,9 +160,9 @@ services:
       no_proxy: ${CONTAINER_NO_PROXY}
       IMAGEMGR_INSECURE_REGISTRIES: ${CONTROLD_INSECURE_REGISTRIES}
       AXNODED_ROOTFS_SNAPSHOT_REPOSITORY: registry:5000/axern/rootfs-snapshots
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      AXERN_OTEL_ENABLED: ${AXERN_OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local,axern.node_id=${AXNODED_CONTROL_PLANE_NODE_ID:-node-local}
     networks: [default, registry-access]
     volumes:
@@ -191,9 +191,9 @@ services:
       GATEWAYD_TLS_CA_CERT: /certs/ca.crt
       AXERN_WORKLOAD_CLUSTER: axern.local
       GATEWAYD_WORKLOAD_BUNDLE: /certs/gatewayd.pem
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      AXERN_OTEL_ENABLED: ${AXERN_OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE}
       OTEL_RESOURCE_ATTRIBUTES: deployment.environment=local
     command: ["-control-target", "controld:24000", "-control-edge-address", "0.0.0.0:25000", "-control-edge-tls-ca-cert", "/certs/ca.crt", "-control-edge-tls-cert", "/certs/gatewayd.pem", "-control-edge-tls-key", "/certs/gatewayd.pem", "-tunnel-relay-target", "tunneld:24100", "-tunnel-relay-tls-ca-cert", "/certs/ca.crt", "-http-address", "0.0.0.0:25080", "-ssh-enabled", "-ssh-address", "0.0.0.0:25022", "-ssh-host-key", "/ssh/gateway_host_ed25519", "-tls-ca-cert", "/certs/ca.crt"]
     ports:
@@ -204,20 +204,3 @@ services:
       - "${AXERN_LOCAL_DIR}/certs/ca.crt:/certs/ca.crt:ro"
       - "${AXERN_LOCAL_DIR}/certs/gatewayd.pem:/certs/gatewayd.pem:ro"
       - "${AXERN_LOCAL_DIR}/ssh:/ssh:ro"
-
-  otel-collector:
-    image: ${OTEL_COLLECTOR_IMAGE}
-    profiles: [observability]
-    command: ["--config=/etc/otelcol/config.yaml"]
-    volumes: ["${AXERN_LOCAL_DIR}/otel-collector.yaml:/etc/otelcol/config.yaml:ro"]
-    ports:
-      - "127.0.0.1:${OTEL_GRPC_PORT}:4317"
-      - "127.0.0.1:${OTEL_HTTP_PORT}:4318"
-    restart: unless-stopped
-    depends_on: [otel-lgtm]
-
-  otel-lgtm:
-    image: ${OTEL_LGTM_IMAGE}
-    profiles: [observability]
-    ports: ["127.0.0.1:${LGTM_UI_PORT}:3000"]
-    restart: unless-stopped

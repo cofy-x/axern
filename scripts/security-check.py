@@ -19,6 +19,10 @@ PIP_AUDIT = "pip-audit==2.10.1"
 TOOL_MODULE = ("github.com/docker/distribution", "v2.8.3+incompatible")
 TOOL_OWNER = "github.com/cilium/ebpf@v0.22.0"
 TOOL_FINDINGS = {"GHSA-685w-q87j-wqw3", "GO-2026-6778"}
+AUXILIARY_MODULES = {
+    "postgres": ("github.com/tianon/gosu", "1.20"),
+    "registry": ("github.com/distribution/distribution/v3", "v3.1.2"),
+}
 
 
 def json_stream(raw: str) -> list[dict]:
@@ -125,6 +129,43 @@ def check_package_closure(raw: str, returncode: int) -> None:
         raise ValueError("upstream development tool entered an Axern package closure")
 
 
+def auxiliary_graph(raw: str, returncode: int, expected_module: str) -> set[tuple[str, str]]:
+    if returncode:
+        raise ValueError("auxiliary module graph failed")
+    modules = json_stream(raw)
+    roots = [module for module in modules if module.get("Main")]
+    if len(roots) != 1 or roots[0].get("Path") != expected_module or roots[0].get("Replace"):
+        raise ValueError("auxiliary module graph has no matching source root")
+    dependencies = set()
+    paths = {expected_module}
+    for module in modules:
+        if module is roots[0]:
+            continue
+        if module.get("Replace") or not module.get("Path") or not module.get("Version"):
+            raise ValueError("unqualified auxiliary dependency")
+        identity = (module["Path"], module["Version"])
+        if module["Path"] in paths:
+            raise ValueError("duplicate auxiliary dependency")
+        # The one non-shipping classification belongs exclusively to the
+        # separately proven Axern workspace graph. Never inherit it for an
+        # auxiliary upstream build, including test or foreign-platform tools.
+        if identity == TOOL_MODULE:
+            raise ValueError("workspace tool classification cannot cover auxiliary dependencies")
+        paths.add(module["Path"])
+        dependencies.add(identity)
+    return dependencies
+
+
+def auxiliary_identity(name: str, pins: dict, declarations: list[str]) -> tuple[str, str]:
+    expected_module, version = AUXILIARY_MODULES[name]
+    upstream = pins.get("gosu" if name == "postgres" else "distribution", {})
+    if declarations != [expected_module] or upstream.get("version") != version:
+        raise ValueError("auxiliary source owner or upstream version differs from the audit scope")
+    if name == "registry" and upstream.get("module") != expected_module:
+        raise ValueError("auxiliary source module differs from its pins")
+    return expected_module, version
+
+
 def closure_targets(members: list[str]) -> list[tuple[str, str, str, str]]:
     return [(member, system, arch, cgo) for member in members
             for system in ("linux", "darwin") for arch in ("amd64", "arm64") for cgo in ("0", "1")
@@ -193,8 +234,9 @@ def main() -> int:
     output = output.resolve()
     go, pnpm, uv = (os.environ.get(name, fallback) for name, fallback in (("GO", "go"), ("PNPM", "pnpm"), ("UV", "uv")))
 
-    def command(label: str, argv: list[str], cwd: Path = ROOT, timeout: int = 600) -> subprocess.CompletedProcess:
-        result = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
+    def command(label: str, argv: list[str], cwd: Path = ROOT, timeout: int = 600,
+                env: dict[str, str] | None = None) -> subprocess.CompletedProcess:
+        result = subprocess.run(argv, cwd=cwd, env=env, capture_output=True, text=True, timeout=timeout)
         (output / (label + ".json")).write_text(result.stdout)
         (output / (label + ".stderr")).write_text(result.stderr)
         return result
@@ -250,6 +292,42 @@ def main() -> int:
             if not module.get("Version"):
                 raise ValueError("unversioned dependency outside audited workspace: " + module["Path"])
             packages.add((module["Path"], module["Version"]))
+        # Auxiliary service recipes build independently pinned upstream Go
+        # programs outside go.work. Audit their exact prepared source and full
+        # module graphs as well; workspace scans cannot establish this evidence.
+        summary["auxiliary_go_modules"] = []
+        host = command("auxiliary-go-host", [go, "env", "-json", "GOHOSTOS", "GOHOSTARCH"])
+        if host.returncode:
+            raise ValueError("auxiliary audit host could not be established")
+        host_target = json.loads(host.stdout)
+        if host_target.get("GOHOSTOS") not in ("linux", "darwin") or host_target.get("GOHOSTARCH") not in ("amd64", "arm64"):
+            raise ValueError("unsupported auxiliary source audit host")
+        auxiliary_env = dict(os.environ, GOWORK="off", GOTOOLCHAIN="local", GOENV="off", GOFLAGS="-mod=readonly",
+                             CGO_ENABLED="0", GOOS=host_target["GOHOSTOS"], GOARCH=host_target["GOHOSTARCH"])
+        summary["auxiliary_source_target"] = {"goos": auxiliary_env["GOOS"], "goarch": auxiliary_env["GOARCH"], "cgo": "0"}
+        for name, (expected_module, upstream_version) in AUXILIARY_MODULES.items():
+            prepared = output / (name + "-source")
+            preparation = command("auxiliary-" + name + "-prepare", [
+                "python3", str(ROOT / "deploy/images" / name / "build.py"),
+                "--prepare-only", "--go", go, "--output", str(prepared),
+            ], env=auxiliary_env)
+            if preparation.returncode:
+                raise ValueError("auxiliary source preparation failed: " + name)
+            source = prepared / "source"
+            declarations = [line.split()[1].strip('"') for line in (source / "go.mod").read_text().splitlines()
+                            if line.split()[:1] == ["module"]]
+            lock = "pins.json" if name == "postgres" else "artifacts.lock.json"
+            auxiliary_identity(name, json.loads((ROOT / "deploy/images" / name / lock).read_text()), declarations)
+            result = command("auxiliary-" + name + "-go", [go, "run", GOVULNCHECK, "-json", "./..."],
+                             source, env=auxiliary_env)
+            check_go(result.stdout, result.returncode, expected_module)
+            graph = command("auxiliary-" + name + "-graph", [go, "list", "-m", "-json", "all"],
+                            source, env=auxiliary_env)
+            packages.update(auxiliary_graph(graph.stdout, graph.returncode, expected_module))
+            packages.add((expected_module, upstream_version))
+            summary["auxiliary_go_modules"].append({"image": name, "module": expected_module,
+                                                    "upstream_version": upstream_version})
+
         queries = [{"package": {"ecosystem": "Go", "name": name}, "version": value} for name, value in sorted(packages)]
         if len(queries) > 1000:
             raise ValueError("Go module graph exceeds one complete audit batch")

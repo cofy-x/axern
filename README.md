@@ -41,7 +41,7 @@ The default collaboration pattern is independent writable working directories, c
 
 For Linux single-host serving, build and stage a coherent native archive using the [installation guide](./deploy/standalone/INSTALL.md). Operate the installed server with `axern server start`, `status`, `logs` and `stop`. API contexts select remote execution services; they do not change the host managed by `server`.
 
-This source tree introduces a coordinated protocol change. Build the CLI, services and SDKs from the same revision; a source version does not establish published package availability. For repository development on Linux or a macOS Linux VM, use Go 1.26.10, Make and Docker Compose v2:
+Use the CLI, services and SDKs from one coordinated release or source revision. For repository development on Linux or a macOS Linux VM, use Go 1.26.10, Make and Docker Compose v2:
 
 ```bash
 make quickstart-source

@@ -34,7 +34,8 @@ type CgroupMemoryDomain struct {
 }
 
 // CgroupMemoryObservation is the bounded host-kernel view used for reporting,
-// OOM diagnosis, cleanup debt, and periodic enforcement audits.
+// OOM diagnosis, cleanup debt, and periodic enforcement audits. Current and peak
+// are independent kernel samples, not an atomically ordered snapshot.
 type CgroupMemoryObservation struct {
 	CurrentBytes  int64
 	PeakBytes     int64
@@ -210,13 +211,13 @@ func ReadCgroupMemoryObservation(cgroupPath string) (*CgroupMemoryObservation, e
 }
 
 func readCgroupMemoryObservationDir(dir string) (*CgroupMemoryObservation, error) {
-	current, err := readCgroupInt64(filepath.Join(dir, "memory.current"))
+	current, err := readCgroupMemoryCounter(filepath.Join(dir, "memory.current"))
 	if err != nil {
 		return nil, err
 	}
 	peak := current
 	peakAvailable := true
-	if kernelPeak, err := readCgroupInt64(filepath.Join(dir, "memory.peak")); err != nil {
+	if kernelPeak, err := readCgroupMemoryCounter(filepath.Join(dir, "memory.peak")); err != nil {
 		if !optionalCgroupMemoryInterfaceUnavailable(err) {
 			return nil, err
 		}
@@ -224,10 +225,11 @@ func readCgroupMemoryObservationDir(dir string) (*CgroupMemoryObservation, error
 	} else {
 		peak = kernelPeak
 	}
-	if peak < current {
-		return nil, fmt.Errorf("cgroup memory.peak %d is below memory.current %d", peak, current)
-	}
-	swapCurrent, err := readCgroupInt64(filepath.Join(dir, "memory.swap.current"))
+	// The kernel charges usage speculatively and updates its watermark without
+	// locking. A concurrent or rejected charge can make the sampled current
+	// exceed the sampled peak, even though current is read first. Preserve both
+	// counters instead of treating their relative order as enforcement evidence.
+	swapCurrent, err := readCgroupMemoryCounter(filepath.Join(dir, "memory.swap.current"))
 	if err != nil {
 		return nil, err
 	}
@@ -288,6 +290,20 @@ func writeCgroupFile(path, value string) error {
 		return err
 	}
 	return f.Close()
+}
+
+// readCgroupMemoryCounter reads usage counters, where negative values and the
+// control-file "max" sentinel are invalid. Limit controls keep their separate
+// readCgroupInt64 contract so an unlimited control remains distinguishable.
+func readCgroupMemoryCounter(path string) (int64, error) {
+	value, err := readCgroupInt64(path)
+	if err != nil {
+		return 0, err
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("cgroup memory counter %s must be nonnegative, got %d", filepath.Base(path), value)
+	}
+	return value, nil
 }
 
 func readCgroupInt64(path string) (int64, error) {

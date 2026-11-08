@@ -80,6 +80,21 @@ topologySpreadConstraints:
 {{- end -}}
 {{- end -}}
 
+{{/* Optional backends are operator-selected artifacts, outside Axern image delivery. */}}
+{{- define "axern.observabilityImage" -}}
+{{- $label := printf "observability.%s.image" .name -}}
+{{- $repo := required (printf "%s.repository is required when observability is enabled" $label) .image.repository -}}
+{{- $registry := first (splitList "/" $repo) -}}
+{{- if not (and (contains "/" $repo) (or (contains "." $registry) (contains ":" $registry) (eq "localhost" $registry))) -}}
+{{- fail (printf "%s.repository must include an explicit registry hostname" $label) -}}
+{{- end -}}
+{{- $digest := required (printf "%s.digest is required; qualify and pin the operator-owned backend" $label) .image.digest -}}
+{{- if not (regexMatch "^sha256:[a-f0-9]{64}$" $digest) -}}
+{{- fail (printf "%s.digest must be a sha256 digest" $label) -}}
+{{- end -}}
+{{- printf "%s@%s" $repo $digest -}}
+{{- end -}}
+
 {{- define "axern.pullPolicy" -}}
 {{- default .root.Values.global.imagePullPolicy .image.pullPolicy -}}
 {{- end -}}
@@ -138,7 +153,7 @@ topologySpreadConstraints:
 {{- end -}}
 
 {{- define "axern.otelEnv" -}}
-{{- if .Values.observability.enabled }}
+{{- if or .Values.observability.enabled (trim .Values.observability.otlp.endpoint) }}
 - name: AXERN_OTEL_ENABLED
   value: "true"
 - name: OTEL_EXPORTER_OTLP_ENDPOINT

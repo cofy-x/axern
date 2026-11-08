@@ -7,7 +7,6 @@ This directory contains the repo-supported local truth environments:
 - `compose/`: Docker Compose deployment
 - `kind/`: repo-managed 3-node kind cluster with one explicitly pinned Axern runtime node
 - `k8s/`: manifests shared by the kind flow
-- `otel/`: optional local OpenTelemetry/LGTM config
 - `state/`: generated local PKI, CLI env files, SSH keys, and runtime state
 
 The source Compose workflow owns the `axern-source` Docker Compose project. The released CLI owns the separate `axern-local` project and its state under the platform application-data directory. Public commands such as `axern run`, `axern ssh`, and `axern tunnel` can use either configured context, but `axern dev ...` manages only the released-CLI instance and must not be mixed with this source workflow.
@@ -36,11 +35,13 @@ The kind node reserves 1 GiB for node daemons and runtime conformance, matching 
 
 `make kind-up` also starts or reuses a Docker-backed repo-managed local registry at `127.0.0.1:5001`. New repo-managed kind clusters mirror `localhost:5001` to that registry through the Docker `kind` network. If an existing kind cluster was created before this mirror existed or before the registry container was named `axern-registry`, run `make kind-reset` to recreate it.
 
+The source build includes qualified PostgreSQL and Registry recipes; packaged development uses the matching coordinated release images and digest lock. See the [Registry recipe](../images/registry/README.md) and [PostgreSQL recipe](../images/postgres/README.md). Reusing a registry container requires the selected image identity to match. Preserve its existing `/var/lib/registry` volume when explicitly recreating it with a changed image; the start command refuses a mismatched container instead of silently using an older image.
+
 Registry defaults:
 
 - `LOCAL_REGISTRY_NAME=axern-registry`
 - `LOCAL_REGISTRY_PORT=5001`
-- `LOCAL_REGISTRY_IMAGE=registry:2`
+- `LOCAL_REGISTRY_IMAGE=axern/local-registry:dev`
 - `LOCAL_REGISTRY_HOST=localhost:5001`
 - `LOCAL_REGISTRY_CLUSTER_HOST=host.docker.internal:5001`
 
@@ -188,25 +189,23 @@ Compose:
 
 - Gateway: `http://127.0.0.1:25080`
 - SSH terminal: `127.0.0.1:25022`
-- Grafana LGTM: `http://127.0.0.1:13000`
-- OTLP gRPC: `127.0.0.1:4317`
-- OTLP HTTP: `127.0.0.1:4318`
 
 Kind:
 
 - Local registry: `http://127.0.0.1:5001`
 - Gateway: `http://127.0.0.1:25082`
 - SSH terminal: `127.0.0.1:25023`
-- Grafana LGTM: `http://127.0.0.1:13001`
-- OTLP gRPC: `127.0.0.1:24317`
-- OTLP HTTP: `127.0.0.1:24318`
 
-Disable LGTM for leaner local runs:
+## Telemetry
+
+Compose and kind run only the Axern development services and their core dependencies. Telemetry backends are operator-owned. To export to a receiver reachable from the containers or Pods, set the same explicit environment when starting or refreshing the environment:
 
 ```bash
-OTEL=0 make local-compose-up
-OTEL=0 make kind-up
+AXERN_OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example:4317 make local-compose-up
+AXERN_OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example:4317 make kind-up
 ```
+
+Export is disabled by default. An enabled exporter requires an endpoint; An HTTPS endpoint uses TLS; an explicit `http://` URL or `OTEL_EXPORTER_OTLP_INSECURE=true` selects plaintext and should only address a trusted receiver. These workflows do not install a Collector, open telemetry listeners, or manage telemetry retention. Static Grafana dashboards are available under `deploy/helm/axern/files/grafana` for an independently managed backend.
 
 ## Cleanup
 

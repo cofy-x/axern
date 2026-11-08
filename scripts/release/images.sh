@@ -17,6 +17,8 @@ axern_export_release_images() {
   local tag
   tag="$(axern_release_version)"
   export NODE_RUNTIME_BASE_IMAGE_TAG="${AXERN_RELEASE_REGISTRY}/node-runtime-base:${tag}"
+  export POSTGRES_IMAGE="${AXERN_RELEASE_REGISTRY}/postgres:${tag}"
+  export LOCAL_REGISTRY_IMAGE="${AXERN_RELEASE_REGISTRY}/registry:${tag}"
   export CONTROLD_IMAGE="${AXERN_RELEASE_REGISTRY}/controld:${tag}"
   export TUNNELD_IMAGE="${AXERN_RELEASE_REGISTRY}/tunneld:${tag}"
   export GATEWAYD_IMAGE="${AXERN_RELEASE_REGISTRY}/gatewayd:${tag}"
@@ -25,6 +27,8 @@ axern_export_release_images() {
 
 axern_release_images() {
   printf '%s\n' \
+    "${POSTGRES_IMAGE}" \
+    "${LOCAL_REGISTRY_IMAGE}" \
     "${CONTROLD_IMAGE}" \
     "${TUNNELD_IMAGE}" \
     "${GATEWAYD_IMAGE}" \

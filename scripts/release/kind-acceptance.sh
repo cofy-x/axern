@@ -111,6 +111,7 @@ fi
 if [ -n "${image_tag_suffix}" ]; then
   candidate_tag="${tag}-${image_tag_suffix}"
   helm_args+=(
+    --set-string "postgres.image.tag=${candidate_tag}"
     --set-string "controld.image.tag=${candidate_tag}"
     --set-string "tunneld.image.tag=${candidate_tag}"
     --set-string "node.image.tag=${candidate_tag}"

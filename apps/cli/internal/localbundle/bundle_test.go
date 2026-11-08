@@ -9,10 +9,11 @@ import (
 )
 
 func TestEmbeddedBundleIsSelfContainedAndLoopbackOnly(t *testing.T) {
-	for _, value := range [][]byte{Compose, CollectorConfig} {
-		if len(bytes.TrimSpace(value)) == 0 {
-			t.Fatal("embedded local asset is empty")
-		}
+	if len(bytes.TrimSpace(Compose)) == 0 {
+		t.Fatal("embedded local asset is empty")
+	}
+	if bytes.Contains(Compose, []byte("otel-collector:")) || bytes.Contains(Compose, []byte("otel-lgtm:")) {
+		t.Fatal("development bundle must not host telemetry backends")
 	}
 	if bytes.Contains(Compose, []byte(":latest")) {
 		t.Fatal("local bundle contains a floating latest image")
@@ -33,7 +34,7 @@ func TestEmbeddedBundleIsSelfContainedAndLoopbackOnly(t *testing.T) {
 			t.Fatalf("local bundle is missing the local cgroup contract %q", contract)
 		}
 	}
-	for _, port := range []string{"POSTGRES_PORT", "CONTROLD_HTTP_PORT", "GATEWAY_CONTROL_PORT", "GATEWAY_HTTP_PORT", "GATEWAY_SSH_PORT", "OTEL_GRPC_PORT", "OTEL_HTTP_PORT", "LGTM_UI_PORT"} {
+	for _, port := range []string{"POSTGRES_PORT", "CONTROLD_HTTP_PORT", "GATEWAY_CONTROL_PORT", "GATEWAY_HTTP_PORT", "GATEWAY_SSH_PORT"} {
 		mapping := []byte("127.0.0.1:${" + port + "}:")
 		if !bytes.Contains(Compose, mapping) {
 			t.Fatalf("host port %s is not bound explicitly to loopback", port)

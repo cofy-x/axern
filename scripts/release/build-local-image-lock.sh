@@ -7,7 +7,8 @@ output="${1:?usage: build-local-image-lock.sh OUTPUT}"
 release_tag="$(axern_release_version)"
 candidate_tag="candidate-${GITHUB_SHA:?GITHUB_SHA is required}"
 mkdir -p "$(dirname "${output}")"
-: >"${output}"
+lock_tmp="$(mktemp "${output}.XXXXXX")"
+trap 'rm -f "${lock_tmp}"' EXIT
 
 require_platforms() {
   local image="$1"
@@ -23,10 +24,12 @@ lock_image() {
   require_platforms "${image}"
   local digest
   digest="sha256:$(docker buildx imagetools inspect "${image}" --raw | sha256sum | awk '{print $1}')"
-  printf '%s=%s@%s\n' "${key}" "${image%%:*}" "${digest}" >>"${output}"
+  printf '%s=%s@%s\n' "${key}" "${image%:*}" "${digest}" >>"${lock_tmp}"
 }
 
 declare -A internal=(
+  [POSTGRES_IMAGE]=postgres
+  [REGISTRY_IMAGE]=registry
   [CONTROLD_IMAGE]=controld
   [TUNNELD_IMAGE]=tunneld
   [GATEWAYD_IMAGE]=gatewayd
@@ -41,9 +44,6 @@ for key in "${!internal[@]}"; do
   lock_image "${key}" "${target}"
 done
 
-lock_image POSTGRES_IMAGE postgres:16-alpine
-lock_image REGISTRY_IMAGE registry:2
-lock_image OTEL_COLLECTOR_IMAGE otel/opentelemetry-collector:0.150.1
-lock_image OTEL_LGTM_IMAGE grafana/otel-lgtm:0.11.16
-LC_ALL=C sort -o "${output}" "${output}"
+LC_ALL=C sort -o "${lock_tmp}" "${lock_tmp}"
+mv "${lock_tmp}" "${output}"
 echo "local_image_lock=${output}"

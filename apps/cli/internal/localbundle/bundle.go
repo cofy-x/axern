@@ -15,11 +15,6 @@ var imageLock string
 //go:embed assets/compose.yaml
 var Compose []byte
 
-// CollectorConfig configures the optional observability profile.
-//
-//go:embed assets/otel-collector.yaml
-var CollectorConfig []byte
-
 func ImageReferences(version string) map[string]string {
 	tag := "v" + strings.TrimPrefix(strings.TrimSpace(version), "v")
 	if version == "dev" || strings.TrimSpace(version) == "" {
@@ -27,14 +22,12 @@ func ImageReferences(version string) map[string]string {
 	}
 	registry := "ghcr.io/cofy-x/axern/"
 	values := map[string]string{
-		"POSTGRES_IMAGE":        "postgres:16-alpine",
-		"REGISTRY_IMAGE":        "registry:2",
+		"POSTGRES_IMAGE":        registry + "postgres:" + tag,
+		"REGISTRY_IMAGE":        registry + "registry:" + tag,
 		"CONTROLD_IMAGE":        registry + "controld:" + tag,
 		"TUNNELD_IMAGE":         registry + "tunneld:" + tag,
 		"GATEWAYD_IMAGE":        registry + "gatewayd:" + tag,
 		"NODE_ALL_IN_ONE_IMAGE": registry + "node-all-in-one:" + tag,
-		"OTEL_COLLECTOR_IMAGE":  "otel/opentelemetry-collector:0.150.1",
-		"OTEL_LGTM_IMAGE":       "grafana/otel-lgtm:0.11.16",
 	}
 	for _, entry := range strings.Split(imageLock, ";") {
 		key, value, ok := strings.Cut(entry, "=")

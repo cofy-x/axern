@@ -32,7 +32,7 @@ spec:
       securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
       containers:
         - name: grafana
-          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.grafana.image) | quote }}
+          image: {{ include "axern.observabilityImage" (dict "name" "grafana" "image" .Values.observability.grafana.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.grafana.image) }}
           ports: [{name: http, containerPort: 3000}]
           env:

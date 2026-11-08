@@ -280,6 +280,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify anonymous access to every coordinated image
+        run: bash scripts/release/check-public-images.sh dist/release/images.lock
       - name: Verify source-free local experience
         env:
           AXERN_CLI_BINARY: ${{ runner.temp }}/bin/axern

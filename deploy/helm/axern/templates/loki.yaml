@@ -29,7 +29,7 @@ spec:
       securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
       containers:
         - name: loki
-          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.loki.image) | quote }}
+          image: {{ include "axern.observabilityImage" (dict "name" "loki" "image" .Values.observability.loki.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.loki.image) }}
           args: [-config.file=/etc/loki/loki.yaml]
           ports: [{name: http, containerPort: 3100}]

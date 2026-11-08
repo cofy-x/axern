@@ -31,7 +31,7 @@ spec:
       securityContext: {fsGroup: 10001, fsGroupChangePolicy: OnRootMismatch}
       containers:
         - name: otel-collector
-          image: {{ include "axern.image" (dict "root" . "image" .Values.observability.collector.image) | quote }}
+          image: {{ include "axern.observabilityImage" (dict "name" "collector" "image" .Values.observability.collector.image) | quote }}
           imagePullPolicy: {{ include "axern.pullPolicy" (dict "root" . "image" .Values.observability.collector.image) }}
           args: [--config=/etc/otel/collector.yaml]
           ports:

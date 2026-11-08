@@ -11,7 +11,7 @@ description: Local Axern 的环境要求、生命周期、数据、版本替换�
 
 Local Axern 支持 amd64/arm64 的 macOS 和 Linux，以及 Docker Compose v2；不支持 Windows、Podman、离线安装、多本地实例和自动创建 Kubernetes。
 
-建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘。工作负载和 Agent 镜像首次使用时才拉取；可观测 Profile 需要额外资源。
+建议至少 4 核 CPU、8 GiB 内存和 20 GiB 可用磁盘。工作负载和 Agent 镜像首次使用时才拉取。
 
 ## 命令
 
@@ -26,7 +26,7 @@ Local Axern 支持 amd64/arm64 的 macOS 和 Linux，以及 Docker Compose v2；
 | `axern dev reset` | 永久删除数据和身份材料 |
 | `axern dev path` | 输出实际数据目录 |
 
-使用 `axern dev up --profile observability` 启用本地可观测组件；使用 `axern dev up --profile default` 恢复核心 Profile。不传该参数时保留实例当前 Profile。
+遥测后端由运维者管理，导出默认关闭。需要导出时，使用 `AXERN_OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example:4317 axern dev up`，并在后续 `up` 时重复这些环境设置；接收端必须可从 Docker 容器访问。启用导出必须提供 Endpoint。HTTPS Endpoint 使用 TLS；显式的 `http://` URL 或 `OTEL_EXPORTER_OTLP_INSECURE=true` 表示明文传输，仅用于可信接收端。CLI 不安装遥测后端，也不管理其数据。
 
 镜像导入仅适用于本地模式。CLI 按不可变宿主镜像 ID 保存镜像，核对其平台与运行中的 Node 镜像，并直接流式传输，不在宿主生成归档文件。同一可变 tag 重建后，新 allocation 会使用新的 manifest generation；运行中的 allocation 继续持有已租用的旧 generation。`local` CLI context 只记录当前可变 tag 指针，并向控制面提交其不可变 digest，因此从已导入镜像创建 Run 时不会访问外部 registry。
 
@@ -41,7 +41,7 @@ Local Axern 支持 amd64/arm64 的 macOS 和 Linux，以及 Docker Compose v2；
 
 ## 本地端口
 
-所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway 和 mTLS WebSocket Terminal，`25080` 为 Gateway HTTP 健康检查，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL。Observability Profile 额外使用 `4317`、`4318` 和 `13000`。
+所有宿主机端口仅绑定 `127.0.0.1`：`25000` 为公开 gRPC Gateway 和 mTLS WebSocket Terminal，`25080` 为 Gateway HTTP 健康检查，`25022` 为 SSH，`24101` 为控制面 HTTP，`25432` 为 PostgreSQL。
 
 端口是固定的；先处理冲突的 listener，再重新运行 `axern dev doctor`。
 

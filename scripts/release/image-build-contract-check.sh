@@ -224,7 +224,8 @@ for contract in (
     "sha256sum",
     "POSTGRES_IMAGE",
     "REGISTRY_IMAGE",
-    "OTEL_LGTM_IMAGE",
+    "[POSTGRES_IMAGE]=postgres",
+    "[REGISTRY_IMAGE]=registry",
 ):
     if contract not in lock_builder:
         raise SystemExit(f"local image digest lock contract is missing: {contract}")

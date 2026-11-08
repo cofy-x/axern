@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "go_version": "1.26.10",
+  "distribution": {
+    "module": "github.com/distribution/distribution/v3",
+    "version": "v3.1.2",
+    "commit": "3220848f15d9279c66a41aa0a257469e6aede1e9",
+    "url": "https://codeload.github.com/distribution/distribution/tar.gz/3220848f15d9279c66a41aa0a257469e6aede1e9",
+    "sha256": "ccd8840029d2e6e1cd7c648d8fbb4f2389c73ce5f4ec5552c2e8308883b281cb",
+    "bytes": 14348787,
+    "release_url": "https://github.com/distribution/distribution/releases/tag/v3.1.2"
+  },
+  "overlay": {
+    "go_mod_sha256": "fdebb473d35f9079bd4a9aca22c9d6561b81fc8bb7feeffd58ac266cd2706a17",
+    "go_sum_sha256": "9fcaa3c4a343a79d8d1d92f6d0e49fa018c26c90129174ca446e02bea97e1a9f"
+  },
+  "ca_bundle": {
+    "url": "https://curl.se/ca/cacert-2026-11-05.pem",
+    "sha256": "427c064216761a1e72a8b30f0d954d08cb6e4435a82091fb865afd20c8497285",
+    "bytes": 200116,
+    "published_sha256_url": "https://curl.se/ca/cacert-2026-11-05.pem.sha256"
+  },
+  "mozilla_license": {
+    "url": "https://www.mozilla.org/MPL/2.0/index.txt",
+    "sha256": "3f3d9e0024b1921b067d6f7f88deb4a60cbe7a78e76c64e3f1d7fc3b779b9d04",
+    "bytes": 16726
+  },
+  "profile": {
+    "name": "filesystem",
+    "excluded_source_paths": [
+      "registry/storage/driver/azure",
+      "registry/storage/driver/gcs",
+      "registry/storage/driver/s3-aws",
+      "registry/storage/driver/middleware/cloudfront"
+    ],
+    "entrypoint_patch_sha256": "fece3ec453749059a80c9b96e0274e15ca317b3d8afeee43c133aaadf1757e49",
+    "upstream_entrypoint_sha256": "8dbb306121371e311ad5521c869a7d96367fe04401a33351fad092a207546d63"
+  }
+}

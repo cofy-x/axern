@@ -77,7 +77,6 @@ func upCommand(runtime command.Runtime, version string) *cobra.Command {
 		defer cancel()
 		return service.Up(ctx, options)
 	}}
-	cmd.Flags().StringVar(&options.Profile, "profile", "", "profile: default or observability; omitted preserves the current profile")
 	cmd.Flags().BoolVar(&options.Use, "use", false, "select the local context even when another context is active")
 	cmd.Flags().DurationVar(&options.ReadinessTimeout, "wait-timeout", options.ReadinessTimeout, "wait for fresh local capability certification; bounded by --timeout")
 	cmd.Flags().StringArrayVar(&options.ExternalInsecureRegistries, "insecure-registry", nil, "allow an external HTTP registry host[:port]; repeat to replace the configured external allowlist")

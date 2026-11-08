@@ -3,7 +3,7 @@ volumes:
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE}
     environment:
       POSTGRES_DB: axern
       POSTGRES_USER: postgres
@@ -94,9 +94,9 @@ services:
       https_proxy: ${CONTAINER_HTTPS_PROXY}
       no_proxy: ${CONTAINER_NO_PROXY}
       CONTROLD_INSECURE_REGISTRIES: ${CONTROLD_INSECURE_REGISTRIES}
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      AXERN_OTEL_ENABLED: ${AXERN_OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
     command:
       - -enrollment-address
@@ -182,9 +182,9 @@ services:
       AXNODED_MEMORY_SYSTEM_RESERVE_BYTES: "0"
       IMAGEMGR_INSECURE_REGISTRIES: ${IMAGEMGR_INSECURE_REGISTRIES}
       AXNODED_ROOTFS_SNAPSHOT_REPOSITORY: host.docker.internal:5001/axern/rootfs-snapshots
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      AXERN_OTEL_ENABLED: ${AXERN_OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES},axern.node_id=${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}
     volumes:
       - "${COMPOSE_STATE_DIR}/run:/shared/run"
@@ -215,9 +215,9 @@ services:
       GATEWAYD_TLS_CA_CERT: /certs/ca.crt
       AXERN_WORKLOAD_CLUSTER: axern.local
       GATEWAYD_WORKLOAD_BUNDLE: /certs/gatewayd.pem
-      AXERN_OTEL_ENABLED: ${OTEL_ENABLED}
+      AXERN_OTEL_ENABLED: ${AXERN_OTEL_ENABLED}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
-      OTEL_EXPORTER_OTLP_INSECURE: "true"
+      OTEL_EXPORTER_OTLP_INSECURE: ${OTEL_EXPORTER_OTLP_INSECURE}
       OTEL_RESOURCE_ATTRIBUTES: ${OTEL_RESOURCE_ATTRIBUTES}
     command:
       - -control-target
@@ -251,26 +251,3 @@ services:
       - "${COMPOSE_STATE_DIR}/certs/ca.crt:/certs/ca.crt:ro"
       - "${COMPOSE_STATE_DIR}/certs/gatewayd.pem:/certs/gatewayd.pem:ro"
       - "${COMPOSE_STATE_DIR}/ssh:/ssh:ro"
-
-  otel-collector:
-    image: ${OTEL_COLLECTOR_IMAGE:-otel/opentelemetry-collector:0.150.1}
-    profiles: ["otel"]
-    command: ["--config=/etc/otel-collector-config.yaml"]
-    volumes:
-      - "${AXERN_ROOT}/deploy/local/otel/collector.yaml:/etc/otel-collector-config.yaml:ro"
-    ports:
-      - "127.0.0.1:${OTEL_GRPC_PORT}:4317"
-      - "127.0.0.1:${OTEL_HTTP_PORT}:4318"
-    restart: unless-stopped
-    depends_on:
-      - otel-lgtm
-
-  otel-lgtm:
-    image: ${OTEL_LGTM_IMAGE:-grafana/otel-lgtm:0.11.16}
-    profiles: ["otel"]
-    volumes:
-      - "${AXERN_ROOT}/deploy/local/grafana/provisioning/dashboards/axern.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/axern.yaml:ro"
-      - "${AXERN_ROOT}/deploy/local/grafana/dashboards:/var/lib/grafana/dashboards/axern:ro"
-    ports:
-      - "127.0.0.1:${LGTM_UI_PORT}:3000"
-    restart: unless-stopped

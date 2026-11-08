@@ -29,10 +29,10 @@ local_no_proxy_entries() {
   local common="localhost,127.0.0.1,::1,host.docker.internal,${LOCAL_REGISTRY_NAME},${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST},.svc,.svc.cluster.local,.cluster.local,10.96.0.0/12,10.244.0.0/16,172.16.0.0/12,192.168.0.0/16"
   case "${mode}" in
     k8s)
-      printf '%s\n' "${common},controld,controld.${K8S_NAMESPACE},controld.${K8S_NAMESPACE}.svc,controld.${K8S_NAMESPACE}.svc.cluster.local,gatewayd,gatewayd.${K8S_NAMESPACE},gatewayd.${K8S_NAMESPACE}.svc,gatewayd.${K8S_NAMESPACE}.svc.cluster.local,tunneld,tunneld.${K8S_NAMESPACE},tunneld.${K8S_NAMESPACE}.svc,tunneld.${K8S_NAMESPACE}.svc.cluster.local,node-all-in-one,postgres,otel-collector,otel-collector.${K8S_NAMESPACE},otel-collector.${K8S_NAMESPACE}.svc,otel-collector.${K8S_NAMESPACE}.svc.cluster.local,otel-lgtm"
+      printf '%s\n' "${common},controld,controld.${K8S_NAMESPACE},controld.${K8S_NAMESPACE}.svc,controld.${K8S_NAMESPACE}.svc.cluster.local,gatewayd,gatewayd.${K8S_NAMESPACE},gatewayd.${K8S_NAMESPACE}.svc,gatewayd.${K8S_NAMESPACE}.svc.cluster.local,tunneld,tunneld.${K8S_NAMESPACE},tunneld.${K8S_NAMESPACE}.svc,tunneld.${K8S_NAMESPACE}.svc.cluster.local,node-all-in-one,postgres"
       ;;
     compose)
-      printf '%s\n' "${common},controld,gatewayd,tunneld,node,postgres,otel-collector,otel-lgtm"
+      printf '%s\n' "${common},controld,gatewayd,tunneld,node,postgres"
       ;;
     *)
       printf '%s\n' "${common}"
@@ -55,6 +55,24 @@ k8s_proxy_env_args() {
   printf -- "--from-literal=IMAGEMGR_INSECURE_REGISTRIES=%s\n" "${LOCAL_REGISTRY_HOST},${LOCAL_REGISTRY_CLUSTER_HOST}"
 }
 
+# Backends are operated outside the source development environment.
+configure_external_telemetry() {
+  AXERN_OTEL_ENABLED="${AXERN_OTEL_ENABLED:-false}"
+  OTEL_EXPORTER_OTLP_ENDPOINT="${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
+  OTEL_EXPORTER_OTLP_INSECURE="${OTEL_EXPORTER_OTLP_INSECURE:-false}"
+  local name
+  for name in AXERN_OTEL_ENABLED OTEL_EXPORTER_OTLP_INSECURE; do
+    case "${!name}" in
+      true|false) ;;
+      *) echo "${name} must be true or false" >&2; return 1 ;;
+    esac
+  done
+  if [ "${AXERN_OTEL_ENABLED}" = true ] && [ -z "${OTEL_EXPORTER_OTLP_ENDPOINT}" ]; then
+    echo "OTEL_EXPORTER_OTLP_ENDPOINT is required when AXERN_OTEL_ENABLED is true" >&2
+    return 1
+  fi
+}
+
 write_compose_env() {
   local secrets_master_key
   secrets_master_key="$(cat "$(secrets_master_key_file compose)")"
@@ -68,18 +86,12 @@ write_compose_env() {
   axnoded_node_id="${AXNODED_CONTROL_PLANE_NODE_ID:-node-compose-local}"
   tunneld_runtime_uid="$(id -u)"
   tunneld_runtime_gid="$(id -g)"
-  local otel_enabled otel_endpoint otel_resource_attrs
-  otel_enabled="false"
-  otel_endpoint=""
-  otel_resource_attrs="deployment.environment=compose"
-  if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-    otel_enabled="true"
-    otel_endpoint="http://otel-collector:4317"
-  fi
+  configure_external_telemetry
   install -m 0600 /dev/null "$(compose_env_file)"
   cat > "$(compose_env_file)" <<EOF
 AXERN_ROOT=${AXERN_ROOT}
 COMPOSE_STATE_DIR=${COMPOSE_STATE_DIR}
+POSTGRES_IMAGE=${POSTGRES_IMAGE}
 CONTROLD_IMAGE=${CONTROLD_IMAGE}
 TUNNELD_IMAGE=${TUNNELD_IMAGE}
 TUNNELD_RUNTIME_UID=${tunneld_runtime_uid}
@@ -87,8 +99,6 @@ TUNNELD_RUNTIME_GID=${tunneld_runtime_gid}
 GATEWAYD_IMAGE=${GATEWAYD_IMAGE}
 NODE_ALL_IN_ONE_IMAGE=${NODE_ALL_IN_ONE_IMAGE}
 AXERN_TEST_PYTHON_IMAGE=${AXERN_TEST_PYTHON_IMAGE}
-OTEL_COLLECTOR_IMAGE=${OTEL_COLLECTOR_IMAGE}
-OTEL_LGTM_IMAGE=${OTEL_LGTM_IMAGE}
 AXERN_SECRETS_MASTER_KEY=${secrets_master_key}
 AXNODED_CONTROL_PLANE_NODE_ID=${axnoded_node_id}
 CONTAINER_HTTP_PROXY=${container_http_proxy}
@@ -102,12 +112,10 @@ GATEWAY_CONTROL_PORT=${COMPOSE_GATEWAY_CONTROL_PORT}
 GATEWAY_HTTP_PORT=${COMPOSE_GATEWAY_HTTP_PORT}
 GATEWAY_SSH_PORT=${COMPOSE_GATEWAY_SSH_PORT}
 POSTGRES_PORT=${COMPOSE_POSTGRES_PORT}
-OTEL_ENABLED=${otel_enabled}
-OTEL_EXPORTER_OTLP_ENDPOINT=${otel_endpoint}
-OTEL_RESOURCE_ATTRIBUTES=${otel_resource_attrs}
-OTEL_GRPC_PORT=${COMPOSE_OTEL_GRPC_PORT}
-OTEL_HTTP_PORT=${COMPOSE_OTEL_HTTP_PORT}
-LGTM_UI_PORT=${COMPOSE_LGTM_UI_PORT}
+AXERN_OTEL_ENABLED=${AXERN_OTEL_ENABLED}
+OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}
+OTEL_EXPORTER_OTLP_INSECURE=${OTEL_EXPORTER_OTLP_INSECURE}
+OTEL_RESOURCE_ATTRIBUTES=${OTEL_RESOURCE_ATTRIBUTES:-deployment.environment=compose}
 EOF
 }
 
@@ -278,13 +286,7 @@ wait_for_compose_project_settle() {
 compose_project_up() {
   local compose_file="${DEPLOY_ROOT}/compose/docker-compose.yml"
   local compose_args=(--project-name "${COMPOSE_PROJECT_NAME}" --env-file "$(compose_env_file)" -f "${compose_file}")
-  if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-    compose_args+=(--profile otel)
-  fi
   local infra_services=(postgres)
-  if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-    infra_services+=(otel-collector otel-lgtm)
-  fi
   docker compose "${compose_args[@]}" stop gatewayd node tunneld controld >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" up -d --remove-orphans "${infra_services[@]}"
   docker compose "${compose_args[@]}" rm -sf controld-migrate controld-access-bootstrap >/dev/null 2>&1 || true
@@ -295,9 +297,6 @@ compose_project_up() {
 compose_project_reset_state() {
   local compose_file="${DEPLOY_ROOT}/compose/docker-compose.yml"
   local compose_args=(--project-name "${COMPOSE_PROJECT_NAME}" --env-file "$(compose_env_file)" -f "${compose_file}")
-  if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-    compose_args+=(--profile otel)
-  fi
   docker compose "${compose_args[@]}" stop \
     gatewayd node tunneld controld controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
   docker compose "${compose_args[@]}" rm -sf controld-access-bootstrap controld-migrate dns-fixture postgres >/dev/null 2>&1 || true
@@ -311,7 +310,6 @@ compose_project_down() {
     return 0
   fi
   local compose_args=(--project-name "${COMPOSE_PROJECT_NAME}" --env-file "$(compose_env_file)" -f "${compose_file}")
-  compose_args+=(--profile otel)
   local down_args=(down --remove-orphans)
   if [ "${1:-}" = "--purge" ]; then
     down_args+=("--volumes")
@@ -377,17 +375,12 @@ load_image_to_cluster() {
 }
 
 ensure_k8s_images_loaded() {
+  load_image_to_cluster "${POSTGRES_IMAGE}"
   load_image_to_cluster "${CONTROLD_IMAGE}"
   load_image_to_cluster "${TUNNELD_IMAGE}"
   load_image_to_cluster "${GATEWAYD_IMAGE}"
   load_image_to_cluster "${NODE_ALL_IN_ONE_IMAGE}"
   load_image_to_cluster "${AXERN_TEST_PYTHON_IMAGE}"
-  if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-    ensure_host_image "${OTEL_COLLECTOR_IMAGE}"
-    ensure_host_image "${OTEL_LGTM_IMAGE}"
-    load_image_to_cluster "${OTEL_COLLECTOR_IMAGE}"
-    load_image_to_cluster "${OTEL_LGTM_IMAGE}"
-  fi
 }
 
 ensure_kind_cluster() {
@@ -458,8 +451,7 @@ kind_nodeports_ready() {
     return 1
   fi
   curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:${K8S_CONTROLD_LOCAL_HTTP_PORT}/healthz" >/dev/null 2>&1 &&
-    curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:${K8S_GATEWAY_LOCAL_HTTP_PORT}/healthz" >/dev/null 2>&1 &&
-    { [ "${OTEL:-1}" != "1" ] && [ "${OTEL:-1}" != "true" ] || curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:${K8S_LGTM_LOCAL_UI_PORT}/api/health" >/dev/null 2>&1; }
+    curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:${K8S_GATEWAY_LOCAL_HTTP_PORT}/healthz" >/dev/null 2>&1
 }
 
 wait_for_kind_nodeports_ready() {

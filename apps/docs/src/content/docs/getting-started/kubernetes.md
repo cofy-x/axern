@@ -146,7 +146,7 @@ The bundled PostgreSQL and single-node defaults are intended for evaluation. Rev
 - **Secrets:** supply `secrets.existingSecret` with the master key, `postgres.existingSecret` for database credentials, and `node.enrollment.existingSecret` with an independent one-time enrollment token for every admitted Node ID. Before scheduling the DaemonSet onto a new Kubernetes Node, add its `nodeID` key and admit that identity through the admin API.
 - **Durable storage:** set `postgres.persistence.enabled=true` with a topology-aware `ReadWriteOnce` StorageClass; do not run a durable environment on the `emptyDir` fallback.
 - **Scheduling:** give `scheduling.platform`, `scheduling.observability`, and `scheduling.runtime` dedicated node-pool labels and matching `NoSchedule` taints.
-- **Observability:** the bundled Prometheus, Tempo, Loki, and Grafana stack is durable but single-replica; size retention and storage under `observability`.
+- **Observability:** use `observability.otlp.endpoint=https://telemetry.example:4317` with `observability.enabled=false` to export to an operator-owned receiver without backend workloads or PVCs. TLS is the default; an explicit `http://` endpoint selects plaintext. Enabling the optional chart-managed stack with `observability.enabled=true` requires an explicitly qualified repository including its registry hostname and `sha256` image digest for each Collector, Prometheus, Tempo, Loki and Grafana backend. Size retention and storage explicitly, and preserve or migrate PVC data before disabling the stack.
 
 :::caution[Pre-1.0 security boundary]
 

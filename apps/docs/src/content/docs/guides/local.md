@@ -11,7 +11,7 @@ This page is the complete reference. For a guided first run, start with [Local A
 
 Local Axern supports macOS and Linux on amd64 and arm64 with Docker Compose v2. Windows, Podman, offline installation, multiple local instances, and automatic Kubernetes creation are not supported.
 
-Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Workload and agent images are pulled on first use. The optional observability profile requires additional memory and disk.
+Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Workload and agent images are pulled on first use.
 
 ## Commands
 
@@ -26,7 +26,7 @@ Recommended host capacity is 4 CPU cores, 8 GiB memory, and 20 GiB free disk. Wo
 | `axern dev reset` | Permanently delete data and identity material |
 | `axern dev path` | Print the effective local data directory |
 
-Use `axern dev up --profile observability` to enable local telemetry and `axern dev up --profile default` to return to the core profile. Omitting the flag preserves the instance's current profile.
+Telemetry backends are operator-owned. Export is disabled by default. To export to a receiver reachable from Docker containers, use `AXERN_OTEL_ENABLED=true OTEL_EXPORTER_OTLP_ENDPOINT=https://telemetry.example:4317 axern dev up` and repeat the settings on later `up` calls. An enabled exporter requires an endpoint. An HTTPS endpoint uses TLS; an explicit `http://` URL or `OTEL_EXPORTER_OTLP_INSECURE=true` selects plaintext and should only address a trusted receiver. The CLI does not install telemetry backends or manage their data.
 
 Image loading is local-only. It saves the immutable host image ID, validates its platform against the running node image, and streams it directly into the node without a host-side archive. Rebuilding the same mutable tag moves new allocations to the new manifest generation; running allocations retain their leased generation. The `local` CLI context records only the current mutable tag pointer and submits its immutable digest to the control plane, so creating a Run from a loaded image does not contact an external registry.
 
@@ -51,7 +51,7 @@ All host listeners bind only to `127.0.0.1`.
 | `24101` | Control-plane HTTP                             |
 | `25432` | PostgreSQL                                     |
 
-The observability profile additionally uses `4317`, `4318`, and `13000`. Ports are fixed; resolve any conflicting listener before rerunning `axern dev doctor`.
+Ports are fixed; resolve any conflicting listener before rerunning `axern dev doctor`.
 
 ## Context behavior
 

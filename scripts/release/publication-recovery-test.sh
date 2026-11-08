@@ -44,6 +44,8 @@ printf '{"schemaVersion":2,"manifests":[]}\n' > "${docker_raw}"
 docker_digest="sha256:$(sha256sum "${docker_raw}" | awk '{print $1}')"
 lock_file="${tmp_dir}/images.lock"
 cat > "${lock_file}" <<EOF
+POSTGRES_IMAGE=registry.example.test/postgres@${docker_digest}
+REGISTRY_IMAGE=registry.example.test/registry@${docker_digest}
 CONTROLD_IMAGE=registry.example.test/controld@${docker_digest}
 TUNNELD_IMAGE=registry.example.test/tunneld@${docker_digest}
 GATEWAYD_IMAGE=registry.example.test/gatewayd@${docker_digest}
@@ -61,9 +63,9 @@ docker_env=(
   "AXERN_LOCAL_IMAGE_LOCK_FILE=${lock_file}"
 )
 env "${docker_env[@]}" bash "${AXERN_ROOT}/scripts/release/publish-image-manifests.sh" >/dev/null
-[ "$(cat "${docker_state}/create-count")" = 4 ]
+[ "$(cat "${docker_state}/create-count")" = 6 ]
 env "${docker_env[@]}" bash "${AXERN_ROOT}/scripts/release/publish-image-manifests.sh" >/dev/null
-[ "$(cat "${docker_state}/create-count")" = 4 ]
+[ "$(cat "${docker_state}/create-count")" = 6 ]
 printf 'conflict\n' > "${docker_state}/controld:v${version}"
 if env "${docker_env[@]}" bash "${AXERN_ROOT}/scripts/release/publish-image-manifests.sh" >/dev/null 2>&1; then
   echo "conflicting image manifest was accepted" >&2

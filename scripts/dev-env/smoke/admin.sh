@@ -68,9 +68,6 @@ if consistency_issues:
 local_smoke_compose_psql() {
   local compose_file="${DEPLOY_ROOT}/compose/docker-compose.yml"
   local compose_args=(--project-name "${COMPOSE_PROJECT_NAME}" --env-file "$(compose_env_file)" -f "${compose_file}")
-  if [ "${OTEL:-1}" = "1" ] || [ "${OTEL:-1}" = "true" ]; then
-    compose_args+=(--profile otel)
-  fi
   docker compose "${compose_args[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d axern "$@"
 }
 

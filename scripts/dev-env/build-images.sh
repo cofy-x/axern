@@ -21,27 +21,33 @@ build_node_runtime_base=false
 build_control_stack=false
 build_tunneld=false
 build_node_image=false
+build_dependencies=false
 case "${image_scope}" in
   all)
+    build_dependencies=true
     build_node_runtime_base=true
     build_control_stack=true
     build_tunneld=true
     build_node_image=true
     ;;
   control)
+    build_dependencies=true
     build_control_stack=true
+    ;;
+  dependencies)
+    build_dependencies=true
     ;;
   node)
     build_node_runtime_base=true
     build_node_image=true
     ;;
   *)
-    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, or node" >&2
+    echo "AXERN_LOCAL_IMAGE_SCOPE must be all, control, node, or dependencies" >&2
     exit 2
     ;;
 esac
 
-if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ]; then
+if [ "${build_control_stack}" = "true" ] || [ "${build_tunneld}" = "true" ] || [ "${build_dependencies}" = "true" ]; then
   go_bin="$(axern_go_bin)"
   require_cmd "${go_bin}"
 fi
@@ -62,6 +68,40 @@ report_image_build_phase() {
     printf '| %s | %s |\n' "${phase}" "${duration_seconds}" >> "${GITHUB_STEP_SUMMARY}"
   fi
 }
+
+if [ "${build_dependencies}" = "true" ]; then
+  phase_started_at="$(date +%s)"
+  case "${AXERN_TARGET_GOARCH:-$(uname -m)}" in
+    arm64|aarch64) dependency_arch=arm64 ;;
+    x86_64|amd64) dependency_arch=amd64 ;;
+    *) echo "unsupported dependency image architecture" >&2; exit 1 ;;
+  esac
+  for dependency in postgres registry; do
+    mkdir -p "${AXERN_DEV_ENV_ROOT}/deploy/images/${dependency}/.build"
+    dependency_attempt="$(mktemp -d "${AXERN_DEV_ENV_ROOT}/deploy/images/${dependency}/.build/${dependency_arch}-XXXXXX")"
+    dependency_output="${dependency_attempt}/output"
+    python3 "${AXERN_DEV_ENV_ROOT}/deploy/images/${dependency}/build.py" \
+      --arch "${dependency_arch}" --go "${go_bin}" \
+      --output "${dependency_output}"
+    case "${dependency}" in
+      postgres) dependency_image="${POSTGRES_IMAGE}" ;;
+      registry) dependency_image="${LOCAL_REGISTRY_IMAGE}" ;;
+    esac
+    dependency_args=()
+    dependency_context="${dependency_output}/context"
+    if [ "${dependency}" = postgres ]; then
+      dependency_args+=(--build-arg "APK_REFRESH_EPOCH=${AXERN_APT_REFRESH_EPOCH:-source}")
+    fi
+    axern_docker_build \
+      "${external_base_args[@]}" \
+      --platform "linux/${dependency_arch}" \
+      "${dependency_args[@]}" \
+      -f "${AXERN_DEV_ENV_ROOT}/deploy/images/${dependency}/Dockerfile" \
+      -t "${dependency_image}" "${dependency_context}"
+    push_image_after_build "${dependency_image}"
+  done
+  report_image_build_phase "dependency-images" "${phase_started_at}"
+fi
 
 if [ "${build_node_runtime_base}" = "true" ]; then
   phase_started_at="$(date +%s)"

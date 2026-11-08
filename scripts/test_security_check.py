@@ -128,6 +128,37 @@ class ScannerEvidenceTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 security.python_requirements("grpcio==1.81.0", lock)
 
+    def test_auxiliary_graph_requires_root_and_locked_unreplaced_dependencies(self):
+        root = {"Path": "example/upstream", "Main": True}
+        dependency = {"Path": "example/dependency", "Version": "v1.2.3"}
+
+        def stream(modules):
+            return "\n".join(json.dumps(module) for module in modules)
+
+        self.assertEqual(security.auxiliary_graph(stream([root, dependency]), 0, root["Path"]),
+                         {("example/dependency", "v1.2.3")})
+        for modules, code in (([], 0), ([dependency], 0), ([root], 1),
+                              ([root, dict(root)], 0), ([dict(root, Path="wrong/root")], 0),
+                              ([root, dict(dependency, Version="")], 0),
+                              ([root, dict(dependency, Replace={"Path": "local"})], 0),
+                              ([dict(root, Replace={"Path": "local"}), dependency], 0),
+                              ([root, dependency, dict(dependency)], 0),
+                              ([root, dependency, dict(dependency, Version="v2.0.0")], 0),
+                              ([root, {"Path": security.TOOL_MODULE[0], "Version": security.TOOL_MODULE[1]}], 0)):
+            with self.subTest(modules=modules, code=code), self.assertRaises(ValueError):
+                security.auxiliary_graph(stream(modules), code, root["Path"])
+
+    def test_auxiliary_main_query_binds_the_pinned_owner_and_version(self):
+        self.assertEqual(set(security.AUXILIARY_MODULES), {"postgres", "registry"})
+        for name, identity in security.AUXILIARY_MODULES.items():
+            key = "gosu" if name == "postgres" else "distribution"
+            pins = {key: {"module": identity[0], "version": identity[1]}}
+            self.assertEqual(security.auxiliary_identity(name, pins, [identity[0]]), identity)
+            for changed, declarations in (({}, [identity[0]]), (pins, ["self-declared/owner"]),
+                                           ({key: dict(pins[key], version="changed")}, [identity[0]])):
+                with self.subTest(name=name), self.assertRaises(ValueError):
+                    security.auxiliary_identity(name, changed, declarations)
+
 
 if __name__ == "__main__":
     unittest.main()

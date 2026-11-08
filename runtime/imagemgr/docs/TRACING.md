@@ -1,6 +1,6 @@
 # Tracing
 
-`imagemgr` uses the shared Axern OpenTelemetry setup with `service.name=imagemgr`. Enable it with `-enable_tracing` or `AXERN_OTEL_ENABLED=true`; configure export with the standard OTLP environment variables. Local Compose and kind route signals through the bundled collector into Grafana LGTM.
+`imagemgr` uses the shared Axern OpenTelemetry setup with `service.name=imagemgr`. Enable it with `-enable_tracing` or `AXERN_OTEL_ENABLED=true`; configure export with the standard OTLP environment variables. Local Compose and kind require an explicit operator-owned OTLP endpoint; they do not install telemetry backends.
 
 ## What The Flag Enables
 
