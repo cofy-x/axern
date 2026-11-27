@@ -55,7 +55,7 @@ make axern-cli-build
 
 [Workspace 指南](./apps/docs/src/content/docs/zh-cn/guides/workspaces.md)说明如何在新 Run 中继续使用保留文件。不选择 Workspace 时仍可使用临时执行。Agent 程序、任务和会话恢复由上层调用方负责。
 
-仓库开发通常使用 `make verify-changed` 获得快速反馈。Linux correctness、完整回归和发布资格验证属于不同层级；每个 `main` 提交都会启动绑定该提交的完整回归，PR 检查通过不代表后续回归已通过。发布或晋级前检查 [Post-Merge Full](https://github.com/cofy-x/axern/actions/workflows/post-merge-full.yml)，详见[验证层级](./docs/verification/local-full-verification.md)。
+合并前在本地运行 `make verify-changed` 和受影响的 Linux 检查。大范围变更用 `make verify-full`，发行候选用 `make verify-release`。GitHub CI 和完整回归可按需手动运行，详见[验证层级](./docs/verification/local-full-verification.md)。
 
 ## 可以构建什么
 

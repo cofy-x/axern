@@ -2,15 +2,6 @@ name: Documentation Pages Deploy
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - apps/docs/**
-      - pnpm-lock.yaml
-      - pnpm-workspace.yaml
-      - package.json
-      - .github/workflows/docs-pages-deploy.yml
 
 permissions:
   contents: read

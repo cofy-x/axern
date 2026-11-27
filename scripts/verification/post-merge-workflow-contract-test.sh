@@ -6,9 +6,6 @@ WORKFLOW="${ROOT_DIR}/.github/workflows/post-merge-full.yml"
 
 required=(
   "name: Post-Merge Full"
-  "workflow_dispatch:"
-  "push:"
-  "- main"
   "contents: read"
   "group: post-merge-full-\${{ github.ref }}"
   "cancel-in-progress: true"
@@ -36,11 +33,6 @@ for expected in "${required[@]}"; do
   fi
 done
 
-if grep -Eq '^[[:space:]]+pull_request:' "${WORKFLOW}"; then
-  echo "post-merge full regression must not run as a pull-request gate" >&2
-  exit 1
-fi
-
 if grep -Eq '^[[:space:]]+(APT_MIRROR_SOURCE|GOPROXY):' "${WORKFLOW}"; then
   echo "hosted regression must use upstream defaults, not regional mirrors" >&2
   exit 1
@@ -55,18 +47,27 @@ fi
 
 printf 'post_merge_workflow_contract_ok=true\n'
 
-# The required Go check must cover Linux-only node packages before merge.
-# The host-safe subset and network traffic smoke do not execute this suite.
-python3 - "${ROOT_DIR}/.github/workflows/ci.yml" <<'PY'
+# Optional hosted diagnostics still cover the full Linux node suite.
+python3 - "${ROOT_DIR}/.github/workflows" <<'PY'
 import pathlib
 import re
 import sys
 
-source = pathlib.Path(sys.argv[1]).read_text()
+workflows = pathlib.Path(sys.argv[1])
+for name in ("ci", "dco", "post-merge-full", "docs-pages-deploy"):
+    source = (workflows / f"{name}.yml").read_text()
+    trigger_section = re.search(r"^on:\n(.*?)(?=^\S|\Z)", source, re.M | re.S)
+    assert trigger_section, f"missing workflow triggers: {name}"
+    assert re.findall(r"^  ([a-z_]+):", trigger_section[1], re.M) == ["workflow_dispatch"], (
+        f"{name} must run only when explicitly dispatched"
+    )
+
+source = (workflows / "ci.yml").read_text()
+assert "run: make axnoded-verify-network-policy-linux-matrix" in source, "CI omits the full network matrix"
 job = re.search(r"^  go:\n(.*?)(?=^  [a-z][a-z-]*:|\Z)", source, re.M | re.S)
-assert job, "missing required Go job"
+assert job, "missing Go job"
 assert "runs-on: ubuntu-latest" in job.group(1), "Go job must execute on Linux"
 assert "libprotobuf-dev protobuf-compiler ripgrep jq" in job.group(1), "Linux tests require explicit host utilities"
 assert re.search(r"^        run: make axnoded-test$", job.group(1), re.M), "Go job omits full Linux node tests"
-print("pre_merge_linux_node_contract_ok=true")
+print("manual_verification_workflow_contract_ok=true")
 PY

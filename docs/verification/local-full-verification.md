@@ -5,8 +5,8 @@ Verification is layered by feedback time and evidence strength. Local feedback, 
 | Tier                             | Expected feedback budget            | Merge role                                   |
 | :------------------------------- | :---------------------------------- | :------------------------------------------- |
 | Changed host-safe checks         | 5 minutes on a warm workspace       | Normal local gate                            |
-| Selected Linux/local integration | 15 minutes for the standard CI path | Affected PR gate                             |
-| Full repository regression       | 45 minutes                          | Broad-change or asynchronous post-merge gate |
+| Selected Linux/local integration | 15 minutes for the standard affected checks | Affected local gate                             |
+| Full repository regression       | 45 minutes                          | Broad-change local gate |
 | Environment qualification        | No PR feedback budget               | Frozen-candidate release/promotion gate      |
 
 Treat these as maintainability budgets, not timeouts that weaken correctness. When a tier repeatedly exceeds its budget, split its smoke feedback from its complete evidence workflow instead of reducing the latter's sample or coverage.
@@ -22,9 +22,9 @@ make verify-changed
 
 Set `VERIFY_BASE=<ref>` when the comparison base is not `origin/main`. For a broad or unclassifiable source change, the planner fails safe to `make verify-fast-all`, the complete host-safe source gate. Protobuf generated output checks finish before any Go compilation.
 
-Workflow, verification orchestration, and shared Docker build-cache changes also select `make release-check`. These paths can invalidate release and image-build contracts even without modifying release artifacts; local validation must execute those same contracts before PR CI.
+Workflow, verification orchestration, and shared Docker build-cache changes also select `make release-check`. These paths can invalidate release and image-build contracts even without modifying release artifacts; local verification runs those contracts before merging.
 
-Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its normal budget is minutes. A normal pull request may merge after its selected Tier 1 checks and GitHub checks pass; it does not also require a local full gate.
+Tier 1 must not start real OOM, disk-fill, or sampled performance workloads. Its normal budget is minutes. A normal pull request may merge after its selected local checks pass. Use the affected Linux checks below when the change reaches those boundaries.
 
 Concurrency unit tests must prove overlap, ordering, and limits through explicit synchronization rather than total elapsed-time thresholds. Wall-clock deadlines may bound a stuck test, but shared-runner speed is not a correctness assertion. Release all test barriers and join workers before closing their stores or removing temporary directories.
 
@@ -46,17 +46,17 @@ make local-compose-refresh-verify
 make kind-refresh-verify
 ```
 
-The repository change planner emits `network_policy_linux` and heavyweight scopes. Pull-request CI uses those outputs to keep stable check names while avoiding unrelated heavyweight work. Linux CI is authoritative for namespace, cgroup, mount, eBPF, runsc behavior; macOS is not expected to duplicate it.
+The change planner emits `network_policy_linux` and `release_contract` to identify work beyond the host-safe plan. If `network_policy_linux=true`, run `make axnoded-verify-network-policy-linux-matrix` in a Linux environment with the documented kernel and privilege requirements.
 
-The required `Go` check also runs `make axnoded-test` on Linux before merge. This executes the complete node package test suite, including Linux-only ownership and startup fixtures. Neither `test-host` nor the selected network traffic matrix substitutes for this suite. Post-merge regression repeats it as part of the broader integration sequence.
+For changes to node behavior, run `make axnoded-test` on Linux. The complete node suite includes ownership and startup fixtures beyond the host-safe tests and network traffic matrix. Use `make -C runtime/axnoded test-process-race` and `make -C runtime/axnoded verify-kernel-truth` for affected process and kernel boundaries.
 
 Compose DNS verification uses a repository-owned authoritative fixture over UDP and TCP. The refresh materializes that fixture as the explicit node resolver and verifies config, node, and real OCI sandbox DNS paths without host-resolver or public-resolver fallback.
 
 Tier 2 proves correctness with a small deterministic matrix. Sampling must not turn it into an hours-long qualification. If performance evidence is needed, keep the correctness smoke and qualification as distinct profiles and outputs.
 
-## Tier 3: asynchronous full repository gate
+## Tier 3: full repository gate
 
-`make verify-full` is the broad-change and post-merge repository gate. It is not a default prerequisite for every pull-request merge or a command to restart after each edit. On failure, first reproduce the named step directly, then use the printed `--from <step>` resume point while diagnosing:
+Run `make verify-full` locally for broad changes. On failure, first reproduce the named step directly, then use the printed `--from <step>` resume point while diagnosing.
 
 ```bash
 make verify-full
@@ -64,17 +64,17 @@ make verify-full ARGS='--include-bpfnet-generate-check'
 make verify-full ARGS='--include-proto-breaking'
 ```
 
-The `Post-Merge Full` GitHub workflow triggers the complete default gate for every `main` commit and supports manual dispatch. It partitions the same ordered steps into `make verify-full ARGS='--suite source'` (through Linux node unit tests) and `make verify-full ARGS='--suite runtime'` (CLI and all runtime E2E). The suites run on separate runners; runtime tests remain serial because they share Docker, network, and privileged host resources. A contract test requires their ordered union to equal the default gate exactly, without duplicates. `Full Repository Regression` succeeds only when both suites succeed; failures do not cancel the other suite.
+The optional `Post-Merge Full` GitHub workflow runs only on manual dispatch. It partitions the same ordered steps into `make verify-full ARGS='--suite source'` (through Linux node unit tests) and `make verify-full ARGS='--suite runtime'` (CLI and all runtime E2E). The suites run on separate runners; runtime tests remain serial because they share Docker, network, and privileged host resources. A contract test requires their ordered union to equal the default gate exactly, without duplicates. `Full Repository Regression` succeeds only when both suites succeed; failures do not cancel the other suite.
 
-The workflow uses read-only repository permissions, upstream package sources, language and Docker build caches, a three-hour safety timeout per suite, and one workflow concurrency slot per ref. Regional acceleration belongs in the external workspace entrypoint. When a newer `main` commit arrives, the older in-progress run is cancelled; a cancelled run is not passing evidence. Every commit triggers verification, but not every superseded commit completes it.
+The workflow uses read-only repository permissions, upstream package sources, language and Docker build caches, a three-hour safety timeout per suite, and one workflow concurrency slot per ref. Regional acceleration belongs in the external workspace entrypoint. A new dispatch for the same ref supersedes its in-progress run. Passing evidence must match the commit under review.
 
 Each suite publishes a summary plus a 14-day artifact containing the exact commit, run identity, suite, bootstrap log, regression log, stage durations and exit codes, and failure diagnostics when applicable. Set `VERIFY_TIMINGS_FILE` to an output file with an existing parent directory to collect the same tab-separated timing report locally. Completed and failed stages are recorded; an abruptly killed runner may leave only completed stages, and the job outcome still determines success. GitHub's job log remains the authoritative live view. Rerunning a remote suite starts from a clean runner; `--from` remains a same-workspace local diagnosis aid and cannot be combined with a named suite.
 
 During a serial gate, Docker builds still validate all inputs through BuildKit, including dirty local sources. A run-local export receipt suppresses repeated GitHub cache exports only after the resulting image ID has already been exported successfully to that scope. Changed images and failed exports are not treated as cache hits. The first export uses a second cached BuildKit solve without loading another image; later stages retain their normal build and load path. Receipts are removed when the gate exits and never authorize image reuse or skip tests. Standalone build commands retain their combined build/export behavior. Compare cold- and warm-cache runs before claiming a speedup; neither a cache receipt nor a fast smoke is release evidence.
 
-Do not release or promote a commit until its exact `Full Repository Regression` job succeeds. The workflow is deliberately not a required pull-request check.
+The optional hosted `CI` and `DCO` workflows also run on manual dispatch. Run `bash scripts/check-dco.sh origin/main HEAD` locally to check the signed commits on a development branch.
 
-Use `make verify-release` for the complete local release gate. It runs `verify-full` once, `security-check`, `release-build` (including release contracts, CLI/chart packaging, source SBOMs and checksums), `open-source-check`, `sdk-contract-verify` (including clean-consumer artifact checks), and `docs-verify` in that order, stopping on failure. Full regression checks generated protobuf output before compilation. `make verify-release ARGS=--list` prints that sequence without executing it. Partial suites and resume ranges belong to `verify-full` and cannot satisfy the release gate. The normal full regression and post-merge source/runtime partition remain unchanged. Deployed native archive, persistent Workspace, registry acceptance and regional performance or capacity qualification remain separately owned; this command does not produce those receipts. See [Release Operations](../operations/releases.md) for the remaining frozen-candidate and publication steps.
+Use `make verify-release` for the complete local release gate. It runs `verify-full` once, `security-check`, `release-build` (including release contracts, CLI/chart packaging, source SBOMs and checksums), `open-source-check`, `sdk-contract-verify` (including clean-consumer artifact checks), and `docs-verify` in that order, stopping on failure. Full regression checks generated protobuf output before compilation. `make verify-release ARGS=--list` prints that sequence without executing it. Partial suites and resume ranges belong to `verify-full` and cannot satisfy the release gate. The local command runs the complete ordered full regression. Deployed native archive, persistent Workspace, registry acceptance and regional performance or capacity qualification remain separately owned; this command does not produce those receipts. See [Release Operations](../operations/releases.md) for the remaining frozen-candidate and publication steps.
 
 ## Tier 4: environment qualification
 

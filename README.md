@@ -53,7 +53,7 @@ make axern-cli-build
 
 [Workspace usage](./apps/docs/src/content/docs/guides/workspaces.md) covers retained files through fresh Runs. Without a Workspace, existing ephemeral execution stays available. Agent programs, tasks and session recovery remain caller-owned.
 
-For repository development, `make verify-changed` is the normal fast feedback entrypoint. Linux correctness, full regression, and release qualification are separate tiers. Every `main` commit starts a commit-bound full regression; a green PR check does not imply that this later run has passed. Check [Post-Merge Full](https://github.com/cofy-x/axern/actions/workflows/post-merge-full.yml) before release or promotion; see the [verification tiers](./docs/verification/local-full-verification.md).
+For repository development, run `make verify-changed` and the affected Linux checks locally before merging. Use `make verify-full` for broad changes and `make verify-release` for release candidates. Hosted CI and full regression are available on demand. See the [verification tiers](./docs/verification/local-full-verification.md).
 
 ## What You Can Build
 

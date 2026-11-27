@@ -9,15 +9,17 @@ fi
 
 base_sha="$1"
 head_sha="$2"
+commits=$(git rev-list "${base_sha}..${head_sha}" --)
 missing=0
 
 while IFS= read -r commit; do
+  [[ -n "${commit}" ]] || continue
   if ! git show -s --format=%B "${commit}" |
     grep -Eq '^Signed-off-by: [^<]+ <[^[:space:]<>]+@[^[:space:]<>]+>$'; then
     echo "commit ${commit} is missing a valid Signed-off-by trailer" >&2
     missing=1
   fi
-done < <(git rev-list "${base_sha}..${head_sha}")
+done <<< "${commits}"
 
 if [[ "${missing}" -ne 0 ]]; then
   echo "See CONTRIBUTING.md and DCO for the contribution sign-off policy." >&2

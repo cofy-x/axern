@@ -1,7 +1,7 @@
 name: DCO
 
 on:
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,13 +11,12 @@ jobs:
     name: DCO
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout pull request history
+      - name: Checkout branch history
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
 
       - name: Verify commit sign-offs
-        run: >-
-          bash scripts/check-dco.sh
-          "${{ github.event.pull_request.base.sha }}"
-          "${{ github.event.pull_request.head.sha }}"
+        run: |
+          git rev-parse --verify 'origin/main^{commit}' >/dev/null
+          bash scripts/check-dco.sh origin/main "${GITHUB_SHA}"
