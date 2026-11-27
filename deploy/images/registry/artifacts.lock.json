@@ -12,7 +12,7 @@
   },
   "overlay": {
     "go_mod_sha256": "04dbe1161137b82534135735fc80ee6597b2ba47d840e700bc267b5d9764da0f",
-    "go_sum_sha256": "1889b11944a2aed72e5dfb48b8732e3f25439bf722658135537728d62369a9db"
+    "go_sum_sha256": "ee5311b6a29edfa4110771f68de3a5c3985955aadab7d7cff0303c3c4fdc871b"
   },
   "ca_bundle": {
     "url": "https://curl.se/ca/cacert-2026-11-05.pem",
