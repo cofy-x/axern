@@ -2,7 +2,7 @@
 
 This document defines the stable user-facing boundary shared by Axern SDKs and examples. Object identity, persistence, and ownership follow the [Stable Domain Model](domain-model.md).
 
-The [single-host direction](../decisions/single-host-agent-serving.md) plans persistent Workspace and reconnectable work. The APIs and retention guarantees below describe current behavior; there is no Workspace API or transparent process-resume guarantee yet.
+An experimental [single-writer Workspace](../decisions/single-writer-workspaces.md) retains files on its bound Node. Callers recover live access with the original Allocation ID or retrieve available sealed output using a persisted Run ID. Starting a fresh Run with a retained Workspace gives it a new execution identity.
 
 ## Principles
 
@@ -14,7 +14,7 @@ The [single-host direction](../decisions/single-host-agent-serving.md) plans per
 
 ## Sandbox Files And Outputs
 
-Sandbox writable files, retained stdout/stderr, and bounded declared outputs belong to one Allocation. Reusable persistent volumes and durable output objects are not part of the SDK contract. A caller can declare up to 16 regular-file or directory-as-tar paths in the immutable Run specification. The node quiesces the Allocation and atomically publishes their manifest before deleting the runtime. Run stdout/stderr and declared outputs remain readable for 15 minutes from cleanup initiation, subject to node-disk availability. An upper-layer system owns durable publication of downloaded bytes.
+Sandbox rootfs writes, retained stdout/stderr and bounded declared outputs belong to one Allocation. An explicitly attached Workspace retains its mounted working directory across fresh Runs. A caller can declare up to 16 regular-file or directory-as-tar paths in the immutable Run specification. The node quiesces the Allocation and atomically publishes their manifest before deleting the runtime. Run stdout/stderr and declared outputs remain readable for 15 minutes from cleanup initiation, subject to node-disk availability. An upper-layer system owns durable publication of downloaded bytes.
 
 ```python
 from axern_sdk import AxernClient, Sandbox
