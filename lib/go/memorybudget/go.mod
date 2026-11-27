@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/lib/go/memorybudget
 
-go 1.26.11
+go 1.27.4
 
 require (
 	github.com/cofy-x/axern/sdk/go v0.0.0

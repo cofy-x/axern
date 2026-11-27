@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/sdk/go
 
-go 1.26.11
+go 1.27.4
 
 require (
 	golang.org/x/net v0.62.0

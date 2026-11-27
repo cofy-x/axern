@@ -12,9 +12,9 @@ class ScannerEvidenceTests(unittest.TestCase):
     def report(self):
         return json.dumps({"config": {
             "scanner_name": "govulncheck", "scanner_version": "v1.9.0",
-            "scan_level": "symbol", "scan_mode": "source", "go_version": "go1.26.11",
+            "scan_level": "symbol", "scan_mode": "source", "go_version": "go1.27.4",
         }}) + "\n" + json.dumps({"SBOM": {
-            "go_version": "go1.26.11", "modules": [{"path": "example/module"}],
+            "go_version": "go1.27.4", "modules": [{"path": "example/module"}],
             "roots": ["example/module/package"],
         }})
 

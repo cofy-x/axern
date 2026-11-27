@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/lib/go/observability
 
-go 1.26.11
+go 1.27.4
 
 require (
 	github.com/sirupsen/logrus v1.9.4

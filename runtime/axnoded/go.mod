@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/runtime/axnoded
 
-go 1.26.11
+go 1.27.4
 
 replace github.com/cofy-x/axern/network/bpfnet => ../../network/bpfnet
 

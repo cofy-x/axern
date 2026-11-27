@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/control/controld
 
-go 1.26.11
+go 1.27.4
 
 replace github.com/cofy-x/axern/sdk/go => ../../sdk/go
 

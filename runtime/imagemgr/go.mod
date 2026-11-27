@@ -1,6 +1,6 @@
 module github.com/cofy-x/axern/runtime/imagemgr
 
-go 1.26.11
+go 1.27.4
 
 require (
 	github.com/cofy-x/axern/lib/go/imageref v0.0.0
