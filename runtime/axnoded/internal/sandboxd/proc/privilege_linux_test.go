@@ -126,6 +126,7 @@ func TestUnprivilegedChildHasZeroCapabilitySetsAndSamePID(t *testing.T) {
 	for _, gid := range []uint32{65534, 0} {
 		t.Run(fmt.Sprint(gid), func(t *testing.T) {
 			cmd := exec.Command(probe, privilegeProbeCommand, private)
+			cmd.Dir = dir
 			cmd.Env = []string{"PATH=/usr/bin:/bin", "AXERN_INERT_CHILD_VALUE=restored-value"}
 			cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 			cleanup, err := PrepareUnprivilegedCommand(cmd, 65534, gid)
@@ -229,8 +230,9 @@ func TestChildStopsWhenBoundingAuthorityIsMissing(t *testing.T) {
 	if bounding == 0 {
 		t.Skip("the host already removed the bounding capability used by this negative fixture")
 	}
-	_, trusted := newPrivilegeFixture(t)
+	dir, trusted := newPrivilegeFixture(t)
 	cmd := exec.Command("/bin/sh", "-c", "printf INERT_TARGET_MUST_NOT_RUN")
+	cmd.Dir = dir
 	cmd.Env = []string{"PATH=/usr/bin:/bin"}
 	cleanup, err := PrepareUnprivilegedCommand(cmd, 65534, 65534)
 	if err != nil {
