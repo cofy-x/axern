@@ -37,7 +37,7 @@ message RegistryCredential {
 }
 
 service NodeLifecycle {
-  rpc AdmitAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
+  rpc LaunchAllocation(CreateAllocationRequest) returns (CreateAllocationResponse) {}
   rpc DeleteAllocation(DeleteAllocationRequest) returns (DeleteAllocationResponse) {}
   rpc AcknowledgeAllocationRelease(AcknowledgeAllocationReleaseRequest) returns (AcknowledgeAllocationReleaseResponse) {}
   rpc GetAllocationLifecycle(GetAllocationLifecycleRequest) returns (GetAllocationLifecycleResponse) {}
@@ -114,6 +114,7 @@ message ResolvedExecutionConfig {
   repeated axern.control.common.v1.DeclaredOutput declared_outputs = 22;
   axern.control.common.v1.RootfsSnapshot rootfs_snapshot = 23;
   WorkspaceBinding workspace = 24;
+  axern.control.common.v1.PrimaryUser primary_user = 25;
 }
 
 message CreateAllocationRequest {

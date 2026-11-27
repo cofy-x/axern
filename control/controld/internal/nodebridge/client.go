@@ -54,7 +54,7 @@ func (c *GRPCClient) CreateAllocation(ctx context.Context, target string, req *p
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.AdmitAllocation(ctx, req)
+	resp, err := client.LaunchAllocation(ctx, req)
 	if err != nil {
 		c.discardRecoverableConn(nodeEndpoint{target, req.GetNodeID()}, conn, err)
 		return nil, err

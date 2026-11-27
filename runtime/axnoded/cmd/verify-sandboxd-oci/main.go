@@ -13,7 +13,9 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	runtimesandboxd "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/sandboxd"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
+	"google.golang.org/protobuf/proto"
 )
 
 type config struct {
@@ -24,6 +26,7 @@ type config struct {
 	netnsPath      string
 	runscOverlay2  string
 	shellCommand   string
+	agentPrimary   string
 	useTemplate    bool
 	withResource   bool
 	noCopyRootfs   bool
@@ -34,6 +37,7 @@ type runCase struct {
 	argv             []string
 	env              []*apipb.KeyValue
 	cwd              string
+	primaryUser      *commonv1.PrimaryUser
 	expected         int
 	expectOut        []string
 	expectReady      bool
@@ -62,6 +66,7 @@ func parseFlags() config {
 	flag.StringVar(&cfg.netnsPath, "netns-path", "", "optional host network namespace path to inject into the OCI spec")
 	flag.StringVar(&cfg.runscOverlay2, "runsc-overlay2", "", "optional runsc --overlay2 value")
 	flag.StringVar(&cfg.shellCommand, "shell-command", "", "optional single shell command case to run instead of the default suite")
+	flag.StringVar(&cfg.agentPrimary, "agent-primary", "", "verify a finite codex or claude primary in its product image")
 	flag.BoolVar(&cfg.useTemplate, "use-template", false, "materialize the OCI bundle through a prepared bundle template")
 	flag.BoolVar(&cfg.withResource, "with-resource", false, "include representative OCI resource limits")
 	flag.BoolVar(&cfg.noCopyRootfs, "no-copy-rootfs", false, "use the supplied rootfs path directly")
@@ -155,6 +160,45 @@ func run(cfg config) error {
 			signalName:  "INT",
 		},
 	}
+	if cfg.agentPrimary != "" {
+		var marker string
+		switch cfg.agentPrimary {
+		case "codex":
+			marker = "codex"
+		case "claude":
+			marker = "Claude Code"
+		default:
+			return fmt.Errorf("agent-primary must be codex or claude")
+		}
+		if cfg.shellCommand != "" {
+			return fmt.Errorf("agent-primary and shell-command are mutually exclusive")
+		}
+		probe := runCase{
+			cwd:         "/workspace",
+			primaryUser: &commonv1.PrimaryUser{Uid: proto.Uint32(1000), Gid: proto.Uint32(1000)},
+			env:         []*apipb.KeyValue{{Key: "HOME", Value: "/home/agent"}, {Key: "AXERN_PRIMARY_E2E", Value: "inert"}},
+			expectReady: true,
+		}
+		agent := probe
+		agent.name = cfg.agentPrimary
+		agent.argv = []string{cfg.agentPrimary, "--version"}
+		agent.expectOut = []string{marker}
+
+		probe.name = "probe"
+		probe.argv = []string{"sh", "-c", primaryUserProbe}
+		probe.expectOut = []string{"nonroot-primary-ok"}
+		probe.expected = 7
+
+		cancel := probe
+		cancel.name = "cancel"
+		cancel.argv = []string{"sh", "-c", primaryUserProbe + "exec sleep 60"}
+		cancel.expected = 143
+		cancel.signalAfter = 2 * time.Second
+		cancel.signalName = "TERM"
+
+		probe.argv[2] += "exit 7"
+		cases = []runCase{agent, probe, cancel}
+	}
 	if cfg.shellCommand != "" {
 		cases = []runCase{
 			{
@@ -173,6 +217,19 @@ func run(cfg config) error {
 	}
 	return nil
 }
+
+const primaryUserProbe = `set -eu
+[ "$(id -u)" = 1000 ]
+[ "$(id -g)" = 1000 ]
+[ "$(pwd)" = /workspace ]
+[ "${AXERN_PRIMARY_E2E:-}" = inert ]
+for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
+    grep -Eq "^${cap}:[[:space:]]*0000000000000000$" /proc/$$/status
+done
+grep -Eq '^NoNewPrivs:[[:space:]]*1$' /proc/$$/status
+grep -Eq '^Groups:[[:space:]]*$' /proc/$$/status
+printf 'nonroot-primary-ok\n'
+`
 
 func runOne(workDir string, cfg config, tc runCase) error {
 	caseDir := filepath.Join(workDir, safeName("runsc-"+tc.name))
@@ -211,11 +268,12 @@ func runOne(workDir string, cfg config, tc runCase) error {
 		cwd = "/"
 	}
 	request := &apipb.CreateContainerRequest{
-		Command: tc.argv,
-		Cwd:     cwd,
-		Envs:    tc.env,
-		Stdout:  stdoutPath,
-		Stderr:  stderrPath,
+		Command:     tc.argv,
+		Cwd:         cwd,
+		PrimaryUser: tc.primaryUser,
+		Envs:        tc.env,
+		Stdout:      stdoutPath,
+		Stderr:      stderrPath,
 		Rootfs: &apipb.Rootfs{
 			RootDir:  rootfs,
 			Readonly: false,

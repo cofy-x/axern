@@ -36,6 +36,25 @@ func TestExecutionConfigRequestsRootfsSnapshotByPresence(t *testing.T) {
 	}
 }
 
+func TestRunPrimaryUserRequiresBothIDs(t *testing.T) {
+	cmd := Command(command.Runtime{})
+	options := createOptions{imageRef: "example/runtime:latest", primaryUser: "1000:0"}
+	params, err := options.params(cmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := params.Config.GetPrimaryUser()
+	if user.GetUid() != 1000 || user.GetGid() != 0 || user.Gid == nil {
+		t.Fatalf("primary user = %v, want explicit 1000:0", user)
+	}
+	for _, invalid := range []string{"1000", "0:1000", "1000:4294967295"} {
+		options.primaryUser = invalid
+		if _, err := options.params(cmd); err == nil {
+			t.Fatalf("accepted invalid primary user %q", invalid)
+		}
+	}
+}
+
 func TestRunRejectsSourceSpecificFlags(t *testing.T) {
 	for _, test := range []struct {
 		name string

@@ -190,7 +190,16 @@ func (r *BundleLoader) MaterializeBundle(template *BundleTemplate, options LoadO
 	if err := materializeRuntimeEtcFiles(bundleDir, ociSpec, r.runtimeFiles, options.SandboxIP); err != nil {
 		return "", ociSpec, err
 	}
-	if err := materializeSandboxdInjection(bundleDir, ociSpec, options.SandboxdInjection, profile.GuestTaskLimit); err != nil {
+	injection := options.SandboxdInjection
+	if primary := options.Request.GetPrimaryUser(); primary != nil {
+		if injection == nil {
+			return "", ociSpec, fmt.Errorf("primary user requires sandboxd injection")
+		}
+		copy := *injection
+		copy.PrimaryUser = primary
+		injection = &copy
+	}
+	if err := materializeSandboxdInjection(bundleDir, ociSpec, injection, profile.GuestTaskLimit); err != nil {
 		return "", ociSpec, err
 	}
 	ociFile := filepath.Join(bundleDir, config.ContainerSpecFile)

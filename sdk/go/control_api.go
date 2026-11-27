@@ -13,6 +13,7 @@ import (
 	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
 
@@ -59,7 +60,14 @@ type CreateRunOptions struct {
 	LimitEphemeralStorage   ResourceQuantity
 	DeclaredOutputs         []DeclaredOutput
 	RootfsSnapshot          bool
+	PrimaryUser             *PrimaryUser
 	Labels                  map[string]string
+}
+
+// PrimaryUser supplies the numeric identity for a non-root primary process.
+type PrimaryUser struct {
+	UID uint32
+	GID uint32
 }
 
 type DeclaredOutputFormat string
@@ -93,7 +101,11 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 	if options.RootfsSnapshot {
 		rootfsSnapshot = &commonv1.RootfsSnapshot{}
 	}
-	response, err := c.runs.AdmitRun(ctx, &runv1.CreateRunRequest{
+	var primaryUser *commonv1.PrimaryUser
+	if user := options.PrimaryUser; user != nil {
+		primaryUser = &commonv1.PrimaryUser{Uid: proto.Uint32(user.UID), Gid: proto.Uint32(user.GID)}
+	}
+	response, err := c.runs.SubmitRun(ctx, &runv1.CreateRunRequest{
 		Namespace:     defaultString(options.Namespace, "default"),
 		EnvironmentID: options.EnvironmentID,
 		WorkspaceID:   options.WorkspaceID,
@@ -107,6 +119,7 @@ func (c *Client) CreateRun(ctx context.Context, options CreateRunOptions) (*runv
 			Resources:                       resources,
 			DeclaredOutputs:                 declaredOutputProtos(options.DeclaredOutputs),
 			RootfsSnapshot:                  rootfsSnapshot,
+			PrimaryUser:                     primaryUser,
 		},
 		Labels: cloneMap(options.Labels),
 	})

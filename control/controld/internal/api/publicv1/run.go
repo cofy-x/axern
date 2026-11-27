@@ -15,7 +15,7 @@ import (
 	grpcstatus "google.golang.org/grpc/status"
 )
 
-func (s *Server) AdmitRun(ctx context.Context, req *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
+func (s *Server) SubmitRun(ctx context.Context, req *runv1.CreateRunRequest) (*runv1.CreateRunResponse, error) {
 	ctx, op := publicOps.Run(ctx, ctrlobs.SpanRunCreate, publicActionCreate, withEnvironmentID(req.GetEnvironmentID()))
 	var opErr error
 	defer func() { op.End(opErr) }()
