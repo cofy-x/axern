@@ -4,6 +4,7 @@ set -euo pipefail
 AXERN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 python3 "${AXERN_ROOT}/scripts/release/sdk_publication_readiness_test.py"
 python3 "${AXERN_ROOT}/scripts/release/homebrew_formula_reconcile_test.py"
+python3 -m unittest discover -s "${AXERN_ROOT}/scripts/release" -p test_delivery_image_audit.py
 bash "${AXERN_ROOT}/scripts/release/publication-recovery-test.sh"
 
 python3 - "${AXERN_ROOT}" <<'PY'
@@ -27,9 +28,25 @@ if "needs: security" not in validate:
 if "make security-check" not in security or "workflow_call:" not in security or "schedule:" not in security:
     raise SystemExit("security audit must run the canonical scanner gate in CI, releases and weekly")
 
+image_lock = release.split("\n  image-lock:\n", 1)[1].split("\n  image-audit:\n", 1)[0]
+image_audit = release.split("\n  image-audit:\n", 1)[1].split("\n  candidate-acceptance:\n", 1)[0]
+if "delivery_image_audit.py bind" not in image_lock or "dist/local-image-lock/binding.json" not in image_lock:
+    raise SystemExit("release image lock artifact must carry its digest and run binding")
+for contract in ("needs: image-lock", "name: local-image-lock", "delivery_image_audit.py audit",
+                 '--source "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}"',
+                 "install-image-auditors.sh", "if: always()"):
+    if contract not in image_audit:
+        raise SystemExit(f"release image audit is missing contract: {contract}")
+for job in ("sdk-publish", "publish"):
+    job_body = release.split(f"\n  {job}:\n", 1)[1]
+    needs = re.search(r"(?m)^    needs: \[([^\]]+)\]$", job_body)
+    if not needs or "image-audit" not in needs.group(1).split(", "):
+        raise SystemExit(f"{job} must wait for the release image audit")
+
 for relative in (
     "scripts/release/sdk_publication_readiness.py",
     "scripts/release/homebrew_formula_reconcile.py",
+    "scripts/release/delivery_image_audit.py",
 ):
     ast.parse((root / relative).read_text())
 
