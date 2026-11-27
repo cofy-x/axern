@@ -44,7 +44,7 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 func (h *sandboxService) workspaceStore() *workspace.Manager {
 	h.workspaceOnce.Do(func() {
 		c := h.config.PluginConfig.RuntimeConfig
-		h.workspaces = workspace.New(workspace.Options{Root: c.WorkspaceRoot, MetadataRoot: filepath.Join(h.config.RootDir, "workspace-owners"), NodeID: h.config.ControlPlaneNodeID, Capacity: c.WorkspaceCapacityBytes, Inodes: c.WorkspaceInodeCapacity, FilestoreRoot: c.FilestoreDir, FilestoreReserve: c.FilestoreSystemReserveBytes})
+		h.workspaces = workspace.New(workspace.Options{Root: c.WorkspaceRoot, MetadataRoot: filepath.Join(h.config.RootDir, "workspace-owners"), NodeID: h.config.ControlPlaneNodeID, Capacity: c.WorkspaceCapacityBytes, Inodes: c.WorkspaceInodeCapacity, ProjectBudget: c.WorkspaceProjectBudget, FilestoreRoot: c.FilestoreDir, FilestoreReserve: c.FilestoreSystemReserveBytes})
 	})
 	return h.workspaces
 }

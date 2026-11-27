@@ -9,7 +9,7 @@ import (
 )
 
 func (c RuntimeConfig) ValidateWorkspaceStorage() error {
-	if c.WorkspaceRoot == "" && c.WorkspaceCapacityBytes == 0 && c.WorkspaceInodeCapacity == 0 {
+	if c.WorkspaceRoot == "" && c.WorkspaceCapacityBytes == 0 && c.WorkspaceInodeCapacity == 0 && c.WorkspaceProjectBudget == 0 {
 		return nil
 	}
 	if !filepath.IsAbs(c.WorkspaceRoot) || filepath.Clean(c.WorkspaceRoot) != c.WorkspaceRoot || strings.TrimSpace(c.WorkspaceRoot) != c.WorkspaceRoot || c.WorkspaceRoot == "/" || c.WorkspaceCapacityBytes <= 0 || c.WorkspaceCapacityBytes%512 != 0 || c.WorkspaceInodeCapacity <= 0 {

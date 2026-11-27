@@ -50,6 +50,7 @@ type Options struct {
 	FilestoreReserve           int64
 	Root, MetadataRoot, NodeID string
 	Capacity, Inodes           int64
+	ProjectBudget              uint32
 }
 
 type directoryIdentity struct {
@@ -117,10 +118,17 @@ type workspaceLock struct {
 
 var identityName = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
 
+const firstProject uint32 = 1_000_000
+const defaultProjectBudget uint32 = 4096
 const maxOwnerRecordBytes = 1 << 20
 const maxNamespaceBytes = 4096
 
-func New(options Options) *Manager { return &Manager{options: options, os: kernelPlatform{}} }
+func New(options Options) *Manager {
+	if options.ProjectBudget == 0 {
+		options.ProjectBudget = defaultProjectBudget
+	}
+	return &Manager{options: options, os: kernelPlatform{}}
+}
 
 func (m *Manager) Enabled() bool { return m != nil && m.options.Root != "" }
 
@@ -160,6 +168,12 @@ func (m *Manager) Provision(spec Spec) (Observation, error) {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return Observation{}, err
 	} else {
+		// The durable cursor also counts interrupted assignments before the owner file existed.
+		// Check it before scanning history or modifying either data or authority.
+		used := record.NextProject - firstProject
+		if used >= m.options.ProjectBudget {
+			return Observation{}, fmt.Errorf("Workspace authority project budget exhausted (%d used, %d configured); reuse retained Workspaces or increase workspace_project_budget after checking metadata capacity", used, m.options.ProjectBudget)
+		}
 		if err := m.admitCapacity(root, spec, record.Reserve); err != nil {
 			return Observation{}, err
 		}
@@ -167,9 +181,6 @@ func (m *Manager) Provision(spec Spec) (Observation, error) {
 			return Observation{}, errors.New("Workspace project identity space is exhausted")
 		}
 		project := record.NextProject
-		if project == 0 {
-			return Observation{}, errors.New("invalid Workspace project allocator")
-		}
 		q, err := m.os.quota(root, project)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return Observation{}, fmt.Errorf("inspect unassigned Workspace project: %w", err)
@@ -610,18 +621,21 @@ func (m *Manager) openRoot() (*os.File, *rootRecord, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	defer metadata.Close()
 	metadataInfo, err := metadata.Stat()
-	metadata.Close()
 	if err != nil || metadataInfo.Mode().Perm()&0077 != 0 {
 		return nil, nil, errors.New("Workspace ownership records must remain private")
 	}
 	var record rootRecord
 	if err := m.read("root.json", &record); err == nil {
 		decodedEpoch, epochErr := hex.DecodeString(record.Epoch)
-		if record.Version != 1 || epochErr != nil || len(decodedEpoch) != 32 || record.Directory.Inode != identity.Inode || record.Identity != rootFingerprint(identity.Inode, filesystem, record.Epoch) || record.NextProject == 0 {
+		if record.Version != 1 || epochErr != nil || len(decodedEpoch) != 32 || record.Directory.Inode != identity.Inode || record.Identity != rootFingerprint(identity.Inode, filesystem, record.Epoch) || record.NextProject < firstProject {
 			return nil, nil, errors.New("Workspace root ownership or filesystem identity changed")
 		}
 	} else if errors.Is(err, os.ErrNotExist) {
+		if entries, err := metadata.ReadDir(1); err != io.EOF || len(entries) != 0 {
+			return nil, nil, errors.New("cannot initialize Workspace project authority over existing metadata; recover the original root record")
+		}
 		entries, err := root.ReadDir(1)
 		if err != io.EOF || len(entries) != 0 {
 			return nil, nil, errors.New("cannot adopt a nonempty Workspace root without ownership records")
@@ -631,7 +645,7 @@ func (m *Manager) openRoot() (*os.File, *rootRecord, error) {
 			return nil, nil, err
 		}
 		epoch := hex.EncodeToString(randomEpoch[:])
-		record = rootRecord{Version: 1, Epoch: epoch, Directory: identity, Identity: rootFingerprint(identity.Inode, filesystem, epoch), NextProject: 1_000_000}
+		record = rootRecord{Version: 1, Epoch: epoch, Directory: identity, Identity: rootFingerprint(identity.Inode, filesystem, epoch), NextProject: firstProject}
 		if err := m.write("root.json", &record); err != nil {
 			return nil, nil, err
 		}

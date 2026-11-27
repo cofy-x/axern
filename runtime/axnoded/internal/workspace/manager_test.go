@@ -4,6 +4,7 @@ package workspace
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,7 +94,7 @@ func (f *fixtureKernel) remove(root *os.File, name string, want directoryIdentit
 }
 func (f *fixtureKernel) sync(*os.File) error { return nil }
 
-func newFixture(t *testing.T) (*Manager, *fixtureKernel, Spec) {
+func newFixture(t testing.TB) (*Manager, *fixtureKernel, Spec) {
 	t.Helper()
 	base := t.TempDir()
 	root := filepath.Join(base, "data")
@@ -442,4 +443,89 @@ func TestMissingOwnerEpochIsRejectedWithoutRepair(t *testing.T) {
 	var unchanged rootRecord
 	require.NoError(t, m.read("root.json", &unchanged))
 	require.Empty(t, unchanged.Epoch)
+}
+
+func TestAuthorityBudgetPreservesExistingWorkAndCleanup(t *testing.T) {
+	m, kernel, spec := newFixture(t)
+	m.options.ProjectBudget = 2
+	original, err := m.Provision(spec)
+	require.NoError(t, err)
+	waiting := spec
+	waiting.ID = "pending"
+	// Directory creation fails after reserving the irreversible project and its owner.
+	require.NoError(t, os.Mkdir(filepath.Join(m.options.Root, waiting.ID), 0700))
+	_, err = m.Provision(waiting)
+	require.ErrorContains(t, err, "create new Workspace tree")
+	newcomer := spec
+	newcomer.ID = "new"
+	_, err = m.Provision(newcomer)
+	require.ErrorContains(t, err, "2 used, 2 configured")
+	require.NoFileExists(t, filepath.Join(m.options.MetadataRoot, newcomer.ID+".json"))
+	retained, err := m.Inspect(spec, original.Identity)
+	require.NoError(t, err)
+	require.Equal(t, original.Identity, retained.Identity)
+	require.NoError(t, m.Delete(spec, original.Identity))
+
+	options := m.options
+	options.ProjectBudget = 1
+	reopened := New(options)
+	reopened.os = kernel
+	_, err = reopened.Provision(newcomer)
+	require.ErrorContains(t, err, "2 used, 1 configured")
+	require.NoError(t, reopened.Delete(spec, original.Identity))
+	_, err = reopened.Provision(spec)
+	require.ErrorContains(t, err, "retained ownership")
+
+	// Raising only this budget leaves the old fence and the pending owner in place.
+	reopened.options.ProjectBudget = 3
+	_, err = reopened.Provision(newcomer)
+	require.NoError(t, err)
+	next, err := reopened.readOwner(newcomer.ID)
+	require.NoError(t, err)
+	require.Equal(t, firstProject+2, next.Project)
+	pending, err := reopened.readOwner(waiting.ID)
+	require.NoError(t, err)
+	require.Equal(t, "provisioning", pending.State)
+}
+
+func TestMissingAllocatorCannotRecycleDeletedWorkspaceProjects(t *testing.T) {
+	m, _, spec := newFixture(t)
+	observation, err := m.Provision(spec)
+	require.NoError(t, err)
+	require.NoError(t, m.Delete(spec, observation.Identity))
+	require.NoError(t, os.Remove(filepath.Join(m.options.MetadataRoot, "root.json")))
+	spec.ID = "different"
+	_, err = m.Provision(spec)
+	require.ErrorContains(t, err, "recover the original root record")
+	require.NoFileExists(t, filepath.Join(m.options.MetadataRoot, "root.json"))
+}
+
+func BenchmarkWorkspaceAuthorityAdmission(b *testing.B) {
+	for _, count := range []int{0, 64, 256} {
+		b.Run(fmt.Sprint(count), func(b *testing.B) {
+			m, _, spec := newFixture(b)
+			for i := 0; i < count; i++ {
+				spec.ID = fmt.Sprintf("workspace-%d", i)
+				obs, err := m.Provision(spec)
+				require.NoError(b, err)
+				require.NoError(b, m.Delete(spec, obs.Identity))
+			}
+			entries, err := os.ReadDir(m.options.MetadataRoot)
+			require.NoError(b, err)
+			var bytes int64
+			for _, e := range entries {
+				fi, err := e.Info()
+				require.NoError(b, err)
+				bytes += fi.Size()
+			}
+			root, record, err := m.openRoot()
+			require.NoError(b, err)
+			defer root.Close()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				require.NoError(b, m.admitCapacity(root, spec, record.Reserve))
+			}
+			b.ReportMetric(float64(bytes), "authority-bytes")
+		})
+	}
 }
