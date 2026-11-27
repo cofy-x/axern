@@ -4,13 +4,13 @@
 
 Axern separates verification into four evidence tiers: change-selected host-safe checks, affected Linux or local integration, asynchronous full repository regression, and frozen-candidate environment qualification.
 
-Normal pull requests require the host-safe checks selected by the repository planner and the corresponding GitHub checks. They do not require a developer to run the complete repository, Compose, kind, and regional qualification sequence serially before every merge.
+Merge decisions use local verification. Run the host-safe checks selected by the repository planner and the Linux or integration checks for the affected boundaries.
 
-The planner is versioned in the repository and is the shared source of truth for local recommendations and conditional heavyweight CI work. An unknown or planner-owning path fails safe to the complete host-safe gate. Main-branch runs retain broad Linux coverage so classification mistakes are detected after merge and before release.
+The versioned planner selects host-safe checks and flags affected heavyweight checks. An unknown or planner-owning path fails safe to the complete host-safe gate. The contribution guide links to the Linux checks for changes that reach runtime behavior.
 
-Full repository validation is a broad-change or post-merge gate. Environment qualification remains bound to one frozen commit, immutable artifact digest, environment identity, complete samples, budgets, comparison, and receipt. A reduced smoke must use a distinct name and cannot satisfy promotion policy.
+Full repository validation is the local gate for broad changes. Environment qualification remains bound to one frozen commit, immutable artifact digest, environment identity, complete samples, budgets, comparison, and receipt. A reduced smoke must use a distinct name and cannot satisfy promotion policy.
 
-Every `main` commit starts the remote `Post-Merge Full` workflow. It runs the repository-owned `make verify-full` entrypoint as an exact source/runtime partition on independent fresh Linux runners, retaining commit-bound logs, stage timings, and failure diagnostics. Runtime scenarios remain serial within their runner; the final check requires both suites to succeed. The default local command still executes the entire ordered gate. A newer `main` commit supersedes an in-progress ancestor so the queue converges on the deployable state instead of accumulating stale regressions. Manual dispatch reruns the same workflow without creating a second verification definition.
+Hosted `CI`, `DCO`, and `Post-Merge Full` workflows are available on demand. `Post-Merge Full` partitions the same `make verify-full` entrypoint across source and runtime suites on separate Linux runners, retaining commit-bound logs, stage timings, and failure diagnostics. The local command executes the entire ordered gate.
 
 ## Rationale
 
@@ -22,11 +22,10 @@ The maintainability budgets are five minutes for warm host-safe feedback, fiftee
 
 - A typical edit receives local feedback in minutes rather than after a full deployment regression.
 - Linux-specific behavior remains proven on Linux, not duplicated by macOS.
-- Heavy pull-request checks retain stable names and explicitly succeed without running their workload when the classifier says they are unaffected.
 - Full and qualification failures block release or promotion even when the originating pull request has already merged.
-- Pull requests do not wait for `Post-Merge Full`; release and promotion wait for its successful result on the exact candidate commit.
+- Run `make verify-release` locally on the exact candidate before release or promotion.
 - The classifier contract must be tested whenever paths or ownership change.
 
 ## Revisit When
 
-Revisit the split if classification misses become common, full post-merge validation cannot finish before release, or a subsystem's fast gate repeatedly exceeds the expected minutes-scale feedback budget.
+Revisit the split if classification misses become common, full local validation cannot finish before release, or a subsystem's fast gate repeatedly exceeds the expected minutes-scale feedback budget.

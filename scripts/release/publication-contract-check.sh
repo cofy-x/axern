@@ -78,7 +78,7 @@ if "proxy.golang.org" in preflight or "sum.golang.org" in preflight:
 
 for contract in ("name: Release Contracts", "actionlint .github/workflows/*.yml", "make release-check"):
     if contract not in ci:
-        raise SystemExit(f"pull request CI is missing release contract gate: {contract}")
+        raise SystemExit(f"manual CI is missing release contract verification: {contract}")
 
 for workflow, source in (("ci", ci), ("release", release)):
     for job in re.split(r"(?m)^  [a-z][a-z0-9-]*:\n", source)[1:]:

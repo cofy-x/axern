@@ -10,11 +10,14 @@ Read the root [Agent Contract](./AGENTS.md), then the nearest module contract an
 make bootstrap
 make verify-changed-plan
 make verify-changed
+bash scripts/check-dco.sh origin/main HEAD
 ```
 
-The change planner runs only host-safe checks and prints whether Linux network policy or release-contract verification is affected. GitHub CI is authoritative for selected Linux correctness checks. Integration-sensitive changes may also need the narrow Compose, kind, or runtime smoke documented by the owning module.
+Local verification is the merge gate. The change planner runs host-safe checks and identifies affected Linux network policy and release contracts. Run the applicable Linux correctness, Compose, kind, or runtime checks locally. GitHub CI and full regression are available on demand.
 
-`make verify-full` is reserved for broad changes and asynchronous post-merge regression. `make verify-release` is the source and local-deployment release gate; regional performance and capacity qualification remain separate frozen- candidate workflows. Pull requests should describe the user impact, design tradeoffs, verification performed, and any operational risk.
+Publish documentation by dispatching the `Documentation Pages Deploy` workflow on `main`.
+
+`make verify-full` is the local gate for broad changes. `make verify-release` is the source and local-deployment release gate; regional performance and capacity qualification remain separate frozen- candidate workflows. Pull requests should describe the user impact, design tradeoffs, verification performed, and any operational risk.
 
 ## Commit Style
 
