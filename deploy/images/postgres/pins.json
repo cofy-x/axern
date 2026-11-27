@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "base_image": "docker.io/library/postgres:16.15-alpine3.24@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139",
-  "go_version": "go1.26.11",
+  "go_version": "go1.27.4",
   "gosu": {
     "version": "1.20",
     "commit": "29b939aa5bd4dc588af765b8248f6e39150d2565",

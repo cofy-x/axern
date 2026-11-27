@@ -1,6 +1,6 @@
 module github.com/distribution/distribution/v3
 
-go 1.26.11
+go 1.27.4
 
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20221103172237-443f56ff4ba8
