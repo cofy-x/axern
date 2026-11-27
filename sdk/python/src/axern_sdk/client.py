@@ -57,10 +57,10 @@ def _write_all(destination: BinaryIO, data: bytes) -> None:
     remaining = memoryview(data)
     while remaining:
         written = destination.write(remaining)
-        if written is None:
-            return
-        if written <= 0:
+        if written is None or written <= 0:
             raise OSError("sealed output destination made no write progress")
+        if written > len(remaining):
+            raise OSError("sealed output destination reported more bytes than supplied")
         remaining = remaining[written:]
 
 

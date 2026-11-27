@@ -368,8 +368,13 @@ with Sandbox(
 
 run = client.wait_run(run_id, timeout=60)
 output = next(item for item in client.get_sealed_output_manifest(run_id) if item.path == "/tmp/result.json")
-with open("result.json", "wb") as destination:
-    client.download_sealed_output(run_id, output.output_id, destination)
+print(run_id, output.output_id)
+```
+
+Persist both IDs in the caller before handing off. On Linux, the [recovery example](examples/recover_sealed_output.py) accepts them in a fresh process and writes to a private caller-owned directory. It verifies the full download before publishing a filename. A repeat against an identical file reports `already_delivered`. A conflicting file stays intact and the command exits with an error. Run it while the sealed output is still available.
+
+```bash
+python examples/recover_sealed_output.py "$RUN_ID" "$OUTPUT_ID" /private/results/result.json
 ```
 
 Declared output is retained on the Node for 15 minutes after cleanup starts. It survives axnoded restart, but not Node-disk loss, and must be copied to caller-owned durable storage. Limits are 16 paths, 64 MiB per file, 256 MiB per tar archive, and 256 MiB total. Missing, unsafe, wrong-kind, oversized, capture-failed, and node-unavailable results are explicit manifest states. This is not a persistent workspace, Artifact service, or object store.
