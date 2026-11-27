@@ -40,9 +40,9 @@ type Receipt struct {
 }
 
 type Observation struct {
-	Identity string
-	Bytes    int64
-	Inodes   int64
+	Identity                    string
+	Bytes, Inodes               int64
+	UsedProjects, ProjectBudget uint32
 }
 
 type Options struct {
@@ -141,7 +141,8 @@ func (m *Manager) Capacity() (Observation, error) {
 		return Observation{}, err
 	}
 	defer root.Close()
-	return Observation{Identity: record.Identity, Bytes: m.options.Capacity, Inodes: m.options.Inodes}, nil
+	return Observation{Identity: record.Identity, Bytes: m.options.Capacity, Inodes: m.options.Inodes,
+		UsedProjects: record.NextProject - firstProject, ProjectBudget: m.options.ProjectBudget}, nil
 }
 
 func (m *Manager) Provision(spec Spec) (Observation, error) {

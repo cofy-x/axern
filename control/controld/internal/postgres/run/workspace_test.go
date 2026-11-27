@@ -70,7 +70,7 @@ func newWorkspaceFixture(t *testing.T) *workspaceFixture {
 	}
 	ctx := accesskernel.WithActor(context.Background(), accesskernel.Actor{Principal: accesskernel.Principal{ID: "workspace-principal"}, Credential: accesskernel.Credential{Fingerprint: fingerprint}})
 	summary := controldtest.ReadySummary(now)
-	summary.WorkspaceStorage = &nodev1.WorkspaceStorage{Ready: true, CapacityBytes: 16 << 20, InodeCapacity: 1024, StorageIdentity: "root-owned-fixture"}
+	summary.WorkspaceStorage = &nodev1.WorkspaceStorage{Ready: true, ProjectBudget: 4096, CapacityBytes: 16 << 20, InodeCapacity: 1024, StorageIdentity: "root-owned-fixture"}
 	if _, err := db.Pool().Exec(ctx, `INSERT INTO nodes(node_id,node_target,enrollment_token_hash,admitted_at,last_heartbeat_at,lifecycle_status) VALUES('workspace-node','127.0.0.1:24010',repeat('0',64),$1,$1,'active')`, now); err != nil {
 		t.Fatal(err)
 	}
@@ -401,10 +401,50 @@ func TestWorkspaceAuthorizationAndRoleGrantUseNamespaceFirst(t *testing.T) {
 	}
 }
 
+func TestWorkspaceProjectBudgetRejectsNewIntentsBeforeCharging(t *testing.T) {
+	f := newWorkspaceFixture(t)
+	request := &workspacev1.CreateWorkspaceRequest{Namespace: "default", NodeID: "workspace-node", CapacityBytes: 512, InodeLimit: 1}
+	setBudget := func(budget, used uint32) {
+		t.Helper()
+		summary := controldtest.ReadySummary(f.now)
+		summary.WorkspaceStorage = &nodev1.WorkspaceStorage{Ready: true, StorageIdentity: "root-owned-fixture", CapacityBytes: 16 << 20, InodeCapacity: 1024, ProjectBudget: budget, UsedProjects: used}
+		data, err := protojson.Marshal(summary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := f.db.Pool().Exec(f.ctx, `UPDATE node_summaries SET summary=$1::jsonb WHERE node_id='workspace-node'`, data); err != nil {
+			t.Fatal(err)
+		}
+	}
+	setBudget(0, 0)
+	if _, err := f.workspaces.CreateWorkspace(f.ctx, request, f.now); grpcstatus.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("missing node budget: %v", err)
+	}
+	setBudget(2, 2)
+	if _, err := f.workspaces.CreateWorkspace(f.ctx, request, f.now); grpcstatus.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("exhausted node allocator: %v", err)
+	}
+	setBudget(2, 0)
+	if _, err := f.workspaces.CreateWorkspace(f.ctx, request, f.now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.workspaces.CreateWorkspace(f.ctx, request, f.now); grpcstatus.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("two registered intents under stale node observation: %v", err)
+	}
+	setBudget(5, 4)
+	if _, err := f.workspaces.CreateWorkspace(f.ctx, request, f.now); grpcstatus.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("last slot reserved for an unconfirmed intent: %v", err)
+	}
+	var count int
+	if err := f.db.Pool().QueryRow(f.ctx, `SELECT COUNT(*) FROM workspaces WHERE node_id='workspace-node'`).Scan(&count); err != nil || count != 2 {
+		t.Fatalf("registered workspaces=%d, err=%v", count, err)
+	}
+}
+
 func TestWorkspaceRetainedNamespaceAccountingCannotOverflow(t *testing.T) {
 	f := newWorkspaceFixture(t)
 	summary := controldtest.ReadySummary(f.now)
-	summary.WorkspaceStorage = &nodev1.WorkspaceStorage{Ready: true, CapacityBytes: 9_000_000_000_000_000_000, InodeCapacity: 1024, StorageIdentity: "root-owned-fixture"}
+	summary.WorkspaceStorage = &nodev1.WorkspaceStorage{Ready: true, ProjectBudget: 4096, CapacityBytes: 9_000_000_000_000_000_000, InodeCapacity: 1024, StorageIdentity: "root-owned-fixture"}
 	data, err := protojson.Marshal(summary)
 	if err != nil {
 		t.Fatal(err)

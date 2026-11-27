@@ -205,5 +205,5 @@ func (h *sandboxService) workspaceStorageObservation() *nodev1.WorkspaceStorage 
 	if err != nil {
 		return &nodev1.WorkspaceStorage{Message: "managed storage unavailable"}
 	}
-	return &nodev1.WorkspaceStorage{Ready: true, StorageIdentity: capacity.Identity, CapacityBytes: capacity.Bytes, InodeCapacity: capacity.Inodes}
+	return &nodev1.WorkspaceStorage{Ready: true, StorageIdentity: capacity.Identity, CapacityBytes: capacity.Bytes, InodeCapacity: capacity.Inodes, UsedProjects: capacity.UsedProjects, ProjectBudget: capacity.ProjectBudget}
 }

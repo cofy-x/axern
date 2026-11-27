@@ -460,6 +460,10 @@ func TestAuthorityBudgetPreservesExistingWorkAndCleanup(t *testing.T) {
 	newcomer.ID = "new"
 	_, err = m.Provision(newcomer)
 	require.ErrorContains(t, err, "2 used, 2 configured")
+	inventory, err := m.Capacity()
+	require.NoError(t, err)
+	require.Equal(t, uint32(2), inventory.ProjectBudget)
+	require.Equal(t, uint32(2), inventory.UsedProjects)
 	require.NoFileExists(t, filepath.Join(m.options.MetadataRoot, newcomer.ID+".json"))
 	retained, err := m.Inspect(spec, original.Identity)
 	require.NoError(t, err)
@@ -486,6 +490,30 @@ func TestAuthorityBudgetPreservesExistingWorkAndCleanup(t *testing.T) {
 	pending, err := reopened.readOwner(waiting.ID)
 	require.NoError(t, err)
 	require.Equal(t, "provisioning", pending.State)
+}
+
+type interruptedRemoval struct{ *fixtureKernel }
+
+func (f interruptedRemoval) remove(*os.File, string, directoryIdentity, uint32) error {
+	return errors.New("interrupted deletion")
+}
+
+func TestDeletionCanFinishAfterRestartAtAuthorityBudget(t *testing.T) {
+	m, kernel, spec := newFixture(t)
+	m.options.ProjectBudget = 1
+	o, err := m.Provision(spec)
+	require.NoError(t, err)
+	m.os = interruptedRemoval{kernel}
+	require.ErrorContains(t, m.Delete(spec, o.Identity), "interrupted deletion")
+	record, err := m.readOwner(spec.ID)
+	require.NoError(t, err)
+	require.Equal(t, "deleting", record.State)
+	reopened := New(m.options)
+	reopened.os = kernel
+	require.NoError(t, reopened.Delete(spec, o.Identity))
+	spec.ID = "another"
+	_, err = reopened.Provision(spec)
+	require.ErrorContains(t, err, "1 used, 1 configured")
 }
 
 func TestMissingAllocatorCannotRecycleDeletedWorkspaceProjects(t *testing.T) {

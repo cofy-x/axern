@@ -164,6 +164,9 @@ message WorkspaceStorage {
   string storage_identity = 3;
   bool ready = 4;
   string message = 5;
+  // Lifetime allocations of XFS project identities, including retired and interrupted assignments.
+  uint32 used_projects = 6;
+  uint32 project_budget = 7;
 }
 
 message NodeSummary {
