@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "go_version": "1.26.10",
+  "go_version": "1.26.11",
   "distribution": {
     "module": "github.com/distribution/distribution/v3",
     "version": "v3.1.2",
@@ -11,8 +11,8 @@
     "release_url": "https://github.com/distribution/distribution/releases/tag/v3.1.2"
   },
   "overlay": {
-    "go_mod_sha256": "fdebb473d35f9079bd4a9aca22c9d6561b81fc8bb7feeffd58ac266cd2706a17",
-    "go_sum_sha256": "9fcaa3c4a343a79d8d1d92f6d0e49fa018c26c90129174ca446e02bea97e1a9f"
+    "go_mod_sha256": "04dbe1161137b82534135735fc80ee6597b2ba47d840e700bc267b5d9764da0f",
+    "go_sum_sha256": "1889b11944a2aed72e5dfb48b8732e3f25439bf722658135537728d62369a9db"
   },
   "ca_bundle": {
     "url": "https://curl.se/ca/cacert-2026-11-05.pem",

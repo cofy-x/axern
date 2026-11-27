@@ -38,9 +38,9 @@ jobs:
           node-version: "24.22.2"
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@b0f76dfb45f55f8421693e4803ac7bb65143bd34 # v6
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
-          version: "10.24.0"
+          version: "10.34.9"
 
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
