@@ -9,7 +9,7 @@ Prepare each architecture from the repository root, then build from its isolated
 ```bash
 python3 deploy/images/postgres/build.py --check
 python3 -m unittest discover -s deploy/images/postgres -p 'test_*.py'
-python3 deploy/images/postgres/build.py --arch amd64 --go /path/to/go1.26.10/bin/go --output deploy/images/postgres/.build/amd64-qualification-1
+python3 deploy/images/postgres/build.py --arch amd64 --go /path/to/go1.27.4/bin/go --output deploy/images/postgres/.build/amd64-qualification-1
 docker build --platform linux/amd64 -f deploy/images/postgres/Dockerfile --build-arg APK_REFRESH_EPOCH=qualification-1 -t axern/local-postgres:dev deploy/images/postgres/.build/amd64-qualification-1/context
 ```
 

@@ -52,7 +52,7 @@ class BuildTests(unittest.TestCase):
 
     def test_locked_contract(self):
         pins = build.load_pins()
-        self.assertEqual(pins["go_version"], "go1.26.10")
+        self.assertEqual(pins["go_version"], "go1.27.4")
         dockerfile = (build.HERE / "Dockerfile").read_text()
         self.assertIn("apk upgrade --no-cache", dockerfile)
         self.assertIn("'zlib>=1.4-r0'", dockerfile)
@@ -113,10 +113,10 @@ class BuildTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             archive, pins = self.source(root)
-            pins["go_version"] = "go1.26.10"
+            pins["go_version"] = "go1.27.4"
             output = root / "prepared"
             args = SimpleNamespace(go="go", arch=None, output=str(output), source_archive=str(archive), prepare_only=True)
-            with mock.patch.object(build, "load_pins", return_value=pins), mock.patch.object(build.shutil, "which", return_value="/trusted/go"), mock.patch.object(build.subprocess, "check_output", return_value="go version go1.26.10 linux/amd64\n"), mock.patch.object(build.subprocess, "run") as compile_command:
+            with mock.patch.object(build, "load_pins", return_value=pins), mock.patch.object(build.shutil, "which", return_value="/trusted/go"), mock.patch.object(build.subprocess, "check_output", return_value="go version go1.27.4 linux/amd64\n"), mock.patch.object(build.subprocess, "run") as compile_command:
                 build.build(args)
                 compile_command.assert_not_called()
                 self.assertEqual((output / "source/go.mod").read_bytes(), (build.HERE / "gosu.mod").read_bytes())

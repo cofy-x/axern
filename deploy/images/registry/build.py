@@ -36,7 +36,7 @@ def load_lock():
     require(lock['schema_version'] == 1, 'unsupported Registry lock schema')
     source = lock['distribution']
     require(re.fullmatch(r'v3\.[0-9]+\.[0-9]+', source['version']) and re.fullmatch(r'[0-9a-f]{40}', source['commit']), 'exact upstream version and commit required')
-    require(lock['go_version'] == '1.26.10', 'Registry requires the qualified Go version')
+    require(lock['go_version'] == '1.27.4', 'Registry requires the qualified Go version')
     require(re.fullmatch(r'https://curl\.se/ca/cacert-[0-9]{4}-[0-9]{2}-[0-9]{2}\.pem', lock['ca_bundle']['url']), 'CA bundle URL must be dated')
     require(lock['mozilla_license']['url'] == 'https://www.mozilla.org/MPL/2.0/index.txt', 'unexpected CA license authority')
     for record in [source, lock['ca_bundle'], lock['mozilla_license']]:

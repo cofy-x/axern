@@ -34,10 +34,10 @@
       "size": 32039312
     },
     "go": {
-      "version": "1.26.10",
-      "url": "https://go.dev/dl/go1.26.10.linux-amd64.tar.gz",
-      "sha256": "ccfe7ae822d2c2f41f4fe7c956199967a4dac22d0ee0d2b2bfdb440aab3b20c5",
-      "size": 66936659
+      "version": "1.27.4",
+      "url": "https://go.dev/dl/go1.27.4.linux-amd64.tar.gz",
+      "sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
+      "size": 70680823
     },
     "codex": {
       "version": "0.167.0",
