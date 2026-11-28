@@ -53,10 +53,11 @@ else
   git rev-parse --verify "${head_ref}^{commit}" >/dev/null
   while IFS= read -r path; do [[ -n "${path}" ]] && paths+=("${path}"); done < <(
     {
-      git diff --name-only --diff-filter=ACDMR "${base_ref}...${head_ref}"
+      # Keep both names of a move as a deletion and an addition.
+      git diff --no-renames --name-only --diff-filter=ACDMR "${base_ref}...${head_ref}"
       if [[ "${head_ref}" == "HEAD" ]]; then
-        git diff --name-only --diff-filter=ACDMR
-        git diff --cached --name-only --diff-filter=ACDMR
+        git diff --no-renames --name-only --diff-filter=ACDMR
+        git diff --cached --no-renames --name-only --diff-filter=ACDMR
         git ls-files --others --exclude-standard
       fi
     } | LC_ALL=C sort -u
@@ -65,7 +66,7 @@ fi
 
 docs=false docs_site=false proto=false root_go=false axnoded=false egressd=false bpfnet=false
 typescript=false python=false broad=false network_policy_linux=false
-release_contract=false agent_images=false
+release_contract=false agent_images=false native_release_only=true
 
 for path in "${paths[@]}"; do
   # Workload-image tooling is independent of the Python SDK and host network
@@ -73,6 +74,7 @@ for path in "${paths[@]}"; do
   case "${path}" in
     images/agents/*|mk/agent-images.mk)
       agent_images=true
+      native_release_only=false
       case "${path}" in *.md|*.mdx) docs=true ;; esac
       continue
       ;;
@@ -84,6 +86,19 @@ for path in "${paths[@]}"; do
       continue
       ;;
   esac
+  # These paths check release evidence or prepare a disposable hosted guest.
+  # Keep the broad local and release checks for them.
+  case "${path}" in
+    .github/workflows/native-provenance.yml|\
+    scripts/release/native_delivery_notices.py|scripts/release/native_delivery_notices_test.py|\
+    scripts/release/prepare-qualification-runner.sh|\
+    scripts/release/qualification-receipt.py|scripts/release/qualification_receipt_test.py)
+      broad=true
+      release_contract=true
+      continue
+      ;;
+  esac
+  native_release_only=false
   case "${path}" in .x/*|docs/*) docs=true ;; esac
   case "${path}" in apps/docs/*) docs=true; docs_site=true ;; esac
   case "${path}" in sdk/proto/*|scripts/proto-generate.sh|scripts/proto-generated-check.sh) proto=true; root_go=true; axnoded=true ;; esac
@@ -106,7 +121,7 @@ for path in "${paths[@]}"; do
   esac
 done
 
-if [[ "${broad}" == "true" ]]; then
+if [[ "${broad}" == "true" && "${native_release_only}" == "false" ]]; then
   network_policy_linux=true
 fi
 

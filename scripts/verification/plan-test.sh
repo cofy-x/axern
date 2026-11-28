@@ -36,6 +36,14 @@ assert_plan ci-workflow .github/workflows/ci.yml verify-fast-all,release-contrac
 assert_plan build-cache scripts/dev-env/docker-build-cache.sh verify-fast-all,release-contract true true
 assert_plan full-gate scripts/verify-all.sh verify-fast-all,release-contract true true
 assert_plan release-gate scripts/verify-release.sh verify-fast-all,release-contract true true
+assert_plan native-notices $'deploy/standalone/README.md\nscripts/release/native_delivery_notices.py\nscripts/release/native_delivery_notices_test.py' verify-fast-all,release-contract false true
+assert_plan native-attestation $'.github/workflows/native-provenance.yml\ndeploy/standalone/README.md' verify-fast-all,release-contract false true
+assert_plan native-host-prep $'.github/workflows/native-provenance.yml\nscripts/release/prepare-qualification-runner.sh' verify-fast-all,release-contract false true
+assert_plan native-receipt $'scripts/release/qualification-receipt.py\nscripts/release/qualification_receipt_test.py' verify-fast-all,release-contract false true
+assert_plan native-mixed-network $'.github/workflows/native-provenance.yml\nruntime/axnoded/internal/network/network.go' verify-fast-all,release-contract true true
+assert_plan native-mixed-sdk $'.github/workflows/native-provenance.yml\nsdk/python/src/axern_sdk/client.py' verify-fast-all,release-contract true true
+assert_plan native-mixed-agent $'.github/workflows/native-provenance.yml\nimages/agents/Dockerfile' verify-fast-all,release-contract true true
+assert_plan native-general-script scripts/release/build-native-archive.sh verify-fast-all,release-contract true true
 
 # A deleted file no longer exists for the classifier to inspect. Exercise real
 # Git history, index and working-tree diffs separately, without a paths fixture
@@ -70,6 +78,30 @@ for state in committed staged unstaged; do
   grep -Fx 'verification.network_policy_linux=true' "${output}" >/dev/null
   grep -Fx 'verification.release_contract=false' "${output}" >/dev/null
   grep -Fx 'network_policy_linux=true' "${heavy}" >/dev/null
+done
+
+# Git can report only the destination name by default. A move from data-plane
+# code to a scoped path still needs the data-plane gate.
+fixture="${work_dir}/deletion-committed"
+source_path=runtime/axnoded/internal/network/rename.go
+release_path=scripts/release/native_delivery_notices.py
+git -C "${fixture}" config diff.renames true
+mkdir -p "${fixture}/$(dirname "${source_path}")" "${fixture}/scripts/release"
+printf 'package network\n' >"${fixture}/${source_path}"
+git -C "${fixture}" add "${source_path}"
+git -C "${fixture}" commit --quiet -m 'add network source'
+base="$(git -C "${fixture}" rev-parse HEAD)"
+mv "${fixture}/${source_path}" "${fixture}/${release_path}"
+for state in unstaged staged committed; do
+  case "${state}" in
+    staged) git -C "${fixture}" add -A -- "${source_path}" "${release_path}" ;;
+    committed) git -C "${fixture}" commit --quiet -m 'move network source to a scoped path' ;;
+  esac
+  output="${work_dir}/rename-${state}.out"
+  bash "${fixture}/scripts/verification/plan.sh" --base "${base}" --plan >"${output}"
+  grep -Fx 'verification.paths=2' "${output}" >/dev/null
+  grep -Fx 'verification.network_policy_linux=true' "${output}" >/dev/null
+  grep -Fx 'verification.release_contract=true' "${output}" >/dev/null
 done
 
 # Execute the actual group selection with an inert make function. This catches
@@ -125,5 +157,8 @@ paths_file="${work_dir}/empty.paths"
 "${PLAN}" --paths-file "${paths_file}" --plan --all-heavy --github-output "${github_output}" >/dev/null
 grep -Fx 'network_policy_linux=true' "${github_output}" >/dev/null
 grep -Fx 'release_contract=true' "${github_output}" >/dev/null
+"${PLAN}" --paths-file "${work_dir}/native-host-prep.paths" --plan --all-heavy >"${work_dir}/native-all-heavy.out"
+grep -Fx 'verification.network_policy_linux=true' "${work_dir}/native-all-heavy.out" >/dev/null
+grep -Fx 'verification.release_contract=true' "${work_dir}/native-all-heavy.out" >/dev/null
 
 printf 'verification_plan_contract_ok=true\n'
