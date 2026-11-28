@@ -10,7 +10,7 @@ from install import load_lock
 
 
 SCRIPT = r'''
-import json,os,pathlib,pwd,shutil,site,subprocess,sys,sysconfig,tempfile
+import hashlib,json,os,pathlib,pwd,shutil,site,subprocess,sys,sysconfig,tempfile
 lock=json.loads(pathlib.Path('/usr/local/share/axern/agent-images/versions.lock.json').read_text())
 assert (os.getuid(),os.getgid())==(1000,1000)
 account=pwd.getpwuid(1000)
@@ -34,15 +34,21 @@ subprocess.run(['/usr/bin/python3','-I','-c',system_python],check=True)
 pip_version=subprocess.check_output([sys.executable,'-m','pip','--version'],text=True).split()[1]
 assert pip_version==lock['artifacts']['pip']['version']
 assert subprocess.check_output(['pip','--version'],text=True).split()[1]==pip_version
+seed,=pathlib.Path(sysconfig.get_config_var('WHEEL_PKG_DIR')).glob('pip-*.whl')
+assert hashlib.sha256(seed.read_bytes()).hexdigest()==lock['artifacts']['pip']['sha256']
 with tempfile.TemporaryDirectory() as temporary:
  subprocess.run([sys.executable,'-m','venv',temporary],check=True)
- subprocess.run([str(pathlib.Path(temporary)/'bin/python'),'-m','pip','--version'],check=True,stdout=subprocess.DEVNULL)
+ fresh_python=str(pathlib.Path(temporary)/'bin/python')
+ check_pip='import pathlib,pip,sys; assert pathlib.Path(pip.__file__).is_relative_to(sys.prefix); print(pip.__version__)'
+ fresh_pip=subprocess.check_output([fresh_python,'-I','-c',check_pip],text=True).strip()
+ assert fresh_pip==pip_version
 for command in (['git','--version'],['rg','--version']):subprocess.run(command,check=True,stdout=subprocess.DEVNULL)
 git_remote=pathlib.Path(subprocess.check_output(['git','--exec-path'],text=True).strip())/'git-remote-https'
 git_tls=subprocess.check_output(['ldd',str(git_remote)],text=True)
 assert 'libcurl-gnutls.so.4' in git_tls and 'libgnutls.so.30' in git_tls
 stage=sys.argv[1]
 observed={'python':'.'.join(map(str,sys.version_info[:3])),'ubuntu':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid(),'groups':sorted(os.getgroups()),'git_https':'GnuTLS','system_python_unchanged':True,'no_new_privileges':True,'capabilities_empty':True,'docker_socket_absent':True}
+observed['fresh_venv_pip']=fresh_pip
 if stage!='base':
  for name in ('npm','npx','corepack','pnpm','pnpx','yarn','yarnpkg'):
   assert shutil.which(name) is None, name+' must be supplied by a caller-owned project image'

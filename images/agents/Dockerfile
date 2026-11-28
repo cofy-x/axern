@@ -6,6 +6,7 @@ ARG APT_REFRESH_EPOCH
 ARG DEBIAN_FRONTEND=noninteractive
 COPY --chmod=0644 ubuntu.sources /etc/apt/sources.list.d/ubuntu.sources
 RUN test -n "$APT_REFRESH_EPOCH" \
+    && printf '%s\n' 'path-exclude=/usr/share/python-wheels/pip-25.1.1-py3-none-any.whl' > /etc/dpkg/dpkg.cfg.d/axern-venv-seed \
     && apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends bash ca-certificates git libstdc++6 python3 python3-venv ripgrep \

@@ -61,20 +61,31 @@ class SourceTests(unittest.TestCase):
                 install.install('base', lock)
             process.assert_not_called()
 
-    def test_verified_pip_wheel_installs_only_in_the_agent_venv(self):
+    def test_verified_seed_is_available_to_ordinary_venv_creation(self):
+        dist = record(b'wheel')
+        dist['url'] = 'https://example.invalid/pip-1.0.0-py3-none-any.whl'
+        lock = {'base': {'python_series': '.'.join(map(str, sys.version_info[:2]))},
+                'artifacts': {'pip': dist}}
+        with tempfile.TemporaryDirectory() as directory, patch.object(install.sysconfig, 'get_config_var', return_value=directory):
+            with patch.object(install, 'urlopen', return_value=io.BytesIO(b'wheel')), patch.object(install.subprocess, 'run') as process:
+                install.install('base', lock)
+            seed = Path(directory) / install.archive_name(dist)
+            self.assertEqual(seed.read_bytes(), b'wheel')
+            self.assertEqual(seed.stat().st_mode & 0o777, 0o644)
+            process.assert_called_once_with([sys.executable, '-m', 'venv', '--system-site-packages', str(install.PYTHON_ENV)], check=True)
+
+    def test_unexpected_distro_wheel_requires_review(self):
         lock = {'base': {'python_series': '.'.join(map(str, sys.version_info[:2]))},
                 'artifacts': {'pip': record(b'wheel')}}
-        with patch.object(install, 'urlopen', return_value=io.BytesIO(b'wheel')), patch.object(install.subprocess, 'run') as process:
-            install.install('base', lock)
-        create, bootstrap = process.call_args_list
-        self.assertEqual(create.args[0], [sys.executable, '-m', 'venv', '--without-pip',
-                                         '--system-site-packages', str(install.PYTHON_ENV)])
-        command = bootstrap.args[0]
-        self.assertEqual(command[0], str(install.PYTHON_ENV / 'bin/python'))
-        self.assertIn('--no-index', command)
-        self.assertIn('--no-deps', command)
-        self.assertEqual(bootstrap.kwargs['env'], {'PYTHONPATH': command[-1], 'PIP_CONFIG_FILE': '/dev/null'})
-        self.assertTrue(create.kwargs['check'] and bootstrap.kwargs['check'])
+        with tempfile.TemporaryDirectory() as directory, patch.object(install.sysconfig, 'get_config_var', return_value=directory):
+            distro_seed = Path(directory) / 'pip-newer-py3-none-any.whl'
+            distro_seed.write_bytes(b'new distro wheel')
+            with patch.object(install, 'urlopen', return_value=io.BytesIO(b'wheel')), patch.object(install.subprocess, 'run') as process:
+                with self.assertRaisesRegex(ValueError, 'review the new Ubuntu pip wheel'):
+                    install.install('base', lock)
+                process.assert_not_called()
+            self.assertEqual(list(Path(directory).iterdir()), [distro_seed])
+            self.assertEqual(distro_seed.read_bytes(), b'new distro wheel')
 
     def test_cache_symlinks_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

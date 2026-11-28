@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tarfile
 import tempfile
 from urllib.parse import urlsplit
@@ -146,13 +147,16 @@ def install(target, lock):
 
         if target == 'base':
             wheel = fetch_source(records['pip'], scratch / archive_name(records['pip']))
+            wheel_dir = Path(sysconfig.get_config_var('WHEEL_PKG_DIR') or '.')
+            if not wheel_dir.is_absolute() or not wheel_dir.is_dir():
+                raise ValueError('Ubuntu Python must provide an ensurepip wheel directory')
+            if any(wheel_dir.glob('pip-*.whl')):
+                raise ValueError('review the new Ubuntu pip wheel before replacing the venv seed')
+            seed = wheel_dir / wheel.name
+            shutil.copyfile(wheel, seed)
+            seed.chmod(0o644)
             # Keep user-site installs available to UID 1000 in the root-owned venv.
-            subprocess.run([sys.executable, '-m', 'venv', '--without-pip', '--system-site-packages',
-                            str(PYTHON_ENV)], check=True)
-            subprocess.run([str(PYTHON_ENV / 'bin/python'), '-P', '-m', 'pip', 'install',
-                            '--ignore-installed', '--no-index', '--no-deps', '--disable-pip-version-check',
-                            '--no-cache-dir', str(wheel)], check=True,
-                           env={'PYTHONPATH': str(wheel), 'PIP_CONFIG_FILE': '/dev/null'})
+            subprocess.run([sys.executable, '-m', 'venv', '--system-site-packages', str(PYTHON_ENV)], check=True)
         elif target == 'toolchain':
             shutil.move(unpack('go') / 'go', '/usr/local/go')
             node = unpack('node') / ('node-v' + records['node']['version'] + '-linux-x64')
