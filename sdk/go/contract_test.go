@@ -3,14 +3,22 @@
 package axernsdk
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/cofy-x/axern/sdk/go/clientconfig"
+	environmentv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/environment/v1"
+	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 )
 
@@ -246,6 +254,85 @@ func assertContractMethods(t *testing.T, operations []string, methods map[string
 		if !methods[method] {
 			t.Fatalf("Go SDK method %s for shared operation %q is missing", method, operation)
 		}
+	}
+}
+
+func TestSharedSandboxCleanupContract(t *testing.T) {
+	var scenarios []struct {
+		Name               string
+		Image              string
+		EnvironmentID      string `json:"environment_id"`
+		WorkspaceID        string `json:"workspace_id"`
+		InterruptReadiness bool   `json:"interrupt_readiness"`
+		FailFirstCancel    bool   `json:"fail_first_cancel"`
+		Steps              []struct {
+			Operation string
+			Fails     bool
+			Cleanup   []string
+		}
+	}
+	loadContract(t, "sandbox_cleanup.json", &scenarios)
+	for _, scenario := range scenarios {
+		t.Run(scenario.Name, func(t *testing.T) {
+			fake := &fakeAxernServer{}
+			if scenario.InterruptReadiness {
+				fake.watchErr = status.Error(codes.Canceled, "readiness interrupted")
+			}
+			server, dialer := newBufconnServer(t, fake)
+			defer server.Stop()
+			var calls []string
+			var submitted []*runv1.CreateRunRequest
+			failCancel := scenario.FailFirstCancel
+			observeCleanup := func(ctx context.Context, method string, req, reply any, conn *grpc.ClientConn, invoke grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+				switch request := req.(type) {
+				case *runv1.CreateRunRequest:
+					submitted = append(submitted, request)
+				case *runv1.CancelRunRequest:
+					calls = append(calls, "cancel "+request.GetRunID())
+					if failCancel {
+						failCancel = false
+						return status.Error(codes.Unavailable, "cancel not confirmed")
+					}
+				case *environmentv1.DeleteEnvironmentRequest:
+					calls = append(calls, "delete "+request.GetEnvironmentID())
+				case *workspacev1.DeleteWorkspaceRequest:
+					calls = append(calls, "delete workspace "+request.GetWorkspaceID())
+				}
+				return invoke(ctx, method, req, reply, conn, opts...)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			client, err := NewClient(ctx, "bufnet", WithDialOptions(grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithChainUnaryInterceptor(observeCleanup)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			sandbox, err := NewSandbox(SandboxOptions{Client: client, Image: scenario.Image, EnvironmentID: scenario.EnvironmentID, WorkspaceID: scenario.WorkspaceID})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, step := range scenario.Steps {
+				calls = nil
+				switch step.Operation {
+				case "start":
+					err = sandbox.Start(ctx)
+				case "close":
+					err = sandbox.Close(ctx)
+				default:
+					t.Fatalf("unknown operation %q", step.Operation)
+				}
+				if (err != nil) != step.Fails || !slices.Equal(calls, step.Cleanup) {
+					t.Fatalf("%s: error=%v, cleanup=%v; want fails=%v, cleanup=%v", step.Operation, err, calls, step.Fails, step.Cleanup)
+				}
+			}
+			environmentID := scenario.EnvironmentID
+			if environmentID == "" {
+				environmentID = "env-1"
+			}
+			if len(submitted) != 1 || submitted[0].GetEnvironmentID() != environmentID || submitted[0].GetWorkspaceID() != scenario.WorkspaceID {
+				t.Fatalf("unexpected Run submissions: %v", submitted)
+			}
+		})
 	}
 }
 

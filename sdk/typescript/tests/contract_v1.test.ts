@@ -156,6 +156,55 @@ test("shared network policy contract", () => {
   for (const value of contract.invalid_cidrs) assert.throws(() => cidrRule(value, "tcp", portRange(443)));
 });
 
+interface CleanupScenario {
+  name: string;
+  image?: string;
+  environment_id?: string;
+  workspace_id?: string;
+  interrupt_readiness?: boolean;
+  fail_first_cancel?: boolean;
+  steps: { operation: "start" | "close"; fails?: boolean; cleanup: string[] }[];
+}
+
+for (const scenario of load<CleanupScenario[]>("sandbox_cleanup.json")) {
+  test(scenario.name, async () => {
+    const calls: string[] = [];
+    let failCancel = scenario.fail_first_cancel;
+    const submitted: { environmentId?: string; workspaceId?: string }[] = [];
+    const client = {
+      async createEnvironment() { return { id: "env-1" }; },
+      async createRun(options: { environmentId?: string; workspaceId?: string }) {
+        submitted.push(options);
+        return { id: "run-1" };
+      },
+      async *watchRun() {
+        if (scenario.interrupt_readiness) throw new Error("readiness interrupted");
+        yield { id: "run-1", allocation_id: "alloc-1", status: 3 };
+      },
+      async cancelRun(id: string) {
+        calls.push(`cancel ${id}`);
+        if (failCancel) {
+          failCancel = false;
+          throw new Error("cancel not confirmed");
+        }
+      },
+      async deleteEnvironment(id: string) { calls.push(`delete ${id}`); },
+      async deleteWorkspace(id: string) { calls.push(`delete workspace ${id}`); },
+    } as unknown as AxernClient;
+    const sandbox = new Sandbox({ client, image: scenario.image, environmentId: scenario.environment_id, workspaceId: scenario.workspace_id });
+    for (const step of scenario.steps) {
+      calls.length = 0;
+      const operation = sandbox[step.operation]();
+      if (step.fails) await assert.rejects(operation);
+      else await operation;
+      assert.deepEqual(calls, step.cleanup, step.operation);
+    }
+    assert.equal(submitted.length, 1);
+    assert.equal(submitted[0].environmentId, scenario.environment_id ?? "env-1");
+    assert.equal(submitted[0].workspaceId, scenario.workspace_id);
+  });
+}
+
 function load<T>(name: string): T {
   const url = new URL(`../../contracts/v1/${name}`, import.meta.url);
   return JSON.parse(readFileSync(url, "utf8")) as T;

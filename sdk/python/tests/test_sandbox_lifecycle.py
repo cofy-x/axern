@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import inspect
+import json
 import os
 import time
 import unittest
+from pathlib import Path
 from unittest import mock
 
 import grpc
@@ -28,6 +32,54 @@ from axern_sdk import (
 import axern_sdk.client as client_module
 from axern_sdk.client import _resource_spec
 from fakes import _AsyncFakeClient, _FakeClient, _FakeConnector
+
+
+class SharedCleanupContractTest(unittest.IsolatedAsyncioTestCase):
+    async def test_sandbox_cleanup(self) -> None:
+        fixture = Path(__file__).resolve().parents[2] / "contracts/v1/sandbox_cleanup.json"
+        for scenario in json.loads(fixture.read_text()):
+            for asynchronous in (False, True):
+                with self.subTest(scenario=scenario["name"], asynchronous=asynchronous):
+                    client = _AsyncFakeClient() if asynchronous else _FakeClient()
+                    calls: list[str] = []
+                    fail_cancel = scenario.get("fail_first_cancel", False)
+
+                    def cancel(run_id, **kwargs):
+                        nonlocal fail_cancel
+                        calls.append(f"cancel {run_id}")
+                        if fail_cancel:
+                            fail_cancel = False
+                            raise ConnectionError("cancel not confirmed")
+
+                    mock_call = mock.AsyncMock if asynchronous else mock.Mock
+                    client.create_run = mock_call(wraps=client.create_run)
+                    client.cancel_run = mock_call(side_effect=cancel)
+                    client.delete_environment = mock_call(
+                        side_effect=lambda environment_id, **kwargs: calls.append(f"delete {environment_id}")
+                    )
+                    client.delete_workspace = mock_call(
+                        side_effect=lambda workspace_id, **kwargs: calls.append(f"delete workspace {workspace_id}")
+                    )
+                    if scenario.get("interrupt_readiness"):
+                        client.watch_run = mock.Mock(side_effect=InterruptedError("readiness interrupted"))
+                    sandbox_type = AsyncSandbox if asynchronous else Sandbox
+                    sandbox = sandbox_type(
+                        client=client,
+                        image=scenario.get("image", ""),
+                        environment_id=scenario.get("environment_id", ""),
+                        workspace_id=scenario.get("workspace_id", ""),
+                    )
+                    for step in scenario["steps"]:
+                        calls.clear()
+                        action = {"start": sandbox.start, "close": sandbox.close}[step["operation"]]
+                        with self.assertRaises(Exception) if step.get("fails") else contextlib.nullcontext():
+                            result = action()
+                            if inspect.isawaitable(result):
+                                await result
+                        self.assertEqual(calls, step["cleanup"])
+                    client.create_run.assert_called_once()
+                    self.assertEqual(client.created_run["environment_id"], scenario.get("environment_id", "env-1"))
+                    self.assertEqual(client.created_run["workspace_id"], scenario.get("workspace_id", ""))
 
 
 class SandboxTest(unittest.TestCase):
