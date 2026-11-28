@@ -132,6 +132,7 @@ AXNODED_IDLE_ENVIRONMENT_RETENTION_MAX=128
 - In an eBPF demo or verify container, use `bpfnetctl check` for a read-only readiness check of pinned maps, pinned programs, links, and tc attachment.
 - `make verify-bpfnetctl-e2e` validates `bpfnetctl check --json` before and after allocations execute through the same runsc lifecycle used by production.
 - For supported verify targets and their semantic intent, use [Verification](../docs/verification.md), not this file.
+- The Linux network-policy matrix prints the path to its private temporary directory on failure. Inspect the reports, scenario stderr and any bounded node log sidecars locally. A successful run removes the directory.
 - Kubernetes benchmark runs use a temporary privileged Job per backend/run and require the axnoded verify image. They are intended for real Linux node dataplane validation before switching a deployed `node-all-in-one` DaemonSet to `NAT_BACKEND=ebpf`.
 
 ## Direct Script Usage
