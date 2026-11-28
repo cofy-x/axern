@@ -26,6 +26,100 @@ SETTINGS = {
 DAEMON_GENERATION = ('1' * 32, '2026-11-06T14:34:14.110196Z')
 
 
+class ArchiveUpgradeTest(unittest.TestCase):
+    def setUp(self):
+        temporary = self.enterContext(tempfile.TemporaryDirectory())
+        root = pathlib.Path(temporary)
+        self.etc, self.data, self.units, self.opt = (root / name for name in ('etc', 'data', 'units', 'opt'))
+        self.source_root = self.opt / 'releases' / ('a' * 64)
+        self.target_root = self.opt / 'releases' / ('b' * 64)
+        for path in (self.etc / 'private', self.units, self.source_root, self.target_root):
+            path.mkdir(parents=True)
+        for name in ('postgres/base', 'postgres/global', 'postgres/pg_wal', 'axnoded/root',
+                     'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd'):
+            (self.data / name).mkdir(parents=True, exist_ok=True)
+        (self.data / 'postgres/PG_VERSION').write_text('16\n')
+        self.data_id = {'filesystem_uuid': 'fixture-uuid', 'directory_inode': 123}
+        self.original = {
+            'schema': 'axern.native-install.v1', 'archive_sha256': self.source_root.name,
+            'source_revision': installer.UPGRADE_SOURCE, 'settings': SETTINGS, 'data_identity': self.data_id,
+        }
+        self.backup = {'schema': 'axern.native-cold-backup.v1', 'archive_sha256': self.source_root.name,
+                       'data_identity': self.data_id, 'images_sha256': {'system': 'c' * 64, 'data': 'd' * 64}}
+        self.identity = self.etc / 'installation.json'
+        self.marker = self.etc / 'installed'
+        self.intent = self.etc / 'private/archive-upgrade.json'
+        self.identity.write_bytes(installer.json_bytes(self.original))
+        self.marker.write_text(self.source_root.name + '\n')
+        for path in (self.identity, self.marker):
+            path.chmod(0o644)
+        (self.etc / 'private/canary').write_text('unchanged')
+        self.enterContext(mock.patch.multiple(installer, ROOT=self.target_root, ETC=self.etc,
+                                              DATA=self.data, OPT=self.opt, UNITS=self.units))
+        self.enterContext(mock.patch.object(installer.platform, 'machine', return_value='x86_64'))
+        self.enterContext(mock.patch.object(installer, 'data_identity', return_value=self.data_id))
+        self.enterContext(mock.patch.object(installer, 'preflight'))
+        self.enterContext(mock.patch.object(installer, 'require_cold_installation'))
+        self.enterContext(mock.patch.object(installer, 'runtime_selection', return_value=('amd64', {})))
+        self.enterContext(mock.patch.object(installer.gvisor_payload, 'verify_tree'))
+        self.command = self.enterContext(mock.patch.object(installer, 'run'))
+        for path, revision in ((self.source_root, installer.UPGRADE_SOURCE), (self.target_root, 'e' * 40)):
+            (path / 'stage-receipt.json').write_bytes(installer.json_bytes({'archive_sha256': path.name}))
+            (path / 'manifest.json').write_bytes(installer.json_bytes({
+                'schema': 'axern.native-runtime.v3', 'os': 'linux', 'architecture': 'amd64',
+                'version': installer.UPGRADE_VERSION, 'source_revision': revision, 'gvisor': 'same',
+            }))
+        (self.etc / 'node.toml').write_text(installer.node_config(SETTINGS))
+        for name, contents in installer.service_units(self.source_root, SETTINGS).items():
+            path = self.units / name
+            path.write_text(contents)
+            path.chmod(0o644)
+
+    def test_upgrade_preserves_database_config_and_keys(self):
+        config_before = (self.etc / 'node.toml').read_bytes()
+        installer.upgrade(self.source_root.name, self.backup)
+        expected = {**self.original, 'archive_sha256': self.target_root.name, 'source_revision': 'e' * 40}
+        self.assertEqual(installer.verify_installed(), expected)
+        self.assertEqual((self.etc / 'node.toml').read_bytes(), config_before)
+        self.assertEqual((self.etc / 'private/canary').read_text(), 'unchanged')
+        self.assertEqual((self.data / 'postgres/PG_VERSION').read_text(), '16\n')
+        self.assertFalse(self.intent.exists())
+        self.command.assert_called_once_with('systemctl', 'daemon-reload', timeout=5)
+        for name, contents in installer.service_units(self.target_root, SETTINGS).items():
+            self.assertEqual((self.units / name).read_text(), contents)
+
+    def test_interrupted_upgrade_blocks_both_helpers_and_resumes_only_same_intent(self):
+        self.command.side_effect = subprocess.TimeoutExpired('daemon-reload', 5)
+        with self.assertRaises(subprocess.TimeoutExpired):
+            installer.upgrade(self.source_root.name, self.backup)
+        self.assertTrue(self.intent.is_file())
+        self.assertEqual(self.marker.read_text(), 'upgrade-pending:' + self.target_root.name + '\n')
+        for root in (self.source_root, self.target_root):
+            with mock.patch.object(installer, 'ROOT', root), self.assertRaises(installer.InstallError):
+                installer.verify_installed()
+        wrong_backup = {**self.backup, 'images_sha256': {'system': 'f' * 64, 'data': 'd' * 64}}
+        with self.assertRaisesRegex(installer.InstallError, 'upgrade intent'):
+            installer.upgrade(self.source_root.name, wrong_backup)
+        self.command.side_effect = None
+        installer.upgrade(self.source_root.name, self.backup)
+        self.assertEqual(installer.verify_installed()['archive_sha256'], self.target_root.name)
+        self.assertFalse(self.intent.exists())
+
+    def test_incompatible_version_or_backup_fails_before_mutation(self):
+        manifest_path = self.target_root / 'manifest.json'
+        manifest = installer.read_json(manifest_path)
+        manifest_path.write_bytes(installer.json_bytes({**manifest, 'version': '9.0.0'}))
+        with self.assertRaisesRegex(installer.InstallError, 'unsupported archive transition'):
+            installer.upgrade(self.source_root.name, self.backup)
+        manifest_path.write_bytes(installer.json_bytes(manifest))
+        with self.assertRaisesRegex(installer.InstallError, 'backup receipt'):
+            installer.upgrade(self.source_root.name, {**self.backup, 'archive_sha256': 'f' * 64})
+        self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
+        self.assertEqual(installer.read_json(self.identity), self.original)
+        self.assertFalse(self.intent.exists())
+        self.command.assert_not_called()
+
+
 class InstallerTest(unittest.TestCase):
     def test_completed_installation_never_initializes_missing_data(self):
         checksum = 'a' * 64

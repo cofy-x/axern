@@ -55,6 +55,8 @@ NODE_TASK_RESERVE = 512
 SERVICE_TASK_BUDGET = 1024
 NODE_CGROUP = pathlib.Path('/sys/fs/cgroup/axern.slice/axern-native-axnoded.service')
 PAUSE_TIMEOUT = 15
+UPGRADE_SOURCE = '7de820e813ba2766645af100548753692d951051'
+UPGRADE_VERSION = '0.13.0'
 
 
 class InstallError(ValueError):
@@ -583,13 +585,18 @@ def sync_identity(renew: bool = False) -> None:
     credentials('control', 'signer.pem', (pki / 'private/signer.pem').read_bytes())
 
 
-def prepare_runtime() -> None:
+def runtime_selection(root: pathlib.Path) -> tuple[str, dict]:
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     if arch is None:
         raise InstallError('unsupported gVisor host architecture')
+    upstream = gvisor_payload.upstream_lock(root / 'share/axern/gvisor.lock', arch)
+    members = gvisor_payload.parse_selected((root / 'share/axern/gvisor-selected.lock.json').read_bytes(), arch, upstream)
+    return arch, members
+
+
+def prepare_runtime() -> None:
     try:
-        upstream = gvisor_payload.upstream_lock(ROOT / 'share/axern/gvisor.lock', arch)
-        members = gvisor_payload.parse_selected((ROOT / 'share/axern/gvisor-selected.lock.json').read_bytes(), arch, upstream)
+        arch, members = runtime_selection(ROOT)
         source = ROOT / 'runtime/gvisor'
         gvisor_payload.verify_tree(source, members, arch)
         if (OPT / 'gvisor').exists() or (OPT / 'gvisor').is_symlink():
@@ -638,6 +645,10 @@ def verify_completed_installation_data(settings: dict, checksum: str) -> None:
             or info.st_nlink != 1 or stat.S_IMODE(info.st_mode) != 0o644
             or marker.read_text() != checksum + '\n'):
         raise InstallError('completed installation marker differs; restore the owned installation')
+    verify_managed_data(settings)
+
+
+def verify_managed_data(settings: dict) -> None:
     directories = ['postgres', 'postgres/base', 'postgres/global', 'postgres/pg_wal',
                    'axnoded', 'axnoded/root', 'axnoded/store', 'axnoded/rootfs', 'imagemgr', 'egressd']
     if 'workspace_capacity_bytes' in settings:
@@ -649,6 +660,111 @@ def verify_completed_installation_data(settings: dict, checksum: str) -> None:
     version = DATA / 'postgres/PG_VERSION'
     if version.is_symlink() or not version.is_file() or version.read_text().strip() != '16':
         raise InstallError('initialized PostgreSQL identity is missing or incompatible; restore its backup')
+
+
+def staged_manifest(root: pathlib.Path) -> dict:
+    if (root.is_symlink() or root.parent != OPT / 'releases'
+            or not re.fullmatch('[0-9a-f]{64}', root.name)
+            or read_json(root / 'stage-receipt.json') != {'archive_sha256': root.name}):
+        raise InstallError('stage the verified payload under /opt/axern/releases/<archive-sha256> first')
+    manifest = read_json(root / 'manifest.json')
+    arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
+    if (manifest.get('schema') != 'axern.native-runtime.v3' or manifest.get('os') != 'linux'
+            or arch is None or manifest.get('architecture') != arch):
+        raise InstallError('staged archive schema or architecture is incompatible')
+    return manifest
+
+
+def require_cold_installation() -> None:
+    units = [TARGET, *[unit_name(name) for name in SERVICES]]
+    states = run('systemctl', 'show', '--property=ActiveState', '--value', *units,
+                 capture_output=True, text=True, timeout=5).stdout.split()
+    target = run('systemctl', 'show', '--property=UnitFileState', '--value', TARGET,
+                 capture_output=True, text=True, timeout=5).stdout.strip()
+    if states != ['inactive'] * len(units) or target != 'disabled' or node_cgroup_populated():
+        raise InstallError('stop the installation, disable its target and drain all workloads before upgrading')
+    control = run(str(PG / 'pg_controldata'), str(DATA / 'postgres'), capture_output=True,
+                  text=True, timeout=5, env={**os.environ, 'LC_ALL': 'C'}).stdout
+    if not re.search(r'^Database cluster state:\s+shut down$', control, re.MULTILINE):
+        raise InstallError('PostgreSQL was not cleanly shut down')
+    runtime, state = native_runtime_paths()
+    containers = run(str(runtime), '--root', str(state), 'list', '--format', 'json',
+                     capture_output=True, text=True, timeout=5).stdout
+    if json.loads(containers) not in (None, []):
+        raise InstallError('runsc retains sandbox state; resolve it before upgrading')
+
+
+def upgrade(from_archive: str, backup: dict) -> None:
+    if not re.fullmatch('[0-9a-f]{64}', from_archive):
+        raise InstallError('supply the source archive SHA-256')
+    old_root = OPT / 'releases' / from_archive
+    source = staged_manifest(old_root)
+    target = staged_manifest(ROOT)
+    if (source.get('version') != UPGRADE_VERSION or target.get('version') != UPGRADE_VERSION
+            or source.get('source_revision') != UPGRADE_SOURCE
+            or not re.fullmatch('[0-9a-f]{40}', str(target.get('source_revision', '')))
+            or target['source_revision'] == UPGRADE_SOURCE or source.get('gvisor') != target.get('gvisor')
+            or ROOT == old_root):
+        raise InstallError('unsupported archive transition; preserve the installation and its cold backup')
+
+    identity_path = ETC / 'installation.json'
+    marker = ETC / 'installed'
+    journal = ETC / 'private/archive-upgrade.json'
+    current = read_json(identity_path)
+    previous = read_json(journal) if journal.exists() else None
+    original = previous['source'] if previous else current
+    settings = validate_settings(original['settings'])
+    if (original.get('schema') != 'axern.native-install.v1' or original.get('archive_sha256') != from_archive
+            or original.get('source_revision') != source['source_revision']
+            or original.get('data_identity') != data_identity()):
+        raise InstallError('source archive or owned data identity does not match the installed state')
+    next_identity = {**original, 'archive_sha256': ROOT.name, 'source_revision': target['source_revision']}
+    if (set(backup) != {'schema', 'archive_sha256', 'data_identity', 'images_sha256'}
+            or backup['schema'] != 'axern.native-cold-backup.v1' or backup['archive_sha256'] != from_archive
+            or backup['data_identity'] != original['data_identity']
+            or not isinstance(backup['images_sha256'], dict)
+            or set(backup['images_sha256']) != {'system', 'data'}
+            or any(not re.fullmatch('[0-9a-f]{64}', str(value)) for value in backup['images_sha256'].values())):
+        raise InstallError('supply the matching cold system and data backup receipt')
+    undertaking = {'source': original, 'target': next_identity, 'backup': backup}
+    pending = 'upgrade-pending:' + ROOT.name
+    state = marker.read_text()
+    pairs = [(from_archive + '\n', original)]
+    if previous:
+        pairs.extend(((pending + '\n', original), (pending + '\n', next_identity), (ROOT.name + '\n', next_identity)))
+    if (previous is not None and previous != undertaking) or (state, current) not in pairs:
+        raise InstallError('upgrade intent or installation marker differs; resume with the original inputs or restore the cold backup')
+
+    verify_managed_data(settings)
+    require_cold_installation()
+    preflight(settings, False)
+    if (ETC / 'node.toml').read_text() != node_config(settings):
+        raise InstallError('installation node configuration was changed outside the installer')
+    arch, members = runtime_selection(ROOT)
+    gvisor_payload.verify_tree(ROOT / 'runtime/gvisor', members, arch)
+    gvisor_payload.verify_tree(OPT / 'gvisor', members, arch)
+    old_units = service_units(old_root, settings)
+    new_units = service_units(ROOT, settings)
+    for name, contents in old_units.items():
+        path = UNITS / name
+        acceptable = {contents, new_units[name]} if previous else {contents}
+        if path.is_symlink() or path.read_text() not in acceptable:
+            raise InstallError(f'installed service unit differs from the owned definition: {name}')
+    if state != ROOT.name + '\n':
+        write_file(journal, json_bytes(undertaking))
+        write_file(marker, (pending + '\n').encode(), 0o644, replace=True)
+        for name, contents in new_units.items():
+            write_file(UNITS / name, contents.encode(), 0o644, replace=True)
+        write_file(identity_path, json_bytes(next_identity), 0o644, replace=True)
+        run('systemctl', 'daemon-reload', timeout=5)
+        write_file(marker, (ROOT.name + '\n').encode(), 0o644, replace=True)
+    journal.unlink()
+    directory = os.open(journal.parent, os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+    print('verified archive upgrade prepared; start explicitly with the new helper')
 
 
 def install(settings: dict) -> None:
@@ -695,7 +811,7 @@ def install(settings: dict) -> None:
     else:
         identity['data_identity'] = data_identity()
         if read_json(existing) != identity:
-            raise InstallError('installation identity/configuration differs; upgrades and data adoption are not supported by this candidate')
+            raise InstallError('installation identity/configuration differs; use an explicit supported upgrade or restore')
     # A completed installation is not a creation intent. Only an unfinished
     # installation may initialize absent data; never turn loss into empty state.
     verify_completed_installation_data(settings, checksum)
@@ -867,9 +983,11 @@ def wait_serving(node_id: str, environment: dict[str, str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('install', 'start', 'stop', 'status', 'renew-services', 'internal-bootstrap', 'internal-ready', 'internal-verify', 'internal-pause-runtimes', 'internal-prepare-runtimes'))
+    parser.add_argument('command', choices=('install', 'upgrade', 'start', 'stop', 'status', 'renew-services', 'internal-bootstrap', 'internal-ready', 'internal-verify', 'internal-pause-runtimes', 'internal-prepare-runtimes'))
     parser.add_argument('service', nargs='?', choices=SERVICES)
     parser.add_argument('--config', type=pathlib.Path)
+    parser.add_argument('--from-archive')
+    parser.add_argument('--backup-receipt', type=pathlib.Path)
     args = parser.parse_args()
     try:
         if args.command == 'internal-ready':
@@ -901,6 +1019,11 @@ def main() -> None:
                     raise InstallError('--config is required for installation')
                 install(validate_settings(read_json(args.config)))
                 return
+            if args.command == 'upgrade':
+                if not args.from_archive or args.backup_receipt is None:
+                    raise InstallError('--from-archive and --backup-receipt are required for upgrade')
+                upgrade(args.from_archive, read_json(args.backup_receipt))
+                return
             identity = verify_installed(check_data=args.command not in ('stop', 'status'))
             if args.command == 'start':
                 environment = readiness_environment()
@@ -919,7 +1042,7 @@ def main() -> None:
                 run('systemctl', 'try-restart', *[unit_name(name) for name in ('controld', 'tunneld', 'gatewayd')])
             else:
                 run('systemctl', '--no-pager', 'status', TARGET, *[unit_name(name) for name in SERVICES])
-    except (InstallError, OSError, ValueError, subprocess.SubprocessError) as error:
+    except (InstallError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         parser.exit(1, f'native-install: {error}\n')
 
 

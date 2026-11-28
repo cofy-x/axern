@@ -1,6 +1,6 @@
 # Native Linux Installation
 
-The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. It does not implement archive upgrades or supported backup/restore. Experimental Workspaces require the explicit XFS quota settings below.
+The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. An experimental [cold archive transition](#qualify-an-experimental-archive-transition) exercises one compatible source-built archive boundary. Released version upgrades and replacement-host restore remain unqualified. Experimental Workspaces require the explicit XFS quota settings below.
 
 ## Host Prerequisites
 
@@ -115,6 +115,38 @@ source /etc/axern/client.env
 ```
 
 Renew service certificates explicitly using the installed CLI’s `server renew-services` command. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. An expired initial administrator does not prevent service renewal, and renewal does not restore revoked administrator authorization. Use a valid replacement administrator for readiness checks and administrative API access. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.
+
+## Qualify An Experimental Archive Transition
+
+The incoming helper accepts the source-built v0.13.0 native archive from commit `7de820e813ba2766645af100548753692d951051` and a distinct verified candidate from the same installation compatibility boundary. It checks the two staged archive identities, the unchanged v0.13.0 version label and gVisor payload, the Node configuration, the original data filesystem and the stopped services, PostgreSQL and runsc. Use the CLI and SDK that match the candidate. The shared version label alone does not establish API or payload compatibility.
+
+Follow the [cold-restore qualification](QUALIFICATION.md#qualify-a-same-installation-cold-restore) to fence new work, drain writers, disable automatic startup and verify a backup of the system and data disks. Store both complete disk images privately. After verifying their hashes, the operator supplies a private receipt with this shape:
+
+```json
+{
+  "schema": "axern.native-cold-backup.v1",
+  "archive_sha256": "SOURCE_ARCHIVE_SHA256",
+  "data_identity": {
+    "filesystem_uuid": "SOURCE_DATA_FILESYSTEM_UUID",
+    "directory_inode": 128
+  },
+  "images_sha256": {
+    "system": "VERIFIED_SYSTEM_DISK_SHA256",
+    "data": "VERIFIED_DATA_DISK_SHA256"
+  }
+}
+```
+
+Read the exact data identity from the private source installation record at `/etc/axern/installation.json`. The helper validates the receipt's binding to that installation. The operator is responsible for storing and verifying both images. Stage the incoming complete archive under its own trusted SHA-256, then start its helper while the old installation remains stopped and disabled.
+
+```bash
+sudo python3 -I /opt/axern/releases/TARGET_ARCHIVE_SHA256/libexec/axern/native_install.py \
+  upgrade --from-archive SOURCE_ARCHIVE_SHA256 \
+  --backup-receipt /absolute/private/path/backup-receipt.json
+sudo /opt/axern/releases/TARGET_ARCHIVE_SHA256/bin/axern server start
+```
+
+The transition replaces owned service definitions as a unit and preserves PostgreSQL, Workspace bytes, existing configuration and keys. An interrupted transition blocks service startup. Resume with the same target archive, source digest and receipt. After the transition, rollback requires restoring the whole verified cold backup with the newer installation fenced. Recovery and normal execution still require a new Allocation after a full stop.
 
 Qualify a complete archive on a disposable fresh installation with the opt-in [memory, storage and network acceptance matrix](QUALIFICATION.md). Serving readiness alone does not run or replace that matrix.
 
