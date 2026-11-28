@@ -21,10 +21,16 @@ if ! [[ "${runner_image_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
 fi
 
 output_root="$(mktemp -d)"
-cleanup() {
-  rm -rf "${output_root}"
+finish() {
+  local result=$?
+  if [ "${result}" -eq 0 ]; then
+    rm -rf -- "${output_root}"
+  else
+    printf 'network-policy Linux matrix failed (exit %s). Private evidence: %s\n' "${result}" "${output_root}" >&2 || true
+  fi
+  return "${result}"
 }
-trap cleanup EXIT
+trap finish EXIT
 
 matrix_scope="${NETWORK_POLICY_LINUX_MATRIX_SCOPE:-representative}"
 cells=()
@@ -66,7 +72,7 @@ docker run --rm --privileged --cgroupns=host \
     common=(--network-backend bridge --ip-family ipv4 --samples 1 --concurrency 1 --payload-bytes 1024 --sustained-seconds 1 --rule-scale-counts 1)
     "${scenario}" "${common[@]}" --policy-mode unrestricted --output /qualification-output/sequential-unrestricted.json
     "${scenario}" "${common[@]}" --policy-mode dns_deny --output /qualification-output/sequential-dns-deny.json
-  '
+  ' 2>"${output_root}/sequential.stderr.log"
 jq -e '.runtime == "runsc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "unrestricted" and .metrics.failures == 0' \
   "${output_root}/sequential-unrestricted.json" >/dev/null
 jq -e '.runtime == "runsc" and .networkBackend == "bridge" and .ipFamily == "ipv4" and .policyMode == "dns_deny" and .metrics.failures == 0' \
@@ -94,7 +100,6 @@ verify_rejected_cell() {
   if [ "$result" -eq 0 ] || [ -e "$report" ] ||
     ! grep -Fq 'normalize network config: ebpf network backend supports IPv4 only; select the iptables backend for an IPv6 sandbox range' "$log"; then
     echo "unsupported backend/family must fail closed with the configuration diagnostic and no qualification report" >&2
-    tail -n 80 "$log" >&2
     return 1
   fi
 }
@@ -114,7 +119,7 @@ for cell in "${cells[@]}"; do
     echo "network_policy_linux_rejected_cell=runsc/${network_backend}/${ip_family}/${policy_mode}"
     continue
   fi
-  run_cell
+  run_cell 2>"${output}.stderr.log"
 
   jq -e \
     --arg backend "${network_backend}" \
