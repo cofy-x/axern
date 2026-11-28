@@ -54,12 +54,27 @@ class SourceTests(unittest.TestCase):
                     install.fetch_source(record(b'x'), root / 'output', root / 'missing')
 
     def test_base_rejects_corrupt_pip_wheel_before_running_the_installer(self):
-        lock = {'base': {'python_version': '.'.join(map(str, sys.version_info[:3]))},
+        lock = {'base': {'python_series': '.'.join(map(str, sys.version_info[:2]))},
                 'artifacts': {'pip': record(b'right')}}
         with patch.object(install, 'urlopen', return_value=io.BytesIO(b'wrong')), patch.object(install.subprocess, 'run') as process:
             with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
                 install.install('base', lock)
             process.assert_not_called()
+
+    def test_verified_pip_wheel_installs_only_in_the_agent_venv(self):
+        lock = {'base': {'python_series': '.'.join(map(str, sys.version_info[:2]))},
+                'artifacts': {'pip': record(b'wheel')}}
+        with patch.object(install, 'urlopen', return_value=io.BytesIO(b'wheel')), patch.object(install.subprocess, 'run') as process:
+            install.install('base', lock)
+        create, bootstrap = process.call_args_list
+        self.assertEqual(create.args[0], [sys.executable, '-m', 'venv', '--without-pip',
+                                         '--system-site-packages', str(install.PYTHON_ENV)])
+        command = bootstrap.args[0]
+        self.assertEqual(command[0], str(install.PYTHON_ENV / 'bin/python'))
+        self.assertIn('--no-index', command)
+        self.assertIn('--no-deps', command)
+        self.assertEqual(bootstrap.kwargs['env'], {'PYTHONPATH': command[-1], 'PIP_CONFIG_FILE': '/dev/null'})
+        self.assertTrue(create.kwargs['check'] and bootstrap.kwargs['check'])
 
     def test_cache_symlinks_are_rejected(self):
         with tempfile.TemporaryDirectory() as temporary:

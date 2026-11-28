@@ -10,23 +10,39 @@ from install import load_lock
 
 
 SCRIPT = r'''
-import json,os,pathlib,shutil,subprocess,sys,tempfile
+import json,os,pathlib,pwd,shutil,site,subprocess,sys,sysconfig,tempfile
 lock=json.loads(pathlib.Path('/usr/local/share/axern/agent-images/versions.lock.json').read_text())
-assert os.getuid()==1000
+assert (os.getuid(),os.getgid())==(1000,1000)
+account=pwd.getpwuid(1000)
+assert account.pw_name=='agent' and account.pw_dir=='/home/agent'
+assert set(os.getgrouplist(account.pw_name,account.pw_gid))=={1000}
+assert set(os.getgroups())<={1000}
+assert pathlib.Path.home()==pathlib.Path('/home/agent')
 assert pathlib.Path.cwd()==pathlib.Path('/workspace')
 status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines())
 assert status['NoNewPrivs'].strip()=='1'
 assert all(int(status[cap],16)==0 for cap in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb'))
 assert not pathlib.Path('/var/run/docker.sock').exists()
-assert tuple(map(int,lock['base']['python_version'].split('.')))==sys.version_info[:3]
+assert '.'.join(map(str,sys.version_info[:2]))==lock['base']['python_series']
 release=dict(line.split('=',1) for line in pathlib.Path('/etc/os-release').read_text().splitlines() if '=' in line)
-assert release['ID'].strip('"')=='debian'
-assert release['VERSION_ID'].strip('"')==lock['base']['debian_version']
+assert release['ID'].strip('"')=='ubuntu'
+assert release['VERSION_ID'].strip('"')==lock['base']['ubuntu_version']
+assert sys.prefix=='/opt/axern-python' and sys.base_prefix=='/usr'
+assert site.ENABLE_USER_SITE is True
+system_python='import importlib.util,pathlib,sys,sysconfig; assert sys.prefix==sys.base_prefix=="/usr"; assert importlib.util.find_spec("pip") is None; assert (pathlib.Path(sysconfig.get_path("stdlib"))/"EXTERNALLY-MANAGED").is_file()'
+subprocess.run(['/usr/bin/python3','-I','-c',system_python],check=True)
 pip_version=subprocess.check_output([sys.executable,'-m','pip','--version'],text=True).split()[1]
 assert pip_version==lock['artifacts']['pip']['version']
+assert subprocess.check_output(['pip','--version'],text=True).split()[1]==pip_version
+with tempfile.TemporaryDirectory() as temporary:
+ subprocess.run([sys.executable,'-m','venv',temporary],check=True)
+ subprocess.run([str(pathlib.Path(temporary)/'bin/python'),'-m','pip','--version'],check=True,stdout=subprocess.DEVNULL)
 for command in (['git','--version'],['rg','--version']):subprocess.run(command,check=True,stdout=subprocess.DEVNULL)
+git_remote=pathlib.Path(subprocess.check_output(['git','--exec-path'],text=True).strip())/'git-remote-https'
+git_tls=subprocess.check_output(['ldd',str(git_remote)],text=True)
+assert 'libcurl-gnutls.so.4' in git_tls and 'libgnutls.so.30' in git_tls
 stage=sys.argv[1]
-observed={'python':'.'.join(map(str,sys.version_info[:3])),'debian':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid(),'no_new_privileges':True,'capabilities_empty':True,'docker_socket_absent':True}
+observed={'python':'.'.join(map(str,sys.version_info[:3])),'ubuntu':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid(),'groups':sorted(os.getgroups()),'git_https':'GnuTLS','system_python_unchanged':True,'no_new_privileges':True,'capabilities_empty':True,'docker_socket_absent':True}
 if stage!='base':
  for name in ('npm','npx','corepack','pnpm','pnpx','yarn','yarnpkg'):
   assert shutil.which(name) is None, name+' must be supplied by a caller-owned project image'
@@ -46,6 +62,7 @@ if stage!='base':
   subprocess.run([str(root/'hello')],check=True)
  subprocess.run(['node','-e','if (6*7!==42) process.exit(1)'],check=True)
  subprocess.run(['cc','--version'],check=True,stdout=subprocess.DEVNULL)
+ assert (pathlib.Path(sysconfig.get_path('include'))/'Python.h').is_file()
 if stage in ('claude-code','codex'):
  program='claude' if stage=='claude-code' else 'codex'
  value=subprocess.check_output([program,'--version'],text=True).strip()
@@ -66,19 +83,22 @@ print(json.dumps(observed))
 PRIVILEGE_SCAN = r'''
 import json,os,stat
 special=[]
+file_capabilities=[]
 errors=[]
 count=0
 for root,dirs,files in os.walk('/',onerror=lambda error:errors.append(str(error))):
  dirs[:]=[name for name in dirs if os.path.join(root,name) not in ('/proc','/sys','/dev')]
  for name in files:
   path=os.path.join(root,name)
-  try:info=os.stat(path,follow_symlinks=False)
+  try:
+   info=os.stat(path,follow_symlinks=False)
+   if not stat.S_ISREG(info.st_mode):continue
+   if 'security.capability' in os.listxattr(path,follow_symlinks=False):file_capabilities.append(path)
   except OSError as error:errors.append(str(error));continue
-  if not stat.S_ISREG(info.st_mode):continue
   count+=1
   if info.st_mode&(stat.S_ISUID|stat.S_ISGID):special.append({'path':path,'mode':oct(stat.S_IMODE(info.st_mode))})
-print(json.dumps({'regular_files_checked':count,'suid_sgid_files':special,'errors':errors,'excluded_virtual_trees':['/proc','/sys','/dev']}))
-if special or errors:raise SystemExit('image privilege-bit scan failed')
+print(json.dumps({'regular_files_checked':count,'suid_sgid_files':special,'file_capabilities':file_capabilities,'errors':errors,'excluded_virtual_trees':['/proc','/sys','/dev']}))
+if special or file_capabilities or errors:raise SystemExit('image privilege metadata scan failed')
 '''
 
 

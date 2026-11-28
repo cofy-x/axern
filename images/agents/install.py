@@ -16,12 +16,13 @@ from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parent
 TARGETS = ('base', 'toolchain', 'claude-code', 'codex')
-CONTEXT_FILES = ('.dockerignore', 'Dockerfile', 'versions.lock.json', 'install.py')
+CONTEXT_FILES = ('.dockerignore', 'Dockerfile', 'ubuntu.sources', 'versions.lock.json', 'install.py')
+PYTHON_ENV = Path('/opt/axern-python')
 
 
 def load_lock(path=ROOT / 'versions.lock.json'):
     lock = json.loads(path.read_text())
-    if lock.get('schema_version') != 1 or lock.get('platform') != 'linux/amd64':
+    if lock.get('schema_version') != 2 or lock.get('platform') != 'linux/amd64':
         raise ValueError('unsupported Agent image lock schema or platform')
     image = lock['base']['image']
     digest = image.rsplit('@sha256:', 1)
@@ -130,8 +131,8 @@ def strip_node_package_managers(root):
 
 
 def install(target, lock):
-    if tuple(map(int, lock['base']['python_version'].split('.'))) != sys.version_info[:3]:
-        raise ValueError('base Python version does not match the image lock')
+    if '.'.join(map(str, sys.version_info[:2])) != lock['base']['python_series']:
+        raise ValueError('base Python series does not match the image lock')
     records = lock['artifacts']
     with tempfile.TemporaryDirectory(prefix='agent-runtime-') as temporary:
         scratch = Path(temporary)
@@ -145,7 +146,13 @@ def install(target, lock):
 
         if target == 'base':
             wheel = fetch_source(records['pip'], scratch / archive_name(records['pip']))
-            subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-index', '--no-deps', '--disable-pip-version-check', '--no-cache-dir', str(wheel)], check=True)
+            # Keep user-site installs available to UID 1000 in the root-owned venv.
+            subprocess.run([sys.executable, '-m', 'venv', '--without-pip', '--system-site-packages',
+                            str(PYTHON_ENV)], check=True)
+            subprocess.run([str(PYTHON_ENV / 'bin/python'), '-P', '-m', 'pip', 'install',
+                            '--ignore-installed', '--no-index', '--no-deps', '--disable-pip-version-check',
+                            '--no-cache-dir', str(wheel)], check=True,
+                           env={'PYTHONPATH': str(wheel), 'PIP_CONFIG_FILE': '/dev/null'})
         elif target == 'toolchain':
             shutil.move(unpack('go') / 'go', '/usr/local/go')
             node = unpack('node') / ('node-v' + records['node']['version'] + '-linux-x64')

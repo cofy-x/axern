@@ -1,10 +1,10 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "platform": "linux/amd64",
   "base": {
-    "image": "docker.io/library/python:3.12.16-slim-trixie@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b",
-    "python_version": "3.12.16",
-    "debian_version": "13"
+    "image": "docker.io/library/ubuntu:26.04@sha256:0d5255be560e2d2ddcfbfda88549e9e815ef29e7cd7fc62183d5709e6e2963c6",
+    "python_series": "3.14",
+    "ubuntu_version": "26.04"
   },
   "artifacts": {
     "pip": {
