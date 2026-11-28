@@ -14,18 +14,18 @@
       "size": 1950951
     },
     "claude-code": {
-      "version": "2.1.319",
-      "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.319.tgz",
-      "sha256": "733a926c19df1c84f35a8e4285a637edce7bf2de13672cfe13a1397efd0bf823",
-      "integrity": "sha512-XoyAxGXBmNsb9ahz0xLAtyz/I6b1j+4lyLpucyTQIq4FcKUxrMDM2AzA2sHipHoN1DdMJINQQrLZxRZRq7FqBA==",
-      "size": 31599
+      "version": "2.1.332",
+      "url": "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-2.1.332.tgz",
+      "sha256": "8d8ac8379d14f7de86bff9c3a687d70c3f3487f734e7cda66f563da1fd176d36",
+      "integrity": "sha512-tvSh6bLvEbd97APD31AnojOrRC3AmcRj5R8sF8QIQitu3x2ucOb1kKmTkGDw41kjva+CGJfpkt+wYouk6yv56Q==",
+      "size": 32525
     },
     "claude-code-linux-x64": {
-      "version": "2.1.319",
-      "url": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.319.tgz",
-      "sha256": "9b7b53954b8ffb886fafeefe9ef1e0e9e5c15e8aaf2f54d65ba64d0cca795dc7",
-      "integrity": "sha512-FO4Sd23BO1VCQPiJe5vG3bNnmV5+YiTau7o1lqK3Fr5VlE4TLdKiyYpwQRwEXO91kE2l12Ep2i7J19T8Md2oOQ==",
-      "size": 158448451
+      "version": "2.1.332",
+      "url": "https://registry.npmjs.org/@anthropic-ai/claude-code-linux-x64/-/claude-code-linux-x64-2.1.332.tgz",
+      "sha256": "1c89f2f1e0bee93742cff8de9181fc07c702ce0651f1492bb3b97487d3a84af1",
+      "integrity": "sha512-f4JWhzwYutJIHScC7/dYOPX6s28tt7ZADhsOi8zwOHq5fFPEuUeChh2NMfinSg0GrUckYxaeebC4h0DqiKzLcw==",
+      "size": 186117258
     },
     "node": {
       "version": "24.22.3",
@@ -40,21 +40,21 @@
       "size": 70680823
     },
     "codex": {
-      "version": "0.167.0",
-      "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.167.0-linux-x64.tgz",
-      "sha256": "2dc9aa871abb513c3539d20d025f701faf1974c46ee906bda3a1e1f5026d4434",
-      "integrity": "sha512-FNc7danfUng9Sp6w+Fh7kofNHHZpA6VMyNKWsWrS3OwHly69gywTWeiuwrUPXpJSho8Df4xqRsHfHRPzj7zYQg==",
-      "size": 173743288
+      "version": "0.172.0",
+      "url": "https://registry.npmjs.org/@openai/codex/-/codex-0.172.0-linux-x64.tgz",
+      "sha256": "48a5ee5dba98c7745a48b8d72af84f91880fec5856269627328fd564f60d41a7",
+      "integrity": "sha512-YJq6Wz3PFXV5LZ0OQc3/o+gpM3pLmQ/8n8uM2zF/m0O/8zED+uSPT8Ln1KGRrqR8Q6eon9YdWlhueAunVTZ+eg==",
+      "size": 174429086
     },
     "codex-license": {
-      "version": "0.167.0",
-      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/LICENSE",
+      "version": "0.172.0",
+      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.172.0/LICENSE",
       "sha256": "d17f227e4df5da1600391338865ce0f3055211760a36688f816941d58232d8dc",
       "size": 10926
     },
     "codex-notice": {
-      "version": "0.167.0",
-      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.167.0/NOTICE",
+      "version": "0.172.0",
+      "url": "https://raw.githubusercontent.com/openai/codex/rust-v0.172.0/NOTICE",
       "sha256": "9d71575ecfd9a843fc1677b0efb08053c6ba9fd686a0de1a6f5382fd3c220915",
       "size": 242
     }
