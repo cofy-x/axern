@@ -25,6 +25,18 @@ func (s *Server) handleProcesses(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (s *Server) handleBackgroundProcesses(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w)
+		return
+	}
+	if s.processes == nil {
+		writeError(w, http.StatusServiceUnavailable, errorCodeUnavailable, "process registry unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, wireProcessList(s.processes.ListBackground()))
+}
+
 func (s *Server) handleProcessStart(w http.ResponseWriter, r *http.Request) {
 	var request process.StartRequest
 	if err := decodeRequiredJSONRequest(r, &request); err != nil {

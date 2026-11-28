@@ -20,6 +20,10 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	NodeSandbox_PreviewHTTP_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/PreviewHTTP"
+	NodeSandbox_StartBackgroundProcess_FullMethodName  = "/axern.node.sandbox.v1.NodeSandbox/StartBackgroundProcess"
+	NodeSandbox_GetBackgroundProcess_FullMethodName    = "/axern.node.sandbox.v1.NodeSandbox/GetBackgroundProcess"
+	NodeSandbox_ListBackgroundProcesses_FullMethodName = "/axern.node.sandbox.v1.NodeSandbox/ListBackgroundProcesses"
+	NodeSandbox_CancelBackgroundProcess_FullMethodName = "/axern.node.sandbox.v1.NodeSandbox/CancelBackgroundProcess"
 	NodeSandbox_Exec_FullMethodName                    = "/axern.node.sandbox.v1.NodeSandbox/Exec"
 	NodeSandbox_Process_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Process"
 	NodeSandbox_ReadOutput_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
@@ -51,6 +55,10 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeSandboxClient interface {
 	PreviewHTTP(ctx context.Context, in *PreviewHTTPRequest, opts ...grpc.CallOption) (*PreviewHTTPResponse, error)
+	StartBackgroundProcess(ctx context.Context, in *StartBackgroundProcessRequest, opts ...grpc.CallOption) (*StartBackgroundProcessResponse, error)
+	GetBackgroundProcess(ctx context.Context, in *GetBackgroundProcessRequest, opts ...grpc.CallOption) (*GetBackgroundProcessResponse, error)
+	ListBackgroundProcesses(ctx context.Context, in *ListBackgroundProcessesRequest, opts ...grpc.CallOption) (*ListBackgroundProcessesResponse, error)
+	CancelBackgroundProcess(ctx context.Context, in *CancelBackgroundProcessRequest, opts ...grpc.CallOption) (*CancelBackgroundProcessResponse, error)
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
 	Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error)
 	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
@@ -88,6 +96,42 @@ func NewNodeSandboxClient(cc grpc.ClientConnInterface) NodeSandboxClient {
 func (c *nodeSandboxClient) PreviewHTTP(ctx context.Context, in *PreviewHTTPRequest, opts ...grpc.CallOption) (*PreviewHTTPResponse, error) {
 	out := new(PreviewHTTPResponse)
 	err := c.cc.Invoke(ctx, NodeSandbox_PreviewHTTP_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeSandboxClient) StartBackgroundProcess(ctx context.Context, in *StartBackgroundProcessRequest, opts ...grpc.CallOption) (*StartBackgroundProcessResponse, error) {
+	out := new(StartBackgroundProcessResponse)
+	err := c.cc.Invoke(ctx, NodeSandbox_StartBackgroundProcess_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeSandboxClient) GetBackgroundProcess(ctx context.Context, in *GetBackgroundProcessRequest, opts ...grpc.CallOption) (*GetBackgroundProcessResponse, error) {
+	out := new(GetBackgroundProcessResponse)
+	err := c.cc.Invoke(ctx, NodeSandbox_GetBackgroundProcess_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeSandboxClient) ListBackgroundProcesses(ctx context.Context, in *ListBackgroundProcessesRequest, opts ...grpc.CallOption) (*ListBackgroundProcessesResponse, error) {
+	out := new(ListBackgroundProcessesResponse)
+	err := c.cc.Invoke(ctx, NodeSandbox_ListBackgroundProcesses_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *nodeSandboxClient) CancelBackgroundProcess(ctx context.Context, in *CancelBackgroundProcessRequest, opts ...grpc.CallOption) (*CancelBackgroundProcessResponse, error) {
+	out := new(CancelBackgroundProcessResponse)
+	err := c.cc.Invoke(ctx, NodeSandbox_CancelBackgroundProcess_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -431,6 +475,10 @@ func (c *nodeSandboxClient) ComputerUseKeyboard(ctx context.Context, in *Compute
 // for forward compatibility
 type NodeSandboxServer interface {
 	PreviewHTTP(context.Context, *PreviewHTTPRequest) (*PreviewHTTPResponse, error)
+	StartBackgroundProcess(context.Context, *StartBackgroundProcessRequest) (*StartBackgroundProcessResponse, error)
+	GetBackgroundProcess(context.Context, *GetBackgroundProcessRequest) (*GetBackgroundProcessResponse, error)
+	ListBackgroundProcesses(context.Context, *ListBackgroundProcessesRequest) (*ListBackgroundProcessesResponse, error)
+	CancelBackgroundProcess(context.Context, *CancelBackgroundProcessRequest) (*CancelBackgroundProcessResponse, error)
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
 	Process(NodeSandbox_ProcessServer) error
 	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
@@ -464,6 +512,18 @@ type UnimplementedNodeSandboxServer struct {
 
 func (UnimplementedNodeSandboxServer) PreviewHTTP(context.Context, *PreviewHTTPRequest) (*PreviewHTTPResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method PreviewHTTP not implemented")
+}
+func (UnimplementedNodeSandboxServer) StartBackgroundProcess(context.Context, *StartBackgroundProcessRequest) (*StartBackgroundProcessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method StartBackgroundProcess not implemented")
+}
+func (UnimplementedNodeSandboxServer) GetBackgroundProcess(context.Context, *GetBackgroundProcessRequest) (*GetBackgroundProcessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBackgroundProcess not implemented")
+}
+func (UnimplementedNodeSandboxServer) ListBackgroundProcesses(context.Context, *ListBackgroundProcessesRequest) (*ListBackgroundProcessesResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBackgroundProcesses not implemented")
+}
+func (UnimplementedNodeSandboxServer) CancelBackgroundProcess(context.Context, *CancelBackgroundProcessRequest) (*CancelBackgroundProcessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelBackgroundProcess not implemented")
 }
 func (UnimplementedNodeSandboxServer) Exec(context.Context, *ExecRequest) (*ExecResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Exec not implemented")
@@ -564,6 +624,78 @@ func _NodeSandbox_PreviewHTTP_Handler(srv interface{}, ctx context.Context, dec 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(NodeSandboxServer).PreviewHTTP(ctx, req.(*PreviewHTTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeSandbox_StartBackgroundProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StartBackgroundProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeSandboxServer).StartBackgroundProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeSandbox_StartBackgroundProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeSandboxServer).StartBackgroundProcess(ctx, req.(*StartBackgroundProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeSandbox_GetBackgroundProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetBackgroundProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeSandboxServer).GetBackgroundProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeSandbox_GetBackgroundProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeSandboxServer).GetBackgroundProcess(ctx, req.(*GetBackgroundProcessRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeSandbox_ListBackgroundProcesses_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBackgroundProcessesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeSandboxServer).ListBackgroundProcesses(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeSandbox_ListBackgroundProcesses_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeSandboxServer).ListBackgroundProcesses(ctx, req.(*ListBackgroundProcessesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _NodeSandbox_CancelBackgroundProcess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelBackgroundProcessRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeSandboxServer).CancelBackgroundProcess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeSandbox_CancelBackgroundProcess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeSandboxServer).CancelBackgroundProcess(ctx, req.(*CancelBackgroundProcessRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -1035,6 +1167,22 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "PreviewHTTP",
 			Handler:    _NodeSandbox_PreviewHTTP_Handler,
+		},
+		{
+			MethodName: "StartBackgroundProcess",
+			Handler:    _NodeSandbox_StartBackgroundProcess_Handler,
+		},
+		{
+			MethodName: "GetBackgroundProcess",
+			Handler:    _NodeSandbox_GetBackgroundProcess_Handler,
+		},
+		{
+			MethodName: "ListBackgroundProcesses",
+			Handler:    _NodeSandbox_ListBackgroundProcesses_Handler,
+		},
+		{
+			MethodName: "CancelBackgroundProcess",
+			Handler:    _NodeSandbox_CancelBackgroundProcess_Handler,
 		},
 		{
 			MethodName: "Exec",

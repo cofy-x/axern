@@ -39,6 +39,26 @@ class NodeSandboxStub:
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPRequest.SerializeToString,
                 response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPResponse.FromString,
                 _registered_method=True)
+        self.StartBackgroundProcess = channel.unary_unary(
+                '/axern.node.sandbox.v1.NodeSandbox/StartBackgroundProcess',
+                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.StartBackgroundProcessRequest.SerializeToString,
+                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.StartBackgroundProcessResponse.FromString,
+                _registered_method=True)
+        self.GetBackgroundProcess = channel.unary_unary(
+                '/axern.node.sandbox.v1.NodeSandbox/GetBackgroundProcess',
+                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.GetBackgroundProcessRequest.SerializeToString,
+                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.GetBackgroundProcessResponse.FromString,
+                _registered_method=True)
+        self.ListBackgroundProcesses = channel.unary_unary(
+                '/axern.node.sandbox.v1.NodeSandbox/ListBackgroundProcesses',
+                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ListBackgroundProcessesRequest.SerializeToString,
+                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ListBackgroundProcessesResponse.FromString,
+                _registered_method=True)
+        self.CancelBackgroundProcess = channel.unary_unary(
+                '/axern.node.sandbox.v1.NodeSandbox/CancelBackgroundProcess',
+                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CancelBackgroundProcessRequest.SerializeToString,
+                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CancelBackgroundProcessResponse.FromString,
+                _registered_method=True)
         self.Exec = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/Exec',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.SerializeToString,
@@ -165,6 +185,30 @@ class NodeSandboxServicer:
     """Missing associated documentation comment in .proto file."""
 
     def PreviewHTTP(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def StartBackgroundProcess(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetBackgroundProcess(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListBackgroundProcesses(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CancelBackgroundProcess(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -322,6 +366,26 @@ def add_NodeSandboxServicer_to_server(servicer, server):
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPRequest.FromString,
                     response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPResponse.SerializeToString,
             ),
+            'StartBackgroundProcess': grpc.unary_unary_rpc_method_handler(
+                    servicer.StartBackgroundProcess,
+                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.StartBackgroundProcessRequest.FromString,
+                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.StartBackgroundProcessResponse.SerializeToString,
+            ),
+            'GetBackgroundProcess': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetBackgroundProcess,
+                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.GetBackgroundProcessRequest.FromString,
+                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.GetBackgroundProcessResponse.SerializeToString,
+            ),
+            'ListBackgroundProcesses': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListBackgroundProcesses,
+                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ListBackgroundProcessesRequest.FromString,
+                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ListBackgroundProcessesResponse.SerializeToString,
+            ),
+            'CancelBackgroundProcess': grpc.unary_unary_rpc_method_handler(
+                    servicer.CancelBackgroundProcess,
+                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CancelBackgroundProcessRequest.FromString,
+                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CancelBackgroundProcessResponse.SerializeToString,
+            ),
             'Exec': grpc.unary_unary_rpc_method_handler(
                     servicer.Exec,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.FromString,
@@ -470,6 +534,114 @@ class NodeSandbox:
             '/axern.node.sandbox.v1.NodeSandbox/PreviewHTTP',
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPRequest.SerializeToString,
             axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def StartBackgroundProcess(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.node.sandbox.v1.NodeSandbox/StartBackgroundProcess',
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.StartBackgroundProcessRequest.SerializeToString,
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.StartBackgroundProcessResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetBackgroundProcess(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.node.sandbox.v1.NodeSandbox/GetBackgroundProcess',
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.GetBackgroundProcessRequest.SerializeToString,
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.GetBackgroundProcessResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListBackgroundProcesses(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.node.sandbox.v1.NodeSandbox/ListBackgroundProcesses',
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ListBackgroundProcessesRequest.SerializeToString,
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ListBackgroundProcessesResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CancelBackgroundProcess(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.node.sandbox.v1.NodeSandbox/CancelBackgroundProcess',
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CancelBackgroundProcessRequest.SerializeToString,
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.CancelBackgroundProcessResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 )
@@ -57,10 +58,30 @@ func TestEmptyCgroupCannotRetireAnUnrelatedLiveRecordedPID(t *testing.T) {
 	require.NoError(t, process.Process.Signal(syscall.Signal(0)), "a cached PID must never authorize a signal or cleanup")
 }
 
-func TestStoppedCgroupRejectsCrossBootAutomaticRecovery(t *testing.T) {
+func TestStoppedCgroupRejectsMalformedBootIdentity(t *testing.T) {
 	stopped, err := RunscCgroupStopped("/absent/allocation/workload", os.Getpid(), "previous-kernel-boot", "old-mount", 1)
 	require.ErrorContains(t, err, "previous kernel boot")
 	require.False(t, stopped, "a current-boot PID must not be killed for a previous-boot allocation")
+}
+
+func TestPreviousBootCgroupRequiresMissingParentAndNeverUsesCurrentPID(t *testing.T) {
+	var fs unix.Statfs_t
+	if err := unix.Statfs("/sys/fs/cgroup", &fs); err != nil || fs.Type != unix.CGROUP2_SUPER_MAGIC {
+		t.Skip("requires cgroup v2")
+	}
+	prior := uuid.NewString()
+	livePID := os.Getpid()
+	leaf := "/axern-test-" + uuid.NewString() + "/workload"
+	stopped, err := RunscCgroupStopped(leaf, livePID, prior, "admitted-mount", 1)
+	require.NoError(t, err)
+	require.True(t, stopped)
+	require.Error(t, KillRunscCgroup(leaf, livePID, "/missing/runsc", prior, "admitted-mount", 1))
+	require.NoError(t, syscall.Kill(livePID, 0))
+	for _, path := range []string{"/workload", "/no-such-parent/unexpected-leaf", "/cgroup.controllers/workload"} {
+		stopped, err := RunscCgroupStopped(path, livePID, prior, "admitted-mount", 1)
+		require.Error(t, err, path)
+		require.False(t, stopped)
+	}
 }
 
 func TestConformanceStoppedRequiresExactPathAndDeadRecordedPID(t *testing.T) {

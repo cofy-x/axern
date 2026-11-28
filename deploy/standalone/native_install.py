@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import datetime
 import fcntl
 import grp
@@ -24,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 # Isolated Python (-I) excludes the script directory. Resolve only the fixed
@@ -697,6 +699,44 @@ def require_cold_installation() -> None:
         raise InstallError('runsc retains sandbox state; resolve it before upgrading')
 
 
+@contextlib.contextmanager
+def private_postgres():
+    """Use the stopped owned database without a TCP listener during maintenance."""
+    owner = pwd.getpwnam('axern-postgres')
+    password = read_json(ETC / 'private/secrets.json')['postgres_password']
+    if not re.fullmatch('[0-9a-f]{64}', password):
+        raise InstallError('native PostgreSQL credential is invalid')
+    with tempfile.TemporaryDirectory(prefix='axern-maint-db-', dir='/run') as temporary:
+        directory = pathlib.Path(temporary)
+        os.chown(directory, owner.pw_uid, owner.pw_gid)
+        auth = directory / 'pg_hba.conf'
+        write_file(auth, b'local axern axern scram-sha-256\nlocal all all reject\n', 0o644)
+        pgctl = ('runuser', '-u', 'axern-postgres', '--', str(PG / 'pg_ctl'),
+                 '-D', str(DATA / 'postgres'), '-s', '-w')
+        options = f"-h '' -k {directory} -p 25432 -c hba_file={auth}"
+        run(*pgctl, '-l', str(directory / 'postgres.log'), '-o', options, 'start', timeout=60)
+        try:
+            query = urllib.parse.urlencode({'host': str(directory), 'port': 25432, 'sslmode': 'disable'})
+            yield {**os.environ, 'CONTROLD_POSTGRES_DSN': f'postgres://axern:{password}@/axern?{query}'}
+        finally:
+            run(*pgctl, '-m', 'fast', 'stop', timeout=60)
+
+
+def migrate_cold_database() -> None:
+    with private_postgres() as environment:
+        run(str(ROOT / 'bin/controld-migrate'), 'up', env=environment, timeout=180)
+
+
+def require_cold_backup_receipt(backup: dict, archive: str, identity: dict) -> None:
+    if (set(backup) != {'schema', 'archive_sha256', 'data_identity', 'images_sha256'}
+            or backup['schema'] != 'axern.native-cold-backup.v1' or backup['archive_sha256'] != archive
+            or backup['data_identity'] != identity
+            or not isinstance(backup['images_sha256'], dict)
+            or set(backup['images_sha256']) != {'system', 'data'}
+            or any(not re.fullmatch('[0-9a-f]{64}', str(value)) for value in backup['images_sha256'].values())):
+        raise InstallError('supply the matching cold system and data backup receipt')
+
+
 def upgrade(from_archive: str, backup: dict) -> None:
     if not re.fullmatch('[0-9a-f]{64}', from_archive):
         raise InstallError('supply the source archive SHA-256')
@@ -722,13 +762,7 @@ def upgrade(from_archive: str, backup: dict) -> None:
             or original.get('data_identity') != data_identity()):
         raise InstallError('source archive or owned data identity does not match the installed state')
     next_identity = {**original, 'archive_sha256': ROOT.name, 'source_revision': target['source_revision']}
-    if (set(backup) != {'schema', 'archive_sha256', 'data_identity', 'images_sha256'}
-            or backup['schema'] != 'axern.native-cold-backup.v1' or backup['archive_sha256'] != from_archive
-            or backup['data_identity'] != original['data_identity']
-            or not isinstance(backup['images_sha256'], dict)
-            or set(backup['images_sha256']) != {'system', 'data'}
-            or any(not re.fullmatch('[0-9a-f]{64}', str(value)) for value in backup['images_sha256'].values())):
-        raise InstallError('supply the matching cold system and data backup receipt')
+    require_cold_backup_receipt(backup, from_archive, original['data_identity'])
     undertaking = {'source': original, 'target': next_identity, 'backup': backup}
     pending = 'upgrade-pending:' + ROOT.name
     state = marker.read_text()
@@ -741,7 +775,11 @@ def upgrade(from_archive: str, backup: dict) -> None:
     verify_managed_data(settings)
     require_cold_installation()
     preflight(settings, False)
-    if (ETC / 'node.toml').read_text() != node_config(settings):
+    new_config = node_config(settings)
+    # The pinned source predates the managed project-budget setting.
+    old_config = new_config.replace('workspace_project_budget = 0\n', '')
+    config_path = ETC / 'node.toml'
+    if config_path.is_symlink() or config_path.read_text() not in ({old_config, new_config} if previous else {old_config}):
         raise InstallError('installation node configuration was changed outside the installer')
     arch, members = runtime_selection(ROOT)
     gvisor_payload.verify_tree(ROOT / 'runtime/gvisor', members, arch)
@@ -756,6 +794,8 @@ def upgrade(from_archive: str, backup: dict) -> None:
     if state != ROOT.name + '\n':
         write_file(journal, json_bytes(undertaking))
         write_file(marker, (pending + '\n').encode(), 0o644, replace=True)
+        migrate_cold_database()
+        write_file(config_path, new_config.encode(), replace=True)
         for name, contents in new_units.items():
             write_file(UNITS / name, contents.encode(), 0o644, replace=True)
         write_file(identity_path, json_bytes(next_identity), 0o644, replace=True)
@@ -768,6 +808,124 @@ def upgrade(from_archive: str, backup: dict) -> None:
     finally:
         os.close(directory)
     print('verified archive upgrade prepared; start explicitly with the new helper')
+
+
+def replace_node(old_node: str, new_node: str, backup: dict) -> None:
+    if not all(re.fullmatch('[a-z][a-z0-9-]{2,62}', item) for item in (old_node, new_node)) or old_node == new_node:
+        raise InstallError('native restore requires distinct original and replacement Node identities')
+    manifest = staged_manifest(ROOT)
+    identity_path = ETC / 'installation.json'
+    marker = ETC / 'installed'
+    state = marker.read_text()
+    current = read_json(identity_path)
+    journal = ETC / 'private' / ('node-restore-' + new_node)
+    intent = journal / 'intent.json'
+    previous = read_json(intent) if intent.exists() else None
+    original = previous['source'] if previous else current
+    before = validate_settings(original['settings'])
+    after = {**before, 'node_id': new_node}
+    target = {**original, 'settings': after}
+    if (original.get('schema') != 'axern.native-install.v1' or original.get('archive_sha256') != ROOT.name
+            or original.get('source_revision') != manifest.get('source_revision')
+            or original.get('data_identity') != data_identity()
+            or before['node_id'] != old_node or 'workspace_capacity_bytes' not in before):
+        raise InstallError('native restore requires the exact backup archive, prior Node and XFS Workspace identity')
+    require_cold_backup_receipt(backup, ROOT.name, original['data_identity'])
+    undertaking = {'source': original, 'replacement': target, 'backup': backup}
+    pending = 'node-restore-pending:' + new_node + '\n'
+    if previous is None:
+        if state != ROOT.name + '\n' or current != original:
+            raise InstallError('the original installation must be complete and stopped')
+    elif previous != undertaking or (state, current) not in (
+        (ROOT.name + '\n', original), (pending, original), (pending, target), (ROOT.name + '\n', target)
+    ):
+        raise InstallError('resume the existing native restore with the original backup and Node identities')
+    if current == target and state == ROOT.name + '\n':
+        print('replacement Node restore already committed')
+        return
+
+    parked_store = DATA / 'axnoded' / ('pre-restore-' + new_node) / 'store'
+    current_store = DATA / 'axnoded/store'
+    if previous and state == pending and parked_store.is_dir() and not current_store.exists():
+        safe_directory(current_store)
+    verify_managed_data(before)
+    require_cold_installation()
+    preflight(before, False)
+    old_config, new_config = node_config(before), node_config(after)
+    config_path = ETC / 'node.toml'
+    if config_path.read_text() not in ({old_config, new_config} if previous else {old_config}):
+        raise InstallError('native Node configuration differs from the backup')
+    old_units, new_units = service_units(ROOT, before), service_units(ROOT, after)
+    for name, contents in old_units.items():
+        path = UNITS / name
+        if path.is_symlink() or path.read_text() not in ({contents, new_units[name]} if previous else {contents}):
+            raise InstallError(f'installed service unit differs from the owned definition: {name}')
+
+    safe_directory(journal, 0o700)
+    write_file(intent, json_bytes(undertaking))
+    prior_config = journal / 'prior-node.toml'
+    write_file(prior_config, old_config.encode())
+    token_path = journal / 'enrollment-token'
+    if not token_path.exists():
+        write_file(token_path, (secrets.token_hex(32) + '\n').encode())
+    token = token_path.read_text().strip()
+    if not re.fullmatch('[a-f0-9]{64}', token):
+        raise InstallError('replacement Node enrollment intent is invalid')
+
+    write_file(marker, pending.encode(), 0o644, replace=True)
+    bootstrap = str(ROOT / 'bin/controld-access-bootstrap')
+    axnoded = str(ROOT / 'bin/axnoded')
+    source_plan = journal / 'source-plan.json'
+    mapped_plan = journal / 'workspace-map.json'
+    with private_postgres() as environment:
+        flags = ('--old-node', old_node, '--new-node', new_node)
+        if not mapped_plan.exists():
+            original_plan = run(bootstrap, 'native-restore-plan', *flags, env=environment,
+                                capture_output=True, timeout=60).stdout
+            write_file(source_plan, original_plan)
+            mapped = run(axnoded, '--config', str(prior_config), '--native-restore-plan', str(source_plan),
+                         capture_output=True, timeout=60).stdout
+            write_file(mapped_plan, mapped)
+        run(axnoded, '--config', str(prior_config), '--native-restore-plan', str(mapped_plan),
+            '--native-restore-apply', stdout=subprocess.DEVNULL, timeout=60)
+        run(bootstrap, 'native-restore-commit', *flags, '--plan', str(mapped_plan),
+            '--enrollment-token-file', str(token_path), env=environment, timeout=60)
+
+    park_previous_node_facts(new_node)
+    secrets_path = ETC / 'private/secrets.json'
+    prior_secrets = read_json(secrets_path)
+    write_file(secrets_path, json_bytes({**prior_secrets, 'enrollment_token': token}), replace=True)
+    write_file(ETC / 'private/enrollment-token', (token + '\n').encode(), replace=True)
+    write_file(config_path, new_config.encode(), replace=True)
+    for name, contents in new_units.items():
+        write_file(UNITS / name, contents.encode(), 0o644, replace=True)
+    write_file(identity_path, json_bytes(target), 0o644, replace=True)
+    run('systemctl', 'daemon-reload', timeout=5)
+    write_file(marker, (ROOT.name + '\n').encode(), 0o644, replace=True)
+    print('replacement Node and retained Workspace mapping committed; start explicitly')
+
+
+def park_previous_node_facts(new_node: str) -> None:
+    root = DATA / 'axnoded'
+    archived = root / ('pre-restore-' + new_node)
+    safe_directory(archived, 0o700)
+    for path, name in ((root / 'store', 'store'), (root / 'root/identity', 'identity')):
+        destination = archived / name
+        if destination.exists():
+            if destination.is_symlink() or not destination.is_dir() or (
+                    path.exists() and (path.is_symlink() or not path.is_dir() or any(path.iterdir()))):
+                raise InstallError('previous and replacement Node facts conflict')
+            continue
+        if path.is_symlink() or not path.is_dir():
+            raise InstallError('required previous Node facts are missing')
+        path.rename(destination)
+        for parent in (path.parent, archived):
+            descriptor = os.open(parent, os.O_DIRECTORY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+    safe_directory(root / 'store')
 
 
 def install(settings: dict) -> None:
@@ -986,11 +1144,14 @@ def wait_serving(node_id: str, environment: dict[str, str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('install', 'upgrade', 'start', 'stop', 'status', 'renew-services', 'internal-bootstrap', 'internal-ready', 'internal-verify', 'internal-pause-runtimes', 'internal-prepare-runtimes'))
+    parser.add_argument('command', choices=('install', 'upgrade', 'replace-node', 'start', 'stop', 'status', 'renew-services', 'internal-bootstrap', 'internal-ready', 'internal-verify', 'internal-pause-runtimes', 'internal-prepare-runtimes'))
     parser.add_argument('service', nargs='?', choices=SERVICES)
     parser.add_argument('--config', type=pathlib.Path)
     parser.add_argument('--from-archive')
     parser.add_argument('--backup-receipt', type=pathlib.Path)
+    parser.add_argument('--from-node')
+    parser.add_argument('--to-node')
+    parser.add_argument('--source-fenced', action='store_true')
     args = parser.parse_args()
     try:
         if args.command == 'internal-ready':
@@ -1026,6 +1187,11 @@ def main() -> None:
                 if not args.from_archive or args.backup_receipt is None:
                     raise InstallError('--from-archive and --backup-receipt are required for upgrade')
                 upgrade(args.from_archive, read_json(args.backup_receipt))
+                return
+            if args.command == 'replace-node':
+                if not (args.from_node and args.to_node and args.backup_receipt and args.source_fenced):
+                    raise InstallError('provide the old and new Node, the cold backup and confirmation of external fencing')
+                replace_node(args.from_node, args.to_node, read_json(args.backup_receipt))
                 return
             identity = verify_installed(check_data=args.command not in ('stop', 'status'))
             if args.command == 'start':

@@ -55,6 +55,7 @@ func New(state *workload.State, processes *process.Registry, waiter *proc.Waiter
 	server.mux.HandleFunc(wire.PathWorkloadWait, server.handleWorkloadWait)
 	server.mux.HandleFunc(wire.PathFilesPrefix, server.handleFiles)
 	server.mux.HandleFunc(wire.PathProcesses, server.handleProcesses)
+	server.mux.HandleFunc(wire.PathBackgroundProcesses, server.handleBackgroundProcesses)
 	server.mux.HandleFunc(wire.PathProcessesPrefix, server.handleProcess)
 	server.mux.HandleFunc(wire.PathComputerUsePrefix, server.handleComputerUse)
 	return server

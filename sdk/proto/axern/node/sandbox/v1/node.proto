@@ -395,8 +395,67 @@ message PreviewHTTPResponse {
   string location = 4;
 }
 
+enum BackgroundProcessState {
+  BACKGROUND_PROCESS_STATE_UNSPECIFIED = 0;
+  BACKGROUND_PROCESS_STATE_STARTING = 1;
+  BACKGROUND_PROCESS_STATE_RUNNING = 2;
+  BACKGROUND_PROCESS_STATE_EXITED = 3;
+  BACKGROUND_PROCESS_STATE_FAILED = 4;
+}
+
+message BackgroundProcess {
+  string process_id = 1;
+  BackgroundProcessState state = 2;
+  optional int32 exit_code = 3;
+  google.protobuf.Timestamp started_at = 4;
+  google.protobuf.Timestamp finished_at = 5;
+  string caller_ref = 6;
+}
+
+// Start is non-idempotent. A lost response can be reconciled by listing
+// processes under this Allocation and inspecting a caller-supplied reference.
+message StartBackgroundProcessRequest {
+  string allocation_id = 1;
+  ExecSpec spec = 2;
+  string caller_ref = 3;
+}
+
+message StartBackgroundProcessResponse {
+  BackgroundProcess process = 1;
+}
+
+message GetBackgroundProcessRequest {
+  string allocation_id = 1;
+  string process_id = 2;
+}
+
+message GetBackgroundProcessResponse {
+  BackgroundProcess process = 1;
+}
+
+message ListBackgroundProcessesRequest {
+  string allocation_id = 1;
+}
+
+message ListBackgroundProcessesResponse {
+  repeated BackgroundProcess processes = 1;
+}
+
+message CancelBackgroundProcessRequest {
+  string allocation_id = 1;
+  string process_id = 2;
+}
+
+message CancelBackgroundProcessResponse {
+  BackgroundProcess process = 1;
+}
+
 service NodeSandbox {
   rpc PreviewHTTP(PreviewHTTPRequest) returns (PreviewHTTPResponse) {}
+  rpc StartBackgroundProcess(StartBackgroundProcessRequest) returns (StartBackgroundProcessResponse) {}
+  rpc GetBackgroundProcess(GetBackgroundProcessRequest) returns (GetBackgroundProcessResponse) {}
+  rpc ListBackgroundProcesses(ListBackgroundProcessesRequest) returns (ListBackgroundProcessesResponse) {}
+  rpc CancelBackgroundProcess(CancelBackgroundProcessRequest) returns (CancelBackgroundProcessResponse) {}
   rpc Exec(ExecRequest) returns (ExecResponse) {}
   rpc Process(stream ProcessRequest) returns (stream ProcessResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}

@@ -4,16 +4,84 @@ from hashlib import sha256
 from io import BytesIO
 import json
 from pathlib import Path
+import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
 
 import delivery_image_audit as audit
+from gvisor_delivery_findings import GVisorFindings, RULES, RUNSC, SUBJECTS
 
 
 DIGEST = "sha256:" + "b" * 64
 SOURCE = "a" * 40
 MANIFEST_TYPE = "application/vnd.oci.image.manifest.v1+json"
+
+
+class GVisorProofTests(unittest.TestCase):
+    def setUp(self):
+        key = ("GO-2026-6859", "govulndb:language:go", "Medium", "stdlib", "go1.27.3")
+        self.description = "Test advisory description"
+        self.enterContext(patch.dict(RULES, {key: (*RULES[key][:-1], sha256(self.description.encode()).hexdigest())}))
+
+    def test_classifies_only_the_reviewed_advisory_package_and_location(self):
+        finding = {"id": "GO-2026-6859", "namespace": "govulndb:language:go", "severity": "Medium",
+                   "fix": {"state": "fixed", "versions": ["1.27.4"]}, "dataSource": "https://go.dev/cl/862185",
+                   "description": self.description}
+        artifact = {"type": "go-module", "name": "stdlib", "version": "go1.27.3",
+                    "locations": [{"path": RUNSC, "accessPath": RUNSC, "layerID": DIGEST}]}
+        match = {"vulnerability": finding, "artifact": artifact}
+        classifier = GVisorFindings(None, "amd64", None, None, {}, {"layers": []}, {"rootfs": {"diff_ids": []}}, {})
+        report = {"matches": [], "ignoredMatches": [match]}
+        with patch.object(classifier, "prove", return_value={"result": {"has_http_body_limit": False}}) as prove:
+            classified = []
+            self.assertEqual(audit.blocker_findings(report, classifier, classified), [])
+            self.assertEqual(classified[0]["advisory"], finding["id"])
+            prove.assert_called_once_with(RUNSC, DIGEST)
+            self.assertEqual(report["ignoredMatches"], [match])
+
+            for change in ({"id": "GO-2026-9999"}, {"namespace": "other:language:go"}, {"severity": "High"},
+                           {"description": "Revised upstream scope"}):
+                changed = {**match, "vulnerability": {**finding, **change}}
+                self.assertEqual(len(audit.blocker_findings({"matches": [changed]}, classifier, [])), 1)
+            changed = {**match, "artifact": {**artifact, "locations": artifact["locations"] * 2}}
+            self.assertEqual(len(audit.blocker_findings({"matches": [changed]}, classifier, [])), 1)
+
+    def test_linked_implementation_or_unavailable_proof_still_blocks(self):
+        match = {
+            "vulnerability": {"id": "GO-2026-6859", "namespace": "govulndb:language:go", "severity": "Medium",
+                              "fix": {"state": "fixed", "versions": ["1.27.4"]}, "dataSource": "https://go.dev/cl/862185",
+                              "description": self.description},
+            "artifact": {"type": "go-module", "name": "stdlib", "version": "go1.27.3",
+                         "locations": [{"path": RUNSC, "accessPath": RUNSC, "layerID": DIGEST}]},
+        }
+        for result in (None, {"result": {"has_http_body_limit": True}}, {"result": {}}):
+            classifier = GVisorFindings(None, "amd64", None, None, {}, {"layers": []}, {"rootfs": {"diff_ids": []}}, {})
+            with patch.object(classifier, "prove", return_value=result):
+                classified = []
+                self.assertEqual(len(audit.blocker_findings({"matches": [match]}, classifier, classified)), 1)
+                self.assertEqual(classified, [])
+
+    def test_layer_bytes_must_match_sbom_and_qualified_payload(self):
+        expected = b"locked executable"
+        substituted = b"other  executable"
+        digest = sha256(expected).hexdigest()
+        record = {"location": {"path": RUNSC, "layerID": DIGEST},
+                  "digests": [{"algorithm": "sha256", "value": digest}]}
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            blobs = root / "blobs" / "sha256"
+            blobs.mkdir(parents=True)
+            blob = blobs / DIGEST.removeprefix("sha256:")
+            with tarfile.open(blob, "w:gz") as archive:
+                item = tarfile.TarInfo("./" + RUNSC.lstrip("/"))
+                item.size = len(substituted)
+                archive.addfile(item, BytesIO(substituted))
+            classifier = GVisorFindings(None, "amd64", root, root, {"files": [record]},
+                                       {"layers": [{"digest": DIGEST}]}, {"rootfs": {"diff_ids": [DIGEST]}}, {})
+            with patch.dict(SUBJECTS, {"amd64": {RUNSC: (digest, len(expected))}}), patch("subprocess.run") as run:
+                self.assertIsNone(classifier.prove(RUNSC, DIGEST))
+                run.assert_not_called()
 
 
 def image_lock() -> str:

@@ -15,6 +15,8 @@ type ProcessStartRequest struct {
 	InitialCols   uint32   `json:"initialCols,omitempty"`
 	InitialRows   uint32   `json:"initialRows,omitempty"`
 	TimeoutMs     int64    `json:"timeoutMs,omitempty"`
+	Background    bool     `json:"background,omitempty"`
+	CallerRef     string   `json:"callerRef,omitempty"`
 }
 
 type ProcessSignalRequest struct {
@@ -38,6 +40,8 @@ type ProcessStatus struct {
 	Stderr          string     `json:"stderr,omitempty"`
 	StdoutTruncated bool       `json:"stdoutTruncated,omitempty"`
 	StderrTruncated bool       `json:"stderrTruncated,omitempty"`
+	Background      bool       `json:"background,omitempty"`
+	CallerRef       string     `json:"callerRef,omitempty"`
 }
 
 type ProcessStdinRequest struct {

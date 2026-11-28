@@ -48,6 +48,8 @@ go run ./gateway/gatewayd \
 - `GET /healthz` is served on the plaintext health listener.
 - `wss://<control-edge>/terminal/allocation/{allocation_id}` requires a verified client X.509 Principal Credential on the shared TLS control listener. Tokens in URLs or headers do not authenticate a terminal.
 
+An authorized terminal request for an inactive Allocation receives HTTP `410 Gone` before the WebSocket upgrade. An unavailable upstream remains a retryable HTTP `503 Service Unavailable`.
+
 Gateway data-plane routes are Allocation-bound and resolve their target through the control plane.
 
 ## SSH Terminal

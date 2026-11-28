@@ -150,6 +150,8 @@ with sandbox.process(["python", "-u", "-c", "import sys; print(sys.stdin.read().
 
 `AsyncSandbox.process()` returns `AsyncSandboxProcess` with async equivalents of `write()`, `close_stdin()`, `events()`, `wait()`, `terminate()`, and `kill()`.
 
+Use `client.allocation(allocation_id).start_background_process(..., timeout_seconds=60, caller_ref="index-build")` for finite work that can continue after your SDK client exits. A later client can list or inspect the same Allocation's processes and cancel a known process ID. The [background process contract](../../docs/product/domain-model.md#background-process) describes output and receipt lifetime.
+
 ## Files
 
 Single-file APIs are byte-safe. Text helpers only encode/decode at the SDK boundary.

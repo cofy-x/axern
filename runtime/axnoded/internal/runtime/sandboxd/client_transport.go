@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 type Client struct {
@@ -17,6 +18,7 @@ const maxUnixSocketPathLen = 100
 
 func NewClient(socketPath string) *Client {
 	transport := &http.Transport{
+		IdleConnTimeout: 15 * time.Second,
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
 			var dialer net.Dialer
 			dialPath, cleanup, err := shortUnixSocketPath(socketPath)
