@@ -28,6 +28,8 @@ for path in scripts/release/native_runtime.py runtime/axnoded/gvisor_payload.py;
 done
 ```
 
+The installer uses `controld-access-bootstrap` to create the initial identities. During offline maintenance it invokes `controld-maintenance upgrade check`, `restore plan`, and `restore commit` against the stopped installation’s private database. Operate through the matching archive’s installer to preserve backup checks, storage verification and journal ordering.
+
 ## Host Prerequisites
 
 Use a native amd64 or arm64 host matching the archive, systemd 254 or newer, cgroup v2, and enabled IPv4 forwarding. The supported Ubuntu 24.04 profile provides systemd 255; older systemd versions lack the delegated subgroup contract used for node recovery. Before installation, provision an empty, dedicated ext4 or XFS filesystem with a stable UUID at `/var/lib/axern`, and configure its persistent mount through the host's normal storage management. The installer accepts ext4's `lost+found` but no existing installation data. This mount contains PostgreSQL, node/image state and the runtime's `runsc`/`projections` partitions; the storage reserve applies to their shared capacity. An ordinary directory on the system filesystem does not satisfy the runtime storage contract.

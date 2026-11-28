@@ -17,7 +17,7 @@ func runNativeRestore(ctx context.Context, command string, args []string) error 
 	if os.Geteuid() != 0 {
 		return errors.New("native restore requires the root maintenance operator")
 	}
-	flags := flag.NewFlagSet(command, flag.ContinueOnError)
+	flags := flag.NewFlagSet("restore "+command, flag.ContinueOnError)
 	source := flags.String("old-node", "", "the fenced original Node")
 	replacement := flags.String("new-node", "", "the replacement Node")
 	planPath := flags.String("plan", "", "private verified mapping returned by the storage owner")
@@ -37,7 +37,7 @@ func runNativeRestore(ctx context.Context, command string, args []string) error 
 		return err
 	}
 	store := pgadmin.NewStore(db)
-	if command == "native-restore-plan" {
+	if command == "plan" {
 		if *planPath != "" || *tokenPath != "" {
 			return errors.New("planning requires only the old and new Node identities")
 		}

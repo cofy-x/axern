@@ -2,6 +2,7 @@
 """Host-safe installer boundary checks; actual service acceptance runs in a VM."""
 
 import copy
+import contextlib
 import json
 import os
 import pathlib
@@ -190,7 +191,7 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.command.assert_not_called()
 
     def test_undrained_database_is_retained_without_startup_fence_or_migrations(self):
-        self.drained.side_effect = subprocess.CalledProcessError(1, 'native-upgrade-check')
+        self.drained.side_effect = subprocess.CalledProcessError(1, ['controld-maintenance', 'upgrade', 'check'])
         with self.assertRaises(subprocess.CalledProcessError):
             installer.upgrade(self.source_root.name, self.backup)
         self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
@@ -244,6 +245,14 @@ class ArchiveUpgradeTest(unittest.TestCase):
 
 
 class InstallerTest(unittest.TestCase):
+    def test_cold_upgrade_check_uses_maintenance_command(self):
+        environment = {'CONTROLD_POSTGRES_DSN': 'postgres://test'}
+        with (mock.patch.object(installer, 'private_postgres', return_value=contextlib.nullcontext(environment)),
+              mock.patch.object(installer, 'run') as command):
+            installer.require_cold_upgrade_work_drained('node-one')
+        command.assert_called_once_with(str(installer.ROOT / 'bin/controld-maintenance'), 'upgrade', 'check',
+                                        '--node-id', 'node-one', env=environment, timeout=60)
+
     def test_node_restore_parks_previous_credentials_and_store_without_adopting_a_later_store(self):
         with tempfile.TemporaryDirectory() as temporary:
             data = pathlib.Path(temporary)

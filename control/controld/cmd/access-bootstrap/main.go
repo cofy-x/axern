@@ -31,12 +31,6 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
-	if len(args) > 0 && args[0] == "native-upgrade-check" {
-		return runNativeUpgradeCheck(ctx, args[1:])
-	}
-	if len(args) > 0 && (args[0] == "native-restore-plan" || args[0] == "native-restore-commit") {
-		return runNativeRestore(ctx, args[0], args[1:])
-	}
 	flags := flag.NewFlagSet("controld-access-bootstrap", flag.ContinueOnError)
 	dsn := flags.String("postgres-dsn", os.Getenv("CONTROLD_POSTGRES_DSN"), "PostgreSQL DSN")
 	name := flags.String("principal-name", "platform-admin", "initial platform administrator name")

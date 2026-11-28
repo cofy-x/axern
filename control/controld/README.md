@@ -33,6 +33,7 @@ Node rows are durable identities with `active`, `revoked`, and `retired` states.
 make -C control/controld build
 make -C control/controld build-migrate
 make -C control/controld build-access-bootstrap
+make -C control/controld build-maintenance
 ```
 
 ## Test
@@ -182,7 +183,7 @@ flowchart LR
 
 ## Code Layout
 
-- `cmd/controld`, `cmd/migrate`, `cmd/access-bootstrap`, and `cmd/workload-pki` are executable entrypoints.
+- `cmd/controld`, `cmd/migrate`, `cmd/access-bootstrap`, `cmd/maintenance`, and `cmd/workload-pki` are executable entrypoints.
 - `internal/app` is the composition root and lifecycle wiring layer.
 - `internal/api/{adminv1,publicv1,nodev1,gatewayv1,debughttp}` adapts gRPC/HTTP to narrow capabilities.
 - `internal/application/{admin,capability,environment,gateway,node,run}` owns use-case orchestration across kernel contracts and adapters, including node availability, capability-loss reconciliation, and workload lifecycle convergence.

@@ -158,6 +158,7 @@ build-go: ## Build the root Go binaries
 	$(GO) -C control/controld build -o ../../bin/controld ./cmd/controld
 	$(GO) -C control/controld build -o ../../bin/controld-migrate ./cmd/migrate
 	$(GO) -C control/controld build -o ../../bin/controld-access-bootstrap ./cmd/access-bootstrap
+	$(GO) -C control/controld build -o ../../bin/controld-maintenance ./cmd/maintenance
 	$(GO) -C gateway/gatewayd build -o ../../bin/gatewayd ./
 	$(GO) -C runtime/imagemgr build -o ../../bin/imagemgr ./cmd/imagemgr
 	$(GO) -C runtime/egressd build -o ../../bin/egressd ./cmd/egressd
