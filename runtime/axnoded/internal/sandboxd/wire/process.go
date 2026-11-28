@@ -1,6 +1,25 @@
 package wire
 
-import "time"
+import (
+	"regexp"
+	"time"
+)
+
+const MaxBackgroundProcessSeconds = 3600
+const PathBackgroundProcesses = "/background-processes"
+
+var backgroundProcessRef = regexp.MustCompile(`^[A-Za-z0-9_.-]{0,128}$`)
+
+func ValidBackgroundProcessRef(value string) bool { return backgroundProcessRef.MatchString(value) }
+
+type BackgroundProcessSpec struct {
+	Argv      []string
+	Env       map[string]string
+	Cwd       string
+	User      string
+	CallerRef string
+	Timeout   time.Duration
+}
 
 type ProcessListResponse struct {
 	Processes []ProcessStatus `json:"processes"`
@@ -27,4 +46,6 @@ type ProcessStatus struct {
 	Stderr          string     `json:"stderr,omitempty"`
 	StdoutTruncated bool       `json:"stdoutTruncated,omitempty"`
 	StderrTruncated bool       `json:"stderrTruncated,omitempty"`
+	Background      bool       `json:"background,omitempty"`
+	CallerRef       string     `json:"callerRef,omitempty"`
 }

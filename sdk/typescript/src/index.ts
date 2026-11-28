@@ -37,6 +37,7 @@ export {
 } from "./errors/index.js";
 export { AllocationClient } from "./node/client.js";
 export type { AllocationClientOptions } from "./node/client.js";
+export type { BackgroundProcess, BackgroundProcessOptions } from "./node/background.js";
 export { SandboxProcess } from "./node/process.js";
 export type { ResourceQuantity } from "./resources.js";
 export { Sandbox } from "./sandbox/index.js";

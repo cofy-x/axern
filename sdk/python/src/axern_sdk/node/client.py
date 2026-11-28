@@ -157,6 +157,46 @@ class AllocationClient(AllocationCapabilityMixin, AllocationComputerUseMixin, Al
             requests.put(None)
             raise sandbox_rpc_error(exc, operation="sandbox process", allocation_id=self._allocation_id) from exc
 
+    def start_background_process(
+        self, command: ExecCommand, *, timeout_seconds: int, caller_ref: str = "",
+        cwd: str = "", user: str = "", env: dict[str, str] | None = None,
+        rpc_timeout: float | None = None,
+    ) -> node_pb2.BackgroundProcess:
+        """Start finite unattended work without a client-owned process stream."""
+        argv = exec_argv(command)
+        response = self._call_unary(
+            "start background process", "StartBackgroundProcess",
+            lambda: node_pb2.StartBackgroundProcessRequest(
+                allocation_id=self._allocation_id, caller_ref=caller_ref,
+                spec=exec_spec(argv, env=env, cwd=cwd, timeout_seconds=timeout_seconds, user=user, tty=False),
+            ), rpc_timeout=rpc_timeout,
+        )
+        return response.process
+
+    def get_background_process(self, process_id: str, *, rpc_timeout: float | None = None) -> node_pb2.BackgroundProcess:
+        response = self._call_unary(
+            "get background process", "GetBackgroundProcess",
+            lambda: node_pb2.GetBackgroundProcessRequest(allocation_id=self._allocation_id, process_id=process_id),
+            rpc_timeout=rpc_timeout,
+        )
+        return response.process
+
+    def list_background_processes(self, *, rpc_timeout: float | None = None) -> tuple[node_pb2.BackgroundProcess, ...]:
+        response = self._call_unary(
+            "list background processes", "ListBackgroundProcesses",
+            lambda: node_pb2.ListBackgroundProcessesRequest(allocation_id=self._allocation_id),
+            rpc_timeout=rpc_timeout,
+        )
+        return tuple(response.processes)
+
+    def cancel_background_process(self, process_id: str, *, rpc_timeout: float | None = None) -> node_pb2.BackgroundProcess:
+        response = self._call_unary(
+            "cancel background process", "CancelBackgroundProcess",
+            lambda: node_pb2.CancelBackgroundProcessRequest(allocation_id=self._allocation_id, process_id=process_id),
+            rpc_timeout=rpc_timeout,
+        )
+        return response.process
+
     def _call_unary(
         self,
         operation: str,
