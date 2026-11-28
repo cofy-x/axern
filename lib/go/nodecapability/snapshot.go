@@ -16,14 +16,15 @@ func ResolveRequirements(snapshot *capabilityv1.CapabilitySnapshot, keys []*capa
 	if err := ValidateRequirementKeys(keys); err != nil {
 		return nil, err
 	}
-	if err := ValidateSnapshot(snapshot, now); err != nil {
+	byKey, err := validatedSnapshotObservations(snapshot, now)
+	if err != nil {
 		return nil, fmt.Errorf("invalid capability snapshot: %w", err)
 	}
 	resolved := make([]*capabilityv1.CapabilityRequirement, 0, len(keys))
 	for _, key := range keys {
 		id, _ := KeyID(key)
-		if _, ok := AvailableObservation(snapshot, key, now); !ok {
-			return nil, fmt.Errorf("required capability %q is not available", id)
+		if !availableObservationSet(byKey, id, now, make(map[string]bool)) {
+			return nil, withOperatorReason(fmt.Errorf("required capability %q is not available", id), describeUnavailable(byKey, key, now))
 		}
 		policy, err := LossPolicy(key)
 		if err != nil {
@@ -179,36 +180,46 @@ func observationValid(observation *capabilityv1.CapabilityObservation, now time.
 }
 
 func ValidateSnapshot(snapshot *capabilityv1.CapabilitySnapshot, now time.Time) error {
+	_, err := validatedSnapshotObservations(snapshot, now)
+	return err
+}
+
+func validatedSnapshotObservations(snapshot *capabilityv1.CapabilitySnapshot, now time.Time) (map[string]*capabilityv1.CapabilityObservation, error) {
 	if snapshot == nil {
-		return fmt.Errorf("capability snapshot is required")
+		return nil, withOperatorReason(fmt.Errorf("capability snapshot is required"), "node capability snapshot is missing")
 	}
 	if snapshot.GetCollectedAt() == nil {
-		return fmt.Errorf("capability snapshot collected_at is required")
+		return nil, withOperatorReason(fmt.Errorf("capability snapshot collected_at is required"), "node capability snapshot is missing its collection time")
 	}
 	if err := snapshot.GetCollectedAt().CheckValid(); err != nil {
-		return fmt.Errorf("capability snapshot collected_at: %w", err)
+		return nil, withOperatorReason(fmt.Errorf("capability snapshot collected_at: %w", err), "node capability snapshot has an invalid collection time")
 	}
 	if len(snapshot.GetObservations()) > MaxSnapshotObservations {
-		return fmt.Errorf("capability snapshot exceeds %d observations", MaxSnapshotObservations)
+		return nil, withOperatorReason(fmt.Errorf("capability snapshot exceeds %d observations", MaxSnapshotObservations), "node capability snapshot exceeds the observation limit")
 	}
 	if snapshot.GetCollectedAt().AsTime().After(now.Add(time.Minute)) {
-		return fmt.Errorf("capability snapshot collected_at is in the future")
+		return nil, withOperatorReason(fmt.Errorf("capability snapshot collected_at is in the future"), "node capability snapshot collection time is in the future")
 	}
 	byKey, err := observationsByKey(snapshot.GetObservations())
 	if err != nil {
-		return err
+		return nil, withOperatorReason(err, "node capability snapshot has invalid or duplicate observation keys")
 	}
 	for id, observation := range byKey {
 		if err := validateObservation(id, observation, snapshot.GetCollectedAt().AsTime(), now); err != nil {
-			return err
+			reason := "node capability snapshot has an invalid observation"
+			if name := platformName(observation.GetKey()); name != "" {
+				reason += " for " + name
+			}
+			return nil, withOperatorReason(err, reason)
 		}
 	}
 	for id, observation := range byKey {
 		if observation.GetState() == capabilityv1.CapabilityState_CAPABILITY_STATE_AVAILABLE && !availableObservationSet(byKey, id, now, make(map[string]bool)) {
-			return fmt.Errorf("available capability observation %q has an unavailable definition dependency", id)
+			err := fmt.Errorf("available capability observation %q has an unavailable definition dependency", id)
+			return nil, withOperatorReason(err, "node capability snapshot rejected. "+describeUnavailable(byKey, observation.GetKey(), now))
 		}
 	}
-	return nil
+	return byKey, nil
 }
 
 func validateObservation(id string, observation *capabilityv1.CapabilityObservation, collectedAt, now time.Time) error {
