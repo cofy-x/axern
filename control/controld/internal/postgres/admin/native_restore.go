@@ -163,7 +163,7 @@ func nativeRestoreInventory(ctx context.Context, tx pgx.Tx, node string) ([]nati
 		return nil, err
 	}
 	defer rows.Close()
-	var inventory []nativebackup.Workspace
+	inventory := []nativebackup.Workspace{}
 	for rows.Next() {
 		var item nativebackup.Workspace
 		if err := rows.Scan(&item.ID, &item.Namespace, &item.RootIdentity, &item.OldIdentity,

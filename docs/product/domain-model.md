@@ -4,7 +4,7 @@ This document defines Axern's stable product identities, lifecycle ownership, an
 
 ## Platform Boundary
 
-Axern is a self-hosted execution platform for AI agents with gVisor isolation. Caller workflows remain outside the Run and Allocation state machine. This document describes implemented public identities; the [Product Direction](product-direction.md) and [Single-Host Architecture Decision](../decisions/single-host-agent-serving.md) define the single-host serving scope. Persistent Workspace is experimental and requires explicit storage enforcement; its backup and replacement-host restore guarantees remain outside the implemented maintenance contract.
+Axern is a self-hosted execution platform for AI agents with gVisor isolation. Caller workflows remain outside the Run and Allocation state machine. This document describes implemented public identities; the [Product Direction](product-direction.md) and [Single-Host Architecture Decision](../decisions/single-host-agent-serving.md) define the single-host serving scope. Experimental persistent Workspaces require explicit storage enforcement. The [native installation guide](../../deploy/standalone/INSTALL.md#qualify-a-replacement-node) defines the qualified cold backup and isolated replacement-Node procedure for the managed XFS profile.
 
 The only durable execution chain is:
 

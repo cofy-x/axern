@@ -9,6 +9,70 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNativeReplacementKeepsInitializedEmptyRoot(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		deleteLast bool
+	}{
+		{name: "empty"},
+		{name: "last Workspace deleted", deleteLast: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			manager, _, spec := newFixture(t)
+			if test.deleteLast {
+				observed, err := manager.Provision(spec)
+				require.NoError(t, err)
+				require.NoError(t, manager.Delete(spec, observed.Identity))
+			}
+			rootRecord := filepath.Join(manager.options.MetadataRoot, "root.json")
+			before, err := os.ReadFile(rootRecord)
+			require.NoError(t, err)
+			plan := nativebackup.Plan{Format: nativebackup.Format, OldNode: spec.NodeID, NewNode: "node-replacement",
+				Workspaces: []nativebackup.Workspace{}}
+			mapped, err := manager.RemapRetained(plan, false)
+			require.NoError(t, err)
+			require.Equal(t, plan, mapped)
+			for range 2 {
+				got, err := manager.RemapRetained(mapped, true)
+				require.NoError(t, err)
+				require.Equal(t, mapped, got)
+			}
+			after, err := os.ReadFile(rootRecord)
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+		})
+	}
+}
+
+func TestNativeReplacementRejectsEmptyInventoryWithoutExactStorage(t *testing.T) {
+	plan := nativebackup.Plan{Format: nativebackup.Format, OldNode: "node-one", NewNode: "node-replacement",
+		Workspaces: []nativebackup.Workspace{}}
+	t.Run("data root missing", func(t *testing.T) {
+		manager, _, _ := newFixture(t)
+		require.NoError(t, os.Remove(manager.options.Root))
+		_, err := manager.RemapRetained(plan, false)
+		require.ErrorContains(t, err, "storage root is unavailable")
+		require.NoDirExists(t, manager.options.Root)
+	})
+	t.Run("root ownership missing", func(t *testing.T) {
+		manager, _, _ := newFixture(t)
+		path := filepath.Join(manager.options.MetadataRoot, "root.json")
+		require.NoError(t, os.Remove(path))
+		_, err := manager.RemapRetained(plan, false)
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.NoFileExists(t, path)
+	})
+	t.Run("extra data", func(t *testing.T) {
+		manager, _, spec := newFixture(t)
+		observed, err := manager.Provision(spec)
+		require.NoError(t, err)
+		_, err = manager.RemapRetained(plan, false)
+		require.ErrorContains(t, err, "does not contain exactly the recorded Workspaces")
+		_, err = manager.Inspect(spec, observed.Identity)
+		require.NoError(t, err)
+	})
+}
+
 func TestNativeReplacementRotatesOwnershipAndRetainsWriterGeneration(t *testing.T) {
 	manager, _, spec := newFixture(t)
 	observed, err := manager.Provision(spec)

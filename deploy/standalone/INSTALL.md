@@ -196,7 +196,7 @@ For a development installation or an archive outside the qualified transition, r
 
 Use a verified cold backup made on the same source-built archive as the replacement. Restore the complete system and data images to an isolated host with the original XFS filesystem identity and project quotas intact. Keep the original host powered off and externally fenced before restoring. The replacement uses a new explicit Node ID and new enrollment credentials. Historical archives first use the separately qualified archive transition while services remain disabled.
 
-With the restored services stopped and automatic startup disabled, invoke the restored archive's root maintenance helper using the matching [private backup receipt](#qualify-an-experimental-archive-transition). The operator confirms the external fence. The helper also checks the cold database and runtime, requires fully drained Runs and Workspaces, and requires every retained directory to match its recorded identity and quota.
+With the restored services stopped and automatic startup disabled, invoke the restored archive's root maintenance helper using the matching [private backup receipt](#qualify-an-experimental-archive-transition). The operator confirms the external fence. The helper also checks the cold database and runtime, requires fully drained Runs and Workspaces, and requires every retained directory to match its recorded identity and quota. The source-built helper accepts an explicitly empty Workspace inventory when the control database has no retained Workspaces and the original initialized XFS Workspace root is empty. It still requires the original root ownership record.
 
 ```bash
 sudo python3 -I /opt/axern/releases/ARCHIVE_SHA256/libexec/axern/native_install.py \

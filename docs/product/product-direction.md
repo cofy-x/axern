@@ -41,7 +41,7 @@ Multiple workers use independent writable directories, immutable common referenc
 | Interaction | Process, terminal, file, log, SSH, reverse Tunnel access and authenticated Allocation-scoped previews | IDE/dashboard products, application rollout, replicas and route orchestration |
 | Authority | Principal/Namespace authorization, Secret projection, execution authority and resource accounting | Human approval policy, model budgets, provider accounts and event integrations |
 | Images | Shared toolchains, official Agent installation layers, version/source locks and local build/check commands | Project-specific customization, build-service orchestration, registry credentials and publication |
-| Operations | Native installation/lifecycle and diagnostics; planned supported-version upgrades and coordinated backup/restore | Cloud accounts, cluster provisioning, high availability and regional deployment |
+| Operations | Native installation, lifecycle and diagnostics, qualified cold archive transitions and same-archive replacement-Node recovery | Cloud accounts, cluster provisioning, high availability and regional deployment |
 
 OCI is the sole image path; Kubernetes is an optional deployment outside the native serving default. Cluster expansion, distributed image/storage optimization and transparent process snapshots require demonstrated single-host needs. Additional execution runtimes are outside the product scope.
 
