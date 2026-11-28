@@ -58,4 +58,6 @@ hk = AxernClient.from_context("~/.config/axern/config.json", "hk")
 
 The Go, Python, and TypeScript SDKs consume the same versioned fixtures under `sdk/contracts/v1` for context and proxy behavior, resource quantities, sandbox sources, lifecycle operations, files, processes, archives, tunnels, and public error classification. Run `make sdk-contract-verify` before an SDK release.
 
+Closing a Sandbox retires its active Allocation handle. The SDK keeps the IDs of its own Run and Environment on that Sandbox until each cleanup RPC succeeds or confirms the resource is already absent. If cleanup fails, the caller can close the same Sandbox again. A new start on that handle is rejected while cleanup is pending. An explicitly supplied Environment and a retained Workspace remain caller-owned.
+
 Public RPC errors preserve the operation, RPC code, server details, retryability, and allocation identity when one exists. Validation, not found, permission, timeout, cancellation, and unavailable failures remain distinct. SDKs do not retry mutating RPCs. Idempotent reads and Run-watch reconnects may retry only within the caller's total deadline.

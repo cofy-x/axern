@@ -15,16 +15,17 @@ type SandboxMetadata struct {
 
 // Metadata returns diagnostic metadata for a started sandbox.
 func (s *Sandbox) Metadata() (SandboxMetadata, error) {
-	if !s.started {
-		return SandboxMetadata{}, ErrSandboxNotStarted
+	state, err := s.State()
+	if err != nil {
+		return SandboxMetadata{}, err
 	}
 	return SandboxMetadata{
-		EnvironmentID:   s.state.EnvironmentID,
-		RunID:           s.state.RunID,
-		AllocationID:    s.state.AllocationID,
-		StartedAt:       s.state.StartedAt,
-		TunnelSessionID: s.state.TunnelSessionID,
-		BoundAddr:       s.state.BoundAddr,
+		EnvironmentID:   state.EnvironmentID,
+		RunID:           state.RunID,
+		AllocationID:    state.AllocationID,
+		StartedAt:       state.StartedAt,
+		TunnelSessionID: state.TunnelSessionID,
+		BoundAddr:       state.BoundAddr,
 		Labels:          cloneMap(s.options.Labels),
 	}, nil
 }

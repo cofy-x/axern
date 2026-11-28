@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
-from axern_sdk.errors import SandboxValidationError
+from axern_sdk.errors import SandboxNotFoundError, SandboxValidationError
 
 
 DEFAULT_SANDBOX_ARGV = ["sh", "-lc", "sleep 2147483647"]
+
+
+@dataclass(slots=True)
+class _OwnedResource:
+    id: str = ""
+
+    @contextmanager
+    def releasing(self, errors: list[Exception]) -> Iterator[str]:
+        """Retain the acknowledged ID until cleanup succeeds or confirms absence."""
+        try:
+            yield self.id
+        except SandboxNotFoundError:
+            pass
+        except Exception as error:
+            errors.append(error)
+            return
+        self.id = ""
 
 
 @dataclass(frozen=True, slots=True)

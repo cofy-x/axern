@@ -278,6 +278,79 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 }
 
+func TestSandboxCloseRetainsOwnershipAfterCancelledContext(t *testing.T) {
+	fake := &fakeAxernServer{}
+	server, dialer := newBufconnServer(t, fake)
+	defer server.Stop()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	client, err := NewClient(ctx, "bufnet", WithDialOptions(grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials())))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	sandbox, err := NewSandbox(SandboxOptions{Client: client, Image: "python"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	dead, stop := context.WithCancel(ctx)
+	stop()
+	if err := sandbox.Close(dead); err == nil {
+		t.Fatal("expected unacknowledged cleanup")
+	}
+	if _, err := sandbox.State(); !errors.Is(err, ErrSandboxNotStarted) {
+		t.Fatalf("closed allocation remained usable: %v", err)
+	}
+	if err := sandbox.Start(ctx); err == nil {
+		t.Fatal("start created a Run over pending cleanup")
+	}
+	if err := sandbox.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.cancelledRun || !fake.deletedEnvironment {
+		t.Fatal("second Close did not clean up the original Run and Environment")
+	}
+}
+
+func TestSandboxCloseDeadlineWhileStartWaitsForReadiness(t *testing.T) {
+	fake := &fakeAxernServer{watchStarted: make(chan struct{}), resumeWatch: make(chan struct{})}
+	server, dialer := newBufconnServer(t, fake)
+	defer server.Stop()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	client, err := NewClient(ctx, "bufnet", WithDialOptions(grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials())))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	sandbox, err := NewSandbox(SandboxOptions{Client: client, EnvironmentID: "caller-env"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan error, 1)
+	go func() { started <- sandbox.Start(ctx) }()
+	select {
+	case <-fake.watchStarted:
+	case <-ctx.Done():
+		t.Fatal("start did not reach readiness watch")
+	}
+	closeCtx, cancelClose := context.WithTimeout(ctx, 20*time.Millisecond)
+	defer cancelClose()
+	if err := sandbox.Close(closeCtx); !errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
+		t.Fatalf("waiting Close ignored its own deadline: %v", err)
+	}
+	close(fake.resumeWatch)
+	if err := <-started; err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Close(ctx); err != nil || fake.deletedEnvironment {
+		t.Fatalf("cleanup of caller-owned Environment: err=%v deleted=%v", err, fake.deletedEnvironment)
+	}
+}
+
 func TestSandboxRequiresExactlyOneSource(t *testing.T) {
 	_, err := NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", EnvironmentID: "env-1"})
 	if err != ErrInvalidSource {
@@ -575,6 +648,8 @@ type fakeAxernServer struct {
 	tunnelcontrolv1.UnimplementedTunnelControlServer
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
+	watchStarted           chan struct{}
+	resumeWatch            chan struct{}
 	files                  map[string][]byte
 	createRunRequest       *runv1.CreateRunRequest
 	execArgv               []string
@@ -659,6 +734,14 @@ func (f *fakeAxernServer) SubmitRun(_ context.Context, request *runv1.CreateRunR
 }
 
 func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunControl_WatchRunServer) error {
+	if f.watchStarted != nil {
+		close(f.watchStarted)
+		select {
+		case <-f.resumeWatch:
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		}
+	}
 	return stream.Send(&runv1.WatchRunResponse{Run: &runv1.Run{
 		ID:           "run-1",
 		AllocationID: "alloc-1",

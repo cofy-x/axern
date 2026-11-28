@@ -43,14 +43,12 @@ type SandboxOptions struct {
 type Sandbox struct {
 	client             *Client
 	options            SandboxOptions
-	createdEnvironment bool
-	environmentID      string
+	mu                 sync.Mutex
+	lifecycle          chan struct{}
+	ownedEnvironmentID string
 	runID              string
 	state              SandboxState
-	started            bool
-	tunnelsMu          sync.Mutex
 	tunnels            map[*SandboxTunnel]struct{}
-	processesMu        sync.Mutex
 	processes          map[*SandboxProcess]struct{}
 }
 
@@ -74,11 +72,38 @@ func NewSandbox(options SandboxOptions) (*Sandbox, error) {
 	return &Sandbox{client: options.Client, options: options}, nil
 }
 
+// Wait only for another start/close. Pending child RPCs do not hold this gate.
+func (s *Sandbox) beginLifecycle(ctx context.Context) error {
+	s.mu.Lock()
+	if s.lifecycle == nil {
+		s.lifecycle = make(chan struct{}, 1)
+	}
+	s.mu.Unlock()
+	select {
+	case s.lifecycle <- struct{}{}:
+		return nil
+	default:
+	}
+	select {
+	case s.lifecycle <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 // Start creates the backing environment/run when needed and waits for a
 // running allocation.
 func (s *Sandbox) Start(ctx context.Context) error {
-	if s.started {
+	if err := s.beginLifecycle(ctx); err != nil {
+		return err
+	}
+	defer func() { <-s.lifecycle }()
+	if _, err := s.State(); err == nil {
 		return nil
+	}
+	if s.runID != "" || s.ownedEnvironmentID != "" {
+		return errors.New("sandbox cleanup is pending; call Close again")
 	}
 	environmentID := s.options.EnvironmentID
 	if environmentID == "" {
@@ -92,9 +117,8 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		s.createdEnvironment = true
-		s.environmentID = environment.GetID()
-		environmentID = s.environmentID
+		s.ownedEnvironmentID = environment.GetID()
+		environmentID = s.ownedEnvironmentID
 	}
 	run, err := s.client.CreateRun(ctx, CreateRunOptions{
 		Namespace:               s.options.Namespace,
@@ -116,15 +140,20 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		Labels:                  sandboxLabels(s.options.Labels),
 	})
 	if err != nil {
-		_ = s.Close(ctx)
+		if cleanupErr := s.close(ctx); cleanupErr != nil {
+			return errors.Join(err, cleanupErr)
+		}
 		return err
 	}
 	s.runID = run.GetID()
 	run, err = s.waitRunning(ctx, s.runID, defaultDuration(s.options.ReadyTimeout, 3*time.Minute))
 	if err != nil {
-		_ = s.Close(ctx)
+		if cleanupErr := s.close(ctx); cleanupErr != nil {
+			return errors.Join(err, cleanupErr)
+		}
 		return err
 	}
+	s.mu.Lock()
 	s.state = SandboxState{
 		EnvironmentID:       environmentID,
 		WorkspaceID:         run.GetWorkspaceAttachment().GetWorkspaceID(),
@@ -133,45 +162,49 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		AllocationID:        run.GetAllocationID(),
 		StartedAt:           time.Now(),
 	}
-	s.started = true
+	s.mu.Unlock()
 	return nil
 }
 
 // Close closes SDK-owned processes and tunnels, then deletes SDK-owned
 // run/environment resources.
 func (s *Sandbox) Close(ctx context.Context) error {
-	var firstErr error
-	if err := s.closeProcesses(); err != nil {
-		firstErr = err
+	if err := s.beginLifecycle(ctx); err != nil {
+		return err
 	}
-	if err := s.closeTunnels(ctx); err != nil {
-		if firstErr == nil {
-			firstErr = err
-		}
-	}
-	if s.runID != "" {
-		if err := s.client.CancelRun(ctx, s.runID); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
-		}
-		s.runID = ""
-	}
-	if s.createdEnvironment && s.environmentID != "" {
-		if err := s.client.DeleteEnvironment(ctx, s.environmentID); err != nil && firstErr == nil {
-			firstErr = err
-		}
-		s.createdEnvironment = false
-		s.environmentID = ""
-	}
-	s.started = false
+	defer func() { <-s.lifecycle }()
+	return s.close(ctx)
+}
+
+func (s *Sandbox) close(ctx context.Context) error {
+	s.mu.Lock()
 	s.state = SandboxState{}
-	return firstErr
+	s.mu.Unlock()
+	processErr := s.closeProcesses()
+	tunnelErr := s.closeTunnels(ctx)
+	var runErr, envErr error
+	if s.runID != "" {
+		runErr = s.client.CancelRun(ctx, s.runID)
+		if runErr == nil || IsNotFound(runErr) {
+			s.runID = ""
+			runErr = nil
+		}
+	}
+	if s.ownedEnvironmentID != "" {
+		envErr = s.client.DeleteEnvironment(ctx, s.ownedEnvironmentID)
+		if envErr == nil || IsNotFound(envErr) {
+			s.ownedEnvironmentID = ""
+			envErr = nil
+		}
+	}
+	return errors.Join(processErr, tunnelErr, runErr, envErr)
 }
 
 // State returns the current lightweight state for a started sandbox.
 func (s *Sandbox) State() (SandboxState, error) {
-	if !s.started {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.AllocationID == "" {
 		return SandboxState{}, ErrSandboxNotStarted
 	}
 	return s.state, nil
@@ -187,49 +220,60 @@ func (s *Sandbox) Exec(ctx context.Context, command any, options ExecOptions) (E
 }
 
 func (s *Sandbox) nodeClient() (*AllocationClient, error) {
-	if !s.started {
-		return nil, ErrSandboxNotStarted
+	state, err := s.State()
+	if err != nil {
+		return nil, err
 	}
-	return s.client.Allocation(s.state.AllocationID)
+	return s.client.Allocation(state.AllocationID)
 }
 
-func (s *Sandbox) registerTunnel(tunnel *SandboxTunnel) {
-	s.tunnelsMu.Lock()
-	defer s.tunnelsMu.Unlock()
+func (s *Sandbox) registerTunnel(allocationID string, tunnel *SandboxTunnel) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.AllocationID != allocationID {
+		return false
+	}
 	if s.tunnels == nil {
 		s.tunnels = map[*SandboxTunnel]struct{}{}
 	}
 	s.tunnels[tunnel] = struct{}{}
+	s.state.TunnelSessionID = tunnel.SessionID()
+	s.state.BoundAddr = tunnel.BoundAddr()
+	return true
 }
 
 func (s *Sandbox) unregisterTunnel(tunnel *SandboxTunnel) {
-	s.tunnelsMu.Lock()
-	defer s.tunnelsMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.tunnels, tunnel)
 }
 
-func (s *Sandbox) registerProcess(process *SandboxProcess) {
-	s.processesMu.Lock()
-	defer s.processesMu.Unlock()
+func (s *Sandbox) registerProcess(allocationID string, process *SandboxProcess) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.AllocationID != allocationID {
+		return false
+	}
 	if s.processes == nil {
 		s.processes = map[*SandboxProcess]struct{}{}
 	}
 	s.processes[process] = struct{}{}
+	return true
 }
 
 func (s *Sandbox) unregisterProcess(process *SandboxProcess) {
-	s.processesMu.Lock()
-	defer s.processesMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.processes, process)
 }
 
 func (s *Sandbox) closeProcesses() error {
-	s.processesMu.Lock()
+	s.mu.Lock()
 	processes := make([]*SandboxProcess, 0, len(s.processes))
 	for process := range s.processes {
 		processes = append(processes, process)
 	}
-	s.processesMu.Unlock()
+	s.mu.Unlock()
 
 	var firstErr error
 	for _, process := range processes {
@@ -241,12 +285,12 @@ func (s *Sandbox) closeProcesses() error {
 }
 
 func (s *Sandbox) closeTunnels(ctx context.Context) error {
-	s.tunnelsMu.Lock()
+	s.mu.Lock()
 	tunnels := make([]*SandboxTunnel, 0, len(s.tunnels))
 	for tunnel := range s.tunnels {
 		tunnels = append(tunnels, tunnel)
 	}
-	s.tunnelsMu.Unlock()
+	s.mu.Unlock()
 
 	var firstErr error
 	for _, tunnel := range tunnels {
