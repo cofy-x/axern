@@ -131,7 +131,7 @@ func failRunLifecycleRetry(ctx context.Context, tx pgx.Tx, item allocationkernel
 	if tag.RowsAffected() == 0 {
 		return grpcstatus.Errorf(codes.FailedPrecondition, "run allocation lifecycle retry %q cannot be failed because the run is already terminal", item.AllocationID)
 	}
-	if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, item.AllocationID); err != nil {
+	if err := pgallocation.RevokeExecutionAccessGrants(ctx, tx, item.AllocationID); err != nil {
 		return err
 	}
 	if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{

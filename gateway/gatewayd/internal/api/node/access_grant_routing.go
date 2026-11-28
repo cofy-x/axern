@@ -62,14 +62,21 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 	if authErr != nil {
 		return authErr
 	}
+	ttl := int64(300)
+	if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW {
+		ttl = 20
+	}
 	resolved, err := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
 		AllocationID:          allocationID,
-		TtlSeconds:            300,
+		TtlSeconds:            ttl,
 		CredentialFingerprint: fingerprint,
 		CredentialKind:        "x509_sha256",
 		Purpose:               purpose,
 	})
 	if err != nil {
+		if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW && grpcstatus.Code(err) == codes.FailedPrecondition {
+			return grpcstatus.Error(codes.NotFound, "allocation preview is no longer available")
+		}
 		return err
 	}
 	if strings.TrimSpace(resolved.GetAllocationID()) != allocationID {

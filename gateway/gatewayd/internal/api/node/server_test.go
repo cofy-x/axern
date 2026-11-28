@@ -62,6 +62,26 @@ func TestExecDoesNotForwardCallerLeaseMetadata(t *testing.T) {
 	}
 }
 
+func TestHTTPPreviewResolvesExactAllocationWithPreviewGrant(t *testing.T) {
+	h := newHarness(t)
+	defer h.Close()
+	ctx := metadata.AppendToOutgoingContext(t.Context(), nodekernel.AllocationAccessGrantTokenMetadata, "caller-token")
+	response, err := h.client.PreviewHTTP(ctx, &nodesandboxv1.PreviewHTTPRequest{
+		AllocationID: "alloc-public", Port: 8080, Method: "GET", Target: "/page",
+	})
+	if err != nil || response.GetStatus() != 200 || string(response.GetBody()) != "preview" {
+		t.Fatalf("preview response = %v, error = %v", response, err)
+	}
+	route := h.resolver.requests[0]
+	if route.GetAllocationID() != "alloc-public" || route.GetPurpose() != gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW ||
+		route.GetTtlSeconds() != 20 || h.backend.accessGrantToken != "lease-token" {
+		t.Fatalf("wrong preview grant route: %v", route)
+	}
+	if req := h.backend.preview; req.GetAllocationID() != "alloc-public" || req.GetPort() != 8080 || req.GetTarget() != "/page" {
+		t.Fatalf("wrong preview target: %v", req)
+	}
+}
+
 func TestReadOutputUsesRunOutputAccessPurpose(t *testing.T) {
 	h := newHarness(t)
 	defer h.Close()
@@ -489,6 +509,7 @@ type fakeBackend struct {
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
 	exec                           *nodesandboxv1.ExecRequest
+	preview                        *nodesandboxv1.PreviewHTTPRequest
 	accessGrantToken               string
 	processOpen                    *nodesandboxv1.ProcessOpen
 	processLeaseToken              string
@@ -516,6 +537,12 @@ func (b *fakeBackend) Exec(ctx context.Context, req *nodesandboxv1.ExecRequest) 
 	b.exec = req
 	b.accessGrantToken = backendLeaseToken(ctx)
 	return &nodesandboxv1.ExecResponse{ExitCode: 0, Stdout: []byte("ok")}, nil
+}
+
+func (b *fakeBackend) PreviewHTTP(ctx context.Context, req *nodesandboxv1.PreviewHTTPRequest) (*nodesandboxv1.PreviewHTTPResponse, error) {
+	b.preview = req
+	b.accessGrantToken = backendLeaseToken(ctx)
+	return &nodesandboxv1.PreviewHTTPResponse{Status: 200, ContentType: "text/plain", Body: []byte("preview")}, nil
 }
 
 func (b *fakeBackend) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {

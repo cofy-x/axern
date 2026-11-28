@@ -25,7 +25,7 @@ func NextAccessGrantRevision(ctx context.Context, tx pgx.Tx, nodeID string) (int
 	return revision, nil
 }
 
-// RevokeInteractiveAccessGrants publishes one atomic change set for execution
+// RevokeExecutionAccessGrants publishes one atomic change set for execution
 // access to the Allocation. Output grants deliberately survive termination:
 // immutable output remains readable until the Allocation's bounded retention
 // deadline, while the node rejects every executable operation once its
@@ -33,13 +33,14 @@ func NextAccessGrantRevision(ctx context.Context, tx pgx.Tx, nodeID string) (int
 //
 // Callers hold the authoritative Allocation row lock before entering this
 // operation, which serializes it with grant issuance.
-func RevokeInteractiveAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) error {
-	purpose := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE.String()
+func RevokeExecutionAccessGrants(ctx context.Context, tx pgx.Tx, allocationID string) error {
+	interactive := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE.String()
+	preview := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW.String()
 	var nodeID string
 	err := tx.QueryRow(ctx, `
 		SELECT node_id FROM allocation_access_grants
-		WHERE allocation_id = $1 AND purpose = $2 AND NOT revoked LIMIT 1
-	`, allocationID, purpose).Scan(&nodeID)
+		WHERE allocation_id = $1 AND purpose IN ($2, $3) AND NOT revoked LIMIT 1
+	`, allocationID, interactive, preview).Scan(&nodeID)
 	if err == pgx.ErrNoRows {
 		return nil
 	}
@@ -52,8 +53,8 @@ func RevokeInteractiveAccessGrants(ctx context.Context, tx pgx.Tx, allocationID 
 	}
 	_, err = tx.Exec(ctx, `
 		UPDATE allocation_access_grants SET revoked = TRUE, revision = $2
-		WHERE allocation_id = $1 AND purpose = $3 AND NOT revoked
-	`, allocationID, revision, purpose)
+		WHERE allocation_id = $1 AND purpose IN ($3, $4) AND NOT revoked
+	`, allocationID, revision, interactive, preview)
 	if err != nil {
 		return fmt.Errorf("revoke interactive allocation access grants: %w", err)
 	}

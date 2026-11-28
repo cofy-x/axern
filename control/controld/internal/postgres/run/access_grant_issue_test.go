@@ -27,6 +27,7 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	defer s.Close()
 	interactive := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE
 	output := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT
+	preview := gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW
 	if _, err := s.IssueAllocationAccessGrant(ctx, "alloc-output", interactive, time.Minute, now); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("bound allocation accepted: %v", err)
 	}
@@ -45,6 +46,10 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	previewGrant, err := s.IssueAllocationAccessGrant(ctx, "alloc-output", preview, 20*time.Second, now)
+	if err != nil {
+		t.Fatal(err)
+	}
 	tx, err := db.Pool().Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +58,7 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	if _, err := tx.Exec(ctx, "UPDATE allocations SET lifecycle_state='ALLOCATION_LIFECYCLE_STATE_RELEASING' WHERE allocation_id='alloc-output'"); err != nil {
 		t.Fatal(err)
 	}
-	if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, "alloc-output"); err != nil {
+	if err := pgallocation.RevokeExecutionAccessGrants(ctx, tx, "alloc-output"); err != nil {
 		t.Fatal(err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -63,11 +68,12 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(grants) != 3 {
+	if len(grants) != 4 {
 		t.Fatalf("grant changes = %+v", grants)
 	}
 	var revokedInteractive int
 	var outputStillReadable bool
+	var previewRevoked bool
 	for _, grant := range grants {
 		if grant.Purpose == interactive && grant.Revoked {
 			revokedInteractive++
@@ -75,9 +81,15 @@ func TestAccessGrantsFollowAllocationStateAndOutputDeadline(t *testing.T) {
 		if grant.GrantID == retainedOutput.GrantID && grant.Purpose == output && !grant.Revoked {
 			outputStillReadable = true
 		}
+		if grant.GrantID == previewGrant.GrantID && grant.Purpose == preview && grant.Revoked {
+			previewRevoked = true
+		}
 	}
-	if revokedInteractive != 2 || !outputStillReadable {
+	if revokedInteractive != 2 || !outputStillReadable || !previewRevoked {
 		t.Fatalf("termination access changes = %+v", grants)
+	}
+	if _, err := s.IssueAllocationAccessGrant(ctx, "alloc-output", preview, 20*time.Second, now); status.Code(err) != codes.FailedPrecondition {
+		t.Fatalf("terminal preview access: %v", err)
 	}
 	if _, err := s.IssueAllocationAccessGrant(ctx, "alloc-output", interactive, time.Minute, now); status.Code(err) != codes.FailedPrecondition {
 		t.Fatalf("terminal execution access: %v", err)

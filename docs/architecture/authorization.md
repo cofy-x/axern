@@ -20,6 +20,8 @@ SSH and WebSocket sessions revalidate Principal, Credential, namespace authoriza
 
 Tunnel access keeps transport and business authority distinct. A client mTLS credential authenticates its Principal to control APIs, while a one-time Tunnel client token admits one peer to one finite TunnelSession. Neither substitutes for an AllocationAccessGrant or ExecutionLease, and neither may be copied into Run metadata, sandbox configuration, declared outputs, URLs, logs, or diagnostics. Axern transports raw TCP and does not interpret application protocols or credentials.
 
+The HTTP preview RPC requires an active X.509 Principal with sandbox-execution authority and resolves the exact active Allocation on every request. The node accepts only the dedicated preview grant and revalidates the live Allocation before and after the request. The guest daemon fetches the bounded response from the selected TCP port on its own IPv4 loopback, using GET or HEAD and a local path. Preview grants expire after 20 seconds and are revoked with execution access during cancellation or cleanup. The gateway returns response fields over gRPC, keeping guest HTTP content off the management HTTP origin.
+
 ## Node-local operator authorization
 
 The node-local operator API is a privileged administrative boundary, not an unauthenticated shortcut around gateway or control-plane authorization. Its Unix socket must never be world-writable. Deployment must restrict it to root or an explicit operator principal through ownership and mode, or enforce an equivalent authenticated peer identity before dispatch. Possession of an Allocation ID alone grants no authority.
