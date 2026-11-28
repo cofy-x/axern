@@ -278,6 +278,43 @@ func TestSandboxStartExecFileClose(t *testing.T) {
 	}
 }
 
+func TestSandboxCloseRetainsOwnershipAfterCancelledContext(t *testing.T) {
+	fake := &fakeAxernServer{}
+	server, dialer := newBufconnServer(t, fake)
+	defer server.Stop()
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	client, err := NewClient(ctx, "bufnet", WithDialOptions(grpc.WithContextDialer(dialer), grpc.WithTransportCredentials(insecure.NewCredentials())))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	sandbox, err := NewSandbox(SandboxOptions{Client: client, Image: "python"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := sandbox.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	dead, stop := context.WithCancel(ctx)
+	stop()
+	if err := sandbox.Close(dead); err == nil {
+		t.Fatal("expected unacknowledged cleanup")
+	}
+	if _, err := sandbox.State(); !errors.Is(err, ErrSandboxNotStarted) {
+		t.Fatalf("closed allocation remained usable: %v", err)
+	}
+	if err := sandbox.Start(ctx); err == nil {
+		t.Fatal("start created a Run over pending cleanup")
+	}
+	if err := sandbox.Close(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.cancelledRun || !fake.deletedEnvironment {
+		t.Fatal("second Close did not clean up the original Run and Environment")
+	}
+}
+
 func TestSandboxRequiresExactlyOneSource(t *testing.T) {
 	_, err := NewSandbox(SandboxOptions{Client: &Client{}, Image: "python:3.12-slim", EnvironmentID: "env-1"})
 	if err != ErrInvalidSource {

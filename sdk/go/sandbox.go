@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
@@ -43,11 +44,10 @@ type SandboxOptions struct {
 type Sandbox struct {
 	client             *Client
 	options            SandboxOptions
-	createdEnvironment bool
-	environmentID      string
+	lifecycleMu        sync.RWMutex
+	ownedEnvironmentID string
 	runID              string
-	state              SandboxState
-	started            bool
+	state              atomic.Pointer[SandboxState]
 	tunnelsMu          sync.Mutex
 	tunnels            map[*SandboxTunnel]struct{}
 	processesMu        sync.Mutex
@@ -77,8 +77,13 @@ func NewSandbox(options SandboxOptions) (*Sandbox, error) {
 // Start creates the backing environment/run when needed and waits for a
 // running allocation.
 func (s *Sandbox) Start(ctx context.Context) error {
-	if s.started {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.state.Load() != nil {
 		return nil
+	}
+	if s.runID != "" || s.ownedEnvironmentID != "" {
+		return errors.New("sandbox cleanup is pending; call Close again")
 	}
 	environmentID := s.options.EnvironmentID
 	if environmentID == "" {
@@ -92,9 +97,8 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		s.createdEnvironment = true
-		s.environmentID = environment.GetID()
-		environmentID = s.environmentID
+		s.ownedEnvironmentID = environment.GetID()
+		environmentID = s.ownedEnvironmentID
 	}
 	run, err := s.client.CreateRun(ctx, CreateRunOptions{
 		Namespace:               s.options.Namespace,
@@ -116,65 +120,61 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		Labels:                  sandboxLabels(s.options.Labels),
 	})
 	if err != nil {
-		_ = s.Close(ctx)
-		return err
+		return errors.Join(err, s.close(ctx))
 	}
 	s.runID = run.GetID()
 	run, err = s.waitRunning(ctx, s.runID, defaultDuration(s.options.ReadyTimeout, 3*time.Minute))
 	if err != nil {
-		_ = s.Close(ctx)
-		return err
+		return errors.Join(err, s.close(ctx))
 	}
-	s.state = SandboxState{
+	s.state.Store(&SandboxState{
 		EnvironmentID:       environmentID,
 		WorkspaceID:         run.GetWorkspaceAttachment().GetWorkspaceID(),
 		WorkspaceGeneration: run.GetWorkspaceAttachment().GetGeneration(),
 		RunID:               run.GetID(),
 		AllocationID:        run.GetAllocationID(),
 		StartedAt:           time.Now(),
-	}
-	s.started = true
+	})
 	return nil
 }
 
 // Close closes SDK-owned processes and tunnels, then deletes SDK-owned
 // run/environment resources.
 func (s *Sandbox) Close(ctx context.Context) error {
-	var firstErr error
-	if err := s.closeProcesses(); err != nil {
-		firstErr = err
-	}
-	if err := s.closeTunnels(ctx); err != nil {
-		if firstErr == nil {
-			firstErr = err
-		}
-	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	return s.close(ctx)
+}
+
+func (s *Sandbox) close(ctx context.Context) error {
+	s.state.Store(nil)
+	processErr := s.closeProcesses()
+	tunnelErr := s.closeTunnels(ctx)
+	var runErr, envErr error
 	if s.runID != "" {
-		if err := s.client.CancelRun(ctx, s.runID); err != nil {
-			if firstErr == nil {
-				firstErr = err
-			}
+		runErr = s.client.CancelRun(ctx, s.runID)
+		if runErr == nil || IsNotFound(runErr) {
+			s.runID = ""
+			runErr = nil
 		}
-		s.runID = ""
 	}
-	if s.createdEnvironment && s.environmentID != "" {
-		if err := s.client.DeleteEnvironment(ctx, s.environmentID); err != nil && firstErr == nil {
-			firstErr = err
+	if s.ownedEnvironmentID != "" {
+		envErr = s.client.DeleteEnvironment(ctx, s.ownedEnvironmentID)
+		if envErr == nil || IsNotFound(envErr) {
+			s.ownedEnvironmentID = ""
+			envErr = nil
 		}
-		s.createdEnvironment = false
-		s.environmentID = ""
 	}
-	s.started = false
-	s.state = SandboxState{}
-	return firstErr
+	return errors.Join(processErr, tunnelErr, runErr, envErr)
 }
 
 // State returns the current lightweight state for a started sandbox.
 func (s *Sandbox) State() (SandboxState, error) {
-	if !s.started {
+	state := s.state.Load()
+	if state == nil {
 		return SandboxState{}, ErrSandboxNotStarted
 	}
-	return s.state, nil
+	return *state, nil
 }
 
 // Exec runs a command in the sandbox and collects stdout/stderr.
@@ -187,10 +187,11 @@ func (s *Sandbox) Exec(ctx context.Context, command any, options ExecOptions) (E
 }
 
 func (s *Sandbox) nodeClient() (*AllocationClient, error) {
-	if !s.started {
-		return nil, ErrSandboxNotStarted
+	state, err := s.State()
+	if err != nil {
+		return nil, err
 	}
-	return s.client.Allocation(s.state.AllocationID)
+	return s.client.Allocation(state.AllocationID)
 }
 
 func (s *Sandbox) registerTunnel(tunnel *SandboxTunnel) {

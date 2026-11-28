@@ -20,6 +20,8 @@ from axern_sdk import (
     Sandbox,
     SandboxConnectionError,
     SandboxNotStartedError,
+    SandboxLifecycleError,
+    SandboxNotFoundError,
     SecretEnvVar,
     SecretFile,
 )
@@ -203,17 +205,21 @@ class SandboxTest(unittest.TestCase):
     def test_close_still_deletes_environment_when_cancel_run_fails(self) -> None:
         client = _FakeClient()
 
-        def fail_cancel_run(run_id: str, **kwargs):
-            del run_id, kwargs
-            raise RuntimeError("control plane unavailable")
-
+        cancel = mock.Mock(side_effect=[RuntimeError("control plane unavailable"), None])
         sandbox = Sandbox(client=client, image="docker.io/library/python:3.12-slim")
         sandbox.start()
-        client.cancel_run = fail_cancel_run
-        with self.assertRaisesRegex(ExceptionGroup, "sandbox cleanup failed"):
+        with mock.patch.object(client, "cancel_run", cancel):
+            with self.assertRaisesRegex(ExceptionGroup, "sandbox cleanup failed"):
+                sandbox.close()
+            with self.assertRaises(SandboxNotStartedError):
+                _ = sandbox.state
+            with self.assertRaisesRegex(SandboxLifecycleError, "cleanup is pending"):
+                sandbox.start()
+            sandbox.close()
             sandbox.close()
 
-        self.assertEqual(client.deleted_environments[0][0], "env-1")
+        self.assertEqual(cancel.call_args_list, [mock.call("run-1", timeout=30.0)] * 2)
+        self.assertEqual(len(client.deleted_environments), 1)
 
     def test_capability_status_uses_node_client(self) -> None:
         client = _FakeClient()
@@ -253,6 +259,24 @@ class SandboxTest(unittest.TestCase):
 
 
 class AsyncSandboxTest(unittest.IsolatedAsyncioTestCase):
+    async def test_close_recovers_lost_environment_delete_acknowledgement(self) -> None:
+        client = _AsyncFakeClient()
+        sandbox = AsyncSandbox(client=client, image="python")
+        await sandbox.start()
+        absent = SandboxNotFoundError(
+            operation="delete environment", code="NOT_FOUND", details="resource not found"
+        )
+        delete = mock.AsyncMock(side_effect=[RuntimeError("connection lost"), absent])
+        with mock.patch.object(client, "delete_environment", delete):
+            with self.assertRaises(ExceptionGroup):
+                await sandbox.close()
+            with self.assertRaisesRegex(SandboxLifecycleError, "cleanup is pending"):
+                await sandbox.start()
+            await asyncio.gather(sandbox.close(), sandbox.close())
+
+        self.assertEqual(delete.await_args_list, [mock.call("env-1", timeout=30.0)] * 2)
+        self.assertEqual(len(client.cancelled), 1)
+
     async def test_async_sandbox_exec_and_cleanup(self) -> None:
         client = _AsyncFakeClient()
         calls = []

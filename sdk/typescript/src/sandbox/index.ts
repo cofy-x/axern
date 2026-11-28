@@ -6,7 +6,7 @@
 
 import { AxernClient } from "../client/index.js";
 import type { DeclaredOutput, ExtensionCapability } from "../client/index.js";
-import { SandboxStateError } from "../errors/index.js";
+import { isNotFound, SandboxStateError } from "../errors/index.js";
 import type { AllocationClient } from "../node/client.js";
 import type { SandboxProcess } from "../node/process.js";
 import type { ResourceQuantity } from "../resources.js";
@@ -86,8 +86,8 @@ export interface SandboxMetadata extends SandboxState {
 export class Sandbox {
   private readonly client: AxernClient;
   private readonly options: SandboxOptions;
-  private createdEnvironment = false;
-  private environmentId = "";
+  private lifecycle: Promise<void> = Promise.resolve();
+  private ownedEnvironmentId = "";
   private runId = "";
   private currentState?: SandboxState;
   private currentMetadata?: SandboxMetadata;
@@ -113,9 +113,22 @@ export class Sandbox {
     return this.currentMetadata;
   }
 
-  async start(): Promise<this> {
+  private serializeLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.lifecycle.then(operation);
+    this.lifecycle = result.then(() => undefined, () => undefined);
+    return result;
+  }
+
+  start(): Promise<this> {
+    return this.serializeLifecycle(() => this.startSandbox());
+  }
+
+  private async startSandbox(): Promise<this> {
     if (this.currentState !== undefined) {
       return this;
+    }
+    if (this.runId !== "" || this.ownedEnvironmentId !== "") {
+      throw new SandboxStateError("sandbox cleanup is pending; call close() again");
     }
     let environmentId = this.options.environmentId ?? "";
     try {
@@ -128,8 +141,7 @@ export class Sandbox {
           labels: sandboxLabels(this.options.labels),
         });
         environmentId = String(environment.id ?? "");
-        this.environmentId = environmentId;
-        this.createdEnvironment = true;
+        this.ownedEnvironmentId = environmentId;
       }
       const run = await this.client.createRun({
         namespace: this.options.namespace,
@@ -180,7 +192,7 @@ export class Sandbox {
       return this;
     } catch (error) {
       try {
-        await this.close();
+        await this.closeSandbox();
       } catch (cleanupError) {
         throw new AggregateError([error, cleanupError], "sandbox start and cleanup failed");
       }
@@ -188,25 +200,36 @@ export class Sandbox {
     }
   }
 
-  async close(): Promise<void> {
+  close(): Promise<void> {
+    return this.serializeLifecycle(() => this.closeSandbox());
+  }
+
+  private async closeSandbox(): Promise<void> {
     const errors: unknown[] = [];
-    const runId = this.runId;
     const tunnelRuntime = this.tunnelRuntime;
-    this.runId = "";
     this.tunnelRuntime = undefined;
     this.currentState = undefined;
     this.currentMetadata = undefined;
     if (tunnelRuntime !== undefined) {
       await tunnelRuntime.stop().catch((error: unknown) => errors.push(error));
     }
-    if (runId !== "") {
-      await this.client.cancelRun(runId).catch((error: unknown) => errors.push(error));
+    if (this.runId !== "") {
+      try {
+        await this.client.cancelRun(this.runId);
+        this.runId = "";
+      } catch (error) {
+        if (isNotFound(error)) this.runId = "";
+        else errors.push(error);
+      }
     }
-    if (this.createdEnvironment && this.environmentId !== "") {
-      const environmentId = this.environmentId;
-      this.environmentId = "";
-      this.createdEnvironment = false;
-      await this.client.deleteEnvironment(environmentId).catch((error: unknown) => errors.push(error));
+    if (this.ownedEnvironmentId !== "") {
+      try {
+        await this.client.deleteEnvironment(this.ownedEnvironmentId);
+        this.ownedEnvironmentId = "";
+      } catch (error) {
+        if (isNotFound(error)) this.ownedEnvironmentId = "";
+        else errors.push(error);
+      }
     }
     if (errors.length > 0) throw new AggregateError(errors, "sandbox cleanup failed");
   }

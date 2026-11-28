@@ -89,6 +89,30 @@ test("sandbox creates image-backed environment and delegates exec", async () => 
   assert.equal(runOptions?.networkPolicy, networkPolicy);
 });
 
+test("partial cleanup keeps the original Run available to an explicit close", async () => {
+  const calls: string[] = [];
+  let cancelAttempts = 0;
+  const client = {
+    async createEnvironment() { calls.push("create environment"); return { id: "env-1" }; },
+    async createRun() { calls.push("create run"); return { id: "run-1" }; },
+    async *watchRun() { yield { id: "run-1", allocation_id: "alloc-1", status: 3 }; },
+    async cancelRun(id: string) {
+      calls.push(`cancel ${id}`);
+      if (++cancelAttempts === 1) throw new Error("connection lost");
+    },
+    async deleteEnvironment(id: string) { calls.push(`delete ${id}`); },
+  } as unknown as AxernClient;
+  const sandbox = new Sandbox({ client, image: "python" });
+  await sandbox.start();
+  await assert.rejects(sandbox.close(), AggregateError);
+  assert.throws(() => sandbox.state, /not started/);
+  await assert.rejects(sandbox.start(), /cleanup is pending/);
+  await Promise.all([sandbox.close(), sandbox.close()]);
+  assert.deepEqual(calls, [
+    "create environment", "create run", "cancel run-1", "delete env-1", "cancel run-1",
+  ]);
+});
+
 test("client rejects negative run resource values before RPC", async () => {
   const client = Object.create(AxernClient.prototype) as AxernClient;
 

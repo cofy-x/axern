@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Iterable, Iterator
 
 from axern.control.tunnel.v1 import tunnel_pb2
 from axern_sdk._internal.resources import ResourceQuantity
 from axern_sdk.client import AxernClient
-from axern_sdk.errors import SandboxNotStartedError, SandboxTimeoutError
+from axern_sdk.errors import SandboxLifecycleError, SandboxNotStartedError, SandboxTimeoutError
 from axern_sdk.node import (
     ExecCommand,
     ExecResult,
@@ -27,6 +28,7 @@ from axern_sdk.sandbox.types import (
     DEFAULT_SANDBOX_ARGV,
     SandboxMetadata,
     SandboxState,
+    _OwnedResource,
     _validate_source,
 )
 from axern_sdk.tunnel import ConnectorConfig, TunnelConnector
@@ -103,11 +105,10 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         self._node_client_factory = _node_client_factory
         self._renew_interval_seconds = _renew_interval_seconds
 
-        self._created_environment = False
-        self._created_environment_id = ""
-        self._created_run_id = ""
-        self._created_tunnel_session_id = ""
-        self._tunnel_client_token = ""
+        self._lifecycle_lock = threading.Lock()
+        self._owned_environment = _OwnedResource()
+        self._owned_run = _OwnedResource()
+        self._owned_tunnel = _OwnedResource()
         self._state: SandboxState | None = None
         self._started_at_ns = 0
         self._connector: TunnelConnector | None = None
@@ -162,8 +163,14 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
         self.close()
 
     def start(self) -> "Sandbox":
+        with self._lifecycle_lock:
+            return self._start()
+
+    def _start(self) -> "Sandbox":
         if self._state is not None:
             return self
+        if self._owned_environment.id or self._owned_run.id or self._owned_tunnel.id:
+            raise SandboxLifecycleError("sandbox cleanup is pending; call close() again")
         try:
             environment_id = self._resolve_environment()
             run = self._client.create_run(
@@ -187,7 +194,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                 namespace=self._namespace,
                 labels=self._labels,
             )
-            self._created_run_id = run.id
+            self._owned_run.id = run.id
             run = wait_running_run(
                 self._client,
                 run_id=run.id,
@@ -203,8 +210,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
                     ready_timeout_seconds=self._ready_timeout_seconds,
                 )
                 session = tunnel.session
-                self._created_tunnel_session_id = session.session_id
-                self._tunnel_client_token = tunnel.client_token
+                self._owned_tunnel.id = session.session_id
                 self._renewal = TunnelRenewal(
                     client=self._client,
                     session_id=session.session_id,
@@ -241,7 +247,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             return self
         except Exception as start_error:
             try:
-                self.close()
+                self._close()
             except Exception as cleanup_error:
                 raise ExceptionGroup(
                     "sandbox start and cleanup failed", [start_error, cleanup_error]
@@ -249,42 +255,30 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             raise
 
     def close(self) -> None:
+        with self._lifecycle_lock:
+            self._close()
+
+    def _close(self) -> None:
+        self._state = None
+        self._started_at_ns = 0
         errors: list[Exception] = []
-        tunnel_session_id = self._created_tunnel_session_id
-        if not tunnel_session_id and self._state is not None:
-            tunnel_session_id = self._state.tunnel_session_id
         if self._renewal is not None:
             self._renewal.stop()
             self._renewal = None
         if self._connector is not None:
             self._connector.stop()
             self._connector = None
-        if tunnel_session_id:
-            try:
+        if self._owned_tunnel.id:
+            with self._owned_tunnel.releasing(errors) as session_id:
                 self._client.revoke_tunnel_session(
-                    tunnel_session_id, reason="sandbox closed", timeout=10.0
+                    session_id, reason="sandbox closed", timeout=10.0
                 )
-            except Exception as error:
-                errors.append(error)
-            self._created_tunnel_session_id = ""
-        self._tunnel_client_token = ""
-        if self._created_run_id:
-            try:
-                self._client.cancel_run(self._created_run_id, timeout=30.0)
-            except Exception as error:
-                errors.append(error)
-            self._created_run_id = ""
-        if self._created_environment and self._created_environment_id:
-            try:
-                self._client.delete_environment(
-                    self._created_environment_id, timeout=30.0
-                )
-            except Exception as error:
-                errors.append(error)
-            self._created_environment = False
-            self._created_environment_id = ""
-        self._state = None
-        self._started_at_ns = 0
+        if self._owned_run.id:
+            with self._owned_run.releasing(errors) as run_id:
+                self._client.cancel_run(run_id, timeout=30.0)
+        if self._owned_environment.id:
+            with self._owned_environment.releasing(errors) as environment_id:
+                self._client.delete_environment(environment_id, timeout=30.0)
         if errors:
             raise ExceptionGroup("sandbox cleanup failed", errors)
 
@@ -297,8 +291,7 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             registry_credential_id=self._registry_credential_id,
             labels=self._labels,
         )
-        self._created_environment = True
-        self._created_environment_id = environment.id
+        self._owned_environment.id = environment.id
         return environment.id
 
     def _wait_client_connected(self, session_id: str) -> None:
