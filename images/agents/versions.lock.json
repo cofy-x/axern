@@ -2,7 +2,7 @@
   "schema_version": 1,
   "platform": "linux/amd64",
   "base": {
-    "image": "docker.io/library/python:3.12.16-slim-trixie@sha256:4840d514c583a4d3d8cad3940e68dee6f0f6f3635c12fcd0a3d74c21a5b93a54",
+    "image": "docker.io/library/python:3.12.16-slim-trixie@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b",
     "python_version": "3.12.16",
     "debian_version": "13"
   },
