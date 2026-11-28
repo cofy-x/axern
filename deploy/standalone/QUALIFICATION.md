@@ -1,6 +1,6 @@
 # Native Archive Qualification
 
-The packaged `qualify_native.py` runner performs bounded, destructive memory/storage and network-policy acceptance on a disposable native installation. It is opt-in deployment qualification, not a readiness probe, a periodic capability provider, or permission to run OOM workloads on a shared host. A successful report qualifies the recorded archive, gVisor release, kernel and filesystem only; it does not establish arm64 coverage, production reserve sizing, sustained concurrency, upgrades or backups.
+The packaged `qualify_native.py` runner performs bounded, destructive memory/storage and network-policy acceptance on a disposable native installation. It is opt-in deployment qualification, not a readiness probe, a periodic capability provider, or permission to run OOM workloads on a shared host. A successful report applies to the recorded archive, architecture, gVisor release, kernel and filesystem. Production reserve sizing, sustained concurrency, upgrades and backups require separate qualification.
 
 ## Prepare A Fresh Candidate
 
@@ -11,6 +11,24 @@ Qualify the delivered direct-runsc profile: `runsc` and its four locked helpers,
 Before installing Axern, prepare the isolated DNS/TCP fixture described in [Network Qualification](NETWORK-QUALIFICATION.md). Configure its primary address, normally `198.19.0.2`, as the native installation's resolver. Keep the VM's ordinary host resolver available for fetching the explicitly selected OCI image. The fixture provides both allowed and denied targets; an unreachable external website is never evidence that policy worked.
 
 Stage, install and start the final archive using its own helpers. Do not replace individual binaries, regenerate configuration from another checkout or reuse a database from an older candidate. The target needs the documented host packages and the packaged Python runner and CLI; it does not need a source checkout, compiler, Docker or an installed SDK.
+
+## Run The Complete Matrix On A Fresh Guest
+
+The source-side [guest wrapper](qualify-guest.sh) automates staging, installation, fixture setup, the complete matrix and shutdown. Use the documented host prerequisites, an empty XFS mount at `/var/lib/axern` with project quotas, and a fresh Ubuntu 24.04 guest on native amd64 or arm64 hardware. Record the guest and hardware provenance separately for each architecture. Reserve `172.30.0.0/24` for the sandbox bridge, `198.19.0.0/29` for the fixture, and the [native service ports](INSTALL.md#host-prerequisites). Permit guest forwarding to the fixture namespace and keep the guest host's DNS and registry access available.
+
+Transfer the wrapper, the exact archive and the archive revision's `scripts/release/native_runtime.py` and `runtime/axnoded/gvisor_payload.py` to the guest. For an earlier archive that includes the packaged qualification runner and fixture, use the two staging tools from that earlier revision. Keep them together in the same input directory. Supply the archive SHA-256 and complete source revision from trusted metadata. Use an architecture-matching OCI manifest digest for a trusted image with `python3`, such as a public Docker Hub Python manifest reachable from the guest.
+
+```bash
+sudo /absolute/input/qualify-guest.sh --disposable-guest arm64 \
+  /absolute/input/axern-runtime_VERSION_linux_arm64.tar.gz \
+  "$ARCHIVE_SHA256" "$SOURCE_REVISION" \
+  "docker.io/library/python@sha256:$PYTHON_MANIFEST_SHA256" \
+  /absolute/input /root/axern-arm64-evidence
+```
+
+Use `amd64` and the corresponding native archive and image manifest on an amd64 guest. The wrapper runs only with explicit disposable-guest authorization and root privileges. It stages the verified archive and uses the packaged installer, fixture and qualification runner from that archive. The output directory must be new.
+
+Copy out the archive receipt, wrapper logs and `matrix/report.json` with its case evidence before disposing of the guest. If startup fails, `start.log` records the installer failure. The wrapper requests a single authenticated capability snapshot before shutdown and records only platform capability names, states and reason codes in `start-capabilities.json`. A failed query is recorded as unavailable. Cleanup stops and disables the owned native target and removes the fixture while retaining the installation, data and evidence. Startup and matrix failures keep their exit codes, and cleanup failure makes an otherwise successful run fail.
 
 ## Run The Acceptance Matrix
 
