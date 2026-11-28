@@ -77,7 +77,7 @@ func (c NodeCapabilityCheck) evaluate(nodes []*adminv1.AdminNode, snapshot *capa
 		return NodeCapabilityCheckResult{Reason: "node is not active with a fresh heartbeat, fresh summary, and ready runtime"}
 	}
 	if _, err := capabilitycontract.ResolveRequirements(snapshot, c.keys, now); err != nil {
-		return NodeCapabilityCheckResult{Reason: "node capability evidence is invalid, expired, or unavailable"}
+		return NodeCapabilityCheckResult{Reason: capabilitycontract.RequirementFailureReason(err)}
 	}
 	if !c.observedAfter.IsZero() && snapshot.GetCollectedAt().AsTime().Before(c.observedAfter) {
 		return NodeCapabilityCheckResult{Reason: "node capability snapshot was collected before --observed-after"}

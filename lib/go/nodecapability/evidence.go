@@ -1,6 +1,7 @@
 package nodecapability
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -10,6 +11,7 @@ import (
 )
 
 var (
+	errObservationExpired  = errors.New("capability observation is expired")
 	boundedIdentityPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/+=,@-]{0,511}$`)
 	digestPattern          = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 	bootIDPattern          = regexp.MustCompile(`^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$`)
@@ -113,7 +115,7 @@ func validateFreshness(key *capabilityv1.CapabilityKey, observedAt, validUntil *
 		return fmt.Errorf("valid_until is outside the definition freshness bound")
 	}
 	if requireCurrent && !expires.After(now) {
-		return fmt.Errorf("capability observation is expired")
+		return errObservationExpired
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -24,49 +25,47 @@ func TestNodeCapabilityCheckUsesAdmissionValidity(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		change func([]*adminv1.AdminNode, *capabilityv1.CapabilitySnapshot)
+		reason string
 	}{
 		{"expired bridge with fresh summary", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			observation := checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
 			observation.ObservedAt = timestamppb.New(now.Add(-16 * time.Second))
 			observation.ValidUntil = timestamppb.New(now.Add(-time.Second))
-		}},
+		}, "NETWORK_BRIDGE has expired"},
 		{"expired dependency of available storage", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			observation := checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_FILESTORE_OVERLAYFS_UPPER)
 			observation.ObservedAt = timestamppb.New(now.Add(-15 * time.Second))
 			observation.ValidUntil = timestamppb.New(now)
-		}},
+		}, "FILESTORE_OVERLAYFS_UPPER has expired"},
 		{"missing dependency of available DNS", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
-			for i, observation := range snapshot.Observations {
-				if observation.Key.GetPlatform() == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST {
-					snapshot.Observations = append(snapshot.Observations[:i], snapshot.Observations[i+1:]...)
-					break
-				}
-			}
-		}},
+			snapshot.Observations = slices.DeleteFunc(snapshot.Observations, func(observation *capabilityv1.CapabilityObservation) bool {
+				return observation.GetKey().GetPlatform() == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_EGRESSD_DNS_POLICY_SELF_TEST
+			})
+		}, "EGRESSD_DNS_POLICY_SELF_TEST is missing"},
 		{"wrong provider", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE).Provider = capabilityv1.CapabilityProvider_CAPABILITY_PROVIDER_CONFIG
-		}},
+		}, "node capability snapshot has an invalid observation for NETWORK_BRIDGE"},
 		{"missing expiry", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE).ValidUntil = nil
-		}},
+		}, "node capability snapshot has an invalid observation for NETWORK_BRIDGE"},
 		{"invalid runtime digest", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST).Evidence.GetRuntime().RuntimeBinaryDigest = "not-a-digest"
-		}},
+		}, "node capability snapshot has an invalid observation for RUNSC_MEMORY_ENFORCEMENT_SELF_TEST"},
 		{"duplicate observation", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			snapshot.Observations = append(snapshot.Observations, snapshot.Observations[0])
-		}},
+		}, "node capability snapshot has invalid or duplicate observation keys"},
 		{"future publication", func(_ []*adminv1.AdminNode, snapshot *capabilityv1.CapabilitySnapshot) {
 			snapshot.CollectedAt = timestamppb.New(now.Add(2 * time.Minute))
-		}},
-		{"stale summary", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) { nodes[0].SummaryFresh = false }},
-		{"stale heartbeat", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) { nodes[0].HeartbeatFresh = false }},
-		{"runtime not ready", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) { nodes[0].AxnodedReady = false }},
+		}, "node capability snapshot collection time is in the future"},
+		{"stale summary", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) { nodes[0].SummaryFresh = false }, "node is not active"},
+		{"stale heartbeat", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) { nodes[0].HeartbeatFresh = false }, "node is not active"},
+		{"runtime not ready", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) { nodes[0].AxnodedReady = false }, "node is not active"},
 		{"revoked node", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) {
 			nodes[0].LifecycleStatus = adminv1.AdminNodeLifecycleStatus_ADMIN_NODE_LIFECYCLE_STATUS_REVOKED
-		}},
+		}, "node is not active"},
 		{"different node", func(nodes []*adminv1.AdminNode, _ *capabilityv1.CapabilitySnapshot) {
 			nodes[0].NodeID = "different-node"
-		}},
+		}, "node is not active"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			check, nodes, snapshot := capabilityCheckFixture(t, now)
@@ -74,8 +73,64 @@ func TestNodeCapabilityCheckUsesAdmissionValidity(t *testing.T) {
 				t.Fatalf("valid fixture failed: %s", result.Reason)
 			}
 			tc.change(nodes, snapshot)
-			if result := check.evaluate(nodes, snapshot, "node-test", now); result.Ready || result.Reason == "" {
-				t.Fatalf("invalid evidence accepted: %+v", result)
+			if result := check.evaluate(nodes, snapshot, "node-test", now); result.Ready || !strings.Contains(result.Reason, tc.reason) {
+				t.Fatalf("invalid evidence = %+v, want rejection mentioning %q", result, tc.reason)
+			}
+		})
+	}
+}
+
+func TestNodeCapabilityCheckReportsBoundedResolutionFailures(t *testing.T) {
+	now := time.Date(2026, 11, 28, 2, 40, 0, 0, time.UTC)
+	const privateReason = "node-provided text with private runtime context"
+	for _, tc := range []struct {
+		name   string
+		change func(*capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot
+		want   string
+	}{
+		{"missing snapshot", func(*capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {
+			return nil
+		}, "node capability snapshot is missing"},
+		{"missing requirement", func(snapshot *capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {
+			snapshot.Observations = slices.DeleteFunc(snapshot.Observations, func(observation *capabilityv1.CapabilityObservation) bool {
+				return observation.GetKey().GetPlatform() == capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE
+			})
+			return snapshot
+		}, "NETWORK_BRIDGE is missing"},
+		{"published expiry", func(snapshot *capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {
+			observation := checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_NETWORK_BRIDGE)
+			observation.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNKNOWN
+			observation.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_EXPIRED
+			observation.Reason = privateReason
+			return snapshot
+		}, "NETWORK_BRIDGE has expired"},
+		{"failed memory self-test", func(snapshot *capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {
+			requirement := checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_HARD_LIMIT)
+			requirement.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+			requirement.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_DEPENDENCY_UNAVAILABLE
+			requirement.Reason = privateReason
+			selfTest := checkObservation(snapshot, capabilityv1.PlatformCapability_PLATFORM_CAPABILITY_RUNSC_MEMORY_ENFORCEMENT_SELF_TEST)
+			selfTest.State = capabilityv1.CapabilityState_CAPABILITY_STATE_UNAVAILABLE
+			selfTest.ReasonCode = capabilityv1.CapabilityReasonCode_CAPABILITY_REASON_CODE_PROBE_FAILED
+			selfTest.Reason = privateReason
+			return snapshot
+		}, "RUNSC_MEMORY_HARD_LIMIT has an unavailable dependency. RUNSC_MEMORY_ENFORCEMENT_SELF_TEST is unavailable (PROBE_FAILED)"},
+		{"invalid extension key", func(snapshot *capabilityv1.CapabilitySnapshot) *capabilityv1.CapabilitySnapshot {
+			snapshot.Observations = append(snapshot.Observations, &capabilityv1.CapabilityObservation{
+				Key: capabilitycontract.ExtensionKey(privateReason, "private extension value"),
+			})
+			return snapshot
+		}, "node capability snapshot has invalid or duplicate observation keys"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check, nodes, snapshot := capabilityCheckFixture(t, now)
+			snapshot = tc.change(snapshot)
+			if _, err := capabilitycontract.ResolveRequirements(snapshot, check.keys, now); err == nil {
+				t.Fatal("invalid evidence passed the shared admission checker")
+			}
+			result := check.evaluate(nodes, snapshot, "node-test", now)
+			if result.Ready || result.Reason != tc.want {
+				t.Fatalf("readiness = %+v, want rejection with reason %q", result, tc.want)
 			}
 		})
 	}
