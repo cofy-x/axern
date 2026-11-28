@@ -183,7 +183,7 @@ postgres:
   dsnKey: dsn
   image:
     repository: ghcr.io/cofy-x/axern/postgres
-    tag: v0.13.0
+    tag: v0.14.0
     pullPolicy: ""
   database: axern
   username: postgres
@@ -199,7 +199,7 @@ controld:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/controld
-    tag: v0.13.0
+    tag: v0.14.0
     digest: ""
     pullPolicy: ""
   heartbeatFreshnessWindow: 15s
@@ -215,14 +215,14 @@ tunneld:
   drain: false
   image:
     repository: ghcr.io/cofy-x/axern/tunneld
-    tag: v0.13.0
+    tag: v0.14.0
     digest: ""
     pullPolicy: ""
 
 node:
   image:
     repository: ghcr.io/cofy-x/axern/node-all-in-one
-    tag: v0.13.0
+    tag: v0.14.0
     digest: ""
     pullPolicy: ""
   privileged: true
@@ -273,7 +273,7 @@ gatewayd:
   replicas: 1
   image:
     repository: ghcr.io/cofy-x/axern/gatewayd
-    tag: v0.13.0
+    tag: v0.14.0
     digest: ""
     pullPolicy: ""
   controlEdge:
