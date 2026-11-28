@@ -3,6 +3,7 @@
 
 import hashlib
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -17,6 +18,28 @@ class NativeDeliveryNoticesTest(unittest.TestCase):
         root = tempfile.TemporaryDirectory()
         self.addCleanup(root.cleanup)
         self.root = Path(root.name)
+
+    def test_release_notices_preserve_nested_paths_and_committed_bytes(self):
+        repo = self.root / "upstream"
+        repo.mkdir()
+        git = ["git", "-C", str(repo)]
+        subprocess.run([*git, "init", "-q"], check=True)
+        (repo / "pkg").mkdir()
+        nested = repo / "pkg/LICENSE"
+        nested.write_bytes(b"upstream license\n")
+        (repo / "LICENSE").write_bytes(b"root license\n")
+        (repo / "pkg/impl.go").write_bytes(b"package impl\n")
+        subprocess.run([*git, "add", "."], check=True)
+        tree = subprocess.check_output([*git, "write-tree"], text=True).strip()
+        nested.write_bytes(b"local change\n")
+        self.assertEqual(notices.release_source_notices(repo, tree), {
+            "LICENSE": b"root license\n", "pkg/LICENSE": b"upstream license\n",
+        })
+        (repo / "pkg/NOTICE").symlink_to("LICENSE")
+        subprocess.run([*git, "add", "pkg/NOTICE"], check=True)
+        tree = subprocess.check_output([*git, "write-tree"], text=True).strip()
+        with self.assertRaisesRegex(BundleError, "regular file.*pkg/NOTICE"):
+            notices.release_source_notices(repo, tree)
 
     def test_modified_module_fails_locked_go_checksum(self):
         # Known Go h1 for a single file called example.com/library@v1.0.0/LICENSE.

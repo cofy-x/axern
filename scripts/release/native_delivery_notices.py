@@ -35,10 +35,22 @@ def git(repo: Path, *args: str) -> bytes:
     )
 
 
-def tracked_files(repo: Path, commit: str, recursive: bool = False) -> list[str]:
-    args = ["-r"] if recursive else []
-    output = git(repo, "ls-tree", *args, "--name-only", "-z", commit)
-    return output.decode().rstrip("\0").split("\0")
+def release_source_notices(repo: Path, commit: str) -> dict[str, bytes]:
+    notices = {}
+    for entry in git(repo, "ls-tree", "-r", "-z", commit).split(b"\0"):
+        if not entry:
+            continue
+        metadata, path = entry.split(b"\t", 1)
+        name = path.decode()
+        if not NOTICE_NAME.fullmatch(PurePosixPath(name).name):
+            continue
+        mode, kind, oid = metadata.split()
+        if kind != b"blob" or mode not in (b"100644", b"100755"):
+            raise BundleError(f"source notice must be a regular file: {name}")
+        notices[name] = git(repo, "cat-file", "blob", oid.decode())
+    if "LICENSE" not in notices:
+        raise BundleError(f"release source has no root LICENSE at {commit}")
+    return notices
 
 
 def go_sums(data: bytes) -> dict[tuple[str, str], str]:
@@ -67,7 +79,7 @@ def gvisor_dependencies(source: Path, commit: str) -> dict:
 
 def axern_dependencies(source: Path, revision: str) -> tuple[set[str], dict]:
     local, checksums = set(), {}
-    for path in tracked_files(source, revision, recursive=True):
+    for path in git(source, "ls-tree", "-r", "--name-only", "-z", revision).decode().split("\0"):
         filename = PurePosixPath(path).name
         if filename in ("go.sum", "go.work.sum"):
             for key, value in go_sums(git(source, "show", f"{revision}:{path}")).items():
@@ -240,10 +252,7 @@ def collect(archive: Path, sha256: str, inventory: Path, output: Path, gvisor: P
         evidence.mkdir(mode=0o755)
         records = []
         for owner, repo, commit in (("axern", ROOT, revision), ("gvisor", gvisor, gvisor_commit)):
-            notices = {name: git(repo, "show", f"{commit}:{name}") for name in tracked_files(repo, commit)
-                       if NOTICE_NAME.fullmatch(name)}
-            if "LICENSE" not in notices:
-                raise BundleError(f"release source has no LICENSE: {owner}")
+            notices = release_source_notices(repo, commit)
             records.append({"id": owner, "kind": "release-source", "commit": commit,
                             "files": store_notices(evidence, f"sources/{owner}", notices)})
         records.extend(dependency_record(evidence, caches, key, paths, locks) for key, paths in sorted(modules.items()))
