@@ -400,7 +400,7 @@ func TestNodeSandboxExecBridgesRequest(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 
 	resp, err := server.Exec(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -464,7 +464,7 @@ func TestNodeSandboxProcessBridgesStream(t *testing.T) {
 			return stream.Send(&runtimev1.ProcessResponse{Payload: &runtimev1.ProcessResponse_Exit{Exit: &runtimev1.ExecExit{ExitCode: 0}}})
 		},
 	}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 	stream := &fakeNodeSandboxProcessStream{
 		ctx: allocationAccessIncomingContext(context.Background(), "lease-token"),
 		requests: []*nodesandboxv1.ProcessRequest{
@@ -490,7 +490,7 @@ func TestNodeSandboxArchiveStreamsAcknowledgeLease(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 	upload := &fakeNodeSandboxUploadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Open{Open: &nodesandboxv1.UploadArchiveOpen{
 			AllocationID: "alloc-123", Path: "/workspace",
@@ -532,7 +532,7 @@ func TestNodeSandboxFileMetadataBridgesRequests(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 
 	statResp, err := server.StatFile(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.StatFileRequest{
 		AllocationID: "alloc-123",
@@ -680,7 +680,7 @@ func TestNodeSandboxArchiveBridgesRequests(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 
 	uploadStream := &fakeNodeSandboxUploadArchiveStream{ctx: allocationAccessIncomingContext(context.Background(), "lease-token"), requests: []*nodesandboxv1.UploadArchiveRequest{
 		{
@@ -727,7 +727,7 @@ func TestNodeSandboxCapabilityStatusBridgesSafeSummary(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 
 	resp, err := server.CapabilityStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.CapabilityStatusRequest{
 		AllocationID: "alloc-123",
@@ -764,7 +764,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 	statusResp, err := server.ComputerUseStatus(allocationAccessIncomingContext(context.Background(), "lease-token"), &nodesandboxv1.ComputerUseStatusRequest{
 		AllocationID: "alloc-123",
 	})
@@ -828,7 +828,7 @@ func TestNodeSandboxComputerUseBridgesRequests(t *testing.T) {
 func TestNodeSandboxUploadArchiveRequiresOpenFrame(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), &fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	err := server.UploadArchive(&fakeNodeSandboxUploadArchiveStream{requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Chunk{Chunk: []byte("archive")}},
 	}})
@@ -841,7 +841,7 @@ func TestNodeSandboxUploadArchiveRequiresOpenFrame(t *testing.T) {
 func TestNodeSandboxUploadArchiveRequiresNonEmptyStream(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), &fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	err := server.UploadArchive(&fakeNodeSandboxUploadArchiveStream{})
 
 	if grpcstatus.Code(err) != codes.InvalidArgument {
@@ -852,7 +852,7 @@ func TestNodeSandboxUploadArchiveRequiresNonEmptyStream(t *testing.T) {
 func TestNodeSandboxUploadArchiveDoesNotAcknowledgeRejectedLease(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), &fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	stream := &fakeNodeSandboxUploadArchiveStream{requests: []*nodesandboxv1.UploadArchiveRequest{
 		{Payload: &nodesandboxv1.UploadArchiveRequest_Open{Open: &nodesandboxv1.UploadArchiveOpen{
 			AllocationID: "alloc-123", Path: "/workspace",
@@ -874,7 +874,7 @@ func TestNodeSandboxExecRequiresAllocationLease(t *testing.T) {
 	t.Parallel()
 
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", testAccessGrantValidator{})
 
 	_, err := server.Exec(context.Background(), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -888,7 +888,7 @@ func TestNodeSandboxExecRequiresAllocationLease(t *testing.T) {
 func TestNodeSandboxExecRejectsAmbiguousLeaseMetadata(t *testing.T) {
 	t.Parallel()
 
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
+	server := NewNodeSandboxServer(t.Context(), &fakeNodeSandboxService{}, "node-a", testAccessGrantValidator{})
 	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs(
 		accessGrantTokenMetadataKey, "grant-one",
 		accessGrantTokenMetadataKey, "grant-two",
@@ -915,7 +915,7 @@ func TestNodeSandboxExecAcceptsAccessGrantCacheTokenHash(t *testing.T) {
 		ExpiresAt:           timestamppb.New(time.Now().Add(time.Minute)),
 	}})
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", cache)
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", cache)
 
 	_, err := server.Exec(allocationAccessIncomingContext(context.Background(), "access-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -939,7 +939,7 @@ func TestNodeSandboxExecRejectsRevokedAccessGrantFromCache(t *testing.T) {
 		Revoked:             true,
 	}})
 	fakeService := &fakeNodeSandboxService{}
-	server := NewNodeSandboxServer(fakeService, "node-a", cache)
+	server := NewNodeSandboxServer(t.Context(), fakeService, "node-a", cache)
 
 	_, err := server.Exec(allocationAccessIncomingContext(context.Background(), "access-token"), &nodesandboxv1.ExecRequest{
 		AllocationID: "alloc-123",
@@ -957,7 +957,7 @@ func (testAccessGrantValidator) WaitValidate(context.Context, string, string, ga
 }
 
 func TestProductionSandboxRejectsMissingGrantValidator(t *testing.T) {
-	server := NewNodeSandboxServer(&fakeNodeSandboxService{}, "node-a", nil).(*nodeSandboxServer)
+	server := NewNodeSandboxServer(t.Context(), &fakeNodeSandboxService{}, "node-a", nil).(*nodeSandboxServer)
 	_, err := server.validateDirectAuth(allocationAccessIncomingContext(context.Background(), "token"), "allocation-one")
 	if grpcstatus.Code(err) != codes.Unauthenticated {
 		t.Fatalf("missing validator allowed access: %v", err)
