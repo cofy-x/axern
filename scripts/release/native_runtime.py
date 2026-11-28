@@ -415,6 +415,17 @@ def verify_service_flags(stage: pathlib.Path, units: dict[str, str]) -> None:
                 raise BundleError(f"unsupported native service flags in {unit}: {sorted(missing)}")
 
 
+def publish_new_directory(source: pathlib.Path, destination: pathlib.Path) -> None:
+    # Linux renameat2 publishes atomically and refuses even an empty destination.
+    libc = ctypes.CDLL(None, use_errno=True)
+    rename = libc.renameat2
+    rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
+    rename.restype = ctypes.c_int
+    if rename(-100, os.fsencode(source), -100, os.fsencode(destination), 1) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error), str(destination))
+
+
 def stage_bundle(path: pathlib.Path, expected_sha256: str, destination: pathlib.Path) -> dict:
     """Materialize a verified private snapshot into a new Linux directory only."""
     if platform.system() != "Linux":
@@ -462,14 +473,7 @@ def stage_bundle(path: pathlib.Path, expected_sha256: str, destination: pathlib.
         (payload / "stage-receipt.json").chmod(0o644)
         for directory in (payload, *[entry for entry in payload.rglob('*') if entry.is_dir()]):
             directory.chmod(0o755)
-        # Linux renameat2 makes publication atomic without replacing even an empty directory.
-        libc = ctypes.CDLL(None, use_errno=True)
-        rename = libc.renameat2
-        rename.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint]
-        rename.restype = ctypes.c_int
-        if rename(-100, os.fsencode(payload), -100, os.fsencode(destination), 1) != 0:
-            error = ctypes.get_errno()
-            raise OSError(error, os.strerror(error), str(destination))
+        publish_new_directory(payload, destination)
     return manifest
 
 

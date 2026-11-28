@@ -64,4 +64,15 @@ The verifier reads the payload without extraction or execution. It checks the ou
 
 This candidate is deliberately outside `make release-build` and automated publication. Extending the release channel requires a payload-aware dependency/license inventory, required third-party notices, provenance/checksum publication, native architecture builds and qualified installation tests. The source-tree SBOM alone is not a claim that the complete binary/runtime archive has passed the [dependency license policy](../../docs/legal/dependency-licenses.md).
 
+To prepare delivery evidence, scan the verified archive with the matching source's inventory tool and a trusted Syft executable.
+
+```bash
+python3 scripts/release/native_delivery_inventory.py /absolute/path/to/runtime.tar.gz \
+  --sha256 EXPECTED_SHA256_FROM_TRUSTED_RECEIPT \
+  --output-dir /absolute/path/to/new-inventory-directory \
+  --syft /absolute/path/to/syft
+```
+
+The tool stages the verified payload without running its binaries and emits SPDX and CycloneDX sidecars. Its receipt binds both sidecar digests to the archive digest, source and architecture, and counts SPDX license declarations requiring review. The receipt records scanner results. Complete license notices, signed provenance and installation qualification still require separate evidence.
+
 Native installation is experimental. Supported upgrades, coordinated backup/restore, Compose migration and macOS VM provisioning are unavailable. Record acceptance commands, platform details and source revisions in the implementation PR or operational test record. Packaging checks do not establish sandbox enforcement or durable serving qualification.
