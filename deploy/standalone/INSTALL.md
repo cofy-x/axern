@@ -148,7 +148,7 @@ sudo python3 -I /opt/axern/releases/TARGET_ARCHIVE_SHA256/libexec/axern/native_i
 sudo /opt/axern/releases/TARGET_ARCHIVE_SHA256/bin/axern server start
 ```
 
-The transition replaces owned service definitions as a unit and preserves PostgreSQL, Workspace bytes, existing configuration and keys. An interrupted transition blocks service startup. Resume with the same target archive, source digest and receipt. After the transition, rollback requires restoring the whole verified cold backup with the newer installation fenced. Recovery and normal execution still require a new Allocation after a full stop.
+The transition applies the candidate's database migrations over a private PostgreSQL Unix socket while the native services remain fenced. It then replaces the owned service definitions as a unit and preserves Workspace bytes, existing configuration and keys. An interrupted transition blocks service startup. Resume with the same target archive, source digest and receipt after PostgreSQL is stopped. After the transition, rollback requires restoring the whole verified cold backup with the newer installation fenced. Recovery and normal execution still require a new Allocation after a full stop.
 
 Qualify a complete archive on a disposable fresh installation with the opt-in [memory, storage and network acceptance matrix](QUALIFICATION.md). Serving readiness alone does not run or replace that matrix.
 

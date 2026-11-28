@@ -62,6 +62,7 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.enterContext(mock.patch.object(installer, 'require_cold_installation'))
         self.enterContext(mock.patch.object(installer, 'runtime_selection', return_value=('amd64', {})))
         self.enterContext(mock.patch.object(installer.gvisor_payload, 'verify_tree'))
+        self.migrate = self.enterContext(mock.patch.object(installer, 'migrate_cold_database'))
         self.command = self.enterContext(mock.patch.object(installer, 'run'))
         for path, revision in ((self.source_root, installer.UPGRADE_SOURCE), (self.target_root, 'e' * 40)):
             (path / 'stage-receipt.json').write_bytes(installer.json_bytes({'archive_sha256': path.name}))
@@ -84,6 +85,7 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.assertEqual((self.etc / 'private/canary').read_text(), 'unchanged')
         self.assertEqual((self.data / 'postgres/PG_VERSION').read_text(), '16\n')
         self.assertFalse(self.intent.exists())
+        self.migrate.assert_called_once_with()
         self.command.assert_called_once_with('systemctl', 'daemon-reload', timeout=5)
         for name, contents in installer.service_units(self.target_root, SETTINGS).items():
             self.assertEqual((self.units / name).read_text(), contents)
@@ -117,6 +119,18 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
         self.assertEqual(installer.read_json(self.identity), self.original)
         self.assertFalse(self.intent.exists())
+        self.migrate.assert_not_called()
+        self.command.assert_not_called()
+
+    def test_failed_migration_leaves_startup_fenced_and_prior_units_in_place(self):
+        self.migrate.side_effect = subprocess.CalledProcessError(1, 'controld-migrate')
+        with self.assertRaises(subprocess.CalledProcessError):
+            installer.upgrade(self.source_root.name, self.backup)
+        self.assertTrue(self.intent.is_file())
+        self.assertEqual(self.marker.read_text(), 'upgrade-pending:' + self.target_root.name + '\n')
+        self.assertEqual(installer.read_json(self.identity), self.original)
+        for name, contents in installer.service_units(self.source_root, SETTINGS).items():
+            self.assertEqual((self.units / name).read_text(), contents)
         self.command.assert_not_called()
 
 

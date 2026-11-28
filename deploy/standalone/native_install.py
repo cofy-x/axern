@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import datetime
 import fcntl
 import grp
@@ -24,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 # Isolated Python (-I) excludes the script directory. Resolve only the fixed
@@ -697,6 +699,34 @@ def require_cold_installation() -> None:
         raise InstallError('runsc retains sandbox state; resolve it before upgrading')
 
 
+@contextlib.contextmanager
+def private_postgres():
+    """Use the stopped owned database without a TCP listener during maintenance."""
+    owner = pwd.getpwnam('axern-postgres')
+    password = read_json(ETC / 'private/secrets.json')['postgres_password']
+    if not re.fullmatch('[0-9a-f]{64}', password):
+        raise InstallError('native PostgreSQL credential is invalid')
+    with tempfile.TemporaryDirectory(prefix='axern-maint-db-', dir='/run') as temporary:
+        directory = pathlib.Path(temporary)
+        os.chown(directory, owner.pw_uid, owner.pw_gid)
+        auth = directory / 'pg_hba.conf'
+        write_file(auth, b'local axern axern scram-sha-256\nlocal all all reject\n', 0o644)
+        pgctl = ('runuser', '-u', 'axern-postgres', '--', str(PG / 'pg_ctl'),
+                 '-D', str(DATA / 'postgres'), '-s', '-w')
+        options = f"-h '' -k {directory} -p 25432 -c hba_file={auth}"
+        run(*pgctl, '-l', str(directory / 'postgres.log'), '-o', options, 'start', timeout=60)
+        try:
+            query = urllib.parse.urlencode({'host': str(directory), 'port': 25432, 'sslmode': 'disable'})
+            yield {**os.environ, 'CONTROLD_POSTGRES_DSN': f'postgres://axern:{password}@/axern?{query}'}
+        finally:
+            run(*pgctl, '-m', 'fast', 'stop', timeout=60)
+
+
+def migrate_cold_database() -> None:
+    with private_postgres() as environment:
+        run(str(ROOT / 'bin/controld-migrate'), 'up', env=environment, timeout=180)
+
+
 def upgrade(from_archive: str, backup: dict) -> None:
     if not re.fullmatch('[0-9a-f]{64}', from_archive):
         raise InstallError('supply the source archive SHA-256')
@@ -756,6 +786,7 @@ def upgrade(from_archive: str, backup: dict) -> None:
     if state != ROOT.name + '\n':
         write_file(journal, json_bytes(undertaking))
         write_file(marker, (pending + '\n').encode(), 0o644, replace=True)
+        migrate_cold_database()
         for name, contents in new_units.items():
             write_file(UNITS / name, contents.encode(), 0o644, replace=True)
         write_file(identity_path, json_bytes(next_identity), 0o644, replace=True)
