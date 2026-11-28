@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 )
@@ -26,31 +25,8 @@ func (h *sandboxService) stopUnauthorizedRecoveredSandboxes(ctx context.Context,
 		if state == nil || (state.Status != contract.ContainerStatusPaused && state.Status != contract.ContainerStatusRunning) {
 			continue
 		}
-		unlock, err := h.allocationController().LockAllocationLifecycleContext(ctx, id)
-		if err != nil {
-			return err
-		}
-		terminated, err := h.allocationController().MarkRecoveredExecutionTerminationWithLifecycleHeld(id, time.Now().UTC())
-		if err == nil && !terminated && state.Status == contract.ContainerStatusPaused {
-			var stopped bool
-			stopped, err = h.runscHandler.VerifySandboxStopped(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: h.allocationController().EnforcementManifest(id)})
-			if err == nil && stopped {
-				state.Status = contract.ContainerStatusExited
-				state.InitProcessPid = 0
-			}
-		}
-		if err == nil && terminated {
-			err = h.runscHandler.KillSandbox(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: h.allocationController().EnforcementManifest(id)})
-			if err == nil {
-				// KillSandbox promises confirmed kernel termination, not deletion.
-				// Mutate the shared inventory entry so every partition sees it.
-				state.Status = contract.ContainerStatusExited
-				state.InitProcessPid = 0
-			}
-		}
-		unlock()
-		if err != nil {
-			return fmt.Errorf("fail-stop recovered allocation %s: %w", id, err)
+		if err := h.allocationController().StopUnauthorizedRecovered(ctx, id, state); err != nil {
+			return fmt.Errorf("check recovered allocation %s: %w", id, err)
 		}
 	}
 	return nil
@@ -75,57 +51,18 @@ func (h *sandboxService) resumeRecoveredSandboxes(ctx context.Context) error {
 		if h.executionLeaseCancel == nil {
 			return fmt.Errorf("cannot resume allocation %s without execution lease watchdog", id)
 		}
-		if err := h.resumeRecoveredSandbox(ctx, id, state); err != nil {
+		if err := h.allocationController().ResumeRecovered(ctx, id, state, h.recordRecoveredExit); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (h *sandboxService) resumeRecoveredSandbox(ctx context.Context, id string, state *contract.UnionContainerState) error {
-	controller := h.allocationController()
-	unlock, err := controller.LockAllocationLifecycleContext(ctx, id)
-	if err != nil {
+func (h *sandboxService) recordRecoveredExit(ctx context.Context, id string, state *contract.UnionContainerState) error {
+	if err := h.recoverTerminalRuntimeCheckpoints(ctx, runtimeInventory{id: state}); err != nil {
 		return err
 	}
-	defer unlock()
-	terminated, err := controller.MarkRecoveredExecutionTerminationWithLifecycleHeld(id, time.Now().UTC())
-	if err != nil {
-		return err
-	}
-	stopped := false
-	if !terminated {
-		// Terminal Workspace/snapshot runtimes remain until ordered control-plane
-		// cleanup. A fresh runsc inventory can still label their dead Sentry as
-		// paused after a whole-server stop; that projection cannot authorize resume.
-		stopped, err = h.runscHandler.VerifySandboxStopped(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: controller.EnforcementManifest(id)})
-		if err != nil {
-			return fmt.Errorf("verify allocation %s before resume: %w", id, err)
-		}
-	}
-	if terminated {
-		if err := h.runscHandler.KillSandbox(ctx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: controller.EnforcementManifest(id)}); err != nil {
-			return fmt.Errorf("fail-stop allocation %s before resume: %w", id, err)
-		}
-	}
-	if terminated || stopped {
-		state.Status = contract.ContainerStatusExited
-		state.InitProcessPid = 0
-		if err := h.recoverTerminalRuntimeCheckpoints(ctx, runtimeInventory{id: state}); err != nil {
-			return err
-		}
-		return h.seedTerminalAllocationLifecycleOutbox(map[string]struct{}{id: {}})
-	}
-	deadline, err := controller.ValidateRecoveryActivationWithLifecycleHeld(id)
-	if err != nil {
-		return err
-	}
-	resumeCtx, cancel := context.WithDeadline(ctx, deadline)
-	defer cancel()
-	if err := h.runscHandler.ResumeContainer(resumeCtx, contract.HandlerOptions{ContainerID: id, EnforcementManifest: controller.EnforcementManifest(id), GuestProcessProfileVerified: controller.GuestProcessProfileVerified(id)}); err != nil {
-		return fmt.Errorf("resume recovered allocation %s: %w", id, err)
-	}
-	return nil
+	return h.seedTerminalAllocationLifecycleOutbox(map[string]struct{}{id: {}})
 }
 
 // pauseLiveSandboxes closes the graceful shutdown boundary before stopping
@@ -147,13 +84,7 @@ func (h *sandboxService) pauseLiveSandboxes(ctx context.Context) error {
 		default:
 			return fmt.Errorf("cannot pause allocation %s in uncertain runtime state %q", id, state.Status)
 		}
-		unlock, err := h.allocationController().LockAllocationLifecycleContext(ctx, id)
-		if err != nil {
-			return err
-		}
-		err = h.runscHandler.PauseContainer(ctx, contract.HandlerOptions{ContainerID: id})
-		unlock()
-		if err != nil {
+		if err := h.allocationController().PauseForShutdown(ctx, id); err != nil {
 			return fmt.Errorf("pause allocation %s before node shutdown: %w", id, err)
 		}
 	}

@@ -14,7 +14,7 @@ func runNativeUpgradeCheck(ctx context.Context, args []string) error {
 	if os.Geteuid() != 0 {
 		return errors.New("native upgrade requires the root maintenance operator")
 	}
-	flags := flag.NewFlagSet("native-upgrade-check", flag.ContinueOnError)
+	flags := flag.NewFlagSet("upgrade check", flag.ContinueOnError)
 	current := flags.String("node-id", "", "the stopped installation's Node")
 	if err := flags.Parse(args); err != nil {
 		return err

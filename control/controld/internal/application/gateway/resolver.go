@@ -40,23 +40,14 @@ func NewResolver(routes RouteReader, accessGrants AccessGrantIssuer) *Resolver {
 	return &Resolver{routes: routes, accessGrants: accessGrants}
 }
 
-func (r *Resolver) ValidateAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, now time.Time) error {
-	alloc, err := r.routes.LoadAllocation(ctx, strings.TrimSpace(req.GetAllocationID()))
-	if err != nil {
-		return err
-	}
-	if alloc.LifecycleState == commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE {
-		return nil
-	}
-	if req.GetPurpose() == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT && allocationkernel.IsCleanupState(alloc.LifecycleState) && alloc.OutputExpiresAt != nil && now.Before(*alloc.OutputExpiresAt) {
-		return nil
-	}
-	return grpcstatus.Error(codes.FailedPrecondition, "allocation access is no longer available")
+func (r *Resolver) ValidateAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest, now time.Time) error {
+	_, err := r.loadAccessibleAllocation(ctx, req, now)
+	return err
 }
 
-func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
-	if r == nil || r.routes == nil || r.accessGrants == nil {
-		return nil, grpcstatus.Error(codes.Unavailable, "gateway terminal resolver is not configured")
+func (r *Resolver) loadAccessibleAllocation(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest, now time.Time) (*Allocation, error) {
+	if r == nil || r.routes == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "gateway allocation access resolver is not configured")
 	}
 	allocationID := strings.TrimSpace(req.GetAllocationID())
 	if allocationID == "" {
@@ -66,30 +57,46 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	if err != nil {
 		return nil, err
 	}
-	purpose := req.GetPurpose()
-	if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED {
-		purpose = gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE
-	}
-	switch purpose {
-	case gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
-		gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT,
+	switch req.GetPurpose() {
+	case gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT:
+		if allocationkernel.IsCleanupState(alloc.LifecycleState) && alloc.OutputExpiresAt != nil && now.Before(*alloc.OutputExpiresAt) {
+			return alloc, nil
+		}
+	case gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED,
+		gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
 		gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW:
 	default:
 		return nil, grpcstatus.Error(codes.InvalidArgument, "allocation access purpose is invalid")
 	}
-	terminalRunOutput := purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT &&
-		allocationkernel.IsCleanupState(alloc.LifecycleState) && alloc.OutputExpiresAt != nil && now.Before(*alloc.OutputExpiresAt)
-	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE && !terminalRunOutput {
+	if alloc.LifecycleState != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE {
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 	}
-	if terminalRunOutput && (ttl <= 0 || now.Add(ttl).After(*alloc.OutputExpiresAt)) {
-		ttl = alloc.OutputExpiresAt.Sub(now)
+	return alloc, nil
+}
+
+func (r *Resolver) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationAccessResponse, error) {
+	if r == nil || r.accessGrants == nil {
+		return nil, grpcstatus.Error(codes.Unavailable, "gateway allocation access resolver is not configured")
+	}
+	alloc, err := r.loadAccessibleAllocation(ctx, req, now)
+	if err != nil {
+		return nil, err
+	}
+	purpose := req.GetPurpose()
+	if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_UNSPECIFIED {
+		purpose = gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE
+	}
+	if allocationkernel.IsCleanupState(alloc.LifecycleState) {
+		remaining := alloc.OutputExpiresAt.Sub(now)
+		if ttl <= 0 || ttl > remaining {
+			ttl = remaining
+		}
 	}
 	grant, err := r.accessGrants.IssueAllocationAccessGrant(ctx, alloc.AllocationID, purpose, ttl, now)
 	if err != nil {
 		return nil, err
 	}
-	return &gatewayv1.ResolveAllocationTerminalResponse{
+	return &gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: alloc.AllocationID,
 		RunID:        alloc.RunID,
 		NodeID:       alloc.NodeID,

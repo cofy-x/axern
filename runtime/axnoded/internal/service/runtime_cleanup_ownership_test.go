@@ -91,11 +91,10 @@ func TestNativeConformanceCleanupUsesExistingLifecycleLane(t *testing.T) {
 	runtime := &cleanupSerializedRuntime{SandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
 	h := newTestService(t, runtime)
 	h.config.RuntimeConfig.NativeRecovery = true
-	unlock, err := h.allocationController().LockAllocationLifecycleContext(t.Context(), "probe")
-	require.NoError(t, err)
+	unlock := holdCapabilityReview(t, h, "probe", nil)
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
-	err = h.cleanupNativeConformanceRuntime(ctx, "probe")
+	err := h.cleanupNativeConformanceRuntime(ctx, "probe")
 	unlock()
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	require.Zero(t, runtime.calls)

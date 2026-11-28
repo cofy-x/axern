@@ -49,10 +49,20 @@ func (a Admission) Policy() resourcekernel.AdmissionPolicy { return a.policy }
 
 func (a Admission) Evaluator() placementkernel.Evaluator { return a.placement }
 
-func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandidateRequest) (_ *placementkernel.AdmissionDecision, retErr error) {
+// CandidateResult describes the business outcome that the Run transaction commits.
+type CandidateResult struct {
+	Selected       *placementkernel.AdmissionDecision
+	QuotaRejection *grpcstatus.Status
+}
+
+func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandidateRequest) (result *CandidateResult, retErr error) {
 	totalStarted := time.Now()
 	defer func() {
-		recordResourceAdmissionStage(ctx, resourceAdmissionStageTotal, totalStarted, retErr)
+		stageErr := retErr
+		if result != nil && result.QuotaRejection != nil {
+			stageErr = result.QuotaRejection.Err()
+		}
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageTotal, totalStarted, stageErr)
 	}()
 	namespace := environmentkernel.NormalizeNamespace(req.Namespace)
 	if a.placement == nil {
@@ -75,7 +85,7 @@ func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandi
 	quotaEvaluation := quota.EvaluateFit(namespaceUsed, requested)
 	recordQuotaEvaluation(ctx, namespace, quotaEvaluation)
 	if !quotaEvaluation.Fits() {
-		rejection := quotaRejectionError(namespace, quotaEvaluation)
+		rejection := quotaRejectionStatus(namespace, quotaEvaluation)
 		if err := insertQuotaAdmissionRejectedEvent(ctx, tx, quotaAdmissionRejectedEvent{
 			Namespace:     namespace,
 			EnvironmentID: req.EnvironmentID,
@@ -85,8 +95,8 @@ func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandi
 			recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, err)
 			return nil, err
 		}
-		recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, rejection)
-		return nil, committedAdmissionError{err: rejection}
+		recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, rejection.Err())
+		return &CandidateResult{QuotaRejection: rejection}, nil
 	}
 	recordResourceAdmissionStage(ctx, resourceAdmissionStageEvaluateNamespace, stageStarted, nil)
 	stageStarted = time.Now()
@@ -184,12 +194,12 @@ func (a Admission) AdmitCandidate(ctx context.Context, tx pgx.Tx, req AdmitCandi
 		}
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, nil)
 		recordResourceAdmission(ctx, namespace, resourceAdmissionScopeNodeCapacity, string(quotaAdmissionAllowed), "fits")
-		return &placementkernel.AdmissionDecision{
+		return &CandidateResult{Selected: &placementkernel.AdmissionDecision{
 			Record:                 selected.Record,
 			Evaluation:             selected.Evaluation,
 			Request:                selected.Request,
 			CapabilityRequirements: requirements,
-		}, nil
+		}}, nil
 	}
 	if rejection := lockedAdmissionEligibilityError(candidatesEvaluated, lockedRejectionRequest, lockedEligibilityRejections); rejection != nil {
 		recordResourceAdmissionStage(ctx, resourceAdmissionStageSelectCandidate, stageStarted, rejection)

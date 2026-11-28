@@ -494,6 +494,17 @@ func TestPostgresRunNamespaceResourceQuotaAdmission(t *testing.T) {
 			t.Fatalf("quota event environment_id = %q, want %q", event.GetEnvironmentID(), env.GetID())
 		}
 	}
+	var runs, allocations, intents int
+	if err := app.db.Pool().QueryRow(t.Context(), `
+		SELECT (SELECT COUNT(*) FROM runs),
+		       (SELECT COUNT(*) FROM allocations),
+		       (SELECT COUNT(*) FROM allocation_reconcile_queue)
+	`).Scan(&runs, &allocations, &intents); err != nil {
+		t.Fatal(err)
+	}
+	if runs != 1 || allocations != 1 || intents != 1 {
+		t.Fatalf("one admission and two quota rejections left %d runs, %d allocations and %d intents", runs, allocations, intents)
+	}
 }
 
 func TestAppRejectsInvalidResourcePolicy(t *testing.T) {

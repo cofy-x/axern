@@ -174,7 +174,7 @@ func (h *Controller) beginWorkspaceCleanup(request *apipb.DeleteRequest) error {
 		return errors.New("Workspace manager unavailable")
 	}
 	if h.HasAllocation(request.GetID()) {
-		if err := h.MarkTerminationIntentWithLifecycleHeld(request.GetID(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_ALLOCATION_CLEANUP_REQUESTED, "allocation cleanup requested"); err != nil {
+		if err := h.markTerminationIntentWithLifecycleHeld(request.GetID(), commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_ALLOCATION_CLEANUP_REQUESTED, "allocation cleanup requested"); err != nil {
 			return err
 		}
 	}
@@ -213,4 +213,17 @@ func (h *Controller) cleanupAbsentWorkspaceRuntime(ctx context.Context, allocati
 		return fmt.Errorf("cleanup absent Workspace runtime artifacts: %w", err)
 	}
 	return nil
+}
+
+// AuditWorkspaceAttachment commits a bounded termination diagnosis before the worker is woken.
+func (c *Controller) AuditWorkspaceAttachment(id string) (failed bool, err error) {
+	if c.WorkspaceBinding(id) == nil {
+		return false, nil
+	}
+	unlock := c.allocationLifecycleLocks.Lock(id)
+	defer unlock()
+	if err := c.VerifyWorkspaceAttachment(id); err != nil {
+		return true, c.beginCapabilityTerminationLocked(id, errors.New("Workspace attachment verification failed"))
+	}
+	return false, nil
 }

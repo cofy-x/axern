@@ -738,7 +738,7 @@ def migrate_cold_database() -> None:
 
 def require_cold_upgrade_work_drained(node_id: str) -> None:
     with private_postgres() as environment:
-        run(str(ROOT / 'bin/controld-access-bootstrap'), 'native-upgrade-check',
+        run(str(ROOT / 'bin/controld-maintenance'), 'upgrade', 'check',
             '--node-id', node_id, env=environment, timeout=60)
 
 
@@ -889,14 +889,14 @@ def replace_node(old_node: str, new_node: str, backup: dict) -> None:
         raise InstallError('replacement Node enrollment intent is invalid')
 
     write_file(marker, pending.encode(), 0o644, replace=True)
-    bootstrap = str(ROOT / 'bin/controld-access-bootstrap')
+    maintenance = str(ROOT / 'bin/controld-maintenance')
     axnoded = str(ROOT / 'bin/axnoded')
     source_plan = journal / 'source-plan.json'
     mapped_plan = journal / 'workspace-map.json'
     with private_postgres() as environment:
         flags = ('--old-node', old_node, '--new-node', new_node)
         if not mapped_plan.exists():
-            original_plan = run(bootstrap, 'native-restore-plan', *flags, env=environment,
+            original_plan = run(maintenance, 'restore', 'plan', *flags, env=environment,
                                 capture_output=True, timeout=60).stdout
             write_file(source_plan, original_plan)
             mapped = run(axnoded, '--config', str(prior_config), '--native-restore-plan', str(source_plan),
@@ -904,7 +904,7 @@ def replace_node(old_node: str, new_node: str, backup: dict) -> None:
             write_file(mapped_plan, mapped)
         run(axnoded, '--config', str(prior_config), '--native-restore-plan', str(mapped_plan),
             '--native-restore-apply', stdout=subprocess.DEVNULL, timeout=60)
-        run(bootstrap, 'native-restore-commit', *flags, '--plan', str(mapped_plan),
+        run(maintenance, 'restore', 'commit', *flags, '--plan', str(mapped_plan),
             '--enrollment-token-file', str(token_path), env=environment, timeout=60)
 
     park_previous_node_facts(new_node)

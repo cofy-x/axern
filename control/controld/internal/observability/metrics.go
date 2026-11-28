@@ -7,13 +7,13 @@ var (
 		Name:        "axern.controld_authorization_decision_total",
 		Description: "Control-plane authorization decisions by bounded action and result.",
 	}
-	MetricGatewayTerminalResolveTotal = sdkobs.Instrument{
-		Name:        "axern.controld_gateway_terminal_resolve_total",
-		Description: "Gateway terminal resolve requests.",
+	MetricGatewayAccessResolveTotal = sdkobs.Instrument{
+		Name:        "axern.controld_gateway_access_resolve_total",
+		Description: "Gateway Allocation access resolution requests.",
 	}
-	MetricGatewayTerminalResolveDuration = sdkobs.Instrument{
-		Name:        "axern.controld_gateway_terminal_resolve_duration_seconds",
-		Description: "Gateway terminal resolve latency.",
+	MetricGatewayAccessResolveDuration = sdkobs.Instrument{
+		Name:        "axern.controld_gateway_access_resolve_duration_seconds",
+		Description: "Gateway Allocation access resolution latency.",
 	}
 	MetricReconcileTotal = sdkobs.Instrument{
 		Name:        "axern.controld_reconcile_total",

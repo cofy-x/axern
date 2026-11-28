@@ -17,6 +17,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
@@ -60,7 +61,7 @@ func (h *sandboxService) handleCapabilityTransitions(_ context.Context, transiti
 			logrus.WithError(err).WithField("allocation_id", allocationID).Error("persist capability reconcile work")
 			continue
 		}
-		h.startCapabilityReconcileWorker(allocationID)
+		h.WakeCapabilityReconcile(allocationID)
 	}
 }
 
@@ -81,7 +82,7 @@ func matchingDependency(requirements []*capabilityv1.CapabilityRequirement, key 
 // startCapabilityReconcileWorker establishes allocation-level single ownership.
 // New intent sequences are persisted before this call and are picked up by
 // the running worker's next loop rather than being acknowledged over.
-func (h *sandboxService) startCapabilityReconcileWorker(allocationID string) {
+func (h *sandboxService) WakeCapabilityReconcile(allocationID string) {
 	if !h.acquireCapabilityReconcileWorker(allocationID) {
 		return
 	}
@@ -158,7 +159,7 @@ func (h *sandboxService) startPendingCapabilityReconcileWorkers() {
 		if state == nil || (!state.GetTerminating() && state.GetPendingIntentSequence() == 0) {
 			continue
 		}
-		h.startCapabilityReconcileWorker(allocationID)
+		h.WakeCapabilityReconcile(allocationID)
 	}
 }
 
@@ -202,7 +203,7 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 					logrus.WithError(err).WithField("allocation_id", allocationID).Warn("persist periodic capability audit")
 					continue
 				}
-				h.startCapabilityReconcileWorker(allocationID)
+				h.WakeCapabilityReconcile(allocationID)
 			}
 		}
 	}()
@@ -261,30 +262,13 @@ func (h *sandboxService) runCapabilityReconcileWorker(ctx context.Context, alloc
 			}
 			continue
 		}
-		if err := h.ackCapabilityEvaluation(ctx, allocationID, intentSequence); err != nil {
+		if err := h.allocationController().AcknowledgeCapabilityEvaluation(ctx, allocationID, intentSequence); err != nil {
 			logrus.WithError(err).WithField("allocation_id", allocationID).Error("ack capability reconcile work")
 			if !waitCapabilityReconcileRetry(ctx) {
 				return
 			}
 		}
 	}
-}
-
-// ackCapabilityEvaluation serializes a completed audit with independently
-// requested termination. A lifecycle query may commit fail-stop after this
-// worker's verification returned; an old healthy evaluation cannot clear that
-// work. Only failStopAllocation acknowledges confirmed workload termination.
-func (h *sandboxService) ackCapabilityEvaluation(ctx context.Context, allocationID string, intentSequence int64) error {
-	controller := h.allocationController()
-	unlock, err := controller.LockAllocationLifecycleContext(ctx, allocationID)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	if current := controller.CapabilityReconcileState(allocationID); current != nil && current.GetTerminating() {
-		return nil
-	}
-	return controller.AckCapabilityReconcile(allocationID, intentSequence, false, nil)
 }
 
 func waitCapabilityReconcileRetry(ctx context.Context) bool {
@@ -472,14 +456,7 @@ func (h *sandboxService) failStopAllocation(ctx context.Context, allocationID st
 	}).Warn("allocation fail-stop initiated")
 	for {
 		killCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-		unlock, err := h.allocationController().LockAllocationLifecycleContext(killCtx, allocationID)
-		if err == nil {
-			err = h.allocationController().FailStopWorkloadWithLifecycleHeld(killCtx, allocationID)
-			if err == nil {
-				err = h.allocationController().AckCapabilityReconcile(allocationID, 0, false, nil)
-			}
-			unlock()
-		}
+		err := h.allocationController().StopForCapabilityLoss(killCtx, allocationID)
 		cancel()
 		if err == nil {
 			metrics.RecordCapabilityFailStop(runtimeName, "success")
@@ -511,45 +488,30 @@ func (h *sandboxService) allocationRuntimeStopped(allocationID string) bool {
 	return container.Status != nil && container.Status.Get().State() == runtimev1.ContainerState_CONTAINER_EXITED
 }
 
-func (h *sandboxService) scheduleCapabilityTermination(allocationID string, cause error) error {
-	if cause == nil {
-		cause = errors.New("capability enforcement failed")
-	}
-	// This path is called by Start while it owns the lifecycle lane. Persist a
-	// bounded phase diagnosis, not the raw error (which may contain secrets or
-	// egress destinations). Return the original cause to the internal caller.
-	if err := h.allocationController().BeginCapabilityTerminationWithLifecycleHeld(allocationID, errors.New("post-create enforcement verification failed")); err != nil {
-		return fmt.Errorf("%w; persist durable fail-stop: %v", cause, err)
-	}
-	h.startCapabilityReconcileWorker(allocationID)
-	return cause
-}
-
 // ReconcileAllocationCapabilities builds a fresh full diagnostic projection
 // from the immutable requirements, current Node observation, and runtime.
 func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, allocationID string) ([]*capabilityv1.CapabilityRequirement, *capabilityv1.CapabilityConditionSet, error) {
-	allocationID = strings.TrimSpace(allocationID)
+	review, err := h.allocationController().ReviewCapabilities(ctx, strings.TrimSpace(allocationID), h.evaluateCapabilities, h.WakeCapabilityReconcile)
+	return review.Requirements, review.Conditions, err
+}
+
+func (h *sandboxService) evaluateCapabilities(ctx context.Context, allocationID string) (allocation.CapabilityReview, error) {
 	controller := h.allocationController()
-	unlock, err := controller.LockAllocationLifecycleContext(ctx, allocationID)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer unlock()
 	// Start owns admission through activation. Requirements alone do not make
 	// its preactivation intent a running enforcement subject. Recovery already
 	// rejects a live execution without this immutable launch barrier.
 	manifest := controller.VerifiedEnforcementManifest(allocationID)
 	if manifest == nil {
 		if ct, err := h.containerManager.Get(allocationID); err == nil && ct != nil && !h.allocationRuntimeStopped(allocationID) {
-			return nil, nil, fmt.Errorf("allocation runtime exists without launch verification: %w", errord.ErrFailedPrecondition)
+			return allocation.CapabilityReview{}, fmt.Errorf("allocation runtime exists without launch verification: %w", errord.ErrFailedPrecondition)
 		}
-		return nil, nil, nil
+		return allocation.CapabilityReview{}, nil
 	}
 	if h.allocationRuntimeStopped(allocationID) {
-		return nil, nil, nil
+		return allocation.CapabilityReview{}, nil
 	}
 	if code, _ := controller.TerminationIntent(allocationID); code != 0 {
-		return nil, nil, nil
+		return allocation.CapabilityReview{}, nil
 	}
 	if h.runscHandler.HostRequirements().NeedsCgroup {
 		expected := startplan.ResourcesToLinux(controller.ResourceSpec(allocationID))
@@ -557,24 +519,20 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 			return h.runscHandler.VerifyAllocationCPUControls(ctx, allocationID, manifest, expected)
 		})
 		if err != nil {
-			return nil, nil, err
+			return allocation.CapabilityReview{}, err
 		}
 		if h.allocationRuntimeStopped(allocationID) {
-			return nil, nil, nil
+			return allocation.CapabilityReview{}, nil
 		}
 		if result.State != contract.CapabilityVerificationVerified {
-			if err := controller.BeginCapabilityTerminationWithLifecycleHeld(allocationID, errors.New("admitted CPU controls could not be verified")); err != nil {
-				return nil, nil, fmt.Errorf("persist CPU enforcement loss: %w", err)
-			}
-			h.startCapabilityReconcileWorker(allocationID)
-			return nil, nil, nil
+			return allocation.CapabilityReview{EnforcementLoss: errors.New("admitted CPU controls could not be verified")}, nil
 		}
 	}
 	dependencies := controller.CapabilityRequirements(allocationID)
 	if len(dependencies) == 0 {
 		set := &capabilityv1.CapabilityConditionSet{ObservedAt: timestamppb.Now()}
 		h.controlPlaneReports.ReportCapabilityConditions(allocationID, set)
-		return nil, set, nil
+		return allocation.CapabilityReview{Conditions: set}, nil
 	}
 	conditions := make([]*capabilityv1.CapabilityCondition, 0, len(dependencies))
 	now := time.Now().UTC()
@@ -587,13 +545,13 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 	}
 	failStopVerifications, err := h.verifyFailStopCapabilities(ctx, allocationID, failStopDependencies)
 	if err != nil {
-		return nil, nil, err
+		return allocation.CapabilityReview{}, err
 	}
 	// Runtime Wait checkpoints independently of the lifecycle lane. A bounded
 	// verification may finish after the workload; do not turn that completed
 	// execution into a new enforcement-loss subject.
 	if h.allocationRuntimeStopped(allocationID) {
-		return nil, nil, nil
+		return allocation.CapabilityReview{}, nil
 	}
 	definitiveFailStopLoss := false
 	for _, verification := range failStopVerifications {
@@ -650,7 +608,7 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 	}
 	set, err := h.allocationController().ReplaceCapabilityConditions(allocationID, conditions, now)
 	if err != nil {
-		return nil, nil, err
+		return allocation.CapabilityReview{}, err
 	}
 	h.controlPlaneReports.ReportCapabilityConditions(allocationID, set)
 	var terminationReasons []error
@@ -660,25 +618,15 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 		}
 		terminationReasons = append(terminationReasons, fmt.Errorf("%s: %s", capabilitycontract.MetricKey(condition.GetKey()), condition.GetMessage()))
 	}
-	if len(terminationReasons) > 0 {
-		if err := controller.BeginCapabilityTerminationWithLifecycleHeld(allocationID, errors.Join(terminationReasons...)); err != nil {
-			return nil, nil, fmt.Errorf("persist capability fail-stop ownership: %w", err)
-		}
-		h.startCapabilityReconcileWorker(allocationID)
-	}
-	return dependencies, set, nil
+	return allocation.CapabilityReview{Requirements: dependencies, Conditions: set, EnforcementLoss: errors.Join(terminationReasons...)}, nil
 }
 
 func (h *sandboxService) auditWorkspaceAttachment(allocationID string) bool {
-	controller := h.allocationController()
-	if controller.WorkspaceBinding(allocationID) == nil {
-		return false
+	failed, err := h.allocationController().AuditWorkspaceAttachment(allocationID)
+	if err != nil {
+		logrus.WithError(err).WithField("allocation_id", allocationID).Error("persist Workspace enforcement loss")
+	} else if failed {
+		h.WakeCapabilityReconcile(allocationID)
 	}
-	unlock := controller.LockAllocationLifecycle(allocationID)
-	defer unlock()
-	if err := controller.VerifyWorkspaceAttachment(allocationID); err != nil {
-		_ = h.scheduleCapabilityTermination(allocationID, err)
-		return true
-	}
-	return false
+	return failed
 }

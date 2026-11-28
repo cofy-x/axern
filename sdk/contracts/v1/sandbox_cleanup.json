@@ -1,0 +1,42 @@
+[
+  {
+    "name": "interrupted readiness releases the acknowledged Run and Environment",
+    "image": "python",
+    "interrupt_readiness": true,
+    "steps": [
+      {"operation": "start", "fails": true, "cleanup": ["cancel run-1", "delete env-1"]},
+      {"operation": "close", "cleanup": []}
+    ]
+  },
+  {
+    "name": "retry only unconfirmed cleanup",
+    "image": "python",
+    "fail_first_cancel": true,
+    "steps": [
+      {"operation": "start", "cleanup": []},
+      {"operation": "close", "fails": true, "cleanup": ["cancel run-1", "delete env-1"]},
+      {"operation": "start", "fails": true, "cleanup": []},
+      {"operation": "close", "cleanup": ["cancel run-1"]},
+      {"operation": "close", "cleanup": []}
+    ]
+  },
+  {
+    "name": "borrowed Environment and Workspace survive close",
+    "environment_id": "env-shared",
+    "workspace_id": "ws-shared",
+    "steps": [
+      {"operation": "start", "cleanup": []},
+      {"operation": "close", "cleanup": ["cancel run-1"]}
+    ]
+  },
+  {
+    "name": "explicit close retries failed startup cleanup",
+    "image": "python",
+    "interrupt_readiness": true,
+    "fail_first_cancel": true,
+    "steps": [
+      {"operation": "start", "fails": true, "cleanup": ["cancel run-1", "delete env-1"]},
+      {"operation": "close", "cleanup": ["cancel run-1"]}
+    ]
+  }
+]

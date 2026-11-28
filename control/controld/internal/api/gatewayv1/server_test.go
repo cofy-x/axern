@@ -13,16 +13,16 @@ import (
 )
 
 type resolverStub struct {
-	terminalCalls int
+	resolveCalls int
 }
 
-func (r *resolverStub) ValidateAllocationAccess(context.Context, *gatewaypb.ResolveAllocationTerminalRequest, time.Time) error {
+func (r *resolverStub) ValidateAllocationAccess(context.Context, *gatewaypb.ResolveAllocationAccessRequest, time.Time) error {
 	return nil
 }
 
-func (r *resolverStub) ResolveAllocationTerminal(context.Context, *gatewaypb.ResolveAllocationTerminalRequest, time.Duration, time.Time) (*gatewaypb.ResolveAllocationTerminalResponse, error) {
-	r.terminalCalls++
-	return &gatewaypb.ResolveAllocationTerminalResponse{}, nil
+func (r *resolverStub) ResolveAllocationAccess(context.Context, *gatewaypb.ResolveAllocationAccessRequest, time.Duration, time.Time) (*gatewaypb.ResolveAllocationAccessResponse, error) {
+	r.resolveCalls++
+	return &gatewaypb.ResolveAllocationAccessResponse{}, nil
 }
 
 type accessAuthorizerStub struct {
@@ -54,35 +54,35 @@ func (a *accessAuthorizerStub) AuthorizeCredentialResource(_ context.Context, fi
 	return a.err
 }
 
-func TestResolveAllocationTerminalRejectsMissingPrincipal(t *testing.T) {
+func TestResolveAllocationAccessRejectsMissingPrincipal(t *testing.T) {
 	resolver := &resolverStub{}
 	access := &accessAuthorizerStub{}
 	server := New(Dependencies{Resolver: resolver, Access: access, DefaultTTL: time.Minute})
 
-	_, err := server.ResolveAllocationTerminal(context.Background(), &gatewaypb.ResolveAllocationTerminalRequest{AllocationID: "alloc-1"})
+	_, err := server.ResolveAllocationAccess(context.Background(), &gatewaypb.ResolveAllocationAccessRequest{AllocationID: "alloc-1"})
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("missing Principal accepted: %v", err)
 	}
 	if access.calls != 0 {
 		t.Fatalf("authorization calls = %d, want 0 for missing identity", access.calls)
 	}
-	if resolver.terminalCalls != 0 {
-		t.Fatalf("unauthenticated resolution calls = %d", resolver.terminalCalls)
+	if resolver.resolveCalls != 0 {
+		t.Fatalf("unauthenticated resolution calls = %d", resolver.resolveCalls)
 	}
 }
 
-func TestResolveAllocationTerminalPrincipalIdentity(t *testing.T) {
+func TestResolveAllocationAccessPrincipalIdentity(t *testing.T) {
 	resolver := &resolverStub{}
 	access := &accessAuthorizerStub{}
 	server := New(Dependencies{Resolver: resolver, Access: access, DefaultTTL: time.Minute})
-	req := &gatewaypb.ResolveAllocationTerminalRequest{
+	req := &gatewaypb.ResolveAllocationAccessRequest{
 		AllocationID:          "alloc-1",
 		CredentialFingerprint: "sha256:client",
 	}
 
-	_, err := server.ResolveAllocationTerminal(context.Background(), req)
+	_, err := server.ResolveAllocationAccess(context.Background(), req)
 	if err != nil {
-		t.Fatalf("ResolveAllocationTerminal() error = %v", err)
+		t.Fatalf("ResolveAllocationAccess() error = %v", err)
 	}
 	if access.calls != 1 || access.fingerprint != req.CredentialFingerprint {
 		t.Fatalf("authorization call = %#v", access)
@@ -90,12 +90,12 @@ func TestResolveAllocationTerminalPrincipalIdentity(t *testing.T) {
 	if access.action != accesskernel.ActionSandboxExecute || access.resource != "allocation" || access.resourceID != req.AllocationID {
 		t.Fatalf("authorization scope = (%q, %q, %q)", access.action, access.resource, access.resourceID)
 	}
-	if resolver.terminalCalls != 1 {
-		t.Fatalf("resolver calls = %d, want 1", resolver.terminalCalls)
+	if resolver.resolveCalls != 1 {
+		t.Fatalf("resolver calls = %d, want 1", resolver.resolveCalls)
 	}
 }
 
-func TestResolveAllocationTerminalAuthorizationErrors(t *testing.T) {
+func TestResolveAllocationAccessAuthorizationErrors(t *testing.T) {
 	tests := []struct {
 		name string
 		err  error
@@ -112,15 +112,15 @@ func TestResolveAllocationTerminalAuthorizationErrors(t *testing.T) {
 			access := &accessAuthorizerStub{err: tt.err}
 			server := New(Dependencies{Resolver: resolver, Access: access})
 
-			_, err := server.ResolveAllocationTerminal(context.Background(), &gatewaypb.ResolveAllocationTerminalRequest{
+			_, err := server.ResolveAllocationAccess(context.Background(), &gatewaypb.ResolveAllocationAccessRequest{
 				AllocationID:          "alloc-1",
 				CredentialFingerprint: "sha256:client",
 			})
 			if status.Code(err) != tt.code {
 				t.Fatalf("error code = %s, want %s (err = %v)", status.Code(err), tt.code, err)
 			}
-			if resolver.terminalCalls != 0 {
-				t.Fatalf("resolver calls = %d, want 0", resolver.terminalCalls)
+			if resolver.resolveCalls != 0 {
+				t.Fatalf("resolver calls = %d, want 0", resolver.resolveCalls)
 			}
 		})
 	}

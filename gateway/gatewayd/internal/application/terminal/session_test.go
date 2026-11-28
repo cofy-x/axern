@@ -17,7 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func (f *fakeTerminalResolver) AuthorizeAllocationAccess(context.Context, *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+func (f *fakeTerminalResolver) AuthorizeAllocationAccess(context.Context, *gatewayv1.ResolveAllocationAccessRequest) (*emptypb.Empty, error) {
 	return &emptypb.Empty{}, f.authorizeErr
 }
 
@@ -31,7 +31,7 @@ func TestOpenResolvedRetriesSameGrantBeforeReturningSession(t *testing.T) {
 	resolver := &fakeTerminalResolver{}
 	manager := NewManager(resolver, nodes, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Nanosecond}, nil, nil)
 
-	session, err := manager.OpenResolved(WithCredential(context.Background(), "test-fingerprint", "x509_sha256"), &gatewayv1.ResolveAllocationTerminalResponse{
+	session, err := manager.OpenResolved(WithCredential(context.Background(), "test-fingerprint", "x509_sha256"), &gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		NodeID:       "node-old",
 		NodeTarget:   "node-old:24010",
@@ -66,7 +66,7 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 	resolver := &fakeTerminalResolver{}
 	manager := NewManager(resolver, nodes, Options{AccessGrantRetryAttempts: 2, AccessGrantRetryDelay: time.Hour}, nil, nil)
 
-	_, err := manager.OpenResolved(ctx, &gatewayv1.ResolveAllocationTerminalResponse{
+	_, err := manager.OpenResolved(ctx, &gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		NodeTarget:   "node-old:24010",
 		AccessGrant:  &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(time.Minute)), PlaintextToken: "stale-token"},
@@ -81,7 +81,7 @@ func TestOpenResolvedLeaseBackoffHonorsCancellation(t *testing.T) {
 
 func TestProcessOpenRequestUsesShellTTYAndAllocation(t *testing.T) {
 	t.Parallel()
-	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -98,7 +98,7 @@ func TestProcessOpenRequestUsesShellTTYAndAllocation(t *testing.T) {
 
 func TestProcessOpenRequestUsesCustomArgv(t *testing.T) {
 	t.Parallel()
-	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -112,7 +112,7 @@ func TestProcessOpenRequestUsesCustomArgv(t *testing.T) {
 
 func TestProcessOpenRequestUsesCustomArgvTTY(t *testing.T) {
 	t.Parallel()
-	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -125,7 +125,7 @@ func TestProcessOpenRequestUsesCustomArgvTTY(t *testing.T) {
 
 func TestProcessOpenRequestCarriesInitialTerminalSize(t *testing.T) {
 	t.Parallel()
-	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{AllocationID: "alloc-1"}, OpenOptions{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationAccessResponse{AllocationID: "alloc-1"}, OpenOptions{
 		TTY: true, InitialCols: 120, InitialRows: 40,
 	})
 	if size := req.GetOpen().GetInitialSize(); size.GetCols() != 120 || size.GetRows() != 40 {
@@ -135,7 +135,7 @@ func TestProcessOpenRequestCarriesInitialTerminalSize(t *testing.T) {
 
 func TestProcessOpenRequestUsesEnv(t *testing.T) {
 	t.Parallel()
-	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -149,7 +149,7 @@ func TestProcessOpenRequestUsesEnv(t *testing.T) {
 
 func TestProcessOpenRequestUsesUser(t *testing.T) {
 	t.Parallel()
-	req := processOpenRequest(&gatewayv1.ResolveAllocationTerminalResponse{
+	req := processOpenRequest(&gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: "alloc-1",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{
 			PlaintextToken: "lease-token",
@@ -268,8 +268,8 @@ func (f *fakeProcessStreamer) Process(ctx context.Context, target, nodeID string
 
 type fakeTerminalResolver struct {
 	authorizeErr error
-	responses    []*gatewayv1.ResolveAllocationTerminalResponse
-	requests     []*gatewayv1.ResolveAllocationTerminalRequest
+	responses    []*gatewayv1.ResolveAllocationAccessResponse
+	requests     []*gatewayv1.ResolveAllocationAccessRequest
 }
 
 func TestSessionAuthorityLossCancelsUpstream(t *testing.T) {
@@ -278,7 +278,7 @@ func TestSessionAuthorityLossCancelsUpstream(t *testing.T) {
 			t.Parallel()
 			nodes := &fakeProcessStreamer{streams: []*fakeProcessStream{{responses: []*nodesandboxv1.ProcessResponse{{Payload: &nodesandboxv1.ProcessResponse_Ready{Ready: &nodesandboxv1.ProcessReady{}}}}}}}
 			manager := NewManager(&fakeTerminalResolver{authorizeErr: reason}, nodes, Options{}, nil, nil)
-			session, err := manager.OpenResolved(WithCredential(context.Background(), "fingerprint", "ssh_sha256"), &gatewayv1.ResolveAllocationTerminalResponse{AllocationID: "allocation", AccessGrant: &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}})
+			session, err := manager.OpenResolved(WithCredential(context.Background(), "fingerprint", "ssh_sha256"), &gatewayv1.ResolveAllocationAccessResponse{AllocationID: "allocation", AccessGrant: &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(time.Minute))}})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -294,13 +294,13 @@ func TestSessionAuthorityLossCancelsUpstream(t *testing.T) {
 
 func TestSessionRejectsExpiredAuthority(t *testing.T) {
 	manager := NewManager(nil, nil, Options{}, nil, nil)
-	_, err := manager.OpenResolved(context.Background(), &gatewayv1.ResolveAllocationTerminalResponse{AccessGrant: &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(-time.Second))}})
+	_, err := manager.OpenResolved(context.Background(), &gatewayv1.ResolveAllocationAccessResponse{AccessGrant: &gatewayv1.AllocationAccessGrant{ExpiresAt: timestamppb.New(time.Now().Add(-time.Second))}})
 	if status.Code(err) != codes.Unauthenticated {
 		t.Fatalf("expired grant accepted: %v", err)
 	}
 }
 
-func (f *fakeTerminalResolver) ResolveAllocationTerminal(_ context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
+func (f *fakeTerminalResolver) ResolveAllocationAccess(_ context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (*gatewayv1.ResolveAllocationAccessResponse, error) {
 	f.requests = append(f.requests, req)
 	if len(f.responses) == 0 {
 		return nil, errors.New("unexpected resolve")

@@ -79,7 +79,7 @@ func TestStartResolvesImageMountIntoReadonlyBindMount(t *testing.T) {
 	tc.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	tc.controller.environmentCache = tc.environmentCache
 
-	resp, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
+	resp, err := tc.controller.startAllocation(context.Background(), &runtime.StartRequest{
 		AllocationID: "alloc-image-mount",
 		Environment: &runtime.ResolvedEnvironment{
 			ID: "task-runtime",
@@ -138,7 +138,7 @@ func TestStartReleasesImageMountWhenRuntimeCreateFails(t *testing.T) {
 	tc.environmentCache = environmentcache.NewEnvironmentCache(mounter)
 	tc.controller.environmentCache = tc.environmentCache
 
-	_, err := tc.controller.Start(context.Background(), &runtime.StartRequest{
+	_, err := tc.controller.startAllocation(context.Background(), &runtime.StartRequest{
 		AllocationID: "alloc-image-mount-fail",
 		Environment: &runtime.ResolvedEnvironment{
 			ID: "task-runtime",

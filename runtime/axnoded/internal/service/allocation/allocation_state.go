@@ -166,10 +166,12 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	if err := rejectTerminatedActivation(desired); err != nil {
 		return err
 	}
-	if currentDigest := desired.GetAllocationRequestDigest(); currentDigest != "" && currentDigest != requestDigest {
+	currentDigest := desired.GetAllocationRequestDigest()
+	if currentDigest != "" && currentDigest != requestDigest {
 		return fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
-	if currentNodeID := desired.GetNodeID(); currentNodeID != "" && currentNodeID != nodeID {
+	// An acknowledged local intent has an empty node binding for its lifetime.
+	if currentNodeID := desired.GetNodeID(); (currentDigest != "" || currentNodeID != "") && currentNodeID != nodeID {
 		return fmt.Errorf("allocation node binding conflicts with durable contract")
 	}
 	if workspace != nil {
@@ -287,12 +289,12 @@ func (h *Controller) ExpiredExecutionLeaseAllocationIDs(now time.Time) []string 
 // control-plane owned, while this record survives a node crash between deciding
 // to fail closed and observing the runtime exit.
 func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
-	unlock := h.LockAllocationLifecycle(allocationID)
+	unlock := h.allocationLifecycleLocks.Lock(allocationID)
 	defer unlock()
-	return h.MarkTerminationIntentWithLifecycleHeld(allocationID, diagnosticCode, message)
+	return h.markTerminationIntentWithLifecycleHeld(allocationID, diagnosticCode, message)
 }
 
-func (h *Controller) MarkTerminationIntentWithLifecycleHeld(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
+func (h *Controller) markTerminationIntentWithLifecycleHeld(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		return errors.New("allocation id and termination diagnostic code are required")
@@ -310,10 +312,10 @@ func (h *Controller) MarkTerminationIntentWithLifecycleHeld(allocationID string,
 	return h.markTerminationIntentLocked(desired, diagnosticCode, message)
 }
 
-// MarkExpiredExecutionLeaseWithLifecycleHeld rechecks the selected lease and
+// markExpiredExecutionLeaseLocked rechecks the selected lease and
 // records termination in one record mutation. A renewal received while the
 // watchdog waited behind Start cannot be overwritten by its old expiry list.
-func (h *Controller) MarkExpiredExecutionLeaseWithLifecycleHeld(allocationID string, now time.Time) (bool, error) {
+func (h *Controller) markExpiredExecutionLeaseLocked(allocationID string, now time.Time) (bool, error) {
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
 	h.stateMu.RLock()
@@ -401,13 +403,17 @@ func (h *Controller) ResourceSpec(allocationID string) *commonv1.ResourceSpec {
 	return proto.Clone(state.record.GetResources()).(*commonv1.ResourceSpec)
 }
 
-func (h *Controller) AllocationRequestDigest(allocationID string) string {
+func (h *Controller) verifiedLaunchReplay(allocationID, nodeID, digest string) (bool, error) {
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
-	if state := h.allocationStates[strings.TrimSpace(allocationID)]; state != nil {
-		return state.record.GetAllocationRequestDigest()
+	state := h.allocationStates[strings.TrimSpace(allocationID)]
+	if state == nil || state.record.GetEnforcementManifest() == nil {
+		return false, nil
 	}
-	return ""
+	if state.record.GetNodeID() != nodeID || state.record.GetAllocationRequestDigest() != digest {
+		return false, fmt.Errorf("allocation node binding or request differs from the durable contract: %w", errord.ErrFailedPrecondition)
+	}
+	return true, nil
 }
 
 func (h *Controller) CapabilityRequirementManifests() map[string][]*capabilityv1.CapabilityRequirement {
@@ -563,15 +569,15 @@ func (h *Controller) AckCapabilityReconcile(allocationID string, processedSequen
 // before the caller returns an enforcement failure. It aggregates repeated
 // safety failures; resource cleanup still belongs to the control-plane Delete.
 func (h *Controller) BeginCapabilityTermination(allocationID string, cause error) error {
-	unlock := h.LockAllocationLifecycle(allocationID)
+	unlock := h.allocationLifecycleLocks.Lock(allocationID)
 	defer unlock()
-	return h.BeginCapabilityTerminationWithLifecycleHeld(allocationID, cause)
+	return h.beginCapabilityTerminationLocked(allocationID, cause)
 }
 
-// BeginCapabilityTerminationWithLifecycleHeld is used by the start gates and
+// beginCapabilityTerminationLocked is used by the start gates and
 // reconciler inside their existing lifecycle lane. cause must be a safe
 // capability/reason diagnosis, never a raw verifier error with destinations.
-func (h *Controller) BeginCapabilityTerminationWithLifecycleHeld(allocationID string, cause error) error {
+func (h *Controller) beginCapabilityTerminationLocked(allocationID string, cause error) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || cause == nil {
 		return errors.New("allocation id and capability termination cause are required")

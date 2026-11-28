@@ -55,7 +55,7 @@ func TestWorkspaceMountFlowsThroughOrdinaryCreateAndExactCleanup(t *testing.T) {
 	digest, err := StartRequestDigest(request)
 	require.NoError(t, err)
 	require.NoError(t, fixture.controller.StoreAllocationIntent(id, "node-a", digest, time.Now().Add(time.Minute), request.GetResources(), nil, nil, nil, binding))
-	_, err = fixture.controller.Start(t.Context(), request)
+	_, err = fixture.controller.startAllocation(t.Context(), request)
 	require.NoError(t, err)
 	found := false
 	for _, mount := range handler.lastRequest.GetMounts() {

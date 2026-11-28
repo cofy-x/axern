@@ -7,7 +7,7 @@ import (
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 )
 
-func processOpenRequest(resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) *nodesandboxv1.ProcessRequest {
+func processOpenRequest(resolved *gatewayv1.ResolveAllocationAccessResponse, opts OpenOptions) *nodesandboxv1.ProcessRequest {
 	argv := append([]string(nil), opts.Argv...)
 	tty := opts.TTY
 	if len(argv) == 0 {

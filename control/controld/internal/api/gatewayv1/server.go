@@ -16,8 +16,8 @@ import (
 )
 
 type Resolver interface {
-	ValidateAllocationAccess(context.Context, *gatewayv1.ResolveAllocationTerminalRequest, time.Time) error
-	ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationTerminalResponse, error)
+	ValidateAllocationAccess(context.Context, *gatewayv1.ResolveAllocationAccessRequest, time.Time) error
+	ResolveAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationAccessResponse, error)
 }
 
 type TunnelResolver interface {
@@ -56,18 +56,17 @@ func New(deps Dependencies) *Server {
 	return &Server{deps: deps}
 }
 
-func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
+func (s *Server) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (response *gatewayv1.ResolveAllocationAccessResponse, err error) {
 	if err := s.authorizeCredential(ctx, req); err != nil {
 		return nil, err
 	}
 	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
-		Name:        ctrlobs.SpanGatewayResolveAllocationTerminal,
+		Name:        ctrlobs.SpanGatewayResolveAllocationAccess,
 		SpanAttrs:   []attribute.KeyValue{attribute.String(sdkobs.AttrAllocationID, req.GetAllocationID())},
-		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "allocation_terminal")},
-		Counter:     ctrlobs.MetricGatewayTerminalResolveTotal,
-		Duration:    ctrlobs.MetricGatewayTerminalResolveDuration,
+		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrOperation, "allocation_access")},
+		Counter:     ctrlobs.MetricGatewayAccessResolveTotal,
+		Duration:    ctrlobs.MetricGatewayAccessResolveDuration,
 	})
-	var err error
 	defer func() { op.End(err) }()
 	ttl := time.Duration(req.GetTtlSeconds()) * time.Second
 	if ttl <= 0 {
@@ -76,16 +75,16 @@ func (s *Server) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.R
 	if req.GetTtlSeconds() > int64((2*time.Hour)/time.Second) || ttl > 2*time.Hour {
 		return nil, status.Error(codes.InvalidArgument, "allocation access grant cannot exceed two hours")
 	}
-	resp, err := s.deps.Resolver.ResolveAllocationTerminal(ctx, req, ttl, s.now())
+	response, err = s.deps.Resolver.ResolveAllocationAccess(ctx, req, ttl, s.now())
 	if err != nil {
-		op.SetErrorStatus("resolve allocation terminal")
+		op.SetErrorStatus("resolve allocation access")
 		return nil, err
 	}
-	op.SetAttributes(attribute.String(sdkobs.AttrNodeID, resp.GetNodeID()))
-	return resp, nil
+	op.SetAttributes(attribute.String(sdkobs.AttrNodeID, response.GetNodeID()))
+	return response, nil
 }
 
-func (s *Server) AuthorizeAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+func (s *Server) AuthorizeAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (*emptypb.Empty, error) {
 	if err := s.authorizeCredential(ctx, req); err != nil {
 		return nil, err
 	}
@@ -95,7 +94,7 @@ func (s *Server) AuthorizeAllocationAccess(ctx context.Context, req *gatewayv1.R
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Server) authorizeCredential(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) error {
+func (s *Server) authorizeCredential(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest) error {
 	if s.deps.Access == nil {
 		return status.Error(codes.Unavailable, "authorization is not configured")
 	}

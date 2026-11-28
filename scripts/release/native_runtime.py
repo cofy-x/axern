@@ -47,6 +47,7 @@ GO_BINARIES = {
     "bin/axern": "./apps/cli",
     "bin/controld": "./control/controld/cmd/controld",
     "bin/controld-migrate": "./control/controld/cmd/migrate",
+    "bin/controld-maintenance": "./control/controld/cmd/maintenance",
     "bin/controld-access-bootstrap": "./control/controld/cmd/access-bootstrap",
     "bin/controld-workload-pki": "./control/controld/cmd/workload-pki",
     "bin/gatewayd": "./gateway/gatewayd",

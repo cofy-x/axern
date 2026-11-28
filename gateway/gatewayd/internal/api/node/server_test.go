@@ -474,18 +474,18 @@ func bufconnServer(t *testing.T, register func(*grpc.Server)) (*grpc.Server, *gr
 }
 
 type fakeResolver struct {
-	requests []*gatewayv1.ResolveAllocationTerminalRequest
+	requests []*gatewayv1.ResolveAllocationAccessRequest
 	tokens   []string
 }
 
-func (r *fakeResolver) ResolveAllocationTerminal(_ context.Context, req *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
+func (r *fakeResolver) ResolveAllocationAccess(_ context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (*gatewayv1.ResolveAllocationAccessResponse, error) {
 	r.requests = append(r.requests, req)
 	token := "lease-token"
 	if len(r.tokens) > 0 {
 		token = r.tokens[0]
 		r.tokens = r.tokens[1:]
 	}
-	return &gatewayv1.ResolveAllocationTerminalResponse{
+	return &gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: req.GetAllocationID(),
 		NodeTarget:   "node.internal:24010",
 		AccessGrant: &gatewayv1.AllocationAccessGrant{

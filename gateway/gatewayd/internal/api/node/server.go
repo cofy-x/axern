@@ -15,7 +15,7 @@ import (
 )
 
 type Resolver interface {
-	ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error)
+	ResolveAllocationAccess(ctx context.Context, in *gatewayv1.ResolveAllocationAccessRequest) (*gatewayv1.ResolveAllocationAccessResponse, error)
 }
 
 type Dialer interface {

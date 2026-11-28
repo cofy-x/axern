@@ -648,6 +648,7 @@ type fakeAxernServer struct {
 	tunnelcontrolv1.UnimplementedTunnelControlServer
 	nodesandboxv1.UnimplementedNodeSandboxServer
 
+	watchErr               error
 	watchStarted           chan struct{}
 	resumeWatch            chan struct{}
 	files                  map[string][]byte
@@ -736,6 +737,9 @@ func (f *fakeAxernServer) SubmitRun(_ context.Context, request *runv1.CreateRunR
 }
 
 func (f *fakeAxernServer) WatchRun(_ *runv1.WatchRunRequest, stream runv1.RunControl_WatchRunServer) error {
+	if f.watchErr != nil {
+		return f.watchErr
+	}
 	if f.watchStarted != nil {
 		close(f.watchStarted)
 		select {
