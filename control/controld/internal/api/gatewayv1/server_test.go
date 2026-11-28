@@ -13,7 +13,7 @@ import (
 )
 
 type resolverStub struct {
-	terminalCalls int
+	resolveCalls int
 }
 
 func (r *resolverStub) ValidateAllocationAccess(context.Context, *gatewaypb.ResolveAllocationAccessRequest, time.Time) error {
@@ -21,7 +21,7 @@ func (r *resolverStub) ValidateAllocationAccess(context.Context, *gatewaypb.Reso
 }
 
 func (r *resolverStub) ResolveAllocationAccess(context.Context, *gatewaypb.ResolveAllocationAccessRequest, time.Duration, time.Time) (*gatewaypb.ResolveAllocationAccessResponse, error) {
-	r.terminalCalls++
+	r.resolveCalls++
 	return &gatewaypb.ResolveAllocationAccessResponse{}, nil
 }
 
@@ -66,8 +66,8 @@ func TestResolveAllocationAccessRejectsMissingPrincipal(t *testing.T) {
 	if access.calls != 0 {
 		t.Fatalf("authorization calls = %d, want 0 for missing identity", access.calls)
 	}
-	if resolver.terminalCalls != 0 {
-		t.Fatalf("unauthenticated resolution calls = %d", resolver.terminalCalls)
+	if resolver.resolveCalls != 0 {
+		t.Fatalf("unauthenticated resolution calls = %d", resolver.resolveCalls)
 	}
 }
 
@@ -90,8 +90,8 @@ func TestResolveAllocationAccessPrincipalIdentity(t *testing.T) {
 	if access.action != accesskernel.ActionSandboxExecute || access.resource != "allocation" || access.resourceID != req.AllocationID {
 		t.Fatalf("authorization scope = (%q, %q, %q)", access.action, access.resource, access.resourceID)
 	}
-	if resolver.terminalCalls != 1 {
-		t.Fatalf("resolver calls = %d, want 1", resolver.terminalCalls)
+	if resolver.resolveCalls != 1 {
+		t.Fatalf("resolver calls = %d, want 1", resolver.resolveCalls)
 	}
 }
 
@@ -119,8 +119,8 @@ func TestResolveAllocationAccessAuthorizationErrors(t *testing.T) {
 			if status.Code(err) != tt.code {
 				t.Fatalf("error code = %s, want %s (err = %v)", status.Code(err), tt.code, err)
 			}
-			if resolver.terminalCalls != 0 {
-				t.Fatalf("resolver calls = %d, want 0", resolver.terminalCalls)
+			if resolver.resolveCalls != 0 {
+				t.Fatalf("resolver calls = %d, want 0", resolver.resolveCalls)
 			}
 		})
 	}

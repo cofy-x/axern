@@ -9,7 +9,7 @@
 - Environment and Run lifecycle control
 - Allocation resource admission, execution liveness authority, allocation access grants, and TunnelSessions
 - namespace lifecycle, resource quota policy, quota admission, and quota usage reporting
-- allocation terminal and tunnel relay target resolution
+- purpose-scoped Allocation access and tunnel relay target resolution
 - controld-managed secret metadata, encryption, and resolution
 - read-only operational debug HTTP surfaces
 

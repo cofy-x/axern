@@ -56,7 +56,7 @@ func New(deps Dependencies) *Server {
 	return &Server{deps: deps}
 }
 
-func (s *Server) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (*gatewayv1.ResolveAllocationAccessResponse, error) {
+func (s *Server) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (response *gatewayv1.ResolveAllocationAccessResponse, err error) {
 	if err := s.authorizeCredential(ctx, req); err != nil {
 		return nil, err
 	}
@@ -67,7 +67,6 @@ func (s *Server) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.Res
 		Counter:     ctrlobs.MetricGatewayAccessResolveTotal,
 		Duration:    ctrlobs.MetricGatewayAccessResolveDuration,
 	})
-	var err error
 	defer func() { op.End(err) }()
 	ttl := time.Duration(req.GetTtlSeconds()) * time.Second
 	if ttl <= 0 {
@@ -76,13 +75,13 @@ func (s *Server) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.Res
 	if req.GetTtlSeconds() > int64((2*time.Hour)/time.Second) || ttl > 2*time.Hour {
 		return nil, status.Error(codes.InvalidArgument, "allocation access grant cannot exceed two hours")
 	}
-	resp, err := s.deps.Resolver.ResolveAllocationAccess(ctx, req, ttl, s.now())
+	response, err = s.deps.Resolver.ResolveAllocationAccess(ctx, req, ttl, s.now())
 	if err != nil {
 		op.SetErrorStatus("resolve allocation access")
 		return nil, err
 	}
-	op.SetAttributes(attribute.String(sdkobs.AttrNodeID, resp.GetNodeID()))
-	return resp, nil
+	op.SetAttributes(attribute.String(sdkobs.AttrNodeID, response.GetNodeID()))
+	return response, nil
 }
 
 func (s *Server) AuthorizeAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest) (*emptypb.Empty, error) {

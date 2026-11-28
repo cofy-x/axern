@@ -9,11 +9,11 @@ var (
 	}
 	MetricGatewayAccessResolveTotal = sdkobs.Instrument{
 		Name:        "axern.controld_gateway_access_resolve_total",
-		Description: "Gateway terminal resolve requests.",
+		Description: "Gateway Allocation access resolution requests.",
 	}
 	MetricGatewayAccessResolveDuration = sdkobs.Instrument{
 		Name:        "axern.controld_gateway_access_resolve_duration_seconds",
-		Description: "Gateway terminal resolve latency.",
+		Description: "Gateway Allocation access resolution latency.",
 	}
 	MetricReconcileTotal = sdkobs.Instrument{
 		Name:        "axern.controld_reconcile_total",
