@@ -9,6 +9,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
+	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
@@ -19,7 +20,7 @@ import (
 func (s *nodeSandboxServer) StartBackgroundProcess(ctx context.Context, req *nodesandboxv1.StartBackgroundProcessRequest) (*nodesandboxv1.StartBackgroundProcessResponse, error) {
 	processes, err := s.backgroundProcesses(ctx, req.GetAllocationID())
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	spec := req.GetSpec()
 	timeout := spec.GetTimeoutSeconds()
@@ -31,7 +32,7 @@ func (s *nodeSandboxServer) StartBackgroundProcess(ctx context.Context, req *nod
 		CallerRef: req.GetCallerRef(), Timeout: time.Duration(timeout) * time.Second,
 	})
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	return &nodesandboxv1.StartBackgroundProcessResponse{Process: backgroundStatus(status)}, nil
 }
@@ -39,14 +40,14 @@ func (s *nodeSandboxServer) StartBackgroundProcess(ctx context.Context, req *nod
 func (s *nodeSandboxServer) GetBackgroundProcess(ctx context.Context, req *nodesandboxv1.GetBackgroundProcessRequest) (*nodesandboxv1.GetBackgroundProcessResponse, error) {
 	processes, err := s.backgroundProcesses(ctx, req.GetAllocationID())
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	if err := validateBackgroundProcessID(req.GetProcessID()); err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	status, err := processes.GetBackground(ctx, req.GetProcessID())
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	return &nodesandboxv1.GetBackgroundProcessResponse{Process: backgroundStatus(status)}, nil
 }
@@ -54,11 +55,11 @@ func (s *nodeSandboxServer) GetBackgroundProcess(ctx context.Context, req *nodes
 func (s *nodeSandboxServer) ListBackgroundProcesses(ctx context.Context, req *nodesandboxv1.ListBackgroundProcessesRequest) (*nodesandboxv1.ListBackgroundProcessesResponse, error) {
 	processes, err := s.backgroundProcesses(ctx, req.GetAllocationID())
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	values, err := processes.ListBackground(ctx)
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	statuses := make([]*nodesandboxv1.BackgroundProcess, 0, len(values))
 	for _, status := range values {
@@ -70,14 +71,14 @@ func (s *nodeSandboxServer) ListBackgroundProcesses(ctx context.Context, req *no
 func (s *nodeSandboxServer) CancelBackgroundProcess(ctx context.Context, req *nodesandboxv1.CancelBackgroundProcessRequest) (*nodesandboxv1.CancelBackgroundProcessResponse, error) {
 	processes, err := s.backgroundProcesses(ctx, req.GetAllocationID())
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	if err := validateBackgroundProcessID(req.GetProcessID()); err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	status, err := processes.CancelBackground(ctx, req.GetProcessID())
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	return &nodesandboxv1.CancelBackgroundProcessResponse{Process: backgroundStatus(status)}, nil
 }
@@ -85,7 +86,7 @@ func (s *nodeSandboxServer) CancelBackgroundProcess(ctx context.Context, req *no
 func (s *nodeSandboxServer) backgroundProcesses(ctx context.Context, allocationID string) (contract.BackgroundProcesses, error) {
 	target, err := s.validateDirectAuth(ctx, allocationID)
 	if err != nil {
-		return nil, err
+		return nil, errord.ToGRPC(err)
 	}
 	if s.localOnly {
 		return nil, grpcstatus.Error(codes.PermissionDenied, "background processes require the authenticated gateway")
@@ -94,7 +95,8 @@ func (s *nodeSandboxServer) backgroundProcesses(ctx context.Context, allocationI
 	if !ok {
 		return nil, grpcstatus.Error(codes.Unavailable, "background processes are unavailable")
 	}
-	return background.BackgroundProcesses(target.targetID)
+	processes, err := background.BackgroundProcesses(target.targetID)
+	return processes, errord.ToGRPC(err)
 }
 
 func validateBackgroundProcessID(id string) error {
