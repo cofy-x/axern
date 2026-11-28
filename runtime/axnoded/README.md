@@ -14,6 +14,8 @@ Axnoded also owns node capability observation. Providers publish complete typed 
 
 Network-policy capability keys are owned by the network-health and derived providers. Until egressd is configured and its self-tests pass, the DNS-policy and strict-egress facts are explicitly unavailable, so controld cannot place a policy workload on that node.
 
+If the runsc memory self-test times out waiting for a cgroup OOM, look for `runtime conformance memory self-test timed out` in the axnoded log. The native installer writes this log to `/var/lib/axern/axnoded/axnoded.log`. The warning includes `memory_current_bytes` and `container_phase` from the last sample before cleanup. `oom_kill_delta` and `oom_group_kill_delta` show increases over the starting counters. An omitted counter means the delta was unavailable, and zero means the counter did not increase.
+
 Sandbox interface pools may be IPv4 or IPv6. Bpfnet is IPv4-only: selecting `ebpf` with an IPv6 pool is rejected during configuration validation. IPv6 requires an explicitly configured `iptables` backend; there is no automatic fallback.
 
 ## Platform Role

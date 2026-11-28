@@ -24,6 +24,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -570,7 +571,8 @@ func (h *sandboxService) verifyRuntimeConformanceMemoryOOM(ctx context.Context, 
 		if observation.SwapCurrent != 0 {
 			return fmt.Errorf("runtime conformance used %d bytes of swap despite memory.swap.max=0", observation.SwapCurrent)
 		}
-		if ct.Status.Get().State() == runtimev1.ContainerState_CONTAINER_EXITED {
+		phase := ct.Status.Get().State()
+		if phase == runtimev1.ContainerState_CONTAINER_EXITED {
 			if observation.Events["oom_kill"] <= manifest.GetInitialMemoryEventOomKill() &&
 				observation.Events["oom_group_kill"] <= manifest.GetInitialMemoryEventOomGroupKill() {
 				return fmt.Errorf("memory-hog exited without a memcg OOM kill event")
@@ -582,10 +584,31 @@ func (h *sandboxService) verifyRuntimeConformanceMemoryOOM(ctx context.Context, 
 		}
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("wait for runtime conformance memcg OOM: %w", ctx.Err())
+			err := ctx.Err()
+			if errors.Is(err, context.DeadlineExceeded) {
+				logrus.WithFields(runtimeConformanceMemoryTimeoutFields(phase, observation, manifest)).Warn("runtime conformance memory self-test timed out")
+			}
+			return fmt.Errorf("wait for runtime conformance memcg OOM: %w", err)
 		case <-ticker.C:
 		}
 	}
+}
+
+func runtimeConformanceMemoryTimeoutFields(phase runtimev1.ContainerState, observation *hostlinux.CgroupMemoryObservation, manifest *runtimev1.AllocationEnforcementManifest) logrus.Fields {
+	fields := logrus.Fields{
+		"container_phase":      "unknown",
+		"memory_current_bytes": observation.CurrentBytes,
+	}
+	if phase == runtimev1.ContainerState_CONTAINER_RUNNING {
+		fields["container_phase"] = "running"
+	}
+	if count, ok := observation.Events["oom_kill"]; ok && count >= manifest.GetInitialMemoryEventOomKill() {
+		fields["oom_kill_delta"] = count - manifest.GetInitialMemoryEventOomKill()
+	}
+	if count, ok := observation.Events["oom_group_kill"]; ok && count >= manifest.GetInitialMemoryEventOomGroupKill() {
+		fields["oom_group_kill_delta"] = count - manifest.GetInitialMemoryEventOomGroupKill()
+	}
+	return fields
 }
 
 func materializeRuntimeConformanceRootfs(filestore, fixture string) (string, error) {
