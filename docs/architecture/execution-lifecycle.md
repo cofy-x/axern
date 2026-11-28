@@ -44,6 +44,8 @@ sequenceDiagram
     Control-->>Client: "Current or terminal Run"
 ```
 
+Follow the implementation through [PostgreSQL Run admission](../../control/controld/internal/postgres/run/run_admission.go), [node Allocation startup](../../runtime/axnoded/internal/service/allocation/launch.go), and [control-plane release confirmation](../../control/controld/internal/postgres/run/reconcile.go).
+
 ## State Transitions
 
 Run projects the user-visible lifecycle; Allocation tracks infrastructure convergence.
