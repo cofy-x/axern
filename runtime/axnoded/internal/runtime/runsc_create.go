@@ -10,7 +10,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/bundleflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/cgroupflow"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/preparedflow"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/internal/rootfsflow"
 	runtimeoci "github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/rootfsview"
@@ -65,39 +64,68 @@ func (r *RunscServiceHandler) PrepareContainer(ctx context.Context, request *api
 }
 
 func (r *RunscServiceHandler) StartPreparedContainer(ctx context.Context, prepared *contract.PreparedContainer, options contract.HandlerOptions) (*apipb.ContainerMetadata, error) {
-	return preparedflow.Start(
-		ctx,
-		prepared,
-		options,
-		func(ctx context.Context, containerID string) error {
-			args, err := r.preparedContainerLifecycleArgs(options, containerID, "start", containerID)
-			if err != nil {
-				return err
-			}
-			if r.guestTaskLimit > 0 {
-				if err := r.validateTaskEnforcementManifest(ctx, containerID, options.EnforcementManifest); err != nil {
-					return err
-				}
-			}
-			if r.nativeRecovery {
-				return r.startWithTransitionFence(ctx, containerID, args)
-			}
-			_, err = r.common.Run(ctx, args...)
+	if prepared == nil {
+		return nil, fmt.Errorf("prepared container is nil")
+	}
+	launchStart := time.Now()
+	defer func() {
+		options.RecordStartupPhase(contract.StartupPhaseRuntimeLaunch, time.Since(launchStart))
+	}()
+	stepStart := launchStart
+	recordStep := func(step contract.StartupStep) {
+		now := time.Now()
+		options.RecordStartupStep(contract.StartupPhaseRuntimeLaunch, step, now.Sub(stepStart))
+		stepStart = now
+	}
+
+	id := prepared.ContainerID
+	err := r.startPreparedRuntime(ctx, id, options)
+	recordStep(contract.StartupStepRuntimeStart)
+	if err != nil {
+		return prepared.Metadata, err
+	}
+	err = r.startExitStatePersister(id)
+	recordStep(contract.StartupStepRuntimeExitMonitor)
+	if err != nil {
+		return prepared.Metadata, err
+	}
+	err = r.waitForPreparedContainerStart(ctx, id)
+	recordStep(contract.StartupStepRuntimeWaitStart)
+	if err != nil {
+		return prepared.Metadata, err
+	}
+	if r.guestTaskLimit > 0 {
+		err = r.configureGuestTaskLimits(ctx, id, options.EnforcementManifest)
+	}
+	recordStep(contract.StartupStepRuntimeEnforcement)
+	if err != nil {
+		return prepared.Metadata, err
+	}
+	err = runtimesandboxd.WaitReadyOrExit(ctx, config.RuntimeNameRunsc, options.ContainerID, prepared.BundlePath, prepared.Metadata, r.waitForSandboxReady, r.readExitState)
+	recordStep(contract.StartupStepSandboxdWaitReady)
+	if err != nil {
+		return prepared.Metadata, err
+	}
+	err = r.verifyMemoryEnforcement(ctx, options)
+	recordStep(contract.StartupStepRuntimeEnforcement)
+	return prepared.Metadata, err
+}
+
+func (r *RunscServiceHandler) startPreparedRuntime(ctx context.Context, id string, options contract.HandlerOptions) error {
+	args, err := r.preparedContainerLifecycleArgs(options, id, "start", id)
+	if err != nil {
+		return err
+	}
+	if r.guestTaskLimit > 0 {
+		if err := r.validateTaskEnforcementManifest(ctx, id, options.EnforcementManifest); err != nil {
 			return err
-		},
-		r.startExitStatePersister,
-		r.waitForPreparedContainerStart,
-		func(ctx context.Context) error {
-			if r.guestTaskLimit == 0 {
-				return nil
-			}
-			return r.configureGuestTaskLimits(ctx, prepared.ContainerID, options.EnforcementManifest)
-		},
-		func(ctx context.Context, bundlePath string, meta *apipb.ContainerMetadata) error {
-			return runtimesandboxd.WaitReadyOrExit(ctx, config.RuntimeNameRunsc, options.ContainerID, bundlePath, meta, r.waitForSandboxReady, r.readExitState)
-		},
-		func(ctx context.Context) error { return r.verifyMemoryEnforcement(ctx, options) },
-	)
+		}
+	}
+	if r.nativeRecovery {
+		return r.startWithTransitionFence(ctx, id, args)
+	}
+	_, err = r.common.Run(ctx, args...)
+	return err
 }
 
 func (r *RunscServiceHandler) prepareCreateRequest(request *apipb.CreateContainerRequest, options contract.HandlerOptions) (*apipb.CreateContainerRequest, contract.HandlerOptions, error) {
