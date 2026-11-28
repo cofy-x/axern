@@ -7,6 +7,10 @@ on:
         description: Full commit SHA on the default branch (empty uses the dispatch commit)
         type: string
         required: false
+      qualify_arm64:
+        description: Build ARM64 and run the native acceptance matrix without signing
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -17,14 +21,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - runner: ubuntu-24.04
-            arch: amd64
-            machine: x86_64
-          - runner: ubuntu-24.04-arm
-            arch: arm64
-            machine: aarch64
-    runs-on: ${{ matrix.runner }}
+        arch: ${{ fromJSON(inputs.qualify_arm64 && '["arm64"]' || '["amd64", "arm64"]') }}
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -48,17 +46,12 @@ jobs:
       - name: Build and verify the native archive
         env:
           CANDIDATE: ${{ inputs.candidate_commit || github.sha }}
-          EXPECTED_MACHINE: ${{ matrix.machine }}
+          EXPECTED_MACHINE: ${{ matrix.arch == 'arm64' && 'aarch64' || 'x86_64' }}
           EXPECTED_ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          test "$(uname -m)" = "$EXPECTED_MACHINE"
-          source candidate/runtime/axnoded/gvisor.lock
-          curl --proto '=https' --proto-redir '=https' --fail --location --retry 3 \
-            "https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${EXPECTED_MACHINE}/gvisor.tar.bz2" \
-            -o "$RUNNER_TEMP/gvisor.tar.bz2"
-          (cd candidate && python3 scripts/release/native_runtime.py build --gvisor-archive "$RUNNER_TEMP/gvisor.tar.bz2" \
-            --output-dir "$RUNNER_TEMP/archives") > "$RUNNER_TEMP/build.json"
+          bash tooling/scripts/release/build-native-archive.sh "$GITHUB_WORKSPACE/candidate" \
+            "$RUNNER_TEMP/native-build" "$EXPECTED_MACHINE" > "$RUNNER_TEMP/build.json"
           archive=$(jq -er '.archive' "$RUNNER_TEMP/build.json")
           digest=$(jq -er '.sha256' "$RUNNER_TEMP/build.json")
           python3 tooling/scripts/release/native_runtime.py verify "$archive" --sha256 "$digest" | \
@@ -80,6 +73,7 @@ jobs:
           if-no-files-found: error
 
   sign:
+    if: ${{ !inputs.qualify_arm64 }}
     needs: build
     strategy:
       matrix:
@@ -130,4 +124,160 @@ jobs:
         with:
           name: native-evidence-linux-${{ matrix.arch }}
           path: ${{ runner.temp }}/evidence/
+          if-no-files-found: error
+
+  qualify-arm64:
+    if: inputs.qualify_arm64 && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 80
+    permissions:
+      contents: read
+    env:
+      CANDIDATE: ${{ inputs.candidate_commit || github.sha }}
+      PYTHON_IMAGE: docker.io/library/python@sha256:d85015f061f0c189e6cc615135bf107d344b9eedcfaaf9d13c45aca0377c6a35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          path: tooling
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: native-inventory-linux-arm64
+          path: ${{ runner.temp }}/arm-inventory
+      - name: Select the same source and matching ARM64 staging tools
+        run: |
+          set -euo pipefail
+          test "$RUNNER_ARCH" = ARM64
+          test "$(uname -m)" = aarch64
+          [[ "$CANDIDATE" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git -C tooling cat-file -t "$CANDIDATE")" = commit
+          git -C tooling merge-base --is-ancestor "$CANDIDATE" "$GITHUB_SHA"
+          git -C tooling worktree add --detach "$GITHUB_WORKSPACE/candidate" "$CANDIDATE"
+          staging="$RUNNER_TEMP/arm-staging"
+          install -d -m 0700 "$staging"
+          git -C tooling show "$CANDIDATE:scripts/release/native_runtime.py" > "$staging/native_runtime.py"
+          git -C tooling show "$CANDIDATE:runtime/axnoded/gvisor_payload.py" > "$staging/gvisor_payload.py"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: candidate/go.work
+          cache: false
+      - name: Rebuild and verify the original ARM64 archive
+        id: archive
+        timeout-minutes: 35
+        env:
+          GOCACHE: ${{ runner.temp }}/arm-rebuild/go-cache
+          GOMODCACHE: ${{ runner.temp }}/arm-rebuild/go-mod
+          GOPATH: ${{ runner.temp }}/arm-rebuild/go-path
+          GOTMPDIR: ${{ runner.temp }}/arm-rebuild/go-tmp
+        run: |
+          set -euo pipefail
+          umask 077
+          scratch="$RUNNER_TEMP/arm-rebuild"
+          staging="$RUNNER_TEMP/arm-staging"
+          receipt="$RUNNER_TEMP/arm-inventory/receipt.json"
+          digest=$(jq -er --arg sha "$CANDIDATE" '
+            select(.schema == "axern.native-delivery-inventory.v1" and
+                   .source_revision == $sha and .architecture == "arm64") |
+            .archive_sha256 | select(test("\\A[0-9a-f]{64}\\z"))
+          ' "$receipt")
+          version=$(jq -er '.version | select(test("\\A[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.-]+)?\\z"))' "$receipt")
+          install -d -m 0700 "$scratch" "$GOTMPDIR"
+          bash tooling/scripts/release/build-native-archive.sh "$GITHUB_WORKSPACE/candidate" \
+            "$scratch" aarch64 > "$scratch/build.json"
+          archive="$scratch/archives/axern-runtime_${version}_linux_arm64.tar.gz"
+          test "$archive" = "$(jq -er '.archive' "$scratch/build.json")"
+          if [[ "$digest" != "$(jq -er '.sha256' "$scratch/build.json")" ]]; then
+            printf '%s\n' 'The rebuilt ARM64 archive digest differs from the original build receipt.' >&2
+            exit 1
+          fi
+          test -f "$archive" && test ! -L "$archive"
+          python3 -I "$staging/native_runtime.py" verify "$archive" --sha256 "$digest" |
+            jq -e --arg sha "$CANDIDATE" --arg digest "$digest" '
+              select(.status == "verified" and .source_revision == $sha and .architecture == "arm64") |
+              {status, architecture, source_revision, archive_sha256: $digest}
+            ' > "$RUNNER_TEMP/arm-verified.json"
+          ln -- "$archive" "$RUNNER_TEMP/arm-archive.tar.gz"
+          printf 'sha256=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+      - name: Clear only the qualification build caches
+        if: always()
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/arm-rebuild"
+          if [[ -d "$scratch" ]]; then
+            GOCACHE="$scratch/go-cache" GOMODCACHE="$scratch/go-mod" GOPATH="$scratch/go-path" \
+              go clean -cache -modcache
+            rm -rf -- "$scratch/go-tmp" "$scratch/go-path"
+            rm -f -- "$scratch/gvisor.tar.bz2"
+          fi
+      - name: Prepare the disposable ARM64 host
+        id: prepare
+        timeout-minutes: 12
+        run: |
+          set -euo pipefail
+          umask 077
+          {
+            sudo apt-get -o Acquire::Retries=0 update
+            sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 upgrade --yes
+            sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install --yes \
+              --no-install-recommends postgresql-16 python3 curl ca-certificates busybox-static erofs-utils \
+              iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
+            sudo bash tooling/scripts/release/prepare-qualification-runner.sh --disposable-guest arm64
+          } > "$RUNNER_TEMP/arm-prepare.log" 2>&1
+      - name: Attempt the native eight-case matrix
+        id: matrix
+        timeout-minutes: 25
+        env:
+          ARCHIVE_SHA256: ${{ steps.archive.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          status=0
+          # The shell keeps the log private to this runner account.
+          # shellcheck disable=SC2024
+          sudo bash tooling/deploy/standalone/qualify-guest.sh --disposable-guest arm64 \
+            "$RUNNER_TEMP/arm-archive.tar.gz" "$ARCHIVE_SHA256" "$CANDIDATE" \
+            "$PYTHON_IMAGE" "$RUNNER_TEMP/arm-staging" "$RUNNER_TEMP/arm-private" \
+            > "$RUNNER_TEMP/arm-wrapper.log" 2>&1 || status=$?
+          printf 'exit_code=%s\n' "$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Export and check the qualification summary
+        if: always()
+        env:
+          PREPARE_OUTCOME: ${{ steps.prepare.outcome }}
+          WRAPPER_EXIT: ${{ steps.matrix.outputs.exit_code }}
+          WRAPPER_OUTCOME: ${{ steps.matrix.outcome }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/arm-evidence"
+          install -d -m 0700 "$evidence"
+          # The root reader emits only the whitelisted JSON to a runner-owned file.
+          # shellcheck disable=SC2024
+          if ! sudo python3 -I tooling/scripts/release/qualification-receipt.py \
+            --private-dir "$RUNNER_TEMP/arm-private" --verified-archive "$RUNNER_TEMP/arm-verified.json" \
+            --source "$CANDIDATE" --image "$PYTHON_IMAGE" --runner-arch "$RUNNER_ARCH" \
+            --prepare-outcome "$PREPARE_OUTCOME" \
+            --wrapper-exit "$WRAPPER_EXIT" --wrapper-outcome "$WRAPPER_OUTCOME" \
+            > "$RUNNER_TEMP/arm-public.json"; then
+            printf '%s\n' '### Native ARM64 acceptance evidence unavailable' >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          jq '.kernel' "$RUNNER_TEMP/arm-public.json" > "$evidence/kernel.json"
+          jq '.archive' "$RUNNER_TEMP/arm-public.json" > "$evidence/verified-receipt.json"
+          jq '.start_capabilities' "$RUNNER_TEMP/arm-public.json" > "$evidence/start-capabilities.json"
+          jq '.result' "$RUNNER_TEMP/arm-public.json" > "$evidence/result.json"
+          jq -r '"### Native ARM64 acceptance: \(.status)\n\nHost preparation: \(.prepare_outcome)\nWrapper: \(.wrapper_outcome)\n",
+            (.cases[] | "- \(.name): \(.status), cleanup \(.cleanup)")' "$evidence/result.json" >> "$GITHUB_STEP_SUMMARY"
+          jq -e '.status == "passed"' "$evidence/result.json" > /dev/null
+      - name: Retain the whitelisted ARM64 evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-qualification-linux-arm64
+          path: |
+            ${{ runner.temp }}/arm-evidence/kernel.json
+            ${{ runner.temp }}/arm-evidence/verified-receipt.json
+            ${{ runner.temp }}/arm-evidence/start-capabilities.json
+            ${{ runner.temp }}/arm-evidence/result.json
           if-no-files-found: error
