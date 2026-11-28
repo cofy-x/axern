@@ -306,7 +306,7 @@ func publicPolicy(method string) (methodPolicy, bool) {
 	case "axern.control.environment.v1.EnvironmentControl":
 		return resourcePolicy(methodName, "environment", []string{"GetEnvironment", "ListEnvironments"}, []string{"CreateEnvironment", "DeleteEnvironment"})
 	case "axern.control.run.v1.RunControl":
-		return resourcePolicy(methodName, "run", []string{"GetRun", "WatchRun", "ListRuns"}, []string{"AdmitRun", "CancelRun"})
+		return resourcePolicy(methodName, "run", []string{"GetRun", "WatchRun", "ListRuns"}, []string{"SubmitRun", "CancelRun"})
 	case "axern.control.workspace.v1.WorkspaceControl":
 		return resourcePolicy(methodName, "workspace", []string{"GetWorkspace", "ListWorkspaces"}, []string{"CreateWorkspace", "DeleteWorkspace"})
 	case "axern.control.secret.v1.SecretControl":

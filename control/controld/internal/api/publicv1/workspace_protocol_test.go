@@ -8,12 +8,14 @@ import (
 	"time"
 
 	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
+	"google.golang.org/protobuf/proto"
 )
 
 // These servers retain the old create method names and would create disposable
@@ -21,7 +23,7 @@ import (
 func TestWorkspaceRunCannotBecomeEphemeralOnOlderControl(t *testing.T) {
 	var creates atomic.Int32
 	conn := legacyCreateConnection(t, "axern.control.run.v1.RunControl", "CreateRun", func() { creates.Add(1) })
-	_, err := runv1.NewRunControlClient(conn).AdmitRun(testProtocolContext(t), &runv1.CreateRunRequest{Namespace: "default", EnvironmentID: "env-example", WorkspaceID: "ws-required"})
+	_, err := runv1.NewRunControlClient(conn).SubmitRun(testProtocolContext(t), &runv1.CreateRunRequest{Namespace: "default", EnvironmentID: "env-example", WorkspaceID: "ws-required"})
 	if status.Code(err) != codes.Unimplemented || creates.Load() != 0 {
 		t.Fatalf("required Workspace reached old create: code=%v creates=%d", status.Code(err), creates.Load())
 	}
@@ -30,10 +32,34 @@ func TestWorkspaceRunCannotBecomeEphemeralOnOlderControl(t *testing.T) {
 func TestWorkspaceAllocationCannotBecomeEphemeralOnOlderNode(t *testing.T) {
 	var creates atomic.Int32
 	conn := legacyCreateConnection(t, "axern.private.node.lifecycle.v1.NodeLifecycle", "CreateAllocation", func() { creates.Add(1) })
-	_, err := nodelifecyclev1.NewNodeLifecycleClient(conn).AdmitAllocation(testProtocolContext(t), &nodelifecyclev1.CreateAllocationRequest{AllocationID: "alloc-required", NodeID: "node-example", Config: &nodelifecyclev1.ResolvedExecutionConfig{Workspace: &nodelifecyclev1.WorkspaceBinding{Spec: &nodelifecyclev1.WorkspaceSpec{WorkspaceID: "ws-required"}, Generation: 1, Target: "/workspace"}}})
+	_, err := nodelifecyclev1.NewNodeLifecycleClient(conn).LaunchAllocation(testProtocolContext(t), &nodelifecyclev1.CreateAllocationRequest{AllocationID: "alloc-required", NodeID: "node-example", Config: &nodelifecyclev1.ResolvedExecutionConfig{Workspace: &nodelifecyclev1.WorkspaceBinding{Spec: &nodelifecyclev1.WorkspaceSpec{WorkspaceID: "ws-required"}, Generation: 1, Target: "/workspace"}}})
 	if status.Code(err) != codes.Unimplemented || creates.Load() != 0 {
 		t.Fatalf("required Workspace reached old create: code=%v creates=%d", status.Code(err), creates.Load())
 	}
+}
+
+func TestPrimaryUserCannotReachLegacyRootAdmission(t *testing.T) {
+	primary := &commonv1.PrimaryUser{Uid: proto.Uint32(1000), Gid: proto.Uint32(0)}
+	t.Run("control", func(t *testing.T) {
+		var creates atomic.Int32
+		conn := legacyCreateConnection(t, "axern.control.run.v1.RunControl", "AdmitRun", func() { creates.Add(1) })
+		_, err := runv1.NewRunControlClient(conn).SubmitRun(testProtocolContext(t), &runv1.CreateRunRequest{
+			Config: &commonv1.ExecutionConfig{PrimaryUser: primary},
+		})
+		if status.Code(err) != codes.Unimplemented || creates.Load() != 0 {
+			t.Fatalf("required identity reached old control: code=%v creates=%d", status.Code(err), creates.Load())
+		}
+	})
+	t.Run("node", func(t *testing.T) {
+		var creates atomic.Int32
+		conn := legacyCreateConnection(t, "axern.private.node.lifecycle.v1.NodeLifecycle", "AdmitAllocation", func() { creates.Add(1) })
+		_, err := nodelifecyclev1.NewNodeLifecycleClient(conn).LaunchAllocation(testProtocolContext(t), &nodelifecyclev1.CreateAllocationRequest{
+			Config: &nodelifecyclev1.ResolvedExecutionConfig{PrimaryUser: primary},
+		})
+		if status.Code(err) != codes.Unimplemented || creates.Load() != 0 {
+			t.Fatalf("required identity reached old node: code=%v creates=%d", status.Code(err), creates.Load())
+		}
+	})
 }
 
 type legacyCreateService interface{}

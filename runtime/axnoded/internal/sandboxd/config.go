@@ -73,16 +73,13 @@ func loadEntrypoint(path string) (workload.Entrypoint, error) {
 	if err != nil {
 		return workload.Entrypoint{}, fmt.Errorf("read entrypoint metadata: %w", err)
 	}
-	// The current producer preserves only a root, non-terminal primary
-	// entrypoint. Reject behavior we cannot faithfully restore rather than
-	// silently running a requested identity with daemon/root privileges.
 	var metadata *struct {
 		Args []string `json:"args"`
 		Cwd  string   `json:"cwd"`
 		Env  []string `json:"env"`
 		User *struct {
-			UID uint32 `json:"uid"`
-			GID uint32 `json:"gid"`
+			UID *uint32 `json:"uid"`
+			GID *uint32 `json:"gid"`
 		} `json:"user"`
 		Terminal bool `json:"terminal"`
 	}
@@ -97,10 +94,17 @@ func loadEntrypoint(path string) (workload.Entrypoint, error) {
 	if decoder.Decode(new(any)) != io.EOF {
 		return workload.Entrypoint{}, fmt.Errorf("entrypoint metadata must contain exactly one object")
 	}
-	if metadata.Terminal || (metadata.User != nil && (metadata.User.UID != 0 || metadata.User.GID != 0)) {
-		return workload.Entrypoint{}, fmt.Errorf("entrypoint metadata supports only root, non-terminal primary processes")
+	if metadata.Terminal {
+		return workload.Entrypoint{}, fmt.Errorf("entrypoint metadata does not support terminal primary processes")
 	}
-	return workload.Entrypoint{Args: metadata.Args, Cwd: metadata.Cwd, Env: metadata.Env}, nil
+	entrypoint := workload.Entrypoint{Args: metadata.Args, Cwd: metadata.Cwd, Env: metadata.Env}
+	if user := metadata.User; user != nil {
+		if user.UID == nil || user.GID == nil || *user.UID == ^uint32(0) || *user.GID == ^uint32(0) || (*user.UID == 0 && *user.GID != 0) {
+			return workload.Entrypoint{}, fmt.Errorf("invalid primary user in entrypoint metadata")
+		}
+		entrypoint.UID, entrypoint.GID = *user.UID, *user.GID
+	}
+	return entrypoint, nil
 }
 
 func validateEntrypoint(entrypoint workload.Entrypoint) error {

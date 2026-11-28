@@ -149,6 +149,9 @@ func NormalizeResourcesForRootfs(in *commonv1.ResourceSpec, readonly bool) (*com
 }
 
 func NormalizeConfigForRootfs(in *commonv1.ExecutionConfig, readonly bool) (*commonv1.ExecutionConfig, error) {
+	if primary := in.GetPrimaryUser(); primary != nil && (primary.Uid == nil || primary.Gid == nil || primary.GetUid() == 0 || primary.GetUid() == ^uint32(0) || primary.GetGid() == ^uint32(0)) {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "config.primary_user requires a nonzero Linux uid and an explicit Linux gid")
+	}
 	if readonly && in.GetRootfsSnapshot() != nil {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "config.rootfs_snapshot requires a writable rootfs")
 	}

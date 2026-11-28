@@ -212,8 +212,16 @@ class RootfsSnapshot(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
 
+class PrimaryUser(_message.Message):
+    __slots__ = ("uid", "gid")
+    UID_FIELD_NUMBER: _ClassVar[int]
+    GID_FIELD_NUMBER: _ClassVar[int]
+    uid: int
+    gid: int
+    def __init__(self, uid: _Optional[int] = ..., gid: _Optional[int] = ...) -> None: ...
+
 class ExecutionConfig(_message.Message):
-    __slots__ = ("argv", "env", "cwd", "resources", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "image_mounts", "declared_outputs", "rootfs_snapshot")
+    __slots__ = ("argv", "env", "cwd", "resources", "network", "extension_capability_requirements", "placement", "secret_env", "secret_files", "image_mounts", "declared_outputs", "rootfs_snapshot", "primary_user")
     class EnvEntry(_message.Message):
         __slots__ = ("key", "value")
         KEY_FIELD_NUMBER: _ClassVar[int]
@@ -233,6 +241,7 @@ class ExecutionConfig(_message.Message):
     IMAGE_MOUNTS_FIELD_NUMBER: _ClassVar[int]
     DECLARED_OUTPUTS_FIELD_NUMBER: _ClassVar[int]
     ROOTFS_SNAPSHOT_FIELD_NUMBER: _ClassVar[int]
+    PRIMARY_USER_FIELD_NUMBER: _ClassVar[int]
     argv: _containers.RepeatedScalarFieldContainer[str]
     env: _containers.ScalarMap[str, str]
     cwd: str
@@ -245,4 +254,5 @@ class ExecutionConfig(_message.Message):
     image_mounts: _containers.RepeatedCompositeFieldContainer[ImageMount]
     declared_outputs: _containers.RepeatedCompositeFieldContainer[DeclaredOutput]
     rootfs_snapshot: RootfsSnapshot
-    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., declared_outputs: _Optional[_Iterable[_Union[DeclaredOutput, _Mapping]]] = ..., rootfs_snapshot: _Optional[_Union[RootfsSnapshot, _Mapping]] = ...) -> None: ...
+    primary_user: PrimaryUser
+    def __init__(self, argv: _Optional[_Iterable[str]] = ..., env: _Optional[_Mapping[str, str]] = ..., cwd: _Optional[str] = ..., resources: _Optional[_Union[ResourceSpec, _Mapping]] = ..., network: _Optional[_Union[NetworkSpec, _Mapping]] = ..., extension_capability_requirements: _Optional[_Iterable[_Union[_capability_pb2.ExtensionCapabilityRequirement, _Mapping]]] = ..., placement: _Optional[_Union[PlacementConstraints, _Mapping]] = ..., secret_env: _Optional[_Iterable[_Union[SecretEnvVar, _Mapping]]] = ..., secret_files: _Optional[_Iterable[_Union[SecretFile, _Mapping]]] = ..., image_mounts: _Optional[_Iterable[_Union[ImageMount, _Mapping]]] = ..., declared_outputs: _Optional[_Iterable[_Union[DeclaredOutput, _Mapping]]] = ..., rootfs_snapshot: _Optional[_Union[RootfsSnapshot, _Mapping]] = ..., primary_user: _Optional[_Union[PrimaryUser, _Mapping]] = ...) -> None: ...

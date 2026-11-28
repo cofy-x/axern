@@ -74,7 +74,7 @@ func NewLocalNodeLifecycleServer(svc serviceLike, nodeID string) nodelifecyclev1
 	}
 }
 
-func (s *nodeLifecycleServer) AdmitAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
+func (s *nodeLifecycleServer) LaunchAllocation(ctx context.Context, req *nodelifecyclev1.CreateAllocationRequest) (*nodelifecyclev1.CreateAllocationResponse, error) {
 	totalStarted := time.Now()
 	runtimeClass := "runsc"
 	var resultErr error
@@ -365,17 +365,21 @@ func allocationStartRequest(req *nodelifecyclev1.CreateAllocationRequest) (*runt
 	if spec == nil {
 		return nil, grpcstatus.Error(codes.InvalidArgument, "config is required")
 	}
+	if primary := spec.GetPrimaryUser(); primary != nil && (primary.Uid == nil || primary.Gid == nil || primary.GetUid() == 0 || primary.GetUid() == ^uint32(0) || primary.GetGid() == ^uint32(0)) {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "config.primary_user requires a nonzero Linux uid and an explicit Linux gid")
+	}
 	cwd := strings.TrimSpace(spec.GetCwd())
 	rootfsConfig, err := lifecycleRootfsConfig(spec)
 	if err != nil {
 		return nil, err
 	}
 	preparedEnvironment := &runtimev1.ResolvedEnvironment{
-		Argv:   append([]string(nil), spec.GetArgv()...),
-		Cwd:    cwd,
-		Env:    cloneStringMap(spec.GetEnv()),
-		Mounts: toRuntimeLifecycleMountsFromAllocation(spec.GetMounts()),
-		Rootfs: rootfsConfig,
+		Argv:        append([]string(nil), spec.GetArgv()...),
+		Cwd:         cwd,
+		PrimaryUser: proto.CloneOf(spec.GetPrimaryUser()),
+		Env:         cloneStringMap(spec.GetEnv()),
+		Mounts:      toRuntimeLifecycleMountsFromAllocation(spec.GetMounts()),
+		Rootfs:      rootfsConfig,
 		ExecutionProfile: cloneOciExecutionProfile(
 			spec.GetExecutionProfile(),
 		),
@@ -414,6 +418,9 @@ func cloneRootfsSnapshot(in *commonv1.RootfsSnapshot) *commonv1.RootfsSnapshot {
 }
 
 func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.ResolvedExecutionConfig) (*runtimev1.StartRequest, error) {
+	if primary := spec.GetPrimaryUser(); primary != nil && (primary.Uid == nil || primary.Gid == nil || primary.GetUid() == 0 || primary.GetUid() == ^uint32(0) || primary.GetGid() == ^uint32(0)) {
+		return nil, grpcstatus.Error(codes.InvalidArgument, "config.primary_user requires a nonzero Linux uid and an explicit Linux gid")
+	}
 	cwd := strings.TrimSpace(spec.GetCwd())
 
 	rootfsConfig, err := lifecycleRootfsConfig(spec)
@@ -422,11 +429,12 @@ func resolvedSandboxStartRequest(containerID string, spec *nodelifecyclev1.Resol
 	}
 
 	preparedEnvironment := &runtimev1.ResolvedEnvironment{
-		Argv:   append([]string(nil), spec.GetArgv()...),
-		Cwd:    cwd,
-		Env:    cloneStringMap(spec.GetEnv()),
-		Mounts: toRuntimeLifecycleMounts(spec.GetMounts()),
-		Rootfs: rootfsConfig,
+		Argv:        append([]string(nil), spec.GetArgv()...),
+		Cwd:         cwd,
+		PrimaryUser: proto.CloneOf(spec.GetPrimaryUser()),
+		Env:         cloneStringMap(spec.GetEnv()),
+		Mounts:      toRuntimeLifecycleMounts(spec.GetMounts()),
+		Rootfs:      rootfsConfig,
 		ExecutionProfile: cloneOciExecutionProfile(
 			spec.GetExecutionProfile(),
 		),

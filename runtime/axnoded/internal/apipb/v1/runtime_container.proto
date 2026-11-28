@@ -5,6 +5,7 @@ package axnoded.internal.apipb.v1;
 option go_package = "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1;apipb";
 
 import "internal/apipb/v1/axnoded_internal.proto";
+import "axern/control/common/v1/common.proto";
 
 message CreateContainerRequest {
   repeated string command = 1;
@@ -18,6 +19,7 @@ message CreateContainerRequest {
   string id = 9;
   int64 ephemeral_storage_request_bytes = 10;
   int64 ephemeral_storage_limit_bytes = 11;
+  axern.control.common.v1.PrimaryUser primary_user = 12;
 }
 
 message CreateContainerResponse {

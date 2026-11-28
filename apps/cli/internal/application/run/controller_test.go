@@ -233,7 +233,7 @@ type fakeRunClient struct {
 	watchBlocks    bool
 }
 
-func (f *fakeRunClient) AdmitRun(_ context.Context, req *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
+func (f *fakeRunClient) SubmitRun(_ context.Context, req *runv1.CreateRunRequest, _ ...grpc.CallOption) (*runv1.CreateRunResponse, error) {
 	f.createRequest = req
 	return &runv1.CreateRunResponse{Run: &runv1.Run{ID: "run-1"}}, nil
 }

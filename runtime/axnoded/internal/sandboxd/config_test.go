@@ -82,10 +82,21 @@ func TestParseConfigAcceptsSupportedRootEntrypointMetadata(t *testing.T) {
 	}
 }
 
+func TestParseConfigAcceptsExplicitNonRootPrimaryUser(t *testing.T) {
+	entrypoint := filepath.Join(t.TempDir(), "entrypoint.json")
+	if err := os.WriteFile(entrypoint, []byte(`{"args":["agent"],"user":{"uid":1000,"gid":0}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := ParseConfig([]string{"--entrypoint-json", entrypoint}, &bytes.Buffer{})
+	if err != nil || config.Entrypoint.UID != 1000 || config.Entrypoint.GID != 0 {
+		t.Fatalf("primary identity = %#v, err = %v", config.Entrypoint, err)
+	}
+}
+
 func TestParseConfigRejectsUnsupportedEntrypointMetadata(t *testing.T) {
 	for name, data := range map[string]string{
-		"nonroot uid":      `{"args":["/bin/echo","ok"],"user":{"uid":1000}}`,
-		"nonroot gid":      `{"args":["/bin/echo","ok"],"user":{"gid":1000}}`,
+		"missing gid":      `{"args":["/bin/echo","ok"],"user":{"uid":1000}}`,
+		"missing uid":      `{"args":["/bin/echo","ok"],"user":{"gid":1000}}`,
 		"extra groups":     `{"args":["/bin/echo","ok"],"user":{"additionalGids":[0]}}`,
 		"username":         `{"args":["/bin/echo","ok"],"user":{"username":"root"}}`,
 		"umask":            `{"args":["/bin/echo","ok"],"user":{"umask":18}}`,

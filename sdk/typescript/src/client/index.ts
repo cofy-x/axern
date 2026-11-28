@@ -55,7 +55,23 @@ export interface CreateRunOptions {
   limitEphemeralStorage?: ResourceQuantity;
   declaredOutputs?: readonly DeclaredOutput[];
   rootfsSnapshot?: boolean;
+  primaryUser?: PrimaryUser;
   labels?: Record<string, string>;
+}
+
+export interface PrimaryUser {
+  uid: number;
+  gid: number;
+}
+
+function primaryUserWire(user: PrimaryUser): PrimaryUser {
+  const { uid, gid } = user;
+  const maxId = 0xffff_fffe;
+  if (!Number.isInteger(uid) || uid < 1 || uid > maxId ||
+      !Number.isInteger(gid) || gid < 0 || gid > maxId) {
+    throw new TypeError("primaryUser requires a nonzero Linux UID and an explicit Linux GID");
+  }
+  return { uid, gid };
 }
 
 export type DeclaredOutputFormat = "file" | "tar";
@@ -380,7 +396,7 @@ export class AxernClient {
     try {
       const response = await unary<Record<string, unknown>, { run: Record<string, unknown> }>(
         this.runControl,
-        "AdmitRun",
+        "SubmitRun",
         {
           namespace: options.namespace ?? "default",
           environment_id: required("environmentId", options.environmentId),
@@ -401,6 +417,9 @@ export class AxernClient {
               media_type: output.mediaType ?? "",
             })),
             ...(options.rootfsSnapshot ? { rootfs_snapshot: {} } : {}),
+            ...(options.primaryUser === undefined
+              ? {}
+              : { primary_user: primaryUserWire(options.primaryUser) }),
             resources,
           },
           labels: options.labels ?? {},

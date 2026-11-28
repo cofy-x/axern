@@ -51,8 +51,14 @@ type Spec struct {
 	SecretEnv             []SecretEnv       `json:"secret_env,omitempty" yaml:"secret_env,omitempty"`
 	SecretFiles           []SecretFile      `json:"secret_files,omitempty" yaml:"secret_files,omitempty"`
 	ImageMounts           []ImageMount      `json:"image_mounts,omitempty" yaml:"image_mounts,omitempty"`
+	PrimaryUser           *PrimaryUser      `json:"primary_user,omitempty" yaml:"primary_user,omitempty"`
 	RootfsSnapshot        bool              `json:"rootfs_snapshot,omitempty" yaml:"rootfs_snapshot,omitempty"`
 	NetworkPolicy         *NetworkPolicy    `json:"network_policy,omitempty" yaml:"network_policy,omitempty"`
+}
+
+type PrimaryUser struct {
+	UID *uint32 `json:"uid" yaml:"uid"`
+	GID *uint32 `json:"gid" yaml:"gid"`
 }
 
 type NetworkPolicy struct {
@@ -257,6 +263,12 @@ func (e Envelope) ExecutionConfig() (*commonv1.ExecutionConfig, error) {
 		SecretFiles:                     secretFiles,
 		ImageMounts:                     imageMounts,
 		Network:                         network,
+	}
+	if user := e.Spec.PrimaryUser; user != nil {
+		if user.UID == nil || user.GID == nil || *user.UID == 0 || *user.UID == ^uint32(0) || *user.GID == ^uint32(0) {
+			return nil, fmt.Errorf("spec.primary_user requires a nonzero Linux uid and an explicit Linux gid")
+		}
+		config.PrimaryUser = &commonv1.PrimaryUser{Uid: user.UID, Gid: user.GID}
 	}
 	if e.Spec.RootfsSnapshot {
 		config.RootfsSnapshot = &commonv1.RootfsSnapshot{}

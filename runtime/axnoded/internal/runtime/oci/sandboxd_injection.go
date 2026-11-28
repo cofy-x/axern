@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 )
 
@@ -37,6 +38,7 @@ func SandboxdBundleSocketPath(bundleDir string) string {
 
 type SandboxdInjectionOptions struct {
 	HostBinaryPath string
+	PrimaryUser    *commonv1.PrimaryUser
 }
 
 type sandboxdEntrypointMetadata struct {
@@ -92,6 +94,12 @@ func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options 
 		User:     ociSpec.Process.User,
 		Terminal: ociSpec.Process.Terminal,
 	}
+	if primary := options.PrimaryUser; primary != nil {
+		if primary.Uid == nil || primary.Gid == nil || primary.GetUid() == 0 || primary.GetUid() == ^uint32(0) || primary.GetGid() == ^uint32(0) {
+			return fmt.Errorf("sandboxd primary user requires a nonzero Linux uid and an explicit Linux gid")
+		}
+		metadata.User = spec.User{UID: primary.GetUid(), GID: primary.GetGid()}
+	}
 	buf, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal sandboxd entrypoint metadata: %w", err)
@@ -114,7 +122,13 @@ func materializeSandboxdInjection(bundleDir string, ociSpec *spec.Spec, options 
 		ociSpec.Process.Args = append(ociSpec.Process.Args, "--guest-task-limit", strconv.FormatInt(guestTaskLimit, 10))
 	}
 	ociSpec.Process.Cwd = "/"
-	ociSpec.Process.Env = sandboxdDaemonEnv(ociSpec.Process.Env)
+	daemonEnv := ociSpec.Process.Env
+	if options.PrimaryUser != nil {
+		// Caller environment reaches the worker through the sealed child
+		// protocol. It must not configure the root daemon at bootstrap.
+		daemonEnv = nil
+	}
+	ociSpec.Process.Env = sandboxdDaemonEnv(daemonEnv)
 	return nil
 }
 

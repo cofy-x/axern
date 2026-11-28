@@ -181,7 +181,9 @@ Add `spec.workspace_id: <workspace-id>` to select retained working data for the 
 
 When `--file` is used, resource-definition flags cannot be mixed with the spec. Context, output, detach, and timeout flags remain operational overrides.
 
-Run files also accept `spec.network_policy`, validated with the public Go SDK:
+Use `axern run --primary-user 1000:1000 IMAGE -- COMMAND` to start the primary process as a numeric non-root user. For `--file`, set `spec.primary_user: {uid: 1000, gid: 1000}`. The [Run contract](../../docs/product/domain-model.md#run) describes identity defaults and image metadata.
+
+Run files also accept `spec.network_policy`, validated with the public Go SDK.
 
 ```yaml
 network_policy:

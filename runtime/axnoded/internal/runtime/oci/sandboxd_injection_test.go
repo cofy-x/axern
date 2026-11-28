@@ -7,8 +7,42 @@ import (
 	"reflect"
 	"testing"
 
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
+	"google.golang.org/protobuf/proto"
 )
+
+func TestMaterializeSandboxdInjectionKeepsNonRootIdentityOutOfDaemon(t *testing.T) {
+	bundle := t.TempDir()
+	hostBinary := filepath.Join(bundle, "sandboxd")
+	if err := os.WriteFile(hostBinary, staticSandboxdFixture(), 0755); err != nil {
+		t.Fatal(err)
+	}
+	specification := &spec.Spec{Process: &spec.Process{
+		Args: []string{"agent"}, Cwd: "/work", Env: []string{"PATH=/agent/bin", "SECRET=inert"},
+	}}
+	options := &SandboxdInjectionOptions{
+		HostBinaryPath: hostBinary,
+		PrimaryUser:    &commonv1.PrimaryUser{Uid: proto.Uint32(1000), Gid: proto.Uint32(0)},
+	}
+	if err := materializeSandboxdInjection(bundle, specification, options, 0); err != nil {
+		t.Fatal(err)
+	}
+	if specification.Process.User.UID != 0 || specification.Process.User.GID != 0 || len(specification.Process.Env) != 1 {
+		t.Fatalf("daemon received worker identity or environment: %#v", specification.Process)
+	}
+	data, err := os.ReadFile(filepath.Join(bundle, sandboxdBundleMetadataDir, sandboxdBundleEntrypointName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var metadata sandboxdEntrypointMetadata
+	if err := json.Unmarshal(data, &metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.User.UID != 1000 || metadata.User.GID != 0 || !reflect.DeepEqual(metadata.Env, []string{"PATH=/agent/bin", "SECRET=inert"}) {
+		t.Fatalf("missing requested worker behavior: %#v", metadata)
+	}
+}
 
 func TestMaterializeSandboxdInjectionRewritesProcessAndWritesEntrypoint(t *testing.T) {
 	bundleDir := t.TempDir()
