@@ -27,6 +27,21 @@ REASONS = tuple('CAPABILITY_REASON_CODE_' + name for name in (
 ))
 MAX_JSON_BYTES = 2 * 1024 * 1024
 OUTCOMES = ('success', 'failure', 'cancelled', 'skipped')
+WRAPPER_FAILURES = {
+    'input': 'invalid_input',
+    'privilege': 'permission_denied',
+    'host_preflight': 'host_precondition',
+    'storage_preflight': 'storage_precondition',
+    'network_preflight': 'network_precondition',
+    'output_setup': 'output_unavailable',
+    'archive_verify': 'archive_verification_failed',
+    'archive_stage': 'archive_staging_failed',
+    'fixture_setup': 'fixture_setup_failed',
+    'install': 'installation_failed',
+    'startup': 'startup_failed',
+    'matrix': 'matrix_failed',
+    'cleanup': 'cleanup_failed',
+}
 
 
 def read_object(path):
@@ -63,6 +78,29 @@ def capability_summary(path):
     return {'query': 'ok', 'platformObservations': list(observations.values())}
 
 
+def wrapper_diagnostic(phase_file, attempted, outcome, exit_code):
+    if not attempted:
+        return 'not_attempted', 'not_attempted'
+    phase = 'unavailable'
+    try:
+        if phase_file is not None and phase_file.resolve(strict=True) == phase_file.absolute() and phase_file.is_file():
+            with phase_file.open('rb') as stream:
+                marker = stream.read(65).decode('ascii')
+            for allowed in (*WRAPPER_FAILURES, 'complete'):
+                if marker == f'{allowed}\n':
+                    phase = allowed
+                    break
+    except (OSError, ValueError, RuntimeError):
+        pass
+    if outcome == 'success' and exit_code == 0:
+        return ('complete', 'none') if phase == 'complete' else ('unavailable', 'unavailable')
+    if phase == 'complete':
+        phase = 'unavailable'
+    if outcome == 'cancelled' or exit_code in (129, 130, 143):
+        return phase, 'interrupted'
+    return phase, WRAPPER_FAILURES.get(phase, 'unavailable')
+
+
 def project(args, machine, release, boot_id):
     source = matching(args.source, r'[0-9a-f]{40}')
     image = matching(args.image, r'docker\.io/library/python@sha256:[0-9a-f]{64}')
@@ -87,6 +125,7 @@ def project(args, machine, release, boot_id):
     prepare_outcome = args.prepare_outcome if args.prepare_outcome in OUTCOMES else 'unavailable'
     attempted = (native_host and archive_verified and prepare_outcome == 'success' and
                  wrapper_outcome in ('success', 'failure', 'cancelled'))
+    wrapper_phase, wrapper_failure = wrapper_diagnostic(args.wrapper_phase_file, attempted, wrapper_outcome, wrapper_exit)
 
     report = read_object(args.private_dir / 'matrix/report.json') if attempted else {}
     current_boot = matching(boot_id, r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}')
@@ -120,6 +159,7 @@ def project(args, machine, release, boot_id):
         'source_revision': source, 'architecture': 'arm64', 'archive_sha256': archive['archive_sha256'],
         'image': image, 'native_arm64': native_host, 'prepare_outcome': prepare_outcome,
         'wrapper_outcome': wrapper_outcome, 'wrapper_exit': wrapper_exit,
+        'wrapper_phase': wrapper_phase, 'wrapper_failure': wrapper_failure,
         'wrapper_attempted': attempted, 'host_cleanup': 'passed' if host_cleanup else 'unconfirmed',
         'matrix_cleanup': 'passed' if matrix_cleanup else 'unconfirmed', 'report_matches_current_boot': same_host,
         'cases': cases,
@@ -138,6 +178,7 @@ def main():
     parser.add_argument('--prepare-outcome', required=True)
     parser.add_argument('--wrapper-exit', required=True)
     parser.add_argument('--wrapper-outcome', required=True)
+    parser.add_argument('--wrapper-phase-file', type=pathlib.Path)
     try:
         boot_id = pathlib.Path('/proc/sys/kernel/random/boot_id').read_text(encoding='ascii').strip()
     except (OSError, ValueError):

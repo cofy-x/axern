@@ -16,66 +16,10 @@ if [[ $# -eq 1 && $1 == --help ]]; then
     usage
     exit 0
 fi
-if [[ $# -ne 8 || $1 != --disposable-guest ]]; then
-    usage >&2
-    exit 2
-fi
 
-architecture=$2
-archive=$3
-digest=$4
-revision=$5
-image=$6
-staging=$7
-output=$8
-[[ $EUID == 0 ]] || fail 'Run as root on the disposable guest.'
-[[ $digest =~ ^[0-9a-f]{64}$ && $revision =~ ^[0-9a-f]{40}$ ]] || fail 'Provide the trusted archive SHA-256 and full source revision.'
-[[ $image =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || fail 'Provide a digest-pinned OCI probe image.'
-[[ $archive = /* && $staging = /* && $output = /* ]] || fail 'Use absolute guest paths.'
-[[ -f $archive && -f $staging/native_runtime.py && -f $staging/gvisor_payload.py ]] || fail 'Missing archive or matching staging tools.'
-case "$architecture/$(uname -m)" in
-    arm64/aarch64 | amd64/x86_64) ;;
-    *) fail "Native guest architecture $(uname -m) does not match $architecture." ;;
-esac
-# shellcheck source=/dev/null
-source /etc/os-release
-[[ ${ID:-} == ubuntu && ${VERSION_ID:-} == 24.04 ]] || fail 'Use a disposable Ubuntu 24.04 guest.'
-[[ ! -e /opt/axern && ! -L /opt/axern && ! -e /etc/axern && ! -L /etc/axern ]] || fail 'Use a guest without an existing Axern installation.'
-data=/var/lib/axern
-[[ $(findmnt --mountpoint "$data" -n -o FSTYPE) == xfs ]] || fail 'Mount a dedicated XFS filesystem at /var/lib/axern.'
-mount_options=$(findmnt --mountpoint "$data" -n -o OPTIONS)
-[[ ,$mount_options, =~ ,(pquota|prjquota), && -z $(ls -A -- "$data") ]] || fail 'Use an empty XFS data mount with project quotas enabled.'
-
-namespace=axern-native-qual-fixture
-host_link=axqhost0
-peer_link=axqpeer0
-fixture=198.19.0.2
-peer=198.19.0.3
-[[ ! -e /run/netns/$namespace && ! -L /run/netns/$namespace ]] || fail 'The fixture namespace already exists.'
-for link in "$host_link" "$peer_link"; do
-    if ip link show dev "$link" >/dev/null 2>&1; then fail "Interface $link already exists."; fi
-done
-[[ -z $(ip -4 route show exact 198.19.0.0/29) ]] || fail 'The fixture subnet already has a route.'
-
-umask 077
-mkdir -- "$output"
-printf '%s\n' "$(uname -srmo)" > "$output/kernel.txt"
-python3 -I "$staging/native_runtime.py" verify "$archive" --sha256 "$digest" > "$output/archive.json"
-python3 -I - "$output/archive.json" "$architecture" "$revision" <<'PY'
-import json
-import pathlib
-import sys
-
-receipt = json.loads(pathlib.Path(sys.argv[1]).read_bytes())
-if receipt.get("status") != "verified" or (receipt["architecture"], receipt["source_revision"]) != tuple(sys.argv[2:]):
-    sys.exit("Verified archive architecture or source revision did not match the request.")
-PY
-
-release=/opt/axern/releases/$digest
-mkdir -m 0755 /opt/axern /opt/axern/releases
-python3 -I "$staging/native_runtime.py" stage "$archive" --sha256 "$digest" --destination "$release" > "$output/stage.json"
-installer=$release/libexec/axern/native_install.py
-
+# Reserve the original stdout for one fixed phase value, including early exits.
+exec 3>&1 1>&2
+phase=input
 namespace_created=false
 link_created=false
 start_attempted=false
@@ -96,7 +40,15 @@ cleanup() {
     if $link_created && ip link show dev "$host_link" >/dev/null 2>&1; then
         ip link del "$host_link" || cleanup_failed=1
     fi
-    if (( result == 0 && cleanup_failed != 0 )); then result=1; fi
+    if (( result == 0 )); then
+        if (( cleanup_failed != 0 )); then
+            result=1
+            phase=cleanup
+        else
+            phase=complete
+        fi
+    fi
+    printf '%s\n' "$phase" >&3 || :
     exit "$result"
 }
 trap cleanup EXIT
@@ -104,6 +56,75 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
+if [[ $# -ne 8 || $1 != --disposable-guest ]]; then
+    usage >&2
+    exit 2
+fi
+
+architecture=$2
+archive=$3
+digest=$4
+revision=$5
+image=$6
+staging=$7
+output=$8
+phase=privilege
+[[ $EUID == 0 ]] || fail 'Run as root on the disposable guest.'
+phase=input
+[[ $digest =~ ^[0-9a-f]{64}$ && $revision =~ ^[0-9a-f]{40}$ ]] || fail 'Provide the trusted archive SHA-256 and full source revision.'
+[[ $image =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || fail 'Provide a digest-pinned OCI probe image.'
+[[ $archive = /* && $staging = /* && $output = /* ]] || fail 'Use absolute guest paths.'
+[[ -f $archive && -f $staging/native_runtime.py && -f $staging/gvisor_payload.py ]] || fail 'Missing archive or matching staging tools.'
+phase=host_preflight
+case "$architecture/$(uname -m)" in
+    arm64/aarch64 | amd64/x86_64) ;;
+    *) fail "Native guest architecture $(uname -m) does not match $architecture." ;;
+esac
+# shellcheck source=/dev/null
+source /etc/os-release
+[[ ${ID:-} == ubuntu && ${VERSION_ID:-} == 24.04 ]] || fail 'Use a disposable Ubuntu 24.04 guest.'
+[[ ! -e /opt/axern && ! -L /opt/axern && ! -e /etc/axern && ! -L /etc/axern ]] || fail 'Use a guest without an existing Axern installation.'
+phase=storage_preflight
+data=/var/lib/axern
+[[ $(findmnt --mountpoint "$data" -n -o FSTYPE) == xfs ]] || fail 'Mount a dedicated XFS filesystem at /var/lib/axern.'
+mount_options=$(findmnt --mountpoint "$data" -n -o OPTIONS)
+[[ ,$mount_options, =~ ,(pquota|prjquota), && -z $(ls -A -- "$data") ]] || fail 'Use an empty XFS data mount with project quotas enabled.'
+
+phase=network_preflight
+namespace=axern-native-qual-fixture
+host_link=axqhost0
+peer_link=axqpeer0
+fixture=198.19.0.2
+peer=198.19.0.3
+[[ ! -e /run/netns/$namespace && ! -L /run/netns/$namespace ]] || fail 'The fixture namespace already exists.'
+for link in "$host_link" "$peer_link"; do
+    if ip link show dev "$link" >/dev/null 2>&1; then fail "Interface $link already exists."; fi
+done
+[[ -z $(ip -4 route show exact 198.19.0.0/29) ]] || fail 'The fixture subnet already has a route.'
+
+phase=output_setup
+umask 077
+mkdir -- "$output"
+printf '%s\n' "$(uname -srmo)" > "$output/kernel.txt"
+phase=archive_verify
+python3 -I "$staging/native_runtime.py" verify "$archive" --sha256 "$digest" > "$output/archive.json"
+python3 -I - "$output/archive.json" "$architecture" "$revision" <<'PY'
+import json
+import pathlib
+import sys
+
+receipt = json.loads(pathlib.Path(sys.argv[1]).read_bytes())
+if receipt.get("status") != "verified" or (receipt["architecture"], receipt["source_revision"]) != tuple(sys.argv[2:]):
+    sys.exit("Verified archive architecture or source revision did not match the request.")
+PY
+
+phase=archive_stage
+release=/opt/axern/releases/$digest
+mkdir -m 0755 /opt/axern /opt/axern/releases
+python3 -I "$staging/native_runtime.py" stage "$archive" --sha256 "$digest" --destination "$release" > "$output/stage.json"
+installer=$release/libexec/axern/native_install.py
+
+phase=fixture_setup
 ip netns add "$namespace"
 namespace_created=true
 ip link add "$host_link" type veth peer name "$peer_link"
@@ -127,6 +148,7 @@ until grep -Fq '"network_fixture_ready": true' "$output/fixture.log"; do
     sleep 0.2
 done
 
+phase=install
 cat > "$output/native.json" <<'EOF'
 {
   "node_id": "node-native-qualification",
@@ -143,6 +165,7 @@ cat > "$output/native.json" <<'EOF'
 EOF
 unset AXERN_TLS_CERT AXERN_TLS_KEY
 python3 -I "$installer" install --config "$output/native.json" > "$output/install.log" 2>&1
+phase=startup
 start_attempted=true
 python3 -I "$installer" start > "$output/start.log" 2>&1 || {
     start_status=$?
@@ -167,6 +190,7 @@ print(json.dumps({"query": "ok", "platformObservations": rows}))
     fi
     exit "$start_status"
 }
+phase=matrix
 python3 -I "$release/libexec/axern/qualify_native.py" \
     --expected-source "$revision" --expected-archive-sha256 "$digest" \
     --image "$image" --fixture-ip "$fixture" --cases all --output-dir "$output/matrix"
