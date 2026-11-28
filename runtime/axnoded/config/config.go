@@ -121,6 +121,7 @@ type RuntimeConfig struct {
 	WorkspaceRoot          string `toml:"workspace_root" json:"workspaceRoot"`
 	WorkspaceCapacityBytes int64  `toml:"workspace_capacity_bytes" json:"workspaceCapacityBytes"`
 	WorkspaceInodeCapacity int64  `toml:"workspace_inode_capacity" json:"workspaceInodeCapacity"`
+	WorkspaceProjectBudget uint32 `toml:"workspace_project_budget" json:"workspaceProjectBudget"`
 
 	// EphemeralStorageDefaultLimitBytes is the required development-phase hard
 	// size passed to runsc's file-backed root overlay.

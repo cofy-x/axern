@@ -125,8 +125,22 @@ func (s *Store) CreateWorkspace(ctx context.Context, req *workspacev1.CreateWork
 		if lifecycle != "active" || target == "" || heartbeat == nil || current.Sub(*heartbeat) > s.heartbeatWindow || summary.GetCollectedAt() == nil || current.Sub(summary.GetCollectedAt().AsTime()) > s.summaryWindow || summary.GetNodeState() != nodev1.NodeState_NODE_STATE_READY || !storage.GetReady() || storage.GetStorageIdentity() == "" || storage.GetCapacityBytes() <= 0 || storage.GetInodeCapacity() <= 0 {
 			return grpcstatus.Error(codes.FailedPrecondition, "Node persistent Workspace storage is unavailable")
 		}
-		if err := tx.QueryRow(ctx, `SELECT COALESCE(SUM(capacity_bytes),0),COALESCE(SUM(inode_limit),0) FROM workspaces WHERE node_id=$1 AND status<>'WORKSPACE_STATUS_DELETED'`, nodeID).Scan(&usedBytes, &usedInodes); err != nil {
+		if storage.GetProjectBudget() == 0 {
+			return grpcstatus.Error(codes.FailedPrecondition, "Node has no current Workspace authority project budget")
+		}
+		// The locked node row serializes new intents. Count past and pending assignments for
+		// this root even if its last inventory predates another create or a deletion.
+		var intents, unconfirmed int64
+		if err := tx.QueryRow(ctx, `SELECT
+            COALESCE(SUM(capacity_bytes) FILTER (WHERE status<>'WORKSPACE_STATUS_DELETED'),0),
+            COALESCE(SUM(inode_limit) FILTER (WHERE status<>'WORKSPACE_STATUS_DELETED'),0),
+            COUNT(*) FILTER (WHERE storage_root_identity=$2),
+            COUNT(*) FILTER (WHERE storage_root_identity=$2 AND storage_identity='')
+            FROM workspaces WHERE node_id=$1`, nodeID, storage.GetStorageIdentity()).Scan(&usedBytes, &usedInodes, &intents, &unconfirmed); err != nil {
 			return err
+		}
+		if intents >= int64(storage.GetProjectBudget()) || unconfirmed >= int64(storage.GetProjectBudget())-int64(storage.GetUsedProjects()) {
+			return grpcstatus.Errorf(codes.ResourceExhausted, "Workspace project authority exhausted: %d registered (%d awaiting storage identity), %d assigned on node, budget %d", intents, unconfirmed, storage.GetUsedProjects(), storage.GetProjectBudget())
 		}
 		if req.GetCapacityBytes() > storage.GetCapacityBytes() || usedBytes > storage.GetCapacityBytes()-req.GetCapacityBytes() || req.GetInodeLimit() > storage.GetInodeCapacity() || usedInodes > storage.GetInodeCapacity()-req.GetInodeLimit() {
 			return grpcstatus.Error(codes.ResourceExhausted, "Node persistent Workspace capacity exhausted")

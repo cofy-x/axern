@@ -134,6 +134,7 @@ Persistent Workspace storage is disabled unless all three runtime settings are s
 | `workspace_root` | Managed parent of private Workspace data directories; no public API accepts a source host path. |
 | `workspace_capacity_bytes` | Finite retained block-capacity budget, in positive multiples of 512 bytes. Detached, unavailable and deleting Workspaces remain charged. |
 | `workspace_inode_capacity` | Finite retained inode-capacity budget, independent of the byte budget. |
+| `workspace_project_budget` | Lifetime new Workspace project assignments per storage root. Omit to use 4,096. Existing owners and cleanup remain available at the limit. |
 
 The root must be separate from `rootDir/workspace-owners`, which holds root-private ownership records, the monotonic project allocator and acknowledged-generation fences. Each newly provisioned guest data root uses UID/GID `1000:1000` and mode `0770`; these guest-visible permissions are mutable file metadata, not ownership evidence. Trusted records are never inside the guest bind.
 

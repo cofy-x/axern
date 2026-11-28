@@ -85,12 +85,14 @@ def unique_object(pairs) -> dict:
 
 
 def validate_settings(value: dict) -> dict:
-    if set(value) not in (SETTINGS, SETTINGS | WORKSPACE_SETTINGS):
+    if set(value) not in (SETTINGS, SETTINGS | WORKSPACE_SETTINGS, SETTINGS | WORKSPACE_SETTINGS | {'workspace_project_budget'}):
         raise InstallError('configuration must contain exactly the documented settings')
     if WORKSPACE_SETTINGS <= set(value):
         for name in WORKSPACE_SETTINGS:
             if type(value[name]) is not int or not 0 < value[name] < 2**63:
                 raise InstallError(f'{name} must be a positive int64 integer')
+        if 'workspace_project_budget' in value and (type(value['workspace_project_budget']) is not int or not 0 < value['workspace_project_budget'] < 2**32):
+            raise InstallError('workspace_project_budget must be a positive uint32 integer')
         if value['workspace_capacity_bytes'] % 512:
             raise InstallError('workspace_capacity_bytes must be aligned to 512 bytes')
         if type(value['storage_reserve_bytes']) is not int or value['storage_reserve_bytes'] < 1024**3:
@@ -499,6 +501,7 @@ filestore_system_reserve_bytes = {settings['storage_reserve_bytes'] + settings.g
 workspace_root = "{str(DATA / 'workspaces') if 'workspace_capacity_bytes' in settings else ''}"
 workspace_capacity_bytes = {settings.get('workspace_capacity_bytes', 0)}
 workspace_inode_capacity = {settings.get('workspace_inode_capacity', 0)}
+workspace_project_budget = {settings.get('workspace_project_budget', 0)}
 ephemeral_storage_default_limit_bytes = 268435456
 [plugin.runtime.dns]
 nameservers = {json.dumps(settings['dns_nameservers'])}

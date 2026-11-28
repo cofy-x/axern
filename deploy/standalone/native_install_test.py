@@ -424,6 +424,17 @@ class InstallerTest(unittest.TestCase):
         self.assertEqual(value['plugin']['resource']['memory_system_reserve_bytes'], 1024**3)
         self.assertEqual(value['plugin']['runtime']['dns']['nameservers'], ['10.0.2.3'])
 
+    def test_optional_workspace_authority_budget(self):
+        settings = {**SETTINGS, 'workspace_capacity_bytes': 2 * 1024**3, 'workspace_inode_capacity': 10000}
+        configured = {**settings, 'workspace_project_budget': 1536}
+        runtime = tomllib.loads(installer.node_config(installer.validate_settings(configured)))['plugin']['runtime']
+        self.assertEqual(runtime['workspace_project_budget'], 1536)
+        for invalid in (True, 0, -1, 2**32):
+            with self.subTest(invalid=invalid), self.assertRaises(installer.InstallError):
+                installer.validate_settings({**settings, 'workspace_project_budget': invalid})
+        with self.assertRaises(installer.InstallError):
+            installer.validate_settings({**SETTINGS, 'workspace_project_budget': 12})
+
     def test_workspace_budget_is_reserved_from_ephemeral_capacity(self):
         settings = {**SETTINGS, 'workspace_capacity_bytes': 2 * 1024**3, 'workspace_inode_capacity': 10000}
         runtime = tomllib.loads(installer.node_config(installer.validate_settings(settings)))['plugin']['runtime']

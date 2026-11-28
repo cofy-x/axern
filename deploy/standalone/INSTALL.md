@@ -57,6 +57,8 @@ These fields extend the complete configuration above; they are not a standalone 
 
 The installer creates the private Workspace root only during installation. Start and recovery reject absent or replaced retained storage. The node verifies effective XFS limits before advertising support; mount options alone cannot establish enforcement. Keep the dedicated mount available across host startup. Leave both settings absent for ephemeral-only serving on ext4 or XFS.
 
+With Workspace storage enabled, the optional positive integer `workspace_project_budget` sets the lifetime limit on assigned projects. The node defaults to 4,096. The [storage owner guide](../../runtime/axnoded/docs/rootfs-storage.md) explains how to inspect usage and size an increase.
+
 ```bash
 sudo python3 /opt/axern/releases/TRUSTED_ARCHIVE_SHA256/libexec/axern/native_install.py \
   install --config /absolute/path/to/native.json
