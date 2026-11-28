@@ -91,15 +91,29 @@ python3 scripts/release/native_delivery_notices.py /absolute/path/to/runtime.tar
 
 The collector checks the archive and both inventory digests, verifies the gVisor tag against the pinned commit, and recomputes the Go module ZIP content checksums against the relevant Axern and gVisor source locks. It collects notice files throughout the Axern and gVisor source trees, including the nested gVisor package licenses. It saves the original source and toolchain notice texts with a receipt identifying the archive, binary locations and per-file hashes. The SPDX declarations retain their original scanner values. Publication still requires review of the notice texts and any compiled inputs outside the Go inventory, including the embedded BPF object, plus signed provenance and installation qualification for the architecture being published.
 
-The manual [native archive provenance workflow](../../.github/workflows/native-provenance.yml) builds the default branch on Ubuntu 24.04 amd64 and arm64. Each architecture produces a signed statement covering the archive, SHA256SUMS, SPDX, CycloneDX and inventory receipt. Its downloadable evidence includes the signed bundle. The native archives remain on the build machines pending separate release qualification.
+Dispatch the manual native workflow on the default branch. Set `candidate_commit` to a complete SHA from that branch to reproduce an earlier qualification. Omitting it uses the dispatch commit. The build runs on Ubuntu 24.04 amd64 and arm64. A separate signer verifies the selected source, architecture and inventory digests, then signs the archive digest, SHA256SUMS, receipt, SPDX and CycloneDX. Download the matching `native-evidence-linux-ARCH` artifact. The archive stays on the build machine. [Native provenance workflow](../../.github/workflows/native-provenance.yml)
 
-To verify an independently obtained archive and its evidence, select the expected source commit and use the bundle from the matching architecture. Verify each evidence file that you consume using the same command.
+To verify a separately obtained archive, choose the reviewed workflow commit and the expected archive source. Both are the dispatch commit when the input is omitted. Verify the receipt and archive in the same signed bundle, then compare the source, platform and archive bytes to the receipt.
 
 ```bash
-gh attestation verify "$ARCHIVE" --repo cofy-x/axern \
-  --signer-workflow cofy-x/axern/.github/workflows/native-provenance.yml \
-  --source-ref refs/heads/main --source-digest "$EXPECTED_COMMIT" \
-  --deny-self-hosted-runners --bundle "$EVIDENCE/provenance.jsonl"
+set -euo pipefail
+for subject in "$EVIDENCE/receipt.json" "$ARCHIVE"; do
+  gh attestation verify "$subject" --repo cofy-x/axern \
+    --signer-workflow cofy-x/axern/.github/workflows/native-provenance.yml \
+    --source-ref refs/heads/main --source-digest "$WORKFLOW_COMMIT" \
+    --deny-self-hosted-runners --bundle "$EVIDENCE/provenance.jsonl"
+done
+digest=$(sha256sum "$ARCHIVE" | cut -d' ' -f1)
+jq -e --arg commit "$CANDIDATE_COMMIT" --arg arch "$ARCH" --arg digest "$digest" '
+  .schema == "axern.native-delivery-inventory.v1" and
+  .source_revision == $commit and .architecture == $arch and .archive_sha256 == $digest
+' "$EVIDENCE/receipt.json"
+```
+
+For SBOMs, also match their bytes to the inventory digests in the verified receipt. For the checksums file, compare its entry for the published archive name to the verified archive digest.
+
+```bash
+(cd "$EVIDENCE" && jq -er '.inventory_sha256 | to_entries[] | "\(.value)  \(.key)"' receipt.json | sha256sum --check --strict)
 ```
 
 Native installation is experimental. Supported upgrades, coordinated backup/restore, Compose migration and macOS VM provisioning are unavailable. Record acceptance commands, platform details and source revisions in the implementation PR or operational test record. Packaging checks do not establish sandbox enforcement or durable serving qualification.
