@@ -3,6 +3,7 @@ package cliapp
 import (
 	"bytes"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -45,6 +46,30 @@ func TestExecuteClassifiesUnknownCommandAsUsageError(t *testing.T) {
 	var usage command.UsageError
 	if !errors.As(err, &usage) {
 		t.Fatalf("Execute() error = %v, want UsageError", err)
+	}
+}
+
+func TestExecutePreservesRunArgumentsAfterDelimiter(t *testing.T) {
+	root := New("test")
+	run, _, err := root.Find([]string{"run"})
+	if err != nil || run.Name() != "run" {
+		t.Fatalf("resolve run: %v", err)
+	}
+	called := false
+	run.RunE = func(cmd *cobra.Command, args []string) error {
+		called = true
+		want := []string{"python:3.12", "echo", "--help"}
+		if !slices.Equal(args, want) || cmd.ArgsLenAtDash() != 1 {
+			t.Fatalf("run args = %q, delimiter index = %d", args, cmd.ArgsLenAtDash())
+		}
+		format, err := cmd.Flags().GetString("output")
+		if err != nil || format != "json" {
+			t.Fatalf("run output flag = %q, error = %v", format, err)
+		}
+		return nil
+	}
+	if err := Execute(root, []string{"run", "-o", "json", "python:3.12", "--", "echo", "--help"}); err != nil || !called {
+		t.Fatalf("Execute(run) called=%t, error=%v", called, err)
 	}
 }
 

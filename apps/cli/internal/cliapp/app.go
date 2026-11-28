@@ -88,8 +88,32 @@ func New(version string) *cobra.Command {
 
 func Execute(root *cobra.Command, args []string) error {
 	root.SetArgs(args)
-	if _, _, err := root.Find(args); err != nil {
+	cmd, remaining, lookupErr := root.Find(args)
+	if lookupErr == nil && cmd.HasParent() && cmd.HasSubCommands() && !cmd.Runnable() {
+		return executeGroup(cmd, remaining)
+	}
+	// ExecuteC installs Cobra's help and completion commands before resolving them.
+	resolved, err := root.ExecuteC()
+	if resolved == root && lookupErr != nil {
 		return command.Usage(err)
 	}
-	return root.Execute()
+	return err
+}
+
+// Cobra shows help for a non-runnable group before validating its arguments.
+func executeGroup(cmd *cobra.Command, args []string) error {
+	cmd.InitDefaultHelpFlag()
+	if err := cmd.ParseFlags(args); err != nil {
+		return cmd.FlagErrorFunc()(cmd, err)
+	}
+	help, err := cmd.Flags().GetBool("help")
+	if err != nil {
+		return err
+	}
+	if !help {
+		if err := command.NoArgs(cmd, cmd.Flags().Args()); err != nil {
+			return err
+		}
+	}
+	return cmd.Help()
 }
