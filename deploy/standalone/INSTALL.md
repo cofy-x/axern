@@ -4,16 +4,17 @@ The native installer provisions one experimental Axern installation on a dedicat
 
 ## Published Native Previews
 
-Use the CLI and services from the same archive. Download the archive, checksums, evidence and third-party notices for your architecture from the release page. Its verification commands check the archive, checksum file, receipt and both software inventories against the specific GitHub signing workflow and commit. Check the source revision in the signed receipt before staging. The [0.13.0 baseline](https://github.com/cofy-x/axern/releases/tag/native-preview-0.13.0-1) and [0.14.0 preview](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-1) are native prereleases. The stable CLI, SDK, Helm and service-image release has its own version and artifacts.
+Use the CLI and services from the same archive. Choose a native prerelease for your architecture below. Each release includes the archive, checksums, signed evidence, third-party notices and verification commands. Check the source revision in the signed receipt before staging. The stable CLI, SDK, Helm and service-image release has its own version and artifacts.
 
-| Ubuntu 24.04 amd64, dedicated XFS with project quotas | Source commit | Archive SHA-256 |
-| --- | --- | --- |
-| [0.13.0 baseline](https://github.com/cofy-x/axern/releases/tag/native-preview-0.13.0-1) | `4f8208c5e7b58e04feed5806f81336fbe425b55f` | `dbff48cc4366af36093e5a525fd280c411b507b13491f97178a6ed69e8748ac1` |
-| [0.14.0 successor](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-1) | `90bc377b44f2c7609fb59a7951b2aaa80d49d6d9` | `180b2eef09ec003c3c3b24dd7a65e5ea55cb006b3bb987b47fb569d8d56f702c` |
+| Ubuntu 24.04, dedicated XFS with project quotas | Preview | Source commit | Archive SHA-256 |
+| --- | --- | --- | --- |
+| amd64 | [0.13.0 baseline](https://github.com/cofy-x/axern/releases/tag/native-preview-0.13.0-1) | `4f8208c5e7b58e04feed5806f81336fbe425b55f` | `dbff48cc4366af36093e5a525fd280c411b507b13491f97178a6ed69e8748ac1` |
+| amd64 | [0.14.0 successor](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-1) | `90bc377b44f2c7609fb59a7951b2aaa80d49d6d9` | `180b2eef09ec003c3c3b24dd7a65e5ea55cb006b3bb987b47fb569d8d56f702c` |
+| arm64 | [0.14.0 fresh install](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-2) | `07d74efe049ae1c165a8d8f1dbc77bff755c9bdd` | `6bbcd006774b39309cd60c2d78114e9162f9f6b0083c9ed39eb65984679d16ab` |
 
-These two downloads form the qualified amd64 upgrade pair. Follow the [cold transition](#qualify-an-experimental-archive-transition) with a verified backup of the stopped system and data disks. The original installation must stay fenced. The [upgrade record](https://github.com/cofy-x/axern/issues/200) tracks recovered files, the Secret projection, quota and single-writer checks. The [host qualification record](https://github.com/cofy-x/axern/issues/197) distinguishes native execution, retained-workspace coverage and execution-only filesystems.
+The two amd64 previews form the qualified upgrade pair. Follow the [cold transition](#qualify-an-experimental-archive-transition) with a verified backup of the stopped system and data disks. The original installation must stay fenced. The [upgrade record](https://github.com/cofy-x/axern/issues/200) tracks recovered files, the Secret projection, quota and single-writer checks.
 
-Both previews publish amd64 archives. The [ARM64 hardware trial](https://github.com/cofy-x/axern/actions/runs/46107363320) verified two matching ARM64 builds and completed host preparation. The runner exited before the eight runtime cases produced results. ARM64 execution and stateful upgrades on ARM64 remain unqualified.
+The arm64 preview qualifies fresh installation and sandbox execution on Ubuntu 24.04 with XFS project quotas. Native hardware passed all eight memory, storage and network cases, including cleanup. Stateful upgrade and replacement-host recovery have been qualified on amd64. [ARM64 hardware receipt](https://github.com/cofy-x/axern/actions/runs/46126602931) · [Host and filesystem matrix](https://github.com/cofy-x/axern/issues/197)
 
 Use the staging scripts from the source commit in the verified receipt. Run the following in a new directory containing the extracted `evidence/receipt.json` from the release verification procedure.
 
