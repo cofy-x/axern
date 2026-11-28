@@ -1,0 +1,55 @@
+package pgrun
+
+import (
+	"strings"
+	"testing"
+
+	pgadmin "github.com/cofy-x/axern/control/controld/internal/postgres/admin"
+	"github.com/cofy-x/axern/internal/proto/nativebackup"
+	"github.com/stretchr/testify/require"
+)
+
+func TestNativeRestoreMovesWorkspaceAndRevokesOldAuthorityAtomically(t *testing.T) {
+	f := newWorkspaceFixture(t)
+	store := pgadmin.NewStore(f.db)
+	oldNode, newNode := "workspace-node", "replacement-node"
+	rootID, oldIdentity, newIdentity := strings.Repeat("a", 64), strings.Repeat("b", 64), strings.Repeat("c", 64)
+	token := strings.Repeat("d", 64)
+	_, err := f.db.Pool().Exec(f.ctx, `UPDATE workspaces SET storage_root_identity=$2,storage_identity=$3,generation=3 WHERE workspace_id=$1`,
+		f.workspace.GetID(), rootID, oldIdentity)
+	require.NoError(t, err)
+	_, err = f.db.Pool().Exec(f.ctx, `INSERT INTO nodes(node_id,node_target,enrollment_token_hash,admitted_at,lifecycle_status)
+		VALUES('other-node','',repeat('0',64),$1,'active')`, f.now)
+	require.NoError(t, err)
+	_, err = store.PlanNativeRestore(f.ctx, oldNode, newNode)
+	require.ErrorContains(t, err, "fully drained")
+	_, err = f.db.Pool().Exec(f.ctx, `DELETE FROM nodes WHERE node_id='other-node'`)
+	require.NoError(t, err)
+
+	plan, err := store.PlanNativeRestore(f.ctx, oldNode, newNode)
+	require.NoError(t, err)
+	require.Len(t, plan.Workspaces, 1)
+	require.Equal(t, int64(3), plan.Workspaces[0].Generation)
+	plan.Workspaces[0].NewIdentity = newIdentity
+	wrong := plan
+	wrong.Workspaces = []nativebackup.Workspace{plan.Workspaces[0]}
+	wrong.Workspaces[0].Bytes += 512
+	require.ErrorContains(t, store.CommitNativeRestore(f.ctx, wrong, token, f.now), "inventory changed")
+	current, err := f.workspaces.GetWorkspace(f.ctx, f.workspace.GetID())
+	require.NoError(t, err)
+	require.Equal(t, oldNode, current.GetNodeID())
+
+	for i := 0; i < 2; i++ {
+		require.NoError(t, store.CommitNativeRestore(f.ctx, plan, token, f.now))
+	}
+	require.Error(t, store.CommitNativeRestore(f.ctx, plan, strings.Repeat("e", 64), f.now))
+	current, err = f.workspaces.GetWorkspace(f.ctx, f.workspace.GetID())
+	require.NoError(t, err)
+	require.Equal(t, newNode, current.GetNodeID())
+	require.Equal(t, int64(3), current.GetGeneration())
+	var lifecycle, identity string
+	require.NoError(t, f.db.Pool().QueryRow(f.ctx, `SELECT lifecycle_status FROM nodes WHERE node_id=$1`, oldNode).Scan(&lifecycle))
+	require.Equal(t, "revoked", lifecycle)
+	require.NoError(t, f.db.Pool().QueryRow(f.ctx, `SELECT storage_identity FROM workspaces WHERE workspace_id=$1`, current.GetID()).Scan(&identity))
+	require.Equal(t, newIdentity, identity)
+}

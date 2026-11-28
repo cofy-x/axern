@@ -28,12 +28,17 @@ type options struct {
 	httpAddress           string
 	logLevel              string
 	logFile               string
+	nativeRestorePlan     string
+	nativeRestoreApply    bool
 }
 
 func Run() error {
 	opts, err := parseFlags()
 	if err != nil {
 		return err
+	}
+	if opts.nativeRestorePlan != "" || opts.nativeRestoreApply {
+		return restoreRetainedWorkspaces(opts)
 	}
 	if err := configureLogging(opts.logLevel, opts.logFile); err != nil {
 		return err
@@ -87,6 +92,8 @@ func parseFlags() (options, error) {
 	flagSet.StringVar(&opts.httpAddress, "http-address", config.DefaultHttpAddress, "axnoded HTTP listen address")
 	flagSet.StringVar(&opts.logLevel, "log-level", "info", "log level: debug|info|warn|error")
 	flagSet.StringVar(&opts.logFile, "log-file", "", "log file path; stderr is used when empty")
+	flagSet.StringVar(&opts.nativeRestorePlan, "native-restore-plan", "", "private native restore plan for a stopped installation")
+	flagSet.BoolVar(&opts.nativeRestoreApply, "native-restore-apply", false, "apply previously verified native Workspace ownership")
 	if err := flagSet.Parse(os.Args[1:]); err != nil {
 		return options{}, err
 	}
