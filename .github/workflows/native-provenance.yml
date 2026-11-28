@@ -217,13 +217,15 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
+          [[ "$RUNNER_ENVIRONMENT" == github-hosted && "$RUNNER_ARCH" == ARM64 ]]
           {
             sudo apt-get -o Acquire::Retries=0 update
             sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 upgrade --yes
             sudo env DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install --yes \
               --no-install-recommends postgresql-16 python3 curl ca-certificates busybox-static erofs-utils \
               iproute2 iptables nftables kmod util-linux e2fsprogs xfsprogs
-            sudo bash tooling/scripts/release/prepare-qualification-runner.sh --disposable-guest arm64
+            sudo bash tooling/scripts/release/prepare-qualification-runner.sh \
+              --disposable-guest arm64 --repair-hosted-opt
           } > "$RUNNER_TEMP/arm-prepare.log" 2>&1
       - name: Attempt the native eight-case matrix
         id: matrix

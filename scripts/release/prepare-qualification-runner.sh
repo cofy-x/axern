@@ -4,8 +4,9 @@ export LC_ALL=C
 umask 077
 
 usage() {
-  printf '%s\n' 'Usage: sudo bash prepare-qualification-runner.sh --disposable-guest arm64|amd64' \
-    'Run only on a fresh, disposable Ubuntu 24.04 VM. Install the native host prerequisites first.'
+  printf '%s\n' 'Usage: sudo bash prepare-qualification-runner.sh --disposable-guest arm64|amd64 [--repair-hosted-opt]' \
+    'Run only on a fresh, disposable Ubuntu 24.04 VM. Install the native host prerequisites first.' \
+    'Enable --repair-hosted-opt only for a runner image that provisions /opt with mode 0777.'
 }
 
 fail() { printf '%s\n' "$*" >&2; exit 1; }
@@ -14,7 +15,8 @@ if [[ $# == 1 && $1 == --help ]]; then
   usage
   exit 0
 fi
-if [[ $# != 2 || $1 != --disposable-guest || ( $2 != arm64 && $2 != amd64 ) ]]; then
+if [[ $# -lt 2 || $# -gt 3 || $1 != --disposable-guest || ( $2 != arm64 && $2 != amd64 ) ||
+      ( $# == 3 && $3 != --repair-hosted-opt ) ]]; then
   usage >&2
   exit 2
 fi
@@ -167,6 +169,11 @@ if $fixture_forwarding; then
   added_outbound=true
   iptables -w -C FORWARD "${inbound[@]}"
   iptables -w -C FORWARD "${outbound[@]}"
+fi
+# GitHub's Ubuntu runner image makes /opt and its tool cache world-writable.
+# Its children keep their permissions. Staging still checks every ancestor.
+if [[ ${3:-} == --repair-hosted-opt && $(stat -c %a -- /opt) == 777 ]]; then
+  chmod go-w -- /opt
 fi
 printf 'Prepared disposable qualification VM with backing file %s\n' "$image"
 trap - EXIT HUP INT TERM
