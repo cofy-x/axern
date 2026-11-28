@@ -18,7 +18,9 @@ helm install axern oci://ghcr.io/cofy-x/charts/axern \
   --set-string node.memorySystemReserveBytes=<qualified-bytes>
 ```
 
-The default Axern images are immutable version tags from the same release. Source development uses `values-local-development.yaml` after `make local-images-build`; it does not change the public chart defaults.
+Released charts default to immutable image tags from the same release. The 0.14.0 native preview source chart retains the published `v0.13.0` image defaults, as declared by the `axern.io/native-preview-image-version` chart annotation. Use the released 0.13.0 chart and clients for a coordinated Kubernetes deployment. To prepare a coordinated release, remove the preview annotation and update all five Axern chart image tags to the release version.
+
+For source development, use `values-local-development.yaml` after `make local-images-build`.
 
 Set `node.registryMirrorURL` when using an OCI registry mirror. Node image credentials use `node.registryAuth.existingSecret`; standard HTTP proxy settings use `proxyEnv`.
 

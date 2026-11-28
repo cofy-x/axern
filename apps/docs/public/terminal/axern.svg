@@ -2,7 +2,7 @@
 <title id="title">Axern CLI command groups</title>
 <rect width="1100" height="350" rx="8" fill="#101927"/>
 <g fill="#e6edf3" font-family="ui-monospace, monospace" font-size="16">
-<text x="28" y="38">Axern 0.13.0 · source CLI help</text>
+<text x="28" y="38">Axern 0.14.0 · source CLI help</text>
 <text x="28" y="76" fill="#7dd3fc">$ axern --help</text>
 <text x="28" y="114" fill="#7dd3fc">dev</text>
 <text x="176" y="114">Manage the Docker Compose development stack</text>

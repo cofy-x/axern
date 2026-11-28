@@ -25,6 +25,8 @@ for source in (ci, release):
 validate = release.split("  validate:\n", 1)[1].split("\n  artifacts:\n", 1)[0]
 if "needs: security" not in validate:
     raise SystemExit("release validation must wait for the dependency security audit")
+if 'AXERN_REQUIRE_PUBLISHABLE_RELEASE: "1"\n        run: make release-check' not in validate:
+    raise SystemExit("release validation must reject native preview sources")
 if "make security-check" not in security or "workflow_call:" not in security or "schedule:" not in security:
     raise SystemExit("security audit must run the canonical scanner gate in CI, releases and weekly")
 
