@@ -3,7 +3,7 @@
 		build test lint fmt clean protos proto-generate proto-generated-check agent-doc-check open-source-check release-check release-build verification-plan-contract post-merge-workflow-contract release-verification-contract verify-changed verify-changed-plan verify-fast-all verify-full verify-release controld-postgres-test axern-cli-build axern-cli-install axern-cli-check-architecture gatewayd-check-architecture imagemgr-check-architecture axern-cli-e2e axern-cli-image-ref-e2e bpfnetctl-build \
 		hermetic-dns-contract-check cli-e2e-environment-contract native-runtime-build native-runtime-check native-runtime-verify \
 		grafana-assets-check \
-		build-go test-go lint-go fmt-go \
+		build-go test-go lint-go fmt-go sdk-go-test \
 		build-ts test-ts lint-ts pack-ts sdk-typescript-verify docs-dev docs-build docs-check docs-verify docs-layout-check docs-assets docs-social-card \
 		build-py test-py lint-py sdk-python-verify sdk-go-verify sdk-artifacts sdk-artifact-verify sdk-release-verify sdk-contract-verify \
 		imagemgr-build imagemgr-test imagemgr-check-architecture
@@ -194,8 +194,8 @@ axern-cli-image-ref-e2e: build-go ## Run the product CLI external image-ref smok
 grafana-assets-check: ## Verify Helm Grafana assets match local Grafana assets
 	bash $(ROOTDIR)/scripts/grafana-assets-check.sh
 
-test-go: ## Run root Go tests
-	$(GO) test -tags=axern_contract ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/networkpolicy/... ./lib/go/observability/... ./sdk/go/...
+test-go: sdk-go-test ## Run root Go tests
+	$(GO) test -tags=axern_contract ./apps/cli/... ./lib/go/grpcclient/... ./lib/go/networkpolicy/... ./lib/go/observability/...
 	$(GO) -C control/controld test ./...
 	$(GO) -C gateway/gatewayd test ./...
 	$(MAKE) imagemgr-test
@@ -216,10 +216,12 @@ imagemgr-test: ## Check the standalone Linux dependency lock and run imagemgr te
 lint-go: ## Ensure root Go files are formatted
 	test -z "$$(find apps/cli control/controld gateway/gatewayd lib/go runtime/egressd runtime/imagemgr runtime/tunneld sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted files" && exit 1)
 
-sdk-go-verify: ## Run Go SDK tests, race smoke, vet, and formatting checks
-	$(GO) test -tags=axern_contract ./sdk/go/...
-	$(GO) test -race -tags=axern_contract ./sdk/go
-	$(GO) vet ./sdk/go/...
+sdk-go-test: ## Test the standalone Go SDK module with its own dependency lock
+	GOWORK=off $(GO) -C sdk/go test -mod=readonly -tags=axern_contract ./...
+
+sdk-go-verify: sdk-go-test ## Run standalone Go SDK tests, race smoke, vet, and formatting checks
+	GOWORK=off $(GO) -C sdk/go test -mod=readonly -race -tags=axern_contract .
+	GOWORK=off $(GO) -C sdk/go vet -mod=readonly ./...
 	test -z "$$(find sdk/go -name '*.go' -print | xargs gofmt -l)" || (echo "gofmt reported unformatted Go SDK files" && exit 1)
 
 build-ts: ## Build the TypeScript SDK and documentation workspaces
