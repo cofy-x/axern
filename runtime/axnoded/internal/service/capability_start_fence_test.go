@@ -9,6 +9,7 @@ import (
 	"time"
 
 	capabilitycontract "github.com/cofy-x/axern/lib/go/nodecapability"
+	"github.com/cofy-x/axern/runtime/axnoded/config"
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	capabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
@@ -18,6 +19,9 @@ import (
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 type capabilityStartBarrierRuntime struct {
@@ -177,15 +181,125 @@ func TestCapabilityFailStopCannotAcknowledgeBehindActivationFence(t *testing.T) 
 	require.True(t, service.allocations.HasAllocation(id))
 }
 
-type capabilityAckWaitContext struct {
+type allocationLockWaitContext struct {
 	context.Context
 	waiting chan struct{}
 	once    sync.Once
 }
 
-func (c *capabilityAckWaitContext) Done() <-chan struct{} {
+func (c *allocationLockWaitContext) Done() <-chan struct{} {
 	c.once.Do(func() { close(c.waiting) })
 	return c.Context.Done()
+}
+
+func TestLaunchReplayRetainsOriginalNodeBinding(t *testing.T) {
+	for _, tc := range []struct{ name, owner string }{{"local", ""}, {"control plane", "node-a"}} {
+		t.Run(tc.name, func(t *testing.T) {
+			const id = "allocation-replay"
+			handler := &runtimeSpyHandler{name: "runsc"}
+			svc := newTestService(t, handler)
+			req := &apipb.StartRequest{AllocationID: id, Environment: &apipb.ResolvedEnvironment{
+				ID: "env", Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}},
+			}}
+			digest, err := allocation.StartRequestDigest(req)
+			require.NoError(t, err)
+			now := time.Now().UTC()
+			require.NoError(t, svc.allocations.StoreAllocationIntent(id, tc.owner, digest, now.Add(20*time.Second), nil, nil, nil, nil, nil))
+			require.Error(t, svc.allocations.StoreAllocationIntent(id, "node-b", digest, now.Add(time.Minute), nil, nil, nil, nil, nil))
+			manifest := &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano(), ProcessSecurityProfile: wire.ProcessSecurityProfile}
+			require.NoError(t, svc.allocations.StoreVerifiedEnforcementManifest(id, manifest, nil, now))
+			require.NoError(t, svc.allocations.StoreGuestProcessProfileVerified(id, manifest))
+			require.NoError(t, svc.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{}))
+			markTestContainerRunning(t, svc, id)
+
+			for _, caller := range []string{"node-b", "", "node-a"} {
+				var before apipb.AllocationState
+				readErr := svc.store.GetRecord(config.AllocationStateBucket, id, &before)
+				if tc.owner == "" {
+					require.ErrorIs(t, readErr, errord.ErrNotFound)
+				} else {
+					require.NoError(t, readErr)
+				}
+				var response *apipb.StartResponse
+				if caller == "" {
+					req.ExecutionLeaseTtlSeconds = 0
+					response, err = svc.Start(t.Context(), req)
+				} else {
+					req.ExecutionLeaseTtlSeconds = 60
+					response, err = svc.StartControlPlaneAllocation(t.Context(), caller, req)
+				}
+				if caller == tc.owner {
+					require.NoError(t, err)
+					require.Equal(t, id, response.GetAllocationID())
+				} else {
+					require.Equal(t, codes.FailedPrecondition, status.Code(err), "caller %q", caller)
+					var after apipb.AllocationState
+					err := svc.store.GetRecord(config.AllocationStateBucket, id, &after)
+					if tc.owner == "" {
+						require.ErrorIs(t, err, errord.ErrNotFound)
+					} else {
+						require.NoError(t, err)
+						require.True(t, proto.Equal(&before, &after), "rejected replay changed the recorded binding or lease")
+					}
+				}
+			}
+			require.Zero(t, handler.createCalls)
+		})
+	}
+}
+
+func TestCanceledAllocationRequestsLeaveLifecycleQueue(t *testing.T) {
+	const id = "allocation-canceled-wait"
+	svc := newTestService(t, &runtimeSpyHandler{name: "runsc"})
+	request := &apipb.StartRequest{
+		AllocationID: id, ExecutionLeaseTtlSeconds: 30,
+		Environment: &apipb.ResolvedEnvironment{ID: "env", Rootfs: &apipb.RootfsConfig{Type: apipb.RootfsSrcType_LOCAL, Source: &apipb.RootfsConfig_Path{Path: t.TempDir()}}},
+	}
+	for _, tc := range []struct {
+		name string
+		call func(context.Context) error
+	}{
+		{"launch", func(ctx context.Context) error {
+			_, err := svc.StartControlPlaneAllocation(ctx, "node-a", request)
+			return err
+		}},
+		{"read output", func(ctx context.Context) error {
+			_, _, err := svc.ReadAllocationOutput(ctx, id, "")
+			return err
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			release := holdCapabilityReview(t, svc, id, nil)
+			ctx, cancel := context.WithCancel(t.Context())
+			queued := &allocationLockWaitContext{Context: ctx, waiting: make(chan struct{})}
+			result := make(chan error, 1)
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				result <- tc.call(queued)
+			}()
+			defer func() {
+				cancel()
+				release()
+				<-done
+			}()
+			select {
+			case <-queued.waiting:
+			case err := <-result:
+				t.Fatalf("request returned before the held lifecycle lock was released: %v", err)
+			case <-time.After(2 * time.Second):
+				t.Fatal("request did not enter a cancellable lock wait")
+			}
+			cancel()
+			select {
+			case err := <-result:
+				require.Equal(t, codes.Canceled, status.Code(errord.ToGRPC(err)))
+			case <-time.After(2 * time.Second):
+				t.Fatal("canceled request remained in the lifecycle queue")
+			}
+			require.False(t, svc.allocations.HasAllocation(id))
+		})
+	}
 }
 
 func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) {
@@ -205,7 +319,7 @@ func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) 
 
 	release := holdCapabilityReview(t, service, id, errors.New("independent lifecycle query detected enforcement loss"))
 	ctx, cancel := context.WithCancel(t.Context())
-	queued := &capabilityAckWaitContext{Context: ctx, waiting: make(chan struct{})}
+	queued := &allocationLockWaitContext{Context: ctx, waiting: make(chan struct{})}
 	ack := make(chan error, 1)
 	ackFinished := make(chan struct{})
 	t.Cleanup(func() {
@@ -259,7 +373,7 @@ func TestCapabilityEvaluationAckCancellationPreservesIntent(t *testing.T) {
 	pending := service.allocations.CapabilityReconcileState(id)
 	unlock := holdCapabilityReview(t, service, id, nil)
 	ctx, cancel := context.WithCancel(t.Context())
-	queued := &capabilityAckWaitContext{Context: ctx, waiting: make(chan struct{})}
+	queued := &allocationLockWaitContext{Context: ctx, waiting: make(chan struct{})}
 	ack := make(chan error, 1)
 	ackFinished := make(chan struct{})
 	t.Cleanup(func() {

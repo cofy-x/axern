@@ -166,10 +166,12 @@ func (h *Controller) StoreAllocationIntent(allocationID, nodeID, requestDigest s
 	if err := rejectTerminatedActivation(desired); err != nil {
 		return err
 	}
-	if currentDigest := desired.GetAllocationRequestDigest(); currentDigest != "" && currentDigest != requestDigest {
+	currentDigest := desired.GetAllocationRequestDigest()
+	if currentDigest != "" && currentDigest != requestDigest {
 		return fmt.Errorf("allocation request digest conflicts with durable contract")
 	}
-	if currentNodeID := desired.GetNodeID(); currentNodeID != "" && currentNodeID != nodeID {
+	// An acknowledged local intent has an empty node binding for its lifetime.
+	if currentNodeID := desired.GetNodeID(); (currentDigest != "" || currentNodeID != "") && currentNodeID != nodeID {
 		return fmt.Errorf("allocation node binding conflicts with durable contract")
 	}
 	if workspace != nil {
@@ -401,13 +403,17 @@ func (h *Controller) ResourceSpec(allocationID string) *commonv1.ResourceSpec {
 	return proto.Clone(state.record.GetResources()).(*commonv1.ResourceSpec)
 }
 
-func (h *Controller) AllocationRequestDigest(allocationID string) string {
+func (h *Controller) verifiedLaunchReplay(allocationID, nodeID, digest string) (bool, error) {
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
-	if state := h.allocationStates[strings.TrimSpace(allocationID)]; state != nil {
-		return state.record.GetAllocationRequestDigest()
+	state := h.allocationStates[strings.TrimSpace(allocationID)]
+	if state == nil || state.record.GetEnforcementManifest() == nil {
+		return false, nil
 	}
-	return ""
+	if state.record.GetNodeID() != nodeID || state.record.GetAllocationRequestDigest() != digest {
+		return false, fmt.Errorf("allocation node binding or request differs from the durable contract: %w", errord.ErrFailedPrecondition)
+	}
+	return true, nil
 }
 
 func (h *Controller) CapabilityRequirementManifests() map[string][]*capabilityv1.CapabilityRequirement {

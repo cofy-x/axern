@@ -48,21 +48,26 @@ func (c *Controller) Launch(ctx context.Context, request *runtime.StartRequest, 
 		return nil, fmt.Errorf("identify allocation request: %w", err)
 	}
 	leaseTTL := time.Duration(request.GetExecutionLeaseTtlSeconds()) * time.Second
-	if strings.TrimSpace(controlPlaneNodeID) != "" && leaseTTL <= 0 {
+	controlPlaneNodeID = strings.TrimSpace(controlPlaneNodeID)
+	if controlPlaneNodeID != "" && leaseTTL <= 0 {
 		return nil, errord.ToGRPC(fmt.Errorf("control-plane allocation requires a positive execution lease TTL: %w", errord.ErrInvalidArgument))
 	}
 	leaseExpiresAt := time.Now().Add(leaseTTL).UTC()
-	unlockLifecycle := c.allocationLifecycleLocks.Lock(request.GetAllocationID())
+	unlockLifecycle, err := c.allocationLifecycleLocks.LockContext(ctx, request.GetAllocationID())
+	if err != nil {
+		return nil, errord.ToGRPC(err)
+	}
 	defer unlockLifecycle()
 	if err := c.ValidateActivation(request.GetAllocationID()); err != nil {
 		return nil, errord.ToGRPC(err)
 	}
-	if c.VerifiedEnforcementManifest(request.GetAllocationID()) != nil {
+	replay, err := c.verifiedLaunchReplay(request.GetAllocationID(), controlPlaneNodeID, requestDigest)
+	if err != nil {
+		return nil, errord.ToGRPC(err)
+	}
+	if replay {
 		if err := c.VerifyWorkspaceAttachment(request.GetAllocationID()); err != nil {
 			return nil, c.terminateFailedLaunch(capabilities, request.GetAllocationID(), err)
-		}
-		if c.AllocationRequestDigest(request.GetAllocationID()) != requestDigest {
-			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))
 		}
 		resp, active, replayErr := c.existingActiveStartResponse(ctx, request)
 		if replayErr != nil {
