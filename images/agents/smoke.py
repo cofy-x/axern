@@ -14,6 +14,10 @@ import json,os,pathlib,shutil,subprocess,sys,tempfile
 lock=json.loads(pathlib.Path('/usr/local/share/axern/agent-images/versions.lock.json').read_text())
 assert os.getuid()==1000
 assert pathlib.Path.cwd()==pathlib.Path('/workspace')
+status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines())
+assert status['NoNewPrivs'].strip()=='1'
+assert all(int(status[cap],16)==0 for cap in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb'))
+assert not pathlib.Path('/var/run/docker.sock').exists()
 assert tuple(map(int,lock['base']['python_version'].split('.')))==sys.version_info[:3]
 release=dict(line.split('=',1) for line in pathlib.Path('/etc/os-release').read_text().splitlines() if '=' in line)
 assert release['ID'].strip('"')=='debian'
@@ -22,7 +26,7 @@ pip_version=subprocess.check_output([sys.executable,'-m','pip','--version'],text
 assert pip_version==lock['artifacts']['pip']['version']
 for command in (['git','--version'],['rg','--version']):subprocess.run(command,check=True,stdout=subprocess.DEVNULL)
 stage=sys.argv[1]
-observed={'python':'.'.join(map(str,sys.version_info[:3])),'debian':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid()}
+observed={'python':'.'.join(map(str,sys.version_info[:3])),'debian':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid(),'no_new_privileges':True,'capabilities_empty':True,'docker_socket_absent':True}
 if stage!='base':
  for name in ('npm','npx','corepack','pnpm','pnpx','yarn','yarnpkg'):
   assert shutil.which(name) is None, name+' must be supplied by a caller-owned project image'
@@ -93,18 +97,19 @@ def main():
         image = json.loads(subprocess.check_output(prefix + ['image', 'inspect', tags[target]], env=env))[0]
         if image['Config']['User'] != '1000:1000':
             raise SystemExit('Agent image must default to UID/GID 1000')
+        image_id = image['Id']
         layers[target] = image['RootFS']['Layers']
-        command = prefix + ['run', '--rm', '--network', 'none', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '-i', tags[target], 'python3', '-', target]
+        command = prefix + ['run', '--rm', '--network', 'none', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges', '-i', image_id, 'python3', '-', target]
         started = time.monotonic()
         process = subprocess.run(command, input=SCRIPT.encode(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, timeout=180)
-        report = {'target': target, 'image': tags[target], 'exit_code': process.returncode, 'elapsed_seconds': round(time.monotonic() - started, 3), 'stdout': process.stdout.decode(), 'passed': process.returncode == 0}
+        report = {'target': target, 'image': tags[target], 'image_id': image_id, 'exit_code': process.returncode, 'elapsed_seconds': round(time.monotonic() - started, 3), 'stdout': process.stdout.decode(), 'passed': process.returncode == 0}
         reports.append(report)
         if output:
             (output / (target + '-smoke.log')).write_bytes(process.stdout)
             (output / 'smoke-receipts.json').write_text(json.dumps(reports, indent=2) + '\n')
         if process.returncode:
             raise SystemExit(process.stdout.decode())
-        scan_command = prefix + ['run', '--rm', '--network', 'none', '--cap-drop', 'ALL', '--cap-add', 'DAC_OVERRIDE', '--security-opt', 'no-new-privileges', '--user', '0:0', '-i', tags[target], 'python3', '-']
+        scan_command = prefix + ['run', '--rm', '--network', 'none', '--cap-drop', 'ALL', '--cap-add', 'DAC_OVERRIDE', '--security-opt', 'no-new-privileges', '--user', '0:0', '-i', image_id, 'python3', '-']
         scan_started = time.monotonic()
         scan = subprocess.run(scan_command, input=PRIVILEGE_SCAN.encode(), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, timeout=180)
         report['privilege_scan'] = {'command': scan_command, 'exit_code': scan.returncode, 'elapsed_seconds': round(time.monotonic() - scan_started, 3), 'stdout': scan.stdout.decode()}

@@ -2,7 +2,9 @@ ARG BASE_IMAGE=scratch
 FROM scratch AS runtime-cache
 FROM ${BASE_IMAGE} AS base
 
-RUN apt-get update \
+ARG APT_REFRESH_EPOCH
+RUN test -n "$APT_REFRESH_EPOCH" \
+    && apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends bash ca-certificates git libstdc++6 ripgrep \
     && find /usr -xdev -type f -perm /6000 -exec chmod a-s {} + \
@@ -12,7 +14,7 @@ RUN apt-get update \
     && mkdir -p /workspace /usr/local/share/axern/agent-images \
     && chown 1000:1000 /workspace \
     && dpkg-query -W -f='${Package}\t${Version}\n' > /usr/local/share/axern/agent-images/base-packages.tsv
-COPY versions.lock.json install.py /usr/local/share/axern/agent-images/
+COPY --chmod=0644 versions.lock.json install.py /usr/local/share/axern/agent-images/
 RUN --mount=type=bind,from=runtime-cache,target=/runtime-cache \
     python3 /usr/local/share/axern/agent-images/install.py base
 ENV HOME=/home/agent
@@ -22,7 +24,8 @@ CMD ["/bin/bash"]
 
 FROM base AS toolchain
 USER root
-RUN apt-get update \
+RUN test -n "$APT_REFRESH_EPOCH" \
+    && apt-get update \
     && apt-get install -y --no-install-recommends build-essential pkg-config \
     && find /usr -xdev -type f -perm /6000 -exec chmod a-s {} + \
     && rm -rf /var/lib/apt/lists/* \

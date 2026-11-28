@@ -1,4 +1,4 @@
-.PHONY: agent-images agent-images-check agent-images-smoke
+.PHONY: agent-images agent-images-check agent-images-smoke agent-images-audit
 
 AGENT_IMAGE_PYTHON ?= python3
 AGENT_IMAGE_TARGETS ?= base,toolchain,claude-code,codex
@@ -7,9 +7,13 @@ AGENT_IMAGE_TAG_SUFFIX ?= local
 AGENT_IMAGE_CACHE_DIR ?=
 AGENT_IMAGE_DOCKER_CONFIG ?=
 AGENT_IMAGE_OUTPUT_DIR ?=
+AGENT_IMAGE_BUILD_RECEIPTS ?=
+AGENT_IMAGE_AUDIT_TOOLS ?=
+AGENT_IMAGE_AUDIT_DB ?=
 
 export AGENT_IMAGE_PYTHON AGENT_IMAGE_TARGETS AGENT_IMAGE_TAG_PREFIX AGENT_IMAGE_TAG_SUFFIX
 export AGENT_IMAGE_CACHE_DIR AGENT_IMAGE_DOCKER_CONFIG AGENT_IMAGE_OUTPUT_DIR
+export AGENT_IMAGE_BUILD_RECEIPTS AGENT_IMAGE_AUDIT_TOOLS AGENT_IMAGE_AUDIT_DB
 
 agent-images: ## Build local layered Agent workload images without publishing
 	@set -- "$(ROOTDIR)/images/agents/build.py" \
@@ -29,6 +33,15 @@ agent-images-smoke: ## Run explicit model-free Docker checks of built Agent imag
 		--tag-prefix "$${AGENT_IMAGE_TAG_PREFIX}" --tag-suffix "$${AGENT_IMAGE_TAG_SUFFIX}"; \
 	if [ -n "$${AGENT_IMAGE_DOCKER_CONFIG}" ]; then set -- "$$@" --docker-config "$${AGENT_IMAGE_DOCKER_CONFIG}"; fi; \
 	if [ -n "$${AGENT_IMAGE_OUTPUT_DIR}" ]; then set -- "$$@" --output-dir "$${AGENT_IMAGE_OUTPUT_DIR}"; fi; \
+	"$${AGENT_IMAGE_PYTHON}" "$$@"
+
+agent-images-audit: ## Inventory and scan exact local Agent builds without running them
+	@set -- "$(ROOTDIR)/images/agents/audit.py" --targets "$${AGENT_IMAGE_TARGETS}" \
+		--receipts "$${AGENT_IMAGE_BUILD_RECEIPTS:?set AGENT_IMAGE_BUILD_RECEIPTS}" \
+		--tools "$${AGENT_IMAGE_AUDIT_TOOLS:?set AGENT_IMAGE_AUDIT_TOOLS}" \
+		--database "$${AGENT_IMAGE_AUDIT_DB:?set AGENT_IMAGE_AUDIT_DB}" \
+		--output "$${AGENT_IMAGE_OUTPUT_DIR:?set AGENT_IMAGE_OUTPUT_DIR}"; \
+	if [ -n "$${AGENT_IMAGE_DOCKER_CONFIG}" ]; then set -- "$$@" --docker-config "$${AGENT_IMAGE_DOCKER_CONFIG}"; fi; \
 	"$${AGENT_IMAGE_PYTHON}" "$$@"
 
 # Full source validation and the existing required release-contract CI job run
