@@ -1,6 +1,6 @@
 # Native Linux Installation
 
-The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. An experimental [cold archive transition](#qualify-an-experimental-archive-transition) exercises one compatible source-built archive boundary. Released version upgrades and replacement-host restore remain unqualified. Experimental Workspaces require the explicit XFS quota settings below.
+The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. The experimental [cold archive transition](#qualify-an-experimental-archive-transition) covers one compatible source-built archive boundary. The [replacement Node procedure](#qualify-a-replacement-node) covers a cold block-image backup made with the same archive. Experimental Workspaces require the explicit XFS quota settings below.
 
 ## Host Prerequisites
 
