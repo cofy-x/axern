@@ -1,4 +1,4 @@
-FROM docker.io/library/postgres:16.15-alpine3.24@sha256:aa6cb33cf4c19c765cefcf48d96176258800870a9a1e930ad126200f9d825139
+FROM docker.io/library/postgres:16.16-alpine3.24@sha256:f2f98726820d0342055351c6e9d36e705f5bfffb3dd53ff556325114b08afb6d
 
 ARG APK_REFRESH_EPOCH=source
 RUN test -n "${APK_REFRESH_EPOCH}" \
