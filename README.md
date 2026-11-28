@@ -18,7 +18,7 @@ Axern is open-source, self-hosted infrastructure for **single-host agent executi
 
 The primary use case is a personal agent system on one Linux host: independent workers, inspectable execution, retained working data, and a small operational surface. Agent sessions, configuration, planning, collaboration, and workflows belong to caller applications. See the [product direction](./docs/product/product-direction.md) and [single-host serving decision](./docs/decisions/single-host-agent-serving.md).
 
-> **Project status:** Axern is pre-1.0 and under active development. An experimental [native Linux installation](./deploy/standalone/INSTALL.md) provides a source-built runtime archive and managed systemd lifecycle. Docker Compose remains the local development path. Optional Workspace data requires XFS project quotas. Other writable storage is Allocation-local, and sealed outputs expire 15 minutes after cleanup begins. Operators can qualify a [cold upgrade between listed source builds](./deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition) or [restore a drained installation after fencing the original host](./deploy/standalone/INSTALL.md#qualify-a-replacement-node). The public native release channel and its supported upgrade path are still pending. Review the current deployment and storage boundaries before use.
+> **Project status:** Axern is pre-1.0. The [native preview](./deploy/standalone/INSTALL.md#published-native-previews) packages the CLI, services, gVisor and systemd installer for Ubuntu 24.04. Persistent Workspaces require dedicated XFS storage with project quotas. The [cold upgrade procedure](./deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition) lists the qualified amd64 preview pair. Operators can also [restore a drained installation on a replacement host](./deploy/standalone/INSTALL.md#qualify-a-replacement-node) after fencing the original. Docker Compose serves local development. Allocation-local files follow the execution lifetime, and sealed outputs expire 15 minutes after cleanup begins.
 
 The durable chain is **Environment → Run → Allocation → runsc sandbox**. The following concepts describe how an agent system uses that chain; they do not introduce another execution lifecycle or an Axern Agent resource.
 
@@ -39,7 +39,7 @@ The default collaboration pattern is independent writable working directories, c
 
 ## Quickstart
 
-For Linux single-host serving, build and stage a coherent native archive using the [installation guide](./deploy/standalone/INSTALL.md). Operate the installed server with `axern server start`, `status`, `logs` and `stop`. API contexts select remote execution services; they do not change the host managed by `server`.
+For Linux single-host serving, download, verify and stage the native preview using the [installation guide](./deploy/standalone/INSTALL.md). Operate the installed server with `axern server start`, `status`, `logs` and `stop`. API contexts select remote execution services; they do not change the host managed by `server`.
 
 Use the CLI, services and SDKs from one coordinated release or source revision. For repository development on Linux or a macOS Linux VM, use Go 1.27.4, Make and Docker Compose v2:
 
