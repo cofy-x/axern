@@ -118,6 +118,14 @@ source /etc/axern/client.env
 
 Renew service certificates explicitly using the installed CLI’s `server renew-services` command. Renewal preserves the CA and administrator identity and restarts the control, gateway and relay services; active client connections may reconnect. An expired initial administrator does not prevent service renewal, and renewal does not restore revoked administrator authorization. Use a valid replacement administrator for readiness checks and administrative API access. Lost authority must be restored from a consistent backup, not regenerated underneath existing state. Initial provisioning and migration markers are installation state, not a backup or an upgrade mechanism.
 
+## Protect Cold Backup Keys And Credentials
+
+Keep the complete stopped system and data images together. The system image holds the PostgreSQL credential, Axern Secret encryption key and private PKI. The data image holds the corresponding PostgreSQL cluster, encrypted Secret records, retained Workspace bytes and node-local recovery facts. Preserve those pairs from the same stopped installation. Keep the backup and its writable restore copies encrypted at rest with access limited to the operators responsible for recovery. Verify both image hashes before use. Store the backup media's unlock credentials separately from the images and leave generated keys, credentials and raw dumps out of build artifacts and shared receipts.
+
+Keep the original immutable OCI digests and sufficient registry access to retrieve them. When verifying recovery, launch new work from the recovered Environment ID. If a digest is unavailable and the image is absent from the cache, retain the failure and restore access to the exact digest before starting that Environment again.
+
+The native recovery procedure preserves the original Secret encryption key. In-place master-key or CA rotation remains unqualified. After recovering the coherent pair, use `server renew-services` to renew service leaf certificates. The administrative replacement-Node operation issues a distinct Node identity and revokes the previous identity before admission. Client certificate issuance and revocation remain administrator operations. Keep the restored gateway isolated until the administrator verifies that its client access policy includes revocations and other authority changes made after the backup.
+
 ## Qualify An Experimental Archive Transition
 
 The incoming helper accepts the source-built v0.13.0 native archive from commit `7de820e813ba2766645af100548753692d951051` and a distinct verified candidate from the same installation compatibility boundary. It checks the two staged archive identities, the unchanged v0.13.0 version label and gVisor payload, the Node configuration, the original data filesystem and the stopped services, PostgreSQL and runsc. Use the CLI and SDK that match the candidate. The shared version label alone does not establish API or payload compatibility.
@@ -149,6 +157,8 @@ sudo /opt/axern/releases/TARGET_ARCHIVE_SHA256/bin/axern server start
 ```
 
 The transition applies the candidate's database migrations over a private PostgreSQL Unix socket while the native services remain fenced. It then replaces the owned service definitions as a unit and preserves Workspace bytes, existing configuration and keys. An interrupted transition blocks service startup. Resume with the same target archive, source digest and receipt after PostgreSQL is stopped. After the transition, rollback requires restoring the whole verified cold backup with the newer installation fenced. Recovery and normal execution still require a new Allocation after a full stop.
+
+For a development installation or an archive outside the qualified transition, retain the original installation and export the required files through its authorized SDK or declared output delivery. Verify the exported bytes, then create fresh Namespaces, Environments and Workspaces on a separately installed compatible native archive, and supply Secrets through its normal API. The operator chooses which retained files to import. Run and Allocation identities and execution history remain with the original installation.
 
 ## Qualify A Replacement Node
 
