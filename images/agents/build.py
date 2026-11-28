@@ -48,6 +48,10 @@ def docker_command(config):
     return ['docker', '--config', str(config.resolve())] if config else ['docker']
 
 
+def source_hashes(context):
+    return {name: hashlib.sha256((context / name).read_bytes()).hexdigest() for name in CONTEXT_FILES}
+
+
 def build_images(args):
     lock = load_lock()
     targets = selected_targets(args.targets)
@@ -56,15 +60,19 @@ def build_images(args):
     if output:
         output.mkdir(parents=True, exist_ok=True)
     receipts = []
+    refresh_epoch = str(time.time_ns())
     env = {key: value for key, value in os.environ.items() if not any(part in key.upper() for part in ('DEEPSEEK', 'ANTHROPIC', 'OPENAI', 'CLAUDE', 'CODEX_API_KEY'))}
     with tempfile.TemporaryDirectory(prefix='axern-agent-images-') as temporary:
         context = Path(temporary) / 'context'
         prepare_context(ROOT, context)
         cached = Path(temporary) / 'cache'
         prepare_cache(args.cache_dir.resolve() if args.cache_dir else cached, cached, lock)
+        source_sha256 = source_hashes(context)
         for target in targets:
+            iidfile = Path(temporary) / (target + '.iid')
             command = docker_command(args.docker_config) + [
                 'build', '--platform', lock['platform'], '--build-arg', 'BASE_IMAGE=' + lock['base']['image'],
+                '--build-arg', 'APT_REFRESH_EPOCH=' + refresh_epoch, '--iidfile', str(iidfile),
                 '--build-context', 'runtime-cache=' + str(cached), '--target', target, '--tag', tags[target],
                 '--file', str(context / 'Dockerfile'), str(context),
             ]
@@ -74,12 +82,25 @@ def build_images(args):
                     result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, env=env)
             else:
                 result = subprocess.run(command, env=env)
-            receipt = {'target': target, 'tag': tags[target], 'command': command, 'exit_code': result.returncode, 'elapsed_seconds': round(time.monotonic() - started, 3), 'source_sha256': {name: hashlib.sha256((context / name).read_bytes()).hexdigest() for name in CONTEXT_FILES}}
+            image_id = iidfile.read_text().strip() if result.returncode == 0 and iidfile.is_file() else None
+            receipt = {
+                'target': target,
+                'tag': tags[target],
+                'platform': lock['platform'],
+                'image_id': image_id,
+                'apt_refresh_epoch': refresh_epoch,
+                'command': command,
+                'exit_code': result.returncode,
+                'elapsed_seconds': round(time.monotonic() - started, 3),
+                'source_sha256': source_sha256,
+            }
             receipts.append(receipt)
             if output:
                 (output / 'build-receipts.json').write_text(json.dumps(receipts, indent=2) + '\n')
             if result.returncode:
                 raise SystemExit(result.returncode)
+            if not isinstance(image_id, str) or not re.fullmatch(r'sha256:[0-9a-f]{64}', image_id):
+                raise ValueError('Docker did not record an immutable image ID for ' + target)
     print(json.dumps({'images': {target: tags[target] for target in targets}}, indent=2))
 
 

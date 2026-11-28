@@ -208,16 +208,16 @@ def verify_layer(path: Path, compressed: bool, expected_diff: str) -> None:
     require("sha256:" + digest.hexdigest() == expected_diff, "OCI layer diff ID mismatch")
 
 
-def prepare_layout(registry: Registry, descriptor: dict, arch: str, layout: Path, target: Path) -> tuple[dict, dict]:
+def prepare_layout(fetch, descriptor: dict, arch: str, layout: Path, target: Path) -> tuple[dict, dict]:
     manifest_digest, size = descriptor_identity(descriptor, MAX_METADATA)
-    manifest_path = registry.fetch("manifests", manifest_digest, MAX_METADATA, size)
+    manifest_path = fetch("manifests", manifest_digest, MAX_METADATA, size)
     manifest_raw = manifest_path.read_bytes()
     (target / "manifest.json").write_bytes(manifest_raw)
     manifest = load_json(manifest_raw)
     require(manifest.get("schemaVersion") == 2 and manifest.get("mediaType") == descriptor.get("mediaType"),
             "Invalid delivery manifest")
     config_digest, size = descriptor_identity(manifest["config"], MAX_METADATA)
-    config_path = registry.fetch("blobs", config_digest, MAX_METADATA, size)
+    config_path = fetch("blobs", config_digest, MAX_METADATA, size)
     config_raw = config_path.read_bytes()
     (target / "config.json").write_bytes(config_raw)
     config = load_json(config_raw)
@@ -229,7 +229,7 @@ def prepare_layout(registry: Registry, descriptor: dict, arch: str, layout: Path
     for layer, diff_id in zip(layers, diff_ids, strict=True):
         digest, size = descriptor_identity(layer, MAX_LAYER)
         require(layer.get("mediaType") in LAYER_TYPES and valid_digest(diff_id), "Unsupported OCI layer")
-        path = registry.fetch("blobs", digest, size, size)
+        path = fetch("blobs", digest, size, size)
         verify_layer(path, LAYER_TYPES[layer["mediaType"]], diff_id)
         paths.append(path)
 
@@ -301,6 +301,25 @@ def scan(command: list[str], env: dict, root: Path, name: str, timeout: int = 60
     return load_json(path.read_bytes())
 
 
+def scanner_inputs(output: Path, tool_dir: Path, database_dir: Path, result: dict):
+    db = database_dir.resolve() / "6" / "vulnerability.db"
+    config = output / "scanner-config.yaml"
+    config.write_text("{}\n")
+    inherited = ("PATH", "SSL_CERT_FILE", "SSL_CERT_DIR")
+    env = {name: os.environ[name] for name in inherited if name in os.environ}
+    env.update(HOME=str(output), GRYPE_DB_CACHE_DIR=str(db.parents[1]), GRYPE_DB_AUTO_UPDATE="false",
+               GRYPE_CHECK_FOR_APP_UPDATE="false", SYFT_CHECK_FOR_APP_UPDATE="false")
+    tools = {name: str(tool_dir.resolve() / name) for name in TOOL_VERSIONS}
+    for name, binary in tools.items():
+        version = scan([binary, "version", "-o", "json"], env, output, f"{name}-version")
+        require(version["version"] == TOOL_VERSIONS[name], f"Unexpected {name} version")
+        result.setdefault("tools", {})[name] = {"version": version["version"], "digest": file_digest(Path(binary))}
+    status = scan([tools["grype"], "db", "status", "-o", "json"], env, output, "db-status")
+    verify_database(status, db, datetime.now(timezone.utc))
+    result["database"] = {"built": status["built"], "digest": file_digest(db)}
+    return db, tools, env, config, status
+
+
 def audit(args, expected: dict) -> int:
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -312,21 +331,7 @@ def audit(args, expected: dict) -> int:
                 and observed == {**expected, "run_attempt": producer_attempt},
                 "Image lock is not from this release run")
         result["lock_producer_attempt"] = producer_attempt
-        db = args.database.resolve() / "6" / "vulnerability.db"
-        config = output / "scanner-config.yaml"
-        config.write_text("{}\n")
-        inherited = ("PATH", "SSL_CERT_FILE", "SSL_CERT_DIR")
-        env = {name: os.environ[name] for name in inherited if name in os.environ}
-        env.update(HOME=str(output), GRYPE_DB_CACHE_DIR=str(db.parents[1]), GRYPE_DB_AUTO_UPDATE="false",
-                   GRYPE_CHECK_FOR_APP_UPDATE="false", SYFT_CHECK_FOR_APP_UPDATE="false")
-        tools = {name: str(args.tools.resolve() / name) for name in TOOL_VERSIONS}
-        for name, binary in tools.items():
-            version = scan([binary, "version", "-o", "json"], env, output, f"{name}-version")
-            require(version["version"] == TOOL_VERSIONS[name], f"Unexpected {name} version")
-            result.setdefault("tools", {})[name] = {"version": version["version"], "digest": file_digest(Path(binary))}
-        status = scan([tools["grype"], "db", "status", "-o", "json"], env, output, "db-status")
-        verify_database(status, db, datetime.now(timezone.utc))
-        result["database"] = {"built": status["built"], "digest": file_digest(db)}
+        db, tools, env, config, status = scanner_inputs(output, args.tools, args.database, result)
 
         with tempfile.TemporaryDirectory(prefix="axern-delivery-oci-") as directory:
             work = Path(directory)
@@ -342,7 +347,7 @@ def audit(args, expected: dict) -> int:
                     target = output / f"{image}-{arch}"
                     target.mkdir()
                     layout = work / target.name
-                    manifest, image_config = prepare_layout(registry, descriptor, arch, layout, target)
+                    manifest, image_config = prepare_layout(registry.fetch, descriptor, arch, layout, target)
                     manifest_digest, config_digest = descriptor["digest"], manifest["config"]["digest"]
                     sbom = scan([tools["syft"], "scan", f"oci-dir:{layout}", "--config", str(config), "-o", "syft-json"],
                                 env, target, "syft")

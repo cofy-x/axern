@@ -25,7 +25,7 @@ make agent-images
 make agent-images-smoke
 ```
 
-`agent-images-check` needs Python 3.12 or newer and runs host-safe lock, checksum, archive, cache and context checks without Docker or model access. Builds require Docker with BuildKit and internet access to the public locked sources and Debian repositories. The build wrapper supplies the base reference from the lock; building the Dockerfile directly requires the same `BASE_IMAGE` argument.
+`agent-images-check` needs Python 3.12 or newer and runs host-safe lock, checksum, archive, cache and context checks without Docker or model access. Builds require Docker with BuildKit and internet access to the public locked sources and Debian repositories. Direct Dockerfile builds require the locked `BASE_IMAGE` and a fresh `APT_REFRESH_EPOCH` build argument.
 
 The default targets are `base,toolchain,claude-code,codex`. Choose targets, a local tag namespace and fresh receipt directories explicitly when needed:
 
@@ -45,7 +45,23 @@ make agent-images-smoke \
 
 `AGENT_IMAGE_CACHE_DIR` optionally supplies previously downloaded archives under their original URL basenames. The wrapper copies only listed files into an isolated read-only BuildKit context and validates their exact size and hashes. A corrupt or symlinked cached input fails; an absent input is downloaded from its locked HTTPS source. `AGENT_IMAGE_DOCKER_CONFIG` optionally selects the caller's Docker configuration directory; that directory is never a build input. The main context contains only the Dockerfile, lock and installation helper, with an explicit allowlist.
 
-The base applies available Debian package updates from signed repositories before installing common tools. The base and toolchain remove setuid/setgid file bits from installed `/usr` tools; default workloads do not require login, password management or mount elevation. The executable files, package versions and licenses remain available. Actual package versions are recorded inside each image under `/usr/local/share/axern/agent-images/`. Those repositories are not snapshot-pinned, so rebuilding is not claimed to reproduce identical image bytes. BuildKit caches common layers; build receipts record the exact source hashes. Publishing these local tags to a registry is a separate operator action. Resolve and retain the resulting manifest digest before selecting an image for an Axern Environment.
+The base applies available Debian package updates from signed repositories before installing common tools. Each build invocation refreshes Apt once per common stage and shares that refresh across all selected targets. The base and toolchain remove setuid/setgid file bits from installed `/usr` tools. Actual package versions are recorded inside each image under `/usr/local/share/axern/agent-images/`. The signed repositories update independently of the source commit. Build receipts retain the exact source hashes, Apt refresh identity, platform, and immutable Docker image ID. Publishing local images to a registry is a separate operator action. Resolve and retain the resulting registry manifest digest before selecting an image for an Axern Environment.
+
+## Audit the built images
+
+Use the same target selection as the build. The audit requires a Docker image store that can export the OCI platform selected by `docker image inspect --platform` and `docker image save --platform`. Prepare a fresh database and save results in a new directory.
+
+```bash
+bash scripts/release/install-image-auditors.sh /absolute/path/to/auditors
+GRYPE_DB_CACHE_DIR=/absolute/path/to/grype-db /absolute/path/to/auditors/grype db update
+make agent-images-audit \
+  AGENT_IMAGE_BUILD_RECEIPTS=/absolute/path/to/new-build-receipts/build-receipts.json \
+  AGENT_IMAGE_AUDIT_TOOLS=/absolute/path/to/auditors \
+  AGENT_IMAGE_AUDIT_DB=/absolute/path/to/grype-db \
+  AGENT_IMAGE_OUTPUT_DIR=/absolute/path/to/new-audit-receipts
+```
+
+The audit verifies each image selected by its build receipt, including the platform, manifest, config, and layers. It preserves the raw SBOM and all vulnerability matches, including the scanner's default ignored findings. An unsuccessful or mismatched scan leaves an incomplete result and exits nonzero. A complete result means the inventory succeeded. Review fixes and package or feature applicability against the maintained upstream before treating a workload as qualified. A generic SBOM cannot establish all dependencies embedded in the native Agent binaries.
 
 ## Runtime contract
 

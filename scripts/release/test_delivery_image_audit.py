@@ -94,7 +94,7 @@ class DeliveryImageAuditTests(unittest.TestCase):
                 manifest = store({"schemaVersion": 2, "mediaType": MANIFEST_TYPE, "config": config, "layers": [layer]},
                                  MANIFEST_TYPE)
                 with self.assertRaisesRegex(ValueError, error):
-                    audit.prepare_layout(registry, manifest, "amd64", root / "layout", target)
+                    audit.prepare_layout(registry.fetch, manifest, "amd64", root / "layout", target)
             self.assertFalse((root / "layout").exists())
 
     def test_stale_future_or_unselected_database_fails(self):
