@@ -33,7 +33,7 @@ func TestValidateOperatorExecutionRequiresExactLiveAllocationState(t *testing.T)
 	}
 }
 
-func TestValidateAllocationTunnelRequiresControlPlaneBindingAndLiveRuntime(t *testing.T) {
+func TestValidateBoundAllocationExecutionRequiresControlPlaneBindingAndLiveRuntime(t *testing.T) {
 	fixture := newTestAllocationController(t, nil)
 	now := time.Now().UTC()
 	state := &allocationState{
@@ -49,33 +49,33 @@ func TestValidateAllocationTunnelRequiresControlPlaneBindingAndLiveRuntime(t *te
 	fixture.controller.allocationStates["allocation-1"] = state
 	// An isolated Allocation has no interface resource; tunnel authority must
 	// depend on admission, binding, lease, and runtime identity instead.
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "node-1", now); err != nil {
-		t.Fatalf("ValidateAllocationTunnel() rejected interface-free Allocation: %v", err)
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "node-1", now); err != nil {
+		t.Fatalf("ValidateBoundAllocationExecution() rejected interface-free Allocation: %v", err)
 	}
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "node-2", now); err == nil {
-		t.Fatal("ValidateAllocationTunnel() accepted a different Node binding")
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "node-2", now); err == nil {
+		t.Fatal("ValidateBoundAllocationExecution() accepted a different Node binding")
 	}
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "", now); err == nil {
-		t.Fatal("ValidateAllocationTunnel() accepted a missing local Node identity")
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "", now); err == nil {
+		t.Fatal("ValidateBoundAllocationExecution() accepted a missing local Node identity")
 	}
 	state.record.NodeID = ""
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "node-1", now); err == nil {
-		t.Fatal("ValidateAllocationTunnel() accepted local conformance Allocation")
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "node-1", now); err == nil {
+		t.Fatal("ValidateBoundAllocationExecution() accepted local conformance Allocation")
 	}
 	state.record.NodeID = "node-1"
 	state.record.AllocationID = "other-allocation"
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "node-1", now); err == nil {
-		t.Fatal("ValidateAllocationTunnel() accepted mismatched Allocation identity")
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "node-1", now); err == nil {
+		t.Fatal("ValidateBoundAllocationExecution() accepted mismatched Allocation identity")
 	}
 	state.record.AllocationID = "allocation-1"
 	state.record.ExecutionLeaseExpiresAtUnixNano = now.Add(-time.Second).UnixNano()
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "node-1", now); err == nil {
-		t.Fatal("ValidateAllocationTunnel() accepted expired execution lease")
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "node-1", now); err == nil {
+		t.Fatal("ValidateBoundAllocationExecution() accepted expired execution lease")
 	}
 	state.record.ExecutionLeaseExpiresAtUnixNano = now.Add(time.Minute).UnixNano()
 	state.runtime = nil
-	if err := fixture.controller.ValidateAllocationTunnel("allocation-1", "node-1", now); err == nil {
-		t.Fatal("ValidateAllocationTunnel() accepted incomplete runtime identity")
+	if err := fixture.controller.ValidateBoundAllocationExecution("allocation-1", "node-1", now); err == nil {
+		t.Fatal("ValidateBoundAllocationExecution() accepted incomplete runtime identity")
 	}
 }
 

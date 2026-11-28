@@ -19,6 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
+	NodeSandbox_PreviewHTTP_FullMethodName             = "/axern.node.sandbox.v1.NodeSandbox/PreviewHTTP"
 	NodeSandbox_Exec_FullMethodName                    = "/axern.node.sandbox.v1.NodeSandbox/Exec"
 	NodeSandbox_Process_FullMethodName                 = "/axern.node.sandbox.v1.NodeSandbox/Process"
 	NodeSandbox_ReadOutput_FullMethodName              = "/axern.node.sandbox.v1.NodeSandbox/ReadOutput"
@@ -49,6 +50,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeSandboxClient interface {
+	PreviewHTTP(ctx context.Context, in *PreviewHTTPRequest, opts ...grpc.CallOption) (*PreviewHTTPResponse, error)
 	Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error)
 	Process(ctx context.Context, opts ...grpc.CallOption) (NodeSandbox_ProcessClient, error)
 	ReadOutput(ctx context.Context, in *ReadOutputRequest, opts ...grpc.CallOption) (NodeSandbox_ReadOutputClient, error)
@@ -81,6 +83,15 @@ type nodeSandboxClient struct {
 
 func NewNodeSandboxClient(cc grpc.ClientConnInterface) NodeSandboxClient {
 	return &nodeSandboxClient{cc}
+}
+
+func (c *nodeSandboxClient) PreviewHTTP(ctx context.Context, in *PreviewHTTPRequest, opts ...grpc.CallOption) (*PreviewHTTPResponse, error) {
+	out := new(PreviewHTTPResponse)
+	err := c.cc.Invoke(ctx, NodeSandbox_PreviewHTTP_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *nodeSandboxClient) Exec(ctx context.Context, in *ExecRequest, opts ...grpc.CallOption) (*ExecResponse, error) {
@@ -419,6 +430,7 @@ func (c *nodeSandboxClient) ComputerUseKeyboard(ctx context.Context, in *Compute
 // All implementations must embed UnimplementedNodeSandboxServer
 // for forward compatibility
 type NodeSandboxServer interface {
+	PreviewHTTP(context.Context, *PreviewHTTPRequest) (*PreviewHTTPResponse, error)
 	Exec(context.Context, *ExecRequest) (*ExecResponse, error)
 	Process(NodeSandbox_ProcessServer) error
 	ReadOutput(*ReadOutputRequest, NodeSandbox_ReadOutputServer) error
@@ -450,6 +462,9 @@ type NodeSandboxServer interface {
 type UnimplementedNodeSandboxServer struct {
 }
 
+func (UnimplementedNodeSandboxServer) PreviewHTTP(context.Context, *PreviewHTTPRequest) (*PreviewHTTPResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PreviewHTTP not implemented")
+}
 func (UnimplementedNodeSandboxServer) Exec(context.Context, *ExecRequest) (*ExecResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Exec not implemented")
 }
@@ -533,6 +548,24 @@ type UnsafeNodeSandboxServer interface {
 
 func RegisterNodeSandboxServer(s grpc.ServiceRegistrar, srv NodeSandboxServer) {
 	s.RegisterService(&NodeSandbox_ServiceDesc, srv)
+}
+
+func _NodeSandbox_PreviewHTTP_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PreviewHTTPRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeSandboxServer).PreviewHTTP(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: NodeSandbox_PreviewHTTP_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeSandboxServer).PreviewHTTP(ctx, req.(*PreviewHTTPRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _NodeSandbox_Exec_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -999,6 +1032,10 @@ var NodeSandbox_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "axern.node.sandbox.v1.NodeSandbox",
 	HandlerType: (*NodeSandboxServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "PreviewHTTP",
+			Handler:    _NodeSandbox_PreviewHTTP_Handler,
+		},
 		{
 			MethodName: "Exec",
 			Handler:    _NodeSandbox_Exec_Handler,

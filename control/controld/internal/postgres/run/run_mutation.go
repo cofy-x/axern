@@ -101,7 +101,7 @@ func (s *Store) CancelRun(ctx context.Context, runID string, now time.Time) (*ru
 			`, run.GetAllocationID(), commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_RELEASING.String(), now.UTC()); err != nil {
 				return fmt.Errorf("mark allocation releasing: %w", err)
 			}
-			if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, run.GetAllocationID()); err != nil {
+			if err := pgallocation.RevokeExecutionAccessGrants(ctx, tx, run.GetAllocationID()); err != nil {
 				return err
 			}
 			if err := pgtunnel.RevokeActiveForAllocationsTx(ctx, tx, pgtunnel.RevokeActiveForAllocationsRequest{

@@ -43,7 +43,8 @@ func (s *Store) IssueAllocationAccessGrant(ctx context.Context, allocationID str
 			return grpcstatus.Error(codes.FailedPrecondition, "Node identity is not active")
 		}
 		switch purpose {
-		case gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE:
+		case gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE,
+			gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW:
 			if state != commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE.String() {
 				return grpcstatus.Error(codes.FailedPrecondition, "allocation is not active")
 			}

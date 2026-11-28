@@ -83,7 +83,7 @@ func (s *Store) BatchReportAllocationLifecycle(ctx context.Context, nodeID strin
 				}); err != nil {
 					return err
 				}
-				if err := pgallocation.RevokeInteractiveAccessGrants(ctx, tx, alloc.allocationID); err != nil {
+				if err := pgallocation.RevokeExecutionAccessGrants(ctx, tx, alloc.allocationID); err != nil {
 					return err
 				}
 				if err := pgallocation.ScheduleReconcile(ctx, tx, allocationkernel.ScheduleReconcileRequest{

@@ -379,7 +379,24 @@ message ComputerUseKeyboardRequest {
 
 message ComputerUseKeyboardResponse {}
 
+// PreviewHTTP serves one bounded HTTP read from the exact Allocation's guest
+// loopback. The caller supplies an origin-form target, never a network host.
+message PreviewHTTPRequest {
+  string allocation_id = 1;
+  uint32 port = 2;
+  string method = 3;
+  string target = 4;
+}
+
+message PreviewHTTPResponse {
+  int32 status = 1;
+  string content_type = 2;
+  bytes body = 3;
+  string location = 4;
+}
+
 service NodeSandbox {
+  rpc PreviewHTTP(PreviewHTTPRequest) returns (PreviewHTTPResponse) {}
   rpc Exec(ExecRequest) returns (ExecResponse) {}
   rpc Process(stream ProcessRequest) returns (stream ProcessResponse) {}
   rpc ReadOutput(ReadOutputRequest) returns (stream ReadOutputResponse) {}
