@@ -5,17 +5,80 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/config"
+	runtimev1 "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/hostlinux"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/oci"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
+	"github.com/sirupsen/logrus"
 )
+
+func TestRuntimeConformanceMemoryTimeoutFields(t *testing.T) {
+	manifest := &runtimev1.AllocationEnforcementManifest{
+		InitialMemoryEventOomKill:      4,
+		InitialMemoryEventOomGroupKill: 2,
+	}
+	for _, test := range []struct {
+		name        string
+		phase       runtimev1.ContainerState
+		observation hostlinux.CgroupMemoryObservation
+		want        logrus.Fields
+	}{
+		{
+			name:  "measured_deltas",
+			phase: runtimev1.ContainerState_CONTAINER_RUNNING,
+			observation: hostlinux.CgroupMemoryObservation{
+				CurrentBytes: 128 << 20,
+				Events:       map[string]uint64{"oom_kill": 7, "oom_group_kill": 3, "other": 5},
+			},
+			want: logrus.Fields{
+				"container_phase":      "running",
+				"memory_current_bytes": int64(128 << 20),
+				"oom_kill_delta":       uint64(3),
+				"oom_group_kill_delta": uint64(1),
+			},
+		},
+		{
+			name:  "measured_zero",
+			phase: runtimev1.ContainerState_CONTAINER_RUNNING,
+			observation: hostlinux.CgroupMemoryObservation{
+				Events: map[string]uint64{"oom_kill": 4, "oom_group_kill": 2},
+			},
+			want: logrus.Fields{
+				"container_phase":      "running",
+				"memory_current_bytes": int64(0),
+				"oom_kill_delta":       uint64(0),
+				"oom_group_kill_delta": uint64(0),
+			},
+		},
+		{
+			name:  "counter_absent_or_below_baseline",
+			phase: runtimev1.ContainerState(42),
+			observation: hostlinux.CgroupMemoryObservation{
+				CurrentBytes: 16 << 20,
+				Events:       map[string]uint64{"oom_kill": 3},
+			},
+			want: logrus.Fields{
+				"container_phase":      "unknown",
+				"memory_current_bytes": int64(16 << 20),
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := runtimeConformanceMemoryTimeoutFields(test.phase, &test.observation, manifest); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("memory timeout fields = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
 
 type loadedConformanceRuntime struct {
 	*runtimetest.FakeSandboxRuntime
