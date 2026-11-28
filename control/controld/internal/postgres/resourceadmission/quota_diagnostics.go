@@ -31,7 +31,7 @@ const (
 	quotaDiagnosticUnitBytes quotaDiagnosticUnit = "bytes"
 )
 
-func quotaRejectionError(namespace string, evaluation resourcekernel.QuotaEvaluation) error {
+func quotaRejectionStatus(namespace string, evaluation resourcekernel.QuotaEvaluation) *grpcstatus.Status {
 	st := grpcstatus.New(codes.ResourceExhausted, quotaRejectionMessage(namespace, evaluation))
 	info := &errdetails.ErrorInfo{
 		Reason:   namespaceQuotaExceededReason,
@@ -40,9 +40,9 @@ func quotaRejectionError(namespace string, evaluation resourcekernel.QuotaEvalua
 	}
 	withDetails, err := st.WithDetails(info)
 	if err != nil {
-		return st.Err()
+		return st
 	}
-	return withDetails.Err()
+	return withDetails
 }
 
 func quotaRejectionMessage(namespace string, evaluation resourcekernel.QuotaEvaluation) string {

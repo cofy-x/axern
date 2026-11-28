@@ -268,7 +268,7 @@ func TestQuotaRejectionErrorIncludesStructuredDetails(t *testing.T) {
 		resourcekernel.Claim{CPUMilli: 200},
 	)
 
-	err := quotaRejectionError("team-a", evaluation)
+	err := quotaRejectionStatus("team-a", evaluation).Err()
 	st, ok := grpcstatus.FromError(err)
 	if !ok {
 		t.Fatalf("error is not a grpc status: %v", err)

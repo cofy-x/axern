@@ -4,24 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
-	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
-	workspacekernel "github.com/cofy-x/axern/control/controld/internal/kernel/workspace"
-	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
-	pgworkspace "github.com/cofy-x/axern/control/controld/internal/postgres/workspace"
-	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
-	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 	"strings"
 	"time"
 
+	accesskernel "github.com/cofy-x/axern/control/controld/internal/kernel/access"
 	allocationkernel "github.com/cofy-x/axern/control/controld/internal/kernel/allocation"
 	environmentkernel "github.com/cofy-x/axern/control/controld/internal/kernel/environment"
 	executionkernel "github.com/cofy-x/axern/control/controld/internal/kernel/execution"
+	nodekernel "github.com/cofy-x/axern/control/controld/internal/kernel/node"
 	runkernel "github.com/cofy-x/axern/control/controld/internal/kernel/run"
+	workspacekernel "github.com/cofy-x/axern/control/controld/internal/kernel/workspace"
+	pgaccess "github.com/cofy-x/axern/control/controld/internal/postgres/access"
 	pgallocation "github.com/cofy-x/axern/control/controld/internal/postgres/allocation"
 	resourceadmission "github.com/cofy-x/axern/control/controld/internal/postgres/resourceadmission"
+	pgworkspace "github.com/cofy-x/axern/control/controld/internal/postgres/workspace"
+	nodelifecyclev1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/node/lifecycle/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	runv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/run/v1"
+	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"google.golang.org/grpc/codes"
@@ -39,8 +39,8 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		return nil, grpcstatus.Error(codes.FailedPrecondition, "no eligible node")
 	}
 	var (
-		run   *runv1.Run
-		alloc *runkernel.AllocationRecord
+		run            *runv1.Run
+		quotaRejection *grpcstatus.Status
 	)
 	started := time.Now()
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
@@ -97,7 +97,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 				return nil
 			}
 		}
-		selected, err := s.admitCandidateResources(ctx, tx, resourceadmission.AdmitCandidateRequest{
+		outcome, err := s.resourceAdmission.AdmitCandidate(ctx, tx, resourceadmission.AdmitCandidateRequest{
 			Namespace:              namespace,
 			EnvironmentID:          params.Environment.GetID(),
 			Candidates:             candidates,
@@ -108,6 +108,11 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if err != nil {
 			return err
 		}
+		if outcome.QuotaRejection != nil {
+			quotaRejection = outcome.QuotaRejection
+			return nil // Commit the rejection event without creating a Run or Allocation.
+		}
+		selected := outcome.Selected
 		bindingJSON := "{}"
 		var attachment *workspacev1.WorkspaceAttachment
 		if binding != nil {
@@ -160,7 +165,7 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		if err != nil {
 			return err
 		}
-		alloc = &runkernel.AllocationRecord{
+		alloc := &runkernel.AllocationRecord{
 			AllocationID:           run.GetAllocationID(),
 			NodeID:                 selected.Record.NodeID,
 			NodeTarget:             selected.Record.NodeTarget,
@@ -207,8 +212,12 @@ func (s *Store) AdmitRun(ctx context.Context, params runkernel.AdmitRunParams, n
 		}
 		return nil
 	})
-	if err == nil {
-		s.signalReconcileWork()
+	if err != nil {
+		return nil, err
 	}
-	return run, err
+	if quotaRejection != nil {
+		return nil, quotaRejection.Err()
+	}
+	s.signalReconcileWork()
+	return run, nil
 }
