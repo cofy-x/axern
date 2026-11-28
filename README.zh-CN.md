@@ -18,7 +18,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 主要使用场景是在一台 Linux 主机上运行个人 Agent 系统：独立的 worker、可检查的执行状态、保留工作数据，以及较低的运维复杂度。Agent 的会话、配置、规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。Docker Compose 仍是本地开发路径。可选 Workspace 要求 XFS 项目配额。其他可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。运维人员可以验证[指定源码构建之间的冷升级](./deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition)，也可以在排空任务、隔离旧主机后[从冷备恢复到替换主机](./deploy/standalone/INSTALL.md#qualify-a-replacement-node)。原生包的公开发布渠道和受支持的版本间升级仍待验收。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段。Ubuntu 24.04 的[原生预览包](./deploy/standalone/INSTALL.md#published-native-previews)包含 CLI、服务、gVisor 和 systemd 安装程序。持久 Workspace 需要启用项目配额的独立 XFS 挂载。[冷升级流程](./deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition)列出了已验收的 amd64 预览版本组合。运维人员也可以在排空任务、隔离旧主机后[从冷备恢复到替换主机](./deploy/standalone/INSTALL.md#qualify-a-replacement-node)。Docker Compose 用于本地开发。Allocation 本地文件随执行清理，封存输出在清理开始 15 分钟后过期。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
@@ -41,7 +41,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 ## 快速开始
 
-Linux 单机 serving 按[安装指南](./deploy/standalone/INSTALL.md)构建并安装完整的原生归档，通过 `axern server start`、`status`、`logs` 和 `stop` 管理。API Context 选择远程执行服务，不改变 `server` 管理的当前主机。
+Linux 单机 serving 按[安装指南](./deploy/standalone/INSTALL.md)下载、验签并安装原生预览包，通过 `axern server start`、`status`、`logs` 和 `stop` 管理。API Context 选择远程执行服务，不改变 `server` 管理的当前主机。
 
 CLI、服务和 SDK 必须来自同一个配套 Release 或源码版本。Linux 或 macOS Linux VM 中的源码开发需要 Go 1.27.4、Make 和 Docker Compose v2：
 

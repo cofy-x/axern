@@ -62,7 +62,7 @@ The verifier reads the payload without extraction or execution. It checks the ou
 
 `make native-runtime-check` exercises corruption, architecture checks, concurrent staging, configuration validation, generated systemd units and data-identity protection. Its archive tests use synthetic ELF headers; it does not download gVisor, compile services or run a sandbox. The check is part of `make release-check`. Real native builds, service operation and sandbox enforcement require the separate [fresh-archive qualification](QUALIFICATION.md).
 
-This candidate is deliberately outside `make release-build` and automated publication. Extending the release channel requires a payload-aware dependency/license inventory, required third-party notices, provenance/checksum publication, native architecture builds and qualified installation tests. The source-tree SBOM alone is not a claim that the complete binary/runtime archive has passed the [dependency license policy](../../docs/legal/dependency-licenses.md).
+The native preview is published manually. Each release includes archive checksums, signed payload inventories and source and dependency notices. The [installation guide](INSTALL.md#published-native-previews) identifies the published archives. Apply the [dependency license policy](../../docs/legal/dependency-licenses.md) to the actual native payload before publication.
 
 To prepare delivery evidence, scan the verified archive with the matching source's inventory tool and a trusted Syft executable.
 
@@ -118,4 +118,4 @@ For SBOMs, also match their bytes to the inventory digests in the verified recei
 (cd "$EVIDENCE" && jq -er '.inventory_sha256 | to_entries[] | "\(.value)  \(.key)"' receipt.json | sha256sum --check --strict)
 ```
 
-Native installation is experimental. The installation guide lists the [exact source builds accepted for a cold upgrade](INSTALL.md#qualify-an-experimental-archive-transition) and explains how to [restore a drained, stopped installation on a replacement host](INSTALL.md#qualify-a-replacement-node) after fencing the original. Published-version upgrades, Compose migration and macOS VM provisioning remain outside this qualification. Record the host, archive identities, commands and results of the relevant runtime or recovery checks.
+Native installation is experimental. The installation guide lists the [qualified public preview pair](INSTALL.md#published-native-previews) and explains how to [restore a drained, stopped installation on a replacement host](INSTALL.md#qualify-a-replacement-node) after fencing the original. Record the host, archive identities, commands and results when qualifying another transition.

@@ -7,7 +7,7 @@ The current source introduces a coordinated CLI, server and SDK protocol change.
 
 ## Linux single-host serving
 
-Build and install a complete archive using the repository's [native installation guide](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md). The target needs no source checkout, compiler, Docker or Kubernetes. Persistent Workspaces require a dedicated XFS data mount, project quotas and an explicit storage budget.
+Download the runtime and its evidence from the [native preview release](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-1). Verify the signature and checksum before staging it on Ubuntu 24.04. The [installation guide](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#published-native-previews) identifies the qualified profiles and matching staging tools. The target needs no source checkout, compiler, Docker or Kubernetes. Persistent Workspaces require a dedicated XFS data mount, project quotas and an explicit storage budget.
 
 After installation, operate this host through the archive's CLI:
 
@@ -39,4 +39,4 @@ A published CLI's embedded development bundle uses `axern dev up|status|logs|dow
 - [Workspaces](/guides/workspaces/) retain files for a fresh Run after the old writer is confirmed cleaned up.
 - [SDKs](/sdk/) expose Go, Python sync/async and TypeScript APIs.
 
-Without a Workspace, writable files belong to the current Allocation. Sealed logs and declared outputs expire 15 minutes after cleanup starts. Workspace capacity and deletion are independent. The native guide covers [cold upgrades for listed source builds](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition) and [recovery from a stopped installation](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-a-replacement-node). Published-version upgrades still await qualification.
+Without a Workspace, writable files belong to the current Allocation. Sealed logs and declared outputs expire 15 minutes after cleanup starts. Workspace capacity and deletion are independent. The native guide covers [the qualified amd64 preview upgrade](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition) and [recovery from a stopped installation](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-a-replacement-node).

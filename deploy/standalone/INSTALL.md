@@ -1,6 +1,31 @@
 # Native Linux Installation
 
-The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. The experimental [cold archive transition](#qualify-an-experimental-archive-transition) covers one compatible source-built archive boundary. The [replacement Node procedure](#qualify-a-replacement-node) covers a cold block-image backup made with the same archive. Experimental Workspaces require the explicit XFS quota settings below.
+The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. The experimental [cold archive transition](#qualify-an-experimental-archive-transition) includes the published amd64 upgrade listed below. The [replacement Node procedure](#qualify-a-replacement-node) covers a cold block-image backup made with the same archive. Experimental Workspaces require the explicit XFS quota settings below.
+
+## Published Native Previews
+
+Use the CLI and services from the same archive. Download the archive, checksums, evidence and third-party notices for your architecture from the release page. Its verification commands check the archive, checksum file, receipt and both software inventories against the specific GitHub signing workflow and commit. Check the source revision in the signed receipt before staging. The [0.13.0 baseline](https://github.com/cofy-x/axern/releases/tag/native-preview-0.13.0-1) and [0.14.0 preview](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-1) are native prereleases. The stable CLI, SDK, Helm and service-image release has its own version and artifacts.
+
+| Ubuntu 24.04 amd64, dedicated XFS with project quotas | Source commit | Archive SHA-256 |
+| --- | --- | --- |
+| [0.13.0 baseline](https://github.com/cofy-x/axern/releases/tag/native-preview-0.13.0-1) | `4f8208c5e7b58e04feed5806f81336fbe425b55f` | `dbff48cc4366af36093e5a525fd280c411b507b13491f97178a6ed69e8748ac1` |
+| [0.14.0 successor](https://github.com/cofy-x/axern/releases/tag/native-preview-0.14.0-1) | `90bc377b44f2c7609fb59a7951b2aaa80d49d6d9` | `180b2eef09ec003c3c3b24dd7a65e5ea55cb006b3bb987b47fb569d8d56f702c` |
+
+These two downloads form the qualified amd64 upgrade pair. Follow the [cold transition](#qualify-an-experimental-archive-transition) with a verified backup of the stopped system and data disks. The original installation must stay fenced. The [upgrade record](https://github.com/cofy-x/axern/issues/200) tracks recovered files, the Secret projection, quota and single-writer checks. The [host qualification record](https://github.com/cofy-x/axern/issues/197) distinguishes native execution, retained-workspace coverage and execution-only filesystems.
+
+Both previews publish amd64 archives. The [ARM64 hardware trial](https://github.com/cofy-x/axern/actions/runs/46107363320) verified two matching ARM64 builds and completed host preparation. The runner exited before the eight runtime cases produced results. ARM64 execution and stateful upgrades on ARM64 remain unqualified.
+
+Use the staging scripts from the source commit in the verified receipt. Run the following in a new directory containing the extracted `evidence/receipt.json` from the release verification procedure.
+
+```bash
+set -euo pipefail
+source_revision=$(jq -er '.source_revision | select(test("^[0-9a-f]{40}$"))' evidence/receipt.json)
+mkdir -m 0700 staging
+for path in scripts/release/native_runtime.py runtime/axnoded/gvisor_payload.py; do
+  curl --fail --location --proto '=https' --proto-redir '=https' \
+    "https://raw.githubusercontent.com/cofy-x/axern/$source_revision/$path" -o "staging/${path##*/}" || exit 1
+done
+```
 
 ## Host Prerequisites
 
@@ -135,7 +160,7 @@ The incoming helper accepts the exact source revision and archive version pairs 
 | `0.13.0` | `7de820e813ba2766645af100548753692d951051` | `0.13.0` | Historical native layout. The transition adds the default Workspace project budget. |
 | `0.13.0` | `4f8208c5e7b58e04feed5806f81336fbe425b55f` | `0.13.0`, `0.14.0` | Current managed layout with an existing Workspace project-budget field. |
 
-Before changing activation state, the helper verifies stopped systemd services, PostgreSQL and runsc. It opens PostgreSQL on a private Unix socket to verify the source migration history and confirm that the original Node has no unfinished Runs, unreleased Allocations or unresolved Workspace writers. Drain outstanding work on the source before attempting the transition. The `0.14.0` entry is for qualifying a source-built successor. Published-version upgrade support requires a release-bound compatibility record for the source and successor native archives.
+Before changing activation state, the helper verifies stopped systemd services, PostgreSQL and runsc. It opens PostgreSQL on a private Unix socket to verify the source migration history and confirm that the original Node has no unfinished Runs, unreleased Allocations or unresolved Workspace writers. Drain outstanding work on the source before attempting the transition. The [published preview pair](#published-native-previews) identifies the exact source and successor for the qualified amd64 transition. Independently qualify other builds and retain their archive digests before selecting them.
 
 Follow the [cold-restore qualification](QUALIFICATION.md#qualify-a-same-installation-cold-restore) to fence new work, drain writers, disable automatic startup and verify a backup of the system and data disks. Store both complete disk images privately. After verifying their hashes, the operator supplies a private receipt with this shape:
 

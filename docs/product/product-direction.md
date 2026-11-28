@@ -10,7 +10,7 @@ Make it practical to run independent agent workers on one Linux host, inspect th
 
 The execution model is `Environment -> Run -> Allocation -> runsc sandbox`. SDKs expose Sandbox as a facade over that chain. Current capabilities include processes, files, terminals, SSH, reverse Tunnels, read-only image mounts, bounded declared outputs and successful-Run rootfs sealing into an immutable Environment. Without an explicit Workspace, writable files remain Allocation-local. An experimental managed Workspace retains files independently, enforces block/inode limits, and permits one Allocation writer at a time.
 
-The [native Linux installation](../../deploy/standalone/INSTALL.md) provides an experimental source-built archive and systemd lifecycle with required resource/network enforcement and OCI image management. [Compose](../../deploy/local/README.md) is the separate development profile. Experimental Workspaces require XFS project accounting and hard enforcement. Authenticated previews, retained-result handoff and supported stateful upgrades/backup remain planned. Native lifecycle uses `axern server`; `axern dev` manages the separate Compose development instance.
+The [native Linux preview](../../deploy/standalone/INSTALL.md#published-native-previews) runs one systemd installation with gVisor, resource enforcement and OCI images. Persistent Workspaces require XFS project quotas. The installation guide defines the qualified cold upgrade and replacement-host recovery procedures. Callers can authenticate an Allocation-scoped preview and retain verified output in their own result store. Use `axern server` for native operation and `axern dev` for [Compose development](../../deploy/local/README.md).
 
 ## Principles
 
@@ -38,7 +38,7 @@ Multiple workers use independent writable directories, immutable common referenc
 | --- | --- | --- |
 | Execution | Admission, limits, cancellation, cleanup and observable recovery through Environment, Run and Allocation | Tasks, planning, Agent roles, orchestration and semantic retries |
 | Work data | Allocation-local files and outputs; experimental managed host-local Workspace | Agent memory and session meaning, result/Git merging, distributed storage and long-term external publication |
-| Interaction | Process, terminal, file, log, SSH and reverse Tunnel access; planned authenticated previews | IDE/dashboard products, application rollout, replicas and route orchestration |
+| Interaction | Process, terminal, file, log, SSH, reverse Tunnel access and authenticated Allocation-scoped previews | IDE/dashboard products, application rollout, replicas and route orchestration |
 | Authority | Principal/Namespace authorization, Secret projection, execution authority and resource accounting | Human approval policy, model budgets, provider accounts and event integrations |
 | Images | Shared toolchains, official Agent installation layers, version/source locks and local build/check commands | Project-specific customization, build-service orchestration, registry credentials and publication |
 | Operations | Native installation/lifecycle and diagnostics; planned supported-version upgrades and coordinated backup/restore | Cloud accounts, cluster provisioning, high availability and regional deployment |
