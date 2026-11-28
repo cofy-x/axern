@@ -7,7 +7,7 @@ Workspace 是具有独立身份、Namespace、容量和删除语义的保留数�
 
 :::caution[实验性存储]
 
-CLI、SDK 和服务端必须使用一致的构建版本。原生主机需要明确配置 XFS 项目配额预算。当前功能支持清理旧执行后，在新执行中继续使用文件；尚不提供受支持的备份、升级或替换主机恢复。源码版本不代表安装包已经发布。
+CLI、SDK 和服务端必须使用一致的构建版本。原生主机需要明确配置 XFS 项目配额预算。旧执行完成清理后，新 Run 可以继续使用保留的文件。从磁盘或主机故障中恢复时，需要同一次停机备份里的完整系统盘和数据盘。[实验性的替换主机恢复步骤](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-a-replacement-node)说明了旧主机隔离、XFS 身份和配额检查要求。
 
 :::
 

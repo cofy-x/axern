@@ -116,4 +116,4 @@ For SBOMs, also match their bytes to the inventory digests in the verified recei
 (cd "$EVIDENCE" && jq -er '.inventory_sha256 | to_entries[] | "\(.value)  \(.key)"' receipt.json | sha256sum --check --strict)
 ```
 
-Native installation is experimental. Supported upgrades, coordinated backup/restore, Compose migration and macOS VM provisioning are unavailable. Record acceptance commands, platform details and source revisions in the implementation PR or operational test record. Packaging checks do not establish sandbox enforcement or durable serving qualification.
+Native installation is experimental. The installation guide lists the [exact source builds accepted for a cold upgrade](INSTALL.md#qualify-an-experimental-archive-transition) and explains how to [restore a drained, stopped installation on a replacement host](INSTALL.md#qualify-a-replacement-node) after fencing the original. Published-version upgrades, Compose migration and macOS VM provisioning remain outside this qualification. Record the host, archive identities, commands and results of the relevant runtime or recovery checks.

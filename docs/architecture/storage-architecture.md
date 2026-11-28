@@ -2,7 +2,7 @@
 
 Axern separates durable control state, optional managed Workspace data, Allocation-local writable files and bounded outputs. Workspace is an experimental retained-data resource; bounded output retention is not a general durable output-storage service.
 
-Managed Workspaces follow the [single-writer contract](../decisions/single-writer-workspaces.md) within the [single-host serving direction](../decisions/single-host-agent-serving.md). They require explicit XFS project-quota enforcement and remain host-local; supported backup, upgrade and replacement-host restore are not established.
+Managed Workspaces follow the [single-writer contract](../decisions/single-writer-workspaces.md) within the [single-host serving direction](../decisions/single-host-agent-serving.md). They require explicit XFS project-quota enforcement and remain host-local. The [experimental replacement-host procedure](../../deploy/standalone/INSTALL.md#qualify-a-replacement-node) restores a coherent, stopped system and data disk pair on an isolated host with the same filesystem identity after fencing the original installation.
 
 ## Data Ownership And Lifetime
 

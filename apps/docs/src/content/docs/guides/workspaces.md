@@ -7,7 +7,7 @@ A Workspace is retained data with its own identity, Namespace, capacity and dele
 
 :::caution[Experimental storage]
 
-Use a coherent CLI, SDK and server build. The native host must explicitly enable an XFS project-quota budget. This feature retains files through cleaned execution replacement; supported backup, upgrades and replacement-host restore are not available. A source version does not establish published package availability.
+Use a coherent CLI, SDK and server build. The native host must explicitly enable an XFS project-quota budget. After the previous execution has been cleaned up, a new Run can use the retained files. To recover from disk or host loss, operators need a verified backup of both the system and data disks from the same stopped installation. Follow the [experimental replacement-host procedure](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-a-replacement-node) for the required fencing, XFS identity and quota checks.
 
 :::
 

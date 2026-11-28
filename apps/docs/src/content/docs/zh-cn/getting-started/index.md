@@ -39,4 +39,4 @@ make axern-cli-build
 - [Workspace](/zh-cn/guides/workspaces/) 在旧写入者完成清理后，从新 Run 继续使用保留文件。
 - [SDK](/zh-cn/sdk/) 提供 Go、Python 同步／异步和 TypeScript 接口。
 
-不选择 Workspace 时，可写文件属于当前 Allocation。封存日志和声明输出在清理开始 15 分钟后过期。Workspace 有独立容量和删除语义；受支持的备份、升级与替换主机恢复仍未完成验收。
+不选择 Workspace 时，可写文件属于当前 Allocation。封存日志和声明输出在清理开始 15 分钟后过期。Workspace 的容量与删除独立管理。原生安装指南说明了如何验证[指定源码构建之间的冷升级](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition)，以及如何[从停机备份恢复到替换主机](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-a-replacement-node)。公开版本之间的升级仍待验收。

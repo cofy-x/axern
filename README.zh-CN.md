@@ -18,7 +18,7 @@ Axern 的定位是**面向 Agent 的单机执行与持久工作区基础设施**
 
 主要使用场景是在一台 Linux 主机上运行个人 Agent 系统：独立的 worker、可检查的执行状态、保留工作数据，以及较低的运维复杂度。Agent 的会话、配置、规划、协作与工作流由调用方应用负责。详见[产品方向](./docs/product/product-direction.md)和[单机 serving 决策](./docs/decisions/single-host-agent-serving.md)。
 
-> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。它尚未纳入正式发布渠道，也不支持升级。Docker Compose 仍是本地开发路径。可选 Workspace 要求 XFS 项目配额；其他可写存储属于 Allocation。受支持的备份、恢复和升级仍未完成验收，封存输出在清理开始 15 分钟后过期。使用前请审阅当前部署与存储边界。
+> **项目状态：** Axern 处于 pre-1.0 阶段，仍在活跃开发中。实验性的 [Linux 原生安装](./deploy/standalone/INSTALL.md)已提供源码构建的运行时包和受管理的 systemd 生命周期。Docker Compose 仍是本地开发路径。可选 Workspace 要求 XFS 项目配额。其他可写存储属于 Allocation，封存输出在清理开始 15 分钟后过期。运维人员可以验证[指定源码构建之间的冷升级](./deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition)，也可以在排空任务、隔离旧主机后[从冷备恢复到替换主机](./deploy/standalone/INSTALL.md#qualify-a-replacement-node)。原生包的公开发布渠道和受支持的版本间升级仍待验收。使用前请审阅当前部署与存储边界。
 >
 > 本文档为中文译文，内容以 [英文版](./README.md) 为准。
 
