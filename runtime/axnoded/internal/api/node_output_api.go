@@ -2,24 +2,42 @@ package api
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
+	"google.golang.org/grpc/codes"
+	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const sealedOutputDownloadChunkBytes int64 = 32 << 10
 
+var errOutputFollowShutdown = grpcstatus.Error(codes.Unavailable, "node shutting down")
+
 func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, stream nodesandboxv1.NodeSandbox_ReadOutputServer) error {
-	target, err := s.validateAccessPurpose(stream.Context(), req.GetAllocationID(), gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT)
+	ctx := stream.Context()
+	target, err := s.validateAccessPurpose(ctx, req.GetAllocationID(), gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_RUN_OUTPUT)
 	if err != nil {
 		return err
 	}
 	if err := acknowledgeAllocationAccessGrant(stream); err != nil {
 		return err
+	}
+	if req.GetFollow() {
+		// A live follower can outlast the server drain. Keep the caller's
+		// context and give node shutdown its own cause.
+		followCtx, cancel := context.WithCancelCause(ctx)
+		defer cancel(nil)
+		stop := context.AfterFunc(s.followLifetime, func() { cancel(errOutputFollowShutdown) })
+		defer stop()
+		if s.followLifetime.Err() != nil {
+			cancel(errOutputFollowShutdown)
+		}
+		ctx = followCtx
 	}
 	read := s.svc.ReadAllocationOutput
 	if s.localOnly {
@@ -27,8 +45,14 @@ func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, str
 	}
 	cursor := req.GetCursor()
 	for {
-		chunks, complete, err := read(stream.Context(), target.targetID, cursor)
+		if cause := context.Cause(ctx); cause == errOutputFollowShutdown {
+			return cause
+		}
+		chunks, complete, err := read(ctx, target.targetID, cursor)
 		if err != nil {
+			if context.Cause(ctx) == errOutputFollowShutdown && (errors.Is(err, context.Canceled) || grpcstatus.Code(err) == codes.Canceled) {
+				return errOutputFollowShutdown
+			}
 			return err
 		}
 		for _, chunk := range chunks {
@@ -51,8 +75,8 @@ func (s *nodeSandboxServer) ReadOutput(req *nodesandboxv1.ReadOutputRequest, str
 			continue
 		}
 		select {
-		case <-stream.Context().Done():
-			return stream.Context().Err()
+		case <-ctx.Done():
+			return context.Cause(ctx)
 		case <-time.After(200 * time.Millisecond):
 		}
 	}

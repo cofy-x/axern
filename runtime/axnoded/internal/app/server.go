@@ -45,6 +45,8 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 	if err := svc.Run(ctx); err != nil {
 		return fmt.Errorf("run sandbox service: %w", err)
 	}
+	followLifetime, stopFollowers := context.WithCancel(ctx)
+	defer stopFollowers()
 
 	var nodeLis net.Listener
 	var nodeGRPCServer *grpc.Server
@@ -109,7 +111,7 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			conformanceOptions = append(conformanceOptions, grpc.StatsHandler(handler))
 		}
 		conformanceGRPCServer = grpc.NewServer(conformanceOptions...)
-		nodesandboxv1.RegisterNodeSandboxServer(conformanceGRPCServer, api.NewLocalNodeSandboxServer(svc, nodeID))
+		nodesandboxv1.RegisterNodeSandboxServer(conformanceGRPCServer, api.NewLocalNodeSandboxServer(followLifetime, svc, nodeID))
 		nodelifecyclev1.RegisterNodeLifecycleServer(conformanceGRPCServer, api.NewLocalNodeLifecycleServer(svc, nodeID))
 		healthpb.RegisterHealthServer(conformanceGRPCServer, conformanceHealthServer)
 	}
@@ -146,7 +148,7 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 			nodeOptions = append(nodeOptions, grpc.StatsHandler(handler))
 		}
 		nodeGRPCServer = grpc.NewServer(nodeOptions...)
-		nodesandboxv1.RegisterNodeSandboxServer(nodeGRPCServer, api.NewNodeSandboxServer(svc, nodeID, accessGrantValidator))
+		nodesandboxv1.RegisterNodeSandboxServer(nodeGRPCServer, api.NewNodeSandboxServer(followLifetime, svc, nodeID, accessGrantValidator))
 		nodelifecyclev1.RegisterNodeLifecycleServer(nodeGRPCServer, api.NewNodeLifecycleServer(svc, nodeID))
 		healthpb.RegisterHealthServer(nodeGRPCServer, nodeHealthServer)
 	}
@@ -223,6 +225,7 @@ func serve(ctx context.Context, opts options, cfg config.Config, obs *sdkobs.Han
 		}
 	}
 
+	stopFollowers()
 	stopHealth()
 	for _, endpoint := range healthEndpoints {
 		setHealthStatus(endpoint, healthpb.HealthCheckResponse_NOT_SERVING)

@@ -2,10 +2,10 @@ package api
 
 import (
 	"context"
-	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	"strings"
 	"time"
 
+	gatewayv1 "github.com/cofy-x/axern/internal/proto/gen/axern/private/control/gateway/v1"
 	obsmetrics "github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service"
 	nodesandboxv1 "github.com/cofy-x/axern/sdk/go/gen/axern/node/sandbox/v1"
@@ -20,6 +20,7 @@ type nodeSandboxServer struct {
 	nodeID          string
 	accessGrantAuth DirectAccessGrantValidator
 	localOnly       bool
+	followLifetime  context.Context
 }
 
 type DirectAccessGrantValidator interface {
@@ -45,16 +46,17 @@ type directAuthTarget struct {
 	targetID     string
 }
 
-func NewNodeSandboxServer(svc service.SandboxService, nodeID string, validator DirectAccessGrantValidator) nodesandboxv1.NodeSandboxServer {
+func NewNodeSandboxServer(followLifetime context.Context, svc service.SandboxService, nodeID string, validator DirectAccessGrantValidator) nodesandboxv1.NodeSandboxServer {
 	return &nodeSandboxServer{
 		svc:             svc,
 		nodeID:          nodeID,
 		accessGrantAuth: validator,
+		followLifetime:  followLifetime,
 	}
 }
 
-func NewLocalNodeSandboxServer(svc service.NodeService, nodeID string) nodesandboxv1.NodeSandboxServer {
-	return &nodeSandboxServer{svc: svc, nodeID: nodeID, localOnly: true}
+func NewLocalNodeSandboxServer(followLifetime context.Context, svc service.NodeService, nodeID string) nodesandboxv1.NodeSandboxServer {
+	return &nodeSandboxServer{svc: svc, nodeID: nodeID, localOnly: true, followLifetime: followLifetime}
 }
 
 func (s *nodeSandboxServer) validateDirectAuth(ctx context.Context, allocationID string) (directAuthTarget, error) {
