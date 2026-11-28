@@ -49,6 +49,7 @@ func buildResolvedExecutionConfig(params createAllocationRequestParams) *private
 		ImageDescriptor:                 imageDescriptorRef(params.Environment),
 		Argv:                            resolveExecutionArgv(cfg.GetArgv()),
 		Cwd:                             resolveExecutionCwd(cfg.GetCwd()),
+		PrimaryUser:                     proto.CloneOf(cfg.GetPrimaryUser()),
 		Env:                             mergeStringMaps(resolvedSpec.GetDefaultEnv(), cfg.GetEnv()),
 		Resources:                       res,
 		ExtensionCapabilityRequirements: cloneExtensionCapabilityRequirements(cfg.GetExtensionCapabilityRequirements()),

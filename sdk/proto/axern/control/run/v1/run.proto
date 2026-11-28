@@ -123,9 +123,9 @@ message CancelRunResponse {
 }
 
 service RunControl {
-  // The changed method name makes required Workspace intent non-ignorable by
-  // older servers; high-level clients retain their CreateRun operation.
-  rpc AdmitRun(CreateRunRequest) returns (CreateRunResponse) {}
+  // Older servers must reject requests carrying a required primary identity.
+  // High-level clients retain their CreateRun operation.
+  rpc SubmitRun(CreateRunRequest) returns (CreateRunResponse) {}
   rpc GetRun(GetRunRequest) returns (GetRunResponse) {}
   rpc WatchRun(WatchRunRequest) returns (stream WatchRunResponse) {}
   rpc ListRuns(ListRunsRequest) returns (ListRunsResponse) {}

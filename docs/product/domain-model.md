@@ -40,6 +40,10 @@ An Environment describes immutable execution input resolved from an OCI image pl
 
 A Run owns one immutable request, its Environment snapshot, exactly one Allocation, cancellation, public status, terminal result, failure classification, usage, and declared-output specification.
 
+A Run can set `config.primary_user` to select the numeric UID and GID of its non-terminal primary process. Both values are explicit. UID zero and the Linux reserved value `4294967295` are rejected if an identity is supplied. An explicit GID of zero is accepted. The OCI image's `USER` is descriptive image metadata and does not select an execution identity. An omitted `primary_user` keeps the Axern root default. `SubmitRun` and the corresponding private `LaunchAllocation` RPC require matching CLI or SDK, control, and node protocol generations so old receivers cannot silently downgrade an explicit identity to root.
+
+The selected identity must have permission to use the working directory, executable and mounted files. Secret files are owned by root and default to mode `0400`. To supply a secret to a non-root primary, use a secret environment binding or select a file mode that grants the process read access.
+
 ```text
 PLACED -> STARTING -> RUNNING
    |          |          |

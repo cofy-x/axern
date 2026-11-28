@@ -76,14 +76,14 @@ class _RunStub:
     def __init__(self) -> None:
         self.request = None
 
-    def AdmitRun(self, request, timeout=None):
+    def SubmitRun(self, request, timeout=None):
         self.request = request
         return run_pb2.CreateRunResponse(run=run_pb2.Run(id="run-a"))
 
 
 class _AsyncRunStub(_RunStub):
-    async def AdmitRun(self, request, timeout=None):
-        return super().AdmitRun(request, timeout)
+    async def SubmitRun(self, request, timeout=None):
+        return super().SubmitRun(request, timeout)
 
 
 class _OldRunChannel:
@@ -152,7 +152,7 @@ class WorkspaceClientTest(unittest.TestCase):
         with self.assertRaises(SandboxRpcError) as caught:
             client.create_run(environment_id="env-a", workspace_id="ws-retained")
         self.assertEqual(caught.exception.code, "UNIMPLEMENTED")
-        self.assertEqual(channel.methods, ["/axern.control.run.v1.RunControl/AdmitRun"])
+        self.assertEqual(channel.methods, ["/axern.control.run.v1.RunControl/SubmitRun"])
         self.assertEqual(channel.legacy_calls, 0)
 
     def test_sync_sandbox_close_cancels_writer_without_deleting_workspace(self) -> None:
@@ -229,7 +229,7 @@ class AsyncWorkspaceClientTest(unittest.IsolatedAsyncioTestCase):
         raw._runs = run_pb2_grpc.RunControlStub(cast(Any, channel))
         with self.assertRaises(SandboxRpcError):
             await client.create_run(environment_id="env-a", workspace_id="ws-retained")
-        self.assertEqual(channel.methods, ["/axern.control.run.v1.RunControl/AdmitRun"])
+        self.assertEqual(channel.methods, ["/axern.control.run.v1.RunControl/SubmitRun"])
         self.assertEqual(channel.legacy_calls, 0)
 
     async def test_async_ready_waiter_observes_writer_cleanup(self) -> None:

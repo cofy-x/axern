@@ -90,6 +90,7 @@ message ResolvedEnvironment {
   string cwd = 5;
   repeated Mount mounts = 6;
   axern.control.environment.v1.OciExecutionProfile execution_profile = 7;
+  axern.control.common.v1.PrimaryUser primary_user = 8;
 }
 
 message RootfsSnapshotSealingResult {

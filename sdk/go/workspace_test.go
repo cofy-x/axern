@@ -78,6 +78,24 @@ func workspaceClient(t *testing.T, register func(*grpc.Server)) *Client {
 	return client
 }
 
+func TestCreateRunSendsPrimaryUserWithExplicitZeroGID(t *testing.T) {
+	fake := &fakeAxernServer{}
+	client := workspaceClient(t, func(server *grpc.Server) {
+		runv1.RegisterRunControlServer(server, fake)
+	})
+	_, err := client.CreateRun(t.Context(), CreateRunOptions{
+		EnvironmentID: "env-existing",
+		PrimaryUser:   &PrimaryUser{UID: 1000, GID: 0},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	user := fake.createRunRequest.GetConfig().GetPrimaryUser()
+	if user.GetUid() != 1000 || user.GetGid() != 0 || user.Gid == nil {
+		t.Fatalf("primary user = %v, want explicit 1000:0", user)
+	}
+}
+
 func TestWorkspaceCRUDTransportKeepsInt64AndSandboxCloseRetainsData(t *testing.T) {
 	fake := &workspaceServer{fakeAxernServer: &fakeAxernServer{}}
 	client := workspaceClient(t, func(server *grpc.Server) {

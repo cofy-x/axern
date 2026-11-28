@@ -39,6 +39,7 @@ from axern_sdk.client import (
 from axern_sdk.models import (
     DeclaredOutput,
     ImageMount,
+    PrimaryUser,
     SealedOutput,
     SecretEnvVar,
     SecretFile,
@@ -469,6 +470,7 @@ class AsyncAxernClient:
         secret_files: Iterable[SecretFile] | None = None,
         declared_outputs: Iterable[DeclaredOutput] | None = None,
         rootfs_snapshot: bool = False,
+        primary_user: PrimaryUser | None = None,
         labels: dict[str, str] | None = None,
         timeout: float | None = 120.0,
     ) -> run_pb2.Run:
@@ -481,7 +483,7 @@ class AsyncAxernClient:
         )
         response = await _control_rpc(
             "create run",
-            self.runs.AdmitRun(
+            self.runs.SubmitRun(
                 run_pb2.CreateRunRequest(
                     namespace=namespace,
                     environment_id=environment_id,
@@ -490,6 +492,10 @@ class AsyncAxernClient:
                         argv=list(argv or []),
                         env=dict(env or {}),
                         cwd=cwd,
+                        primary_user=(
+                            common_pb2.PrimaryUser(uid=primary_user.uid, gid=primary_user.gid)
+                            if primary_user is not None else None
+                        ),
                         network=(
                             common_pb2.NetworkSpec(
                                 egress_policy=network_policy._to_proto()

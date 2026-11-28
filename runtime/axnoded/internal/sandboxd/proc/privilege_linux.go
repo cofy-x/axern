@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
@@ -111,7 +112,22 @@ func runInternalExec(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := unix.Exec(args[3], args[4:], environment); err != nil {
+	executable := args[3]
+	if !strings.ContainsRune(executable, '/') {
+		for _, variable := range environment {
+			if value, found := strings.CutPrefix(variable, "PATH="); found {
+				if err := os.Setenv("PATH", value); err != nil {
+					return fmt.Errorf("set unprivileged executable search path")
+				}
+				break
+			}
+		}
+		executable, err = exec.LookPath(executable)
+		if err != nil {
+			return fmt.Errorf("resolve unprivileged executable")
+		}
+	}
+	if err := unix.Exec(executable, args[4:], environment); err != nil {
 		return fmt.Errorf("execute unprivileged process: %w", err)
 	}
 	return nil

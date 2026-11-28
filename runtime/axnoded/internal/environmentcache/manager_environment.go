@@ -8,6 +8,7 @@ import (
 	api "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/proto"
 )
 
 type environmentReplacement struct {
@@ -89,6 +90,7 @@ func (lm *EnvironmentCache) PrepareEnvironment(ctx context.Context, fr *api.Reso
 		Argv:             append([]string(nil), fr.Argv...),
 		Env:              cloneStringMap(fr.Env),
 		Cwd:              fr.Cwd,
+		PrimaryUser:      proto.CloneOf(fr.GetPrimaryUser()),
 		Mounts:           cloneMounts(fr.Mounts),
 		ExecutionProfile: cloneOciExecutionProfile(fr.ExecutionProfile),
 		Readonly:         fr.Rootfs.Readonly,

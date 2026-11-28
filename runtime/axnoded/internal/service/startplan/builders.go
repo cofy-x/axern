@@ -269,21 +269,23 @@ func BuildBundleTemplateRequest(
 	request *runtime.StartRequest,
 ) *apipb.CreateContainerRequest {
 	return &apipb.CreateContainerRequest{
-		Command: BuildStartCommand(lrt, request),
-		Rootfs:  BuildContainerRootfs(lrt),
-		Mounts:  BuildStaticStartMounts(request),
-		Envs:    BuildStaticStartEnv(lrt, request),
-		Cwd:     BuildStartCwd(lrt, request),
+		Command:     BuildStartCommand(lrt, request),
+		Rootfs:      BuildContainerRootfs(lrt),
+		Mounts:      BuildStaticStartMounts(request),
+		Envs:        BuildStaticStartEnv(lrt, request),
+		Cwd:         BuildStartCwd(lrt, request),
+		PrimaryUser: lrt.PrimaryUser,
 	}
 }
 
 func BuildBundleTemplateRequestFromPreparedEnvironment(lrt *environmentcache.PreparedEnvironment) *apipb.CreateContainerRequest {
 	return &apipb.CreateContainerRequest{
-		Command: append([]string(nil), lrt.Argv...),
-		Rootfs:  BuildContainerRootfs(lrt),
-		Mounts:  CloneEnvironmentMounts(lrt.Mounts),
-		Envs:    BuildStaticRuntimeEnv(lrt),
-		Cwd:     lrt.Cwd,
+		Command:     append([]string(nil), lrt.Argv...),
+		Rootfs:      BuildContainerRootfs(lrt),
+		Mounts:      CloneEnvironmentMounts(lrt.Mounts),
+		Envs:        BuildStaticRuntimeEnv(lrt),
+		Cwd:         lrt.Cwd,
+		PrimaryUser: lrt.PrimaryUser,
 	}
 }
 
@@ -302,6 +304,7 @@ func BuildCreateContainerRequest(
 		Stdout:                       request.Stdout,
 		Stderr:                       request.Stderr,
 		Cwd:                          BuildStartCwd(lrt, request),
+		PrimaryUser:                  lrt.PrimaryUser,
 		ID:                           request.AllocationID,
 		EphemeralStorageRequestBytes: resources.GetRequests().GetEphemeralStorageBytes(),
 		EphemeralStorageLimitBytes:   resources.GetLimits().GetEphemeralStorageBytes(),

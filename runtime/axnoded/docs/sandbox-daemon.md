@@ -94,7 +94,7 @@ Entrypoint metadata is strict structured JSON:
 
 Rules:
 
-- The current primary entrypoint supports root (`0:0`) and `terminal: false`. Omitting these default fields is allowed; other identities, unsupported user attributes, terminal requests, unknown fields, and trailing JSON are rejected.
+- The primary process defaults to root (`0:0`). An explicit numeric non-root UID and GID use the same sealed launcher and verified credential drop as managed Exec/PTY. Sandboxd keeps the private control socket and root supervision. For an explicit non-root primary, the daemon starts with its own environment and the worker resolves its executable with the target environment after the privilege drop. Terminal primaries, unsupported user attributes, unknown fields, and trailing JSON are rejected.
 - Preserve args, cwd, and env without silently dropping requested behavior. Typed Exec/PTY requests provide separate per-process user selection.
 - Keep daemon runtime configuration separate from user process env.
 - Fail container creation clearly when daemon injection, metadata generation, or private mount setup cannot be completed.
