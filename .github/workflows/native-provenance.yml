@@ -1,0 +1,74 @@
+name: Native archive provenance
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+            machine: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.work
+          cache: false
+      - name: Build and verify the native archive
+        env:
+          EXPECTED_MACHINE: ${{ matrix.machine }}
+          EXPECTED_ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = "$EXPECTED_MACHINE"
+          source runtime/axnoded/gvisor.lock
+          curl --proto '=https' --proto-redir '=https' --fail --location --retry 3 \
+            "https://storage.googleapis.com/gvisor/releases/release/${AXERN_GVISOR_RELEASE}/${EXPECTED_MACHINE}/gvisor.tar.bz2" \
+            -o "$RUNNER_TEMP/gvisor.tar.bz2"
+          python3 scripts/release/native_runtime.py build --gvisor-archive "$RUNNER_TEMP/gvisor.tar.bz2" \
+            --output-dir "$RUNNER_TEMP/archives" > "$RUNNER_TEMP/build.json"
+          archive=$(jq -er '.archive' "$RUNNER_TEMP/build.json")
+          digest=$(jq -er '.sha256' "$RUNNER_TEMP/build.json")
+          python3 scripts/release/native_runtime.py verify "$archive" --sha256 "$digest" | \
+            jq -e --arg sha "$GITHUB_SHA" --arg arch "$EXPECTED_ARCH" \
+              '.status == "verified" and .source_revision == $sha and .architecture == $arch'
+          bash scripts/release/install-image-auditors.sh "$RUNNER_TEMP/scanner" syft
+          python3 scripts/release/native_delivery_inventory.py "$archive" --sha256 "$digest" \
+            --syft "$RUNNER_TEMP/scanner/syft" --output-dir "$RUNNER_TEMP/evidence"
+          printf '%s  %s\n' "$digest" "$(basename "$archive")" > "$RUNNER_TEMP/evidence/SHA256SUMS"
+      - name: Attest the archive and exact inventory
+        id: provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: |
+            ${{ runner.temp }}/archives/*.tar.gz
+            ${{ runner.temp }}/evidence/*
+      - name: Collect the signed bundle
+        env:
+          ATTESTATION: ${{ steps.provenance.outputs.bundle-path }}
+        run: install -m 0644 "$ATTESTATION" "$RUNNER_TEMP/evidence/provenance.jsonl"
+      - name: Retain the build evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: native-evidence-linux-${{ matrix.arch }}
+          path: ${{ runner.temp }}/evidence/
+          if-no-files-found: error
