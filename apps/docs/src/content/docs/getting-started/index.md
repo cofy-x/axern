@@ -39,4 +39,4 @@ A published CLI's embedded development bundle uses `axern dev up|status|logs|dow
 - [Workspaces](/guides/workspaces/) retain files for a fresh Run after the old writer is confirmed cleaned up.
 - [SDKs](/sdk/) expose Go, Python sync/async and TypeScript APIs.
 
-Without a Workspace, writable files belong to the current Allocation. Sealed logs and declared outputs expire 15 minutes after cleanup starts. Workspace capacity and deletion are independent; supported backup, upgrades and replacement-host restore remain unqualified.
+Without a Workspace, writable files belong to the current Allocation. Sealed logs and declared outputs expire 15 minutes after cleanup starts. Workspace capacity and deletion are independent. The native guide covers [cold upgrades for listed source builds](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition) and [recovery from a stopped installation](https://github.com/cofy-x/axern/blob/main/deploy/standalone/INSTALL.md#qualify-a-replacement-node). Published-version upgrades still await qualification.
