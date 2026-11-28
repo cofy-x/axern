@@ -10,7 +10,7 @@ import (
 	tunnelcontrolv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/tunnel/v1"
 	"github.com/cofy-x/axern/sdk/go/internal/tunnelrelay"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 )
 
 const (
@@ -44,16 +44,15 @@ type TunnelConnectorOptions struct {
 
 // SandboxTunnel is an SDK-owned tunnel session with renewal and cleanup.
 type SandboxTunnel struct {
-	sandbox     *Sandbox
-	client      *Client
-	session     *tunnelcontrolv1.TunnelSession
-	clientToken string
-	ttl         time.Duration
-	cancel      context.CancelFunc
-	done        chan struct{}
-	closeOnce   sync.Once
-	closeErr    error
-	mu          sync.Mutex
+	sandbox   *Sandbox
+	client    *Client
+	session   *tunnelcontrolv1.TunnelSession
+	ttl       time.Duration
+	cancel    context.CancelFunc
+	done      chan struct{}
+	closeGate chan struct{}
+	closed    bool
+	mu        sync.Mutex
 }
 
 // OpenTunnel exposes a local upstream to the sandbox.
@@ -65,44 +64,68 @@ func (s *Sandbox) OpenTunnel(ctx context.Context, options TunnelOptions) (*Sandb
 	if err := validateTunnelOptions(options); err != nil {
 		return nil, err
 	}
-	ttl := defaultDuration(options.TTL, defaultTunnelTTL)
+	localCtx, cancel := context.WithCancel(context.Background())
+	tunnel := &SandboxTunnel{
+		sandbox:   s,
+		client:    s.client,
+		ttl:       defaultDuration(options.TTL, defaultTunnelTTL),
+		cancel:    cancel,
+		done:      make(chan struct{}),
+		closeGate: make(chan struct{}, 1),
+	}
+	if !s.registerTunnel(state.AllocationID, tunnel) {
+		cancel()
+		return nil, ErrSandboxNotStarted
+	}
+	// Closing the Sandbox also interrupts creation or peer discovery in progress.
+	setupCtx, stopSetup := context.WithCancel(ctx)
+	stopOnClose := context.AfterFunc(localCtx, stopSetup)
+	defer stopSetup()
+	defer stopOnClose()
+	err = tunnel.connect(setupCtx, localCtx, state.AllocationID, options)
+	if err == nil && !s.publishTunnel(state.AllocationID, tunnel) {
+		err = ErrSandboxNotStarted
+	}
+	if err != nil {
+		cleanupCtx, stop := context.WithTimeout(context.Background(), 30*time.Second)
+		defer stop()
+		return nil, errors.Join(err, tunnel.Close(cleanupCtx))
+	}
+	return tunnel, nil
+}
+
+func (t *SandboxTunnel) connect(ctx, localCtx context.Context, allocationID string, options TunnelOptions) error {
 	readyTimeout := defaultDuration(options.ReadyTimeout, defaultTunnelReadyTimeout)
 	proxyPort := options.ProxyPort
 	if proxyPort == 0 {
 		proxyPort = defaultTunnelProxyPort
 	}
-	result, err := s.client.CreateTunnelSession(ctx, CreateTunnelSessionOptions{
-		AllocationID: state.AllocationID,
+	result, err := t.client.CreateTunnelSession(ctx, CreateTunnelSessionOptions{
+		AllocationID: allocationID,
 		RemotePort:   proxyPort,
-		TTL:          ttl,
+		TTL:          t.ttl,
 		WaitReady:    true,
 		ReadyTimeout: readyTimeout,
 	})
 	if err != nil {
-		return nil, err
+		close(t.done)
+		return err
 	}
-	if result.Session == nil {
-		return nil, fmt.Errorf("create tunnel session returned no session")
+	sessionID := result.Session.GetSessionID()
+	if sessionID == "" {
+		close(t.done)
+		return errors.New("create tunnel session returned no session ID")
 	}
-	tunnelCtx, cancel := context.WithCancel(context.Background())
-	tunnel := &SandboxTunnel{
-		sandbox:     s,
-		client:      s.client,
-		session:     result.Session,
-		clientToken: result.ClientToken,
-		ttl:         ttl,
-		cancel:      cancel,
-		done:        make(chan struct{}),
-	}
+	t.mu.Lock()
+	t.session = result.Session
+	t.mu.Unlock()
 
 	connectorErr := make(chan error, 1)
 	var wg sync.WaitGroup
-	wg.Add(2)
-	relay := s.client.relayOptions
-	go func() {
-		defer wg.Done()
-		err := tunnelConnectorRunner(tunnelCtx, tunnelrelay.ConnectorConfig{
-			SessionID:        result.Session.GetSessionID(),
+	relay := t.client.relayOptions
+	wg.Go(func() {
+		err := tunnelConnectorRunner(localCtx, tunnelrelay.ConnectorConfig{
+			SessionID:        sessionID,
 			ClientEdgeTarget: result.Session.GetClientEdgeTarget(),
 			ClientToken:      result.ClientToken,
 			LocalTarget:      options.Upstream,
@@ -120,44 +143,27 @@ func (s *Sandbox) OpenTunnel(ctx context.Context, options TunnelOptions) (*Sandb
 			connectorErr <- err
 		}
 		close(connectorErr)
-	}()
-	go func() {
-		defer wg.Done()
-		tunnel.renewLoop(tunnelCtx)
-	}()
+	})
+	wg.Go(func() { t.renewLoop(localCtx, sessionID, result.ClientToken) })
 	go func() {
 		wg.Wait()
-		close(tunnel.done)
+		close(t.done)
 	}()
 
-	if err := s.waitTunnelClientPeer(ctx, result.Session.GetSessionID(), readyTimeout, connectorErr); err != nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cleanupCancel()
-		_ = tunnel.Close(cleanupCtx)
-		return nil, err
+	if err := t.waitClientPeer(ctx, sessionID, readyTimeout, connectorErr); err != nil {
+		return err
 	}
-	if session, err := s.client.GetTunnelSession(ctx, result.Session.GetSessionID()); err != nil {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cleanupCancel()
-		_ = tunnel.Close(cleanupCtx)
-		return nil, err
-	} else if session != nil {
-		tunnel.mu.Lock()
-		tunnel.session = session
-		tunnel.mu.Unlock()
+	session, err := t.client.GetTunnelSession(ctx, sessionID)
+	if err != nil {
+		return err
 	}
-	if tunnel.BoundAddr() == "" {
-		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cleanupCancel()
-		_ = tunnel.Close(cleanupCtx)
-		return nil, fmt.Errorf("tunnel session %s has no bound address", tunnel.SessionID())
+	if session.GetSessionID() != sessionID || session.GetBoundAddr() == "" {
+		return fmt.Errorf("tunnel session %s returned no matching bound address", sessionID)
 	}
-	if !s.registerTunnel(state.AllocationID, tunnel) {
-		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		return nil, errors.Join(ErrSandboxNotStarted, tunnel.Close(cleanupCtx))
-	}
-	return tunnel, nil
+	t.mu.Lock()
+	t.session = session
+	t.mu.Unlock()
+	return nil
 }
 
 func validateTunnelOptions(options TunnelOptions) error {
@@ -192,9 +198,6 @@ func (t *SandboxTunnel) SessionID() string {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.session == nil {
-		return ""
-	}
 	return t.session.GetSessionID()
 }
 
@@ -218,7 +221,7 @@ func (t *SandboxTunnel) Session() *tunnelcontrolv1.TunnelSession {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.session
+	return proto.CloneOf(t.session)
 }
 
 // Close revokes the tunnel session and stops SDK-owned renewal/relay work.
@@ -226,28 +229,31 @@ func (t *SandboxTunnel) Close(ctx context.Context) error {
 	if t == nil {
 		return nil
 	}
-	t.closeOnce.Do(func() {
-		t.cancel()
-		select {
-		case <-t.done:
-		case <-ctx.Done():
-			t.closeErr = ctx.Err()
-			return
+	t.cancel()
+	t.sandbox.retireTunnelAccess(t.SessionID())
+	if err := acquireLifecycle(ctx, t.closeGate); err != nil {
+		return err
+	}
+	defer func() { <-t.closeGate }()
+	if t.closed {
+		return nil
+	}
+	select {
+	case <-t.done:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	if id := t.SessionID(); id != "" {
+		if _, err := t.client.RevokeTunnelSession(ctx, id, "sdk close"); err != nil && !IsNotFound(err) {
+			return err
 		}
-		if t.sandbox != nil {
-			t.sandbox.unregisterTunnel(t)
-		}
-		if t.SessionID() == "" {
-			return
-		}
-		if _, err := t.client.RevokeTunnelSession(ctx, t.SessionID(), "sdk close"); err != nil && !isTerminalTunnelCloseError(err) {
-			t.closeErr = err
-		}
-	})
-	return t.closeErr
+	}
+	t.closed = true
+	t.sandbox.unregisterTunnel(t)
+	return nil
 }
 
-func (t *SandboxTunnel) renewLoop(ctx context.Context) {
+func (t *SandboxTunnel) renewLoop(ctx context.Context, sessionID, clientToken string) {
 	interval := t.ttl / 2
 	if interval < 30*time.Second {
 		interval = 30 * time.Second
@@ -260,13 +266,13 @@ func (t *SandboxTunnel) renewLoop(ctx context.Context) {
 			return
 		case <-timer.C:
 			renewCtx, cancel := context.WithTimeout(ctx, defaultTunnelRenewTimeout)
-			session, err := t.client.RenewTunnelSession(renewCtx, t.SessionID(), t.clientToken, t.ttl)
+			session, err := t.client.RenewTunnelSession(renewCtx, sessionID, clientToken, t.ttl)
 			cancel()
 			if err != nil {
-				if isTerminalTunnelCloseError(err) {
+				if stopTunnelRenewal(err) {
 					return
 				}
-			} else if session != nil {
+			} else if session.GetSessionID() == sessionID {
 				t.mu.Lock()
 				t.session = session
 				t.mu.Unlock()
@@ -276,13 +282,13 @@ func (t *SandboxTunnel) renewLoop(ctx context.Context) {
 	}
 }
 
-func (s *Sandbox) waitTunnelClientPeer(ctx context.Context, sessionID string, timeout time.Duration, connectorErr <-chan error) error {
+func (t *SandboxTunnel) waitClientPeer(ctx context.Context, sessionID string, timeout time.Duration, connectorErr <-chan error) error {
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		events, err := s.client.ListTunnelSessionEvents(ctx, sessionID, defaultTunnelEventLimit)
+		events, err := t.client.ListTunnelSessionEvents(ctx, sessionID, defaultTunnelEventLimit)
 		if err != nil {
 			return err
 		}
@@ -297,20 +303,17 @@ func (s *Sandbox) waitTunnelClientPeer(ctx context.Context, sessionID string, ti
 		case <-deadline.C:
 			return fmt.Errorf("tunnel session %s did not connect client peer within %s", sessionID, timeout)
 		case err, ok := <-connectorErr:
-			if ok && err != nil {
-				return err
+			if !ok {
+				return errors.New("tunnel connector stopped before its peer connected")
 			}
+			return err
 		case <-ticker.C:
 		}
 	}
 }
 
-func isTerminalTunnelCloseError(err error) bool {
-	var rpcErr *RPCError
-	if errors.As(err, &rpcErr) {
-		return rpcErr.Code == codes.NotFound || rpcErr.Code == codes.FailedPrecondition || rpcErr.Code == codes.PermissionDenied || rpcErr.Code == codes.Unauthenticated
-	}
-	code := status.Code(err)
+func stopTunnelRenewal(err error) bool {
+	code := errorCode(err)
 	return code == codes.NotFound || code == codes.FailedPrecondition || code == codes.PermissionDenied || code == codes.Unauthenticated
 }
 

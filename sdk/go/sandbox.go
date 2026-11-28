@@ -79,13 +79,17 @@ func (s *Sandbox) beginLifecycle(ctx context.Context) error {
 		s.lifecycle = make(chan struct{}, 1)
 	}
 	s.mu.Unlock()
+	return acquireLifecycle(ctx, s.lifecycle)
+}
+
+func acquireLifecycle(ctx context.Context, gate chan struct{}) error {
 	select {
-	case s.lifecycle <- struct{}{}:
+	case gate <- struct{}{}:
 		return nil
 	default:
 	}
 	select {
-	case s.lifecycle <- struct{}{}:
+	case gate <- struct{}{}:
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
@@ -99,10 +103,14 @@ func (s *Sandbox) Start(ctx context.Context) error {
 		return err
 	}
 	defer func() { <-s.lifecycle }()
-	if _, err := s.State(); err == nil {
+	s.mu.Lock()
+	started := s.state.AllocationID != ""
+	pendingTunnels := len(s.tunnels) != 0
+	s.mu.Unlock()
+	if started {
 		return nil
 	}
-	if s.runID != "" || s.ownedEnvironmentID != "" {
+	if s.runID != "" || s.ownedEnvironmentID != "" || pendingTunnels {
 		return errors.New("sandbox cleanup is pending; call Close again")
 	}
 	environmentID := s.options.EnvironmentID
@@ -179,6 +187,10 @@ func (s *Sandbox) Close(ctx context.Context) error {
 func (s *Sandbox) close(ctx context.Context) error {
 	s.mu.Lock()
 	s.state = SandboxState{}
+	// Stop forwarding on every Tunnel before waiting for any remote cleanup.
+	for tunnel := range s.tunnels {
+		tunnel.cancel()
+	}
 	s.mu.Unlock()
 	processErr := s.closeProcesses()
 	tunnelErr := s.closeTunnels(ctx)
@@ -237,9 +249,27 @@ func (s *Sandbox) registerTunnel(allocationID string, tunnel *SandboxTunnel) boo
 		s.tunnels = map[*SandboxTunnel]struct{}{}
 	}
 	s.tunnels[tunnel] = struct{}{}
+	return true
+}
+
+func (s *Sandbox) publishTunnel(allocationID string, tunnel *SandboxTunnel) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, tracked := s.tunnels[tunnel]; !tracked || s.state.AllocationID != allocationID {
+		return false
+	}
 	s.state.TunnelSessionID = tunnel.SessionID()
 	s.state.BoundAddr = tunnel.BoundAddr()
 	return true
+}
+
+func (s *Sandbox) retireTunnelAccess(sessionID string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.state.TunnelSessionID == sessionID {
+		s.state.TunnelSessionID = ""
+		s.state.BoundAddr = ""
+	}
 }
 
 func (s *Sandbox) unregisterTunnel(tunnel *SandboxTunnel) {
