@@ -245,11 +245,11 @@ class Sandbox(SandboxCapabilityMixin, SandboxComputerUseMixin, SandboxFileMixin)
             )
             self._started_at_ns = time.time_ns()
             return self
-        except Exception as start_error:
+        except BaseException as start_error:
             try:
                 self._close()
-            except Exception as cleanup_error:
-                raise ExceptionGroup(
+            except BaseException as cleanup_error:
+                raise BaseExceptionGroup(
                     "sandbox start and cleanup failed", [start_error, cleanup_error]
                 ) from None
             raise
