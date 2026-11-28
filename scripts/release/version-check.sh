@@ -38,6 +38,7 @@ fi
 
 python3 - "${AXERN_ROOT}" "${version}" <<'PY'
 import json
+import os
 import pathlib
 import re
 import sys
@@ -62,10 +63,13 @@ if typescript.get("private") is not None:
 if typescript.get("publishConfig", {}).get("access") != "public":
     raise SystemExit("sdk/typescript/package.json must publish as a public scoped package")
 chart = {}
+preview_image_version = None
 for line in (root / "deploy/helm/axern/Chart.yaml").read_text().splitlines():
     key, _, value = line.partition(":")
     if key in {"version", "appVersion"}:
         chart[key] = value.strip().strip('"')
+    elif key == "  axern.io/native-preview-image-version":
+        preview_image_version = value.strip().strip('"')
 metadata["deploy/helm/axern/Chart.yaml version"] = chart.get("version")
 metadata["deploy/helm/axern/Chart.yaml appVersion"] = chart.get("appVersion")
 for path, actual in metadata.items():
@@ -81,13 +85,21 @@ for relative, literal in expected_literals.items():
     if literal not in (root / relative).read_text():
         raise SystemExit(f"{relative} does not declare version {want}")
 
+image_version = want
+if preview_image_version is not None:
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", preview_image_version) or preview_image_version == want:
+        raise SystemExit("the native preview image version must name a separate published release")
+    if os.environ.get("AXERN_REQUIRE_PUBLISHABLE_RELEASE") == "1" or os.environ.get("GITHUB_REF_TYPE") == "tag":
+        raise SystemExit("a native preview source cannot enter the coordinated release workflow")
+    image_version = preview_image_version
+
 values = (root / "deploy/helm/axern/values.yaml").read_text()
 for image in ("postgres", "controld", "tunneld", "gatewayd", "node-all-in-one"):
-    expected = re.escape(f"ghcr.io/cofy-x/axern/{image}:v{want}")
-    if image in {"postgres", "controld", "tunneld", "gatewayd", "node-all-in-one"}:
-        expected = re.escape(f"repository: ghcr.io/cofy-x/axern/{image}") + r"\s+" + re.escape(f"tag: v{want}")
+    repository = re.escape(f"ghcr.io/cofy-x/axern/{image}")
+    tag = re.escape(f"v{image_version}")
+    expected = rf"(?m)^[ \t]+repository: {repository}\n[ \t]+tag: {tag}[ \t]*$"
     if not re.search(expected, values):
-        raise SystemExit(f"deploy/helm/axern/values.yaml does not reference {image} v{want}")
+        raise SystemExit(f"deploy/helm/axern/values.yaml does not reference {image} v{image_version}")
 
 tool_versions = {}
 for line in (root / "runtime/axnoded/gvisor.lock").read_text().splitlines():
