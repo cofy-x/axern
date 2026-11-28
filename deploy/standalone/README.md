@@ -110,6 +110,10 @@ jq -e --arg commit "$CANDIDATE_COMMIT" --arg arch "$ARCH" --arg digest "$digest"
 ' "$EVIDENCE/receipt.json"
 ```
 
-Verify any SBOM or checksums file you consume with the same bundle and workflow identity.
+For SBOMs, also match their bytes to the inventory digests in the verified receipt. For the checksums file, compare its entry for the published archive name to the verified archive digest.
+
+```bash
+(cd "$EVIDENCE" && jq -er '.inventory_sha256 | to_entries[] | "\(.value)  \(.key)"' receipt.json | sha256sum --check --strict)
+```
 
 Native installation is experimental. Supported upgrades, coordinated backup/restore, Compose migration and macOS VM provisioning are unavailable. Record acceptance commands, platform details and source revisions in the implementation PR or operational test record. Packaging checks do not establish sandbox enforcement or durable serving qualification.
