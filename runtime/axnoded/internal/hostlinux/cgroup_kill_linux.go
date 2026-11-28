@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/cofy-x/axern/runtime/axnoded/internal/cgroup"
+	"github.com/google/uuid"
 	"golang.org/x/sys/unix"
 )
 
@@ -98,7 +100,7 @@ func RunscCgroupStopped(path string, sentryPID int, bootID, mountIdentity string
 		return false, err
 	}
 	if boot != bootID {
-		return false, fmt.Errorf("admitted runtime belongs to a previous kernel boot; automatic recovery is unavailable")
+		return previousBootCgroupAbsent(path, bootID, boot)
 	}
 	dir, err := openRunscCgroup(path, sentryPID, bootID, mountIdentity, inode)
 	if errors.Is(err, os.ErrNotExist) {
@@ -109,6 +111,46 @@ func RunscCgroupStopped(path string, sentryPID int, bootID, mountIdentity string
 	}
 	defer unix.Close(dir)
 	return cgroupStoppedAt(dir, sentryPID)
+}
+
+// A PID belongs to one kernel boot. After a reboot its number cannot identify
+// the old sentry. Only retire the saved identity if the entire admitted parent
+// is absent on this host's unified hierarchy; a present replacement is ambiguous.
+func previousBootCgroupAbsent(leaf, previous, current string) (bool, error) {
+	for _, id := range []string{previous, current} {
+		parsed, err := uuid.Parse(id)
+		if err != nil || parsed == uuid.Nil || parsed.String() != id {
+			return false, fmt.Errorf("invalid previous kernel boot or current boot identity")
+		}
+	}
+	parent := filepath.Dir(leaf)
+	if filepath.Base(leaf) != cgroup.CgroupWorkloadLeafName || parent == "/" {
+		return false, fmt.Errorf("previous kernel boot requires the admitted workload leaf")
+	}
+	root, err := unix.Open("/sys/fs/cgroup", unix.O_PATH|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return false, err
+	}
+	defer unix.Close(root)
+	var fs unix.Statfs_t
+	if err := unix.Fstatfs(root, &fs); err != nil {
+		return false, err
+	}
+	if fs.Type != unix.CGROUP2_SUPER_MAGIC {
+		return false, fmt.Errorf("previous kernel boot requires a unified cgroup filesystem")
+	}
+	fd, err := unix.Openat2(root, strings.TrimPrefix(parent, "/"), &unix.OpenHow{
+		Flags:   unix.O_PATH | unix.O_DIRECTORY | unix.O_CLOEXEC,
+		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_XDEV | unix.RESOLVE_NO_SYMLINKS,
+	})
+	if errors.Is(err, unix.ENOENT) {
+		return true, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect previous-boot allocation parent: %w", err)
+	}
+	unix.Close(fd)
+	return false, fmt.Errorf("previous-boot allocation parent exists on the current kernel")
 }
 
 // ConformanceCgroupStopped only observes terminal evidence for a legacy
