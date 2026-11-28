@@ -30,6 +30,13 @@ Before creating tags, dispatch the `Release` workflow against the accepted `main
 
 Inspect the `delivery-image-audit` artifact from that run. It records the lock digest and commit, workflow identity, twelve per-platform OCI identities, scanner and database provenance, SBOMs and raw findings. A missing image, incomplete scan or blocking finding prevents final publication under the [security policy](../../SECURITY.md). If an audit job must be rerun, it can reuse an unchanged lock from an earlier attempt of the same workflow run and commit. Public tag and anonymous pull checks still run after publication.
 
+To reproduce a gVisor binary proof independently, extract the selected executable from its verified layer and compare its SHA-256 with the audit record. Build and run the proof with the repository's pinned Go toolchain.
+
+```bash
+GOWORK=off GOTOOLCHAIN=local GOPROXY=off go build -o /tmp/axern-gvisor-binary-proof scripts/release/gvisor_binary_proof.go
+/tmp/axern-gvisor-binary-proof amd64 /path/to/verified/runsc
+```
+
 ## Publish
 
 Create two annotated tags on the same accepted commit and push them atomically:
