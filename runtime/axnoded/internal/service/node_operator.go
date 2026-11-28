@@ -103,7 +103,11 @@ func (h *sandboxService) recordBreakGlassTermination(allocationID string, code c
 }
 
 func (h *sandboxService) ValidateAllocationTunnel(allocationID string) error {
-	if err := h.allocationController().ValidateAllocationTunnel(allocationID, h.config.PluginConfig.ControlPlaneNodeID, time.Now().UTC()); err != nil {
+	return h.validateBoundAllocationExecution(allocationID)
+}
+
+func (h *sandboxService) validateBoundAllocationExecution(allocationID string) error {
+	if err := h.allocationController().ValidateBoundAllocationExecution(allocationID, h.config.PluginConfig.ControlPlaneNodeID, time.Now().UTC()); err != nil {
 		return err
 	}
 	return h.ValidateOperatorExecution(allocationID)

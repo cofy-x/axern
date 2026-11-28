@@ -34,6 +34,11 @@ class NodeSandboxStub:
         Args:
             channel: A grpc.Channel.
         """
+        self.PreviewHTTP = channel.unary_unary(
+                '/axern.node.sandbox.v1.NodeSandbox/PreviewHTTP',
+                request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPRequest.SerializeToString,
+                response_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPResponse.FromString,
+                _registered_method=True)
         self.Exec = channel.unary_unary(
                 '/axern.node.sandbox.v1.NodeSandbox/Exec',
                 request_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.SerializeToString,
@@ -158,6 +163,12 @@ class NodeSandboxStub:
 
 class NodeSandboxServicer:
     """Missing associated documentation comment in .proto file."""
+
+    def PreviewHTTP(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
 
     def Exec(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -306,6 +317,11 @@ class NodeSandboxServicer:
 
 def add_NodeSandboxServicer_to_server(servicer, server):
     rpc_method_handlers = {
+            'PreviewHTTP': grpc.unary_unary_rpc_method_handler(
+                    servicer.PreviewHTTP,
+                    request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPRequest.FromString,
+                    response_serializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPResponse.SerializeToString,
+            ),
             'Exec': grpc.unary_unary_rpc_method_handler(
                     servicer.Exec,
                     request_deserializer=axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.ExecRequest.FromString,
@@ -436,6 +452,33 @@ def add_NodeSandboxServicer_to_server(servicer, server):
  # This class is part of an EXPERIMENTAL API.
 class NodeSandbox:
     """Missing associated documentation comment in .proto file."""
+
+    @staticmethod
+    def PreviewHTTP(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/axern.node.sandbox.v1.NodeSandbox/PreviewHTTP',
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPRequest.SerializeToString,
+            axern_dot_node_dot_sandbox_dot_v1_dot_node__pb2.PreviewHTTPResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
 
     @staticmethod
     def Exec(request,

@@ -626,3 +626,27 @@ class ComputerUseKeyboardRequest(_message.Message):
 class ComputerUseKeyboardResponse(_message.Message):
     __slots__ = ()
     def __init__(self) -> None: ...
+
+class PreviewHTTPRequest(_message.Message):
+    __slots__ = ("allocation_id", "port", "method", "target")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    PORT_FIELD_NUMBER: _ClassVar[int]
+    METHOD_FIELD_NUMBER: _ClassVar[int]
+    TARGET_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    port: int
+    method: str
+    target: str
+    def __init__(self, allocation_id: _Optional[str] = ..., port: _Optional[int] = ..., method: _Optional[str] = ..., target: _Optional[str] = ...) -> None: ...
+
+class PreviewHTTPResponse(_message.Message):
+    __slots__ = ("status", "content_type", "body", "location")
+    STATUS_FIELD_NUMBER: _ClassVar[int]
+    CONTENT_TYPE_FIELD_NUMBER: _ClassVar[int]
+    BODY_FIELD_NUMBER: _ClassVar[int]
+    LOCATION_FIELD_NUMBER: _ClassVar[int]
+    status: int
+    content_type: str
+    body: bytes
+    location: str
+    def __init__(self, status: _Optional[int] = ..., content_type: _Optional[str] = ..., body: _Optional[bytes] = ..., location: _Optional[str] = ...) -> None: ...

@@ -48,6 +48,7 @@ func New(state *workload.State, processes *process.Registry, waiter *proc.Waiter
 	server.mux.HandleFunc(wire.PathMounts, server.handleMounts)
 	server.mux.HandleFunc(wire.PathPorts, server.handlePorts)
 	server.mux.HandleFunc(wire.PathProbe, server.handleProbe)
+	server.mux.HandleFunc(wire.PathHTTPPreview, server.handleHTTPPreview)
 	server.mux.HandleFunc(wire.PathStatus, server.handleStatus)
 	server.mux.HandleFunc(wire.PathWorkloadSignal, server.handleWorkloadSignal)
 	server.mux.HandleFunc(wire.PathWorkloadStop, server.handleWorkloadStop)

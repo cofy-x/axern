@@ -107,10 +107,9 @@ func (h *Controller) ValidateOperatorInspection(allocationID string) error {
 	return h.ValidateOperatorRecovery(allocationID)
 }
 
-// ValidateAllocationTunnel is stricter than operator inspection: node-tunneld
-// may target only a control-plane-bound, currently executable Allocation.
-// Local conformance sessions can never acquire tunnel authority.
-func (h *Controller) ValidateAllocationTunnel(allocationID, nodeID string, now time.Time) error {
+// ValidateBoundAllocationExecution checks the live local identity of an
+// Allocation accessed through the control plane.
+func (h *Controller) ValidateBoundAllocationExecution(allocationID, nodeID string, now time.Time) error {
 	if err := h.ValidateOperatorExecution(allocationID, now); err != nil {
 		return err
 	}
