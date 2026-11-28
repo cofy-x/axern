@@ -53,3 +53,18 @@ func TestNativeRestoreMovesWorkspaceAndRevokesOldAuthorityAtomically(t *testing.
 	require.NoError(t, f.db.Pool().QueryRow(f.ctx, `SELECT storage_identity FROM workspaces WHERE workspace_id=$1`, current.GetID()).Scan(&identity))
 	require.Equal(t, newIdentity, identity)
 }
+
+func TestNativeUpgradeChecksMigrationHistoryAndOutstandingWriter(t *testing.T) {
+	f := newWorkspaceFixture(t)
+	store := pgadmin.NewStore(f.db)
+	require.NoError(t, f.db.CheckUpgradeMigrations(f.ctx))
+	require.NoError(t, store.RequireNativeWorkDrained(f.ctx, "workspace-node"))
+	require.ErrorContains(t, store.RequireNativeWorkDrained(f.ctx, "missing-node"), "fully drained")
+	_, err := f.store.AdmitRun(f.ctx, f.params, f.now)
+	require.NoError(t, err)
+	require.ErrorContains(t, store.RequireNativeWorkDrained(f.ctx, "workspace-node"), "fully drained")
+	_, err = f.db.Pool().Exec(f.ctx, `INSERT INTO schema_migrations(version,name,checksum) VALUES(999999,'future','unknown')`)
+	require.NoError(t, err)
+	t.Cleanup(func() { _, _ = f.db.Pool().Exec(f.ctx, `DELETE FROM schema_migrations WHERE version=999999`) })
+	require.ErrorContains(t, f.db.CheckUpgradeMigrations(f.ctx), "supported migration history")
+}

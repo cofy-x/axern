@@ -128,7 +128,14 @@ The native recovery procedure preserves the original Secret encryption key. In-p
 
 ## Qualify An Experimental Archive Transition
 
-The incoming helper accepts the source-built v0.13.0 native archive from commit `7de820e813ba2766645af100548753692d951051` and a distinct verified candidate from the same installation compatibility boundary. It checks the two staged archive identities, the unchanged v0.13.0 version label and gVisor payload, the Node configuration, the original data filesystem and the stopped services, PostgreSQL and runsc. Use the CLI and SDK that match the candidate. The shared version label alone does not establish API or payload compatibility.
+The incoming helper accepts the following exact source revisions with the `0.13.0` archive label. Use the matching CLI and SDK for each archive. The helper checks the two distinct archive digests and source revisions, the archive profile and host architecture, the matching gVisor payload, the Node configuration, and the original data filesystem.
+
+| Source revision | Owned Node configuration |
+| --- | --- |
+| `7de820e813ba2766645af100548753692d951051` | Historical native layout. The transition adds the default Workspace project budget. |
+| `4f8208c5e7b58e04feed5806f81336fbe425b55f` | Current managed layout with an existing Workspace project-budget field. |
+
+Before changing activation state, the helper verifies stopped systemd services, PostgreSQL and runsc. It opens PostgreSQL on a private Unix socket to verify the source migration history and confirm that the original Node has no unfinished Runs, unreleased Allocations or unresolved Workspace writers. Drain outstanding work on the source before attempting the transition. The table qualifies specific source-built transitions. Published-version upgrade support requires a release-bound compatibility record for the source and successor native archives.
 
 Follow the [cold-restore qualification](QUALIFICATION.md#qualify-a-same-installation-cold-restore) to fence new work, drain writers, disable automatic startup and verify a backup of the system and data disks. Store both complete disk images privately. After verifying their hashes, the operator supplies a private receipt with this shape:
 
