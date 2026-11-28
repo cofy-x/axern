@@ -10,7 +10,7 @@ The rebuild-only schema has one canonical baseline:
 | --- | --- |
 | `000001_initial.sql` | Principals, nodes, namespaces, environments, secrets, Runs, Allocations, allocation access grants, tunnels, lifecycle delivery, and audit state |
 
-Each migration declares the final shape of its domain. Migrations run in one direction under a Postgres advisory lock and are recorded in `schema_migrations` with version, name, checksum, and application time. The repository uses rebuild-only database upgrades: schema changes are folded into the owning baseline migration and the database is recreated. Compatibility migrations and dual-read paths are outside the current contract.
+Each migration declares the final shape of its domain. Migrations run in one direction under a Postgres advisory lock and are recorded in `schema_migrations` with version, name, checksum, and application time. A development database can be rebuilt from the current schema. An experimental native archive transition accepts explicit source revisions and requires their applied migrations to match the start of the target's history exactly. Preserve the checksums of migrations from qualified sources and apply later migrations through the [cold archive procedure](../../../deploy/standalone/INSTALL.md#qualify-an-experimental-archive-transition).
 
 ```mermaid
 sequenceDiagram

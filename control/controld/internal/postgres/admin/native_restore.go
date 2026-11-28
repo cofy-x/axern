@@ -124,19 +124,35 @@ func nativeRestoreFence(ctx context.Context, tx pgx.Tx, oldNode, newNode, tokenH
 	if applied {
 		node = newNode
 	}
+	return applied, requireNativeWorkDrained(ctx, tx, node)
+}
+
+// RequireNativeWorkDrained verifies the stopped installation's durable
+// authority before any target migrations can run.
+func (s *Store) RequireNativeWorkDrained(ctx context.Context, node string) error {
+	tx, err := s.db.Pool().BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	return requireNativeWorkDrained(ctx, tx, node)
+}
+
+func requireNativeWorkDrained(ctx context.Context, tx pgx.Tx, node string) error {
 	var outstanding bool
 	if err := tx.QueryRow(ctx, `SELECT
+		NOT EXISTS(SELECT 1 FROM nodes WHERE lifecycle_status='active' AND node_id=$1) OR
 		EXISTS(SELECT 1 FROM nodes WHERE lifecycle_status='active' AND node_id<>$1) OR
 		EXISTS(SELECT 1 FROM runs WHERE status NOT IN ('RUN_STATUS_SUCCEEDED','RUN_STATUS_FAILED','RUN_STATUS_CANCELLED')) OR
 		EXISTS(SELECT 1 FROM allocations WHERE lifecycle_state<>'ALLOCATION_LIFECYCLE_STATE_RELEASED') OR
 		EXISTS(SELECT 1 FROM workspaces WHERE status<>'WORKSPACE_STATUS_DELETED' AND
 			(node_id<>$1 OR status<>'WORKSPACE_STATUS_READY' OR attached_allocation_id IS NOT NULL))`, node).Scan(&outstanding); err != nil {
-		return false, err
+		return err
 	}
 	if outstanding {
-		return false, errors.New("native restore requires one fenced Node and fully drained execution and Workspace state")
+		return errors.New("native maintenance requires one original Node and fully drained execution and Workspace state")
 	}
-	return applied, nil
+	return nil
 }
 
 func nativeRestoreInventory(ctx context.Context, tx pgx.Tx, node string) ([]nativebackup.Workspace, error) {

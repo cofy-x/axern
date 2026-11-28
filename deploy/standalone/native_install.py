@@ -57,8 +57,14 @@ NODE_TASK_RESERVE = 512
 SERVICE_TASK_BUDGET = 1024
 NODE_CGROUP = pathlib.Path('/sys/fs/cgroup/axern.slice/axern-native-axnoded.service')
 PAUSE_TIMEOUT = 15
-UPGRADE_SOURCE = '7de820e813ba2766645af100548753692d951051'
 UPGRADE_VERSION = '0.13.0'
+NATIVE_ARCHIVE_PROFILE = 'ubuntu-24.04-candidate'
+# Source revisions are added after a complete cold transition rehearsal.
+# The value records whether that source wrote the managed project budget.
+UPGRADE_SOURCES = {
+    '7de820e813ba2766645af100548753692d951051': False,
+    '4f8208c5e7b58e04feed5806f81336fbe425b55f': True,
+}
 
 
 class InstallError(ValueError):
@@ -675,8 +681,11 @@ def staged_manifest(root: pathlib.Path) -> dict:
     manifest = read_json(root / 'manifest.json')
     arch = {'x86_64': 'amd64', 'aarch64': 'arm64'}.get(platform.machine())
     if (manifest.get('schema') != 'axern.native-runtime.v3' or manifest.get('os') != 'linux'
-            or arch is None or manifest.get('architecture') != arch):
-        raise InstallError('staged archive schema or architecture is incompatible')
+            or arch is None or manifest.get('architecture') != arch
+            or not isinstance(manifest.get('build_host'), dict)
+            or manifest['build_host'].get('profile') != NATIVE_ARCHIVE_PROFILE
+            or not isinstance(manifest.get('gvisor'), dict)):
+        raise InstallError('staged archive schema, profile, architecture or runtime is incompatible')
     return manifest
 
 
@@ -727,6 +736,12 @@ def migrate_cold_database() -> None:
         run(str(ROOT / 'bin/controld-migrate'), 'up', env=environment, timeout=180)
 
 
+def require_cold_upgrade_work_drained(node_id: str) -> None:
+    with private_postgres() as environment:
+        run(str(ROOT / 'bin/controld-access-bootstrap'), 'native-upgrade-check',
+            '--node-id', node_id, env=environment, timeout=60)
+
+
 def require_cold_backup_receipt(backup: dict, archive: str, identity: dict) -> None:
     if (set(backup) != {'schema', 'archive_sha256', 'data_identity', 'images_sha256'}
             or backup['schema'] != 'axern.native-cold-backup.v1' or backup['archive_sha256'] != archive
@@ -743,10 +758,11 @@ def upgrade(from_archive: str, backup: dict) -> None:
     old_root = OPT / 'releases' / from_archive
     source = staged_manifest(old_root)
     target = staged_manifest(ROOT)
+    source_revision = str(source.get('source_revision', ''))
     if (source.get('version') != UPGRADE_VERSION or target.get('version') != UPGRADE_VERSION
-            or source.get('source_revision') != UPGRADE_SOURCE
+            or source_revision not in UPGRADE_SOURCES
             or not re.fullmatch('[0-9a-f]{40}', str(target.get('source_revision', '')))
-            or target['source_revision'] == UPGRADE_SOURCE or source.get('gvisor') != target.get('gvisor')
+            or target['source_revision'] == source_revision or source.get('gvisor') != target.get('gvisor')
             or ROOT == old_root):
         raise InstallError('unsupported archive transition; preserve the installation and its cold backup')
 
@@ -776,8 +792,7 @@ def upgrade(from_archive: str, backup: dict) -> None:
     require_cold_installation()
     preflight(settings, False)
     new_config = node_config(settings)
-    # The pinned source predates the managed project-budget setting.
-    old_config = new_config.replace('workspace_project_budget = 0\n', '')
+    old_config = new_config if UPGRADE_SOURCES[source_revision] else new_config.replace('workspace_project_budget = 0\n', '')
     config_path = ETC / 'node.toml'
     if config_path.is_symlink() or config_path.read_text() not in ({old_config, new_config} if previous else {old_config}):
         raise InstallError('installation node configuration was changed outside the installer')
@@ -792,6 +807,7 @@ def upgrade(from_archive: str, backup: dict) -> None:
         if path.is_symlink() or path.read_text() not in acceptable:
             raise InstallError(f'installed service unit differs from the owned definition: {name}')
     if state != ROOT.name + '\n':
+        require_cold_upgrade_work_drained(settings['node_id'])
         write_file(journal, json_bytes(undertaking))
         write_file(marker, (pending + '\n').encode(), 0o644, replace=True)
         migrate_cold_database()

@@ -31,6 +31,9 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
+	if len(args) > 0 && args[0] == "native-upgrade-check" {
+		return runNativeUpgradeCheck(ctx, args[1:])
+	}
 	if len(args) > 0 && (args[0] == "native-restore-plan" || args[0] == "native-restore-commit") {
 		return runNativeRestore(ctx, args[0], args[1:])
 	}

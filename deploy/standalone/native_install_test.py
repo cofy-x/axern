@@ -24,6 +24,8 @@ SETTINGS = {
     'sandbox_cidr': '172.30.0.1/24', 'dns_nameservers': ['10.0.2.3'], 'max_instances': 8,
 }
 DAEMON_GENERATION = ('1' * 32, '2026-11-06T14:34:14.110196Z')
+LEGACY_UPGRADE_SOURCE = '7de820e813ba2766645af100548753692d951051'
+CURRENT_UPGRADE_SOURCE = '4f8208c5e7b58e04feed5806f81336fbe425b55f'
 
 
 class ArchiveUpgradeTest(unittest.TestCase):
@@ -42,7 +44,7 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.data_id = {'filesystem_uuid': 'fixture-uuid', 'directory_inode': 123}
         self.original = {
             'schema': 'axern.native-install.v1', 'archive_sha256': self.source_root.name,
-            'source_revision': installer.UPGRADE_SOURCE, 'settings': SETTINGS, 'data_identity': self.data_id,
+            'source_revision': LEGACY_UPGRADE_SOURCE, 'settings': SETTINGS, 'data_identity': self.data_id,
         }
         self.backup = {'schema': 'axern.native-cold-backup.v1', 'archive_sha256': self.source_root.name,
                        'data_identity': self.data_id, 'images_sha256': {'system': 'c' * 64, 'data': 'd' * 64}}
@@ -60,15 +62,18 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.enterContext(mock.patch.object(installer, 'data_identity', return_value=self.data_id))
         self.enterContext(mock.patch.object(installer, 'preflight'))
         self.enterContext(mock.patch.object(installer, 'require_cold_installation'))
+        self.drained = self.enterContext(mock.patch.object(installer, 'require_cold_upgrade_work_drained'))
         self.enterContext(mock.patch.object(installer, 'runtime_selection', return_value=('amd64', {})))
         self.enterContext(mock.patch.object(installer.gvisor_payload, 'verify_tree'))
         self.migrate = self.enterContext(mock.patch.object(installer, 'migrate_cold_database'))
         self.command = self.enterContext(mock.patch.object(installer, 'run'))
-        for path, revision in ((self.source_root, installer.UPGRADE_SOURCE), (self.target_root, 'e' * 40)):
+        for path, revision in ((self.source_root, LEGACY_UPGRADE_SOURCE), (self.target_root, 'e' * 40)):
             (path / 'stage-receipt.json').write_bytes(installer.json_bytes({'archive_sha256': path.name}))
             (path / 'manifest.json').write_bytes(installer.json_bytes({
                 'schema': 'axern.native-runtime.v3', 'os': 'linux', 'architecture': 'amd64',
-                'version': installer.UPGRADE_VERSION, 'source_revision': revision, 'gvisor': 'same',
+                'version': installer.UPGRADE_VERSION, 'source_revision': revision,
+                'gvisor': {'version': 'same'},
+                'build_host': {'profile': installer.NATIVE_ARCHIVE_PROFILE},
             }))
         config = self.etc / 'node.toml'
         config.write_text(installer.node_config(SETTINGS).replace('workspace_project_budget = 0\n', ''))
@@ -86,10 +91,69 @@ class ArchiveUpgradeTest(unittest.TestCase):
         self.assertEqual((self.etc / 'private/canary').read_text(), 'unchanged')
         self.assertEqual((self.data / 'postgres/PG_VERSION').read_text(), '16\n')
         self.assertFalse(self.intent.exists())
+        self.drained.assert_called_once_with(SETTINGS['node_id'])
         self.migrate.assert_called_once_with()
         self.command.assert_called_once_with('systemctl', 'daemon-reload', timeout=5)
         for name, contents in installer.service_units(self.target_root, SETTINGS).items():
             self.assertEqual((self.units / name).read_text(), contents)
+
+    def test_listed_current_revision_requires_and_preserves_current_node_config(self):
+        source_manifest = self.source_root / 'manifest.json'
+        manifest = installer.read_json(source_manifest)
+        source_manifest.write_bytes(installer.json_bytes({**manifest, 'source_revision': CURRENT_UPGRADE_SOURCE}))
+        original = {**self.original, 'source_revision': CURRENT_UPGRADE_SOURCE}
+        self.identity.write_bytes(installer.json_bytes(original))
+        with self.assertRaisesRegex(installer.InstallError, 'configuration was changed'):
+            installer.upgrade(self.source_root.name, self.backup)
+        self.drained.assert_not_called()
+        config = self.etc / 'node.toml'
+        config.write_text(installer.node_config(SETTINGS))
+        expected = config.read_bytes()
+        installer.upgrade(self.source_root.name, self.backup)
+        self.assertEqual(config.read_bytes(), expected)
+        self.assertEqual(installer.verify_installed()['archive_sha256'], self.target_root.name)
+
+    def test_unlisted_revision_rejected_before_database_or_installation_mutation(self):
+        source_manifest = self.source_root / 'manifest.json'
+        manifest = installer.read_json(source_manifest)
+        revision = 'c' * 40
+        source_manifest.write_bytes(installer.json_bytes({**manifest, 'source_revision': revision}))
+        original = {**self.original, 'source_revision': revision}
+        self.identity.write_bytes(installer.json_bytes(original))
+        with self.assertRaisesRegex(installer.InstallError, 'unsupported archive transition'):
+            installer.upgrade(self.source_root.name, self.backup)
+        self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
+        self.assertEqual(installer.read_json(self.identity), original)
+        self.assertFalse(self.intent.exists())
+        self.drained.assert_not_called()
+        self.migrate.assert_not_called()
+        self.command.assert_not_called()
+
+    def test_target_identity_and_platform_must_match_before_database_inspection(self):
+        path = self.target_root / 'manifest.json'
+        original = installer.read_json(path)
+        for field, value in (
+                ('source_revision', LEGACY_UPGRADE_SOURCE), ('architecture', 'arm64'),
+                ('build_host', {'profile': 'different'}), ('gvisor', {'version': 'different'})):
+            with self.subTest(field=field):
+                path.write_bytes(installer.json_bytes({**original, field: value}))
+                with self.assertRaises(installer.InstallError):
+                    installer.upgrade(self.source_root.name, self.backup)
+                self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
+                self.assertFalse(self.intent.exists())
+        self.drained.assert_not_called()
+        self.migrate.assert_not_called()
+        self.command.assert_not_called()
+
+    def test_undrained_database_is_retained_without_startup_fence_or_migrations(self):
+        self.drained.side_effect = subprocess.CalledProcessError(1, 'native-upgrade-check')
+        with self.assertRaises(subprocess.CalledProcessError):
+            installer.upgrade(self.source_root.name, self.backup)
+        self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
+        self.assertEqual(installer.read_json(self.identity), self.original)
+        self.assertFalse(self.intent.exists())
+        self.migrate.assert_not_called()
+        self.command.assert_not_called()
 
     def test_interrupted_upgrade_blocks_both_helpers_and_resumes_only_same_intent(self):
         self.command.side_effect = subprocess.TimeoutExpired('daemon-reload', 5)

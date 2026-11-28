@@ -9,6 +9,28 @@ import (
 
 const migrationAdvisoryLockID int64 = 0x415845524e4d4947 // AXERNMIG
 
+// CheckUpgradeMigrations requires the stopped source database to have an exact
+// initialized prefix of the target's migration history before native activation.
+func (db *DB) CheckUpgradeMigrations(ctx context.Context) error {
+	migrations, err := loadMigrations()
+	if err != nil {
+		return err
+	}
+	applied, err := loadAppliedMigrations(ctx, db.pool)
+	if err != nil {
+		return fmt.Errorf("check native source migration history: %w", err)
+	}
+	if len(applied) == 0 || len(applied) > len(migrations) {
+		return fmt.Errorf("native source database is outside the supported migration history")
+	}
+	for _, migration := range migrations[:len(applied)] {
+		if applied[migration.Version] != migration.Checksum {
+			return fmt.Errorf("native source migration history differs at %06d", migration.Version)
+		}
+	}
+	return nil
+}
+
 func checkMigrations(ctx context.Context, db *DB) error {
 	if db == nil || db.pool == nil {
 		return fmt.Errorf("postgres db is nil")
