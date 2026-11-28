@@ -56,6 +56,8 @@ with Sandbox(client=client, image="docker.io/library/python:3.12-slim") as sandb
 client.close()
 ```
 
+If Ctrl-C interrupts synchronous startup after the SDK has acquired resources, `Sandbox` cleans up those resources and propagates the interrupt. If cleanup also fails, the exception group carries both errors. To retry cleanup in that case, keep the handle in a variable before entering `with sandbox:` and call `sandbox.close()` again.
+
 ## Network Policies
 
 Omitting `network_policy` requests unrestricted networking. Strict policies are fail-closed; `deny_dns` only refuses matching traditional UDP/TCP DNS queries and does not block direct IP traffic, DoH, DoT, or already-resolved addresses.

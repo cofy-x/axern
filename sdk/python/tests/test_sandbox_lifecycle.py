@@ -202,6 +202,60 @@ class SandboxTest(unittest.TestCase):
             resources.limits.ephemeral_storage_bytes, 2 * 1024 * 1024 * 1024
         )
 
+    def test_interrupted_context_entry_cleans_acknowledged_resources(self) -> None:
+        for interruption in (KeyboardInterrupt(), SystemExit(7)):
+            with self.subTest(interruption=type(interruption)):
+                client = _FakeClient()
+                sandbox = Sandbox(client=client, image="docker.io/library/python:3.12-slim")
+                with mock.patch.object(client, "watch_run", side_effect=interruption) as watch:
+                    with self.assertRaises(type(interruption)) as caught:
+                        with sandbox:
+                            self.fail("interrupted Sandbox entered the context body")
+
+                self.assertIs(caught.exception, interruption)
+                self.assertEqual(watch.call_args.args, ("run-1",))
+                self.assertEqual(client.cancelled, [("run-1", {"timeout": 30.0})])
+                self.assertEqual(client.deleted_environments, [("env-1", {"timeout": 30.0})])
+
+    def test_failed_start_preserves_errors_and_retries_the_same_run(self) -> None:
+        rpc_error = SandboxConnectionError(
+            operation="cancel run", code="UNAVAILABLE", details="control plane unavailable"
+        )
+        for start_error, cleanup_error, group_type in (
+            (KeyboardInterrupt(), rpc_error, BaseExceptionGroup),
+            (RuntimeError("readiness failed"), rpc_error, ExceptionGroup),
+            (KeyboardInterrupt(), SystemExit(7), BaseExceptionGroup),
+        ):
+            with self.subTest(start_error=type(start_error), cleanup_error=type(cleanup_error)):
+                client = _FakeClient()
+                sandbox = Sandbox(client=client, image="docker.io/library/python:3.12-slim")
+                cancel = mock.Mock(side_effect=[cleanup_error, None])
+                with (
+                    mock.patch.object(client, "watch_run", side_effect=start_error),
+                    mock.patch.object(client, "cancel_run", cancel),
+                ):
+                    with self.assertRaises(BaseException) as caught:
+                        sandbox.start()
+                    group = caught.exception
+                    self.assertIs(type(group), group_type)
+                    assert isinstance(group, BaseExceptionGroup)
+                    self.assertIs(group.exceptions[0], start_error)
+                    release_failure = group.exceptions[1]
+                    if isinstance(cleanup_error, Exception):
+                        assert isinstance(release_failure, ExceptionGroup)
+                        self.assertEqual(release_failure.exceptions, (cleanup_error,))
+                    else:
+                        self.assertIs(release_failure, cleanup_error)
+                    with self.assertRaises(SandboxNotStartedError):
+                        _ = sandbox.state
+                    with self.assertRaisesRegex(SandboxLifecycleError, "cleanup is pending"):
+                        sandbox.start()
+                    sandbox.close()
+                    sandbox.close()
+
+                self.assertEqual(cancel.call_args_list, [mock.call("run-1", timeout=30.0)] * 2)
+                self.assertEqual(client.deleted_environments, [("env-1", {"timeout": 30.0})])
+
     def test_close_still_deletes_environment_when_cancel_run_fails(self) -> None:
         client = _FakeClient()
 
