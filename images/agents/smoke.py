@@ -10,7 +10,7 @@ from install import load_lock
 
 
 SCRIPT = r'''
-import json,os,pathlib,shutil,subprocess,sys,tempfile
+import ensurepip,json,os,pathlib,shutil,subprocess,sys,tempfile
 lock=json.loads(pathlib.Path('/usr/local/share/axern/agent-images/versions.lock.json').read_text())
 assert os.getuid()==1000
 assert pathlib.Path.cwd()==pathlib.Path('/workspace')
@@ -24,9 +24,17 @@ assert release['ID'].strip('"')=='debian'
 assert release['VERSION_ID'].strip('"')==lock['base']['debian_version']
 pip_version=subprocess.check_output([sys.executable,'-m','pip','--version'],text=True).split()[1]
 assert pip_version==lock['artifacts']['pip']['version']
+with tempfile.TemporaryDirectory() as temporary:
+    environment = pathlib.Path(temporary) / 'venv'
+    subprocess.run([sys.executable, '-m', 'venv', str(environment)], check=True)
+    venv_pip = subprocess.check_output(
+        [str(environment / 'bin/python'), '-m', 'pip', '--version'], text=True,
+    ).split()[1]
+    expected_seed = lock['base']['venv_pip_version']
+    assert venv_pip == ensurepip.version() == expected_seed, (venv_pip, ensurepip.version(), expected_seed)
 for command in (['git','--version'],['rg','--version']):subprocess.run(command,check=True,stdout=subprocess.DEVNULL)
 stage=sys.argv[1]
-observed={'python':'.'.join(map(str,sys.version_info[:3])),'debian':release['VERSION_ID'].strip('"'),'pip':pip_version,'uid':os.getuid(),'no_new_privileges':True,'capabilities_empty':True,'docker_socket_absent':True}
+observed={'python':'.'.join(map(str,sys.version_info[:3])),'debian':release['VERSION_ID'].strip('"'),'pip':pip_version,'venv_pip':venv_pip,'uid':os.getuid(),'no_new_privileges':True,'capabilities_empty':True,'docker_socket_absent':True}
 if stage!='base':
  for name in ('npm','npx','corepack','pnpm','pnpx','yarn','yarnpkg'):
   assert shutil.which(name) is None, name+' must be supplied by a caller-owned project image'

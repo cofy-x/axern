@@ -2,8 +2,9 @@
   "schema_version": 1,
   "platform": "linux/amd64",
   "base": {
-    "image": "docker.io/library/python:3.12.16-slim-trixie@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b",
-    "python_version": "3.12.16",
+    "image": "docker.io/library/python:3.13.18-slim-trixie@sha256:168d3a5d10f2152f8e8d77b6843ac82c22a846cfefeef7afdf9aa630404e82a7",
+    "python_version": "3.13.18",
+    "venv_pip_version": "26.2.2",
     "debian_version": "13"
   },
   "artifacts": {
