@@ -96,6 +96,8 @@ axern admin principal list
 axern admin role-binding list --namespace default
 ```
 
+When `workspace create` receives an identity and the readiness wait fails, it prints the acknowledged creation response and exits with an error. Use `workspace get <id>` to inspect current state. Callers that persist the identity before waiting can use `workspace create --wait=false`.
+
 `quota get` includes quota, usage, and admission signals. Retained Workspace capacity uses separate `--persistent-storage` and `--persistent-inodes` limits in `quota set`, and remains charged while data exists even without a running Allocation.
 
 Generate completion with `axern completion bash|zsh|fish`.

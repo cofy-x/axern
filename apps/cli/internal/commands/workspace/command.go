@@ -2,6 +2,7 @@ package workspace
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -56,10 +57,12 @@ func createCommand(runtime command.Runtime) *cobra.Command {
 			}
 			ctx, cancel := context.WithTimeout(s.Context, waitTimeout)
 			defer cancel()
-			value, err = control.WaitReady(ctx, value.GetID())
+			ready, err := control.WaitReady(ctx, value.GetID())
 			if err != nil {
-				return err
+				waitErr := fmt.Errorf("Workspace %s was created; readiness wait failed: %w (inspect with axern workspace get %s)", value.GetID(), err, value.GetID())
+				return errors.Join(waitErr, render(runtime, cmd, value))
 			}
+			value = ready
 		}
 		return render(runtime, cmd, value)
 	}}
