@@ -49,7 +49,7 @@ The base applies available Debian package updates from signed repositories befor
 
 ## Audit the built images
 
-Use the same target selection as the build. The audit requires a Docker image store that can export the OCI platform selected by `docker image inspect --platform` and `docker image save --platform`. Prepare a fresh database and save results in a new directory.
+Use the same target selection as the build. Initial inventory requires a Docker image store that can export the OCI platform selected by `docker image inspect --platform` and `docker image save --platform`. Prepare a fresh database and save results in a new directory.
 
 ```bash
 bash scripts/release/install-image-auditors.sh /absolute/path/to/auditors
@@ -61,7 +61,21 @@ make agent-images-audit \
   AGENT_IMAGE_OUTPUT_DIR=/absolute/path/to/new-audit-receipts
 ```
 
-The audit verifies each image selected by its build receipt, including the platform, manifest, config, and layers. It preserves the raw SBOM and all vulnerability matches, including the scanner's default ignored findings. An unsuccessful or mismatched scan leaves an incomplete result and exits nonzero. A complete result means the inventory succeeded. Review fixes and package or feature applicability against the maintained upstream before treating a workload as qualified. A generic SBOM cannot establish all dependencies embedded in the native Agent binaries.
+The audit verifies each image selected by its build receipt, including the platform, manifest, config, and layers. It preserves the raw SBOM and all vulnerability matches, including the scanner's default ignored findings. Each image records the SHA-256 of its `syft.json` as `sbom_digest`. Save the `summary_digest` printed on stdout separately from the audit directory. It identifies the finished `summary.json`. An unsuccessful or mismatched scan leaves an incomplete result and exits nonzero. A complete result means the scan succeeded. Review fixes and package or feature applicability against the maintained upstream before treating a workload as qualified. A generic SBOM cannot establish all dependencies embedded in the native Agent binaries.
+
+To rescan the same verified inventory with a refreshed Grype database, use the original build receipts and target selection. Pass the prior audit directory and its independently saved `summary_digest`.
+
+```bash
+make agent-images-audit \
+  AGENT_IMAGE_BUILD_RECEIPTS=/absolute/path/to/build-receipts.json \
+  AGENT_IMAGE_AUDIT_TOOLS=/absolute/path/to/auditors \
+  AGENT_IMAGE_AUDIT_DB=/absolute/path/to/refreshed-grype-db \
+  AGENT_IMAGE_OUTPUT_DIR=/absolute/path/to/new-audit-receipts \
+  AGENT_IMAGE_REUSE_INVENTORY=/absolute/path/to/prior-audit-receipts \
+  AGENT_IMAGE_INVENTORY_DIGEST="$saved_summary_digest"
+```
+
+The rescan verifies the prior summary, its build receipts and each SBOM's digest and image identity. It copies the verified inventories into the new directory and scans them with the selected database. This path needs the pinned audit tools and no Docker image store. The new summary records the prior summary's digest and can serve as the basis for another rescan. For an older audit without per-image SBOM digests, first run a full audit.
 
 ## Runtime contract
 

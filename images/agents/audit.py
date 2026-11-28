@@ -1,6 +1,7 @@
 """Inventory exact local Agent image builds without running them."""
 
 import argparse
+from hashlib import sha256
 import json
 from pathlib import Path
 import re
@@ -15,7 +16,7 @@ from install import ROOT, load_lock
 
 sys.path.insert(0, str(ROOT.parents[1] / 'scripts' / 'release'))
 from delivery_image_audit import (  # noqa: E402
-    INDEX_TYPES, MANIFEST_TYPES, MAX_METADATA, descriptor_identity, file_digest,
+    INDEX_TYPES, MANIFEST_TYPES, MAX_METADATA, TOOL_VERSIONS, descriptor_identity, file_digest,
     load_json, prepare_layout, require, scan, scanner_inputs, valid_digest,
     verify_grype, verify_sbom, write_json,
 )
@@ -86,7 +87,7 @@ class LocalArchive:
         return path
 
 
-def inventory_image(docker, record, output, tools, env, settings, status):
+def inventory_image(docker, record, output, tools, env, settings):
     image_id = record['image_id']
     platform = record['platform']
     os_name, architecture = platform.split('/')
@@ -119,6 +120,59 @@ def inventory_image(docker, record, output, tools, env, settings, status):
                     env, output, 'syft')
         verify_sbom(sbom, expected['digest'], manifest, config)
 
+    return sbom, {
+        'manifest': expected['digest'], 'config': manifest['config']['digest'],
+        'diff_ids': config['rootfs']['diff_ids'], 'packages': len(sbom['artifacts']),
+        'sbom_digest': file_digest(output / 'syft.json'),
+    }
+
+
+def prior_images(directory, digest, receipts, summary):
+    raw = (directory / 'summary.json').read_bytes()
+    require('sha256:' + sha256(raw).hexdigest() == digest, 'Prior audit summary digest differs')
+    prior = load_json(raw)
+    require(prior.get('complete') is True, 'Prior audit is incomplete')
+    require(prior.get('build_receipts_digest') == summary['build_receipts_digest'],
+            'Prior audit build receipts digest differs')
+    require(all(prior.get(key) == summary[key] for key in ('source_sha256', 'apt_refresh_epoch')),
+            'Prior audit build recipe or refresh identity differs')
+    require(prior['tools']['syft']['version'] == TOOL_VERSIONS['syft'], 'Prior audit Syft version differs')
+    images = prior['images']
+    require(isinstance(images, list), 'Expected a prior audit image list')
+    by_target = {}
+    for image in images:
+        target = image['target']
+        require(target in receipts and target not in by_target, 'Unexpected or duplicate prior audit target')
+        require(image.get('complete') is True and
+                all(image.get(key) == receipts[target][key] for key in ('image_id', 'platform')),
+                'Prior audit target is incomplete or has a different image identity or platform')
+        require(valid_digest(image.get('sbom_digest')), 'Prior audit lacks a valid SBOM digest for ' + target)
+        by_target[target] = image
+    require(by_target.keys() == receipts.keys(), 'Prior audit is missing targets')
+    return by_target
+
+
+def copy_inventory_file(source, output, name, digest):
+    raw = (source / name).read_bytes()
+    require('sha256:' + sha256(raw).hexdigest() == digest, 'Prior inventory digest differs for ' + name)
+    (output / name).write_bytes(raw)
+    return load_json(raw)
+
+
+def reuse_image(source, output, image):
+    manifest = copy_inventory_file(source, output, 'manifest.json', image['manifest'])
+    config = copy_inventory_file(source, output, 'config.json', image['config'])
+    sbom = copy_inventory_file(source, output, 'syft.json', image['sbom_digest'])
+    require(manifest['config']['digest'] == image['config'] and
+            config['os'] + '/' + config['architecture'] == image['platform'] and
+            config['rootfs']['diff_ids'] == image['diff_ids'],
+            'Prior inventory config, platform or layers differ from the audit')
+    verify_sbom(sbom, image['manifest'], manifest, config)
+    require(len(sbom['artifacts']) == image['packages'], 'Prior audit package count differs from the SBOM')
+    return sbom, {key: image[key] for key in ('manifest', 'config', 'diff_ids', 'packages', 'sbom_digest')}
+
+
+def scan_findings(sbom, output, tools, env, settings, status):
     findings = scan([tools['grype'], f'sbom:{output / "syft.json"}', '--config', str(settings), '-o', 'json'],
                     env, output, 'grype')
     verify_grype(findings, sbom, status)
@@ -128,18 +182,14 @@ def inventory_image(docker, record, output, tools, env, settings, status):
     counts = dict.fromkeys(severities, 0)
     for match in matches + ignored:
         counts[match['vulnerability']['severity']] += 1
-    return {
-        'target': record['target'], 'platform': platform, 'image_id': image_id,
-        'manifest': expected['digest'], 'config': manifest['config']['digest'],
-        'diff_ids': config['rootfs']['diff_ids'], 'packages': len(sbom['artifacts']),
-        'matches': len(matches), 'ignored_matches': len(ignored), 'severity_counts': counts,
-    }
+    return {'matches': len(matches), 'ignored_matches': len(ignored), 'severity_counts': counts}
 
 
 def audit(args):
     targets = selected_targets(args.targets)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
+    summary_path = output / 'summary.json'
     summary = {'complete': False, 'images': []}
     try:
         raw_receipts = args.receipts.read_bytes()
@@ -149,16 +199,25 @@ def audit(args):
         summary['build_receipts_digest'] = file_digest(receipts_path)
         summary['source_sha256'] = receipts[targets[0]]['source_sha256']
         summary['apt_refresh_epoch'] = receipts[targets[0]]['apt_refresh_epoch']
+        reused = None
+        if args.reuse_inventory is not None:
+            reused = prior_images(args.reuse_inventory, args.inventory_digest, receipts, summary)
+            summary['inventory_basis'] = {'summary_digest': args.inventory_digest}
         db, tools, env, settings, status = scanner_inputs(output, args.tools, args.database, summary)
-        docker = docker_command(args.docker_config)
+        if reused is None:
+            docker = docker_command(args.docker_config)
         for target in targets:
             report = {'target': target, 'image_id': receipts[target]['image_id'], 'complete': False}
             summary['images'].append(report)
             path = output / target
             path.mkdir()
             try:
-                report.update(inventory_image(docker, receipts[target], path, tools, env, settings, status),
-                              complete=True)
+                if reused is None:
+                    sbom, inventory = inventory_image(docker, receipts[target], path, tools, env, settings)
+                else:
+                    sbom, inventory = reuse_image(args.reuse_inventory / target, path, reused[target])
+                report.update(inventory, platform=receipts[target]['platform'])
+                report.update(scan_findings(sbom, path, tools, env, settings, status), complete=True)
             except (KeyError, OSError, TypeError, ValueError, subprocess.SubprocessError, tarfile.TarError) as error:
                 report['error'] = str(error)
         require(file_digest(db) == summary['database']['digest'], 'Grype database changed during the audit')
@@ -166,8 +225,9 @@ def audit(args):
     except (KeyError, OSError, TypeError, ValueError, subprocess.SubprocessError) as error:
         summary['error'] = str(error)
     finally:
-        write_json(output / 'summary.json', summary)
-    print(json.dumps({'complete': summary['complete'], 'report': str(output / 'summary.json')}))
+        write_json(summary_path, summary)
+    print(json.dumps({'complete': summary['complete'], 'report': str(summary_path),
+                      'summary_digest': file_digest(summary_path)}))
     return 0 if summary['complete'] else 1
 
 
@@ -179,7 +239,14 @@ def main():
     parser.add_argument('--database', type=Path, required=True)
     parser.add_argument('--docker-config', type=Path)
     parser.add_argument('--output', type=Path, required=True)
-    return audit(parser.parse_args())
+    parser.add_argument('--reuse-inventory', type=Path, help='Completed audit directory')
+    parser.add_argument('--inventory-digest', help='Independently saved prior summary_digest')
+    args = parser.parse_args()
+    if (args.reuse_inventory is None) != (args.inventory_digest is None):
+        parser.error('--reuse-inventory and --inventory-digest must be supplied together')
+    if args.inventory_digest is not None and not valid_digest(args.inventory_digest):
+        parser.error('--inventory-digest must be a sha256 digest')
+    return audit(args)
 
 
 if __name__ == '__main__':
