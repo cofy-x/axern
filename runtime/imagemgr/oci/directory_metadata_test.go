@@ -88,6 +88,10 @@ func TestImplicitMetadataRespectsCurrentAndPreviousVisibility(t *testing.T) {
 			if err := os.Chmod(filepath.Join(base, "parent/private"), 0700); err != nil {
 				t.Fatal(err)
 			}
+			// Match the extractor's default for a newly created implicit directory.
+			if err := os.Chmod(filepath.Join(current, "parent/private"), 0755); err != nil {
+				t.Fatal(err)
+			}
 			marker := ""
 			switch test.barrier {
 			case "previous-root":
