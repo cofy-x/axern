@@ -20,6 +20,9 @@ func (*runtimeSpyHandler) ConfigurationDigest() (string, error)                 
 func (*runtimeSpyHandler) PauseContainer(context.Context, contract.HandlerOptions) error  { return nil }
 func (*runtimeSpyHandler) ResumeContainer(context.Context, contract.HandlerOptions) error { return nil }
 func (*runtimeSpyHandler) KillSandbox(context.Context, contract.HandlerOptions) error     { return nil }
+func (*runtimeSpyHandler) VerifyAllocationCPUControls(context.Context, string, *apipb.AllocationEnforcementManifest, *apipb.LinuxContainerResources) contract.CapabilityVerification {
+	return contract.VerifiedCapability()
+}
 func (*runtimeSpyHandler) VerifyAllocationTaskLimits(context.Context, string, *apipb.AllocationEnforcementManifest) error {
 	return nil
 }

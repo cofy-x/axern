@@ -28,7 +28,9 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxaccess"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxcontrol"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/sandboxtarget"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/workspace"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -322,7 +324,7 @@ func (h *sandboxService) restorePersistentState() error {
 	if err := h.verifyRecoveredNetworkBindings(durableInventory); err != nil {
 		return err
 	}
-	if err := h.verifyRecoveredTaskLimits(context.Background(), durableInventory); err != nil {
+	if err := h.verifyRecoveredExecutionControls(context.Background(), durableInventory, recoveryRecords.Resources); err != nil {
 		return err
 	}
 	if err := h.recoverTerminalRuntimeCheckpoints(context.Background(), durableInventory); err != nil {
@@ -417,9 +419,9 @@ func (h *sandboxService) verifyRecoveredNetworkBindings(inventory runtimeInvento
 	return nil
 }
 
-// verifyRecoveredTaskLimits runs before restoring image leases or advertising
+// verifyRecoveredExecutionControls runs before restoring image leases or advertising
 // capacity. It audits recorded limits; recovery never repairs live controls.
-func (h *sandboxService) verifyRecoveredTaskLimits(ctx context.Context, inventory runtimeInventory) error {
+func (h *sandboxService) verifyRecoveredExecutionControls(ctx context.Context, inventory runtimeInventory, resources map[string]*commonv1.ResourceSpec) error {
 	ids := make([]string, 0, len(inventory))
 	for id := range inventory {
 		ids = append(ids, id)
@@ -436,6 +438,14 @@ func (h *sandboxService) verifyRecoveredTaskLimits(ctx context.Context, inventor
 		}
 		if !h.allocationController().GuestProcessProfileVerified(id) {
 			return fmt.Errorf("allocation %s has no observed guest process profile; stop and recreate its execution", id)
+		}
+		admittedResources, present := resources[id]
+		if !present {
+			return fmt.Errorf("missing admitted CPU resource authority for %s", id)
+		}
+		verification := h.runscHandler.VerifyAllocationCPUControls(ctx, id, manifest, startplan.ResourcesToLinux(admittedResources))
+		if verification.State != contract.CapabilityVerificationVerified {
+			return fmt.Errorf("verify recovered allocation %s CPU controls: %w", id, verification.Err)
 		}
 		if err := h.runscHandler.VerifyAllocationTaskLimits(ctx, id, manifest); err != nil {
 			return fmt.Errorf("verify recovered allocation %s task limits: %w", id, err)

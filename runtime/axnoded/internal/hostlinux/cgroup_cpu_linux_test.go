@@ -21,7 +21,9 @@ func TestVerifyCgroupCPUControls(t *testing.T) {
 	}{
 		{name: "CPU only", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024, CpuQuota: 25000, CpuPeriod: 100000}, weight: "100\n", maximum: "25000 100000\n"},
 		{name: "quota without weight", resource: &runtimeapi.LinuxContainerResources{CpuQuota: 25000, CpuPeriod: 100000}, maximum: "25000 100000\n"},
-		{name: "weight without quota", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024}, weight: "100\n"},
+		{name: "weight without quota", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024}, weight: "100\n", maximum: "max 200000\n"},
+		{name: "unexpected cap without limit", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024}, weight: "100\n", maximum: "1000 100000\n", wantErr: true},
+		{name: "invalid unlimited period", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024}, weight: "100\n", maximum: "max 0\n", wantErr: true},
 		{name: "explicit unlimited period", resource: &runtimeapi.LinuxContainerResources{CpuPeriod: 100000}, maximum: "max 100000\n"},
 		{name: "missing weight", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024, CpuQuota: 25000, CpuPeriod: 100000}, maximum: "25000 100000\n", wantErr: true},
 		{name: "mismatched weight", resource: &runtimeapi.LinuxContainerResources{CpuShares: 1024}, weight: "99\n", wantErr: true},

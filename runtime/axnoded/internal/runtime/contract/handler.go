@@ -94,6 +94,7 @@ type SandboxRuntime interface {
 	// and workloads. Configuration changes require a new handler.
 	ConfigurationDigest() (string, error)
 	AllocationEnforcementManifestProvider
+	VerifyAllocationCPUControls(context.Context, string, *apipb.AllocationEnforcementManifest, *apipb.LinuxContainerResources) CapabilityVerification
 	// VerifyAllocationTaskLimits audits the immutable node-owned task policy
 	// before recovering a live Allocation; it never rewrites live controls.
 	VerifyAllocationTaskLimits(context.Context, string, *apipb.AllocationEnforcementManifest) error
