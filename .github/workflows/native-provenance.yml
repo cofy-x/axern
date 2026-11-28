@@ -234,12 +234,12 @@ jobs:
           set -euo pipefail
           umask 077
           status=0
-          # The shell keeps the log private to this runner account.
+          # The wrapper reserves stdout for its fixed phase marker.
           # shellcheck disable=SC2024
-          sudo bash tooling/deploy/standalone/qualify-guest.sh --disposable-guest arm64 \
+          sudo -n bash tooling/deploy/standalone/qualify-guest.sh --disposable-guest arm64 \
             "$RUNNER_TEMP/arm-archive.tar.gz" "$ARCHIVE_SHA256" "$CANDIDATE" \
             "$PYTHON_IMAGE" "$RUNNER_TEMP/arm-staging" "$RUNNER_TEMP/arm-private" \
-            > "$RUNNER_TEMP/arm-wrapper.log" 2>&1 || status=$?
+            > "$RUNNER_TEMP/arm-wrapper-phase" 2> "$RUNNER_TEMP/arm-wrapper.log" || status=$?
           printf 'exit_code=%s\n' "$status" >> "$GITHUB_OUTPUT"
           exit "$status"
       - name: Export and check the qualification summary
@@ -259,6 +259,7 @@ jobs:
             --source "$CANDIDATE" --image "$PYTHON_IMAGE" --runner-arch "$RUNNER_ARCH" \
             --prepare-outcome "$PREPARE_OUTCOME" \
             --wrapper-exit "$WRAPPER_EXIT" --wrapper-outcome "$WRAPPER_OUTCOME" \
+            --wrapper-phase-file "$RUNNER_TEMP/arm-wrapper-phase" \
             > "$RUNNER_TEMP/arm-public.json"; then
             printf '%s\n' '### Native ARM64 acceptance evidence unavailable' >> "$GITHUB_STEP_SUMMARY"
             exit 1
@@ -267,8 +268,14 @@ jobs:
           jq '.archive' "$RUNNER_TEMP/arm-public.json" > "$evidence/verified-receipt.json"
           jq '.start_capabilities' "$RUNNER_TEMP/arm-public.json" > "$evidence/start-capabilities.json"
           jq '.result' "$RUNNER_TEMP/arm-public.json" > "$evidence/result.json"
-          jq -r '"### Native ARM64 acceptance: \(.status)\n\nHost preparation: \(.prepare_outcome)\nWrapper: \(.wrapper_outcome)\n",
-            (.cases[] | "- \(.name): \(.status), cleanup \(.cleanup)")' "$evidence/result.json" >> "$GITHUB_STEP_SUMMARY"
+          jq -r '
+            "### Native ARM64 acceptance: \(.status)\n",
+            "Host preparation: \(.prepare_outcome)",
+            "Wrapper: \(.wrapper_outcome)",
+            "Last wrapper phase: \(.wrapper_phase)",
+            "Wrapper failure: \(.wrapper_failure)\n",
+            (.cases[] | "- \(.name): \(.status), cleanup \(.cleanup)")
+          ' "$evidence/result.json" >> "$GITHUB_STEP_SUMMARY"
           jq -e '.status == "passed"' "$evidence/result.json" > /dev/null
       - name: Retain the whitelisted ARM64 evidence
         if: always()
