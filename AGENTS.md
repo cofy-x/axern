@@ -13,6 +13,7 @@
 
 - Read the applicable subtree `AGENTS.md`; use the [Module Guide](.x/module-guide.md) to locate owners, [Coding Standards](.x/coding-standards.md) for implementation rules, and the [Stable Domain Model](docs/product/domain-model.md) for public identity or lifecycle changes.
 - Keep behavior in its owning package, depend on narrow capabilities, and do not add catch-all helpers, bridge aliases, or parallel lifecycle paths.
+- When a helper creates a resource and then waits for readiness, capture its acknowledged ID before waiting. If the helper owns cleanup, retain that ID until release succeeds or the API confirms absence. Cover interrupted cleanup through the public caller, including resources acquired during partial startup.
 - Change durable contracts atomically across callers, generated code, tests, and their single authoritative document.
 
 ## Validation And Documentation

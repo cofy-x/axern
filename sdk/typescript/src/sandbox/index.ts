@@ -11,8 +11,7 @@ import type { AllocationClient } from "../node/client.js";
 import type { SandboxProcess } from "../node/process.js";
 import type { ResourceQuantity } from "../resources.js";
 import type { NetworkPolicy } from "../network-policy.js";
-import { startTunnelRuntime, tunnelMetadata } from "../tunnel/runtime.js";
-import type { TunnelRuntime } from "../tunnel/types.js";
+import { TunnelRuntime } from "../tunnel/runtime.js";
 import type {
   ChmodOptions,
   CapabilityStatus,
@@ -128,7 +127,7 @@ export class Sandbox {
     if (this.currentState !== undefined) {
       return this;
     }
-    if (this.runId !== "" || this.ownedEnvironmentId !== "") {
+    if (this.runId !== "" || this.ownedEnvironmentId !== "" || this.tunnelRuntime !== undefined) {
       throw new SandboxStateError("sandbox cleanup is pending; call close() again");
     }
     let environmentId = this.options.environmentId ?? "";
@@ -179,7 +178,7 @@ export class Sandbox {
       };
       this.currentMetadata = sandboxMetadata(this.options, this.currentState);
       if (this.options.tunnel !== undefined) {
-        this.tunnelRuntime = await startTunnelRuntime({
+        this.tunnelRuntime = new TunnelRuntime({
           control: this.client.tunnelClient(),
           allocationId: this.currentState.allocationId,
           tunnel: this.options.tunnel,
@@ -187,7 +186,7 @@ export class Sandbox {
         });
         this.currentMetadata = {
           ...this.currentMetadata,
-          tunnel: tunnelMetadata(this.tunnelRuntime),
+          tunnel: await this.tunnelRuntime.start(),
         };
       }
       return this;
@@ -214,12 +213,15 @@ export class Sandbox {
 
   private async closeSandbox(): Promise<void> {
     const errors: unknown[] = [];
-    const tunnelRuntime = this.tunnelRuntime;
-    this.tunnelRuntime = undefined;
     this.currentState = undefined;
     this.currentMetadata = undefined;
-    if (tunnelRuntime !== undefined) {
-      await tunnelRuntime.stop().catch((error: unknown) => errors.push(error));
+    if (this.tunnelRuntime !== undefined) {
+      try {
+        await this.tunnelRuntime.stop();
+        this.tunnelRuntime = undefined;
+      } catch (error) {
+        errors.push(error);
+      }
     }
     if (this.runId !== "") {
       try {

@@ -16,12 +16,3 @@ export interface CreateTunnelSessionResult {
   session: TunnelSession;
   clientToken: string;
 }
-
-export interface TunnelRuntime {
-  sessionId: string;
-  clientToken: string;
-  boundAddr: string;
-  upstream: string;
-  proxyPort: number;
-  stop(): Promise<void>;
-}
