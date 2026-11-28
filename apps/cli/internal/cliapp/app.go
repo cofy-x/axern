@@ -12,6 +12,7 @@ import (
 	"github.com/cofy-x/axern/apps/cli/internal/commands/environment"
 	identitycmd "github.com/cofy-x/axern/apps/cli/internal/commands/identity"
 	namespacecmd "github.com/cofy-x/axern/apps/cli/internal/commands/namespace"
+	previewcmd "github.com/cofy-x/axern/apps/cli/internal/commands/preview"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/quota"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/run"
 	"github.com/cofy-x/axern/apps/cli/internal/commands/secret"
@@ -76,6 +77,7 @@ func New(version string) *cobra.Command {
 		namespacecmd.Command(runtime),
 		secret.Command(runtime),
 		run.Command(runtime),
+		previewcmd.Command(runtime),
 		quota.Command(runtime),
 		tunnelcmd.Command(runtime),
 		sshcmd.Command(runtime),

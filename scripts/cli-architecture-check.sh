@@ -56,6 +56,7 @@ expected_application_packages='apps/cli/internal/application/admin
 apps/cli/internal/application/doctor
 apps/cli/internal/application/environment
 apps/cli/internal/application/namespace
+apps/cli/internal/application/preview
 apps/cli/internal/application/quota
 apps/cli/internal/application/run
 apps/cli/internal/application/secret
@@ -74,6 +75,7 @@ apps/cli/internal/commands/doctor
 apps/cli/internal/commands/environment
 apps/cli/internal/commands/identity
 apps/cli/internal/commands/namespace
+apps/cli/internal/commands/preview
 apps/cli/internal/commands/quota
 apps/cli/internal/commands/run
 apps/cli/internal/commands/secret
