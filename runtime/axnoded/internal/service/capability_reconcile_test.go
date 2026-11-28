@@ -248,11 +248,11 @@ func TestPostCreateGateUsesDurablePreActivationProofAfterRuntimeExit(t *testing.
 	if err := service.allocationController().StoreVerifiedEnforcementManifest(allocationID, manifest, []*capabilityv1.CapabilityKey{hardLimit}, now); err != nil {
 		t.Fatal(err)
 	}
-	admitted, conditions, err := service.verifyPostCreateCapabilityRequirements(context.Background(), allocationID, dependencies, now)
+	conditions, err = service.VerifyLaunchRequirements(&apipb.StartRequest{AllocationID: allocationID, CapabilityRequirements: dependencies})
 	if err != nil {
 		t.Fatalf("post-create verification read mutable runtime state after exit: %v", err)
 	}
-	if len(admitted) != 1 || len(conditions) != 1 || !strings.Contains(conditions[0].GetMessage(), "before workload start") {
-		t.Fatalf("post-create verification = requirements:%#v conditions:%#v", admitted, conditions)
+	if len(conditions) != 1 || !strings.Contains(conditions[0].GetMessage(), "before workload start") {
+		t.Fatalf("post-create verification conditions = %#v", conditions)
 	}
 }

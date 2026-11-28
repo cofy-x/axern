@@ -280,3 +280,10 @@ func minInt64(left, right int64) int64 {
 	}
 	return right
 }
+
+// ReadOutput keeps source selection and the bounded read together with respect to teardown.
+func (c *Controller) ReadOutput(ctx context.Context, id, cursor string, sources func(context.Context, string) (allocationoutput.Sources, error)) ([]allocationoutput.Chunk, bool, error) {
+	unlock := c.allocationLifecycleLocks.Lock(id)
+	defer unlock()
+	return allocationoutput.NewWithSources(sources).Read(ctx, id, cursor)
+}

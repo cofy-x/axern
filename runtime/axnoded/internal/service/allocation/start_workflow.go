@@ -197,14 +197,6 @@ func (h *Controller) cleanupFailedStartWithResource(ctx context.Context, contain
 	return nil
 }
 
-func startErrorResponse(message string) *runtime.StartResponse {
-	return &runtime.StartResponse{}
-}
-
-func startSuccessResponse(containerID string) *runtime.StartResponse {
-	return &runtime.StartResponse{AllocationID: containerID}
-}
-
 func (h *Controller) existingActiveStartResponse(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
 	if err := h.ValidateActivation(request.GetAllocationID()); err != nil {
 		return nil, true, err
@@ -219,18 +211,17 @@ func (h *Controller) existingActiveStartResponse(ctx context.Context, request *r
 		return nil, false, nil
 	}
 	if ct.Status != nil && ct.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED {
-		return startErrorResponse(fmt.Sprintf("allocation %s already exists in terminal state", containerID)), true, errord.ErrAlreadyExists
+		return nil, true, errord.ErrAlreadyExists
 	}
 	if !h.GuestProcessProfileVerified(containerID) {
 		return nil, true, fmt.Errorf("allocation %s has no observed guest process profile: %w", containerID, errord.ErrFailedPrecondition)
 	}
-	resp := startSuccessResponse(containerID)
-	return resp, true, nil
+	return &runtime.StartResponse{AllocationID: containerID}, true, nil
 }
 
 func (h *Controller) startAllocation(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
 	if err := startplan.ValidateStartRequest(request); err != nil {
-		return startErrorResponse(err.Error()), err
+		return nil, err
 	}
 	unlockLifecycle := h.allocationLifecycleLocks.Lock(request.GetAllocationID())
 	defer unlockLifecycle()
@@ -305,7 +296,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		recorder.RecordStartupPhase(contract.StartupPhaseResourceAllocate, time.Since(resourceAllocateStart))
 	}
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed node-local resource admission: %v", err)), err
+		return nil, err
 	}
 	reservedResource = resource
 	resourceReserved = true
@@ -315,16 +306,16 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		recorder.RecordStartupPhase(contract.StartupPhaseEgressPolicyPrepare, startupObservationDurationSince(egressPolicyStart))
 	}
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed egress policy admission: %v", err)), err
+		return nil, err
 	}
 	var secretMounts []*runtime.Mount
 	secretMounts, secretCleanup, err = startplan.MaterializeResolvedSecretFiles(h.config.RootDir, request)
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to materialize secrets: %v", err)), errors.Join(err, errRuntimeCleanupPending)
+		return nil, errors.Join(err, errRuntimeCleanupPending)
 	}
 	imageMounts, imageMountCleanup, err := h.resolveImageMounts(request)
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to resolve image mounts: %v", err)), err
+		return nil, err
 	}
 	runtimeRequest := proto.Clone(request).(*runtime.StartRequest)
 	if workspaceMount != nil {
@@ -346,11 +337,11 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		recorder.RecordStartupStep(sample.Phase, sample.Step, sample.Duration)
 	}
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to add new runtime: %v", request.Environment)), err
+		return nil, err
 	}
 	if h.rootfsCapabilityGate != nil {
 		if err := h.rootfsCapabilityGate(ctx, request, lrt.RootFS); err != nil {
-			return startErrorResponse(fmt.Sprintf("Failed rootfs capability gate: %v", err)), err
+			return nil, err
 		}
 	}
 
@@ -361,7 +352,7 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 		}
 	}()
 	if err := h.rememberContainerRuntime(request.GetAllocationID(), lrt); err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to persist allocation state: %v", err)), err
+		return nil, err
 	}
 	stateCommitted = true
 
@@ -374,14 +365,13 @@ func (h *Controller) startAllocationWithLifecycleHeld(ctx context.Context, reque
 
 	createResponse, _, err := h.createAllocation(ctx, lrt, request, templateRequest, createRequest, handler, reservedResource, recorder)
 	if err != nil {
-		return startErrorResponse(fmt.Sprintf("Failed to start: %v", err)), err
+		return nil, err
 	}
 
 	succeeded = true
 	h.reportStartRunningStatus(createResponse.ID, time.Now().UTC())
 	result = contract.StartupResultOK
-	resp := startSuccessResponse(createResponse.ID)
-	return resp, nil
+	return &runtime.StartResponse{AllocationID: createResponse.ID}, nil
 }
 
 func (h *Controller) deleteAllocation(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {

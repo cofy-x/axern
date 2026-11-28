@@ -397,7 +397,7 @@ func TestImageMountAcquireRollsBackWhenOwnershipPersistenceFails(t *testing.T) {
 	if err := fixture.controller.StoreAllocationIntent(allocationIDForTest(t), "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	_, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
+	_, err := fixture.controller.startAllocation(context.Background(), &apipb.StartRequest{
 		AllocationID: allocationIDForTest(t),
 		Environment: &apipb.ResolvedEnvironment{
 			ID:     "persistence-failure-runtime",
@@ -499,7 +499,7 @@ func TestStartPersistsAdmissionAndRuntimeStateBeforeDeletingAtomically(t *testin
 	if err := fixture.controller.StoreAllocationIntent(allocationID, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", time.Now().Add(time.Minute), nil, nil, nil, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
+	if _, err := fixture.controller.startAllocation(context.Background(), &apipb.StartRequest{
 		AllocationID: allocationID,
 		Environment: &apipb.ResolvedEnvironment{
 			ID:     "atomic-runtime",
@@ -533,7 +533,7 @@ func TestTransientAllocationStateIsMemoryOnly(t *testing.T) {
 	handler := &runtimeSpyHandler{name: "runsc"}
 	fixture := newTestAllocationControllerWithStore(t, handler, store)
 	allocationID := "transient-allocation"
-	if _, err := fixture.controller.Start(context.Background(), &apipb.StartRequest{
+	if _, err := fixture.controller.startAllocation(context.Background(), &apipb.StartRequest{
 		AllocationID: allocationID,
 		Environment: &apipb.ResolvedEnvironment{
 			ID:     "transient-environment",

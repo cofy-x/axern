@@ -27,114 +27,24 @@ import (
 )
 
 func (h *sandboxService) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
-	return h.start(ctx, request, "")
+	return h.allocationController().Launch(ctx, request, "", h)
 }
 
-func (h *sandboxService) start(ctx context.Context, request *runtime.StartRequest, controlPlaneNodeID string) (*runtime.StartResponse, error) {
-	if err := startplan.ValidateStartRequest(request); err != nil {
-		return nil, errord.ToGRPC(err)
-	}
-	spanAttrs := []attribute.KeyValue{
-		attribute.String(sdkobs.AttrAllocationID, request.GetAllocationID()),
-		attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc),
-	}
-	ctx, op := sdkobs.StartOperation(ctx, sdkobs.OperationConfig{
-		Name:        sandboxobs.SpanAllocationStart,
-		SpanAttrs:   spanAttrs,
-		MetricAttrs: []attribute.KeyValue{attribute.String(sdkobs.AttrRuntime, config.RuntimeNameRunsc)},
-		Counter:     sandboxobs.MetricAllocationStartTotal,
-		Duration:    sandboxobs.MetricAllocationStartDuration,
-	})
-	var err error
-	defer func() { op.End(err) }()
-	requestDigest, err := allocation.StartRequestDigest(request)
-	if err != nil {
-		return nil, fmt.Errorf("identify allocation request: %w", err)
-	}
-	controller := h.allocationController()
-	leaseTTL := time.Duration(request.GetExecutionLeaseTtlSeconds()) * time.Second
-	if strings.TrimSpace(controlPlaneNodeID) != "" && leaseTTL <= 0 {
-		return nil, errord.ToGRPC(fmt.Errorf("control-plane allocation requires a positive execution lease TTL: %w", errord.ErrInvalidArgument))
-	}
-	leaseExpiresAt := time.Now().Add(leaseTTL).UTC()
-	unlockLifecycle := controller.LockAllocationLifecycle(request.GetAllocationID())
-	defer unlockLifecycle()
-	if err := controller.ValidateActivation(request.GetAllocationID()); err != nil {
-		return nil, errord.ToGRPC(err)
-	}
-	if controller.VerifiedEnforcementManifest(request.GetAllocationID()) != nil {
-		if err := controller.VerifyWorkspaceAttachment(request.GetAllocationID()); err != nil {
-			return nil, h.scheduleCapabilityTermination(request.GetAllocationID(), err)
-		}
-		if controller.AllocationRequestDigest(request.GetAllocationID()) != requestDigest {
-			return nil, errord.ToGRPC(fmt.Errorf("allocation request differs from the durable contract: %w", errord.ErrFailedPrecondition))
-		}
-		resp, active, replayErr := controller.ExistingActiveStartResponseWithLifecycleHeld(ctx, request)
-		if replayErr != nil {
-			return resp, errord.ToGRPC(replayErr)
-		}
-		if !active {
-			return nil, errord.ToGRPC(fmt.Errorf("durably verified allocation has no active runtime: %w", errord.ErrFailedPrecondition))
-		}
-		if err := controller.RenewExecutionLeases(map[string]time.Duration{request.GetAllocationID(): leaseTTL}, time.Now().UTC()); err != nil {
-			return nil, errord.ToGRPC(err)
-		}
-		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "replayed")
-		return resp, nil
-	}
-	// A live replay is defined by the immutable request digest and
-	// verified enforcement manifest above. Current node policy may legitimately differ
-	// after a config or runtime identity change; applying it retroactively would
-	// break idempotency. New creates still derive and verify the complete current
-	// requirement contract before any allocation side effect.
-	if err = h.verifyRequestCapabilityRequirements(request); err != nil {
+func (h *sandboxService) AdmitLaunchRequirements(request *runtime.StartRequest) ([]*capabilityv1.CapabilityRequirement, error) {
+	if err := h.verifyRequestCapabilityRequirements(request); err != nil {
 		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "requirement_mismatch")
-		op.SetErrorStatus("allocation capability requirements do not match request")
 		return nil, fmt.Errorf("derive allocation capability requirements: %w", err)
 	}
-	preCreateObservedAt := time.Now().UTC()
-	admitted, verification, err := h.admitCapabilityRequirements(request.GetCapabilityRequirements(), preCreateObservedAt)
+	admitted, _, err := h.admitCapabilityRequirements(request.GetCapabilityRequirements(), time.Now().UTC())
 	if err != nil {
 		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "pre_create_failed")
-		op.SetErrorStatus("allocation capability gate failed")
 		return nil, fmt.Errorf("verify allocation capabilities before create: %w", err)
 	}
-	if err := controller.CheckWorkspaceAdmission(request); err != nil {
-		return nil, errord.ToGRPC(fmt.Errorf("Workspace admission unavailable: %w", errord.ErrFailedPrecondition))
-	}
-	err = controller.StoreAllocationIntent(request.GetAllocationID(), controlPlaneNodeID, requestDigest, leaseExpiresAt, request.GetResources(), admitted, request.GetDeclaredOutputs(), request.GetRootfsSnapshot(), request.GetWorkspace())
-	if err != nil {
-		op.SetErrorStatus("persist allocation capability requirements failed")
-		return nil, err
-	}
-	resp, err := controller.StartWithLifecycleHeld(ctx, request)
-	if err != nil || resp == nil || resp.GetAllocationID() == "" {
-		if err == nil {
-			if resp == nil {
-				err = fmt.Errorf("allocation start returned no response")
-			} else {
-				err = fmt.Errorf("allocation start returned no allocation identity")
-			}
-		}
-		op.SetErrorStatus("allocation start failed")
-		return resp, errord.ToGRPC(err)
-	}
-	admitted, verification, err = h.verifyPostCreateCapabilityRequirements(ctx, request.GetAllocationID(), request.GetCapabilityRequirements(), time.Now())
-	if err != nil {
-		metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "post_create_failed")
-		err = h.scheduleCapabilityTermination(request.GetAllocationID(), fmt.Errorf("verify allocation capabilities after create: %w", err))
-		op.SetErrorStatus("post-create capability enforcement failed")
-		return nil, err
-	}
-	var conditionSet *capabilityv1.CapabilityConditionSet
-	conditionSet, err = h.allocationController().ReplaceCapabilityConditions(request.GetAllocationID(), verification, time.Now().UTC())
-	if err != nil {
-		return nil, h.scheduleCapabilityTermination(request.GetAllocationID(), fmt.Errorf("build post-create capability conditions: %w", err))
-	}
-	resp.CapabilityVerification = conditionSet
-	h.controlPlaneReports.ReportCapabilityConditions(request.GetAllocationID(), conditionSet)
-	metrics.RecordCapabilityAllocationVerification(config.RuntimeNameRunsc, "verified")
-	return resp, nil
+	return admitted, nil
+}
+
+func (h *sandboxService) ReportCapabilityConditions(id string, set *capabilityv1.CapabilityConditionSet) {
+	h.controlPlaneReports.ReportCapabilityConditions(id, set)
 }
 
 func (h *sandboxService) verifyPreparedAllocationCapabilities(ctx context.Context, request *runtime.StartRequest, handler contract.AllocationRuntime, containerID string) error {
@@ -319,33 +229,34 @@ func (h *sandboxService) verifyRootfsCapabilityRequirements(ctx context.Context,
 	return nil
 }
 
-func (h *sandboxService) verifyPostCreateCapabilityRequirements(ctx context.Context, containerID string, dependencies []*capabilityv1.CapabilityRequirement, now time.Time) ([]*capabilityv1.CapabilityRequirement, []*capabilityv1.CapabilityCondition, error) {
-	admitted, conditions, err := h.admitCapabilityRequirements(dependencies, now)
+func (h *sandboxService) VerifyLaunchRequirements(request *runtime.StartRequest) ([]*capabilityv1.CapabilityCondition, error) {
+	admitted, conditions, err := h.admitCapabilityRequirements(request.GetCapabilityRequirements(), time.Now().UTC())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	byKey := make(map[string]*capabilityv1.CapabilityCondition, len(conditions))
 	for _, condition := range conditions {
 		id, keyErr := capabilitycontract.KeyID(condition.GetKey())
 		if keyErr != nil {
-			return nil, nil, keyErr
+			return nil, keyErr
 		}
 		byKey[id] = condition
 	}
+	containerID := request.GetAllocationID()
 	verifiedManifest := h.allocationController().VerifiedEnforcementManifest(containerID)
 	verifiedByManifest := make(map[string]struct{})
 	if verifiedManifest != nil {
 		verifiedKeys, keyErr := allocation.RequiredEnforcementKeys(verifiedManifest, h.allocationController().CapabilityRequirements(containerID))
 		if keyErr != nil {
-			return nil, nil, fmt.Errorf("derive persisted enforcement verification: %w", keyErr)
+			return nil, fmt.Errorf("derive persisted enforcement verification: %w", keyErr)
 		}
 		for _, key := range verifiedKeys {
 			id, keyErr := capabilitycontract.KeyID(key)
 			if keyErr != nil {
-				return nil, nil, fmt.Errorf("validate persisted enforcement verification: %w", keyErr)
+				return nil, fmt.Errorf("validate persisted enforcement verification: %w", keyErr)
 			}
 			if _, duplicate := verifiedByManifest[id]; duplicate {
-				return nil, nil, fmt.Errorf("persisted enforcement verification contains duplicate capability %q", id)
+				return nil, fmt.Errorf("persisted enforcement verification contains duplicate capability %q", id)
 			}
 			verifiedByManifest[id] = struct{}{}
 		}
@@ -356,10 +267,10 @@ func (h *sandboxService) verifyPostCreateCapabilityRequirements(ctx context.Cont
 		}
 		id, keyErr := capabilitycontract.KeyID(dependency.GetKey())
 		if keyErr != nil {
-			return nil, nil, keyErr
+			return nil, keyErr
 		}
 		if _, ok := verifiedByManifest[id]; !ok {
-			return nil, nil, fmt.Errorf("capability %q has no durable create-before-start verification", id)
+			return nil, fmt.Errorf("capability %q has no durable create-before-start verification", id)
 		}
 		delete(verifiedByManifest, id)
 		if condition := byKey[id]; condition != nil {
@@ -367,9 +278,9 @@ func (h *sandboxService) verifyPostCreateCapabilityRequirements(ctx context.Cont
 		}
 	}
 	if len(verifiedByManifest) != 0 {
-		return nil, nil, fmt.Errorf("enforcement verification contains capabilities outside the immutable requirement set")
+		return nil, fmt.Errorf("enforcement verification contains capabilities outside the immutable requirement set")
 	}
-	return admitted, conditions, nil
+	return conditions, nil
 }
 
 func (h *sandboxService) admitCapabilityRequirements(dependencies []*capabilityv1.CapabilityRequirement, now time.Time) ([]*capabilityv1.CapabilityRequirement, []*capabilityv1.CapabilityCondition, error) {

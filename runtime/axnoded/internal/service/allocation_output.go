@@ -14,11 +14,7 @@ import (
 )
 
 func (h *sandboxService) ReadAllocationOutput(ctx context.Context, id, cursor string) ([]allocationoutput.Chunk, bool, error) {
-	// Hold the lifecycle lock through the bounded read, not merely source selection.
-	// Teardown cannot remove live files between selecting and opening them.
-	unlock := h.allocationController().LockAllocationLifecycle(id)
-	defer unlock()
-	return allocationoutput.NewWithSources(h.allocationOutputSources).Read(ctx, id, cursor)
+	return h.allocationController().ReadOutput(ctx, id, cursor, h.allocationOutputSources)
 }
 
 func (h *sandboxService) SealedOutputManifest(_ context.Context, id string) (allocationoutput.Manifest, error) {

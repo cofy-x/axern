@@ -17,7 +17,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocationoutput"
 	servicenetworking "github.com/cofy-x/axern/runtime/axnoded/internal/service/networking"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/rootfssnapshot"
-	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/workspace"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -91,7 +90,7 @@ type internalConformanceContextKey struct{}
 // The marker cannot cross the lifecycle RPC boundary and therefore cannot be
 // used by a workload to bypass capability admission.
 func (h *Controller) StartInternalConformance(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
-	return h.Start(context.WithValue(ctx, internalConformanceContextKey{}, true), request)
+	return h.startAllocation(context.WithValue(ctx, internalConformanceContextKey{}, true), request)
 }
 
 func IsInternalConformance(ctx context.Context) bool {
@@ -130,47 +129,6 @@ func (c *Controller) notifyInventoryChanged() {
 	}
 }
 
-func (c *Controller) Start(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
-	return c.startAllocation(ctx, request)
-}
-
-// LockAllocationLifecycle serializes the complete lifecycle contract for one
-// allocation. The service facade uses this lock to keep capability admission,
-// runtime creation, post-create verification, replay, and Delete in one lock
-// domain. Callers must release the returned function and must not recursively
-// acquire the same allocation.
-func (c *Controller) LockAllocationLifecycle(allocationID string) func() {
-	return c.allocationLifecycleLocks.Lock(allocationID)
-}
-
-// LockAllocationLifecycleContext joins the same lifecycle lane, but lets
-// detached workers leave on shutdown even while Start is preparing an image.
-func (c *Controller) LockAllocationLifecycleContext(ctx context.Context, allocationID string) (func(), error) {
-	return c.allocationLifecycleLocks.LockContext(ctx, allocationID)
-}
-
-// StartWithLifecycleHeld enters the runtime start workflow while the caller
-// owns LockAllocationLifecycle for this allocation. It exists so the service
-// facade can include its capability gates in the same critical section as the
-// runtime side effects.
-func (c *Controller) StartWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, error) {
-	if err := startplan.ValidateStartRequest(request); err != nil {
-		return startErrorResponse(err.Error()), err
-	}
-	if strings.TrimSpace(request.GetAllocationID()) == "" {
-		return startErrorResponse("allocation id is required"), errord.ErrInvalidArgument
-	}
-	return c.startAllocationWithLifecycleHeld(ctx, request)
-}
-
-// ExistingActiveStartResponseWithLifecycleHeld resolves an idempotent replay
-// while the caller owns LockAllocationLifecycle. The durable capability launch
-// verification is checked by the facade; this method confirms the runtime
-// inventory is still active before that verification is replayed.
-func (c *Controller) ExistingActiveStartResponseWithLifecycleHeld(ctx context.Context, request *runtime.StartRequest) (*runtime.StartResponse, bool, error) {
-	return c.existingActiveStartResponse(ctx, request)
-}
-
 func (c *Controller) Delete(ctx context.Context, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {
 	return c.deleteAllocation(ctx, request)
 }
@@ -205,18 +163,18 @@ func (c *Controller) FailStopWorkload(ctx context.Context, allocationID string) 
 	if strings.TrimSpace(allocationID) == "" {
 		return errord.ErrInvalidArgument
 	}
-	unlockLifecycle, err := c.LockAllocationLifecycleContext(ctx, allocationID)
+	unlockLifecycle, err := c.allocationLifecycleLocks.LockContext(ctx, allocationID)
 	if err != nil {
 		return err
 	}
 	defer unlockLifecycle()
-	return c.FailStopWorkloadWithLifecycleHeld(ctx, allocationID)
+	return c.failStopWorkloadLocked(ctx, allocationID)
 }
 
-// FailStopWorkloadWithLifecycleHeld keeps absence/exit checks and the stop in
+// failStopWorkloadLocked keeps absence/exit checks and the stop in
 // the caller's lifecycle lane. Missing metadata during Start is not proof that
 // a workload has stopped.
-func (c *Controller) FailStopWorkloadWithLifecycleHeld(ctx context.Context, allocationID string) error {
+func (c *Controller) failStopWorkloadLocked(ctx context.Context, allocationID string) error {
 	target, handler, err := c.runtimeHandlerForContainer(allocationID)
 	if errors.Is(err, errord.ErrNotFound) && c.runscHandler != nil {
 		inventory, inventoryErr := c.runscHandler.ListContainers(ctx, contract.HandlerOptions{})
@@ -348,4 +306,23 @@ func (c *Controller) reportStartRunningStatus(containerID string, observedAt tim
 		return
 	}
 	c.reportStatus(containerID, commonv1.AllocationLifecycleState_ALLOCATION_LIFECYCLE_STATE_ACTIVE, nil, true, "", "", observedAt)
+}
+
+// CleanupConformanceRuntime serializes verified runtime-only removal with launch and pause.
+// The caller then uses the ordinary Delete operation to release owned resources.
+func (c *Controller) CleanupConformanceRuntime(ctx context.Context, id string, resolve func(context.Context, string) (contract.HandlerOptions, error)) error {
+	unlock, err := c.allocationLifecycleLocks.LockContext(ctx, id)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	options, err := resolve(ctx, id)
+	if err != nil {
+		return err
+	}
+	options.ForceDelete = true
+	if _, err := c.runscHandler.DeleteContainer(ctx, &runtime.DeleteContainerRequest{ID: id}, options); err != nil {
+		return fmt.Errorf("delete native self-test runtime: %w", err)
+	}
+	return nil
 }

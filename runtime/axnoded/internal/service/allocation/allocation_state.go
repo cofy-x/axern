@@ -287,12 +287,12 @@ func (h *Controller) ExpiredExecutionLeaseAllocationIDs(now time.Time) []string 
 // control-plane owned, while this record survives a node crash between deciding
 // to fail closed and observing the runtime exit.
 func (h *Controller) MarkTerminationIntent(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
-	unlock := h.LockAllocationLifecycle(allocationID)
+	unlock := h.allocationLifecycleLocks.Lock(allocationID)
 	defer unlock()
-	return h.MarkTerminationIntentWithLifecycleHeld(allocationID, diagnosticCode, message)
+	return h.markTerminationIntentWithLifecycleHeld(allocationID, diagnosticCode, message)
 }
 
-func (h *Controller) MarkTerminationIntentWithLifecycleHeld(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
+func (h *Controller) markTerminationIntentWithLifecycleHeld(allocationID string, diagnosticCode commonv1.WorkloadDiagnosticCode, message string) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || diagnosticCode == commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED {
 		return errors.New("allocation id and termination diagnostic code are required")
@@ -310,10 +310,10 @@ func (h *Controller) MarkTerminationIntentWithLifecycleHeld(allocationID string,
 	return h.markTerminationIntentLocked(desired, diagnosticCode, message)
 }
 
-// MarkExpiredExecutionLeaseWithLifecycleHeld rechecks the selected lease and
+// markExpiredExecutionLeaseLocked rechecks the selected lease and
 // records termination in one record mutation. A renewal received while the
 // watchdog waited behind Start cannot be overwritten by its old expiry list.
-func (h *Controller) MarkExpiredExecutionLeaseWithLifecycleHeld(allocationID string, now time.Time) (bool, error) {
+func (h *Controller) markExpiredExecutionLeaseLocked(allocationID string, now time.Time) (bool, error) {
 	unlock := h.recordMutationLocks.Lock(allocationID)
 	defer unlock()
 	h.stateMu.RLock()
@@ -563,15 +563,15 @@ func (h *Controller) AckCapabilityReconcile(allocationID string, processedSequen
 // before the caller returns an enforcement failure. It aggregates repeated
 // safety failures; resource cleanup still belongs to the control-plane Delete.
 func (h *Controller) BeginCapabilityTermination(allocationID string, cause error) error {
-	unlock := h.LockAllocationLifecycle(allocationID)
+	unlock := h.allocationLifecycleLocks.Lock(allocationID)
 	defer unlock()
-	return h.BeginCapabilityTerminationWithLifecycleHeld(allocationID, cause)
+	return h.beginCapabilityTerminationLocked(allocationID, cause)
 }
 
-// BeginCapabilityTerminationWithLifecycleHeld is used by the start gates and
+// beginCapabilityTerminationLocked is used by the start gates and
 // reconciler inside their existing lifecycle lane. cause must be a safe
 // capability/reason diagnosis, never a raw verifier error with destinations.
-func (h *Controller) BeginCapabilityTerminationWithLifecycleHeld(allocationID string, cause error) error {
+func (h *Controller) beginCapabilityTerminationLocked(allocationID string, cause error) error {
 	allocationID = strings.TrimSpace(allocationID)
 	if allocationID == "" || cause == nil {
 		return errors.New("allocation id and capability termination cause are required")

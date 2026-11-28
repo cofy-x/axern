@@ -42,7 +42,7 @@ func TestGuestProcessProfileVerifiedRequiresPostStartObservation(t *testing.T) {
 	require.False(t, fixture.controller.GuestProcessProfileVerified(id), "desired pre-start policy is not an observed guest Ready fact")
 	require.False(t, readGuestProfileRecord(t, store, id).GetGuestProcessProfileVerified())
 
-	unlock := fixture.controller.LockAllocationLifecycle(id)
+	unlock := fixture.controller.allocationLifecycleLocks.Lock(id)
 	err := fixture.controller.StoreGuestProcessProfileVerified(id, manifest)
 	unlock()
 	require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestGuestProcessProfileVerifiedRejectsUnobservedAuthority(t *testing.T) {
 				manifest = nil
 			}
 			before := readGuestProfileRecord(t, store, id)
-			unlock := fixture.controller.LockAllocationLifecycle(id)
+			unlock := fixture.controller.allocationLifecycleLocks.Lock(id)
 			err := fixture.controller.StoreGuestProcessProfileVerified(id, manifest)
 			unlock()
 			require.Error(t, err)
@@ -122,7 +122,7 @@ func TestGuestProcessProfileVerifiedPersistenceFailureKeepsPriorState(t *testing
 	const id = "alloc-profile-persist-error"
 	manifest := prepareGuestProfileRecord(t, fixture.controller, id)
 	before := readGuestProfileRecord(t, store, id)
-	unlock := fixture.controller.LockAllocationLifecycle(id)
+	unlock := fixture.controller.allocationLifecycleLocks.Lock(id)
 	err := fixture.controller.StoreGuestProcessProfileVerified(id, manifest)
 	unlock()
 	require.ErrorIs(t, err, store.err)
@@ -180,7 +180,7 @@ func TestGuestProcessProfileVerifiedFollowsSuccessfulRuntimeStart(t *testing.T) 
 				require.False(t, readGuestProfileRecord(t, store, id).GetGuestProcessProfileVerified())
 				require.Equal(t, wire.ProcessSecurityProfile, options.EnforcementManifest.GetProcessSecurityProfile())
 			}
-			_, err := fixture.controller.Start(t.Context(), &apipb.StartRequest{AllocationID: id, Environment: testResolvedEnvironment(t, "environment-profile-start")})
+			_, err := fixture.controller.startAllocation(t.Context(), &apipb.StartRequest{AllocationID: id, Environment: testResolvedEnvironment(t, "environment-profile-start")})
 			require.Equal(t, 1, startCalls)
 			if startSucceeds {
 				require.NoError(t, err)

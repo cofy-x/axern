@@ -13,6 +13,7 @@ import (
 	capabilitymanager "github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
@@ -162,8 +163,8 @@ func TestCapabilityFailStopCannotAcknowledgeBehindActivationFence(t *testing.T) 
 	now := time.Now().UTC()
 	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", now.Add(time.Minute), nil, nil, nil, nil, nil))
 	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, nil, now))
-	unlock := service.allocations.LockAllocationLifecycle(id)
-	require.NoError(t, service.allocations.BeginCapabilityTerminationWithLifecycleHeld(id, errors.New("test enforcement loss")))
+	require.NoError(t, service.allocations.BeginCapabilityTermination(id, errors.New("test enforcement loss")))
+	unlock := holdCapabilityReview(t, service, id, nil)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	// Cancellation bounds a worker behind the lane still owned by Start.
@@ -202,9 +203,7 @@ func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) 
 	require.NoError(t, service.allocations.MergeCapabilityReconcile(id))
 	sequence := service.allocations.CapabilityReconcileState(id).GetPendingIntentSequence()
 
-	unlock := service.allocations.LockAllocationLifecycle(id)
-	var unlockOnce sync.Once
-	release := func() { unlockOnce.Do(unlock) }
+	release := holdCapabilityReview(t, service, id, errors.New("independent lifecycle query detected enforcement loss"))
 	ctx, cancel := context.WithCancel(t.Context())
 	queued := &capabilityAckWaitContext{Context: ctx, waiting: make(chan struct{})}
 	ack := make(chan error, 1)
@@ -216,7 +215,7 @@ func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) 
 	})
 	go func() {
 		defer close(ackFinished)
-		ack <- service.ackCapabilityEvaluation(queued, id, sequence)
+		ack <- service.allocations.AcknowledgeCapabilityEvaluation(queued, id, sequence)
 	}()
 	// The old healthy audit's acknowledgement has entered its lane wait. An
 	// independent lifecycle query commits enforcement loss before that wait is
@@ -228,16 +227,15 @@ func TestCapabilityEvaluationAckCannotClearIndependentTermination(t *testing.T) 
 	case <-t.Context().Done():
 		t.Fatal("test cancelled before evaluation acknowledgement queued")
 	}
-	require.NoError(t, service.allocations.BeginCapabilityTerminationWithLifecycleHeld(id, errors.New("independent lifecycle query detected enforcement loss")))
+	release()
 	termination := service.allocations.CapabilityReconcileState(id)
 	require.True(t, termination.GetTerminating())
-	release()
 	require.NoError(t, <-ack)
 	require.Equal(t, termination, service.allocations.CapabilityReconcileState(id), "old evaluation erased independently committed fail-stop work")
 
 	// Consume the surviving intent through the real worker. It must stop only
 	// the supervised workload and retain the authoritative final Delete barrier.
-	service.startCapabilityReconcileWorker(id)
+	service.WakeCapabilityReconcile(id)
 	service.capabilityReconcileWG.Wait()
 	require.Equal(t, 1, handler.stopCalls)
 	require.Zero(t, handler.deleteCalls)
@@ -259,7 +257,7 @@ func TestCapabilityEvaluationAckCancellationPreservesIntent(t *testing.T) {
 	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: now.UnixNano()}, nil, now))
 	require.NoError(t, service.allocations.MergeCapabilityReconcile(id))
 	pending := service.allocations.CapabilityReconcileState(id)
-	unlock := service.allocations.LockAllocationLifecycle(id)
+	unlock := holdCapabilityReview(t, service, id, nil)
 	ctx, cancel := context.WithCancel(t.Context())
 	queued := &capabilityAckWaitContext{Context: ctx, waiting: make(chan struct{})}
 	ack := make(chan error, 1)
@@ -271,7 +269,7 @@ func TestCapabilityEvaluationAckCancellationPreservesIntent(t *testing.T) {
 	})
 	go func() {
 		defer close(ackFinished)
-		ack <- service.ackCapabilityEvaluation(queued, id, pending.GetPendingIntentSequence())
+		ack <- service.allocations.AcknowledgeCapabilityEvaluation(queued, id, pending.GetPendingIntentSequence())
 	}()
 	select {
 	case <-queued.waiting:
@@ -398,4 +396,28 @@ func TestCapabilityReconcileDoesNotFailStopWorkloadCompletedDuringVerification(t
 	require.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, code)
 	require.Nil(t, service.allocations.CapabilityReconcileState(id))
 	require.Zero(t, handler.stopCalls)
+}
+
+// holdCapabilityReview lets a competing lifecycle operation queue before the review completes.
+func holdCapabilityReview(t *testing.T, svc *sandboxService, id string, loss error) func() {
+	t.Helper()
+	entered, release := make(chan struct{}), make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		_, err := svc.allocationController().ReviewCapabilities(t.Context(), id, func(context.Context, string) (allocation.CapabilityReview, error) {
+			close(entered)
+			<-release
+			return allocation.CapabilityReview{EnforcementLoss: loss}, nil
+		}, func(string) {})
+		done <- err
+	}()
+	<-entered
+	finish := sync.OnceFunc(func() {
+		close(release)
+		if err := <-done; err != nil {
+			t.Errorf("complete capability review: %v", err)
+		}
+	})
+	t.Cleanup(finish)
+	return finish
 }

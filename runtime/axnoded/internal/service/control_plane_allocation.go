@@ -19,7 +19,7 @@ func (h *sandboxService) StartControlPlaneAllocation(ctx context.Context, nodeID
 	if nodeID == "" {
 		return nil, fmt.Errorf("control-plane allocation node id is required")
 	}
-	return h.start(ctx, request, nodeID)
+	return h.allocationController().Launch(ctx, request, nodeID, h)
 }
 
 func (h *sandboxService) DeleteControlPlaneAllocation(ctx context.Context, nodeID string, request *runtime.DeleteRequest) (*runtime.DeleteResponse, error) {

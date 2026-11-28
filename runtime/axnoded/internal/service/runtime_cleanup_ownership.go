@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 
-	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	resourcemanager "github.com/cofy-x/axern/runtime/axnoded/internal/resources"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
@@ -69,18 +68,5 @@ func (h *sandboxService) runtimeCleanupOptions(ctx context.Context, id string) (
 // Serialize the runtime-only phase with start and graceful pause. Release this
 // lane before Controller.Delete performs its own ordered, idempotent cleanup.
 func (h *sandboxService) cleanupNativeConformanceRuntime(ctx context.Context, id string) error {
-	unlock, err := h.allocationController().LockAllocationLifecycleContext(ctx, id)
-	if err != nil {
-		return err
-	}
-	defer unlock()
-	options, err := h.runtimeCleanupOptions(ctx, id)
-	if err != nil {
-		return err
-	}
-	options.ForceDelete = true
-	if _, err := h.runscHandler.DeleteContainer(ctx, &apipb.DeleteContainerRequest{ID: id}, options); err != nil {
-		return fmt.Errorf("delete native self-test runtime: %w", err)
-	}
-	return nil
+	return h.allocationController().CleanupConformanceRuntime(ctx, id, h.runtimeCleanupOptions)
 }

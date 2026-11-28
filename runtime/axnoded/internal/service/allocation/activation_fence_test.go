@@ -89,11 +89,11 @@ func TestStartAllocationRejectsTerminationIntentBeforeSideEffects(t *testing.T) 
 			request := &apipb.StartRequest{AllocationID: allocationID, Environment: testResolvedEnvironment(t, "environment-terminated-before-create")}
 			var err error
 			if lifecycleHeld {
-				unlock := fixture.controller.LockAllocationLifecycle(allocationID)
+				unlock := fixture.controller.allocationLifecycleLocks.Lock(allocationID)
 				defer unlock()
-				_, err = fixture.controller.StartWithLifecycleHeld(t.Context(), request)
+				_, err = fixture.controller.startAllocationWithLifecycleHeld(t.Context(), request)
 			} else {
-				_, err = fixture.controller.Start(t.Context(), request)
+				_, err = fixture.controller.startAllocation(t.Context(), request)
 			}
 			require.Error(t, err)
 			require.Zero(t, handler.createCalls)
@@ -123,11 +123,11 @@ func TestActiveAllocationReplayRejectsTerminationIntent(t *testing.T) {
 	}))
 	require.NoError(t, fixture.controller.MarkTerminationIntent(allocationID, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST, "allocation capability enforcement was lost"))
 	request := &apipb.StartRequest{AllocationID: allocationID, Environment: testResolvedEnvironment(t, "environment-terminated-replay")}
-	unlock := fixture.controller.LockAllocationLifecycle(allocationID)
+	unlock := fixture.controller.allocationLifecycleLocks.Lock(allocationID)
 	defer unlock()
-	_, _, err = fixture.controller.ExistingActiveStartResponseWithLifecycleHeld(t.Context(), request)
+	_, _, err = fixture.controller.existingActiveStartResponse(t.Context(), request)
 	require.Error(t, err, "a runtime projection cannot reactivate a terminated Allocation")
-	_, err = fixture.controller.StartWithLifecycleHeld(t.Context(), request)
+	_, err = fixture.controller.startAllocationWithLifecycleHeld(t.Context(), request)
 	require.Error(t, err)
 	require.Zero(t, handler.createCalls)
 }
@@ -146,14 +146,14 @@ func (c *observedWaitContext) Done() <-chan struct{} {
 func TestAllocationLifecycleLockWaitIsContextCancelable(t *testing.T) {
 	fixture := newTestAllocationController(t, &runtimeSpyHandler{name: "runsc"})
 	const allocationID = "alloc-cancel-lifecycle-wait"
-	unlock := fixture.controller.LockAllocationLifecycle(allocationID)
+	unlock := fixture.controller.allocationLifecycleLocks.Lock(allocationID)
 	defer unlock()
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 	queued := &observedWaitContext{Context: ctx, waiting: make(chan struct{})}
 	done := make(chan error, 1)
 	go func() {
-		release, err := fixture.controller.LockAllocationLifecycleContext(queued, allocationID)
+		release, err := fixture.controller.allocationLifecycleLocks.LockContext(queued, allocationID)
 		if err == nil {
 			release()
 		}
@@ -189,9 +189,9 @@ func TestAllocationActivationRejectsTerminationPersistedInsideGate(t *testing.T)
 	const allocationID = "alloc-terminated-before-activation"
 	require.NoError(t, fixture.controller.StoreAllocationIntent(allocationID, "node-a", activationFenceDigest, time.Now().Add(time.Minute), nil, nil, nil, nil, nil))
 	fixture.controller.preActivationCapabilityGate = func(_ context.Context, _ *apipb.StartRequest, _ contract.AllocationRuntime, id string) error {
-		return fixture.controller.MarkTerminationIntentWithLifecycleHeld(id, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired")
+		return fixture.controller.markTerminationIntentWithLifecycleHeld(id, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_EXECUTION_LEASE_EXPIRED, "execution authority expired")
 	}
-	_, err := fixture.controller.Start(t.Context(), &apipb.StartRequest{AllocationID: allocationID, Environment: testResolvedEnvironment(t, "environment-terminated-at-activation")})
+	_, err := fixture.controller.startAllocation(t.Context(), &apipb.StartRequest{AllocationID: allocationID, Environment: testResolvedEnvironment(t, "environment-terminated-at-activation")})
 	require.Error(t, err)
 	require.Equal(t, 1, handler.createCalls, "test did not reach the real preactivation gate")
 	require.Zero(t, handler.activations, "termination was ignored between preparation and activation")
@@ -207,14 +207,14 @@ func TestExpirySelectionRechecksRenewalBeforeRecordingTermination(t *testing.T) 
 	// An already received grant wins the record transaction before the
 	// watchdog acquires the lifecycle lane. Its earlier selection is stale.
 	require.NoError(t, fixture.controller.RenewExecutionLeases(map[string]time.Duration{id: 3 * time.Minute}, now.Add(30*time.Second)))
-	unlock := fixture.controller.LockAllocationLifecycle(id)
+	unlock := fixture.controller.allocationLifecycleLocks.Lock(id)
 	defer unlock()
-	expired, err := fixture.controller.MarkExpiredExecutionLeaseWithLifecycleHeld(id, selectedAt)
+	expired, err := fixture.controller.markExpiredExecutionLeaseLocked(id, selectedAt)
 	require.NoError(t, err)
 	require.False(t, expired)
 	code, _ := fixture.controller.TerminationIntent(id)
 	require.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_UNSPECIFIED, code)
-	expired, err = fixture.controller.MarkExpiredExecutionLeaseWithLifecycleHeld(id, now.Add(4*time.Minute))
+	expired, err = fixture.controller.markExpiredExecutionLeaseLocked(id, now.Add(4*time.Minute))
 	require.NoError(t, err)
 	require.True(t, expired)
 	code, _ = fixture.controller.TerminationIntent(id)
