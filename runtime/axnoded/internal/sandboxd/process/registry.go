@@ -50,9 +50,25 @@ func (r *Registry) Status(id string) (Status, bool) {
 }
 
 func (r *Registry) List() ListResponse {
+	return r.list(false)
+}
+
+func (r *Registry) ListBackground() ListResponse {
+	return r.list(true)
+}
+
+func (r *Registry) list(backgroundOnly bool) ListResponse {
 	processes := r.snapshotProcesses()
 	statuses := make([]Status, 0, len(processes))
 	for _, managed := range processes {
+		if backgroundOnly {
+			managed.mu.RLock()
+			background := managed.status.Background
+			managed.mu.RUnlock()
+			if !background {
+				continue
+			}
+		}
 		statuses = append(statuses, managed.snapshot())
 	}
 	sort.Slice(statuses, func(i, j int) bool {

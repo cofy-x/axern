@@ -11,7 +11,7 @@ import (
 )
 
 func (r *RunscServiceHandler) PreviewHTTP(ctx context.Context, allocationID string, request wire.HTTPPreviewRequest) (wire.HTTPPreviewResponse, error) {
-	if !validPersistentContainerID(allocationID) {
+	if !validPersistentContainerID(allocationID) || allocationID == ".." {
 		return wire.HTTPPreviewResponse{}, errord.ErrInvalidArgument
 	}
 	path := runtimeoci.SandboxdBundleSocketPath(filepath.Join(r.common.ContainerRoot(), allocationID))

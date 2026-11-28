@@ -84,6 +84,7 @@ These facts exist only under their owner and cannot become independent public wo
 | Resource charge | Allocation | Committed CPU, memory, storage, and runtime-slot accounting |
 | `ExecutionLease` | Allocation | Finite permission for the bound Node to keep executing |
 | `AllocationAccessGrant` | Allocation | Finite purpose-scoped data-plane authority |
+| Background process | Allocation | Finite process execution with an inspectable node-local receipt |
 | `TunnelSession` | Allocation | Revocable reverse-TCP session and relay convergence |
 | `CapabilityRequirement` | Allocation | Immutable required capability and loss policy |
 | `CapabilityCondition` | Allocation | Rebuildable current enforcement diagnosis |
@@ -99,6 +100,12 @@ BOUND -> STARTING -> ACTIVE -> RELEASING -> RELEASED
 ```
 
 Allocation owns binding, infrastructure convergence, and resource charge, but not the Run request or public result. Resource charge remains until confirmed cleanup reaches `RELEASED`; a terminal Run or failed delete RPC is not evidence that resources are free. Runtime, cgroup, egress, SSH, Tunnel, and cleanup all use the same Allocation ID.
+
+### Background Process
+
+An authorized caller can start an unattended command with a timeout from 1 through 3600 seconds. Its identity is the pair of Allocation ID and process ID. It runs inside the existing sandbox and shares that Allocation's resource and process ceilings. The process outlives the request and client connection. Cancel confirms termination of the owned process group, and Allocation teardown remains the cleanup boundary for all guest processes.
+
+List and inspect return node-local status and exit receipts while the Allocation is active. Receipts share sandboxd's bounded history of 256 completed processes. The process starts with closed input and uncaptured output. To preserve result bytes, write explicitly to a Workspace or use the Run output contract. Each accepted start is an independent mutation. After a lost response, inspect the Allocation's existing processes using the optional caller reference before choosing another start. Idle clients do not extend the process or Allocation lifetime.
 
 ### ExecutionLease And AllocationAccessGrant
 

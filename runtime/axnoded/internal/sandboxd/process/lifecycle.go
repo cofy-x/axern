@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/proc"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
 )
 
 func (r *Registry) Start(request StartRequest) (Status, error) {
@@ -23,14 +24,20 @@ func (r *Registry) Start(request StartRequest) (Status, error) {
 	if len(request.Args) == 0 {
 		return Status{}, fmt.Errorf("process args must not be empty")
 	}
+	if request.Background && (request.Terminal || request.OpenStdin || request.Stdin != "" || request.StreamOutput || request.CaptureOutput ||
+		request.TimeoutMs < 1000 || request.TimeoutMs > 1000*wire.MaxBackgroundProcessSeconds || !wire.ValidBackgroundProcessRef(request.CallerRef)) {
+		return Status{}, fmt.Errorf("background processes require closed streams, a bounded timeout and a valid caller reference")
+	}
 	id := "proc-" + strconv.FormatUint(atomic.AddUint64(&r.nextID, 1), 10)
 	now := time.Now().UTC()
 	managed := &managedProcess{
 		waiter: r.waiter,
 		status: Status{
-			ID:        id,
-			State:     ProcessStateStarting,
-			StartedAt: &now,
+			ID:         id,
+			State:      ProcessStateStarting,
+			StartedAt:  &now,
+			Background: request.Background,
+			CallerRef:  request.CallerRef,
 		},
 		terminal: request.Terminal,
 		done:     make(chan struct{}),

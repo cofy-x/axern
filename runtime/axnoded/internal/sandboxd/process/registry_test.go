@@ -72,6 +72,36 @@ func TestRegistryStartPublishesRunningProcess(t *testing.T) {
 	}
 }
 
+func TestBackgroundReceiptsSurviveAWaiterAndKeepTheirTimeout(t *testing.T) {
+	waiter := proc.NewWaiter(t.Context())
+	defer waiter.Stop()
+	registry := NewRegistry(waiter, nil, "")
+	if _, err := registry.Start(StartRequest{Args: []string{"/bin/true"}}); err != nil {
+		t.Fatal(err)
+	}
+	started, err := registry.Start(StartRequest{
+		Args: []string{"/bin/sh", "-c", "exec sleep 60"}, Background: true, CallerRef: "test-background", TimeoutMs: 1000,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	wait, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, ok, err := registry.Wait(wait, started.ID); !ok || !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled waiter changed process lookup: found %v, error %v", ok, err)
+	}
+	processes := registry.ListBackground().Processes
+	if len(processes) != 1 || processes[0].ID != started.ID || processes[0].CallerRef != "test-background" {
+		t.Fatalf("background list lost exact status: %+v", processes)
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ended, ok, err := registry.Wait(ctx, started.ID)
+	if err != nil || !ok || ended.ExitCode == nil || *ended.ExitCode != 137 {
+		t.Fatalf("expected background timeout exit: %+v, found %v, error %v", ended, ok, err)
+	}
+}
+
 func TestRegistryCaptureOutputSeparatesStdoutAndStderr(t *testing.T) {
 	waiter := proc.NewWaiter(context.Background())
 	defer waiter.Stop()

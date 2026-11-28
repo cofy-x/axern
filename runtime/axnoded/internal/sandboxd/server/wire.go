@@ -173,6 +173,8 @@ func wireProcessStatus(status process.Status) wire.ProcessStatus {
 		Stderr:          status.Stderr,
 		StdoutTruncated: status.StdoutTruncated,
 		StderrTruncated: status.StderrTruncated,
+		Background:      status.Background,
+		CallerRef:       status.CallerRef,
 	}
 }
 

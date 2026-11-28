@@ -26,6 +26,14 @@ class SealedOutputStatus(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
     SEALED_OUTPUT_STATUS_REJECTED: _ClassVar[SealedOutputStatus]
     SEALED_OUTPUT_STATUS_CAPTURE_FAILED: _ClassVar[SealedOutputStatus]
     SEALED_OUTPUT_STATUS_NODE_UNAVAILABLE: _ClassVar[SealedOutputStatus]
+
+class BackgroundProcessState(int, metaclass=_enum_type_wrapper.EnumTypeWrapper):
+    __slots__ = ()
+    BACKGROUND_PROCESS_STATE_UNSPECIFIED: _ClassVar[BackgroundProcessState]
+    BACKGROUND_PROCESS_STATE_STARTING: _ClassVar[BackgroundProcessState]
+    BACKGROUND_PROCESS_STATE_RUNNING: _ClassVar[BackgroundProcessState]
+    BACKGROUND_PROCESS_STATE_EXITED: _ClassVar[BackgroundProcessState]
+    BACKGROUND_PROCESS_STATE_FAILED: _ClassVar[BackgroundProcessState]
 OUTPUT_STREAM_UNSPECIFIED: OutputStream
 OUTPUT_STREAM_STDOUT: OutputStream
 OUTPUT_STREAM_STDERR: OutputStream
@@ -35,6 +43,11 @@ SEALED_OUTPUT_STATUS_MISSING: SealedOutputStatus
 SEALED_OUTPUT_STATUS_REJECTED: SealedOutputStatus
 SEALED_OUTPUT_STATUS_CAPTURE_FAILED: SealedOutputStatus
 SEALED_OUTPUT_STATUS_NODE_UNAVAILABLE: SealedOutputStatus
+BACKGROUND_PROCESS_STATE_UNSPECIFIED: BackgroundProcessState
+BACKGROUND_PROCESS_STATE_STARTING: BackgroundProcessState
+BACKGROUND_PROCESS_STATE_RUNNING: BackgroundProcessState
+BACKGROUND_PROCESS_STATE_EXITED: BackgroundProcessState
+BACKGROUND_PROCESS_STATE_FAILED: BackgroundProcessState
 
 class ExecSpec(_message.Message):
     __slots__ = ("argv", "env", "cwd", "timeout_seconds", "tty", "user")
@@ -650,3 +663,75 @@ class PreviewHTTPResponse(_message.Message):
     body: bytes
     location: str
     def __init__(self, status: _Optional[int] = ..., content_type: _Optional[str] = ..., body: _Optional[bytes] = ..., location: _Optional[str] = ...) -> None: ...
+
+class BackgroundProcess(_message.Message):
+    __slots__ = ("process_id", "state", "exit_code", "started_at", "finished_at", "caller_ref")
+    PROCESS_ID_FIELD_NUMBER: _ClassVar[int]
+    STATE_FIELD_NUMBER: _ClassVar[int]
+    EXIT_CODE_FIELD_NUMBER: _ClassVar[int]
+    STARTED_AT_FIELD_NUMBER: _ClassVar[int]
+    FINISHED_AT_FIELD_NUMBER: _ClassVar[int]
+    CALLER_REF_FIELD_NUMBER: _ClassVar[int]
+    process_id: str
+    state: BackgroundProcessState
+    exit_code: int
+    started_at: _timestamp_pb2.Timestamp
+    finished_at: _timestamp_pb2.Timestamp
+    caller_ref: str
+    def __init__(self, process_id: _Optional[str] = ..., state: _Optional[_Union[BackgroundProcessState, str]] = ..., exit_code: _Optional[int] = ..., started_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., finished_at: _Optional[_Union[datetime.datetime, _timestamp_pb2.Timestamp, _Mapping]] = ..., caller_ref: _Optional[str] = ...) -> None: ...
+
+class StartBackgroundProcessRequest(_message.Message):
+    __slots__ = ("allocation_id", "spec", "caller_ref")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    SPEC_FIELD_NUMBER: _ClassVar[int]
+    CALLER_REF_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    spec: ExecSpec
+    caller_ref: str
+    def __init__(self, allocation_id: _Optional[str] = ..., spec: _Optional[_Union[ExecSpec, _Mapping]] = ..., caller_ref: _Optional[str] = ...) -> None: ...
+
+class StartBackgroundProcessResponse(_message.Message):
+    __slots__ = ("process",)
+    PROCESS_FIELD_NUMBER: _ClassVar[int]
+    process: BackgroundProcess
+    def __init__(self, process: _Optional[_Union[BackgroundProcess, _Mapping]] = ...) -> None: ...
+
+class GetBackgroundProcessRequest(_message.Message):
+    __slots__ = ("allocation_id", "process_id")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_ID_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    process_id: str
+    def __init__(self, allocation_id: _Optional[str] = ..., process_id: _Optional[str] = ...) -> None: ...
+
+class GetBackgroundProcessResponse(_message.Message):
+    __slots__ = ("process",)
+    PROCESS_FIELD_NUMBER: _ClassVar[int]
+    process: BackgroundProcess
+    def __init__(self, process: _Optional[_Union[BackgroundProcess, _Mapping]] = ...) -> None: ...
+
+class ListBackgroundProcessesRequest(_message.Message):
+    __slots__ = ("allocation_id",)
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    def __init__(self, allocation_id: _Optional[str] = ...) -> None: ...
+
+class ListBackgroundProcessesResponse(_message.Message):
+    __slots__ = ("processes",)
+    PROCESSES_FIELD_NUMBER: _ClassVar[int]
+    processes: _containers.RepeatedCompositeFieldContainer[BackgroundProcess]
+    def __init__(self, processes: _Optional[_Iterable[_Union[BackgroundProcess, _Mapping]]] = ...) -> None: ...
+
+class CancelBackgroundProcessRequest(_message.Message):
+    __slots__ = ("allocation_id", "process_id")
+    ALLOCATION_ID_FIELD_NUMBER: _ClassVar[int]
+    PROCESS_ID_FIELD_NUMBER: _ClassVar[int]
+    allocation_id: str
+    process_id: str
+    def __init__(self, allocation_id: _Optional[str] = ..., process_id: _Optional[str] = ...) -> None: ...
+
+class CancelBackgroundProcessResponse(_message.Message):
+    __slots__ = ("process",)
+    PROCESS_FIELD_NUMBER: _ClassVar[int]
+    process: BackgroundProcess
+    def __init__(self, process: _Optional[_Union[BackgroundProcess, _Mapping]] = ...) -> None: ...

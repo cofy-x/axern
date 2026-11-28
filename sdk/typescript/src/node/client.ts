@@ -34,6 +34,7 @@ import { uploadArchive, downloadArchive } from "./archive.js";
 import { capabilityStatus } from "./capabilities.js";
 import * as computerUse from "./computer_use.js";
 import { process as startProcess } from "./attached_process.js";
+import * as background from "./background.js";
 import { NodeClientContext } from "./context.js";
 import { exec } from "./exec.js";
 import * as files from "./files.js";
@@ -63,8 +64,21 @@ export class AllocationClient {
   async process(command: Command, options: ProcessOptions = {}): Promise<SandboxProcess> {
     return startProcess(this.ctx, command, options);
   }
+  async startBackgroundProcess(command: Command, options: background.BackgroundProcessOptions): Promise<background.BackgroundProcess> {
+    return background.startBackground(this.ctx, command, options);
+  }
 
+  async getBackgroundProcess(processId: string, options: NodeCallOptions = {}): Promise<background.BackgroundProcess> {
+    return background.getBackground(this.ctx, processId, options);
+  }
 
+  async listBackgroundProcesses(options: NodeCallOptions = {}): Promise<background.BackgroundProcess[]> {
+    return background.listBackground(this.ctx, options);
+  }
+
+  async cancelBackgroundProcess(processId: string, options: NodeCallOptions = {}): Promise<background.BackgroundProcess> {
+    return background.cancelBackground(this.ctx, processId, options);
+  }
 
   async capabilityStatus(options: NodeCallOptions = {}): Promise<CapabilityStatus> {
     return capabilityStatus(this.ctx, options);
