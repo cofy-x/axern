@@ -104,8 +104,12 @@ test("partial cleanup keeps the original Run available to an explicit close", as
   } as unknown as AxernClient;
   const sandbox = new Sandbox({ client, image: "python" });
   await sandbox.start();
-  await assert.rejects(sandbox.close(), AggregateError);
+  const closing = sandbox.close();
+  const failedCleanup = assert.rejects(closing, AggregateError);
   assert.throws(() => sandbox.state, /not started/);
+  assert.throws(() => sandbox.metadata, /not started/);
+  await assert.rejects(sandbox.exec("true"), /not started/);
+  await failedCleanup;
   await assert.rejects(sandbox.start(), /cleanup is pending/);
   await Promise.all([sandbox.close(), sandbox.close()]);
   assert.deepEqual(calls, [

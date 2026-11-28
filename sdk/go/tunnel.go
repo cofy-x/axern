@@ -58,8 +58,6 @@ type SandboxTunnel struct {
 
 // OpenTunnel exposes a local upstream to the sandbox.
 func (s *Sandbox) OpenTunnel(ctx context.Context, options TunnelOptions) (*SandboxTunnel, error) {
-	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
 	state, err := s.State()
 	if err != nil {
 		return nil, err
@@ -154,10 +152,11 @@ func (s *Sandbox) OpenTunnel(ctx context.Context, options TunnelOptions) (*Sandb
 		_ = tunnel.Close(cleanupCtx)
 		return nil, fmt.Errorf("tunnel session %s has no bound address", tunnel.SessionID())
 	}
-	s.registerTunnel(tunnel)
-	state.TunnelSessionID = tunnel.SessionID()
-	state.BoundAddr = tunnel.BoundAddr()
-	s.state.Store(&state)
+	if !s.registerTunnel(state.AllocationID, tunnel) {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		return nil, errors.Join(ErrSandboxNotStarted, tunnel.Close(cleanupCtx))
+	}
 	return tunnel, nil
 }
 

@@ -74,8 +74,6 @@ type sandboxProcessClient interface {
 
 // Process starts an attached process in the sandbox.
 func (s *Sandbox) Process(ctx context.Context, command any, options ProcessOptions) (*SandboxProcess, error) {
-	s.lifecycleMu.RLock()
-	defer s.lifecycleMu.RUnlock()
 	node, err := s.nodeClient()
 	if err != nil {
 		return nil, err
@@ -85,7 +83,9 @@ func (s *Sandbox) Process(ctx context.Context, command any, options ProcessOptio
 		return nil, err
 	}
 	process.sandbox = s
-	s.registerProcess(process)
+	if !s.registerProcess(node.allocationID, process) {
+		return nil, errors.Join(ErrSandboxNotStarted, process.Close())
+	}
 	return process, nil
 }
 

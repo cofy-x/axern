@@ -87,6 +87,7 @@ export class Sandbox {
   private readonly client: AxernClient;
   private readonly options: SandboxOptions;
   private lifecycle: Promise<void> = Promise.resolve();
+  private pendingCloses = 0;
   private ownedEnvironmentId = "";
   private runId = "";
   private currentState?: SandboxState;
@@ -100,14 +101,14 @@ export class Sandbox {
   }
 
   get state(): SandboxState {
-    if (this.currentState === undefined) {
+    if (this.pendingCloses > 0 || this.currentState === undefined) {
       throw new SandboxStateError("sandbox is not started");
     }
     return this.currentState;
   }
 
   get metadata(): SandboxMetadata {
-    if (this.currentMetadata === undefined) {
+    if (this.pendingCloses > 0 || this.currentMetadata === undefined) {
       throw new SandboxStateError("sandbox is not started");
     }
     return this.currentMetadata;
@@ -201,7 +202,14 @@ export class Sandbox {
   }
 
   close(): Promise<void> {
-    return this.serializeLifecycle(() => this.closeSandbox());
+    this.pendingCloses++;
+    return this.serializeLifecycle(async () => {
+      try {
+        await this.closeSandbox();
+      } finally {
+        this.pendingCloses--;
+      }
+    });
   }
 
   private async closeSandbox(): Promise<void> {
@@ -341,10 +349,7 @@ export class Sandbox {
   }
 
   private nodeClient(): AllocationClient {
-    if (this.currentState === undefined) {
-      throw new SandboxStateError("sandbox is not started");
-    }
-    return this.client.allocation(this.currentState.allocationId);
+    return this.client.allocation(this.state.allocationId);
   }
 
 }
