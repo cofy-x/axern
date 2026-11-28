@@ -57,13 +57,13 @@ NODE_TASK_RESERVE = 512
 SERVICE_TASK_BUDGET = 1024
 NODE_CGROUP = pathlib.Path('/sys/fs/cgroup/axern.slice/axern-native-axnoded.service')
 PAUSE_TIMEOUT = 15
-UPGRADE_VERSION = '0.13.0'
 NATIVE_ARCHIVE_PROFILE = 'ubuntu-24.04-candidate'
-# Source revisions are added after a complete cold transition rehearsal.
-# The value records whether that source wrote the managed project budget.
-UPGRADE_SOURCES = {
-    '7de820e813ba2766645af100548753692d951051': False,
-    '4f8208c5e7b58e04feed5806f81336fbe425b55f': True,
+# Each edge binds a source version and exact revision to an incoming version.
+# Its value records whether the source wrote the managed project budget.
+UPGRADE_TRANSITIONS = {
+    ('0.13.0', '7de820e813ba2766645af100548753692d951051', '0.13.0'): False,
+    ('0.13.0', '4f8208c5e7b58e04feed5806f81336fbe425b55f', '0.13.0'): True,
+    ('0.13.0', '4f8208c5e7b58e04feed5806f81336fbe425b55f', '0.14.0'): True,
 }
 
 
@@ -759,8 +759,8 @@ def upgrade(from_archive: str, backup: dict) -> None:
     source = staged_manifest(old_root)
     target = staged_manifest(ROOT)
     source_revision = str(source.get('source_revision', ''))
-    if (source.get('version') != UPGRADE_VERSION or target.get('version') != UPGRADE_VERSION
-            or source_revision not in UPGRADE_SOURCES
+    transition = (str(source.get('version', '')), source_revision, str(target.get('version', '')))
+    if (transition not in UPGRADE_TRANSITIONS
             or not re.fullmatch('[0-9a-f]{40}', str(target.get('source_revision', '')))
             or target['source_revision'] == source_revision or source.get('gvisor') != target.get('gvisor')
             or ROOT == old_root):
@@ -792,7 +792,7 @@ def upgrade(from_archive: str, backup: dict) -> None:
     require_cold_installation()
     preflight(settings, False)
     new_config = node_config(settings)
-    old_config = new_config if UPGRADE_SOURCES[source_revision] else new_config.replace('workspace_project_budget = 0\n', '')
+    old_config = new_config if UPGRADE_TRANSITIONS[transition] else new_config.replace('workspace_project_budget = 0\n', '')
     config_path = ETC / 'node.toml'
     if config_path.is_symlink() or config_path.read_text() not in ({old_config, new_config} if previous else {old_config}):
         raise InstallError('installation node configuration was changed outside the installer')

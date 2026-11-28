@@ -128,14 +128,14 @@ The native recovery procedure preserves the original Secret encryption key. In-p
 
 ## Qualify An Experimental Archive Transition
 
-The incoming helper accepts the following exact source revisions with the `0.13.0` archive label. Use the matching CLI and SDK for each archive. The helper checks the two distinct archive digests and source revisions, the archive profile and host architecture, the matching gVisor payload, the Node configuration, and the original data filesystem.
+The incoming helper accepts the exact source revision and archive version pairs below. Use the matching CLI and SDK for each archive. The helper checks the two distinct archive digests and source revisions, the archive profile and host architecture, the matching gVisor payload, the Node configuration, and the original data filesystem.
 
-| Source revision | Owned Node configuration |
-| --- | --- |
-| `7de820e813ba2766645af100548753692d951051` | Historical native layout. The transition adds the default Workspace project budget. |
-| `4f8208c5e7b58e04feed5806f81336fbe425b55f` | Current managed layout with an existing Workspace project-budget field. |
+| Source archive label | Source revision | Incoming archive labels | Owned Node configuration |
+| --- | --- | --- | --- |
+| `0.13.0` | `7de820e813ba2766645af100548753692d951051` | `0.13.0` | Historical native layout. The transition adds the default Workspace project budget. |
+| `0.13.0` | `4f8208c5e7b58e04feed5806f81336fbe425b55f` | `0.13.0`, `0.14.0` | Current managed layout with an existing Workspace project-budget field. |
 
-Before changing activation state, the helper verifies stopped systemd services, PostgreSQL and runsc. It opens PostgreSQL on a private Unix socket to verify the source migration history and confirm that the original Node has no unfinished Runs, unreleased Allocations or unresolved Workspace writers. Drain outstanding work on the source before attempting the transition. The table qualifies specific source-built transitions. Published-version upgrade support requires a release-bound compatibility record for the source and successor native archives.
+Before changing activation state, the helper verifies stopped systemd services, PostgreSQL and runsc. It opens PostgreSQL on a private Unix socket to verify the source migration history and confirm that the original Node has no unfinished Runs, unreleased Allocations or unresolved Workspace writers. Drain outstanding work on the source before attempting the transition. The `0.14.0` entry is for qualifying a source-built successor. Published-version upgrade support requires a release-bound compatibility record for the source and successor native archives.
 
 Follow the [cold-restore qualification](QUALIFICATION.md#qualify-a-same-installation-cold-restore) to fence new work, drain writers, disable automatic startup and verify a backup of the system and data disks. Store both complete disk images privately. After verifying their hashes, the operator supplies a private receipt with this shape:
 

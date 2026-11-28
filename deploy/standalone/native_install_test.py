@@ -71,7 +71,7 @@ class ArchiveUpgradeTest(unittest.TestCase):
             (path / 'stage-receipt.json').write_bytes(installer.json_bytes({'archive_sha256': path.name}))
             (path / 'manifest.json').write_bytes(installer.json_bytes({
                 'schema': 'axern.native-runtime.v3', 'os': 'linux', 'architecture': 'amd64',
-                'version': installer.UPGRADE_VERSION, 'source_revision': revision,
+                'version': '0.13.0', 'source_revision': revision,
                 'gvisor': {'version': 'same'},
                 'build_host': {'profile': installer.NATIVE_ARCHIVE_PROFILE},
             }))
@@ -97,12 +97,18 @@ class ArchiveUpgradeTest(unittest.TestCase):
         for name, contents in installer.service_units(self.target_root, SETTINGS).items():
             self.assertEqual((self.units / name).read_text(), contents)
 
-    def test_listed_current_revision_requires_and_preserves_current_node_config(self):
-        source_manifest = self.source_root / 'manifest.json'
-        manifest = installer.read_json(source_manifest)
-        source_manifest.write_bytes(installer.json_bytes({**manifest, 'source_revision': CURRENT_UPGRADE_SOURCE}))
-        original = {**self.original, 'source_revision': CURRENT_UPGRADE_SOURCE}
+    def set_source_archive(self, revision, version):
+        self.update_archive_manifest(self.source_root, source_revision=revision, version=version)
+        original = {**self.original, 'source_revision': revision}
         self.identity.write_bytes(installer.json_bytes(original))
+        return original
+
+    def update_archive_manifest(self, root, **updates):
+        path = root / 'manifest.json'
+        path.write_bytes(installer.json_bytes({**installer.read_json(path), **updates}))
+
+    def test_listed_current_revision_requires_and_preserves_current_node_config(self):
+        self.set_source_archive(CURRENT_UPGRADE_SOURCE, '0.13.0')
         with self.assertRaisesRegex(installer.InstallError, 'configuration was changed'):
             installer.upgrade(self.source_root.name, self.backup)
         self.drained.assert_not_called()
@@ -112,6 +118,44 @@ class ArchiveUpgradeTest(unittest.TestCase):
         installer.upgrade(self.source_root.name, self.backup)
         self.assertEqual(config.read_bytes(), expected)
         self.assertEqual(installer.verify_installed()['archive_sha256'], self.target_root.name)
+
+    def test_listed_current_revision_upgrades_to_next_source_candidate(self):
+        self.set_source_archive(CURRENT_UPGRADE_SOURCE, '0.13.0')
+        self.update_archive_manifest(self.target_root, version='0.14.0')
+        config = self.etc / 'node.toml'
+        config.write_text(installer.node_config(SETTINGS))
+        expected = config.read_bytes()
+
+        installer.upgrade(self.source_root.name, self.backup)
+
+        self.assertEqual(installer.verify_installed()['archive_sha256'], self.target_root.name)
+        self.assertEqual(config.read_bytes(), expected)
+        self.assertEqual((self.etc / 'private/canary').read_text(), 'unchanged')
+        self.assertFalse(self.intent.exists())
+        self.drained.assert_called_once_with(SETTINGS['node_id'])
+        self.migrate.assert_called_once_with()
+
+    def test_unlisted_version_edges_fail_before_mutation(self):
+        for source_revision, source_version, target_version in (
+                (LEGACY_UPGRADE_SOURCE, '0.13.0', '0.14.0'),
+                (CURRENT_UPGRADE_SOURCE, '0.14.0', '0.13.0'),
+                (CURRENT_UPGRADE_SOURCE, '0.13.0', '0.13.1'),
+                (CURRENT_UPGRADE_SOURCE, '0.13.0', '0.14.1'),
+                (CURRENT_UPGRADE_SOURCE, '0.13.0', '0.14.0-rc.1'),
+                ('c' * 40, '0.13.0', '0.14.0')):
+            with self.subTest(source_revision=source_revision, source=source_version, target=target_version):
+                original = self.set_source_archive(source_revision, source_version)
+                self.update_archive_manifest(self.target_root, version=target_version)
+
+                with self.assertRaisesRegex(installer.InstallError, 'unsupported archive transition'):
+                    installer.upgrade(self.source_root.name, self.backup)
+
+                self.assertEqual(self.marker.read_text(), self.source_root.name + '\n')
+                self.assertEqual(installer.read_json(self.identity), original)
+                self.assertFalse(self.intent.exists())
+        self.drained.assert_not_called()
+        self.migrate.assert_not_called()
+        self.command.assert_not_called()
 
     def test_unlisted_revision_rejected_before_database_or_installation_mutation(self):
         source_manifest = self.source_root / 'manifest.json'
