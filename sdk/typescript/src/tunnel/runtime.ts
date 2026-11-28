@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SandboxValidationError } from "../errors/index.js";
+import { isNotFound, SandboxValidationError } from "../errors/index.js";
 import type { TunnelOptions, TunnelMetadata } from "../types.js";
 import { TunnelConnector } from "./connector.js";
 import type { TunnelConnectorConfig } from "./connector.js";
 import type { GatewayTransportOptions } from "./relay.js";
 import { parseTcpTarget } from "./target.js";
-import type { CreateTunnelSessionResult, TunnelRuntime, TunnelSession } from "./types.js";
+import type { CreateTunnelSessionResult, TunnelSession } from "./types.js";
 
 const defaultProxyPort = 8786;
 const defaultTtlSeconds = 300;
@@ -34,88 +34,81 @@ export interface TunnelControl {
   revokeSession(sessionId: string, reason?: string): Promise<void>;
 }
 
-export async function startTunnelRuntime(options: {
+interface TunnelRuntimeOptions {
   control: TunnelControl;
   allocationId: string;
   tunnel: TunnelOptions;
   transport: GatewayTransportOptions;
   connectorFactory?: (config: TunnelConnectorConfig) => TunnelConnectorRunner;
-}): Promise<TunnelRuntime> {
-  validateTunnelOptions(options.tunnel);
-  const ttlSeconds = options.tunnel.ttlSeconds ?? defaultTtlSeconds;
-  const proxyPort = options.tunnel.proxyPort ?? defaultProxyPort;
-  const result = await options.control.createSession({
-    allocationId: options.allocationId,
-    proxyPort,
-    ttlSeconds,
-    readyTimeoutMs: options.tunnel.readyTimeoutMs ?? defaultReadyTimeoutMs,
-  });
-  const sessionId = result.session.session_id ?? "";
-  if (sessionId === "") {
-    throw new Error("create tunnel session returned no session id");
-  }
-  if (result.clientToken === "") {
-    throw new Error(`tunnel session ${sessionId} returned no client token`);
-  }
-  const connectorConfig = {
-    session: result.session,
-    clientToken: result.clientToken,
-    upstream: options.tunnel.upstream,
-    transport: options.transport,
-    connector: options.tunnel.connector,
-  };
-  const connector = (options.connectorFactory ?? ((config) => new TunnelConnector(config)))(connectorConfig);
-  let timer: NodeJS.Timeout | undefined;
-  try {
-    await connector.start();
-    await waitClientConnected(options.control, sessionId, options.tunnel.readyTimeoutMs ?? defaultReadyTimeoutMs);
-    const session = await options.control.getSession(sessionId);
+}
+
+export class TunnelRuntime {
+  private sessionId?: string;
+  private connector?: TunnelConnectorRunner;
+  private renewal?: NodeJS.Timeout;
+
+  constructor(private readonly options: TunnelRuntimeOptions) {}
+
+  async start(): Promise<TunnelMetadata> {
+    const { control, allocationId, tunnel, transport, connectorFactory } = this.options;
+    validateTunnelOptions(tunnel);
+    const ttlSeconds = tunnel.ttlSeconds ?? defaultTtlSeconds;
+    const proxyPort = tunnel.proxyPort ?? defaultProxyPort;
+    const readyTimeoutMs = tunnel.readyTimeoutMs ?? defaultReadyTimeoutMs;
+    const result = await control.createSession({ allocationId, proxyPort, ttlSeconds, readyTimeoutMs });
+    const sessionId = result.session.session_id ?? "";
+    if (sessionId === "") {
+      throw new Error("create tunnel session returned no session id");
+    }
+    this.sessionId = sessionId;
+    if (result.clientToken === "") {
+      throw new Error(`tunnel session ${sessionId} returned no client token`);
+    }
+    const connectorConfig = {
+      session: result.session,
+      clientToken: result.clientToken,
+      upstream: tunnel.upstream,
+      transport,
+      connector: tunnel.connector,
+    };
+    this.connector = connectorFactory === undefined ? new TunnelConnector(connectorConfig) : connectorFactory(connectorConfig);
+    await this.connector.start();
+    await waitClientConnected(control, sessionId, readyTimeoutMs);
+    const session = await control.getSession(sessionId);
     const boundAddr = session.bound_addr ?? "";
     if (boundAddr === "") {
       throw new Error(`tunnel session ${sessionId} has no bound address`);
     }
-    const renewEveryMs = options.tunnel.renewEveryMs ?? Math.max(30_000, Math.floor((ttlSeconds * 1000) / 2));
-    timer = setInterval(() => {
-      void options.control.renewSession(sessionId, result.clientToken, ttlSeconds).catch(() => undefined);
+    const renewEveryMs = tunnel.renewEveryMs ?? Math.max(30_000, Math.floor((ttlSeconds * 1000) / 2));
+    this.renewal = setInterval(() => {
+      void control.renewSession(sessionId, result.clientToken, ttlSeconds).catch(() => undefined);
     }, renewEveryMs);
-    timer.unref();
-    return {
-      sessionId,
-      clientToken: result.clientToken,
-      boundAddr,
-      upstream: options.tunnel.upstream,
-      proxyPort,
-      async stop() {
-        if (timer !== undefined) {
-          clearInterval(timer);
-          timer = undefined;
-        }
-        await connector.stop();
-        await options.control.revokeSession(sessionId).catch(() => undefined);
-      },
-    };
-  } catch (error) {
-    if (timer !== undefined) {
-      clearInterval(timer);
-    }
-    await connector.stop().catch(() => undefined);
-    if (sessionId !== "") {
-      await options.control.revokeSession(sessionId).catch(() => undefined);
-    }
-    throw error;
+    this.renewal.unref();
+    return { sessionId, boundAddr, upstream: tunnel.upstream, proxyPort };
   }
-}
 
-export function tunnelMetadata(runtime: TunnelRuntime | undefined): TunnelMetadata | undefined {
-  if (runtime === undefined) {
-    return undefined;
+  async stop(): Promise<void> {
+    clearInterval(this.renewal);
+    this.renewal = undefined;
+    const errors: unknown[] = [];
+    try {
+      await this.connector?.stop();
+      this.connector = undefined;
+    } catch (error) {
+      errors.push(error);
+    }
+    if (this.sessionId !== undefined) {
+      try {
+        await this.options.control.revokeSession(this.sessionId);
+        this.sessionId = undefined;
+      } catch (error) {
+        if (isNotFound(error)) this.sessionId = undefined;
+        else errors.push(error);
+      }
+    }
+    if (errors.length === 1) throw errors[0];
+    if (errors.length > 1) throw new AggregateError(errors, "tunnel cleanup failed");
   }
-  return {
-    sessionId: runtime.sessionId,
-    boundAddr: runtime.boundAddr,
-    upstream: runtime.upstream,
-    proxyPort: runtime.proxyPort,
-  };
 }
 
 function validateTunnelOptions(options: TunnelOptions): void {

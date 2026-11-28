@@ -20,6 +20,7 @@ export interface TunnelRelaySessionOptions {
 
 export class TunnelRelaySession {
   private readonly streams = new Map<string, net.Socket>();
+  private closed = false;
 
   constructor(
     private readonly call: grpc.ClientDuplexStream<Record<string, unknown>, Record<string, unknown>>,
@@ -47,11 +48,15 @@ export class TunnelRelaySession {
   }
 
   send(frame: Record<string, unknown>): void {
+    if (this.closed) {
+      return;
+    }
     debugFrame("send", frame);
     this.call.write(frame);
   }
 
   closeAll(): void {
+    this.closed = true;
     for (const socket of this.streams.values()) {
       socket.destroy();
     }

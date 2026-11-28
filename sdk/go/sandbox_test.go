@@ -676,6 +676,8 @@ type fakeAxernServer struct {
 	deletedEnvironment     bool
 	tunnelAllocationID     string
 	tunnelRemotePort       int32
+	getTunnel              func(context.Context) error
+	revokeTunnel           func(context.Context, string) error
 	revokedTunnelSessionID string
 	revokedTunnelReason    string
 	processStarted         chan struct{}
@@ -763,7 +765,12 @@ func (f *fakeAxernServer) CreateTunnelSession(_ context.Context, request *tunnel
 	}, nil
 }
 
-func (f *fakeAxernServer) GetTunnelSession(context.Context, *tunnelcontrolv1.GetTunnelSessionRequest) (*tunnelcontrolv1.GetTunnelSessionResponse, error) {
+func (f *fakeAxernServer) GetTunnelSession(ctx context.Context, _ *tunnelcontrolv1.GetTunnelSessionRequest) (*tunnelcontrolv1.GetTunnelSessionResponse, error) {
+	if f.getTunnel != nil {
+		if err := f.getTunnel(ctx); err != nil {
+			return nil, err
+		}
+	}
 	return &tunnelcontrolv1.GetTunnelSessionResponse{Session: fakeTunnelSession()}, nil
 }
 
@@ -778,7 +785,12 @@ func (f *fakeAxernServer) ListTunnelSessionEvents(context.Context, *tunnelcontro
 	}, nil
 }
 
-func (f *fakeAxernServer) RevokeTunnelSession(_ context.Context, request *tunnelcontrolv1.RevokeTunnelSessionRequest) (*tunnelcontrolv1.RevokeTunnelSessionResponse, error) {
+func (f *fakeAxernServer) RevokeTunnelSession(ctx context.Context, request *tunnelcontrolv1.RevokeTunnelSessionRequest) (*tunnelcontrolv1.RevokeTunnelSessionResponse, error) {
+	if f.revokeTunnel != nil {
+		if err := f.revokeTunnel(ctx, request.GetSessionID()); err != nil {
+			return nil, err
+		}
+	}
 	f.revokedTunnelSessionID = request.GetSessionID()
 	f.revokedTunnelReason = request.GetReason()
 	return &tunnelcontrolv1.RevokeTunnelSessionResponse{Session: fakeTunnelSession()}, nil
