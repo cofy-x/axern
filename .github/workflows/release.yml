@@ -205,6 +205,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Go for the gVisor binary proof
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: "1.27.4"
+          cache: false
+      - name: Build the gVisor binary proof
+        run: GOWORK=off GOTOOLCHAIN=local GOPROXY=off go build -o "${RUNNER_TEMP}/gvisor-binary-proof" scripts/release/gvisor_binary_proof.go
       - name: Download this run's image lock
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -223,6 +230,7 @@ jobs:
             --lock dist/local-image-lock/images.lock --binding dist/local-image-lock/binding.json \
             --source "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
             --tools "${RUNNER_TEMP}/image-auditors" --database "${RUNNER_TEMP}/image-audit-db" \
+            --gvisor-proof "${RUNNER_TEMP}/gvisor-binary-proof" \
             --output "${RUNNER_TEMP}/delivery-image-audit"
       - name: Preserve image audit evidence
         if: always()

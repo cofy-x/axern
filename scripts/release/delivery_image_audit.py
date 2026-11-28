@@ -18,6 +18,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from gvisor_delivery_findings import GVisorFindings
+
 
 REPOSITORY = "ghcr.io/cofy-x/axern/"
 IMAGES = {
@@ -249,7 +251,7 @@ def verify_database(status: dict, database: Path, now: datetime) -> None:
     require(timedelta(0) <= now - built <= timedelta(hours=72), "Grype database is stale or future dated")
 
 
-def blocker_findings(report: dict) -> list[dict]:
+def blocker_findings(report: dict, classifier=None, non_shipping=None) -> list[dict]:
     matches, ignored = report["matches"], report.get("ignoredMatches", [])
     require(isinstance(matches, list) and isinstance(ignored, list), "Incomplete Grype findings")
     blockers = []
@@ -259,7 +261,12 @@ def blocker_findings(report: dict) -> list[dict]:
         require(severity in {"Critical", "High", "Medium", "Low", "Negligible", "Unknown"},
                 "Unknown Grype severity value")
         if severity in {"Critical", "High", "Unknown"} or finding.get("fix", {}).get("versions"):
-            blockers.append({"advisory": finding["id"], "severity": severity, "package": match["artifact"]["name"]})
+            record = {"advisory": finding["id"], "severity": severity, "package": match["artifact"]["name"]}
+            evidence = classifier.classify(match) if classifier else None
+            if evidence is None:
+                blockers.append(record)
+            else:
+                non_shipping.append({**record, **evidence})
     return blockers
 
 
@@ -355,11 +362,17 @@ def audit(args, expected: dict) -> int:
                     findings = scan([tools["grype"], f"sbom:{target / 'syft.json'}", "--config", str(config), "-o", "json"],
                                     env, target, "grype")
                     verify_grype(findings, sbom, status)
+                    classifier = None
+                    non_shipping = []
+                    if image == "node-all-in-one" and args.gvisor_proof:
+                        classifier = GVisorFindings(args.gvisor_proof.resolve(), arch, layout, target,
+                                                   sbom, manifest, image_config, env)
                     result["images"].append({
                         "name": image, "architecture": arch, "index": ref,
                         "manifest": manifest_digest, "config": config_digest,
                         "diff_ids": image_config["rootfs"]["diff_ids"],
-                        "blockers": blocker_findings(findings),
+                        "blockers": blocker_findings(findings, classifier, non_shipping),
+                        "non_shipping_findings": non_shipping,
                     })
         require(file_digest(db) == result["database"]["digest"], "Grype database changed during the audit")
         result["complete"] = True
@@ -383,6 +396,7 @@ def main() -> int:
     parser.add_argument("--tools", type=Path)
     parser.add_argument("--database", type=Path)
     parser.add_argument("--output", type=Path)
+    parser.add_argument("--gvisor-proof", type=Path, help="Verifier built from gvisor_binary_proof.go")
     parser.add_argument("--blob-seed", type=Path, help="Reuse blobs from a prior audit after SHA-256 validation")
     args = parser.parse_args()
     expected = lock_binding(args.lock, args.source, args.run_id, args.run_attempt)
