@@ -22,8 +22,8 @@ type Terminal struct {
 }
 
 type TerminalManager interface {
-	Resolve(ctx context.Context, allocationID string) (*gatewayv1.ResolveAllocationTerminalResponse, error)
-	OpenResolvedWithOptions(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts term.OpenOptions) (*term.Session, error)
+	Resolve(ctx context.Context, allocationID string) (*gatewayv1.ResolveAllocationAccessResponse, error)
+	OpenResolvedWithOptions(ctx context.Context, resolved *gatewayv1.ResolveAllocationAccessResponse, opts term.OpenOptions) (*term.Session, error)
 }
 
 func NewTerminal(manager TerminalManager, options TerminalOptions, metrics *observability.Metrics) *Terminal {

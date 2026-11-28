@@ -11,7 +11,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-func (t *Terminal) bridge(ctx context.Context, ws *websocket.Conn, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts term.OpenOptions) {
+func (t *Terminal) bridge(ctx context.Context, ws *websocket.Conn, resolved *gatewayv1.ResolveAllocationAccessResponse, opts term.OpenOptions) {
 	socket := terminalSocket{conn: ws, writeTimeout: t.options.WriteTimeout}
 	session, err := t.manager.OpenResolvedWithOptions(ctx, resolved, opts)
 	if err != nil {

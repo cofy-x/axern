@@ -18,8 +18,8 @@ import (
 )
 
 type Resolver interface {
-	AuthorizeAllocationAccess(context.Context, *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error)
-	ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error)
+	AuthorizeAllocationAccess(context.Context, *gatewayv1.ResolveAllocationAccessRequest) (*emptypb.Empty, error)
+	ResolveAllocationAccess(ctx context.Context, in *gatewayv1.ResolveAllocationAccessRequest) (*gatewayv1.ResolveAllocationAccessResponse, error)
 }
 
 type Manager struct {
@@ -78,7 +78,7 @@ func (m *Manager) OpenWithOptions(ctx context.Context, allocationID string, opts
 	return m.OpenResolvedWithOptions(ctx, resolved, opts)
 }
 
-func (m *Manager) Resolve(ctx context.Context, allocationID string) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
+func (m *Manager) Resolve(ctx context.Context, allocationID string) (*gatewayv1.ResolveAllocationAccessResponse, error) {
 	identity, ok := ctx.Value(credentialContextKey{}).(credentialIdentity)
 	if !ok || identity.fingerprint == "" {
 		return nil, status.Error(codes.Unauthenticated, "client credential is required")
@@ -93,7 +93,7 @@ func (m *Manager) Resolve(ctx context.Context, allocationID string) (*gatewayv1.
 	})
 	var err error
 	defer func() { op.End(err) }()
-	resolved, err := m.control.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
+	resolved, err := m.control.ResolveAllocationAccess(ctx, &gatewayv1.ResolveAllocationAccessRequest{
 		AllocationID:          allocationID,
 		TtlSeconds:            int64(m.options.MaxDuration / time.Second),
 		CredentialFingerprint: identity.fingerprint,
@@ -113,15 +113,15 @@ func (m *Manager) Authorize(ctx context.Context, allocationID string) error {
 	if !ok || identity.fingerprint == "" {
 		return status.Error(codes.Unauthenticated, "client credential is required")
 	}
-	_, err := m.control.AuthorizeAllocationAccess(ctx, &gatewayv1.ResolveAllocationTerminalRequest{AllocationID: allocationID, CredentialFingerprint: identity.fingerprint, CredentialKind: identity.kind, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE})
+	_, err := m.control.AuthorizeAllocationAccess(ctx, &gatewayv1.ResolveAllocationAccessRequest{AllocationID: allocationID, CredentialFingerprint: identity.fingerprint, CredentialKind: identity.kind, Purpose: gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE})
 	return err
 }
 
-func (m *Manager) OpenResolved(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse) (*Session, error) {
+func (m *Manager) OpenResolved(ctx context.Context, resolved *gatewayv1.ResolveAllocationAccessResponse) (*Session, error) {
 	return m.OpenResolvedWithOptions(ctx, resolved, OpenOptions{})
 }
 
-func (m *Manager) OpenResolvedWithOptions(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (*Session, error) {
+func (m *Manager) OpenResolvedWithOptions(ctx context.Context, resolved *gatewayv1.ResolveAllocationAccessResponse, opts OpenOptions) (*Session, error) {
 	grant := resolved.GetAccessGrant()
 	if grant.GetExpiresAt() == nil || !time.Now().Before(grant.GetExpiresAt().AsTime()) {
 		return nil, status.Error(codes.Unauthenticated, "allocation access grant has expired")
@@ -153,7 +153,7 @@ func (m *Manager) OpenResolvedWithOptions(ctx context.Context, resolved *gateway
 	return &Session{stream: stream, cancel: cancel}, nil
 }
 
-func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAllocationTerminalResponse, opts OpenOptions) (stream processStream, err error) {
+func (m *Manager) openProcess(ctx context.Context, resolved *gatewayv1.ResolveAllocationAccessResponse, opts OpenOptions) (stream processStream, err error) {
 	allocationID := strings.TrimSpace(resolved.GetAllocationID())
 	attrs := []attribute.KeyValue{
 		attribute.String(sdkobs.AttrAllocationID, allocationID),

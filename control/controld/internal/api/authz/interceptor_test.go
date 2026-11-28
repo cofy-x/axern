@@ -180,7 +180,7 @@ func TestUnknownControlServiceFailsClosed(t *testing.T) {
 func TestGatewayControlRequiresGatewayPeer(t *testing.T) {
 	i := &Interceptor{gatewayPeer: func(context.Context) bool { return false }}
 	called := false
-	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.private.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"}, func(context.Context, any) (any, error) {
+	_, err := i.Unary(context.Background(), nil, &grpc.UnaryServerInfo{FullMethod: "/axern.private.control.gateway.v1.GatewayControl/ResolveAllocationAccess"}, func(context.Context, any) (any, error) {
 		called = true
 		return nil, nil
 	})

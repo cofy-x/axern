@@ -25,7 +25,7 @@ func (s *accessGrantIssuerStub) IssueAllocationAccessGrant(context.Context, stri
 	return &accessgrantkernel.IssuedGrant{PlaintextToken: "access-token"}, nil
 }
 
-func TestResolveAllocationTerminalAccessPurpose(t *testing.T) {
+func TestResolveAllocationAccessAccessPurpose(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name       string
@@ -51,9 +51,9 @@ func TestResolveAllocationTerminalAccessPurpose(t *testing.T) {
 			grants := &accessGrantIssuerStub{}
 			expiry := time.Now().Add(15 * time.Minute)
 			resolver := NewResolver(routeReaderStub{allocation: &Allocation{OutputExpiresAt: &expiry, AllocationID: "alloc-1", RunID: "run-1", NodeID: "node-1", NodeTarget: "node:24010", LifecycleState: test.status}}, grants)
-			_, err := resolver.ResolveAllocationTerminal(context.Background(), &gatewayv1.ResolveAllocationTerminalRequest{AllocationID: "alloc-1", Purpose: test.purpose}, time.Minute, time.Now())
+			_, err := resolver.ResolveAllocationAccess(context.Background(), &gatewayv1.ResolveAllocationAccessRequest{AllocationID: "alloc-1", Purpose: test.purpose}, time.Minute, time.Now())
 			if got := grpcstatus.Code(err); got != test.wantCode {
-				t.Fatalf("ResolveAllocationTerminal() code = %v, want %v (err=%v)", got, test.wantCode, err)
+				t.Fatalf("ResolveAllocationAccess() code = %v, want %v (err=%v)", got, test.wantCode, err)
 			}
 			if grants.calls != test.wantGrants {
 				t.Fatalf("access grant calls = %d, want %d", grants.calls, test.wantGrants)

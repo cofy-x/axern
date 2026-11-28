@@ -40,7 +40,7 @@ func NewResolver(routes RouteReader, accessGrants AccessGrantIssuer) *Resolver {
 	return &Resolver{routes: routes, accessGrants: accessGrants}
 }
 
-func (r *Resolver) ValidateAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, now time.Time) error {
+func (r *Resolver) ValidateAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest, now time.Time) error {
 	alloc, err := r.routes.LoadAllocation(ctx, strings.TrimSpace(req.GetAllocationID()))
 	if err != nil {
 		return err
@@ -54,9 +54,9 @@ func (r *Resolver) ValidateAllocationAccess(ctx context.Context, req *gatewayv1.
 	return grpcstatus.Error(codes.FailedPrecondition, "allocation access is no longer available")
 }
 
-func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1.ResolveAllocationTerminalRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
+func (r *Resolver) ResolveAllocationAccess(ctx context.Context, req *gatewayv1.ResolveAllocationAccessRequest, ttl time.Duration, now time.Time) (*gatewayv1.ResolveAllocationAccessResponse, error) {
 	if r == nil || r.routes == nil || r.accessGrants == nil {
-		return nil, grpcstatus.Error(codes.Unavailable, "gateway terminal resolver is not configured")
+		return nil, grpcstatus.Error(codes.Unavailable, "gateway allocation access resolver is not configured")
 	}
 	allocationID := strings.TrimSpace(req.GetAllocationID())
 	if allocationID == "" {
@@ -89,7 +89,7 @@ func (r *Resolver) ResolveAllocationTerminal(ctx context.Context, req *gatewayv1
 	if err != nil {
 		return nil, err
 	}
-	return &gatewayv1.ResolveAllocationTerminalResponse{
+	return &gatewayv1.ResolveAllocationAccessResponse{
 		AllocationID: alloc.AllocationID,
 		RunID:        alloc.RunID,
 		NodeID:       alloc.NodeID,

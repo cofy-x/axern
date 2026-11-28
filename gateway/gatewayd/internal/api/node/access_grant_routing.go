@@ -12,24 +12,27 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	grpcstatus "google.golang.org/grpc/status"
-	"google.golang.org/protobuf/proto"
 )
 
-func (s *Server) unary(ctx context.Context, req proto.Message, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
+type allocationRequest interface {
+	GetAllocationID() string
+}
+
+func (s *Server) unary(ctx context.Context, req allocationRequest, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
 	return s.unaryForPurpose(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, call)
 }
 
-func (s *Server) unaryForPurpose(ctx context.Context, req proto.Message, purpose gatewayv1.AllocationAccessPurpose, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
+func (s *Server) unaryForPurpose(ctx context.Context, req allocationRequest, purpose gatewayv1.AllocationAccessPurpose, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
 	return s.withResolvedClient(ctx, req, purpose, nodekernel.IsAllocationAccessGrantRejected, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		return call(backendCtx, client)
 	})
 }
 
-func serverStream[T any](s *Server, ctx context.Context, req proto.Message, shouldRetry func(error) bool, open func(context.Context, nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
+func serverStream[T any](s *Server, ctx context.Context, req allocationRequest, shouldRetry func(error) bool, open func(context.Context, nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
 	return serverStreamForPurpose(s, ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, shouldRetry, open, call)
 }
 
-func serverStreamForPurpose[T any](s *Server, ctx context.Context, req proto.Message, purpose gatewayv1.AllocationAccessPurpose, shouldRetry func(error) bool, open func(context.Context, nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
+func serverStreamForPurpose[T any](s *Server, ctx context.Context, req allocationRequest, purpose gatewayv1.AllocationAccessPurpose, shouldRetry func(error) bool, open func(context.Context, nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
 	return s.withResolvedClient(ctx, req, purpose, shouldRetry, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		up, err := open(backendCtx, client)
 		if err != nil {
@@ -39,7 +42,7 @@ func serverStreamForPurpose[T any](s *Server, ctx context.Context, req proto.Mes
 	})
 }
 
-func bidi[T interface{ CloseSend() error }](s *Server, ctx context.Context, req proto.Message, shouldRetry func(error) bool, open func(context.Context, nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
+func bidi[T interface{ CloseSend() error }](s *Server, ctx context.Context, req allocationRequest, shouldRetry func(error) bool, open func(context.Context, nodesandboxv1.NodeSandboxClient) (T, error), call func(T) error) error {
 	return s.withResolvedClient(ctx, req, gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_INTERACTIVE, shouldRetry, func(backendCtx context.Context, client nodesandboxv1.NodeSandboxClient) error {
 		up, err := open(backendCtx, client)
 		if err != nil {
@@ -50,11 +53,11 @@ func bidi[T interface{ CloseSend() error }](s *Server, ctx context.Context, req 
 	})
 }
 
-func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purpose gatewayv1.AllocationAccessPurpose, shouldRetry func(error) bool, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
+func (s *Server) withResolvedClient(ctx context.Context, req allocationRequest, purpose gatewayv1.AllocationAccessPurpose, shouldRetry func(error) bool, call func(context.Context, nodesandboxv1.NodeSandboxClient) error) error {
 	if req == nil {
 		return grpcstatus.Error(codes.InvalidArgument, "request is required")
 	}
-	allocationID := allocationID(req)
+	allocationID := strings.TrimSpace(req.GetAllocationID())
 	if allocationID == "" {
 		return grpcstatus.Error(codes.InvalidArgument, "allocation_id is required")
 	}
@@ -66,7 +69,7 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 	if purpose == gatewayv1.AllocationAccessPurpose_ALLOCATION_ACCESS_PURPOSE_HTTP_PREVIEW {
 		ttl = 20
 	}
-	resolved, err := s.resolver.ResolveAllocationTerminal(ctx, &gatewayv1.ResolveAllocationTerminalRequest{
+	resolved, err := s.resolver.ResolveAllocationAccess(ctx, &gatewayv1.ResolveAllocationAccessRequest{
 		AllocationID:          allocationID,
 		TtlSeconds:            ttl,
 		CredentialFingerprint: fingerprint,
@@ -112,14 +115,6 @@ func (s *Server) withResolvedClient(ctx context.Context, req proto.Message, purp
 		}
 	}
 	return err
-}
-
-func allocationID(msg proto.Message) string {
-	field := msg.ProtoReflect().Descriptor().Fields().ByName("allocation_id")
-	if field == nil {
-		return ""
-	}
-	return strings.TrimSpace(msg.ProtoReflect().Get(field).String())
 }
 
 type accessGrantOpenRejection struct {

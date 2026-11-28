@@ -21,7 +21,7 @@ const _ = grpc.SupportPackageIsVersion7
 
 const (
 	GatewayControl_AuthorizeAllocationAccess_FullMethodName = "/axern.private.control.gateway.v1.GatewayControl/AuthorizeAllocationAccess"
-	GatewayControl_ResolveAllocationTerminal_FullMethodName = "/axern.private.control.gateway.v1.GatewayControl/ResolveAllocationTerminal"
+	GatewayControl_ResolveAllocationAccess_FullMethodName   = "/axern.private.control.gateway.v1.GatewayControl/ResolveAllocationAccess"
 	GatewayControl_ResolveTunnelRelayTarget_FullMethodName  = "/axern.private.control.gateway.v1.GatewayControl/ResolveTunnelRelayTarget"
 )
 
@@ -29,8 +29,8 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type GatewayControlClient interface {
-	AuthorizeAllocationAccess(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	ResolveAllocationTerminal(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*ResolveAllocationTerminalResponse, error)
+	AuthorizeAllocationAccess(ctx context.Context, in *ResolveAllocationAccessRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	ResolveAllocationAccess(ctx context.Context, in *ResolveAllocationAccessRequest, opts ...grpc.CallOption) (*ResolveAllocationAccessResponse, error)
 	ResolveTunnelRelayTarget(ctx context.Context, in *ResolveTunnelRelayTargetRequest, opts ...grpc.CallOption) (*ResolveTunnelRelayTargetResponse, error)
 }
 
@@ -42,7 +42,7 @@ func NewGatewayControlClient(cc grpc.ClientConnInterface) GatewayControlClient {
 	return &gatewayControlClient{cc}
 }
 
-func (c *gatewayControlClient) AuthorizeAllocationAccess(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *gatewayControlClient) AuthorizeAllocationAccess(ctx context.Context, in *ResolveAllocationAccessRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, GatewayControl_AuthorizeAllocationAccess_FullMethodName, in, out, opts...)
 	if err != nil {
@@ -51,9 +51,9 @@ func (c *gatewayControlClient) AuthorizeAllocationAccess(ctx context.Context, in
 	return out, nil
 }
 
-func (c *gatewayControlClient) ResolveAllocationTerminal(ctx context.Context, in *ResolveAllocationTerminalRequest, opts ...grpc.CallOption) (*ResolveAllocationTerminalResponse, error) {
-	out := new(ResolveAllocationTerminalResponse)
-	err := c.cc.Invoke(ctx, GatewayControl_ResolveAllocationTerminal_FullMethodName, in, out, opts...)
+func (c *gatewayControlClient) ResolveAllocationAccess(ctx context.Context, in *ResolveAllocationAccessRequest, opts ...grpc.CallOption) (*ResolveAllocationAccessResponse, error) {
+	out := new(ResolveAllocationAccessResponse)
+	err := c.cc.Invoke(ctx, GatewayControl_ResolveAllocationAccess_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -73,8 +73,8 @@ func (c *gatewayControlClient) ResolveTunnelRelayTarget(ctx context.Context, in 
 // All implementations must embed UnimplementedGatewayControlServer
 // for forward compatibility
 type GatewayControlServer interface {
-	AuthorizeAllocationAccess(context.Context, *ResolveAllocationTerminalRequest) (*emptypb.Empty, error)
-	ResolveAllocationTerminal(context.Context, *ResolveAllocationTerminalRequest) (*ResolveAllocationTerminalResponse, error)
+	AuthorizeAllocationAccess(context.Context, *ResolveAllocationAccessRequest) (*emptypb.Empty, error)
+	ResolveAllocationAccess(context.Context, *ResolveAllocationAccessRequest) (*ResolveAllocationAccessResponse, error)
 	ResolveTunnelRelayTarget(context.Context, *ResolveTunnelRelayTargetRequest) (*ResolveTunnelRelayTargetResponse, error)
 	mustEmbedUnimplementedGatewayControlServer()
 }
@@ -83,11 +83,11 @@ type GatewayControlServer interface {
 type UnimplementedGatewayControlServer struct {
 }
 
-func (UnimplementedGatewayControlServer) AuthorizeAllocationAccess(context.Context, *ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+func (UnimplementedGatewayControlServer) AuthorizeAllocationAccess(context.Context, *ResolveAllocationAccessRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AuthorizeAllocationAccess not implemented")
 }
-func (UnimplementedGatewayControlServer) ResolveAllocationTerminal(context.Context, *ResolveAllocationTerminalRequest) (*ResolveAllocationTerminalResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResolveAllocationTerminal not implemented")
+func (UnimplementedGatewayControlServer) ResolveAllocationAccess(context.Context, *ResolveAllocationAccessRequest) (*ResolveAllocationAccessResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResolveAllocationAccess not implemented")
 }
 func (UnimplementedGatewayControlServer) ResolveTunnelRelayTarget(context.Context, *ResolveTunnelRelayTargetRequest) (*ResolveTunnelRelayTargetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResolveTunnelRelayTarget not implemented")
@@ -106,7 +106,7 @@ func RegisterGatewayControlServer(s grpc.ServiceRegistrar, srv GatewayControlSer
 }
 
 func _GatewayControl_AuthorizeAllocationAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResolveAllocationTerminalRequest)
+	in := new(ResolveAllocationAccessRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -118,25 +118,25 @@ func _GatewayControl_AuthorizeAllocationAccess_Handler(srv interface{}, ctx cont
 		FullMethod: GatewayControl_AuthorizeAllocationAccess_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GatewayControlServer).AuthorizeAllocationAccess(ctx, req.(*ResolveAllocationTerminalRequest))
+		return srv.(GatewayControlServer).AuthorizeAllocationAccess(ctx, req.(*ResolveAllocationAccessRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _GatewayControl_ResolveAllocationTerminal_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ResolveAllocationTerminalRequest)
+func _GatewayControl_ResolveAllocationAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveAllocationAccessRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(GatewayControlServer).ResolveAllocationTerminal(ctx, in)
+		return srv.(GatewayControlServer).ResolveAllocationAccess(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: GatewayControl_ResolveAllocationTerminal_FullMethodName,
+		FullMethod: GatewayControl_ResolveAllocationAccess_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(GatewayControlServer).ResolveAllocationTerminal(ctx, req.(*ResolveAllocationTerminalRequest))
+		return srv.(GatewayControlServer).ResolveAllocationAccess(ctx, req.(*ResolveAllocationAccessRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -171,8 +171,8 @@ var GatewayControl_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _GatewayControl_AuthorizeAllocationAccess_Handler,
 		},
 		{
-			MethodName: "ResolveAllocationTerminal",
-			Handler:    _GatewayControl_ResolveAllocationTerminal_Handler,
+			MethodName: "ResolveAllocationAccess",
+			Handler:    _GatewayControl_ResolveAllocationAccess_Handler,
 		},
 		{
 			MethodName: "ResolveTunnelRelayTarget",

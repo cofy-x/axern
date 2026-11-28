@@ -50,11 +50,11 @@ func (c *Client) Conn() *grpc.ClientConn {
 	return c.conn
 }
 
-func (c *Client) ResolveAllocationTerminal(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*gatewayv1.ResolveAllocationTerminalResponse, error) {
-	return c.Gateway.ResolveAllocationTerminal(ctx, in)
+func (c *Client) ResolveAllocationAccess(ctx context.Context, in *gatewayv1.ResolveAllocationAccessRequest) (*gatewayv1.ResolveAllocationAccessResponse, error) {
+	return c.Gateway.ResolveAllocationAccess(ctx, in)
 }
 
-func (c *Client) AuthorizeAllocationAccess(ctx context.Context, in *gatewayv1.ResolveAllocationTerminalRequest) (*emptypb.Empty, error) {
+func (c *Client) AuthorizeAllocationAccess(ctx context.Context, in *gatewayv1.ResolveAllocationAccessRequest) (*emptypb.Empty, error) {
 	return c.Gateway.AuthorizeAllocationAccess(ctx, in)
 }
 
