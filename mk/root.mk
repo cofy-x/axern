@@ -141,6 +141,7 @@ native-runtime-build: ## Build a candidate Linux payload; requires clean source 
 
 native-runtime-check: ## Test native payload integrity and packaging boundaries without running services
 	python3 $(ROOTDIR)/scripts/release/native_runtime_test.py
+	python3 $(ROOTDIR)/scripts/release/native_delivery_notices_test.py
 	python3 $(ROOTDIR)/deploy/standalone/native_install_test.py
 	python3 $(ROOTDIR)/deploy/standalone/qualify_native_test.py
 	python3 $(ROOTDIR)/deploy/standalone/qualify_network_test.py

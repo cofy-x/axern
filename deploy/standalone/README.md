@@ -73,6 +73,22 @@ python3 scripts/release/native_delivery_inventory.py /absolute/path/to/runtime.t
   --syft /absolute/path/to/syft
 ```
 
-The tool stages the verified payload without running its binaries and emits SPDX and CycloneDX sidecars. Its receipt binds both sidecar digests to the archive digest, source and architecture, and counts SPDX license declarations requiring review. The receipt records scanner results. Complete license notices, signed provenance and installation qualification still require separate evidence.
+The tool stages the verified payload without running its binaries and emits SPDX and CycloneDX sidecars. Its receipt binds both sidecar digests to the archive digest, source and architecture, and counts SPDX license declarations requiring review.
+
+Collect the original notice texts for the Go dependencies in that inventory. Have the Go toolchains named in the inventory installed and keep the corresponding module ZIPs in the Go module cache. Download a module the collector identifies as missing with `GOWORK=off go mod download MODULE@VERSION`. Fetch the tag from the official gVisor repository using the tag name in the matching Axern source's `runtime/axnoded/gvisor.lock`.
+
+```bash
+GVISOR_TAG=release-TAG_FROM_GVISOR_LOCK
+git init /absolute/path/to/gvisor-source
+git -C /absolute/path/to/gvisor-source fetch --depth=1 https://github.com/google/gvisor.git "refs/tags/$GVISOR_TAG"
+python3 scripts/release/native_delivery_notices.py /absolute/path/to/runtime.tar.gz \
+  --sha256 EXPECTED_SHA256_FROM_TRUSTED_RECEIPT \
+  --inventory-dir /absolute/path/to/new-inventory-directory \
+  --gvisor-source /absolute/path/to/gvisor-source \
+  --module-cache "$(go env GOMODCACHE)" \
+  --output-dir /absolute/path/to/new-notice-directory
+```
+
+The collector checks the archive and both inventory digests, verifies the gVisor tag against the pinned commit, and recomputes the Go module ZIP content checksums against the relevant Axern and gVisor source locks. It saves the original source and toolchain notice texts with a receipt identifying the archive, binary locations and per-file hashes. The SPDX declarations retain their original scanner values. Publication still requires review of the notice texts and any compiled inputs outside the Go inventory, including the embedded BPF object, plus signed provenance and installation qualification for the architecture being published.
 
 Native installation is experimental. Supported upgrades, coordinated backup/restore, Compose migration and macOS VM provisioning are unavailable. Record acceptance commands, platform details and source revisions in the implementation PR or operational test record. Packaging checks do not establish sandbox enforcement or durable serving qualification.
