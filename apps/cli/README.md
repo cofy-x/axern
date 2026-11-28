@@ -13,6 +13,18 @@ The command path is:
 cliapp -> commands -> application -> public SDK clients -> gatewayd
 ```
 
+## Browser Preview
+
+Run the preview on the same machine as your browser. Start an HTTP service on the guest's IPv4 loopback in an active Allocation, then use your Axern context with sandbox-execution access.
+
+```bash
+axern preview <allocation-id> --port 8080
+```
+
+Open the printed `.localhost` address in your browser. The CLI uses its authenticated gateway connection to fetch responses from that exact Allocation and guest port. Each invocation creates a fresh local origin. Ctrl-C or the preview lifetime closes the browser endpoint, which defaults to 15 minutes. Credential revocation and Allocation cleanup end access through the gateway.
+
+The preview supports bounded GET and HEAD requests and same-origin redirects. It is suitable for reviewing basic HTTP pages and assets. The browser origin blocks external resources and form submissions, and the gateway carries only response status, content type, redirect path and up to 2 MiB of response data.
+
 ## Host Services And Development
 
 `axern server` operates an already installed native Linux server on the current host. It delegates start, full stop, status and service certificate renewal to the installation's verified helper. The CLI checks the installation identity, private path ownership and helper manifest before execution; the helper remains the owner of readiness, systemd and runtime shutdown. A selected API context never selects the host for these operations, and explicit API connection flags are rejected. Native archive verification and initial installation are documented in [Native Installation](../../deploy/standalone/INSTALL.md).
