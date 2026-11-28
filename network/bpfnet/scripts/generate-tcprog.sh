@@ -62,6 +62,7 @@ run_args=(
   -e GOMODCACHE=/tmp/bpfnet-codegen-cache/gomod
   -e GOCACHE=/tmp/bpfnet-codegen-cache/go-build
   -e GOWORK=off
+  -e GOFLAGS=-buildvcs=false
   -e GOPROXY="${GOPROXY_VALUE}"
   -e GOSUMDB="${GOSUMDB_VALUE}"
   -e PATH=/usr/local/go/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -91,10 +92,16 @@ run_args+=("${IMAGE_TAG}")
 
 case "${MODE}" in
   generate)
-    docker "${run_args[@]}" bash -c 'mkdir -p "${HOME}" && /usr/bin/git config --global --add safe.directory /workspace && /usr/local/go/bin/go generate ./internal/tcprog'
+    docker "${run_args[@]}" /usr/local/go/bin/go generate ./internal/tcprog
     ;;
   check)
-    docker "${run_args[@]}" bash -c 'mkdir -p "${HOME}" && /usr/bin/git config --global --add safe.directory /workspace && /usr/local/go/bin/go generate ./internal/tcprog && /usr/bin/git -C /workspace diff --exit-code -- network/bpfnet/internal/tcprog/dataplane_bpfel.go network/bpfnet/internal/tcprog/dataplane_bpfeb.go network/bpfnet/internal/tcprog/dataplane_bpfel.o network/bpfnet/internal/tcprog/dataplane_bpfeb.o'
+    docker "${run_args[@]}" /usr/local/go/bin/go generate ./internal/tcprog
+    # Linked worktrees keep Git metadata outside the container's source mount.
+    git -C "${REPO_ROOT}" diff --exit-code -- \
+      network/bpfnet/internal/tcprog/dataplane_bpfel.go \
+      network/bpfnet/internal/tcprog/dataplane_bpfeb.go \
+      network/bpfnet/internal/tcprog/dataplane_bpfel.o \
+      network/bpfnet/internal/tcprog/dataplane_bpfeb.o
     ;;
   *)
     echo "usage: $0 [generate|check]" >&2

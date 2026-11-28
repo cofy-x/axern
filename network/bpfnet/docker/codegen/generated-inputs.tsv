@@ -1,0 +1,92 @@
+package	sha256	path_in_builder	spdx_declaration_in_source
+linux-libc-dev	3a8e58cc67210c5a2b3bf24c84a96328e974dfe94206c74e5478d3142c991cf7	/usr/include/asm-generic/bitsperlong.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	2c148e92b8318deeb767fabd60822113e575ee664ff09a1873aed8f7a495793c	/usr/include/asm-generic/errno-base.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	fb7b5a504015f3a9074c641e7371b250d867d751d90e4a22a8ac17fced3d50af	/usr/include/asm-generic/errno.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	eb8b891e775ebb50af0353fdcbc625854fd98780399b3a57a404d36af6c29749	/usr/include/asm-generic/int-ll64.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	8d273280f282bf9e810f00ad9905977161dec3f103ef789892ceec8c453e1398	/usr/include/asm-generic/posix_types.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	80e77b47229a4327a7445c9f747274627ad2fc0b282647c79ba72da932f6eaae	/usr/include/asm-generic/socket.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	3e46cdcb281f87f1b532901e6388eed77fa687c3c5c56f72aceb8640696a4ef9	/usr/include/asm-generic/sockios.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	e91b8a175cabbe3b9b1ca9cc2eab3588d122c15eeb2b8680b21cea785052f597	/usr/include/asm-generic/swab.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	09b4477d655ddd2c5657e83a0761700d6706f012c7365f310a6b0a6696936a10	/usr/include/asm-generic/types.h	GPL-2.0 WITH Linux-syscall-note
+libbpf-dev	64b77c97b089ca06203d0451407844fe93933b4e36e7315a294745fa29d058fb	/usr/include/bpf/bpf_endian.h	(LGPL-2.1 OR BSD-2-Clause)
+libbpf-dev	8a83bc11ab46009920d3ac0167b051d1d5d973da4bbdc24938bc498d5f29c1f0	/usr/include/bpf/bpf_helper_defs.h	-
+libbpf-dev	6b48b0914198cb3ed70af805afa1358a23f717cc2f302794b08db4c6fd8f112d	/usr/include/bpf/bpf_helpers.h	(LGPL-2.1 OR BSD-2-Clause)
+libc6-dev	537adf5fc94e17547d825a375723b666e89ff1f0a3c29fb7a78e223d22e0e210	/usr/include/endian.h	-
+libc6-dev	89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63	/usr/include/features-time64.h	-
+libc6-dev	20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280	/usr/include/features.h	-
+linux-libc-dev	a9df309eadd3dac0faf86785c92e513e758828166ed888c9d43a6b84fe0e8d41	/usr/include/linux/bpf.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	7475540d7fb41f7da5987d78532403d47ee493aba277694df6fa9025b9a767aa	/usr/include/linux/bpf_common.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	0afc3ed752c1d676dc14abc06ecb9aad19a3f833b3119ff82400329c81763e35	/usr/include/linux/byteorder/little_endian.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	fdaa1ed0c969d05cdcf7a096ee4d6f6d799aa06821154d1f803de3372861b323	/usr/include/linux/const.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	a47fb2f49bce0546a1e88805cec954338abb1b2ac87de042166e8e3a74b23261	/usr/include/linux/errno.h	-
+linux-libc-dev	882ca3cef2371c5c770ba9225ad457b40eab3a022205925cc6c9c60dc5c9c983	/usr/include/linux/hdlc/ioctl.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	1191d2eb90d3dac46a03db51e6142bc6bce8a4adc7da500569359ee6bdaeb840	/usr/include/linux/icmp.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	ecbf706671e421c9c7441e02936da46073e3562017ec074890a6f9954ba65388	/usr/include/linux/if.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	5f5b0f56e48725c03cea723c390331c9bf83532a011f04e48b7cd9600e2aa42b	/usr/include/linux/if_ether.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	cb4d2cb295a1158968980e8def2f3e28f7aecb5c5d4f1c41874c8ba389ca0bdb	/usr/include/linux/in.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	92e0885fdbb31b52efc2763818a4160b8c1be408934a119537647ec5676ba1b8	/usr/include/linux/in6.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	7e2cc1b2cf03db86a56e49d055e31ec5b4478a521eb633cb2df8fc199d3cde80	/usr/include/linux/ip.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	bfd677efe3ec1a63ba05bd6318dee70863959960f02e6107a2fe49a89b60bf8b	/usr/include/linux/libc-compat.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	73b52f4e7279c42824f63b2b5f52f49a36f3cc7787a21b6f7b414bc0cc343441	/usr/include/linux/pkt_cls.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	a342e4bb964ad799ff9d6be24836684716ad57d8c631baabf580831f04395714	/usr/include/linux/pkt_sched.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	bc68636a383418f235d3457e4b21cf27cefc7c7f3edea4c1f6706f1018db196f	/usr/include/linux/posix_types.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	f4331fd201269894f63242a2521b3d5b3290ca556969011d7858908d5fe658c4	/usr/include/linux/socket.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	d9d06920429953d634a7a1870c26c08fba34cc526403c9e63dee1e37091c646c	/usr/include/linux/stddef.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	1594ab7e6be9129d50123ad20b03bbc05d81649b99eccfd4b3ef4c42ac3012b4	/usr/include/linux/swab.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	71a884dbaf9d11cb9d9437a052e95b89625943ef1c43347ed0a596abb3d749bc	/usr/include/linux/tcp.h	GPL-2.0+ WITH Linux-syscall-note
+linux-libc-dev	4152b3c5d095f5cf0adf5cc13ee0670e737eb7c4efef5fa08e9d1eb87e68ed78	/usr/include/linux/types.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	273a5d8b084b7f4865adfe16d6dbe248692833e6037e45b9202ef886b29d88c8	/usr/include/linux/udp.h	GPL-2.0+ WITH Linux-syscall-note
+libc6-dev	82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b	/usr/include/stdc-predef.h	-
+libc6-dev	05531d0ae2a64ce741fe96a6c992190ef77eff1dc72e9e8f9bd0ff3b6bd7ff57	/usr/include/x86_64-linux-gnu/bits/atomic_wide_counter.h	-
+libc6-dev	07044d37a88f3a088ecf65df86a5d4a2c03e2966747b680ae8e0a01753cf97a1	/usr/include/x86_64-linux-gnu/bits/byteswap.h	-
+libc6-dev	f559fd70d8a24202805d1d8a3546e28c427f6ce7808296002687cb6c636fd21f	/usr/include/x86_64-linux-gnu/bits/endian.h	-
+libc6-dev	659a7060004eda113671a38852c4d1e9cb97a35932bcd1d8540f98c09c180747	/usr/include/x86_64-linux-gnu/bits/endianness.h	-
+libc6-dev	30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56	/usr/include/x86_64-linux-gnu/bits/long-double.h	-
+libc6-dev	c838de98779156e73b927940c1db8d3e385624980d2c4ca37c352ad69955074b	/usr/include/x86_64-linux-gnu/bits/pthreadtypes-arch.h	-
+libc6-dev	acad99a6a3ef489327e806c8d29b25797ca2126cd5489233837e5c9c01516cd1	/usr/include/x86_64-linux-gnu/bits/pthreadtypes.h	-
+libc6-dev	576acd13d6fba6206bdf24b1f9b6567e46da81bcf20fb2f5529434c59cfb9c3e	/usr/include/x86_64-linux-gnu/bits/select.h	-
+libc6-dev	2a9173a32830aabdcdd8a70b6bb521ede8ce6093ccf97b5932e96a5fd9710a7f	/usr/include/x86_64-linux-gnu/bits/sockaddr.h	-
+libc6-dev	54658ef138fe725785e8458253497fe894ec17456324b1731e75fe80fd20b856	/usr/include/x86_64-linux-gnu/bits/socket.h	-
+libc6-dev	4a7bdfd2df4cca0a6aae7fc85d211d74a5fb20c095a2d3f19905ec2824621b6c	/usr/include/x86_64-linux-gnu/bits/socket_type.h	-
+libc6-dev	88f639a4e588077b6edfad36b3bb045f0cc052b5f9d194f8e706ee27cd846f67	/usr/include/x86_64-linux-gnu/bits/stdint-intn.h	-
+libc6-dev	700e77ca8b5d27b19649358abe229e64b238cb4ce79474fc1194d7831dc3a34f	/usr/include/x86_64-linux-gnu/bits/struct_mutex.h	-
+libc6-dev	7d1b998c8def8d264af5114e869bcb37c484daa23ec8ac54a2110dbdd9c05a95	/usr/include/x86_64-linux-gnu/bits/struct_rwlock.h	-
+libc6-dev	f16fd912b0b1e8a222af4acb11dbbc9c68ba485c381a0dcf49be60b38e581c37	/usr/include/x86_64-linux-gnu/bits/thread-shared-types.h	-
+libc6-dev	b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a	/usr/include/x86_64-linux-gnu/bits/time64.h	-
+libc6-dev	d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2	/usr/include/x86_64-linux-gnu/bits/timesize.h	-
+libc6-dev	74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0	/usr/include/x86_64-linux-gnu/bits/types.h	-
+libc6-dev	05291a7d38bb1d0da1ed01c09fe85fa2b1f4d5bc708e06bb930efec672db08d5	/usr/include/x86_64-linux-gnu/bits/types/__sigset_t.h	-
+libc6-dev	81e60e8a8d99b28bc723c14b156d7f7fc8ff663d98a857a3f5aea90431f577e3	/usr/include/x86_64-linux-gnu/bits/types/clock_t.h	-
+libc6-dev	dcd64d184855b245e5c7acf21910a0aaca590f1faf094e400da5d30551d11eb0	/usr/include/x86_64-linux-gnu/bits/types/clockid_t.h	-
+libc6-dev	3db5ded9d98a694e8c7196a06690b2e816ec6bb82689940d281f6504533f37e1	/usr/include/x86_64-linux-gnu/bits/types/sigset_t.h	-
+libc6-dev	d18c1892d58c3a8f342ea51e8e3aa6d93d25cdf0b05973bce04249fd7e1df2ad	/usr/include/x86_64-linux-gnu/bits/types/struct_iovec.h	-
+libc6-dev	63619500aa6095b881f62d7a255bd31eeeab9a829cf34ec40e20a62729323efc	/usr/include/x86_64-linux-gnu/bits/types/struct_osockaddr.h	-
+libc6-dev	798e773d0c7f3796033c043910db2b093d1e43116c4b3d2cf3be85f8c4304cf1	/usr/include/x86_64-linux-gnu/bits/types/struct_timespec.h	-
+libc6-dev	6585bf0dcd3d5a780d6246da841031f9b314ceb7400a3210f34815f5da93b1fa	/usr/include/x86_64-linux-gnu/bits/types/struct_timeval.h	-
+libc6-dev	d1cc45e24a80009117f61ee4ae9cae5d12f69f38d691e0a933f989f7a1d27bb0	/usr/include/x86_64-linux-gnu/bits/types/time_t.h	-
+libc6-dev	d96a2452da0d933941273d11d1048ea525f033306892835b0a7a0999b13853aa	/usr/include/x86_64-linux-gnu/bits/types/timer_t.h	-
+libc6-dev	49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a	/usr/include/x86_64-linux-gnu/bits/typesizes.h	-
+libc6-dev	f2854176fc9476ed0d2f52241b4911861bdc41a133f4bd2a3e9fd1073278086f	/usr/include/x86_64-linux-gnu/bits/uintn-identity.h	-
+libc6-dev	948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb	/usr/include/x86_64-linux-gnu/bits/wordsize.h	-
+libc6-dev	0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289	/usr/include/x86_64-linux-gnu/gnu/stubs-64.h	-
+libc6-dev	ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e	/usr/include/x86_64-linux-gnu/gnu/stubs.h	-
+libc6-dev	69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68	/usr/include/x86_64-linux-gnu/sys/cdefs.h	-
+libc6-dev	0e36149f12e27b0d38e28e25dd392c4a3c75c06a3cf85c3d906bc9fef4a45e4b	/usr/include/x86_64-linux-gnu/sys/select.h	-
+libc6-dev	83cb65658f6285eb4cfa947d36de830d432609f11be940261318fb751e9a5324	/usr/include/x86_64-linux-gnu/sys/socket.h	-
+libc6-dev	3134ee1a8359f7d4d69e40db42b70f94c10f1e9e40b9925454bccbf7608d5ced	/usr/include/x86_64-linux-gnu/sys/types.h	-
+linux-libc-dev	84fc9dd6bb62530cda94516a8cc023483dcfc29ba55566c0a551b98159da400e	/usr/lib/linux/uapi/arm64/asm/bitsperlong.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	b56bd14eac9f3793f67336087aa64b234d9c16026f83e3cd0e0baa6bf27778f8	/usr/lib/linux/uapi/arm64/asm/byteorder.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	4ee384515a4325315992e61dd957f0fa91f3858fe7c079de59f56edded51de86	/usr/lib/linux/uapi/arm64/asm/errno.h	-
+linux-libc-dev	ef6ce264aa33309c5b69ad09c2bd293c9bb79a6fc2c3cd22f34dbbd8f5acfb1f	/usr/lib/linux/uapi/arm64/asm/posix_types.h	GPL-2.0 WITH Linux-syscall-note
+linux-libc-dev	48e0940e8a6e8861eaaaf90853a685fa803c4e039166060a3c921c8d79001e3c	/usr/lib/linux/uapi/arm64/asm/socket.h	-
+linux-libc-dev	ac496b3bcc37452f0caa104b2205a8a19dde0196a7791988b3b74e23c2174c1e	/usr/lib/linux/uapi/arm64/asm/sockios.h	-
+linux-libc-dev	a01cbf770530810d20b703375d8c6321d438eaddd88f3515f5dd3fb062ff9c72	/usr/lib/linux/uapi/arm64/asm/swab.h	-
+linux-libc-dev	b6bdcd528bce555b2ecb58e8a1624e3e13e09312c31318023c4e86b957e2b01f	/usr/lib/linux/uapi/arm64/asm/types.h	-
+libclang-common-19-dev	d86ddc0238da09b385846ebef814ffc50a44e40cf85d4e3793f485952b7e73ad	/usr/lib/llvm-19/lib/clang/19/include/__stddef_size_t.h	Apache-2.0 WITH LLVM-exception
+libclang-common-19-dev	48655faf4ebd4ca0af26a1ee8e3e16f8dc68385c9cd550ffb3629320681305b3	/usr/lib/llvm-19/lib/clang/19/include/stdbool.h	Apache-2.0 WITH LLVM-exception
+libclang-common-19-dev	b3e62a046ddf28d09eedebe6eb9461cb7060e47cad2c69964b222c4eea10347e	/usr/lib/llvm-19/lib/clang/19/include/stddef.h	Apache-2.0 WITH LLVM-exception
+axern	69201a0363825eb32d4c39158a804e863f9e946bdf2052b1b59478fe982fe829	/workspace/network/bpfnet/internal/tcprog/bpf_nat.c	-
+axern	8c15035d32a81f23b5d8f17037587f4e2942919b17eead90b33c403c962b1649	/workspace/network/bpfnet/internal/tcprog/bpf_nat_maps.h	-
+axern	d74e1ad2efe2279ed73d4e5f41743ce5d22d863b08c7418b61e2cade11563015	/workspace/network/bpfnet/internal/tcprog/bpf_nat_parse.h	-
+axern	600f71df9d96e2b208d56d1c30d4b2e8cbacb2e6d00176a56abe56af50546d69	/workspace/network/bpfnet/internal/tcprog/bpf_nat_rewrite.h	-
+axern	355ad7ac7e8d9fc367c30d965a844741ae99bfff7434ec339f93986b7fee3fe0	/workspace/network/bpfnet/internal/tcprog/bpf_nat_snat.h	-
