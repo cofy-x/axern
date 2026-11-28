@@ -31,9 +31,7 @@ export interface TunnelConnectorConfig {
 
 export class TunnelConnector {
   private stopped = false;
-  private activeCall?: grpc.ClientDuplexStream<Record<string, unknown>, Record<string, unknown>>;
-  private activeClient?: grpc.Client;
-  private activeSession?: TunnelRelaySession;
+  private activeRelay?: { session: TunnelRelaySession; close(): void };
   private reconnecting = false;
   private relayTarget = "";
   private upstreamTarget?: ReturnType<typeof parseTcpTarget>;
@@ -69,15 +67,31 @@ export class TunnelConnector {
       dialTimeoutMs: this.config.connector?.dialTimeoutMs ?? defaultDialTimeoutMs,
       maxStreams: this.config.connector?.maxStreams ?? defaultMaxStreams,
     });
-    this.activeClient = client;
-    this.activeCall = call;
-    this.activeSession = session;
-    call.on("data", (frame: Record<string, unknown>) => {
+    const onData = (frame: Record<string, unknown>): void => {
       debugFrame("recv", frame);
       session.handleFrame(frame);
-    });
-    call.on("error", (error: grpc.ServiceError) => this.handleRelayClosed(error));
-    call.on("end", () => this.handleRelayClosed());
+    };
+    const onClose = (error?: grpc.ServiceError): void => {
+      if (this.activeRelay?.session === session) {
+        this.handleRelayClosed(error);
+      }
+    };
+    call.on("data", onData);
+    call.on("error", onClose);
+    call.on("end", onClose);
+    this.activeRelay = {
+      session,
+      close() {
+        // A retired gRPC stream can still emit terminal status or writable stream errors.
+        call.on("error", ignoreRetiredRelayError);
+        call.off("error", onClose);
+        call.off("end", onClose);
+        call.off("data", onData);
+        session.closeAll();
+        call.end();
+        client.close();
+      },
+    };
     session.send({
       peer_open: {
         session_id: this.config.session.session_id ?? "",
@@ -132,22 +146,15 @@ export class TunnelConnector {
         clearInterval(timer);
         return;
       }
-      this.activeSession?.send({ ping: { id: String(Date.now()) } });
+      this.activeRelay?.session.send({ ping: { id: String(Date.now()) } });
     }, interval);
     timer.unref();
   }
 
   private closeActiveRelay(): void {
-    const call = this.activeCall;
-    const client = this.activeClient;
-    const session = this.activeSession;
-    this.activeCall = undefined;
-    this.activeClient = undefined;
-    this.activeSession = undefined;
-    call?.removeAllListeners();
-    session?.closeAll();
-    call?.end();
-    client?.close();
+    const relay = this.activeRelay;
+    this.activeRelay = undefined;
+    relay?.close();
   }
 
   private requiredUpstreamTarget(): ReturnType<typeof parseTcpTarget> {
@@ -157,6 +164,8 @@ export class TunnelConnector {
     return this.upstreamTarget;
   }
 }
+
+function ignoreRetiredRelayError(): void {}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
