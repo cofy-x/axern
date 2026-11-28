@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+# Linux UAPI headers can include libc headers, whose ABI selection needs
+# the builder architecture even though clang emits BPF instructions.
+case "$(uname -m)" in
+  x86_64) exec /usr/bin/clang -D__x86_64__ "$@" ;;
+  aarch64) exec /usr/bin/clang -D__aarch64__ "$@" ;;
+  *) exec /usr/bin/clang "$@" ;;
+esac

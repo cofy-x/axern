@@ -1,4 +1,4 @@
-FROM golang:1.27.4
+FROM golang:1.27.4@sha256:5f1b98fa02fe396ebce2a0227a0e08309e11792915b9dd2e1f71053d7e7e6666
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG CILIUM_EBPF_VERSION=v0.22.0
@@ -36,6 +36,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     linux-libc-dev \
     llvm-19 \
     && ln -s /usr/bin/llvm-strip-19 /usr/local/bin/llvm-strip
+
+COPY --chmod=755 clang-bpf /usr/local/bin/clang
 
 RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
     --mount=type=cache,target=/root/.cache/go-build,sharing=locked \

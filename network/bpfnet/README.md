@@ -46,3 +46,5 @@ make generate-check
 ```
 
 Regional mirror and proxy policy belongs to the Forge wrapper. The module script forwards standard proxy variables and supports `BPFNET_CODEGEN_GOPROXY`, `BPFNET_CODEGEN_GOSUMDB`, and `BPFNET_CODEGEN_APT_MIRROR_BASE_URL` overrides.
+
+The [code generation receipt](docker/codegen/generated-provenance.json) identifies the Linux amd64 builder used to reproduce the two committed objects and their Go loaders byte for byte. It records the Go image, bpf2go, compiler, Debian packages, and checksums of their copyright texts. The [compiler input table](docker/codegen/generated-inputs.tsv) identifies the files consumed by clang and records their upstream SPDX declarations where present. Use `BPFNET_CODEGEN_PLATFORM=linux/amd64 make generate-check` to check the generated files from that builder architecture. Review these exact source notices when publishing the native archive, which embeds the little-endian object in `axnoded`.

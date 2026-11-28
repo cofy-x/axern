@@ -1,0 +1,126 @@
+{
+  "bpf2go": {
+    "go_h1": "h1:v2ktp0roffpMOj2MMf3idtCQZOsAoC4BJbAJN+ke2bY=",
+    "module": "github.com/cilium/ebpf",
+    "version": "v0.22.0"
+  },
+  "builder_platform": "linux/amd64",
+  "compiler_file_sha256": {
+    "/usr/bin/clang": "0a3c55936ac43954fbe4914e6e73b577ca9e35e75d89ef13d3e28c187f41ca1a",
+    "/usr/local/bin/bpf2go": "fbacc4eb3837eb82805dec8f527faa002c075460b704b9dc6176e017a65e5f1e",
+    "/usr/local/bin/llvm-strip": "8723d4539a1c621fbaa2f0bc9f6a5268ccb7cf93bac6b4fc8f1d6aed1b77201e"
+  },
+  "compiler_header_inputs": {
+    "count_by_package": {
+      "axern": 5,
+      "libbpf-dev": 3,
+      "libc6-dev": 41,
+      "libclang-common-19-dev": 3,
+      "linux-libc-dev": 39
+    },
+    "sha256": "99f151751111b966308c61af2b9f9d6154adae3e5fa6a7b7cd31fcdb6bdc928e",
+    "table": "generated-inputs.tsv"
+  },
+  "deb_archive": "Debian 13 trixie",
+  "debian_packages": {
+    "clang-19": {
+      "architecture": "amd64",
+      "copyright_sha256": "4c22cf66ddd6dfae2ac4e034342f93a9c96581d5e88c7bb700a125a71cf66cd7",
+      "debian_pool_path": "pool/main/l/llvm-toolchain-19/clang-19_19.1.7-3+b1_amd64.deb",
+      "package_sha256": "bbb74458d782b7792b61b0eed92746df5e6d033778c045cf8c2b3835b7c4efc4",
+      "source_package": "llvm-toolchain-19",
+      "source_version": "1:19.1.7-3",
+      "version": "1:19.1.7-3+b1"
+    },
+    "libbpf-dev": {
+      "architecture": "amd64",
+      "copyright_sha256": "daf2a4ad10e276989eed460825c71f7d4d92158fe97f0d51f745b450ecc7ae5b",
+      "debian_pool_path": "pool/main/libb/libbpf/libbpf-dev_1.5.0-3_amd64.deb",
+      "package_sha256": "87d241407b5bef18e367dbd13e8d0302b865a489ee0cf3d88eae55332ec5b9a1",
+      "source_package": "libbpf",
+      "source_version": "1.5.0-3",
+      "version": "1:1.5.0-3"
+    },
+    "libc6-dev": {
+      "architecture": "amd64",
+      "copyright_sha256": "f5788886720a2605a946e81d571e6c8162b09f58d2e2ceb8d36e5768fccd850d",
+      "debian_pool_path": "pool/main/g/glibc/libc6-dev_2.41-12+deb13u5_amd64.deb",
+      "package_sha256": "858f4d477cc39324f3c6582cdebcf38928fb385bb17b40518c77a7dccd296428",
+      "source_package": "glibc",
+      "source_version": "2.41-12+deb13u5",
+      "version": "2.41-12+deb13u5"
+    },
+    "libclang-common-19-dev": {
+      "architecture": "amd64",
+      "copyright_sha256": "4c22cf66ddd6dfae2ac4e034342f93a9c96581d5e88c7bb700a125a71cf66cd7",
+      "debian_pool_path": "pool/main/l/llvm-toolchain-19/libclang-common-19-dev_19.1.7-3+b1_amd64.deb",
+      "package_sha256": "4018e40e2d4144fe38c45822e68cca63c1bf6c7872c3073ebb262ad4b2f9b8bc",
+      "source_package": "llvm-toolchain-19",
+      "source_version": "1:19.1.7-3",
+      "version": "1:19.1.7-3+b1"
+    },
+    "libclang-cpp19": {
+      "architecture": "amd64",
+      "copyright_sha256": "4c22cf66ddd6dfae2ac4e034342f93a9c96581d5e88c7bb700a125a71cf66cd7",
+      "debian_pool_path": "pool/main/l/llvm-toolchain-19/libclang-cpp19_19.1.7-3+b1_amd64.deb",
+      "package_sha256": "a7d2b6df51050834f6ea5c0d5e34869c2298b0bcdaa91eff17ba3db2cd545c47",
+      "source_package": "llvm-toolchain-19",
+      "source_version": "1:19.1.7-3",
+      "version": "1:19.1.7-3+b1"
+    },
+    "libllvm19": {
+      "architecture": "amd64",
+      "copyright_sha256": "4c22cf66ddd6dfae2ac4e034342f93a9c96581d5e88c7bb700a125a71cf66cd7",
+      "debian_pool_path": "pool/main/l/llvm-toolchain-19/libllvm19_19.1.7-3+b1_amd64.deb",
+      "package_sha256": "db0d614d61345ca710fb73e75105f1ec6e38898fa7b3aa99fa7eb7d8b0a11d57",
+      "source_package": "llvm-toolchain-19",
+      "source_version": "1:19.1.7-3",
+      "version": "1:19.1.7-3+b1"
+    },
+    "linux-libc-dev": {
+      "architecture": "all",
+      "copyright_sha256": "2ae27ed8a5581e2cc4969c266e655a280a8982f87dfe72c011c3f03d91897076",
+      "debian_pool_path": "pool/updates/main/l/linux/linux-libc-dev_6.12.118-1_all.deb",
+      "package_sha256": "e3616a753c42c5591778df05c98a22db3b8731e7e8611aaeed4b89e14cb5271b",
+      "source_package": "linux",
+      "source_version": "6.12.118-1",
+      "version": "6.12.118-1"
+    },
+    "llvm-19": {
+      "architecture": "amd64",
+      "copyright_sha256": "4c22cf66ddd6dfae2ac4e034342f93a9c96581d5e88c7bb700a125a71cf66cd7",
+      "debian_pool_path": "pool/main/l/llvm-toolchain-19/llvm-19_19.1.7-3+b1_amd64.deb",
+      "package_sha256": "0b1b7263f4f45e261099240fdbf00fc14b42b88410fd829e041bf83ea45866cb",
+      "source_package": "llvm-toolchain-19",
+      "source_version": "1:19.1.7-3",
+      "version": "1:19.1.7-3+b1"
+    }
+  },
+  "debian_release_files_sha256": {
+    "deb.debian.org_debian-security_dists_trixie-security_InRelease": "5d4bff8c44333567af6dd5bac47c6aafdd0d4e6b9d0db138c3599cb7f2e630ce",
+    "deb.debian.org_debian_dists_trixie-updates_InRelease": "3184f0d27c7e2030b22f5009e6a05934d9b15a42cfd3481d5d5093ebfc385472",
+    "deb.debian.org_debian_dists_trixie_InRelease": "bfacad4ca61899ce20d4a0d439f29339f66541561b67506364efb88e27dee870"
+  },
+  "docker_go_base_amd64_manifest": "sha256:e65b9442d27a8cbb2fde9128832d75154664528d8ab6b5b6e951800d613cc12a",
+  "docker_go_base_index": "sha256:5f1b98fa02fe396ebce2a0227a0e08309e11792915b9dd2e1f71053d7e7e6666",
+  "generated_files": {
+    "dataplane_bpfeb.go": {
+      "sha256": "3d94332b12fdd18f6dd8233617d583d9c1310dda0955b78556effa23060ae6c4",
+      "size": 6193
+    },
+    "dataplane_bpfeb.o": {
+      "sha256": "ff23777b8e8eeec737355334d5342210aa25760d3e370fee5e84a99d6c732533",
+      "size": 89232
+    },
+    "dataplane_bpfel.go": {
+      "sha256": "6944694579cf9902d9cae23125d0ba89e443782c8f7ae6b614eee0b85725601c",
+      "size": 6252
+    },
+    "dataplane_bpfel.o": {
+      "sha256": "ad9d9538664f70b38464add1882d2d4facf86db26dc9ec692a51a565cd35d6f1",
+      "size": 89784
+    }
+  },
+  "go_release": "go1.27.4",
+  "schema": "axern.bpfnet-codegen.provenance.v1"
+}
