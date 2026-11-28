@@ -75,4 +75,15 @@ python3 scripts/release/native_delivery_inventory.py /absolute/path/to/runtime.t
 
 The tool stages the verified payload without running its binaries and emits SPDX and CycloneDX sidecars. Its receipt binds both sidecar digests to the archive digest, source and architecture, and counts SPDX license declarations requiring review. The receipt records scanner results. Complete license notices, signed provenance and installation qualification still require separate evidence.
 
+The manual [native archive provenance workflow](../../.github/workflows/native-provenance.yml) builds the default branch on Ubuntu 24.04 amd64 and arm64. Each architecture produces a signed statement covering the archive, SHA256SUMS, SPDX, CycloneDX and inventory receipt. Its downloadable evidence includes the signed bundle. The native archives remain on the build machines pending separate release qualification.
+
+To verify an independently obtained archive and its evidence, select the expected source commit and use the bundle from the matching architecture. Verify each evidence file that you consume using the same command.
+
+```bash
+gh attestation verify "$ARCHIVE" --repo cofy-x/axern \
+  --signer-workflow cofy-x/axern/.github/workflows/native-provenance.yml \
+  --source-ref refs/heads/main --source-digest "$EXPECTED_COMMIT" \
+  --deny-self-hosted-runners --bundle "$EVIDENCE/provenance.jsonl"
+```
+
 Native installation is experimental. Supported upgrades, coordinated backup/restore, Compose migration and macOS VM provisioning are unavailable. Record acceptance commands, platform details and source revisions in the implementation PR or operational test record. Packaging checks do not establish sandbox enforcement or durable serving qualification.
