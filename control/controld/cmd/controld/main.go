@@ -39,8 +39,10 @@ import (
 	workspacev1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/workspace/v1"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -163,7 +165,7 @@ func run() error {
 		grpc.Creds(&workloadtls.Credentials{BundlePath: opts.workloadBundle, TrustPath: opts.tlsCACert, Local: workloadtls.Identity{Cluster: opts.workloadCluster, Role: "controld"}}),
 		grpc.KeepaliveParams(keepalive.ServerParameters{MaxConnectionAge: 5 * time.Minute, MaxConnectionAgeGrace: 10 * time.Second}),
 		grpc.ChainUnaryInterceptor(authorization.Unary, rpcstatus.UnaryServerInterceptor(postgres.IsDependencyUnavailable)),
-		grpc.ChainStreamInterceptor(authorization.Stream, rpcstatus.StreamServerInterceptor(postgres.IsDependencyUnavailable)),
+		grpc.ChainStreamInterceptor(cancelWatchesOnShutdown(ctx), authorization.Stream, rpcstatus.StreamServerInterceptor(postgres.IsDependencyUnavailable)),
 	}
 	if handler := obs.GRPCServerStatsHandler(); handler != nil {
 		grpcOptions = append(grpcOptions, grpc.StatsHandler(handler))
@@ -229,6 +231,7 @@ func run() error {
 		}
 	}
 
+	stop()
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if err := httpServer.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -250,6 +253,29 @@ func run() error {
 		return nil
 	}
 	return runErr
+}
+
+type shutdownStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s shutdownStream) Context() context.Context { return s.ctx }
+
+// Watches have no natural completion time. Release them before draining unary
+// RPCs so a controller restart leaves time for the next authenticated heartbeat.
+func cancelWatchesOnShutdown(lifetime context.Context) grpc.StreamServerInterceptor {
+	return func(srv any, stream grpc.ServerStream, _ *grpc.StreamServerInfo, next grpc.StreamHandler) error {
+		ctx, cancel := context.WithCancel(stream.Context())
+		stop := context.AfterFunc(lifetime, cancel)
+		defer stop()
+		defer cancel()
+		err := next(srv, shutdownStream{ServerStream: stream, ctx: ctx})
+		if err != nil && lifetime.Err() != nil && ctx.Err() != nil && stream.Context().Err() == nil {
+			return status.Error(codes.Unavailable, "controller shutting down")
+		}
+		return err
+	}
 }
 
 func parseFlags() (options, error) {
