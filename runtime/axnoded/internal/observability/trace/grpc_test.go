@@ -28,7 +28,7 @@ func TestInjectTraceInterceptorDoesNotLogRequestPayload(t *testing.T) {
 
 	const (
 		traceID = "f006b765f81d943aaf9339703587f409"
-		method  = "/axern.private.node.lifecycle.v1.NodeLifecycle/AdmitAllocation"
+		method  = "/axern.private.node.lifecycle.v1.NodeLifecycle/LaunchAllocation"
 		secret  = "registry-credential-must-not-be-logged"
 	)
 	ctx := context.WithValue(context.Background(), ContextKeyTraceId, traceID)

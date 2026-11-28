@@ -96,6 +96,8 @@ axern admin principal list
 axern admin role-binding list --namespace default
 ```
 
+When `workspace create` receives an identity and the readiness wait fails, it prints the acknowledged creation response and exits with an error. Use `workspace get <id>` to inspect current state. Callers that persist the identity before waiting can use `workspace create --wait=false`.
+
 `quota get` includes quota, usage, and admission signals. Retained Workspace capacity uses separate `--persistent-storage` and `--persistent-inodes` limits in `quota set`, and remains charged while data exists even without a running Allocation.
 
 Generate completion with `axern completion bash|zsh|fish`.
@@ -181,7 +183,9 @@ Add `spec.workspace_id: <workspace-id>` to select retained working data for the 
 
 When `--file` is used, resource-definition flags cannot be mixed with the spec. Context, output, detach, and timeout flags remain operational overrides.
 
-Run files also accept `spec.network_policy`, validated with the public Go SDK:
+Use `axern run --primary-user 1000:1000 IMAGE -- COMMAND` to start the primary process as a numeric non-root user. For `--file`, set `spec.primary_user: {uid: 1000, gid: 1000}`. The [Run contract](../../docs/product/domain-model.md#run) describes identity defaults and image metadata.
+
+Run files also accept `spec.network_policy`, validated with the public Go SDK.
 
 ```yaml
 network_policy:

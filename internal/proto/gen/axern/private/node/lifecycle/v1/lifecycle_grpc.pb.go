@@ -19,7 +19,7 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	NodeLifecycle_AdmitAllocation_FullMethodName              = "/axern.private.node.lifecycle.v1.NodeLifecycle/AdmitAllocation"
+	NodeLifecycle_LaunchAllocation_FullMethodName             = "/axern.private.node.lifecycle.v1.NodeLifecycle/LaunchAllocation"
 	NodeLifecycle_DeleteAllocation_FullMethodName             = "/axern.private.node.lifecycle.v1.NodeLifecycle/DeleteAllocation"
 	NodeLifecycle_AcknowledgeAllocationRelease_FullMethodName = "/axern.private.node.lifecycle.v1.NodeLifecycle/AcknowledgeAllocationRelease"
 	NodeLifecycle_GetAllocationLifecycle_FullMethodName       = "/axern.private.node.lifecycle.v1.NodeLifecycle/GetAllocationLifecycle"
@@ -32,7 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type NodeLifecycleClient interface {
-	AdmitAllocation(ctx context.Context, in *CreateAllocationRequest, opts ...grpc.CallOption) (*CreateAllocationResponse, error)
+	LaunchAllocation(ctx context.Context, in *CreateAllocationRequest, opts ...grpc.CallOption) (*CreateAllocationResponse, error)
 	DeleteAllocation(ctx context.Context, in *DeleteAllocationRequest, opts ...grpc.CallOption) (*DeleteAllocationResponse, error)
 	AcknowledgeAllocationRelease(ctx context.Context, in *AcknowledgeAllocationReleaseRequest, opts ...grpc.CallOption) (*AcknowledgeAllocationReleaseResponse, error)
 	GetAllocationLifecycle(ctx context.Context, in *GetAllocationLifecycleRequest, opts ...grpc.CallOption) (*GetAllocationLifecycleResponse, error)
@@ -49,9 +49,9 @@ func NewNodeLifecycleClient(cc grpc.ClientConnInterface) NodeLifecycleClient {
 	return &nodeLifecycleClient{cc}
 }
 
-func (c *nodeLifecycleClient) AdmitAllocation(ctx context.Context, in *CreateAllocationRequest, opts ...grpc.CallOption) (*CreateAllocationResponse, error) {
+func (c *nodeLifecycleClient) LaunchAllocation(ctx context.Context, in *CreateAllocationRequest, opts ...grpc.CallOption) (*CreateAllocationResponse, error) {
 	out := new(CreateAllocationResponse)
-	err := c.cc.Invoke(ctx, NodeLifecycle_AdmitAllocation_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, NodeLifecycle_LaunchAllocation_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (c *nodeLifecycleClient) DeleteWorkspace(ctx context.Context, in *DeleteWor
 // All implementations must embed UnimplementedNodeLifecycleServer
 // for forward compatibility
 type NodeLifecycleServer interface {
-	AdmitAllocation(context.Context, *CreateAllocationRequest) (*CreateAllocationResponse, error)
+	LaunchAllocation(context.Context, *CreateAllocationRequest) (*CreateAllocationResponse, error)
 	DeleteAllocation(context.Context, *DeleteAllocationRequest) (*DeleteAllocationResponse, error)
 	AcknowledgeAllocationRelease(context.Context, *AcknowledgeAllocationReleaseRequest) (*AcknowledgeAllocationReleaseResponse, error)
 	GetAllocationLifecycle(context.Context, *GetAllocationLifecycleRequest) (*GetAllocationLifecycleResponse, error)
@@ -130,8 +130,8 @@ type NodeLifecycleServer interface {
 type UnimplementedNodeLifecycleServer struct {
 }
 
-func (UnimplementedNodeLifecycleServer) AdmitAllocation(context.Context, *CreateAllocationRequest) (*CreateAllocationResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AdmitAllocation not implemented")
+func (UnimplementedNodeLifecycleServer) LaunchAllocation(context.Context, *CreateAllocationRequest) (*CreateAllocationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method LaunchAllocation not implemented")
 }
 func (UnimplementedNodeLifecycleServer) DeleteAllocation(context.Context, *DeleteAllocationRequest) (*DeleteAllocationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteAllocation not implemented")
@@ -164,20 +164,20 @@ func RegisterNodeLifecycleServer(s grpc.ServiceRegistrar, srv NodeLifecycleServe
 	s.RegisterService(&NodeLifecycle_ServiceDesc, srv)
 }
 
-func _NodeLifecycle_AdmitAllocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _NodeLifecycle_LaunchAllocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CreateAllocationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(NodeLifecycleServer).AdmitAllocation(ctx, in)
+		return srv.(NodeLifecycleServer).LaunchAllocation(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: NodeLifecycle_AdmitAllocation_FullMethodName,
+		FullMethod: NodeLifecycle_LaunchAllocation_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(NodeLifecycleServer).AdmitAllocation(ctx, req.(*CreateAllocationRequest))
+		return srv.(NodeLifecycleServer).LaunchAllocation(ctx, req.(*CreateAllocationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -298,8 +298,8 @@ var NodeLifecycle_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*NodeLifecycleServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "AdmitAllocation",
-			Handler:    _NodeLifecycle_AdmitAllocation_Handler,
+			MethodName: "LaunchAllocation",
+			Handler:    _NodeLifecycle_LaunchAllocation_Handler,
 		},
 		{
 			MethodName: "DeleteAllocation",

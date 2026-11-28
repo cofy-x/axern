@@ -13,6 +13,7 @@ from axern_sdk import (
     AxernClient,
     ImageMount,
     NetworkPolicy,
+    PrimaryUser,
     Sandbox,
     SecretEnvVar,
     SecretFile,
@@ -23,7 +24,7 @@ class _RunStub:
     def __init__(self) -> None:
         self.request: run_pb2.CreateRunRequest | None = None
 
-    def AdmitRun(self, request, timeout=None):
+    def SubmitRun(self, request, timeout=None):
         del timeout
         self.request = request
         return run_pb2.CreateRunResponse(run=run_pb2.Run(id="run-1"))
@@ -33,7 +34,7 @@ class _AsyncRunStub:
     def __init__(self) -> None:
         self.request: run_pb2.CreateRunRequest | None = None
 
-    async def AdmitRun(self, request, timeout=None):
+    async def SubmitRun(self, request, timeout=None):
         del timeout
         self.request = request
         return run_pb2.CreateRunResponse(run=run_pb2.Run(id="run-1"))
@@ -64,6 +65,7 @@ class RunSpecTest(unittest.TestCase):
         client.create_run(
             environment_id="env-1",
             rootfs_snapshot=True,
+            primary_user=PrimaryUser(uid=1000, gid=0),
             image_mounts=(
                 ImageMount("registry.example/tool@sha256:aaa", "/__tool"),
                 ImageMount("registry.example/data@sha256:bbb", "/__data"),
@@ -97,6 +99,9 @@ class RunSpecTest(unittest.TestCase):
             ],
         )
         self.assertTrue(config.HasField("rootfs_snapshot"))
+        self.assertEqual(config.primary_user.uid, 1000)
+        self.assertTrue(config.primary_user.HasField("gid"))
+        self.assertEqual(config.primary_user.gid, 0)
         self.assertEqual(
             [
                 (item.name, item.secret_id, item.key, item.optional)

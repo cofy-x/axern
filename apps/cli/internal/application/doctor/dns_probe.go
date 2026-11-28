@@ -94,7 +94,7 @@ func DNSProbe(ctx context.Context, session *Session, options DNSProbeOptions) Ch
 	}
 
 	if probeCode == "" {
-		response, err := session.Run.AdmitRun(probeCtx, &runv1.CreateRunRequest{
+		response, err := session.Run.SubmitRun(probeCtx, &runv1.CreateRunRequest{
 			Namespace:     namespace,
 			EnvironmentID: environmentID,
 			Config: &commonv1.ExecutionConfig{

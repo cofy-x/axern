@@ -17,6 +17,8 @@ type Entrypoint struct {
 	Args []string `json:"args"`
 	Cwd  string   `json:"cwd"`
 	Env  []string `json:"env"`
+	UID  uint32
+	GID  uint32
 }
 
 type ProcessResult struct {
@@ -77,7 +79,13 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 		StartedAt: &now,
 	})
 
-	cmd := exec.Command(s.entrypoint.Args[0], s.entrypoint.Args[1:]...)
+	var cmd *exec.Cmd
+	if s.entrypoint.UID == 0 {
+		cmd = exec.Command(s.entrypoint.Args[0], s.entrypoint.Args[1:]...)
+	} else {
+		// Resolve the executable only after dropping credentials in the child.
+		cmd = &exec.Cmd{Path: s.entrypoint.Args[0], Args: s.entrypoint.Args}
+	}
 	if s.entrypoint.Cwd != "" {
 		cmd.Dir = s.entrypoint.Cwd
 	}
@@ -88,6 +96,13 @@ func (s *Supervisor) Start() <-chan ProcessResult {
 
 	pid := 0
 	waitCh, err := s.waiter.Start(cmd, func() error {
+		if s.entrypoint.UID != 0 {
+			cleanup, err := proc.PrepareUnprivilegedCommand(cmd, s.entrypoint.UID, s.entrypoint.GID)
+			if err != nil {
+				return err
+			}
+			defer cleanup()
+		}
 		if err := cmd.Start(); err != nil {
 			return err
 		}

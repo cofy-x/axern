@@ -7,6 +7,14 @@ from datetime import datetime
 from enum import StrEnum
 
 
+@dataclass(frozen=True, slots=True)
+class PrimaryUser:
+    """Numeric non-root identity for the Run's primary process."""
+
+    uid: int
+    gid: int
+
+
 class DeclaredOutputFormat(StrEnum):
     FILE = "file"
     TAR = "tar"

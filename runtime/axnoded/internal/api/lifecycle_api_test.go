@@ -58,7 +58,7 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 	t.Parallel()
 
 	server := NewNodeLifecycleServer(&fakeNodeLifecycleService{startResponseID: "container-alias"}, "node-a")
-	_, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	_, err := server.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "alloc-123",
 		NodeID:                   "node-a",
 		ExecutionLeaseTtlSeconds: 30,
@@ -67,7 +67,7 @@ func TestNodeLifecycleCreateAllocationRejectsDifferentExecutionIdentity(t *testi
 		},
 	})
 	if grpcstatus.Code(err) != codes.Internal {
-		t.Fatalf("AdmitAllocation() code = %v, want internal", grpcstatus.Code(err))
+		t.Fatalf("LaunchAllocation() code = %v, want internal", grpcstatus.Code(err))
 	}
 }
 
@@ -76,36 +76,36 @@ func TestNodeLifecycleCreateAllocationRequiresLeaseOnlyForControlPlaneBinding(t 
 
 	localService := &fakeNodeLifecycleService{}
 	localServer := NewLocalNodeLifecycleServer(localService, "node-a")
-	if _, err := localServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	if _, err := localServer.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID: "local-conformance",
 		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	}); err != nil {
-		t.Fatalf("local AdmitAllocation() error = %v", err)
+		t.Fatalf("local LaunchAllocation() error = %v", err)
 	}
-	if _, err := localServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	if _, err := localServer.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "local-with-lease",
 		ExecutionLeaseTtlSeconds: 30,
 		Config:                   &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	}); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("local AdmitAllocation() with lease code = %v, want invalid argument", grpcstatus.Code(err))
+		t.Fatalf("local LaunchAllocation() with lease code = %v, want invalid argument", grpcstatus.Code(err))
 	}
 
 	boundServer := NewNodeLifecycleServer(&fakeNodeLifecycleService{}, "node-a")
-	if _, err := boundServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	if _, err := boundServer.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID: "remote-without-binding",
 		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	}); grpcstatus.Code(err) != codes.InvalidArgument {
-		t.Fatalf("remote AdmitAllocation() without binding code = %v, want invalid argument", grpcstatus.Code(err))
+		t.Fatalf("remote LaunchAllocation() without binding code = %v, want invalid argument", grpcstatus.Code(err))
 	}
 	for _, ttl := range []int64{0, 31} {
-		_, err := boundServer.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+		_, err := boundServer.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 			AllocationID:             "bound-invalid-lease",
 			NodeID:                   "node-a",
 			ExecutionLeaseTtlSeconds: ttl,
 			Config:                   &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 		})
 		if grpcstatus.Code(err) != codes.InvalidArgument {
-			t.Fatalf("bound AdmitAllocation() ttl %d code = %v, want invalid argument", ttl, grpcstatus.Code(err))
+			t.Fatalf("bound LaunchAllocation() ttl %d code = %v, want invalid argument", ttl, grpcstatus.Code(err))
 		}
 	}
 }
@@ -115,12 +115,12 @@ func TestLocalNodeLifecycleCannotOperateControlPlaneAllocation(t *testing.T) {
 	service := &fakeNodeLifecycleService{controlPlaneIDs: map[string]bool{"alloc-bound": true}}
 	server := NewLocalNodeLifecycleServer(service, "node-a")
 
-	_, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	_, err := server.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID: "alloc-bound",
 		Config:       &nodelifecyclev1.ResolvedExecutionConfig{ImageDescriptor: "example.com/runtime:latest"},
 	})
 	if grpcstatus.Code(err) != codes.PermissionDenied {
-		t.Fatalf("AdmitAllocation() code = %v, want permission denied", grpcstatus.Code(err))
+		t.Fatalf("LaunchAllocation() code = %v, want permission denied", grpcstatus.Code(err))
 	}
 	if _, err := server.DeleteAllocation(context.Background(), &nodelifecyclev1.DeleteAllocationRequest{AllocationID: "alloc-bound"}); grpcstatus.Code(err) != codes.PermissionDenied {
 		t.Fatalf("DeleteAllocation() code = %v, want permission denied", grpcstatus.Code(err))
@@ -176,6 +176,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	t.Parallel()
 
 	const imageRef = "example/workload:dev"
+	primaryUser := &commonv1.PrimaryUser{Uid: proto.Uint32(1000), Gid: proto.Uint32(0)}
 	fakeService := &fakeNodeLifecycleService{
 		admittedDependencies: []*capabilityv1.CapabilityRequirement{{
 			Key: &capabilityv1.CapabilityKey{Kind: &capabilityv1.CapabilityKey_Platform{
@@ -185,7 +186,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	server := NewNodeLifecycleServer(fakeService, "node-a")
 
-	resp, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	resp, err := server.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "alloc-123",
 		NodeID:                   "node-a",
 		ExecutionLeaseTtlSeconds: 30,
@@ -194,6 +195,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 			Argv:            []string{"/bin/sh", "-lc", "sleep 3600"},
 			Cwd:             "/workspace",
 			Env:             map[string]string{"A": "B"},
+			PrimaryUser:     primaryUser,
 			Resources: &commonv1.ResourceSpec{
 				Requests: &commonv1.ResourceQuantity{CpuMilli: 250, MemoryBytes: 134217728},
 				Limits:   &commonv1.ResourceQuantity{CpuMilli: 500, MemoryBytes: 268435456},
@@ -217,7 +219,7 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("AdmitAllocation() error = %v", err)
+		t.Fatalf("LaunchAllocation() error = %v", err)
 	}
 	if resp.GetAllocationID() != "alloc-123" {
 		t.Fatalf("allocation response = %#v", resp)
@@ -237,6 +239,9 @@ func TestNodeLifecycleCreateAllocationBridgesRequest(t *testing.T) {
 	}
 	if startReq.GetEnvironment().GetEnv()["A"] != "B" {
 		t.Fatalf("runtime env = %#v, want key A", startReq.GetEnvironment().GetEnv())
+	}
+	if got := startReq.GetEnvironment().GetPrimaryUser(); !proto.Equal(got, primaryUser) || got == primaryUser {
+		t.Fatalf("primary identity was not carried independently: %v", got)
 	}
 	if startReq.GetResources().GetRequests().GetCpuMilli() != 250 {
 		t.Fatalf("resources = %#v, want request CPU 250", startReq.GetResources())
@@ -270,7 +275,7 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 	fakeService := &fakeNodeLifecycleService{}
 	server := NewNodeLifecycleServer(fakeService, "node-a")
 
-	_, err := server.AdmitAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
+	_, err := server.LaunchAllocation(context.Background(), &nodelifecyclev1.CreateAllocationRequest{
 		AllocationID:             "alloc-image-default",
 		NodeID:                   "node-a",
 		ExecutionLeaseTtlSeconds: 30,
@@ -280,7 +285,7 @@ func TestNodeLifecycleCreateAllocationAllowsImageDefaultCommand(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("AdmitAllocation() error = %v", err)
+		t.Fatalf("LaunchAllocation() error = %v", err)
 	}
 	if len(fakeService.startRequests) != 1 {
 		t.Fatalf("start request count = %d, want 1", len(fakeService.startRequests))

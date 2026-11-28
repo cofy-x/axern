@@ -182,13 +182,55 @@ jobs:
       - name: Build immutable local image lock
         env:
           AXERN_RELEASE_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || format('candidate-{0}', github.sha) }}
-        run: bash scripts/release/build-local-image-lock.sh dist/local-image-lock/images.lock
+        run: |
+          bash scripts/release/build-local-image-lock.sh dist/local-image-lock/images.lock
+          python3 scripts/release/delivery_image_audit.py bind \
+            --lock dist/local-image-lock/images.lock --binding dist/local-image-lock/binding.json \
+            --source "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}"
       - name: Upload local image lock
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: local-image-lock
-          path: dist/local-image-lock/images.lock
+          path: |
+            dist/local-image-lock/images.lock
+            dist/local-image-lock/binding.json
           if-no-files-found: error
+
+  image-audit:
+    needs: image-lock
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Download this run's image lock
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: local-image-lock
+          path: dist/local-image-lock
+      - name: Install pinned image auditors
+        run: bash scripts/release/install-image-auditors.sh "${RUNNER_TEMP}/image-auditors"
+      - name: Fetch the vulnerability database
+        env:
+          GRYPE_CHECK_FOR_APP_UPDATE: "false"
+          GRYPE_DB_CACHE_DIR: ${{ runner.temp }}/image-audit-db
+        run: '"${RUNNER_TEMP}/image-auditors/grype" db update'
+      - name: Audit locked delivery images
+        run: |
+          python3 scripts/release/delivery_image_audit.py audit \
+            --lock dist/local-image-lock/images.lock --binding dist/local-image-lock/binding.json \
+            --source "${GITHUB_SHA}" --run-id "${GITHUB_RUN_ID}" --run-attempt "${GITHUB_RUN_ATTEMPT}" \
+            --tools "${RUNNER_TEMP}/image-auditors" --database "${RUNNER_TEMP}/image-audit-db" \
+            --output "${RUNNER_TEMP}/delivery-image-audit"
+      - name: Preserve image audit evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: delivery-image-audit-${{ github.sha }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/delivery-image-audit
+          if-no-files-found: warn
 
   candidate-acceptance:
     needs: [artifacts, images, sdk-artifacts]
@@ -303,7 +345,7 @@ jobs:
 
   sdk-publish:
     if: github.ref_type == 'tag'
-    needs: [sdk-artifacts, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check]
+    needs: [sdk-artifacts, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check, image-audit]
     runs-on: ubuntu-latest
     environment: sdk-release
     permissions:
@@ -337,7 +379,7 @@ jobs:
 
   publish:
     if: github.ref_type == 'tag'
-    needs: [artifacts, images, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check, sdk-publish]
+    needs: [artifacts, images, candidate-acceptance, local-candidate-acceptance, homebrew-formula-check, image-audit, sdk-publish]
     runs-on: ubuntu-latest
     permissions:
       contents: write

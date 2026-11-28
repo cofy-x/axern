@@ -63,6 +63,7 @@ func (environment *PreparedEnvironment) ResolvedEnvironment() *api.ResolvedEnvir
 		Argv:             append([]string(nil), environment.Argv...),
 		Env:              cloneStringMap(environment.Env),
 		Cwd:              environment.Cwd,
+		PrimaryUser:      proto.CloneOf(environment.PrimaryUser),
 		Mounts:           cloneMounts(environment.Mounts),
 		ExecutionProfile: cloneOciExecutionProfile(environment.ExecutionProfile),
 	}

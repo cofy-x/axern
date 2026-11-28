@@ -123,6 +123,14 @@ message DeclaredOutput {
 // other live runtime state are outside this filesystem-only contract.
 message RootfsSnapshot {}
 
+// PrimaryUser selects a numeric non-root primary process explicitly. Both
+// fields are required when the message is supplied. An absent PrimaryUser uses
+// the default root identity.
+message PrimaryUser {
+  optional uint32 uid = 1;
+  optional uint32 gid = 2;
+}
+
 message ExecutionConfig {
   repeated string argv = 1;
   map<string, string> env = 2;
@@ -136,6 +144,7 @@ message ExecutionConfig {
   repeated ImageMount image_mounts = 10;
   repeated DeclaredOutput declared_outputs = 11;
   RootfsSnapshot rootfs_snapshot = 12;
+  PrimaryUser primary_user = 13;
 }
 
 // AllocationLifecycleState tracks only placement and infrastructure cleanup.

@@ -63,7 +63,7 @@ test("Workspace CRUD keeps int64 values and mutations are not retried", async (t
       },
     });
     server.addService(RunControl.service, {
-      AdmitRun(call: grpc.ServerUnaryCall<Record<string, unknown>, unknown>, callback: grpc.sendUnaryData<unknown>) {
+      SubmitRun(call: grpc.ServerUnaryCall<Record<string, unknown>, unknown>, callback: grpc.sendUnaryData<unknown>) {
         runRequest = call.request;
         callback(null, { run: { id: "run-a" } });
       },
@@ -79,8 +79,12 @@ test("Workspace CRUD keeps int64 values and mutations are not retried", async (t
   assert.equal(listRequest.namespace, "team");
   assert.equal(listRequest.cursor, "current");
   assert.equal((await client.deleteWorkspace("ws-retained")).status, "deleting");
-  await client.createRun({ environmentId: "env-a", workspaceId: "ws-retained" });
+  await client.createRun({ environmentId: "env-a", workspaceId: "ws-retained", primaryUser: { uid: 1000, gid: 0 } });
   assert.equal(runRequest.workspace_id, "ws-retained");
+  const primaryUser = (runRequest.config as Record<string, unknown>).primary_user as Record<string, unknown>;
+  assert.equal(primaryUser.uid, 1000);
+  assert.equal(primaryUser.gid, 0);
+  await assert.rejects(() => client.createRun({ environmentId: "env-a", primaryUser: { uid: 2 ** 32 + 1000, gid: 0 } }));
   await assert.rejects(() => client.createWorkspace({ nodeId: "node-a", capacityBytes: 9007199254740993, inodeLimit: 64 }));
   await assert.rejects(() => client.createWorkspace({ nodeId: "node-a", capacityBytes: 513, inodeLimit: 64 }));
   assert.equal(createCalls, 1, "invalid capacity reached transport");
@@ -95,7 +99,7 @@ test("required Workspace admission cannot invoke an old CreateRun-only service",
   const RunControl = serviceConstructor(["axern", "control", "run", "v1", "RunControl"]);
   let legacyCalls = 0;
   const client = await transportClient(t, (server) => {
-    const admit = RunControl.service.AdmitRun;
+    const admit = RunControl.service.SubmitRun;
     server.addService({ CreateRun: { ...admit, path: "/axern.control.run.v1.RunControl/CreateRun" } }, {
       CreateRun(_call: unknown, callback: grpc.sendUnaryData<unknown>) {
         legacyCalls++;

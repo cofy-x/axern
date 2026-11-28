@@ -12,7 +12,7 @@ import (
 )
 
 type RunClient interface {
-	AdmitRun(context.Context, *runv1.CreateRunRequest, ...grpc.CallOption) (*runv1.CreateRunResponse, error)
+	SubmitRun(context.Context, *runv1.CreateRunRequest, ...grpc.CallOption) (*runv1.CreateRunResponse, error)
 	GetRun(context.Context, *runv1.GetRunRequest, ...grpc.CallOption) (*runv1.GetRunResponse, error)
 	WatchRun(context.Context, *runv1.WatchRunRequest, ...grpc.CallOption) (runv1.RunControl_WatchRunClient, error)
 	ListRuns(context.Context, *runv1.ListRunsRequest, ...grpc.CallOption) (*runv1.ListRunsResponse, error)
@@ -57,7 +57,7 @@ func (c Control) Create(ctx context.Context, params CreateParams) (*runv1.Create
 		}
 		environmentID = resolvedID
 	}
-	return c.client.AdmitRun(ctx, &runv1.CreateRunRequest{
+	return c.client.SubmitRun(ctx, &runv1.CreateRunRequest{
 		Namespace:     params.Namespace,
 		WorkspaceID:   params.WorkspaceID,
 		EnvironmentID: environmentID,

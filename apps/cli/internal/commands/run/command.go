@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -68,6 +70,7 @@ type createOptions struct {
 	argv, env, secretEnv, secretFile, imageMount, labels, extensionCapabilities                                                                                                []string
 	rootfsReadonly                                                                                                                                                             bool
 	rootfsSnapshot                                                                                                                                                             bool
+	primaryUser                                                                                                                                                                string
 	detach                                                                                                                                                                     bool
 	waitTimeout                                                                                                                                                                time.Duration
 }
@@ -227,6 +230,7 @@ func (o *createOptions) bind(cmd *cobra.Command) {
 	f.StringArrayVar(&o.secretFile, "secret-file", nil, "secret file mapping; may be repeated")
 	f.StringArrayVar(&o.imageMount, "image-mount", nil, "read-only image mount; may be repeated")
 	f.StringVar(&o.cwd, "cwd", "", "working directory")
+	f.StringVar(&o.primaryUser, "primary-user", "", "non-root primary process identity as UID:GID")
 	f.StringArrayVar(&o.extensionCapabilities, "extension-capability", nil, "exact-match extension <dns-domain>/<name>[=value]; may be repeated")
 	f.StringArrayVar(&o.labels, "label", nil, "label key=value; may be repeated")
 	f.StringVar(&o.environmentID, "environment", "", "existing environment id")
@@ -261,6 +265,9 @@ func (o createOptions) params(cmd *cobra.Command) (apprun.CreateParams, error) {
 	}
 	if o.environmentID != "" && (o.credentialID != "" || cmd.Flags().Changed("rootfs-readonly")) {
 		return apprun.CreateParams{}, fmt.Errorf("--registry-credential-id and --rootfs-readonly require an image")
+	}
+	if cmd.Flags().Changed("primary-user") && o.primaryUser == "" {
+		return apprun.CreateParams{}, fmt.Errorf("--primary-user requires a numeric UID:GID")
 	}
 	execution, err := executionConfig(o)
 	if err != nil {
@@ -299,6 +306,16 @@ func executionConfig(o createOptions) (*commonv1.ExecutionConfig, error) {
 		return nil, err
 	}
 	config := &commonv1.ExecutionConfig{Argv: o.argv, Env: env, SecretEnv: secretEnv, SecretFiles: secretFiles, ImageMounts: imageMounts, Cwd: o.cwd, ExtensionCapabilityRequirements: extensions, Resources: resources}
+	if o.primaryUser != "" {
+		uidText, gidText, ok := strings.Cut(o.primaryUser, ":")
+		uid, uidErr := strconv.ParseUint(uidText, 10, 32)
+		gid, gidErr := strconv.ParseUint(gidText, 10, 32)
+		if !ok || uidErr != nil || gidErr != nil || uid == 0 || uid == uint64(^uint32(0)) || gid == uint64(^uint32(0)) {
+			return nil, fmt.Errorf("--primary-user requires a nonzero Linux UID and an explicit Linux GID as UID:GID")
+		}
+		userUID, userGID := uint32(uid), uint32(gid)
+		config.PrimaryUser = &commonv1.PrimaryUser{Uid: &userUID, Gid: &userGID}
+	}
 	if o.rootfsSnapshot {
 		config.RootfsSnapshot = &commonv1.RootfsSnapshot{}
 	}
@@ -323,7 +340,7 @@ func environmentSpec(o createOptions) (*environmentv1.EnvironmentSpec, error) {
 	return value, nil
 }
 
-var runDefinitionFlags = []string{"namespace", "workspace", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
+var runDefinitionFlags = []string{"namespace", "workspace", "primary-user", "env", "secret-env", "secret-file", "image-mount", "cwd", "extension-capability", "label", "environment", "registry-credential-id", "rootfs-readonly", "snapshot-rootfs", "request-cpu", "request-memory", "request-ephemeral-storage", "limit-cpu", "limit-memory", "limit-ephemeral-storage"}
 
 func logsCommand(runtime command.Runtime) *cobra.Command {
 	var follow bool
