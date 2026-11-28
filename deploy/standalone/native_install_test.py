@@ -70,18 +70,19 @@ class ArchiveUpgradeTest(unittest.TestCase):
                 'schema': 'axern.native-runtime.v3', 'os': 'linux', 'architecture': 'amd64',
                 'version': installer.UPGRADE_VERSION, 'source_revision': revision, 'gvisor': 'same',
             }))
-        (self.etc / 'node.toml').write_text(installer.node_config(SETTINGS))
+        config = self.etc / 'node.toml'
+        config.write_text(installer.node_config(SETTINGS).replace('workspace_project_budget = 0\n', ''))
+        config.chmod(0o600)
         for name, contents in installer.service_units(self.source_root, SETTINGS).items():
             path = self.units / name
             path.write_text(contents)
             path.chmod(0o644)
 
     def test_upgrade_preserves_database_config_and_keys(self):
-        config_before = (self.etc / 'node.toml').read_bytes()
         installer.upgrade(self.source_root.name, self.backup)
         expected = {**self.original, 'archive_sha256': self.target_root.name, 'source_revision': 'e' * 40}
         self.assertEqual(installer.verify_installed(), expected)
-        self.assertEqual((self.etc / 'node.toml').read_bytes(), config_before)
+        self.assertEqual((self.etc / 'node.toml').read_text(), installer.node_config(SETTINGS))
         self.assertEqual((self.etc / 'private/canary').read_text(), 'unchanged')
         self.assertEqual((self.data / 'postgres/PG_VERSION').read_text(), '16\n')
         self.assertFalse(self.intent.exists())
@@ -135,6 +136,27 @@ class ArchiveUpgradeTest(unittest.TestCase):
 
 
 class InstallerTest(unittest.TestCase):
+    def test_node_restore_parks_previous_credentials_and_store_without_adopting_a_later_store(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            data = pathlib.Path(temporary)
+            store, identity = data / 'axnoded/store', data / 'axnoded/root/identity'
+            store.mkdir(parents=True)
+            identity.mkdir(parents=True)
+            (store / 'old-state').write_bytes(b'old state')
+            (identity / 'node.pem').write_bytes(b'old credential')
+            with mock.patch.object(installer, 'DATA', data):
+                for _ in range(2):
+                    installer.park_previous_node_facts('node-replacement')
+                archive = data / 'axnoded/pre-restore-node-replacement'
+                self.assertEqual((archive / 'store/old-state').read_bytes(), b'old state')
+                self.assertEqual((archive / 'identity/node.pem').read_bytes(), b'old credential')
+                self.assertFalse(identity.exists())
+                self.assertEqual(list(store.iterdir()), [])
+                (store / 'unexpected').write_bytes(b'preserve')
+                with self.assertRaisesRegex(installer.InstallError, 'facts conflict'):
+                    installer.park_previous_node_facts('node-replacement')
+                self.assertEqual((store / 'unexpected').read_bytes(), b'preserve')
+
     def test_completed_installation_never_initializes_missing_data(self):
         checksum = 'a' * 64
         with tempfile.TemporaryDirectory() as temporary:

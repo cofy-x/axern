@@ -7,7 +7,6 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/allocation"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/service/rootfssnapshot"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/workspace"
-	"path/filepath"
 )
 
 func (h *sandboxService) configureAllocationController() {
@@ -43,8 +42,7 @@ func (h *sandboxService) allocationOptions() allocation.Options {
 
 func (h *sandboxService) workspaceStore() *workspace.Manager {
 	h.workspaceOnce.Do(func() {
-		c := h.config.PluginConfig.RuntimeConfig
-		h.workspaces = workspace.New(workspace.Options{Root: c.WorkspaceRoot, MetadataRoot: filepath.Join(h.config.RootDir, "workspace-owners"), NodeID: h.config.ControlPlaneNodeID, Capacity: c.WorkspaceCapacityBytes, Inodes: c.WorkspaceInodeCapacity, ProjectBudget: c.WorkspaceProjectBudget, FilestoreRoot: c.FilestoreDir, FilestoreReserve: c.FilestoreSystemReserveBytes})
+		h.workspaces = workspace.NewFromConfig(h.config)
 	})
 	return h.workspaces
 }

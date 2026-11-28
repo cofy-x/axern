@@ -238,11 +238,7 @@ func (m *Manager) Provision(spec Spec) (Observation, error) {
 	if err := m.os.sync(dir); err != nil {
 		return Observation{}, err
 	}
-	current.Identity = fingerprint(struct {
-		Spec    Spec
-		Inode   uint64
-		Project uint32
-	}{current.Spec, current.Directory.Inode, current.Project})
+	current.Identity = ownerStorageIdentity(current.Spec, current.Directory.Inode, current.Project)
 	current.State = "ready"
 	if err := m.writeOwner(current); err != nil {
 		return Observation{}, err
@@ -773,6 +769,14 @@ func fingerprint(value any) string {
 	data, _ := json.Marshal(value)
 	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:])
+}
+
+func ownerStorageIdentity(spec Spec, inode uint64, project uint32) string {
+	return fingerprint(struct {
+		Spec    Spec
+		Inode   uint64
+		Project uint32
+	}{spec, inode, project})
 }
 
 func rootFingerprint(inode uint64, filesystem, epoch string) string {

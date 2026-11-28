@@ -1,6 +1,6 @@
 # Native Linux Installation
 
-The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. An experimental [cold archive transition](#qualify-an-experimental-archive-transition) exercises one compatible source-built archive boundary. Released version upgrades and replacement-host restore remain unqualified. Experimental Workspaces require the explicit XFS quota settings below.
+The native installer provisions one experimental Axern installation on a dedicated Ubuntu 24.04 host using systemd and gVisor. It consumes a verified native runtime archive and needs no source checkout, language compiler, Docker or Kubernetes on the target host. It supports fresh installation, resuming the same installation configuration, start/stop, status and explicit service-certificate renewal. The experimental [cold archive transition](#qualify-an-experimental-archive-transition) covers one compatible source-built archive boundary. The [replacement Node procedure](#qualify-a-replacement-node) covers a cold block-image backup made with the same archive. Experimental Workspaces require the explicit XFS quota settings below.
 
 ## Host Prerequisites
 
@@ -149,6 +149,23 @@ sudo /opt/axern/releases/TARGET_ARCHIVE_SHA256/bin/axern server start
 ```
 
 The transition applies the candidate's database migrations over a private PostgreSQL Unix socket while the native services remain fenced. It then replaces the owned service definitions as a unit and preserves Workspace bytes, existing configuration and keys. An interrupted transition blocks service startup. Resume with the same target archive, source digest and receipt after PostgreSQL is stopped. After the transition, rollback requires restoring the whole verified cold backup with the newer installation fenced. Recovery and normal execution still require a new Allocation after a full stop.
+
+## Qualify A Replacement Node
+
+Use a verified cold backup made on the same source-built archive as the replacement. Restore the complete system and data images to an isolated host with the original XFS filesystem identity and project quotas intact. Keep the original host powered off and externally fenced before restoring. The replacement uses a new explicit Node ID and new enrollment credentials. Historical archives first use the separately qualified archive transition while services remain disabled.
+
+With the restored services stopped and automatic startup disabled, invoke the restored archive's root maintenance helper using the matching [private backup receipt](#qualify-an-experimental-archive-transition). The operator confirms the external fence. The helper also checks the cold database and runtime, requires fully drained Runs and Workspaces, and requires every retained directory to match its recorded identity and quota.
+
+```bash
+sudo python3 -I /opt/axern/releases/ARCHIVE_SHA256/libexec/axern/native_install.py \
+  replace-node --from-node ORIGINAL_NODE --to-node REPLACEMENT_NODE \
+  --backup-receipt /absolute/private/path/backup-receipt.json --source-fenced
+sudo /opt/axern/releases/ARCHIVE_SHA256/bin/axern server start
+```
+
+The control transaction revokes the previous Node and records the replacement and retained Workspace mappings. The prior local execution facts and Node key are parked privately. Workspace IDs and generation floors stay intact, while each Workspace gets a storage identity bound to the replacement Node. Start the new Node and confirm its new credential, a new Run and Allocation, retained content and quota, and rejection of the old Node and Allocation authorities.
+
+If the operation is interrupted, stop PostgreSQL or reboot the isolated host with startup still disabled, then retry the same Nodes and backup receipt. Restart and rollback continue to require that only one installation can serve. The qualification covers a verified block-image restore and a fully drained installation. A different XFS identity, ambiguous retained data or an unresolved writer fails closed.
 
 Qualify a complete archive on a disposable fresh installation with the opt-in [memory, storage and network acceptance matrix](QUALIFICATION.md). Serving readiness alone does not run or replace that matrix.
 
