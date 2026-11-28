@@ -11,6 +11,8 @@ import (
 	apipb "github.com/cofy-x/axern/runtime/axnoded/internal/apipb/v1"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/runtimetest"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/sandboxd/wire"
+	commonv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/common/v1"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -49,7 +51,7 @@ func TestTaskRecoveryReadsPersistedPolicyBeforeAllocationRestore(t *testing.T) {
 				record := &apipb.AllocationState{AllocationID: "allocation", NodeID: "node-a", AllocationRequestDigest: "sha256:" + strings.Repeat("a", 64), ExecutionLeaseExpiresAtUnixNano: time.Now().Add(time.Minute).UnixNano(), EnforcementManifest: want, GuestProcessProfileVerified: true}
 				require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, "allocation", record))
 				require.Nil(t, service.allocations.VerifiedEnforcementManifest("allocation"), "in-memory allocation restoration has not happened")
-				err := service.verifyRecoveredTaskLimits(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: contract.ContainerStatusRunning}})
+				err := service.verifyRecoveredExecutionControls(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: contract.ContainerStatusRunning}}, map[string]*commonv1.ResourceSpec{"allocation": nil})
 				if fail {
 					require.ErrorIs(t, err, verificationErr)
 				} else {
@@ -73,7 +75,7 @@ func TestTaskRecoveryRejectsUnknownLiveStateAndSkipsTerminal(t *testing.T) {
 			}}
 			service := newTestService(t, handler)
 			service.config.RuntimeConfig.GuestTaskLimit = 256
-			err := service.verifyRecoveredTaskLimits(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: status}})
+			err := service.verifyRecoveredExecutionControls(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: status}}, map[string]*commonv1.ResourceSpec{"allocation": nil})
 			if status == contract.ContainerStatusUnknown {
 				require.ErrorContains(t, err, "uncertain runtime state")
 			} else {
@@ -93,10 +95,63 @@ func TestTaskRecoveryRequiresObservedGuestReadyAndPreservesUnconfirmedRecord(t *
 			service := newTestService(t, handler)
 			record := &apipb.AllocationState{AllocationID: "allocation", NodeID: "node-a", EnforcementManifest: &apipb.AllocationEnforcementManifest{BundlePath: "/containers/allocation", CreatedAtUnixNano: 1}}
 			require.NoError(t, service.store.PutRecord(config.AllocationStateBucket, "allocation", record))
-			require.ErrorContains(t, service.verifyRecoveredTaskLimits(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: status}}), "no observed guest process profile")
+			require.ErrorContains(t, service.verifyRecoveredExecutionControls(t.Context(), runtimeInventory{"allocation": {ID: "allocation", Status: status}}, map[string]*commonv1.ResourceSpec{"allocation": nil}), "no observed guest process profile")
 			var after apipb.AllocationState
 			require.NoError(t, service.store.GetRecord(config.AllocationStateBucket, "allocation", &after))
 			require.True(t, proto.Equal(record, &after), "recovery must retain unconfirmed ownership without upgrading it")
 		})
 	}
+}
+
+type driftedCPURuntime struct {
+	contract.SandboxRuntime
+	observed *apipb.LinuxContainerResources
+}
+
+func (*driftedCPURuntime) HostRequirements() contract.HostRequirements {
+	return contract.HostRequirements{NeedsCgroup: true}
+}
+
+func (r *driftedCPURuntime) VerifyAllocationCPUControls(_ context.Context, _ string, _ *apipb.AllocationEnforcementManifest, expected *apipb.LinuxContainerResources) contract.CapabilityVerification {
+	r.observed = expected
+	return contract.LostCapability(errors.New("kernel quota changed"))
+}
+
+func TestCPUDriftFailsClosedDuringRecoveryAndLiveAudit(t *testing.T) {
+	const id = "allocation-cpu"
+	manifest := &apipb.AllocationEnforcementManifest{BundlePath: "/fake/" + id, CreatedAtUnixNano: 1, ProcessSecurityProfile: wire.ProcessSecurityProfile}
+	admitted := &commonv1.ResourceSpec{
+		Requests: &commonv1.ResourceQuantity{CpuMilli: 250},
+		Limits:   &commonv1.ResourceQuantity{CpuMilli: 500},
+	}
+	handler := &driftedCPURuntime{SandboxRuntime: runtimetest.NewFakeSandboxRuntime()}
+	service := newTestService(t, handler)
+	require.NoError(t, service.allocations.StoreAllocationIntent(id, "node-a", "sha256:"+strings.Repeat("a", 64), time.Now().Add(time.Minute), admitted, nil, nil, nil, nil))
+	require.NoError(t, service.allocations.StoreVerifiedEnforcementManifest(id, manifest, nil, time.Now()))
+	require.NoError(t, service.allocations.StoreGuestProcessProfileVerified(id, manifest))
+	require.Contains(t, service.allocations.CapabilityRequirementManifests(), id)
+	service.containerManager.StoreMetadata(id, &apipb.ContainerMetadata{})
+	markTestContainerRunning(t, service, id)
+
+	inventory := runtimeInventory{id: {ID: id, Status: contract.ContainerStatusPaused}}
+	require.ErrorContains(t, service.verifyRecoveredExecutionControls(t.Context(), inventory, nil), "missing admitted CPU resource authority")
+	require.Nil(t, handler.observed)
+	records, err := service.allocations.InspectRecoveryRecords()
+	require.NoError(t, err)
+	require.ErrorContains(t, service.verifyRecoveredExecutionControls(t.Context(), inventory, records.Resources), "kernel quota changed")
+	require.EqualValues(t, 256, handler.observed.GetCpuShares())
+	require.EqualValues(t, 50000, handler.observed.GetCpuQuota())
+	require.EqualValues(t, 100000, handler.observed.GetCpuPeriod())
+
+	// Model the periodic worker already owning this ID. Check the durable
+	// fail-stop before its subsequent asynchronous termination and cleanup.
+	require.True(t, service.acquireCapabilityReconcileWorker(id))
+	defer service.finishCapabilityReconcileWorker(id)
+	handler.observed = nil
+	_, _, err = service.ReconcileAllocationCapabilities(t.Context(), id)
+	require.NoError(t, err)
+	require.EqualValues(t, 50000, handler.observed.GetCpuQuota())
+	code, reason := service.allocations.TerminationIntent(id)
+	require.Equal(t, commonv1.WorkloadDiagnosticCode_WORKLOAD_DIAGNOSTIC_CODE_CAPABILITY_ENFORCEMENT_LOST, code)
+	require.Contains(t, reason, "admitted CPU controls")
 }

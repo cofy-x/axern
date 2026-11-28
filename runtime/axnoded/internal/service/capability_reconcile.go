@@ -17,6 +17,7 @@ import (
 	"github.com/cofy-x/axern/runtime/axnoded/internal/nodecapability"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/observability/metrics"
 	"github.com/cofy-x/axern/runtime/axnoded/internal/runtime/contract"
+	"github.com/cofy-x/axern/runtime/axnoded/internal/service/startplan"
 	"github.com/cofy-x/axern/runtime/axnoded/pkg/errord"
 	capabilityv1 "github.com/cofy-x/axern/sdk/go/gen/axern/control/capability/v1"
 	"github.com/sirupsen/logrus"
@@ -182,7 +183,8 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 			h.startPendingCapabilityReconcileWorkers()
 			currentAuditShard := auditShard
 			auditShard = nextCapabilityAuditShard(auditShard)
-			if h.capabilityManager.Snapshot() == nil {
+			auditCPU := h.runscHandler.HostRequirements().NeedsCgroup
+			if !auditCPU && h.capabilityManager.Snapshot() == nil {
 				continue
 			}
 			for allocationID, dependencies := range h.allocationController().CapabilityRequirementManifests() {
@@ -193,7 +195,7 @@ func (h *sandboxService) startPeriodicCapabilityAudit() {
 					continue
 				}
 				keys := periodicCapabilityAuditKeys(dependencies)
-				if len(keys) == 0 {
+				if !auditCPU && len(keys) == 0 {
 					continue
 				}
 				if err := h.allocationController().MergeCapabilityReconcile(allocationID); err != nil {
@@ -536,7 +538,8 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 	// Start owns admission through activation. Requirements alone do not make
 	// its preactivation intent a running enforcement subject. Recovery already
 	// rejects a live execution without this immutable launch barrier.
-	if controller.VerifiedEnforcementManifest(allocationID) == nil {
+	manifest := controller.VerifiedEnforcementManifest(allocationID)
+	if manifest == nil {
 		if ct, err := h.containerManager.Get(allocationID); err == nil && ct != nil && !h.allocationRuntimeStopped(allocationID) {
 			return nil, nil, fmt.Errorf("allocation runtime exists without launch verification: %w", errord.ErrFailedPrecondition)
 		}
@@ -547,6 +550,25 @@ func (h *sandboxService) ReconcileAllocationCapabilities(ctx context.Context, al
 	}
 	if code, _ := controller.TerminationIntent(allocationID); code != 0 {
 		return nil, nil, nil
+	}
+	if h.runscHandler.HostRequirements().NeedsCgroup {
+		expected := startplan.ResourcesToLinux(controller.ResourceSpec(allocationID))
+		result, err := verifyCapabilityWithDelays(ctx, inconclusiveVerificationDelays, func() contract.CapabilityVerification {
+			return h.runscHandler.VerifyAllocationCPUControls(ctx, allocationID, manifest, expected)
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if h.allocationRuntimeStopped(allocationID) {
+			return nil, nil, nil
+		}
+		if result.State != contract.CapabilityVerificationVerified {
+			if err := controller.BeginCapabilityTerminationWithLifecycleHeld(allocationID, errors.New("admitted CPU controls could not be verified")); err != nil {
+				return nil, nil, fmt.Errorf("persist CPU enforcement loss: %w", err)
+			}
+			h.startCapabilityReconcileWorker(allocationID)
+			return nil, nil, nil
+		}
 	}
 	dependencies := controller.CapabilityRequirements(allocationID)
 	if len(dependencies) == 0 {

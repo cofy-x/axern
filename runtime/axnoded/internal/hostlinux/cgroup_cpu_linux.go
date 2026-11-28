@@ -44,7 +44,7 @@ func verifyCgroupCPUControlsDir(dir string, resource *runtimeapi.LinuxContainerR
 			return fmt.Errorf("CPU weight readback mismatch: got=%d want=%d", got, want)
 		}
 	}
-	if period := resource.GetCpuPeriod(); period > 0 {
+	if period := resource.GetCpuPeriod(); period > 0 || resource.GetCpuShares() > 0 {
 		data, err := os.ReadFile(filepath.Join(dir, "cpu.max"))
 		if err != nil {
 			return fmt.Errorf("read cgroup v2 cpu.max: %w", err)
@@ -61,8 +61,11 @@ func verifyCgroupCPUControlsDir(dir string, resource *runtimeapi.LinuxContainerR
 		if quota := resource.GetCpuQuota(); quota > 0 {
 			wantQuota = strconv.FormatInt(quota, 10)
 		}
-		if fields[0] != wantQuota || gotPeriod != period {
-			return fmt.Errorf("CPU quota/period readback mismatch: got=%s want=%s %d", strings.TrimSpace(string(data)), wantQuota, period)
+		if gotPeriod == 0 || (period > 0 && gotPeriod != period) {
+			return fmt.Errorf("CPU period readback mismatch: got=%d admitted period=%d", gotPeriod, period)
+		}
+		if fields[0] != wantQuota {
+			return fmt.Errorf("CPU quota readback mismatch: got=%s want=%s", fields[0], wantQuota)
 		}
 	}
 	return nil

@@ -32,6 +32,10 @@ func (f *FakeSandboxRuntime) VerifyAllocationTaskLimits(context.Context, string,
 	return nil
 }
 
+func (f *FakeSandboxRuntime) VerifyAllocationCPUControls(context.Context, string, *apipb.AllocationEnforcementManifest, *apipb.LinuxContainerResources) contract.CapabilityVerification {
+	return contract.VerifiedCapability()
+}
+
 func (f *FakeSandboxRuntime) HostRequirements() contract.HostRequirements {
 	return f.Requirements
 }

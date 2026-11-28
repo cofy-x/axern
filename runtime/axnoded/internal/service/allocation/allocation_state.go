@@ -98,6 +98,7 @@ func (h *Controller) ResolvedEnvironmentID(allocationID string) string {
 type RecoveryRecords struct {
 	Intents             map[string]struct{}
 	EnforcementVerified map[string]struct{}
+	Resources           map[string]*commonv1.ResourceSpec
 }
 
 // InspectRecoveryRecords validates durable create intents without acquiring
@@ -108,6 +109,7 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 	result := RecoveryRecords{
 		Intents:             make(map[string]struct{}),
 		EnforcementVerified: make(map[string]struct{}),
+		Resources:           make(map[string]*commonv1.ResourceSpec),
 	}
 	if h == nil || h.store == nil {
 		return result, nil
@@ -129,6 +131,7 @@ func (h *Controller) InspectRecoveryRecords() (RecoveryRecords, error) {
 			return fmt.Errorf("allocation state %s has no admitted node", key)
 		}
 		result.Intents[key] = struct{}{}
+		result.Resources[key] = record.GetResources()
 		if enforcementVerified {
 			result.EnforcementVerified[key] = struct{}{}
 		}
@@ -412,7 +415,7 @@ func (h *Controller) CapabilityRequirementManifests() map[string][]*capabilityv1
 	h.stateMu.RLock()
 	defer h.stateMu.RUnlock()
 	for allocationID, state := range h.allocationStates {
-		if state != nil && state.record.GetEnforcementManifest() != nil && len(state.record.GetCapabilityRequirements()) > 0 {
+		if state != nil && state.record.GetEnforcementManifest() != nil {
 			result[allocationID] = cloneCapabilityRequirements(state.record.GetCapabilityRequirements())
 		}
 	}
