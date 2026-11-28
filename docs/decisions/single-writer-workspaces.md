@@ -64,7 +64,7 @@ An unavailable disk does not acknowledge deletion. Administrative force-forget, 
 
 ## Cold Backup And Restore Boundary
 
-Persistent APIs must not be advertised as durable until a consistent cold backup and isolated restore have passed. Rebuilding an initialized database or node state is not an upgrade or recovery procedure for retained work. Until a supported versioned maintenance contract exists, the persistent feature remains experimental and must reject incompatible metadata without altering retained data.
+Managed Workspaces remain experimental. The [native installation guide](../../deploy/standalone/INSTALL.md#published-native-previews) defines the qualified cold upgrade pair and the procedure for restoring a stopped installation. Incompatible metadata must be rejected before retained data changes.
 
 The cold backup boundary requires admission to be disabled and all workload, attachment, lifecycle and deletion operations to be drained or explicitly accounted as unresolved. No writer may remain active. Stop services through the managed lifecycle, synchronize data, and preserve the following set under one named installation/version boundary:
 
@@ -78,9 +78,9 @@ The cold backup boundary requires admission to be disabled and all workload, att
 
 A database dump and an unrelated live directory copy are not this backup. Restore requires fencing the previous installation before granting any writer, verifying the complete set and quota metadata on an isolated host, and rejecting missing or conflicting parts. A reboot or restored lease record cannot revive old authority. New work must use a new Run/Allocation with explicitly established valid Node authority and the original immutable execution inputs. Recovery must demonstrate successful use of retained files and explicit failure for absent images, unavailable data or invalid keys; readable files alone do not prove restoration.
 
-Ordinary attach and runtime recovery cannot change a Workspace's host or filesystem binding. Restoring copied bytes requires a separate, explicit administrative restore protocol: validate the backup manifest, fence the previous installation, invalidate restored execution/attachment authority, and verify the restored bytes and effective quota before committing the intended storage-identity mapping. Changed directory identities or filesystem UUIDs are accepted only by that controlled restore operation, never by a normal missing-directory fallback. A replacement host receives a new Node ID and credentials; copying the former host's recovery files or node key does not admit that identity on a different host.
+Ordinary attach and runtime recovery preserve a Workspace's host and filesystem binding. The [administrative replacement procedure](../../deploy/standalone/INSTALL.md#qualify-a-replacement-node) uses an externally fenced source and an isolated block-image restore on the same archive. The XFS filesystem identity, retained directory identities and effective project quotas must match the backup. The replacement receives a fresh Node ID and enrollment credentials.
 
-The restore transaction must record the legitimate old-to-new Node and storage mapping and establish fresh attachment authority before admission resumes. Old Allocation IDs remain terminal, and stale commands cannot act on the restored data. The exact restore manifest, administrative transaction, authority invalidation and version compatibility must be implemented and qualified together. Until that protocol passes an isolated restore, this decision does not promise replacement-host recovery or durable Workspace availability.
+The restore transaction revokes the original Node and commits the verified storage mappings before admission resumes. Each retained Workspace keeps its ID and writer generation. New work receives fresh Run and Allocation identities. A missing directory, changed filesystem identity or unresolved writer blocks the operation.
 
 ## Coordinated Implementation And Qualification
 

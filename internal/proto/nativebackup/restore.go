@@ -62,7 +62,7 @@ func (plan Plan) Validate(mapped bool) error {
 		!nodeName.MatchString(plan.OldNode) || !nodeName.MatchString(plan.NewNode) {
 		return errors.New("native restore requires distinct valid Node identities")
 	}
-	if len(plan.Workspaces) == 0 {
+	if plan.Workspaces == nil {
 		return errors.New("native restore requires an explicit retained Workspace inventory")
 	}
 	var previous string
